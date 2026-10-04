@@ -154,8 +154,8 @@ No memory mapping of PS2 address ranges is introduced on any platform.
   at run time; Homebrew prefix for SDL3, Vulkan and glslang).
 - `port/CMakeLists.txt` split per platform: the merge-and-weaken step
   (`ld -r` + `llvm-objcopy --weaken` or `tools/weaken`), link flags
-  (`-dead_strip`, `-alias` for `ItemPutListTbl12_bytes`, `draw_rect`,
-  `WorkBuffer__2`, `EditGaijiTbl`), `-pagezero_size`, no `-no-pie`, the
+  (`-dead_strip`, `-alias` for `draw_rect`, `WorkBuffer__2`,
+  `EditGaijiTbl`), `-pagezero_size`, no `-no-pie`, the
   interposition substitute, `-ffp-contract=off` for `ps2/src`.
 - `tools/weaken` (C++26, std only): reads a Mach-O object, sets `N_WEAK_DEF`
   on every defined external symbol, writes it back; with a unit test on a

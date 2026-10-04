@@ -228,17 +228,17 @@ endif()
 # the link flags they need. The executable is position-independent on every
 # platform: the game's casts of pointers to 32-bit integers are all widened in
 # port/src (docs/port/truncations.md), so nothing has to sit below 4 GiB.
-# ItemPutListTbl12_bytes is a second name for the table, as the PS2 build gives
-# it through object_fixups.json; draw_rect and WorkBuffer__2 are second names
-# the same way. port/src/linknames.cpp defines the names that are not aliases,
-# EditGaijiTbl among them.
+# draw_rect and WorkBuffer__2 are second names for existing storage, as the PS2
+# build gives them through object_fixups.json. port/src/linknames.cpp defines
+# the names that are not aliases, EditGaijiTbl among them. ItemPutListTbl12_bytes
+# is not one: port/include/stubs/dngstatusdata.hpp turns GetItem's read through
+# it into a WeaponList lookup.
 if(APPLE)
-    set(DC_LINK_OPTIONS -Wl,-dead_strip -Wl,-alias,_ItemPutListTbl12,_ItemPutListTbl12_bytes
-        -Wl,-alias,_draw_rect_store,_draw_rect -Wl,-alias,_WorkBuffer,_WorkBuffer__2)
+    set(DC_LINK_OPTIONS -Wl,-dead_strip -Wl,-alias,_draw_rect_store,_draw_rect
+        -Wl,-alias,_WorkBuffer,_WorkBuffer__2)
 else()
     set(DC_LINK_OPTIONS -fuse-ld=lld -pie -Wl,-z,separate-code -Wl,--gc-sections -Wl,--error-limit=0
-        -Wl,--defsym=ItemPutListTbl12_bytes=ItemPutListTbl12 -Wl,--defsym=draw_rect=draw_rect_store
-        -Wl,--defsym=WorkBuffer__2=WorkBuffer)
+        -Wl,--defsym=draw_rect=draw_rect_store -Wl,--defsym=WorkBuffer__2=WorkBuffer)
 endif()
 
 function(dc_link_game target)

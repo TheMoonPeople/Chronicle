@@ -1066,8 +1066,10 @@ linker script rather than through the source. The port reproduces each:
   `MAP_NPC_MODEL::operator=`: weak definitions and forwarders in
   `port/src/linknames.cpp`.
 - **Aliases**, by `--defsym` (ld64's `-alias` on macOS) in
-  `port/CMakeLists.txt`: `ItemPutListTbl12_bytes` = `ItemPutListTbl12`,
-  `draw_rect` = `draw_rect_store` and `WorkBuffer__2` = `WorkBuffer`.
+  `port/CMakeLists.txt`: `draw_rect` = `draw_rect_store` and
+  `WorkBuffer__2` = `WorkBuffer`. `ItemPutListTbl12_bytes` is not an alias:
+  `port/include/stubs/dngstatusdata.hpp` turns `GetItem`'s folded PS2 byte
+  index into a typed `WeaponList` owner lookup.
   `EditGaijiTbl` is `GaijiDataTbl + 0x601C` on the PS2 link. The linker
   script places it inside `EditPartsData`, but the codes `clsmes.cpp`
   indexes it with (-0x300 and up) only ever land on the last word of a

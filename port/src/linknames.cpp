@@ -2,8 +2,8 @@
 // and the linker script). MWCC pools string literals and the PS2 build binds a unit's extern name
 // to another unit's pooled literal or to a differently typed copy of a function; clang has no such
 // pool, so each name gets its own definition here. Weak, so a replacement unit that takes one of
-// these over needs no change here. Pure aliases of existing storage (draw_rect, WorkBuffer__2,
-// ItemPutListTbl12_bytes) are linker aliases in port/CMakeLists.txt instead.
+// these over needs no change here. Pure aliases of existing storage (draw_rect, WorkBuffer__2)
+// are linker aliases in port/CMakeLists.txt instead.
 
 #include <algorithm>
 #include <cstring>
