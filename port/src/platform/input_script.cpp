@@ -6,6 +6,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "paths.hpp"
+
 namespace {
 
 struct ButtonName {
@@ -174,13 +176,13 @@ bool InputScriptParse(std::string_view text, InputScript &script, std::string &e
 bool InputScriptLoad(const std::filesystem::path &path, InputScript &script, std::string &error) {
     std::ifstream file(path);
     if (!file) {
-        error = "cannot read " + path.string();
+        error = "cannot read " + PathsDisplay(path);
         return false;
     }
     std::stringstream text;
     text << file.rdbuf();
     if (!InputScriptParse(text.str(), script, error)) {
-        error = path.string() + ": " + error;
+        error = PathsDisplay(path) + ": " + error;
         return false;
     }
     return true;

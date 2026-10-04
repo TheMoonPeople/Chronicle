@@ -43,21 +43,23 @@ TEST(DataExtract, IsoReadsRootDirectory) {
     Disc     disc = StandardDisc();
     fs::path iso = WriteStandardIso(dir, disc);
 
-    dcdata::Iso9660               volume(iso);
-    std::vector<dcdata::IsoEntry> entries = volume.List(volume.Root());
-    ASSERT_TRUE(entries.size() == 2);
-    ASSERT_TRUE(entries[0].name == "DATA.DAT;1" && entries[0].extent == 20);
-    ASSERT_TRUE(entries[0].size == disc.dat.size());
-    ASSERT_TRUE(entries[1].name == "Data.Hd2;1" && entries[1].size == disc.hd2.size());
-    ASSERT_TRUE(volume.Find(volume.Root(), "data.hd2").has_value());
-    ASSERT_TRUE(!volume.Find(volume.Root(), "DATA.HED").has_value());
-    ASSERT_TRUE(dcdata::Iso9660::StripVersion("SLES_123.45;1") == "SLES_123.45");
-    ASSERT_TRUE(dcdata::Iso9660::StripVersion("NOEXT.;1") == "NOEXT");
+    {
+        dcdata::Iso9660               volume(iso);
+        std::vector<dcdata::IsoEntry> entries = volume.List(volume.Root());
+        ASSERT_TRUE(entries.size() == 2);
+        ASSERT_TRUE(entries[0].name == "DATA.DAT;1" && entries[0].extent == 20);
+        ASSERT_TRUE(entries[0].size == disc.dat.size());
+        ASSERT_TRUE(entries[1].name == "Data.Hd2;1" && entries[1].size == disc.hd2.size());
+        ASSERT_TRUE(volume.Find(volume.Root(), "data.hd2").has_value());
+        ASSERT_TRUE(!volume.Find(volume.Root(), "DATA.HED").has_value());
+        ASSERT_TRUE(dcdata::Iso9660::StripVersion("SLES_123.45;1") == "SLES_123.45");
+        ASSERT_TRUE(dcdata::Iso9660::StripVersion("NOEXT.;1") == "NOEXT");
 
-    dcdata::Archive archive = dcdata::OpenArchive(iso);
-    ASSERT_TRUE(archive.image);
-    ASSERT_TRUE(archive.dat.offset == 20 * dcdata::kSector && archive.dat.size == disc.dat.size());
-    ASSERT_TRUE(dcdata::ReadExtent(archive.hd2) == disc.hd2);
+        dcdata::Archive archive = dcdata::OpenArchive(iso);
+        ASSERT_TRUE(archive.image);
+        ASSERT_TRUE(archive.dat.offset == 20 * dcdata::kSector && archive.dat.size == disc.dat.size());
+        ASSERT_TRUE(dcdata::ReadExtent(archive.hd2) == disc.hd2);
+    }
     fs::remove_all(dir);
 }
 

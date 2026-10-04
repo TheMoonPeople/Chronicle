@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "context.hpp"
+#include "platform/paths.hpp"
 #include "shaders/draw.frag.spv.hpp"
 #include "shaders/draw2d.vert.spv.hpp"
 #include "shaders/mesh.vert.spv.hpp"
@@ -212,13 +213,13 @@ void SaveCache(const std::filesystem::path &path) {
         std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
         if (!file ||
             !file.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(size))) {
-            Error("cannot write the pipeline cache to %s", temporary.c_str());
+            Error("cannot write the pipeline cache to %s", PathsDisplay(temporary).c_str());
             return;
         }
     }
     std::filesystem::rename(temporary, path, error);
     if (error) {
-        Error("cannot write the pipeline cache to %s: %s", path.c_str(), error.message().c_str());
+        Error("cannot write the pipeline cache to %s: %s", PathsDisplay(path).c_str(), error.message().c_str());
         std::filesystem::remove(temporary, error);
     }
 }

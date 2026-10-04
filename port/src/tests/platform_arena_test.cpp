@@ -1,6 +1,4 @@
 #include <gtest/gtest.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include <csignal>
 #include <cstdint>
@@ -10,6 +8,7 @@
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "platform/memory.hpp"
+#include "platform_fixture.hpp"
 
 extern CDataAlloc<1, 6000> SystemMesBuffer;
 
@@ -17,20 +16,6 @@ namespace {
 
 bool Aligned64(const void *pointer) {
     return (reinterpret_cast<std::uintptr_t>(pointer) & 63) == 0;
-}
-
-// Runs body in a child process and returns the signal that ended it, or 0.
-template <class F>
-int SignalOf(F body) {
-    std::fflush(stdout);
-    pid_t child = fork();
-    if (child == 0) {
-        body();
-        std::_Exit(0);
-    }
-    int status = 0;
-    waitpid(child, &status, 0);
-    return WIFSIGNALED(status) ? WTERMSIG(status) : 0;
 }
 
 } // namespace
@@ -82,13 +67,12 @@ TEST(PlatformArena, ReusesAndZeroes) {
 TEST(PlatformArena, OverflowAborts) {
     InitializeDataBuffer();
     SetDataBuffer(&VisualData, 100);
-    ASSERT_TRUE(SignalOf([] { VisualData.Alloc(401); }) == SIGABRT);
-    ASSERT_TRUE(SignalOf([] { VisualData.Alloc64(400); }) == SIGABRT);
-    ASSERT_TRUE(SignalOf([] { VisualData.Alloc(400); }) == 0);
+    DC_ASSERT_ABORT([] { VisualData.Alloc(401); });
+    DC_ASSERT_ABORT([] { VisualData.Alloc64(400); });
+    DC_ASSERT_EXIT([] { VisualData.Alloc(400); }, 0);
     // An overrun that skips the allocator runs into the guard page behind the block.
-    int guard = SignalOf([] { VisualData.base[VisualData.limit * 16] = 1; });
-    ASSERT_TRUE(guard == SIGSEGV || guard == SIGBUS);
-    ASSERT_TRUE(SignalOf([] { SystemMesBuffer.Alloc(6001); }) == SIGABRT);
+    DC_ASSERT_FAULT([] { VisualData.base[VisualData.limit * 16] = 1; });
+    DC_ASSERT_ABORT([] { SystemMesBuffer.Alloc(6001); });
 }
 
 TEST(PlatformArena, ModeBuffers) {

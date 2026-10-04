@@ -154,7 +154,7 @@ void RequireData() {
         std::fprintf(stderr,
                      "no game data: %s %s; extract the disc with `dcdata extract <disc image> %s` "
                      "or pass --data <dir>\n",
-                     root.c_str(), why, root.c_str());
+                     PathsDisplay(root).c_str(), why, PathsDisplay(root).c_str());
         std::exit(kExitNoData);
     }
 }
@@ -168,15 +168,25 @@ void PumpHost() {
 }
 
 void LoadInputScript(const char *path) {
+#ifdef _WIN32
+    std::string environment;
+#endif
     if (path == nullptr) {
+#ifdef _WIN32
+        if (const wchar_t *value = ::_wgetenv(L"DC_INPUT")) {
+            environment = PathsDisplay(fs::path(value));
+            path = environment.c_str();
+        }
+#else
         path = std::getenv("DC_INPUT");
+#endif
     }
     if (path == nullptr || *path == '\0') {
         return;
     }
     InputScript script;
     std::string error;
-    if (!InputScriptLoad(path, script, error)) {
+    if (!InputScriptLoad(PathsFromUtf8(path), script, error)) {
         std::fprintf(stderr, "bad input script: %s\n", error.c_str());
         std::exit(kExitUsage);
     }
@@ -240,16 +250,14 @@ int Screenshot(const char *path) {
     std::vector<uint8_t> pixels;
     uint32_t             width = 0;
     uint32_t             height = 0;
-    if (!GameScreenshot(pixels, width, height) || !gfx::WritePng(path, pixels.data(), width, height)) {
+    if (!GameScreenshot(pixels, width, height) || !gfx::WritePng(PathsFromUtf8(path), pixels.data(), width, height)) {
         std::fprintf(stderr, "cannot write the screenshot to %s\n", path);
         return kExitFailure;
     }
     return kExitOk;
 }
 
-} // namespace
-
-PC_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+int Run(int argc, const char **argv) {
     argc = PathsConsumeArgs(argc, argv);
     Options options = ParseOptions(argc, argv);
     FirstRunIfNoData(options.headless);
@@ -312,6 +320,12 @@ PC_OVERRIDE int main(int argc, const char **argv, const char **envp) {
     gfx::RendererShutdown();
     WindowShutdown();
     return status;
+}
+
+} // namespace
+
+PC_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+    return Run(argc, argv);
 }
 
 extern "C" {
@@ -487,3 +501,18 @@ int func_01DD2220() {
     return TitleLoop();
 }
 }
+
+#ifdef _WIN32
+int wmain(int argc, wchar_t **wide_argv) {
+    std::vector<std::string>  args;
+    std::vector<const char *> argv;
+    for (int i = 0; i < argc; ++i) {
+        args.push_back(PathsDisplay(fs::path(wide_argv[i])));
+    }
+    for (const std::string &arg : args) {
+        argv.push_back(arg.c_str());
+    }
+    argv.push_back(nullptr);
+    return Run(argc, argv.data());
+}
+#endif

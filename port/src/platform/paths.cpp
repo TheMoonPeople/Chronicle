@@ -2,6 +2,10 @@
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
 #endif
 
 #include <cstdint>
@@ -27,7 +31,12 @@ fs::path                program;
 fs::path ExecutableDirectory() { return PathsExecutable().parent_path(); }
 
 std::optional<fs::path> FromEnvironment(const char *name) {
+#ifdef _WIN32
+    const std::wstring wide_name(name, name + std::strlen(name));
+    const wchar_t     *value = ::_wgetenv(wide_name.c_str());
+#else
     const char *value = std::getenv(name);
+#endif
     if (value && *value) {
         return fs::path(value);
     }
@@ -54,6 +63,11 @@ std::optional<fs::path> Local(const char *name) {
 // filesystem permission. The XDG spec has a relative XDG_DATA_HOME ignored.
 fs::path Installed(const char *name) {
     fs::path base;
+#ifdef _WIN32
+    if (std::optional<fs::path> local = FromEnvironment("LOCALAPPDATA")) {
+        return *local / "chronicle" / name;
+    }
+#endif
     if (std::optional<fs::path> xdg = FromEnvironment("XDG_DATA_HOME"); xdg && xdg->is_absolute()) {
         base = *xdg;
     } else if (std::optional<fs::path> home = FromEnvironment("HOME")) {
@@ -87,6 +101,12 @@ fs::path PathsExecutable() {
             return resolved;
         }
     }
+#elif defined(_WIN32)
+    std::vector<wchar_t> path(32768);
+    DWORD                size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+    if (size > 0 && size < path.size()) {
+        return fs::path(std::wstring_view(path.data(), size));
+    }
 #elif defined(__linux__)
     fs::path self = fs::read_symlink("/proc/self/exe", error);
     if (!error) {
@@ -102,7 +122,7 @@ fs::path PathsExecutable() {
 
 int PathsConsumeArgs(int argc, const char **argv) {
     if (argc > 0 && argv[0]) {
-        program = argv[0];
+        program = PathsFromUtf8(argv[0]);
     }
     int kept = argc > 0 ? 1 : 0;
     for (int i = kept; i < argc; i++) {
@@ -121,9 +141,9 @@ int PathsConsumeArgs(int argc, const char **argv) {
         }
         std::string_view rest = arg.substr(flag.size());
         if (rest.starts_with('=')) {
-            *target = fs::path(rest.substr(1));
+            *target = PathsFromUtf8(rest.substr(1));
         } else if (rest.empty() && i + 1 < argc) {
-            *target = fs::path(argv[++i]);
+            *target = PathsFromUtf8(argv[++i]);
         } else if (rest.empty()) {
             std::fprintf(stderr, "%s needs a directory\n", argv[i]);
             std::exit(2);
@@ -185,7 +205,7 @@ const fs::path &PathsSaveRoot() {
             return *(save_root = candidate);
         }
     }
-    std::fprintf(stderr, "cannot create the save directory %s: %s\n", candidates[0].c_str(),
+    std::fprintf(stderr, "cannot create the save directory %s: %s\n", PathsDisplay(candidates[0]).c_str(),
                  error.message().c_str());
     return *(save_root = candidates[0]);
 }

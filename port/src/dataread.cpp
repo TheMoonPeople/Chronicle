@@ -32,7 +32,7 @@ std::string_view StripDevice(std::string_view path) {
     std::fprintf(stderr,
                  "no game data: %s %s; extract the disc with `dcdata extract <disc image> %s` "
                  "or pass --data <dir>\n",
-                 root.c_str(), why, root.c_str());
+                 PathsDisplay(root).c_str(), why, PathsDisplay(root).c_str());
     std::abort();
 }
 
@@ -50,10 +50,10 @@ void CheckAgainstIndex(const fs::path &root) {
             std::fprintf(stderr,
                          "%s: %zu of the %zu files data.hd2 lists are missing or the wrong size; "
                          "run dcdata extract again\n",
-                         root.c_str(), bad, records.size());
+                         PathsDisplay(root).c_str(), bad, records.size());
         }
     } catch (const std::exception &error) {
-        std::fprintf(stderr, "%s: %s\n", root.c_str(), error.what());
+        std::fprintf(stderr, "%s: %s\n", PathsDisplay(root).c_str(), error.what());
     }
 }
 
@@ -72,12 +72,12 @@ int ReadWhole(const fs::path &file, void *buffer) {
     std::uintmax_t  size = fs::file_size(file, error);
     std::ifstream   stream(file, std::ios::binary);
     if (error || !stream || size > INT32_MAX) {
-        std::fprintf(stderr, "cannot read %s\n", file.c_str());
+        std::fprintf(stderr, "cannot read %s\n", PathsDisplay(file).c_str());
         std::abort();
     }
     stream.read(static_cast<char *>(buffer), static_cast<std::streamsize>(size));
     if (static_cast<std::uintmax_t>(stream.gcount()) != size) {
-        std::fprintf(stderr, "short read on %s\n", file.c_str());
+        std::fprintf(stderr, "short read on %s\n", PathsDisplay(file).c_str());
         std::abort();
     }
     std::size_t padded = dcdata::SectorsFor(size) * dcdata::kSector;
@@ -106,7 +106,7 @@ PC_OVERRIDE void InitCDFile() {
         }
     }
     if (error) {
-        std::fprintf(stderr, "%s: %s\n", root.c_str(), error.message().c_str());
+        std::fprintf(stderr, "%s: %s\n", PathsDisplay(root).c_str(), error.message().c_str());
     }
     if (data_index.empty()) {
         NoData(root, "is empty");

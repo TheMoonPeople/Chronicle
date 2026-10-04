@@ -107,12 +107,16 @@ target_compile_definitions(dc_options INTERFACE ${PORT_DEFINITIONS})
 target_include_directories(dc_options INTERFACE
     ${CMAKE_SOURCE_DIR}/port/include ${CMAKE_SOURCE_DIR}/ps2/include ${CMAKE_SOURCE_DIR}/ps2/include/sce)
 target_compile_options(dc_options INTERFACE
-    "SHELL:-include ${CMAKE_SOURCE_DIR}/port/include/port.h"
+    "SHELL:-include \"${CMAKE_SOURCE_DIR}/port/include/port.h\""
     -fms-extensions -ffunction-sections -fdata-sections
     -Wno-register -Wno-c++11-narrowing -Wno-return-mismatch)
 # arm64 clang fuses a*b+c into one rounding by default; x86-64 has no FMA in its
 # baseline. Off everywhere so the game's arithmetic rounds the same on both.
 target_compile_options(dc_options INTERFACE -ffp-contract=off)
+
+if(WIN32 AND (NOT MINGW OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+    message(FATAL_ERROR "The Windows build requires clang/llvm-mingw")
+endif()
 
 add_library(dc_ps2 OBJECT ${PS2_UNITS} ${PC_OVERRIDES_CHECKED})
 target_link_libraries(dc_ps2 PRIVATE dc_options)
@@ -189,7 +193,10 @@ target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-la
 # the names that are not aliases, EditGaijiTbl among them. ItemPutListTbl12_bytes
 # is not one: port/include/stubs/dngstatusdata.hpp turns GetItem's read through
 # it into a WeaponList lookup.
-if(APPLE)
+if(WIN32)
+    # The two aliases are /alternatename directives in port/src/linknames.cpp.
+    set(DC_LINK_OPTIONS -fuse-ld=lld -Wl,--gc-sections -Wl,--error-limit=0)
+elseif(APPLE)
     set(DC_LINK_OPTIONS -Wl,-dead_strip -Wl,-alias,_draw_rect_store,_draw_rect
         -Wl,-alias,_WorkBuffer,_WorkBuffer__2)
 else()
@@ -209,6 +216,9 @@ endfunction()
 add_executable(darkcloud ${PORT_DIR}/main.cpp)
 set_target_properties(darkcloud PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 dc_link_game(darkcloud)
+if(WIN32)
+    target_link_options(darkcloud PRIVATE -municode)
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS darkcloud RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

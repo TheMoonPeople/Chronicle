@@ -23,7 +23,11 @@ std::vector<void (*)(const SDL_Event &)> g_hooks;
 void WindowInit(const WindowConfig &config) {
     SDL_SetAppMetadata("Dark Cloud", nullptr, "dcdecomp.darkcloud");
     if (config.headless) {
+#ifdef _WIN32
+        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, config.vulkan ? "windows" : "offscreen");
+#else
         SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "offscreen");
+#endif
         SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -33,6 +37,11 @@ void WindowInit(const WindowConfig &config) {
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
     if (config.vulkan) {
         flags |= SDL_WINDOW_VULKAN;
+#ifdef _WIN32
+        if (config.headless) {
+            flags |= SDL_WINDOW_HIDDEN;
+        }
+#endif
     }
     if (config.fullscreen && !config.headless) {
         flags |= SDL_WINDOW_FULLSCREEN;

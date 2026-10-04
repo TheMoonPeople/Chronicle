@@ -16,9 +16,9 @@ struct WindowConfig {
     bool vulkan = true;
 };
 
-// Starts SDL's video subsystem and opens the window. Headless uses SDL's offscreen driver, which
-// gives Vulkan a VK_EXT_headless_surface, and SDL's dummy audio driver, which consumes the mix at
-// the device rate without a device.
+// Starts SDL's video subsystem and opens the window. On Windows a headless Vulkan window is hidden.
+// Elsewhere headless uses SDL's offscreen driver, which gives Vulkan a VK_EXT_headless_surface, and
+// SDL's dummy audio driver, which consumes the mix at the device rate without a device.
 void        WindowInit(const WindowConfig &config);
 void        WindowShutdown();
 SDL_Window *WindowHandle();

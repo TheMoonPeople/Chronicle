@@ -27,6 +27,12 @@
 
 #define PORT_LINK_NAME __attribute__((weak))
 
+#ifdef _WIN32
+// COFF has no --defsym; these unresolved names must share storage, never a copied table.
+#pragma comment(linker, "/alternatename:draw_rect=draw_rect_store")
+#pragma comment(linker, "/alternatename:WorkBuffer__2=WorkBuffer")
+#endif
+
 // The literals, as the PAL executable has them.
 PORT_LINK_NAME char       BtAtraShortCharaFile[] = "dun/mainchara/c01d_ex00.chr";
 PORT_LINK_NAME char       BtEffectInfoFile[] = "info.cfg";

@@ -206,7 +206,7 @@ void SDLCALL OnDialog(void *, const char *const *files, int) {
     if (files == nullptr) {
         dialog.error = SDL_GetError();
     } else if (files[0] != nullptr) {
-        dialog.path = fs::path(files[0]);
+        dialog.path = PathsFromUtf8(files[0]);
     }
 }
 
@@ -251,7 +251,7 @@ void DrawChooser(const fs::path &root, bool waiting) {
     canvas.Centered(64.0f, 4.0f, "GAME DATA NEEDED", kAccent);
     canvas.Centered(122.0f, 2.0f, "THIS PORT PLAYS FROM THE FILES OF YOUR OWN", kText);
     canvas.Centered(142.0f, 2.0f, "PAL DISC. CHOOSE IT AND THEY ARE COPIED TO", kText);
-    canvas.Centered(176.0f, 1.0f, Fit(root.string(), 1.0f, 600.0f), kDim);
+    canvas.Centered(176.0f, 1.0f, Fit(PathsDisplay(root), 1.0f, 600.0f), kDim);
     for (int i = 0; i < static_cast<int>(std::size(kButtons)); i++) {
         const Button &button = kButtons[i];
         canvas.Rect(button.rect.x, button.rect.y, button.rect.w, button.rect.h,
@@ -273,7 +273,7 @@ void DrawProgress(const fs::path &source, const dcdata::Progress &progress) {
     constexpr float kBarH = 28.0f;
     Canvas          canvas;
     canvas.Centered(96.0f, 4.0f, "EXTRACTING GAME DATA", kAccent);
-    canvas.Centered(160.0f, 1.0f, Fit(source.string(), 1.0f, 600.0f), kDim);
+    canvas.Centered(160.0f, 1.0f, Fit(PathsDisplay(source), 1.0f, 600.0f), kDim);
     float done = progress.total_bytes == 0
                      ? 0.0f
                      : static_cast<float>(static_cast<double>(progress.bytes) / static_cast<double>(progress.total_bytes));
@@ -344,7 +344,9 @@ std::optional<fs::path> Choose(const fs::path &root) {
 
 fs::path Partial(const fs::path &root) {
     fs::path clean = root.has_filename() ? root : root.parent_path();
-    return clean.parent_path() / (clean.filename().string() + ".partial");
+    fs::path partial = clean;
+    partial += ".partial";
+    return partial;
 }
 
 void PrintFlatpakHint(const fs::path &root) {
@@ -352,7 +354,7 @@ void PrintFlatpakHint(const fs::path &root) {
         std::fprintf(stderr,
                      "inside the Flatpak, from a shell: flatpak run --filesystem=<folder of the image>:ro "
                      "--command=dcdata %s extract <disc image> %s\n",
-                     id, root.c_str());
+                     id, PathsDisplay(root).c_str());
     }
 }
 
@@ -412,7 +414,7 @@ FirstRunOutcome FirstRunExtract(const fs::path &source, const fs::path &root,
                 if (fs::exists(root)) {
                     if (!FirstRunDataMissing(root)) {
                         dcdata::Fail("{} gained files during the extraction; the extracted data is in {}",
-                                     root.string(), target.string());
+                                     PathsDisplay(root), PathsDisplay(target));
                     }
                     fs::remove_all(root);
                 }
@@ -497,8 +499,8 @@ void FirstRunIfNoData(bool headless) {
     }
 
     if (source && !outcome.ok && !outcome.cancelled) {
-        std::string message = std::format("Extracting {} into {} failed:\n\n{}", source->string(),
-                                          root.string(), outcome.error);
+        std::string message = std::format("Extracting {} into {} failed:\n\n{}", PathsDisplay(*source),
+                                          PathsDisplay(root), outcome.error);
         std::fprintf(stderr, "%s\n", message.c_str());
         if (!headless) {
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "The game data could not be extracted", message.c_str(),
@@ -511,11 +513,11 @@ void FirstRunIfNoData(bool headless) {
     gfx::RendererShutdown();
     WindowShutdown();
     if (outcome.ok) {
-        std::fprintf(stderr, "extracted %s into %s\n", source->c_str(), root.c_str());
+        std::fprintf(stderr, "extracted %s into %s\n", PathsDisplay(*source).c_str(), PathsDisplay(root).c_str());
     } else {
         if (outcome.cancelled) {
             std::fprintf(stderr, "extraction stopped; %s holds what was written so far\n",
-                         Partial(root).c_str());
+                         PathsDisplay(Partial(root)).c_str());
         }
         PrintFlatpakHint(root);
     }

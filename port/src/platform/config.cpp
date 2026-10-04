@@ -332,10 +332,10 @@ bool ConfigSave() {
     file << ConfigSerialize(g_config);
     file.flush();
     if (!file) {
-        std::fprintf(stderr, "config: could not save %s\n", path.string().c_str());
+        std::fprintf(stderr, "config: could not save %s\n", PathsDisplay(path).c_str());
         return false;
     }
-    std::fprintf(stderr, "config: saved %s\n", path.string().c_str());
+    std::fprintf(stderr, "config: saved %s\n", PathsDisplay(path).c_str());
     return true;
 }
 
@@ -353,6 +353,6 @@ bool ConfigLoad() {
     std::ostringstream text;
     text << file.rdbuf();
     g_config = ConfigParse(text.str());
-    std::fprintf(stderr, "config: loaded %s\n", path.string().c_str());
+    std::fprintf(stderr, "config: loaded %s\n", PathsDisplay(path).c_str());
     return true;
 }

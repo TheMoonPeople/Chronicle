@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include <cstring>
 #include <string>
@@ -11,6 +9,7 @@
 #include "data_fixture.hpp"
 #include "dataread.hpp"
 #include "exitcodes.hpp"
+#include "platform_fixture.hpp"
 
 using namespace datafix;
 
@@ -62,30 +61,6 @@ bool AllAre(const unsigned char *from, const unsigned char *to, unsigned char va
         }
     }
     return true;
-}
-
-template <class F>
-int AbortSignal(F f) {
-    pid_t child = fork();
-    if (child == 0) {
-        f();
-        _exit(0);
-    }
-    int status = 0;
-    waitpid(child, &status, 0);
-    return WIFSIGNALED(status) ? WTERMSIG(status) : 0;
-}
-
-template <class F>
-int ExitStatusOf(F f) {
-    pid_t child = fork();
-    if (child == 0) {
-        f();
-        _exit(0);
-    }
-    int status = 0;
-    waitpid(child, &status, 0);
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
 } // namespace
@@ -147,18 +122,18 @@ TEST(DataRead, Loadfile2FoldsCaseAndDevices) {
 TEST(DataRead, LoadfileMissingAsserts) {
     fs::path dir = InstallStandardData("read_assert");
     int      size;
-    ASSERT_TRUE(ExitStatusOf([&] { LoadFile(Mutable("nothing/here.bin"), buffer, &size); }) == kExitGameAssert);
+    DC_ASSERT_EXIT([&] { LoadFile(Mutable("nothing/here.bin"), buffer, &size); }, kExitGameAssert);
     fs::remove_all(dir);
 }
 
 TEST(DataRead, InitcdfileRequiresData) {
     fs::path dir = TempDir("read_nodata");
     PathsSetDataRoot(dir / "data");
-    ASSERT_TRUE(AbortSignal([] { InitCDFile(); }) == SIGABRT);
+    DC_ASSERT_ABORT([] { InitCDFile(); });
     fs::create_directories(dir / "data/empty_dir");
-    ASSERT_TRUE(AbortSignal([] { InitCDFile(); }) == SIGABRT);
+    DC_ASSERT_ABORT([] { InitCDFile(); });
     WriteBytes(dir / "data/a.bin", Pattern(3, 0));
-    ASSERT_TRUE(AbortSignal([] { InitCDFile(); }) == 0);
+    DC_ASSERT_EXIT([] { InitCDFile(); }, 0);
     fs::remove_all(dir);
 }
 
@@ -273,8 +248,8 @@ TEST(DataRead, PathsFromArguments) {
 
 TEST(DataRead, PathsFromEnvironment) {
     fs::path dir = TempDir("paths_env");
-    setenv("DC_DATA", (dir / "env_data").c_str(), 1);
-    setenv("DC_SAVE", (dir / "env_save").c_str(), 1);
+    dc::test::SetEnv("DC_DATA", (dir / "env_data"), 1);
+    dc::test::SetEnv("DC_SAVE", (dir / "env_save"), 1);
     ASSERT_TRUE(PathsDataRoot() == dir / "env_data");
     ASSERT_TRUE(PathsSaveRoot() == dir / "env_save" && fs::is_directory(dir / "env_save"));
     PathsSetDataRoot(dir / "flag");
@@ -284,8 +259,8 @@ TEST(DataRead, PathsFromEnvironment) {
 
 TEST(DataRead, PathsDefaultToWorkingDirectory) {
     fs::path dir = TempDir("paths_cwd");
-    unsetenv("DC_DATA");
-    unsetenv("DC_SAVE");
+    dc::test::UnsetEnv("DC_DATA");
+    dc::test::UnsetEnv("DC_SAVE");
     fs::create_directories(dir / "data");
     fs::current_path(dir);
     ASSERT_TRUE(PathsDataRoot() == dir / "data");

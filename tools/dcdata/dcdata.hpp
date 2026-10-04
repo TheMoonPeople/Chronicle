@@ -51,7 +51,7 @@ inline std::string FoldPath(std::string_view path) {
     std::string out;
     out.reserve(path.size());
     for (char c : path) {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_WIN32)
         if (static_cast<unsigned char>(c) > 0x7F) {
             constexpr char kHex[] = "0123456789abcdef";
             out += '%';

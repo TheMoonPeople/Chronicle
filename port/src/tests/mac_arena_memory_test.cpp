@@ -1,6 +1,4 @@
 #include <gtest/gtest.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include <csignal>
 #include <cstdint>
@@ -8,24 +6,9 @@
 
 #include "arena.hpp"
 #include "platform/memory.hpp"
+#include "platform_fixture.hpp"
 
 namespace {
-
-template <class F>
-int SignalOf(F body) {
-    std::fflush(stdout);
-    pid_t child = fork();
-    if (child == 0) {
-        body();
-        std::_Exit(0);
-    }
-    int status = 0;
-    waitpid(child, &status, 0);
-    return WIFSIGNALED(status) ? WTERMSIG(status) : 0;
-}
-
-// Linux raises SIGSEGV for a PROT_NONE page, macOS SIGBUS.
-bool Faulted(int signal) { return signal == SIGSEGV || signal == SIGBUS; }
 
 bool Above4GiB(const void *pointer) { return reinterpret_cast<std::uintptr_t>(pointer) >> 32 != 0; }
 
@@ -54,12 +37,12 @@ TEST(MacArenaMemory, MapsAbove4gib) {
 
 TEST(MacArenaMemory, GuardPageFaults) {
     ArenaMemory memory = ArenaMemoryMap(4096 + 64);
-    ASSERT_TRUE(SignalOf([&] { memory.base[memory.capacity - 1] = 1; }) == 0);
-    ASSERT_TRUE(Faulted(SignalOf([&] { const_cast<unsigned char *>(ArenaMemoryGuard(memory))[0] = 1; })));
+    DC_ASSERT_EXIT([&] { memory.base[memory.capacity - 1] = 1; }, 0);
+    DC_ASSERT_FAULT([&] { const_cast<unsigned char *>(ArenaMemoryGuard(memory))[0] = 1; });
     ArenaMemoryZero(memory);
-    ASSERT_TRUE(Faulted(SignalOf([&] { memory.base[memory.capacity] = 1; })));
+    DC_ASSERT_FAULT([&] { memory.base[memory.capacity] = 1; });
     ArenaMemoryZeroByRemap(memory);
-    ASSERT_TRUE(Faulted(SignalOf([&] { memory.base[memory.capacity] = 1; })));
+    DC_ASSERT_FAULT([&] { memory.base[memory.capacity] = 1; });
     ArenaMemoryUnmap(memory);
 }
 

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <libmc.h>
-#include <unistd.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -11,6 +10,8 @@
 #include <vector>
 
 #include "memorycardaccess.hpp"
+#include "platform/paths.hpp"
+#include "platform_fixture.hpp"
 #include "savedata.hpp"
 
 // Drives CMemoryCardAccess as the save menu does: SetFuncNo, then Step once
@@ -37,10 +38,10 @@ char              g_icons[3][100];
 char              g_icon_names[3][16] = {"dkicon.ico", "dkicon_c.ico", "dkicon_d.ico"};
 
 fs::path UseTempSaveRoot() {
-    fs::path root = fs::temp_directory_path() / ("dc_mc_test_" + std::to_string(getpid()));
+    fs::path root = fs::temp_directory_path() / ("dc_mc_test_" + std::to_string(dc::test::ProcessId()));
     fs::remove_all(root);
     fs::create_directories(root);
-    setenv("DC_SAVE", root.c_str(), 1);
+    dc::test::SetEnv("DC_SAVE", root, 1);
     return root;
 }
 
@@ -272,3 +273,63 @@ TEST(PlatformMc, SaveLoadCycle) {
 
     fs::remove_all(root);
 }
+
+#ifdef _WIN32
+TEST(PlatformMc, WindowsPathsCannotEscapeCardRoot) {
+    fs::path root = UseTempSaveRoot();
+    PathsSetSaveRoot(root / "save");
+    ASSERT_EQ(sceMcInit(), sceMcIniSucceed);
+    fs::create_directories(root / "outside");
+    std::ofstream(root / "sentinel.bin", std::ios::binary) << "sentinel";
+    const std::vector<char>  sentinel = ReadFile(root / "sentinel.bin");
+    std::vector<std::string> prefixes = {
+        "..\\..\\",
+        root.string() + "\\",
+        "\\" + root.relative_path().string() + "\\",
+        root.root_name().string() + root.relative_path().string() + "\\",
+        "\\\\?\\" + root.string() + "\\",
+    };
+    auto rejected = [](int issued) {
+        ASSERT_EQ(issued, 0);
+        int result = 0;
+        ASSERT_EQ(sceMcSync(MC_WAIT, nullptr, &result), 1);
+        ASSERT_EQ(result, sceMcResNoEntry);
+    };
+    for (const std::string &prefix : prefixes) {
+        SCOPED_TRACE(prefix);
+        std::string file = prefix + "sentinel.bin";
+        for (int flags : {1, 2, 0x203}) {
+            rejected(sceMcOpen(0, 0, file.data(), flags));
+        }
+        rejected(sceMcDelete(0, 0, file.data()));
+        std::string fresh = prefix + "new.bin";
+        rejected(sceMcOpen(0, 0, fresh.data(), 0x203));
+        std::string dir = prefix + "outside";
+        rejected(sceMcChdir(0, 0, dir.data(), nullptr));
+        std::string   listing = dir + "/*";
+        unsigned char table[4][0x40] = {};
+        rejected(sceMcGetDir(0, 0, listing.data(), 0, 4, table));
+        dir = prefix + "new-directory";
+        rejected(sceMcMkdir(0, 0, dir.data()));
+        ASSERT_EQ(ReadFile(root / "sentinel.bin"), sentinel);
+        ASSERT_FALSE(fs::exists(root / "new.bin"));
+        ASSERT_FALSE(fs::exists(root / "new-directory"));
+    }
+    for (std::string name : {"sentinel.bin.", "sentinel.bin "}) {
+        rejected(sceMcOpen(0, 0, name.data(), 0x203));
+        rejected(sceMcDelete(0, 0, name.data()));
+        rejected(sceMcMkdir(0, 0, name.data()));
+    }
+    for (std::string name : {"NUL", "nul", "Con", "AUX.txt", "prn.tar.gz", "COM1", "lpt9.bin", "CONIN$", "conout$"}) {
+        SCOPED_TRACE(name);
+        for (int flags : {1, 2, 0x203}) {
+            rejected(sceMcOpen(0, 0, name.data(), flags));
+        }
+        rejected(sceMcDelete(0, 0, name.data()));
+        rejected(sceMcMkdir(0, 0, name.data()));
+    }
+    ASSERT_TRUE(fs::is_directory(root / "save/mc0"));
+    ASSERT_TRUE(fs::is_empty(root / "save/mc0"));
+    fs::remove_all(root);
+}
+#endif

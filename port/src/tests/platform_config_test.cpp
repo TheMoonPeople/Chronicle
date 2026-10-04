@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-#include <unistd.h>
 
 #include <cstdlib>
 #include <filesystem>
@@ -9,6 +8,7 @@
 
 #include "../platform/config.hpp"
 #include "../platform/paths.hpp"
+#include "platform_fixture.hpp"
 
 TEST(PlatformConfig, Defaults) {
     Config config = ConfigParse("");
@@ -74,7 +74,7 @@ TEST(PlatformConfig, InvalidJsonKeepsTheDefaults) {
 }
 
 TEST(PlatformConfig, LoadsFromSaveRoot) {
-    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_config_test_" + std::to_string(getpid()));
+    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_config_test_" + std::to_string(dc::test::ProcessId()));
     std::filesystem::create_directories(root);
     PathsSetSaveRoot(root);
     ASSERT_TRUE(PathsSaveRoot() == root);

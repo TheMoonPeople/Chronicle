@@ -1,6 +1,25 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
+#include <string_view>
+
+inline std::filesystem::path PathsFromUtf8(std::string_view path) {
+#ifdef _WIN32
+    return std::filesystem::path(std::u8string(path.begin(), path.end()));
+#else
+    return std::filesystem::path(path);
+#endif
+}
+
+inline std::string PathsDisplay(const std::filesystem::path &path) {
+#ifdef _WIN32
+    const auto utf8 = path.u8string();
+    return std::string(reinterpret_cast<const char *>(utf8.data()), utf8.size());
+#else
+    return path.native();
+#endif
+}
 
 // Removes --data <dir>, --data=<dir>, --save <dir> and --save=<dir> from argv, keeping the order of
 // the rest, and returns the new argc.

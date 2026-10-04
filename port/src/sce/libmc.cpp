@@ -164,9 +164,38 @@ std::vector<std::string> Components(int port, std::string_view name) {
     return parts;
 }
 
+#ifdef _WIN32
+// Win32 opens these names as devices in any directory, with or without an extension.
+bool ReservedDevice(const std::string &part) {
+    std::wstring stem = fs::path(part).native();
+    stem = stem.substr(0, stem.find(L'.'));
+    while (!stem.empty() && stem.back() == L' ') {
+        stem.pop_back();
+    }
+    for (wchar_t &c : stem) {
+        if (c >= L'a' && c <= L'z') {
+            c -= L'a' - L'A';
+        }
+    }
+    if (stem == L"CON" || stem == L"PRN" || stem == L"AUX" || stem == L"NUL" || stem == L"CONIN$" ||
+        stem == L"CONOUT$" || stem == L"CLOCK$") {
+        return true;
+    }
+    return stem.size() == 4 && (stem.starts_with(L"COM") || stem.starts_with(L"LPT")) &&
+           ((stem[3] >= L'1' && stem[3] <= L'9') || stem[3] == L'¹' || stem[3] == L'²' ||
+            stem[3] == L'³');
+}
+#endif
+
 fs::path HostPath(int port, const std::vector<std::string> &parts) {
     fs::path path = CardRoot(port);
     for (const std::string &part : parts) {
+#ifdef _WIN32
+        if (part.find_first_of("\\:") != std::string::npos || part.back() == '.' || part.back() == ' ' ||
+            ReservedDevice(part)) {
+            return {};
+        }
+#endif
         path /= part;
     }
     return path;
@@ -203,7 +232,11 @@ McDateTime DateTime(const fs::path &path) {
     std::time_t     seconds = error ? std::time(nullptr)
                                     : static_cast<std::time_t>(std::chrono::duration_cast<std::chrono::seconds>(fs::file_time_type::clock::to_sys(written).time_since_epoch()).count());
     std::tm         utc{};
+#ifdef _WIN32
+    gmtime_s(&utc, &seconds);
+#else
     gmtime_r(&seconds, &utc);
+#endif
     return {0,
             static_cast<std::uint8_t>(utc.tm_sec),
             static_cast<std::uint8_t>(utc.tm_min),
@@ -275,15 +308,28 @@ int sceMcOpen(int port, int slot, char *name, int flag) {
     }
     fs::path        path = HostPath(port, Components(port, name));
     std::error_code error;
+#ifdef _WIN32
+    if (path.empty()) {
+        return Finish(kFuncOpen, sceMcResNoEntry);
+    }
+#endif
     if (fs::is_directory(path, error)) {
         return Finish(kFuncOpen, sceMcResNoEntry);
     }
     bool       exists = fs::exists(path, error);
     std::FILE *file = nullptr;
     if (exists) {
+#ifdef _WIN32
+        file = ::_wfopen(path.c_str(), (flag & kOpenWrite) != 0 ? L"r+b" : L"rb");
+#else
         file = std::fopen(path.c_str(), (flag & kOpenWrite) != 0 ? "r+b" : "rb");
+#endif
     } else if ((flag & kOpenCreate) != 0 && fs::is_directory(path.parent_path(), error)) {
+#ifdef _WIN32
+        file = ::_wfopen(path.c_str(), L"w+b");
+#else
         file = std::fopen(path.c_str(), "w+b");
+#endif
     }
     if (file == nullptr) {
         return Finish(kFuncOpen, sceMcResNoEntry);
@@ -343,7 +389,13 @@ int sceMcChdir(int port, int slot, char *name, char *current) {
     }
     std::vector<std::string> parts = Components(port, name);
     std::error_code          error;
-    if (!fs::is_directory(HostPath(port, parts), error)) {
+    fs::path                 path = HostPath(port, parts);
+#ifdef _WIN32
+    if (path.empty()) {
+        return Finish(kFuncChdir, sceMcResNoEntry);
+    }
+#endif
+    if (!fs::is_directory(path, error)) {
         return Finish(kFuncChdir, sceMcResNoEntry);
     }
     if (current != nullptr) {
@@ -363,6 +415,11 @@ int sceMcMkdir(int port, int slot, char *name) {
     std::vector<std::string> parts = Components(port, name);
     fs::path                 path = HostPath(port, parts);
     std::error_code          error;
+#ifdef _WIN32
+    if (path.empty()) {
+        return Finish(kFuncMkdir, sceMcResNoEntry);
+    }
+#endif
     if (parts.empty() || fs::exists(path, error) || !fs::is_directory(path.parent_path(), error)) {
         return Finish(kFuncMkdir, sceMcResNoEntry);
     }
@@ -381,7 +438,13 @@ int sceMcDelete(int port, int slot, char *name) {
     }
     std::vector<std::string> parts = Components(port, name);
     std::error_code          error;
-    if (parts.empty() || !fs::remove(HostPath(port, parts), error)) {
+    fs::path                 path = HostPath(port, parts);
+#ifdef _WIN32
+    if (path.empty()) {
+        return Finish(kFuncDelete, sceMcResNoEntry);
+    }
+#endif
+    if (parts.empty() || !fs::remove(path, error)) {
         return Finish(kFuncDelete, error ? sceMcResDeniedPermit : sceMcResNoEntry);
     }
     return Finish(kFuncDelete, sceMcResSucceed);
@@ -400,6 +463,11 @@ int sceMcGetDir(int port, int slot, char *name, unsigned int mode, int count, vo
     std::vector<std::string> parts = Components(port, slash == std::string_view::npos ? "." : std::string(spec.substr(0, slash + 1)));
     fs::path                 dir = HostPath(port, parts);
     std::error_code          error;
+#ifdef _WIN32
+    if (dir.empty() || pattern.find_first_of("\\:") != std::string::npos) {
+        return Finish(kFuncGetDir, sceMcResNoEntry);
+    }
+#endif
     if (!fs::is_directory(dir, error)) {
         return Finish(kFuncGetDir, sceMcResNoEntry);
     }
@@ -414,7 +482,11 @@ int sceMcGetDir(int port, int slot, char *name, unsigned int mode, int count, vo
     }
     std::vector<fs::directory_entry> found;
     for (const fs::directory_entry &entry : fs::directory_iterator(dir, error)) {
+#ifdef _WIN32
+        if (Matches(pattern.c_str(), entry.path().filename().string().c_str())) {
+#else
         if (Matches(pattern.c_str(), entry.path().filename().c_str())) {
+#endif
             found.push_back(entry);
         }
     }
