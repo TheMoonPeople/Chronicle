@@ -2,7 +2,7 @@
 
 `PLATFORM=PC` builds the game's code as a native x64 Linux program with clang
 20, as C++26, on SDL3 and Vulkan 1.4 (`docs/MACOS.md` covers macOS on Apple
-Silicon). The port is always the PAL release;
+Silicon, `docs/WINDOWS.md` x64 Windows). The port is always the PAL release;
 there is no region setting. Its timing is NTSC's, though: the game runs 60 ticks a
 second, and the code that sped PAL up for its 50 Hz (`#ifdef PAL_TIMING` in
 ps2/src, which only the PS2 PAL build defines) is left out. `docs/PC_PORT_PLAN.md` is the plan it was built
