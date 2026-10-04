@@ -8,7 +8,7 @@
 #   CLEAN=1 port/flatpak.sh      throw flatpak-builder's cache away first, so
 #                                every module is built again
 #
-# The runtime, the SDK and its llvm20 extension are installed from Flathub
+# The runtime, the SDK and its llvm22 extension are installed from Flathub
 # for this user when they are missing. build-dir/, repo/ and .flatpak-builder/
 # in the repository root hold the build between runs.
 set -euo pipefail

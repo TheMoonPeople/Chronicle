@@ -23,8 +23,8 @@ permissions:
   contents: read
 
 env:
-  SDL_VERSION: release-3.2.24
-  VULKAN_VERSION: v1.4.321
+  SDL_VERSION: release-3.4.18
+  VULKAN_VERSION: v1.4.365
   DEPS: ${{ github.workspace }}/../deps
 
 jobs:

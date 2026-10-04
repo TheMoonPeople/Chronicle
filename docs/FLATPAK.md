@@ -2,7 +2,7 @@
 
 The Linux release of the PC port (`docs/PC.md`) is a Flatpak,
 `org.themoonpeople.Chronicle`. It holds `darkcloud`, `dcdata` and SDL3 on the
-freedesktop 24.08 runtime. No game data is in it: the first start asks for
+freedesktop 26.08 runtime. No game data is in it: the first start asks for
 your own PAL disc and extracts it.
 
 ## Installing the bundle
@@ -91,14 +91,14 @@ port/flatpak.sh
 ```
 
 builds `chronicle.flatpak` in the repository root from the working tree,
-installing the runtime, the SDK and the llvm20 extension from Flathub when
+installing the runtime, the SDK and the llvm22 extension from Flathub when
 they are missing. `INSTALL=1` also installs the bundle for this user;
 `CLEAN=1` discards flatpak-builder's cache first. By hand, the same is:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08 \
-    org.freedesktop.Sdk.Extension.llvm20//24.08
+flatpak install --user flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08 \
+    org.freedesktop.Sdk.Extension.llvm22//26.08
 flatpak-builder --repo=repo build-dir port/flatpak/org.themoonpeople.Chronicle.yml
 flatpak build-bundle repo chronicle.flatpak org.themoonpeople.Chronicle
 ```
@@ -111,16 +111,15 @@ directly instead of through a bundle.
 
 The manifest (`port/flatpak/org.themoonpeople.Chronicle.yml`) builds:
 
-- **Vulkan-Headers 1.4.321**, for the build only: the runtime's loader is
-  1.3.290, which is enough at run time since the renderer takes a Vulkan 1.3
-  device, but the port compiles against the 1.4 headers.
-- **glslang 15.1.0**, for the build only: the SDK's glslang 14.3 has no
-  `--target-env vulkan1.4`.
-- **SDL3 3.4.16**, which the runtime lacks, with its Wayland, X11, PipeWire,
-  PulseAudio and D-Bus (portal) backends loaded from the runtime.
-- **The port**, `PLATFORM=PC`, Release, with clang 20 from the
-  `org.freedesktop.Sdk.Extension.llvm20` extension (the SDK's own compiler is
-  GCC 14, and C++26 needs clang 20). The SDK's default compiler flags are
+- **Vulkan-Headers 1.4.365**, for the build only: the release `pc.yml` builds
+  against, a little ahead of the SDK's 1.4.357. The loader is the runtime's.
+- **SDL3 3.4.18**, newer than the runtime's 3.4.14 and ahead of it on the
+  app's library path, with its Wayland, X11, PipeWire, PulseAudio and D-Bus
+  (portal) backends loaded from the runtime.
+- **The port**, `PLATFORM=PC`, Release, with clang 22 from the
+  `org.freedesktop.Sdk.Extension.llvm22` extension (the SDK's own compiler is
+  GCC, and the port is built with clang everywhere). Shaders are compiled with
+  the SDK's glslang, which targets `vulkan1.4`. The SDK's default compiler flags are
   replaced: they add `_GLIBCXX_ASSERTIONS`, `-Werror=format-security` and
   `-g`, none of which the game is built with elsewhere.
 

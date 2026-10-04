@@ -1,5 +1,5 @@
 # The Flatpak (docs/FLATPAK.md): builds port/flatpak/org.themoonpeople.Chronicle.yml in Flathub's
-# freedesktop 24.08 image, which fetches the runtime, the SDK and the llvm20 extension from Flathub,
+# freedesktop 26.08 image, which fetches the runtime, the SDK and the llvm22 extension from Flathub,
 # and uploads chronicle.flatpak.
 #
 # The manifest's dir source would copy whatever the workspace holds; CI builds the commit under test
@@ -22,7 +22,7 @@ jobs:
     name: Build the Flatpak
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
       options: --privileged
     env:
       MANIFEST: port/flatpak/ci.yml

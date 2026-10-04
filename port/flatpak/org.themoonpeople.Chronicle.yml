@@ -1,16 +1,11 @@
 # The PC port (docs/PC.md) as a Flatpak. docs/FLATPAK.md has the commands to build, install and run
 # it and to put the game's data where it looks.
-#
-# C++26 needs clang 20, which only the llvm20 SDK extension has. The 24.08 runtime's Vulkan loader
-# is 1.3.290: that is enough at run time (the renderer takes a 1.3 device), but the build wants the
-# 1.4 headers, and the SDK's glslang 14 has no --target-env vulkan1.4, so both are built here and
-# dropped from the result. SDL3 is not in the runtime at all.
 id: org.themoonpeople.Chronicle
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '26.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.llvm20
+  - org.freedesktop.Sdk.Extension.llvm22
 command: darkcloud
 finish-args:
   - --socket=wayland
@@ -21,7 +16,7 @@ finish-args:
   - --device=dri
   # Playback through PipeWire's or PulseAudio's PulseAudio socket.
   - --socket=pulseaudio
-  # Gamepads: /dev/input, and /dev/hidraw* for the ones SDL drives through HIDAPI. --device=input.
+  # hidraw, for the 2026 Steam Controller.
   - --device=all
 
 modules:
@@ -32,23 +27,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/KhronosGroup/Vulkan-Headers.git
-        tag: v1.4.321
-        commit: 4c8aa84a61c12cab9780fa44298617666b491d71
-
-  - name: glslang
-    buildsystem: cmake-ninja
-    config-opts:
-      - -DCMAKE_BUILD_TYPE=Release
-      - -DENABLE_OPT=OFF
-      - -DGLSLANG_TESTS=OFF
-      - -DBUILD_SHARED_LIBS=OFF
-    cleanup:
-      - '*'
-    sources:
-      - type: git
-        url: https://github.com/KhronosGroup/glslang.git
-        tag: 15.1.0
-        commit: 1062752a891c95b2bfeed9e356562d88f9df84ac
+        tag: v1.4.365
+        commit: c46850864f4661461b0f6cb9922c058ffea4915e
 
   # Wayland, X11, PipeWire and PulseAudio come from the runtime and are loaded when SDL starts.
   - name: sdl3
@@ -74,8 +54,8 @@ modules:
       - /share/licenses
     sources:
       - type: archive
-        url: https://github.com/libsdl-org/SDL/releases/download/release-3.4.16/SDL3-3.4.16.tar.gz
-        sha256: 7322236cd12090c3eb40b9728be4d49c76f66ad17d04369584d4ecad5cf77c68
+        url: https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
+        sha256: 9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3
 
   # Header only, for the build alone: the network is off while chronicle configures.
   - name: nlohmann-json
@@ -93,8 +73,8 @@ modules:
     buildsystem: cmake-ninja
     builddir: true
     build-options:
-      append-path: /usr/lib/sdk/llvm20/bin
-      prepend-ld-library-path: /usr/lib/sdk/llvm20/lib
+      append-path: /usr/lib/sdk/llvm22/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
       env:
         CC: clang
         CXX: clang++
@@ -110,8 +90,7 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_PREFIX_PATH=/app
-      - -DCMAKE_CXX_COMPILER=/usr/lib/sdk/llvm20/bin/clang++
-      - -DGLSLANG_VALIDATOR=/app/bin/glslangValidator
+      - -DCMAKE_CXX_COMPILER=/usr/lib/sdk/llvm22/bin/clang++
       - -DDC_BUILD_TESTS=OFF
     # post-install runs in the build directory, not the source.
     post-install:
