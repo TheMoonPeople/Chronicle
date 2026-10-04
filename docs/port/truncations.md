@@ -60,7 +60,7 @@ recovered, as `CCharacter::ClothStep` does with `PortImagePointer`) fixes the ro
 | site | function | state | class | expression | origin | use |
 |---|---|---|---|---|---|---|
 | port/src/dataread.cpp:175 | LoadFileBG | port | low-bits | `reinterpret_cast < std :: uintptr_t >(buffer)` | parameter | test |
-| port/src/edit_in.cpp:1759 | LoadData | port | low-bits | `(intptr_t)func_point[i].parts` | field | index: InteriorParts[(int)(intptr_t)func_point[i].parts] |
+| port/src/edit_in.cpp:1757 | LoadData | port | low-bits | `(intptr_t)func_point[i].parts` | field | index: InteriorParts[(int)(intptr_t)func_point[i].parts] |
 | port/src/editloop_init.cpp:405 | EditInit | port | low-bits | `reinterpret_cast < std :: intptr_t >(EdNPCReadBuffer)` | global pointer | store: read_misalign |
 | port/src/texture_buffer.cpp:14 | CTextureManager::SetBuffer | port | low-bits | `reinterpret_cast < std :: uintptr_t >(this->buffer)` | field | store: misalignment |
 | ps2/src/dataset.cpp:381 | LoadMDSFile | retail | low-bits | `(int)data` | parameter | test |
@@ -79,17 +79,17 @@ recovered, as `CCharacter::ClothStep` does with `PortImagePointer`) fixes the ro
 | port/src/title/op_c.cpp:1590 | OpC_MotionProcess | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[11].wind (read back only in CCharacter::ClothStep) |
 | port/src/title/rushmovi.cpp:447 | MotionProcess | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
 | port/src/title/rushmovi.cpp:449 | MotionProcess | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:304 | InitProcA | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:661 | InitProcB | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:956 | InitProcC | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1205 | InitProcD | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1378 | InitProcE | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1549 | InitProcF | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1738 | InitProcG | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1739 | InitProcG | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1740 | InitProcG | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[2].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:1929 | InitProcH | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/title.cpp:2156 | InitProcI | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:305 | InitProcA | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:662 | InitProcB | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:957 | InitProcC | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1206 | InitProcD | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1379 | InitProcE | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1550 | InitProcF | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1739 | InitProcG | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1740 | InitProcG | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1741 | InitProcG | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[2].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:1930 | InitProcH | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/title.cpp:2157 | InitProcI | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
 | ps2/src/editloop.cpp:3357 | MainEditMode | retail | resolved | `(int)& EdWind` | image | store: Chara->wind (read back only in CCharacter::ClothStep) |
 | ps2/src/editloop.cpp:5213 | LoadObjectParts | retail | resolved | `(int)parts->frame[3]` | field | store: parts->preview_frame (read back only in CEditGround::DrawPartsCursor) |
 | ps2/src/editloop.cpp:5215 | LoadObjectParts | retail | resolved | `(int)parts->frame[2]` | field | store: parts->preview_frame (read back only in CEditGround::DrawPartsCursor) |
