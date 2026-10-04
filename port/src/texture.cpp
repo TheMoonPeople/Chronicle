@@ -327,3 +327,11 @@ int LoadImage(u_int *packet, int dbp, int dpsm, int dbw, u_long128 *source, int 
               int rrh) {
     return 0;
 }
+
+int CTextureManager::CleanUpTextureList() {
+    // Retail closes the table's holes by moving later entries down. A native visual keeps a table
+    // index (Draw3DStrip::texture) where retail's packet holds a baked TEX0, so a move would
+    // retarget it. Entries stay where they are: SearchTexture already fills empty ones, so a
+    // reloaded block fills the first available holes rather than being appended after compaction.
+    return 1;
+}

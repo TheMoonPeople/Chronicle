@@ -668,6 +668,12 @@ share small internal headers:
   placeholder names (`#name#w#h#bpp`) become named render targets; texture
   animation and CLUT swaps are copies. The loading screen draws from the
   idle hook, never inside a frame the game has open.
+  `CleanUpTextureList` does not compact the table: a native visual holds a
+  table index where retail's packet holds a baked TEX0, so entries stay put
+  and a reloaded block fills the first available holes rather than being
+  appended after compaction. A name lookup across all blocks, which prefers
+  the highest entry, can therefore pick differently from retail when two
+  live blocks share a texture name.
 - **`draw2d_port.hpp`** (`snd.cpp`, `gameutil_sprite.cpp`, `clsmes.cpp`,
   `spritetable.cpp`, `dispctrl.cpp`, `editloop_sprite.cpp`): the sprite
   primitives, `SetClut`, message windows, sprite tables and the debug font

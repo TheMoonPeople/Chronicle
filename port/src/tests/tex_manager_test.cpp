@@ -297,3 +297,64 @@ TEST(TexManager, FrameKeysAndClutLoads) {
     ASSERT_TRUE(recoloured.valid && recoloured.binding.texture == ref.binding.texture &&
                 recoloured.binding.palette != ref.binding.palette);
 }
+
+TEST(TexManager, ReplacingEffectBlockKeepsCachedBindings) {
+    TexEnv env;
+    Bytes  effect = Img({
+        {"menu_effect", Tim2({TIM2_RGB32, 2, 2, {Rgba32({Gs(0, 255, 0), Gs(0, 255, 0), Gs(0, 255, 0), Gs(0, 255, 0)})}, {}, 0})}
+    });
+    Bytes  model = Img({
+        {"head", Tim2({TIM2_RGB32, 2, 2, {Rgba32({Gs(255, 0, 0), Gs(255, 0, 0), Gs(255, 0, 0), Gs(255, 0, 0)})}, {}, 0})},
+        {"body", Tim2({TIM2_RGB32, 2, 2, {Rgba32({Gs(0, 0, 255), Gs(0, 0, 255), Gs(0, 0, 255), Gs(0, 0, 255)})}, {}, 0})}
+    });
+    Enter(effect, 25);
+    Enter(model, 24);
+    char             water[] = "#water#32#32#4";
+    char             end[] = "";
+    LOADTEXTURE_INFO targets[] = {
+        {water, 13, 0},
+        {end,   0,  0}
+    };
+    TexManager.LoadTextureBlock(-1, targets, nullptr);
+
+    CTexture          *head = Named("head");
+    CTexture          *body = Named("body");
+    CTexture          *target = Named("water");
+    char               head_name[] = "head";
+    char               body_name[] = "body";
+    char               water_name[] = "water";
+    char               effect_name[] = "menu_effect";
+    int                effect_handle = TexManager.GetTextureHandle(effect_name, -1);
+    int                head_handle = TexManager.GetTextureHandle(head_name, -1);
+    int                body_handle = TexManager.GetTextureHandle(body_name, -1);
+    int                water_handle = TexManager.GetTextureHandle(water_name, -1);
+    gfx::TextureHandle head_image = PortTextureFromCTexture(head).binding.texture;
+    gfx::TextureHandle body_image = PortTextureFromCTexture(body).binding.texture;
+    PortTextureRef     water_ref = PortTextureFromCTexture(target);
+    gfx::TextureHandle water_image = water_ref.binding.texture;
+
+    TexManager.DeleteTextureBlock(25);
+    ASSERT_EQ(TexManager.CleanUpTextureList(), 1);
+    Enter(effect, 25);
+
+    env.gfx.Frame({0, 0, 0, 0x80}, [&] {
+        gfx::SetRenderTarget(water_image);
+        env.Draw(PortTextureFromHandle(body_handle), 0, 0, 32, 32, 0, 0, 2, 2);
+        gfx::SetRenderTarget(gfx::kMainTarget);
+        env.Draw(PortTextureFromHandle(head_handle), 0, 0, 100, 100, 0, 0, 2, 2);
+        env.Draw(PortTextureFromCTexture(body), 100, 0, 100, 100, 0, 0, 2, 2);
+        env.Draw(water_ref, 200, 0, 100, 100, 0, 0, 32, 32);
+    });
+    EXPECT_TRUE(env.gfx.PixelNear(50, 50, 255, 0, 0));
+    EXPECT_TRUE(env.gfx.PixelNear(150, 50, 0, 0, 255));
+    EXPECT_TRUE(env.gfx.PixelNear(250, 50, 0, 0, 255));
+    EXPECT_EQ(Named("head"), head);
+    EXPECT_EQ(Named("body"), body);
+    EXPECT_EQ(Named("water"), target);
+    EXPECT_EQ(PortTextureFromHandle(head_handle).binding.texture, head_image);
+    EXPECT_EQ(PortTextureFromHandle(body_handle).binding.texture, body_image);
+    EXPECT_EQ(PortTextureFromHandle(water_handle).binding.texture, water_image);
+    EXPECT_EQ(gfx::FindNamedRenderTarget("water"), water_image);
+    // The reloaded block takes the entry it left.
+    EXPECT_EQ(TexManager.GetTextureHandle(effect_name, -1), effect_handle);
+}
