@@ -53,7 +53,15 @@ void WindowInit(const WindowConfig &config) {
             height = desktop != nullptr ? desktop->h : 960;
         }
     }
-    g_window = SDL_CreateWindow("Dark Cloud", width, height, flags);
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Dark Cloud");
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, width);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, height);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, static_cast<Sint64>(flags));
+    // Without a Vulkan surface, macOS would give the window OpenGL, which the offscreen driver cannot load.
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_EXTERNAL_GRAPHICS_CONTEXT_BOOLEAN, !config.vulkan);
+    g_window = SDL_CreateWindowWithProperties(props);
+    SDL_DestroyProperties(props);
     if (g_window == nullptr) {
         Fatal("SDL_CreateWindow");
     }

@@ -30,7 +30,10 @@ void CheckExtracted(const fs::path &out, const Disc &disc) {
     ASSERT_TRUE(ReadBytes(out / "meswin/systeme.bin") == disc.files[4].data);
     ASSERT_TRUE(fs::is_regular_file(out / "empty.bin") && fs::file_size(out / "empty.bin") == 0);
     ASSERT_TRUE(ReadBytes(out / "data.hd2") == disc.hd2);
-    ASSERT_TRUE(!fs::exists(out / "DUN"));
+    // Listed rather than looked up: macOS's file system ignores case.
+    for (const fs::directory_entry &entry : fs::directory_iterator(out)) {
+        ASSERT_TRUE(entry.path().filename() != "DUN");
+    }
 }
 
 } // namespace

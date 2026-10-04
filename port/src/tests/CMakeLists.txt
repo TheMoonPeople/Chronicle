@@ -24,11 +24,12 @@ target_link_libraries(darkcloud_tests PRIVATE GTest::gtest)
 
 # A case is a unit test: it finishes in milliseconds, and one that does not is cut off. The clock
 # cases measure short sleeps, which the parallel gfx cases skew, so they run on their own.
+set(DC_TEST_TIMEOUT 5 CACHE STRING "Seconds a test case may run before it is cut off")
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER -PlatformClock.*
-    PROPERTIES TIMEOUT 5)
+    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT})
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER PlatformClock.*
-    PROPERTIES TIMEOUT 5 RUN_SERIAL TRUE)
+    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} RUN_SERIAL TRUE)

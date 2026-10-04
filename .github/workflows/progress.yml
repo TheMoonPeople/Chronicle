@@ -35,7 +35,7 @@ permissions:
 jobs:
   report:
     name: Progress report (${{ matrix.region }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +52,7 @@ jobs:
 
       - name: Check out the repository
         if: env.HAS_PRIVATE == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check out the mwccgap submodule
         if: env.HAS_PRIVATE == 'true'
@@ -60,7 +60,7 @@ jobs:
 
       - name: Check out the private repository
         if: env.HAS_PRIVATE == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.PRIVATE_REPOSITORY }}
           path: .private
@@ -115,7 +115,7 @@ jobs:
 
       - name: Upload the progress report
         if: env.HAS_PRIVATE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.region }}_report
           path: progress/${{ matrix.region }}/report.json
@@ -125,14 +125,14 @@ jobs:
     # One message covering both releases, once both reports exist.
     needs: report
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       HAS_DISCORD: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
 
     steps:
       - name: Check out the repository
         if: env.HAS_DISCORD == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download the progress reports
         if: env.HAS_DISCORD == 'true'
@@ -140,7 +140,7 @@ jobs:
         # Absent when the report jobs were skipped for want of the private
         # repository; the message is then skipped too.
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: "*_report"
           path: reports

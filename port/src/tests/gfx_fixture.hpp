@@ -27,6 +27,7 @@ struct GfxOptions {
     bool offscreen = OffscreenByDefault();
     bool triangle_fans = true;
     bool separate_stencil_masks = true;
+    std::filesystem::path pipeline_cache = std::filesystem::temp_directory_path() / "dc_gfx_test" / "pipeline_cache.bin";
 };
 
 // A headless window and renderer with validation on. Any validation message fails the test.
@@ -48,7 +49,7 @@ struct GfxFixture {
         config.offscreen = options.offscreen;
         config.triangle_fans = options.triangle_fans;
         config.separate_stencil_masks = options.separate_stencil_masks;
-        config.pipeline_cache = std::filesystem::temp_directory_path() / "dc_gfx_test" / "pipeline_cache.bin";
+        config.pipeline_cache = options.pipeline_cache;
         config.progress = [this](uint32_t done, uint32_t total) {
             progress_calls++;
             progress_done = done;

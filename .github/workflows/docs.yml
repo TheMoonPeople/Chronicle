@@ -24,11 +24,11 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build the toolchain image
         # Same reasoning as the progress workflow: the Dockerfile is the only
@@ -37,10 +37,10 @@ jobs:
         run: docker build -t dcdecomp_dev --target dev .
 
       - name: Check out the Doxygen Awesome theme
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jothepro/doxygen-awesome-css
-          ref: v2.4.2
+          ref: v2.5.0
           path: doxygen-awesome-css
 
       - name: Generate the documentation
@@ -54,7 +54,7 @@ jobs:
             '
 
       - name: Upload the documentation
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           # OUTPUT_DIRECTORY in the Doxyfile, with HTML_OUTPUT flattened into
           # it, so this is the site root.
@@ -65,7 +65,7 @@ jobs:
     # only master is published.
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     permissions:
       pages: write
@@ -78,4 +78,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

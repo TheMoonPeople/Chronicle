@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
+#include <unistd.h>
 
 #include <fstream>
 #include <iterator>
+#include <string>
 
 #include "gfx_fixture.hpp"
 
@@ -28,10 +30,13 @@ uint32_t Crc(const uint8_t *data, size_t size) {
 } // namespace
 
 TEST(GfxMisc, PipelineCache) {
-    std::filesystem::path cache =
-        std::filesystem::temp_directory_path() / "dc_gfx_test" / "pipeline_cache.bin";
+    // Its own file: the other cases share theirs, and save over it while they run.
+    std::filesystem::path cache = std::filesystem::temp_directory_path() / "dc_gfx_test" /
+                                  ("pipeline_cache_" + std::to_string(getpid()) + ".bin");
+    std::filesystem::remove(cache);
+    GfxOptions options{.pipeline_cache = cache};
     {
-        GfxFixture fixture;
+        GfxFixture fixture(640, 480, 1.0f, options);
         ASSERT_TRUE(gfx::PipelineCount() > 0);
         ASSERT_TRUE(fixture.progress_calls > 0);
         ASSERT_TRUE(fixture.progress_done == fixture.progress_total);
@@ -44,10 +49,11 @@ TEST(GfxMisc, PipelineCache) {
         corrupt << "not a pipeline cache at all, but long enough to have a header";
     }
     {
-        GfxFixture fixture;
+        GfxFixture fixture(640, 480, 1.0f, options);
         ASSERT_TRUE(gfx::PipelineCount() > 0);
     }
     ASSERT_TRUE(std::filesystem::file_size(cache) >= 32);
+    std::filesystem::remove(cache);
 }
 
 TEST(GfxMisc, TextureLimits) {

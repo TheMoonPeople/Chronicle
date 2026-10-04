@@ -31,7 +31,7 @@ protected:
 
 // An empty working directory and nothing in the environment but XDG_DATA_HOME and HOME.
 fs::path Isolate(const char *tag) {
-    fs::path dir = fs::temp_directory_path() / std::format("dc_xdg_{}_{}", tag, getpid());
+    fs::path dir = fs::canonical(fs::temp_directory_path()) / std::format("dc_xdg_{}_{}", tag, getpid());
     fs::remove_all(dir);
     fs::create_directories(dir / "work");
     fs::current_path(dir / "work");

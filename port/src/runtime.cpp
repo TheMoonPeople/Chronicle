@@ -30,11 +30,18 @@ namespace {
 unsigned int g_rand_state = 1;
 }
 
-extern "C" void srand(unsigned int seed) noexcept {
+// glibc declares these noexcept; Apple's libc does not.
+#ifdef __APPLE__
+#define LIBC_NOEXCEPT
+#else
+#define LIBC_NOEXCEPT noexcept
+#endif
+
+extern "C" void srand(unsigned int seed) LIBC_NOEXCEPT {
     g_rand_state = seed;
 }
 
-extern "C" int rand() noexcept {
+extern "C" int rand() LIBC_NOEXCEPT {
     g_rand_state = g_rand_state * 1103515245u + 12345u;
     return static_cast<int>(g_rand_state & 0x7FFFFFFFu);
 }

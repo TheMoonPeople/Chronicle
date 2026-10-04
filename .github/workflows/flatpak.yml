@@ -20,14 +20,14 @@ permissions:
 jobs:
   flatpak:
     name: Build the Flatpak
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
       options: --privileged
     env:
       MANIFEST: port/flatpak/ci.yml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Point the manifest at this commit
         run: |

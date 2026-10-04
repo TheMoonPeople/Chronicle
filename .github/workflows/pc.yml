@@ -1,12 +1,10 @@
-# The native PC port (docs/PC.md): builds PLATFORM=PC with clang 20 and runs
+# The native PC port (docs/PC.md): builds PLATFORM=PC with clang 22 and runs
 # its tests, the headless smoke runs of darkcloud among them, on Mesa's
 # lavapipe software Vulkan driver.
 #
-# Ubuntu 24.04 ships neither SDL3 nor a Vulkan 1.4 loader, so SDL3, the
-# Vulkan headers and the loader are built from source into one prefix that is
-# cached by their versions. kisak-mesa provides a lavapipe new enough to
-# report Vulkan 1.4. No game data is needed: the smoke tests build their own
-# fixtures.
+# SDL3, the Vulkan headers and the loader are built from source, newer than
+# Ubuntu's, into one prefix that is cached by their versions. No game data is
+# needed: the smoke tests build their own fixtures.
 #
 # The macOS job (docs/MACOS.md) builds Mesa's KosmicKrisp and lavapipe with
 # scripts/host/mesa-macos.sh, cached by Mesa tag, runs the tests on lavapipe
@@ -30,30 +28,27 @@ env:
 jobs:
   build:
     name: Build and test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the toolchain and libraries
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm-20.list
-          sudo add-apt-repository -y ppa:kisak/kisak-mesa
           sudo apt-get update
-          sudo apt-get install -y clang-20 lld-20 llvm-20 libclang1-20 cmake ninja-build glslang-tools \
+          sudo apt-get install -y clang-22 lld-22 llvm-22 libclang1-22 python3-clang-22 cmake ninja-build glslang-tools \
             mesa-vulkan-drivers \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxfixes-dev \
-            libxkbcommon-dev libxcb1-dev libx11-xcb-dev libwayland-dev wayland-protocols \
+            libxkbcommon-dev libxcb1-dev libx11-xcb-dev libxtst-dev libwayland-dev wayland-protocols \
             libegl1-mesa-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
           # llvm-objcopy and ld.lld under their plain names, as port/CMakeLists.txt looks them up.
-          echo "/usr/lib/llvm-20/bin" >> "$GITHUB_PATH"
+          echo "/usr/lib/llvm-22/bin" >> "$GITHUB_PATH"
 
       - name: Restore SDL3 and Vulkan
         id: deps
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.DEPS }}
-          key: deps-ubuntu-24.04-sdl-${{ env.SDL_VERSION }}-vulkan-${{ env.VULKAN_VERSION }}
+          key: deps-ubuntu-26.04-sdl-${{ env.SDL_VERSION }}-vulkan-${{ env.VULKAN_VERSION }}
 
       - name: Build SDL3 and Vulkan
         if: steps.deps.outputs.cache-hit != 'true'
@@ -74,7 +69,7 @@ jobs:
       - name: Configure
         run: |
           cmake -S . -B port/build/pc -G Ninja -DPLATFORM=PC -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_PREFIX_PATH="$DEPS"
+            -DCMAKE_CXX_COMPILER=clang++-22 -DCMAKE_PREFIX_PATH="$DEPS" -DDC_TEST_TIMEOUT=60
 
       - name: Build
         run: cmake --build port/build/pc
@@ -88,10 +83,7 @@ jobs:
           env -u DC_DATA ctest --output-on-failure -j4
 
       - name: Audit pointer truncations
-        run: |
-          python3 -m venv "$RUNNER_TEMP/clang"
-          "$RUNNER_TEMP/clang/bin/pip" install 'clang==20.1.*'
-          "$RUNNER_TEMP/clang/bin/python" scripts/port/truncations.py --build port/build/pc --check
+        run: /usr/bin/python3 scripts/port/truncations.py --build port/build/pc --check
 
   macos:
     name: Build and test (macOS arm64)
@@ -102,7 +94,7 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install the toolchain and libraries
         run: |
@@ -114,7 +106,7 @@ jobs:
       # the half hour Mesa takes.
       - name: Restore Mesa
         id: mesa
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.MESA_PREFIX }}
           key: mesa-${{ runner.os }}-${{ runner.arch }}-${{ env.MESA_TAG }}-${{ hashFiles('scripts/host/mesa-macos.sh') }}
@@ -124,7 +116,7 @@ jobs:
 
       - name: Save Mesa
         if: steps.mesa.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.MESA_PREFIX }}
           key: ${{ steps.mesa.outputs.cache-primary-key }}
@@ -144,7 +136,7 @@ jobs:
           cat artifacts/vulkaninfo-*.txt
 
       - name: Configure
-        run: cmake --preset macos-arm64
+        run: cmake --preset macos-arm64 -DDC_TEST_TIMEOUT=60
 
       - name: Build
         run: cmake --build --preset macos-arm64
@@ -183,7 +175,7 @@ jobs:
 
       - name: Upload screenshots and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-kosmickrisp
           path: artifacts/

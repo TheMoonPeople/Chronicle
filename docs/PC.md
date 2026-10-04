@@ -32,7 +32,7 @@ It needs clang 20 with lld and the LLVM binary tools (`llvm-objcopy`,
 `glslangValidator`, SDL3 (3.4) and the Vulkan 1.4 headers and loader, and at
 run time a device with Vulkan 1.3 or later, `dualSrcBlend` and `shaderClipDistance`
 (any desktop driver; Mesa's lavapipe in CI; `port/src/gfx/README.md`, "Device", has the whole list). `.github/workflows/pc.yml` is a
-complete recipe on Ubuntu 24.04.
+complete recipe on Ubuntu 26.04.
 
 The game's files come from the disc (see "Game data"). Without them a
 windowed start asks for the disc image and extracts it; `dcdata` does the

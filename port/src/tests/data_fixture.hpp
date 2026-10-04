@@ -34,8 +34,9 @@ struct Disc {
     std::vector<File> files;
 };
 
+// Resolved, as the working directory comes back: macOS's /var is a symlink.
 inline fs::path TempDir(const char *tag) {
-    fs::path dir = fs::temp_directory_path() / std::format("dc_{}_{}", tag, getpid());
+    fs::path dir = fs::canonical(fs::temp_directory_path()) / std::format("dc_{}_{}", tag, getpid());
     fs::remove_all(dir);
     fs::create_directories(dir);
     return dir;

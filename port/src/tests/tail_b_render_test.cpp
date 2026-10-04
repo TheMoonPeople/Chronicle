@@ -162,7 +162,8 @@ TEST(TailBRender, FaceChangeCopiesFaceRects) {
     ASSERT_TRUE(at(0, 19) == 1 && at(64, 55) == 1);
 }
 
-// The menu's backdrop: the frame as drawn so far lands in frame_image, once per request.
+// The menu's backdrop: the next step's task copies the frame the request was made in to
+// frame_image, once per request.
 TEST(TailBRender, SaveFrameImageGrabsFrame) {
     TailBFixture     fixture;
     char             name[] = "#frame_image#640#480#4";
@@ -179,12 +180,12 @@ TEST(TailBRender, SaveFrameImageGrabsFrame) {
     fixture.Frame([&] {
         MGFillBox(CRect_i_(0, 0, 640 * 16, SCREEN_HALF_HEIGHT * 16), 0, 160, 0, 0x80);
         EdSaveFrameImage(*frame_image);
-        EdSaveFrameImageTask();
     });
     fixture.Frame([&] {
-        MGFillBox(CRect_i_(0, 0, 640 * 16, SCREEN_HALF_HEIGHT * 16), 160, 0, 0, 0x80);
         EdSaveFrameImageTask();
+        MGFillBox(CRect_i_(0, 0, 640 * 16, SCREEN_HALF_HEIGHT * 16), 160, 0, 0, 0x80);
     });
+    fixture.Frame([&] { EdSaveFrameImageTask(); });
 
     uint32_t             width = 0;
     uint32_t             height = 0;
