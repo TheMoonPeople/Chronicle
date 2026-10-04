@@ -139,3 +139,32 @@ TEST(GfxMisc, Png) {
     size_t right = 10 * (64 * 3 + 1) + 1 + 60 * 3;
     ASSERT_TRUE(raw[right] == 10 && raw[right + 1] == 20 && raw[right + 2] == 30);
 }
+
+TEST(GfxMisc, TextureReusingFrameTargetKeepsTexelCoordinates) {
+    GfxFixture fixture(1280, 960);
+    gfx::SetFrameLayout({gfx::AspectMode::Fill, 1.0f});
+    gfx::TextureHandle frame = gfx::CreateRenderTarget(640, 256, true, false, true);
+    ASSERT_NE(frame, gfx::kNullTexture);
+    gfx::DestroyTexture(frame);
+    for (int i = 0; i < 3; i++) {
+        ASSERT_TRUE(gfx::BeginFrame());
+        gfx::EndFrame();
+    }
+
+    gfx::TextureHandle texture = gfx::CreateTexture({4, 1, gfx::TextureFormat::Rgba8, 1, true});
+    ASSERT_NE(texture, gfx::kNullTexture);
+    uint32_t texels[] = {Rgba(255, 0, 0), Rgba(0, 255, 0), Rgba(0, 0, 255), Rgba(255, 255, 255)};
+    ASSERT_TRUE(gfx::UpdateTexture(texture, 0, 0, 0, 4, 1, texels));
+    fixture.Frame({0, 0, 0, 0x80}, [&] {
+        gfx::TextureBinding binding;
+        binding.texture = texture;
+        binding.filter = gfx::Filter::Nearest;
+        auto quad = Quad(100, 100, 40, 10, {0x80, 0x80, 0x80, 0x80}, 0, 0, 4, 1);
+        gfx::Draw2D(gfx::Primitive::Quads, quad, binding, gfx::DrawState{});
+    });
+    EXPECT_TRUE(fixture.PixelNear(210, 210, 255, 0, 0));
+    EXPECT_TRUE(fixture.PixelNear(230, 210, 0, 255, 0));
+    EXPECT_TRUE(fixture.PixelNear(250, 210, 0, 0, 255));
+    EXPECT_TRUE(fixture.PixelNear(270, 210, 255, 255, 255));
+    EXPECT_FALSE(gfx::GetTextureInfo(texture)->frame_target);
+}
