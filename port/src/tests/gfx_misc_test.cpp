@@ -43,16 +43,22 @@ TEST(GfxMisc, PipelineCache) {
         ASSERT_TRUE(fixture.progress_total == gfx::PipelineCount());
         ASSERT_TRUE(std::filesystem::exists(cache));
     }
-    // A cache from another device or a corrupt file is ignored, not fed to the driver.
+    // A cache from another device or a corrupt file is ignored, not fed to the driver, and replaced.
+    const std::string garbage = "not a pipeline cache at all, but long enough to have a header";
     {
         std::ofstream corrupt(cache, std::ios::binary | std::ios::trunc);
-        corrupt << "not a pipeline cache at all, but long enough to have a header";
+        corrupt << garbage;
     }
     {
         GfxFixture fixture(640, 480, 1.0f, options);
         ASSERT_TRUE(gfx::PipelineCount() > 0);
     }
-    ASSERT_GE(std::filesystem::file_size(cache), 32u);
+    // Compared, not sized: lavapipe since Mesa 26.2 returns a 20-byte cache.
+    std::ifstream saved(cache, std::ios::binary);
+    std::string   contents((std::istreambuf_iterator<char>(saved)), std::istreambuf_iterator<char>());
+    ASSERT_FALSE(contents.empty());
+    ASSERT_NE(contents, garbage);
+    saved.close();
     std::filesystem::remove(cache);
 }
 
