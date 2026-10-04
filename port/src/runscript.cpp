@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "battle_globals.hpp"
+#include "dataalloc.hpp"
 
 // The script VM on the host. A compiled script (.stb) is read where it was loaded, as retail
 // does: the header, the program table and the instructions are 32-bit integers on disc and on
@@ -21,6 +22,11 @@
 // 24. load keeps the counts and gives each interpreter host-sized storage of its own.
 
 namespace {
+
+// Retail's EdRunEvent has no return statement: its caller reads what the tail of RunEvent, the
+// call to CRunScript::run, left in v0. The host has no such register to lean on, so run records
+// its result.
+int g_run_result = -1;
 
 struct DiscFuncData {
     int32_t  addr;
@@ -108,9 +114,23 @@ void CRunScript::load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, int stack_num, 
     this->code = reinterpret_cast<char *>(prog) + prog->code;
 }
 
+// editloop3.cpp's static event interpreter, under the global name
+// port/include/stubs/editloop3.hpp gives it.
+extern CRunScript EdEventScript asm("EditLoop3_EdEventScript");
+
+void RunEvent(CRunScript *script, int program, CDataAlloc2<1> *arena);
+
+// Retail's body, with the return it leaves to v0: 1 for an event still running, 0 for one that
+// ran to its end and -1 for a program the script does not have. EdEventInit treats the last two
+// as an event with nothing to show.
+int EdRunEvent(int program, CDataAlloc2<1> *arena) {
+    RunEvent(&EdEventScript, program, arena);
+    return g_run_result;
+}
+
 int CRunScript::run(int no) {
     if (prog == 0) {
-        return -1;
+        return g_run_result = -1;
     }
 
     sp = stack;
@@ -134,7 +154,7 @@ int CRunScript::run(int no) {
 
     if (func == 0) {
         printf("not found program %d\n", no);
-        return -1;
+        return g_run_result = -1;
     }
 
     frame = sp - func->arg;
@@ -145,7 +165,7 @@ int CRunScript::run(int no) {
     end = 0;
     skip_wait = 0;
     exe(start);
-    return end != 0 ? 0 : 1;
+    return g_run_result = end != 0 ? 0 : 1;
 }
 
 // Retail's interpreter, opcode for opcode; only CALL's record and the diagnostics' names differ.

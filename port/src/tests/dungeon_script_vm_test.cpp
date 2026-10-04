@@ -5,7 +5,13 @@
 #include <string>
 #include <vector>
 
+#include "dataalloc.hpp"
 #include "runscript.hpp"
+
+// editloop3.cpp's event runner; editloop3.hpp needs more of the game's headers than this test does.
+int EdSetEventScript(char *common_script, char *map_script, CDataAlloc2<1> *allocator);
+int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program);
+int EdRunEvent(int program, CDataAlloc2<1> *arena);
 
 // The script VM on a .stb assembled here in the on-disc layout: a five-word header, the program
 // table, then the code section holding the instructions, 16-byte function records and strings,
@@ -398,4 +404,41 @@ TEST(DungeonScriptVm, StacksAreHostSized) {
     ASSERT_TRUE(script.run(5) == 0);
     ASSERT_TRUE(script.result == 100);
     ASSERT_TRUE(Untouched(arena));
+}
+
+TEST(DungeonScriptVm, TownEventReturnsCompletionStatus) {
+    Stb stb;
+    int complete = stb.Func(0, 0);
+    stb.Start(complete);
+    stb.Op(RS_OP_END);
+    int suspended = stb.Func(0, 0);
+    stb.Start(suspended);
+    stb.Op(RS_OP_WAIT);
+    stb.Op(RS_OP_END);
+    stb.Program(1, complete);
+    stb.Program(2, suspended);
+
+    std::vector<uint32_t>     file = stb.Build();
+    alignas(16) unsigned char storage[16 * 512] = {};
+    CDataAlloc2<1>            arena;
+    arena.base = storage;
+    arena.buffer = storage;
+    arena.used = 3;
+    arena.limit = 512;
+
+    // EdSetEventScript loads the town's own interpreter, the one EdEventInit and EdRunEvent start.
+    char *program = reinterpret_cast<char *>(file.data());
+    ASSERT_EQ(EdSetEventScript(program, program, &arena), 1);
+    const int used = arena.used;
+
+    for (int tick = 0; tick < 6; tick++) {
+        EXPECT_EQ(EdEventInit(1, &arena, program), 0);
+        EXPECT_EQ(EdRunEvent(1, &arena), 0);
+        EXPECT_EQ(EdEventInit(2, &arena, program), 1);
+        EXPECT_EQ(EdRunEvent(2, &arena), 1);
+    }
+
+    EXPECT_EQ(EdEventInit(3, &arena, program), 0);
+    EXPECT_EQ(EdRunEvent(3, &arena), -1);
+    EXPECT_EQ(arena.used, used);
 }

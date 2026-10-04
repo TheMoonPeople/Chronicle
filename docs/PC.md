@@ -1001,7 +1001,10 @@ renames what the unit takes from MWCC or from the PS2 link alone:
   (`Ps2Lvalue`, `port/include/port.h`): MWCC binds a temporary to the non-const
   references of `DrawMenuColorGradation` and `CEditGround::CheckPartsRect`.
 - `editloop3` gives its static `EdSetVillagerNextPos` a global forwarder,
-  `PortEdSetVillagerNextPos`, for the port's `EdMoveVillager`.
+  `PortEdSetVillagerNextPos`, for the port's `EdMoveVillager`, and declares
+  its static `EdEventScript` `extern` first, for the port's `EdRunEvent`
+  (`port/src/runscript.cpp`): retail's has no return statement and leaves
+  `CRunScript::run`'s result in `v0` for `EdEventInit`.
 - `main` gets an overload of `LoadFileMenuData` for a `const char *`: one call
   names its file with a comma expression ending in a string literal.
 - `mathutil` gets the Metrowerks runtime's own `std::exception` and
