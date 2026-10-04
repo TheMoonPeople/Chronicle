@@ -8,7 +8,7 @@ through MoltenVK. Like on Linux, it needs your own PAL disc.
 Xcode or its command line tools, and Homebrew in `/opt/homebrew`:
 
 ```sh
-brew install llvm lld cmake ninja python glslang sdl3 nlohmann-json vulkan-headers vulkan-loader vulkan-tools molten-vk
+brew install llvm lld cmake ninja python glslang sdl3 nlohmann-json vulkan-headers vulkan-loader vulkan-tools molten-vk googletest
 ```
 
 The presets use Homebrew's `llvm`; Apple's clang is not current enough for C++26.
