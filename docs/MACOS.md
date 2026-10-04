@@ -44,20 +44,11 @@ port/build/macos-arm64-release/darkcloud --data data --save save
 The Vulkan loader does not search Homebrew's prefix, so `VK_DRIVER_FILES` is
 required. Options and `config.json` are those of `docs/PC.md`.
 
-## KosmicKrisp and the tests
+## Tests
 
-`scripts/host/mesa-macos.sh` builds Mesa's KosmicKrisp (Vulkan on Metal 4,
-macOS 26 or later) and lavapipe into `~/.local/mesa/<tag>` and prints their
-`VK_DRIVER_FILES` lines. KosmicKrisp from `mesa-26.2.4` runs the game in a
-window, but flickers and freezes in fullscreen, and shows frames out of order
-with `present_mode` `immediate`.
-
-The tests run on lavapipe:
+The tests run on MoltenVK too, as CI runs them:
 
 ```sh
-export VK_DRIVER_FILES=~/.local/mesa/mesa-26.2.4/share/vulkan/icd.d/lvp_icd.aarch64.json
+export VK_DRIVER_FILES=/opt/homebrew/etc/vulkan/icd.d/MoltenVK_icd.json
 ctest --preset macos-arm64
 ```
-
-A few tests assume Linux (a case-sensitive file system, `/tmp` not being a
-symlink) and fail on macOS.

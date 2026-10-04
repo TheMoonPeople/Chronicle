@@ -344,7 +344,7 @@ Optional, used when present:
   `config.dynamic_color_write_mask = false` forces the fallback.
 - `VK_KHR_portability_enumeration` (instance), enabled with
   `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` whenever the loader has it, so drivers that
-  implement Vulkan on Metal (KosmicKrisp, MoltenVK) are enumerated.
+  implement Vulkan on Metal (MoltenVK) are enumerated.
 - `VK_KHR_portability_subset` (device), enabled whenever offered, as the spec requires. Of its
   restrictions the renderer meets two: without `triangleFans` a `Primitive::TriangleFan` is drawn as
   an indexed list in Vulkan's fan order (identical pixels; `config.triangle_fans = false` forces

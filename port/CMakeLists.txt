@@ -257,7 +257,7 @@ dc_link_game(darkcloud)
 include(GNUInstallDirs)
 install(TARGETS darkcloud RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# The tests fetch GoogleTest at configure time; a build with no network turns them off.
+# The tests use an installed GoogleTest, or fetch one at configure time; a build with neither turns them off.
 option(DC_BUILD_TESTS "Build darkcloud_tests" ON)
 if(DC_BUILD_TESTS)
     enable_testing()

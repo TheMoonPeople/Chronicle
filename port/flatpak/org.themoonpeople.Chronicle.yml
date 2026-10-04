@@ -20,43 +20,6 @@ finish-args:
   - --device=all
 
 modules:
-  - name: vulkan-headers
-    buildsystem: cmake-ninja
-    cleanup:
-      - '*'
-    sources:
-      - type: git
-        url: https://github.com/KhronosGroup/Vulkan-Headers.git
-        tag: v1.4.365
-        commit: c46850864f4661461b0f6cb9922c058ffea4915e
-
-  # Wayland, X11, PipeWire and PulseAudio come from the runtime and are loaded when SDL starts.
-  - name: sdl3
-    buildsystem: cmake-ninja
-    config-opts:
-      - -DCMAKE_BUILD_TYPE=Release
-      # GNUInstallDirs picks lib64 here, which is not on the app's library path.
-      - -DCMAKE_INSTALL_LIBDIR=lib
-      - -DSDL_STATIC=OFF
-      - -DSDL_TEST_LIBRARY=OFF
-      - -DSDL_TESTS=OFF
-      - -DSDL_EXAMPLES=OFF
-      - -DSDL_WAYLAND=ON
-      - -DSDL_X11=ON
-      - -DSDL_PIPEWIRE=ON
-      - -DSDL_PULSEAUDIO=ON
-      - -DSDL_ALSA=OFF
-      - -DSDL_JACK=OFF
-    cleanup:
-      - /include
-      - /lib/cmake
-      - /lib/pkgconfig
-      - /share/licenses
-    sources:
-      - type: archive
-        url: https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
-        sha256: 9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3
-
   # Header only, for the build alone: the network is off while chronicle configures.
   - name: nlohmann-json
     buildsystem: cmake-ninja

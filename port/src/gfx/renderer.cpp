@@ -99,7 +99,7 @@ void CreateInstance() {
         }
         extensions.assign(sdl_extensions, sdl_extensions + sdl_count);
     }
-    // Drivers that implement Vulkan on another API (KosmicKrisp and MoltenVK on Metal) are only
+    // Drivers that implement Vulkan on another API (MoltenVK on Metal) are only
     // enumerated for an instance that says it handles VK_KHR_portability_subset.
     bool portability = InstanceHasExtension(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     if (portability) {

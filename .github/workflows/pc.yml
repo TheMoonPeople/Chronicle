@@ -1,14 +1,10 @@
 # The native PC port (docs/PC.md): builds PLATFORM=PC with clang 22 and runs
 # its tests, the headless smoke runs of darkcloud among them, on Mesa's
-# lavapipe software Vulkan driver.
+# lavapipe software Vulkan driver. Every library comes from Ubuntu's packages.
+# No game data is needed: the smoke tests build their own fixtures.
 #
-# SDL3, the Vulkan headers and the loader are built from source, newer than
-# Ubuntu's, into one prefix that is cached by their versions. No game data is
-# needed: the smoke tests build their own fixtures.
-#
-# The macOS job (docs/MACOS.md) builds Mesa's KosmicKrisp and lavapipe with
-# scripts/host/mesa-macos.sh, cached by Mesa tag, runs the tests on lavapipe
-# and then darkcloud on KosmicKrisp, which needs Metal 4 and so macOS 26.
+# The macOS job (docs/MACOS.md) runs the tests and then darkcloud on MoltenVK,
+# the driver the game uses there.
 name: PC port
 
 on:
@@ -19,11 +15,6 @@ on:
 
 permissions:
   contents: read
-
-env:
-  SDL_VERSION: release-3.4.18
-  VULKAN_VERSION: v1.4.365
-  DEPS: ${{ github.workspace }}/../deps
 
 jobs:
   build:
@@ -36,40 +27,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-22 lld-22 llvm-22 libclang1-22 python3-clang-22 cmake ninja-build glslang-tools \
-            mesa-vulkan-drivers \
-            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxfixes-dev \
-            libxkbcommon-dev libxcb1-dev libx11-xcb-dev libxtst-dev libwayland-dev wayland-protocols \
-            libegl1-mesa-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
+            mesa-vulkan-drivers libsdl3-dev libvulkan-dev libgtest-dev nlohmann-json3-dev
           # llvm-objcopy and ld.lld under their plain names, as port/CMakeLists.txt looks them up.
           echo "/usr/lib/llvm-22/bin" >> "$GITHUB_PATH"
-
-      - name: Restore SDL3 and Vulkan
-        id: deps
-        uses: actions/cache@v6
-        with:
-          path: ${{ env.DEPS }}
-          key: deps-ubuntu-26.04-sdl-${{ env.SDL_VERSION }}-vulkan-${{ env.VULKAN_VERSION }}
-
-      - name: Build SDL3 and Vulkan
-        if: steps.deps.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p "$DEPS" src && cd src
-          git clone --depth 1 --branch "$SDL_VERSION" https://github.com/libsdl-org/SDL.git
-          git clone --depth 1 --branch "$VULKAN_VERSION" https://github.com/KhronosGroup/Vulkan-Headers.git
-          git clone --depth 1 --branch "$VULKAN_VERSION" https://github.com/KhronosGroup/Vulkan-Loader.git
-          cmake -S SDL -B SDL/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$DEPS" \
-            -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
-          cmake --build SDL/build && cmake --install SDL/build
-          cmake -S Vulkan-Headers -B Vulkan-Headers/build -G Ninja -DCMAKE_INSTALL_PREFIX="$DEPS"
-          cmake --install Vulkan-Headers/build
-          cmake -S Vulkan-Loader -B Vulkan-Loader/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$DEPS" -DCMAKE_PREFIX_PATH="$DEPS"
-          cmake --build Vulkan-Loader/build && cmake --install Vulkan-Loader/build
 
       - name: Configure
         run: |
           cmake -S . -B port/build/pc -G Ninja -DPLATFORM=PC -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=clang++-22 -DCMAKE_PREFIX_PATH="$DEPS" -DDC_TEST_TIMEOUT=60
+            -DCMAKE_CXX_COMPILER=clang++-22 -DDC_TEST_TIMEOUT=60
 
       - name: Build
         run: cmake --build port/build/pc
@@ -89,8 +54,6 @@ jobs:
     name: Build and test (macOS arm64)
     runs-on: macos-26
     env:
-      MESA_TAG: mesa-26.2.4
-      MESA_PREFIX: ${{ github.workspace }}/../mesa
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
     steps:
@@ -98,42 +61,17 @@ jobs:
 
       - name: Install the toolchain and libraries
         run: |
-          brew install llvm lld cmake ninja python glslang sdl3 vulkan-headers vulkan-loader vulkan-tools
+          brew install llvm lld cmake ninja python glslang sdl3 vulkan-headers vulkan-loader vulkan-tools molten-vk \
+            googletest nlohmann-json
           # SDL loads the Vulkan loader by name, and dyld does not search Homebrew's prefix.
           echo "SDL_VULKAN_LIBRARY=$(brew --prefix vulkan-loader)/lib/libvulkan.1.dylib" >> "$GITHUB_ENV"
+          echo "VK_DRIVER_FILES=$(brew --prefix)/etc/vulkan/icd.d/MoltenVK_icd.json" >> "$GITHUB_ENV"
 
-      # Saved right after the build rather than at the end, so a failing test run does not throw away
-      # the half hour Mesa takes.
-      - name: Restore Mesa
-        id: mesa
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ env.MESA_PREFIX }}
-          key: mesa-${{ runner.os }}-${{ runner.arch }}-${{ env.MESA_TAG }}-${{ hashFiles('scripts/host/mesa-macos.sh') }}
-
-      - name: Build Mesa (KosmicKrisp and lavapipe)
-        run: scripts/host/mesa-macos.sh "$MESA_PREFIX"
-
-      - name: Save Mesa
-        if: steps.mesa.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: ${{ env.MESA_PREFIX }}
-          key: ${{ steps.mesa.outputs.cache-primary-key }}
-
-      - name: Point the loader at the drivers
-        run: |
-          icd_dir="$MESA_PREFIX/share/vulkan/icd.d"
-          echo "KOSMICKRISP_ICD=$(find "$icd_dir" -name 'kosmickrisp_mesa_icd*.json' -print -quit)" >> "$GITHUB_ENV"
-          echo "LAVAPIPE_ICD=$(find "$icd_dir" -name 'lvp_icd*.json' -print -quit)" >> "$GITHUB_ENV"
-
-      - name: Describe the Vulkan drivers
-        if: always()
+      - name: Describe the Vulkan driver
         run: |
           mkdir -p artifacts
-          VK_DRIVER_FILES="$LAVAPIPE_ICD" vulkaninfo --summary > artifacts/vulkaninfo-lavapipe.txt 2>&1 || true
-          VK_DRIVER_FILES="$KOSMICKRISP_ICD" vulkaninfo --summary > artifacts/vulkaninfo-kosmickrisp.txt 2>&1 || true
-          cat artifacts/vulkaninfo-*.txt
+          vulkaninfo --summary > artifacts/vulkaninfo.txt 2>&1 || true
+          cat artifacts/vulkaninfo.txt
 
       - name: Configure
         run: cmake --preset macos-arm64 -DDC_TEST_TIMEOUT=60
@@ -141,32 +79,27 @@ jobs:
       - name: Build
         run: cmake --build --preset macos-arm64
 
-      - name: Test on lavapipe
-        run: VK_DRIVER_FILES="$LAVAPIPE_ICD" VK_ICD_FILENAMES="$LAVAPIPE_ICD" ctest --preset macos-arm64
+      - name: Test
+        run: ctest --preset macos-arm64
 
-      # Until the first run on KosmicKrisp is green these report without failing the job. No game data:
-      # one stand-in file gets darkcloud through renderer start-up and pipeline compilation to the
+      # No game data: one stand-in file gets darkcloud through renderer start-up and pipeline compilation to the
       # game's first asset load, which fails with status 4 naming the file.
-      - name: Run darkcloud headless on KosmicKrisp
-        continue-on-error: true
+      - name: Run darkcloud headless
         run: |
           mkdir -p artifacts run/data/unrelated run/save
           echo x > run/data/unrelated/file.bin
           set +e
-          VK_DRIVER_FILES="$KOSMICKRISP_ICD" VK_ICD_FILENAMES="$KOSMICKRISP_ICD" DC_AUDIO=off \
-            port/build/macos-arm64/darkcloud --headless --frames 3 --screenshot artifacts/shot-headless.png \
+          DC_AUDIO=off port/build/macos-arm64/darkcloud --headless --frames 3 --screenshot artifacts/shot-headless.png \
             --data run/data --save run/save > artifacts/darkcloud-headless.txt 2>&1
           status=$?
           cat artifacts/darkcloud-headless.txt
           echo "darkcloud exited $status"
           [ "$status" -eq 0 ] || [ "$status" -eq 4 ]
 
-      - name: Run darkcloud in a window on KosmicKrisp
-        continue-on-error: true
+      - name: Run darkcloud in a window
         run: |
           set +e
-          VK_DRIVER_FILES="$KOSMICKRISP_ICD" VK_ICD_FILENAMES="$KOSMICKRISP_ICD" DC_AUDIO=off \
-            port/build/macos-arm64/darkcloud --frames 3 --screenshot artifacts/shot-window.png \
+          DC_AUDIO=off port/build/macos-arm64/darkcloud --frames 3 --screenshot artifacts/shot-window.png \
             --data run/data --save run/save > artifacts/darkcloud-window.txt 2>&1
           status=$?
           cat artifacts/darkcloud-window.txt
@@ -177,6 +110,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: macos-kosmickrisp
+          name: macos
           path: artifacts/
           if-no-files-found: warn

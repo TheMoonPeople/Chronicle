@@ -931,8 +931,7 @@ draws), `opening_mds.cpp` (`OPAnalyz`, `OPMdsLoad` and the definition
 reader's state) and op_d's `OpD_InitProcess`, `OpD_InitProcess2` and
 `OpD_DrawProcess`, which reach op_d's statics through names its stub header
 gives them. The smoke pools are sized from the host `CEffect` (288 bytes,
-where retail asked for fifty 256-byte ones). `title_layout_test.cpp` checks
-the linked symbols' sizes.
+where retail asked for fifty 256-byte ones).
 
 The title units' static constructors still run after the port's, over the
 port's objects, at the PS2 strides and through op_a's inline `CMap`
@@ -1110,7 +1109,7 @@ code for the port:
   rather than 128, and `CCharacter::Initialize` clears it by its `sizeof`.
   Both are 0x80 on the PS2; on the host a `tagMOTION_TYPE` is 0xB0, and with
   128 bytes a set's `frame_info` and `motion_info` lay in the next set's
-  storage (`bits64_motion_storage_test.cpp`).
+  storage.
 - **`#ifndef PORT` around assembly functions**, the one exception: clang
   cannot parse them. It replaces blank lines, so no line number moves. The
   generic `CDataAlloc<Kind, Size>::Align64()` in `ps2/include/dataalloc.hpp`

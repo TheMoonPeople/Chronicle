@@ -1,8 +1,8 @@
 # Flatpak
 
 The Linux release of the PC port (`docs/PC.md`) is a Flatpak,
-`org.themoonpeople.Chronicle`. It holds `darkcloud`, `dcdata` and SDL3 on the
-freedesktop 26.08 runtime. No game data is in it: the first start asks for
+`org.themoonpeople.Chronicle`. It holds `darkcloud` and `dcdata` on the
+freedesktop 26.08 runtime, whose SDL3 and Vulkan loader it uses. No game data is in it: the first start asks for
 your own PAL disc and extracts it.
 
 ## Installing the bundle
@@ -109,13 +109,10 @@ and `chronicle.flatpak` are ignored by git. `flatpak-builder --user --install
 build-dir port/flatpak/org.themoonpeople.Chronicle.yml` installs the build
 directly instead of through a bundle.
 
-The manifest (`port/flatpak/org.themoonpeople.Chronicle.yml`) builds:
+The manifest (`port/flatpak/org.themoonpeople.Chronicle.yml`) builds only the
+port; SDL3 and the Vulkan headers come from the SDK, and nlohmann/json's header
+from its release archive, for the build alone:
 
-- **Vulkan-Headers 1.4.365**, for the build only: the release `pc.yml` builds
-  against, a little ahead of the SDK's 1.4.357. The loader is the runtime's.
-- **SDL3 3.4.18**, newer than the runtime's 3.4.14 and ahead of it on the
-  app's library path, with its Wayland, X11, PipeWire, PulseAudio and D-Bus
-  (portal) backends loaded from the runtime.
 - **The port**, `PLATFORM=PC`, Release, with clang 22 from the
   `org.freedesktop.Sdk.Extension.llvm22` extension (the SDK's own compiler is
   GCC, and the port is built with clang everywhere). Shaders are compiled with
