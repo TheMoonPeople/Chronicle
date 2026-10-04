@@ -52,7 +52,7 @@ TEST(GfxMisc, PipelineCache) {
         GfxFixture fixture(640, 480, 1.0f, options);
         ASSERT_TRUE(gfx::PipelineCount() > 0);
     }
-    ASSERT_TRUE(std::filesystem::file_size(cache) >= 32);
+    ASSERT_GE(std::filesystem::file_size(cache), 32u);
     std::filesystem::remove(cache);
 }
 
