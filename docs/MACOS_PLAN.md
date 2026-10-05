@@ -2,7 +2,7 @@
 
 This plan brings the PC port (`docs/PC.md`, `docs/PC_PORT_PLAN.md`) to macOS on
 arm64, rendering through KosmicKrisp, Mesa's Vulkan driver on top of Metal.
-Nothing here changes the port's rules: C++26, SDL3, native Vulkan, weak-linkage
+Nothing here changes the port's rules: C++26, SDL3, native Vulkan, `PC_OVERRIDE`
 replacement, no PS2 emulation, no edits under `ps2/src`.
 
 ## 1. What KosmicKrisp is, and what must be checked
@@ -89,8 +89,6 @@ alternative that may happen to work through the same loader.
 | Arenas | `port/src/dataset.cpp` | `mmap(MAP_32BIT)` keeps arenas below 2 GiB so the game's `(int)` pointer casts survive; `madvise(MADV_DONTNEED)` zeroes | No `MAP_32BIT`. ~~Shrink `__PAGEZERO` (`-Wl,-pagezero_size,0x1000`) and map with a hint address~~: **not possible on arm64**. XNU refuses to exec a 64-bit arm64 image whose page zero is under 4 GiB (`mach_loader.c`, macOS 13 to 26), so nothing maps below 4 GiB. Only an x86_64 build under Rosetta can (`DC_MACOS_PAGEZERO_SIZE`, default `0x1000` there) |
 | Executable path | `port/src/platform/paths.cpp` | `/proc/self/exe` | `_NSGetExecutablePath` + `realpath` |
 | Executable layout | `port/CMakeLists.txt` | `-no-pie` keeps `.data`/`.bss` below 4 GiB | arm64 macOS is PIE-only, loads images above 4 GiB and forbids low mappings; nothing may depend on a 32-bit round trip (section 3) |
-| Weakening | `port/CMakeLists.txt` | `ld.lld -r` then `llvm-objcopy --weaken` on ELF | Apple's `ld -r` (`ld64.lld` has no `-r`); `llvm-objcopy --weaken` on Mach-O **[verified]** with LLVM 20 on an arm64 object (sets `N_WEAK_DEF`, leaves references alone). `tools/weaken` writes the same bytes and is selectable with `DC_MACHO_WEAKEN=tool` |
-| Interposition | `-fsemantic-interposition` | ELF-only flag; stops clang inlining calls to functions the port replaces | The driver drops it for Mach-O, but `-Xclang -fsemantic-interposition` works there (Mach-O definitions are not `dso_local`); `-fno-inline-functions` alone is not enough, IPO still folds or deletes calls. Both are used, and `ps2_interposition_check` disassembles `dc_ps2.o` on every build, Linux included |
 | Link flags | `-fuse-ld=lld -Wl,--gc-sections -Wl,--defsym=…` | GNU-style | `-Wl,-dead_strip`; `--defsym` aliases become `-Wl,-alias,_from,_to`; `EditGaijiTbl` (an offset, which `-alias` cannot express) is a port-side table in `linknames.cpp` on both platforms; `--error-limit` dropped |
 | Toolchain | clang 20 from apt | | Homebrew `llvm` (20+) and `lld`; Apple clang is not current enough for C++26 |
 | Shader build | `glslangValidator` from apt | | Homebrew `glslang` |
@@ -152,15 +150,10 @@ No memory mapping of PS2 address ranges is introduced on any platform.
   Mesa build needs **[verified]**: the executable does not link Metal, so it
   targets 14.0, the oldest macOS with Homebrew bottles; KosmicKrisp needs 26
   at run time; Homebrew prefix for SDL3, Vulkan and glslang).
-- `port/CMakeLists.txt` split per platform: the merge-and-weaken step
-  (`ld -r` + `llvm-objcopy --weaken` or `tools/weaken`), link flags
+- `port/CMakeLists.txt` split per platform: link flags
   (`-dead_strip`, `-alias` for `draw_rect`, `WorkBuffer__2`,
-  `EditGaijiTbl`), `-pagezero_size`, no `-no-pie`, the
-  interposition substitute, `-ffp-contract=off` for `ps2/src`.
-- `tools/weaken` (C++26, std only): reads a Mach-O object, sets `N_WEAK_DEF`
-  on every defined external symbol, writes it back; with a unit test on a
-  tiny object produced in the test. Built only when needed, but kept
-  portable so the Linux build also compiles it.
+  `EditGaijiTbl`), `-pagezero_size`, no `-no-pie`,
+  `-ffp-contract=off` for `ps2/src`.
 - `scripts/host/mesa-macos.sh`: builds a pinned Mesa tag with meson for
   `kosmickrisp` and `swrast`, installs under a prefix, writes the ICD files,
   prints the `VK_DRIVER_FILES` line. Everything pinned.
@@ -202,8 +195,7 @@ No memory mapping of PS2 address ranges is introduced on any platform.
 This environment is Linux x86-64 without a Mac, so the macOS build is
 verified by the CI job in 4.1 and by the user's Mac. Everything portable is
 tested on Linux first (the surface-less mode, the fan fallback, the low-memory
-mapper, `tools/weaken` on a Mach-O object written by its test). The agents
-report what they could not run.
+mapper). The agents report what they could not run.
 
 ## 5. Risks
 
@@ -212,8 +204,6 @@ report what they could not run.
   table's non-dual-source variants (more pipelines, documented approximations
   in `gfx/README.md`), and a smaller texture array with per-frame descriptor
   updates.
-- `llvm-objcopy --weaken` on Mach-O may be unsupported; `tools/weaken` is the
-  planned fallback and costs a day, not a redesign.
 - Pointer truncation sites in retail code reached through still-retail
   functions cannot be fixed without replacing those functions; the audit
   lists them and they are replaced one by one like any hardware dependence.

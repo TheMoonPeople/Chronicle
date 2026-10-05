@@ -12,11 +12,11 @@ update its status here and move the architectural facts into `docs/PC.md`.
   `port/src` and `port/include`. `ps2/src` and `ps2/include` are the PAL
   game as the PS2 build compiles it and are never edited for the port beyond
   the rules in `docs/PC.md`.
-- **Weak-linkage replacement is the only mechanism.** Any function in
+- **`PC_OVERRIDE` replacement is the only mechanism.** Any function in
   `ps2/src` that depends on PS2 hardware (GS, VU0, VU1, VIF, GIF, DMA, SPU2,
-  IOP, scratchpad, timers, memory card, CD) is replaced by a strong
-  definition in `port/src` written from scratch. A `static` function cannot
-  be replaced, so its non-static callers are replaced instead.
+  IOP, scratchpad, timers, memory card, CD) is replaced by a definition in
+  `port/src`, tagged `PC_OVERRIDE` and written from scratch. A `static`
+  function cannot be replaced, so its non-static callers are replaced instead.
 - **No emulation of the PS2.** No GS register interpreter, no VU1
   interpreter, no VIF or GIF packet decoder, no DMA chain walker, no SPU2
   register model, no memory mapping of PS2 address ranges. The libpkt,

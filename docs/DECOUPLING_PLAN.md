@@ -11,7 +11,7 @@ the last two places where the port still bends to the PlayStation 2's shape:
    interpolated between ticks.
 
 Both keep the port's rules (`docs/PC_PORT_PLAN.md`, section 1): no edits
-under `ps2/src`, replacement only through strong definitions in `port/src`, no
+under `ps2/src`, replacement only through `PC_OVERRIDE` definitions in `port/src`, no
 PS2 emulation. `docs/MACOS_PLAN.md` section 3 explains why item 1 is required
 on arm64 macOS; it is the right shape on every platform.
 
