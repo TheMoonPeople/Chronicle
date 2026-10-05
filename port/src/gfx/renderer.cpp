@@ -231,7 +231,9 @@ void PickPhysicalDevice() {
     vkGetPhysicalDeviceProperties(g.physical_device, &g.properties);
     vkGetPhysicalDeviceMemoryProperties(g.physical_device, &g.memory_properties);
     g.portability_subset = chosen.portability_subset;
-    g.triangle_fans = g.config.triangle_fans && (!chosen.portability_subset || chosen.portability.triangleFans);
+    // Metal has no fans. MoltenVK 1.4 reports triangleFans anyway, and its emulation draws a
+    // non-indexed fan as a strip, so a portability-subset device always gets the indexed list.
+    g.triangle_fans = g.config.triangle_fans && !chosen.portability_subset;
     g.separate_stencil_masks =
         g.config.separate_stencil_masks && (!chosen.portability_subset || chosen.portability.separateStencilMaskRef);
     std::fprintf(stderr, "Vulkan: using %s (Vulkan %u.%u.%u)%s\n", g.properties.deviceName,
