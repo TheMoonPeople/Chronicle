@@ -2414,7 +2414,7 @@ found:
 void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
     float box_pos[4];
     float object_pos[4];
-    int   atra_no[6];
+    int   atra_no[8]; /* BtAtraFloorCyoice fills and counts all eight of a floor's atla slots. */
     int   special;
     int   object_count;
     int   valid;
