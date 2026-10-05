@@ -750,3 +750,15 @@ PC_OVERRIDE int LoaderLoop() {
     CDbgMsg.Draw();
     return chosen;
 }
+
+// LoadBaseTexture sprintfs the dungeon's gate key image over the name of texdata__2's third entry.
+// MWCC left that literal writable; clang keeps it read-only, where the write faults, so the entry
+// gets a buffer of its own.
+extern LOADTEXTURE_INFO2 texdata__2[];
+
+namespace {
+
+char       g_gatekey_name[] = "gatekey00.img";
+const bool g_gatekey_name_writable = (texdata__2[2].name = g_gatekey_name, true);
+
+} // namespace
