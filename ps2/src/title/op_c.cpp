@@ -354,7 +354,7 @@ void FaceChange(int actor_no) {
         CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
         if (CScript__2.obj[actor_no].talk) {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (rand() % 5 == 0) {
 #else
             if ((int) (100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
@@ -2013,7 +2013,7 @@ void OpC_MotionProcess() {
 
     switch (CScript__2.camera_start) {
         case 96:
-#ifdef PAL
+#ifdef PAL_TIMING
             Fuusya[1].step_z = -0.12f * 1.2f;
 #else
             Fuusya[1].step_z = -0.12f;
@@ -2022,7 +2022,7 @@ void OpC_MotionProcess() {
 
         case 97:
             d = 2.0f;
-#ifdef PAL
+#ifdef PAL_TIMING
             Fuusya[1].step_z = -0.04f * 1.2f;
 #else
             Fuusya[1].step_z = -0.04f;
@@ -2031,12 +2031,12 @@ void OpC_MotionProcess() {
 
         case 100:
             if (Cam__2[SceneNp__2].motion_type.state.time < 258.0f) {
-#ifdef PAL
+#ifdef PAL_TIMING
                 step = 0.025f * 1.2f;
 #else
                 step = 0.025f;
 #endif
-#ifdef PAL
+#ifdef PAL_TIMING
                 Fuusya[1].step_z = -0.0048f * 1.2f;
 #else
                 Fuusya[1].step_z = -0.0048f;
@@ -2061,12 +2061,12 @@ void OpC_MotionProcess() {
                     OP_MainCamera.SetRef(ref);
                 }
 
-#ifdef PAL
+#ifdef PAL_TIMING
                 step = 0.5f * 1.2f;
 #else
                 step = 0.5f;
 #endif
-#ifdef PAL
+#ifdef PAL_TIMING
                 Fuusya[1].step_z = -10.0f * 1.2f;
 #else
                 Fuusya[1].step_z = -10.0f;
@@ -2139,7 +2139,7 @@ void OpC_SoundProcess() {
             DanceBgmCnt = DanceBgmCnt + 1;
         }
 
-#ifdef PAL
+#ifdef PAL_TIMING
         if (DanceBgmCnt == 53) {
 #else
         if (DanceBgmCnt == 63) {
@@ -2237,7 +2237,7 @@ void OpC_SoundProcess() {
     }
 
     for (int i = 0; i < 43; i++) {
-#ifdef PAL
+#ifdef PAL_TIMING
         // The table counts 60 Hz ticks; the 50 Hz count reaches the same moment at five sixths.
         if (SndCnt == SndInfo[i].count * 5 / 6) {
 #else
@@ -2270,7 +2270,7 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[11].motion_type.state.time;
 
         if (wait == 0) {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (motion_frame > 73.0f && motion_frame < 76.0f) {
 #else
             if (motion_frame > 73.0f && motion_frame < 75.0f) {
@@ -2282,7 +2282,7 @@ void OpC_SoundProcess() {
                 }
 
                 wait = 4;
-#ifdef PAL
+#ifdef PAL_TIMING
             } else if (motion_frame > 83.0f && motion_frame < 86.0f) {
 #else
             } else if (motion_frame > 83.0f && motion_frame < 85.0f) {
@@ -2309,14 +2309,14 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[11].motion_type.state.time;
 
         if (wait == 0) {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (motion_frame > 258.0f && motion_frame < 261) {
 #else
             if (motion_frame > 258.0f && motion_frame < 260.0f) {
 #endif
                 OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
-#ifdef PAL
+#ifdef PAL_TIMING
             } else if (motion_frame > 268.0f && motion_frame < 271) {
 #else
             } else if (motion_frame > 268.0f && motion_frame < 270.0f) {
@@ -2338,14 +2338,14 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[13].motion_type.state.time;
 
         if (wait == 0) {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (motion_frame > 123.0f && motion_frame < 126.0f) {
 #else
             if (motion_frame > 123.0f && motion_frame < 125.0f) {
 #endif
                 OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
-#ifdef PAL
+#ifdef PAL_TIMING
             } else if (motion_frame > 133.0f && motion_frame < 136.0f) {
 #else
             } else if (motion_frame > 133.0f && motion_frame < 135.0f) {
@@ -2367,14 +2367,14 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[12].motion_type.state.time;
 
         if (wait == 0) {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (motion_frame > 33.0f && motion_frame < 36.0f) {
 #else
             if (motion_frame > 33.0f && motion_frame < 35.0f) {
 #endif
                 OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
-#ifdef PAL
+#ifdef PAL_TIMING
             } else if (motion_frame > 43.0f && motion_frame < 46.0f) {
 #else
             } else if (motion_frame > 43.0f && motion_frame < 45.0f) {
@@ -3191,7 +3191,7 @@ static void MajinBeemProcess() {
     if (CScript__2.beem_req) {
         float speed;
 
-#ifdef PAL
+#ifdef PAL_TIMING
         if (CScript__2.scene == OP_SCENE_MAJIN) {
             speed = 5.4f;
         } else {

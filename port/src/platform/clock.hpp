@@ -23,7 +23,7 @@
 // `ClockTickCount()`, `MGInitVSyncCallBack` calls `ClockSetTickCallback`, and
 // `MGEndFrame` calls `ClockWaitNextTick()` then `ClockPump()` (`ClockSyncV`).
 //
-// The tick rate is a runtime setting (50 Hz, the PAL field rate, by default)
+// The tick rate is a runtime setting (60 Hz, the NTSC field rate, by default)
 // and changing it re-anchors the clock without moving the count. Unbounded
 // mode, for headless runs, ignores real time: each pump advances exactly one
 // tick and waiting returns at once.

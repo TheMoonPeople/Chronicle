@@ -242,14 +242,13 @@ int VSyncCallBack_Load(int field) {
             }
 
             if (col_cnt > 128.0f) {
-                // The logo holds keep their NTSC duration at 50 fields a second.
-                count = Hold(183);
+                count = Hold(220);
                 col_cnt = 128.0f;
                 col_add *= -1.0f;
             }
 
             if (col_cnt < 0.0f) {
-                count = Hold(83);
+                count = Hold(100);
                 col_cnt = 0.0f;
                 col_add *= -1.0f;
 

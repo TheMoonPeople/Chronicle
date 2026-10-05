@@ -42,11 +42,11 @@ void Start(double hertz, bool unbounded) {
 
 } // namespace
 
-TEST(PlatformClock, DefaultsToPalRate) {
-    ASSERT_TRUE(ClockTickRate() == 50.0);
+TEST(PlatformClock, DefaultsToNtscRate) {
+    ASSERT_TRUE(ClockTickRate() == 60.0);
     ASSERT_TRUE(!ClockUnbounded());
     ClockSetTickRate(-1.0);
-    ASSERT_TRUE(ClockTickRate() == 50.0);
+    ASSERT_TRUE(ClockTickRate() == 60.0);
 }
 
 TEST(PlatformClock, UnboundedAdvancesOneTickPerPump) {

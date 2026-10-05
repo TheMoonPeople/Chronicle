@@ -16,7 +16,7 @@ using SteadyClock = std::chrono::steady_clock;
 constexpr auto kSpinMargin = std::chrono::microseconds(1500);
 
 struct ClockState {
-    double                  hertz = 50.0;
+    double                  hertz = 60.0;
     bool                    unbounded = false;
     bool                    anchored = false;
     SteadyClock::time_point anchor = {};

@@ -213,7 +213,7 @@ int CScript::CheckScript(char *buffer, int position, CSCRIPT_COMMAND *command, i
             camera_start = (int) arg[0];
             motion_start = (int) arg[1];
             motion_end = (int) arg[2];
-#ifdef PAL
+#ifdef PAL_TIMING
             motion_step = 1.2f * arg[3];
 #else
             motion_step = arg[3];

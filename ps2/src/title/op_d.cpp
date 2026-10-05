@@ -1420,8 +1420,13 @@ static void Setsumei() {
             rot += 0.05f;
         }
 
+#ifdef PAL_TIMING
         x = x + (float) (sin(rot) * 4.8f);
         y = y + (float) (cos(rot) * 4.8f);
+#else
+        x = x + (float) (sin(rot) * 4.0);
+        y = y + (float) (cos(rot) * 4.0);
+#endif
 
         int alpha;
 
@@ -1454,8 +1459,13 @@ static void Setsumei() {
             rot2 += 0.05f;
         }
 
+#ifdef PAL_TIMING
         x2 = x2 + (float) (sin(rot2) * 4.8f);
         y2 = y2 + (float) (cos(rot2) * 4.8f);
+#else
+        x2 = x2 + (float) (sin(rot2) * 4.0);
+        y2 = y2 + (float) (cos(rot2) * 4.0);
+#endif
 
         int alpha2;
 
@@ -1488,8 +1498,13 @@ static void Setsumei() {
             rot3 += 0.05f;
         }
 
+#ifdef PAL_TIMING
         x3 = x3 + (float) (sin(rot3) * 4.8f);
         y3 = y3 + (float) (cos(rot3) * 4.8f);
+#else
+        x3 = x3 + (float) (sin(rot3) * 4.0);
+        y3 = y3 + (float) (cos(rot3) * 4.0);
+#endif
 
         int alpha3;
 
@@ -1524,8 +1539,13 @@ static void Setsumei() {
     dx = 40.0f - x;
     float heading = atan2f(dx, dy);
 
+#ifdef PAL_TIMING
     x = x + (float) (sin(heading) * 3.6f);
     y = y + (float) (cos(heading) * 3.6f);
+#else
+    x = x + (float) (sin(heading) * 3.0);
+    y = y + (float) (cos(heading) * 3.0);
+#endif
 
     int alpha;
 
@@ -1548,8 +1568,13 @@ static void Setsumei() {
 
     float heading2 = atan2f(240.0f - x2, 193.0f - y2);
 
+#ifdef PAL_TIMING
     x2 = x2 + (float) (sin(heading2) * 3.6f);
     y2 = y2 + (float) (cos(heading2) * 3.6f);
+#else
+    x2 = x2 + (float) (sin(heading2) * 3.0);
+    y2 = y2 + (float) (cos(heading2) * 3.0);
+#endif
 
     int alpha2;
 

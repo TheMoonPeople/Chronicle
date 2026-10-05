@@ -405,7 +405,7 @@ static void CommandKEY(void **argv) {
     key->start = *(int *) argv[0];
     key->end = *(int *) argv[1];
     key->speed = *(float *) argv[2];
-#ifdef PAL
+#ifdef PAL_TIMING
     key->speed = 6.0f * key->speed / 5.0f;
 #endif
     key_no++;

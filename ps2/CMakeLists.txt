@@ -98,7 +98,7 @@ set(CC_MW_FLAGS -O2 -c -Cpp_exceptions off -RTTI off -strings readonly
     -pragma "divbyzerocheck on" -i ps2/include)
 if(REGION STREQUAL "PAL")
     list(APPEND AS_FLAGS --defsym PAL=1)
-    list(APPEND CC_MW_FLAGS -DPAL)
+    list(APPEND CC_MW_FLAGS -DPAL -DPAL_TIMING)
 endif()
 set(LD_MW_FLAGS -map -nostdlib -m _start -nodead -g)
 set(LD_MW_ISO_FLAGS -nostdlib -m _start -nodead -sym on,noelf)

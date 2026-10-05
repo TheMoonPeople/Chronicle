@@ -3,7 +3,9 @@
 `PLATFORM=PC` builds the game's code as a native x64 Linux program with clang
 20, as C++26, on SDL3 and Vulkan 1.4 (`docs/MACOS.md` covers macOS on Apple
 Silicon). The port is always the PAL release;
-there is no region setting. `docs/PC_PORT_PLAN.md` is the plan it was built
+there is no region setting. Its timing is NTSC's, though: the game runs 60 ticks a
+second, and the code that sped PAL up for its 50 Hz (`#ifdef PAL_TIMING` in
+ps2/src, which only the PS2 PAL build defines) is left out. `docs/PC_PORT_PLAN.md` is the plan it was built
 to and records the phases; this document describes what is built.
 
 ## Building and running
@@ -86,7 +88,7 @@ key is optional; these are the defaults:
 ```jsonc
 {
     "game": {
-        "tick_rate": 50,            // logic ticks (the game's VSyncs) per second
+        "tick_rate": 60,            // logic ticks (the game's VSyncs) per second
         "debug_mode": true          // DebugMode: start in the developer menu; Start + Select returns to it
     },
     "video": {

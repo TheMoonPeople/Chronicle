@@ -759,7 +759,7 @@ static void MotionProcess() {
     // PAL runs at 50 frames a second, so its fade speeds are raised by a fifth.
     switch (CScript__2.fade) {
         case TSFADE_IN_BLACK:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeInStart(1.2f * CScript__2.fade_speed, 0);
 #else
             DispFade.FadeInStart(CScript__2.fade_speed, 0);
@@ -767,7 +767,7 @@ static void MotionProcess() {
             CScript__2.fade = TSFADE_NONE;
             break;
         case TSFADE_OUT_BLACK:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeOutStart(1.2f * CScript__2.fade_speed, 0);
 #else
             DispFade.FadeOutStart(CScript__2.fade_speed, 0);
@@ -775,7 +775,7 @@ static void MotionProcess() {
             CScript__2.fade = TSFADE_NONE;
             break;
         case TSFADE_IN_WHITE:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeInStart(1.2f * CScript__2.fade_speed, 1);
 #else
             DispFade.FadeInStart(CScript__2.fade_speed, 1);
@@ -783,7 +783,7 @@ static void MotionProcess() {
             CScript__2.fade = TSFADE_NONE;
             break;
         case TSFADE_OUT_WHITE:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeOutStart(1.2f * CScript__2.fade_speed, 1);
 #else
             DispFade.FadeOutStart(CScript__2.fade_speed, 1);
@@ -914,7 +914,7 @@ static void SoundProcess() {
     if (CScript__2.bgm_fade != 0) {
         switch (CScript__2.se_kind) {
             case TSSE_ALL:
-#ifdef PAL
+#ifdef PAL_TIMING
                 CScript__2.bgm_fade = 1.2f * CScript__2.bgm_fade;
 #endif
                 CSnd.Fade(MIDI_PORT_BGM, (float) CScript__2.bgm_fade / 2.0f, CScript__2.se_fade_time);

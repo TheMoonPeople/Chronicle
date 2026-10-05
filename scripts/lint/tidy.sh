@@ -64,7 +64,7 @@ for f in "$@"; do
 done | xargs -P "$jobs" -n 2 sh -c '
     name="$0_$(echo "$1" | tr / _)"
     extra=""
-    [ "$0" = PAL ] && extra="-DPAL"
+    [ "$0" = PAL ] && extra="-DPAL -DPAL_TIMING"
     fix='"$fix"'
     [ -n "'"$merge"'" ] && fix="-export-fixes='"$merge"'/$name.yaml"
     clang-tidy --quiet --load='"$plugin"' $fix "$1" -- '"$flags"' $extra > "'"$out"'/$name.log" 2>/dev/null || true

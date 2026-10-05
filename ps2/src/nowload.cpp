@@ -210,7 +210,7 @@ int VSyncCallBack_Load(int field) {
             }
 
             if (col_cnt > 128.0f) {
-#ifdef PAL
+#ifdef PAL_TIMING
                 // The logo holds keep their NTSC duration at 50 fields a second.
                 count = 183;
 #else
@@ -221,7 +221,7 @@ int VSyncCallBack_Load(int field) {
             }
 
             if (col_cnt < 0.0f) {
-#ifdef PAL
+#ifdef PAL_TIMING
                 count = 83;
 #else
                 count = 100;

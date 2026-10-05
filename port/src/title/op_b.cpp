@@ -256,7 +256,7 @@ void FaceChange(int actor_no) {
             CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
             if (CScript__2.obj[actor_no].talk) {
-                if (rand() % 5 == 0) {
+                if ((int) (100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
                     CScript__2.obj[actor_no].mouth = rand() % 4;
                 }
             }

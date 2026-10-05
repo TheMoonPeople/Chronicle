@@ -453,7 +453,7 @@ int RushLoop() {
 static void MotionProcess() {
     switch (CScript.fade) {
         case TSFADE_IN_BLACK:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeInStart(1.2f * CScript.fade_speed, 0);
 #else
             DispFade.FadeInStart(CScript.fade_speed, 0);
@@ -461,7 +461,7 @@ static void MotionProcess() {
             CScript.fade = TSFADE_NONE;
             break;
         case TSFADE_OUT_BLACK:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeOutStart(1.2f * CScript.fade_speed, 0);
 #else
             DispFade.FadeOutStart(CScript.fade_speed, 0);
@@ -469,7 +469,7 @@ static void MotionProcess() {
             CScript.fade = TSFADE_NONE;
             break;
         case TSFADE_IN_WHITE:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeInStart(1.2f * CScript.fade_speed, 1);
 #else
             DispFade.FadeInStart(CScript.fade_speed, 1);
@@ -477,7 +477,7 @@ static void MotionProcess() {
             CScript.fade = TSFADE_NONE;
             break;
         case TSFADE_OUT_WHITE:
-#ifdef PAL
+#ifdef PAL_TIMING
             DispFade.FadeOutStart(1.2f * CScript.fade_speed, 1);
 #else
             DispFade.FadeOutStart(CScript.fade_speed, 1);

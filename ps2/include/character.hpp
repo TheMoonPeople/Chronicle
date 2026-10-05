@@ -180,7 +180,7 @@ public:
      */
     void SetMotionSpeed(float speed) {
         motion_speed = speed;
-#ifdef PAL
+#ifdef PAL_TIMING
         // Motion authored at 60 fields per second advances faster at 50.
         motion_speed = 6.0f * speed / 5.0f;
 #endif

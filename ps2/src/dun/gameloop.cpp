@@ -7746,7 +7746,7 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
                 SwordDmgCheck1(1.0f, 0);
             }
         } else {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (now > 21.0f && now < 21.8f) {
 #else
             if (now > 21.0f && now < 21.5f) {
@@ -7909,7 +7909,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
         ruby_effect_id = -1;
 
         if (aimed == 0) {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (now >= 125.5f && now <= 126.5f && BtActStatus.action_step == 0) {
 #else
             if (now >= 126.0f && now < 126.3f && BtActStatus.action_step == 0) {
@@ -7924,7 +7924,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
                 NowMainEffect->SetLoop(1);
             }
 
-#ifdef PAL
+#ifdef PAL_TIMING
             if (now >= 128.0f && now < 128.4f) {
 #else
             if (now >= 128.0f && now < 128.3f) {
@@ -7936,7 +7936,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
                 SndSePlay(SE_CHARA_SHOUT, -1, 0);
             }
         } else {
-#ifdef PAL
+#ifdef PAL_TIMING
             if (now >= 126.0f && now <= 126.5f && BtActStatus.action_step == 0) {
 #else
             if (now >= 126.0f && now < 126.3f && BtActStatus.action_step == 0) {
@@ -7951,7 +7951,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
                 NowMainEffect->SetLoop(1);
             }
 
-#ifdef PAL
+#ifdef PAL_TIMING
             if (now >= 128.0f && now < 128.4f) {
 #else
             if (now >= 128.0f && now < 128.3f) {
@@ -8013,7 +8013,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
             }
 
             if (aimed == 0) {
-#ifdef PAL
+#ifdef PAL_TIMING
                 if (now >= 216.0f && now < 216.5f) {
 #else
                 if (now >= 216.0f && now < 216.4f) {
@@ -8026,7 +8026,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
                     SndSePlay(SE_CHARA_SHOUT_3, -1, 0);
                 }
             } else {
-#ifdef PAL
+#ifdef PAL_TIMING
                 if (now >= 216.0f && now < 216.5f) {
 #else
                 if (now >= 216.0f && now < 216.3f) {

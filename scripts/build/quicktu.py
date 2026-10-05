@@ -33,7 +33,7 @@ PREFIX = os.environ.get('MIPS_TOOL_PREFIX', 'mips-ps2-decompals-')
 FLAGS = ['-O2', '-c', '-Cpp_exceptions', 'off', '-RTTI', 'off',
          '-strings', 'readonly', '-pragma', 'divbyzerocheck on', '-i', 'ps2/include']
 if region.NAME == region.PAL:
-    FLAGS.append('-DPAL')
+    FLAGS.extend(['-DPAL', '-DPAL_TIMING'])
 OVERLAY_BASE = region.OVERLAY_ORIGIN
 IMAGES = {'title': (f'{region.EXTRACTED_ISO}/TITLE.BIN', f'{region.CONFIG}/title.symbols.txt', OVERLAY_BASE),
           'dun': (f'{region.EXTRACTED_ISO}/DUN.BIN', f'{region.CONFIG}/dun.symbols.txt', OVERLAY_BASE),

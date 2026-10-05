@@ -12,7 +12,7 @@
 
 TEST(PlatformConfig, Defaults) {
     Config config = ConfigParse("");
-    ASSERT_TRUE(config.tick_rate == 50.0);
+    ASSERT_TRUE(config.tick_rate == 60.0);
     ASSERT_TRUE(config.present_mode == ConfigPresentMode::Fifo);
     ASSERT_TRUE(!config.fullscreen);
     ASSERT_TRUE(config.master_volume == 1.0f);
@@ -61,16 +61,16 @@ TEST(PlatformConfig, ParsesJson) {
     ASSERT_TRUE(config.key_bindings[1].action == "start" && config.key_bindings[1].keys[0] == "Return");
 
     Config bad = ConfigParse(R"({"game": {"tick_rate": -3, "unknown": 1}, "video": {"width": 1.5, "height": "tall"}})");
-    ASSERT_TRUE(bad.tick_rate == 50.0 && bad.window_width == 0 && bad.window_height == 0);
+    ASSERT_TRUE(bad.tick_rate == 60.0 && bad.window_width == 0 && bad.window_height == 0);
 
     ASSERT_TRUE(ConfigParse(R"({"video": {"present_mode": "Mailbox"}})").present_mode == ConfigPresentMode::Mailbox);
 }
 
 TEST(PlatformConfig, InvalidJsonKeepsTheDefaults) {
-    ASSERT_TRUE(ConfigParse("[game]\ntick_rate = 60\n").tick_rate == 50.0);
-    ASSERT_TRUE(ConfigParse(R"({"game": {"tick_rate": 60})").tick_rate == 50.0);
-    ASSERT_TRUE(ConfigParse("[1, 2]").tick_rate == 50.0);
-    ASSERT_TRUE(ConfigParse(" \n").tick_rate == 50.0);
+    ASSERT_TRUE(ConfigParse("[game]\ntick_rate = 50\n").tick_rate == 60.0);
+    ASSERT_TRUE(ConfigParse(R"({"game": {"tick_rate": 50})").tick_rate == 60.0);
+    ASSERT_TRUE(ConfigParse("[1, 2]").tick_rate == 60.0);
+    ASSERT_TRUE(ConfigParse(" \n").tick_rate == 60.0);
 }
 
 TEST(PlatformConfig, LoadsFromSaveRoot) {
@@ -82,10 +82,10 @@ TEST(PlatformConfig, LoadsFromSaveRoot) {
     ASSERT_TRUE(!ConfigLoad());
     ASSERT_TRUE(std::filesystem::exists(root / "config.json"));
     ASSERT_TRUE(ConfigLoad());
-    ASSERT_TRUE(ConfigGet().tick_rate == 50.0 && ConfigGet().debug_mode);
-    std::ofstream(root / "config.json") << R"({"game": {"tick_rate": 60}})";
+    ASSERT_TRUE(ConfigGet().tick_rate == 60.0 && ConfigGet().debug_mode);
+    std::ofstream(root / "config.json") << R"({"game": {"tick_rate": 50}})";
     ASSERT_TRUE(ConfigLoad());
-    ASSERT_TRUE(ConfigGet().tick_rate == 60.0);
+    ASSERT_TRUE(ConfigGet().tick_rate == 50.0);
     std::filesystem::remove_all(root);
 }
 

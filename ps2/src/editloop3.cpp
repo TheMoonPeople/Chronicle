@@ -8886,7 +8886,7 @@ int EdEventMode(CCameraFollow *camera, int kind) {
         float speed = SceneData.motion_speed;
         SceneData.SetMotion(0, 0);
         SceneData.motion_speed = speed;
-#ifdef PAL
+#ifdef PAL_TIMING
         SceneData.motion_speed = 6.0f * speed / 5.0f;
 #endif
         SceneData.Step();

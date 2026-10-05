@@ -589,13 +589,12 @@ void OpA_DrawProcess() {
     }
 
     if (CScript__2.obj[6].disp && !Pause) {
-        if (DanceWait < 2.0f || DanceWait > 490.0f) {
+        if (DanceWait < 2.0f || DanceWait > 480.0f) {
             Chara__3[6].Step();
             Chara__3[7].Step();
         }
 
-        // Advanced by a fifth more per frame to keep the 60 Hz timing at 50 Hz.
-        DanceWait += 1.2f;
+        DanceWait += 1.0f;
 
         if (DanceWait > 10000) {
             DanceWait = 10000;
@@ -1194,7 +1193,7 @@ void OpA_SoundProcess() {
     {
         static int flg = 0;
 
-        if (CScript__2.camera_start == 44 && Cam__2[SceneNp__2].motion_type.state.time > 252.0) {
+        if (CScript__2.camera_start == 44 && Cam__2[SceneNp__2].motion_type.state.time > 249.0) {
             if (flg == 0) {
                 while (ReadBGSync())
                     ;

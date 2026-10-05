@@ -772,7 +772,7 @@ void OpA_DrawProcess() {
     }
 
     if (CScript__2.obj[6].disp && !Pause) {
-#ifdef PAL
+#ifdef PAL_TIMING
         if (DanceWait < 2.0f || DanceWait > 490.0f) {
 #else
         if (DanceWait < 2.0f || DanceWait > 480.0f) {
@@ -781,7 +781,7 @@ void OpA_DrawProcess() {
             Chara__3[7].Step();
         }
 
-#ifdef PAL
+#ifdef PAL_TIMING
         // Advanced by a fifth more per frame to keep the 60 Hz timing at 50 Hz.
         DanceWait += 1.2f;
 #else
@@ -1565,7 +1565,7 @@ void OpA_SoundProcess() {
     {
         static int flg = 0;
 
-#ifdef PAL
+#ifdef PAL_TIMING
         if (CScript__2.camera_start == 44 && Cam__2[SceneNp__2].motion_type.state.time > 252.0) {
 #else
         if (CScript__2.camera_start == 44 && Cam__2[SceneNp__2].motion_type.state.time > 249.0) {

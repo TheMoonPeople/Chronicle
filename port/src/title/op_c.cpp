@@ -234,7 +234,7 @@ void FaceChangeC(int actor_no) {
         CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
         if (CScript__2.obj[actor_no].talk) {
-            if (rand() % 5 == 0) {
+            if ((int) (100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
                 CScript__2.obj[actor_no].mouth = rand() % 4;
             }
         }
@@ -1650,18 +1650,18 @@ void OpC_MotionProcess() {
 
     switch (CScript__2.camera_start) {
         case 96:
-            Fuusya[1].step[2] = -0.12f * 1.2f;
+            Fuusya[1].step[2] = -0.12f;
             break;
 
         case 97:
             d = 2.0f;
-            Fuusya[1].step[2] = -0.04f * 1.2f;
+            Fuusya[1].step[2] = -0.04f;
             break;
 
         case 100:
             if (Cam__2[SceneNp__2].motion_type.state.time < 258.0f) {
-                step = 0.025f * 1.2f;
-                Fuusya[1].step[2] = -0.0048f * 1.2f;
+                step = 0.025f;
+                Fuusya[1].step[2] = -0.0048f;
 
                 if (FireStep >= 1.0f) {
                     FireStep = 0.0f;
@@ -1682,8 +1682,8 @@ void OpC_MotionProcess() {
                     OP_MainCamera.SetRef(ref);
                 }
 
-                step = 0.5f * 1.2f;
-                Fuusya[1].step[2] = -10.0f * 1.2f;
+                step = 0.5f;
+                Fuusya[1].step[2] = -10.0f;
                 FireStep = 1.0f;
             }
 
@@ -1752,7 +1752,7 @@ void OpC_SoundProcess() {
             DanceBgmCnt = DanceBgmCnt + 1;
         }
 
-        if (DanceBgmCnt == 53) {
+        if (DanceBgmCnt == 63) {
             OpBgmSqPort = 0;
             OpBgmPlay();
         }
@@ -1842,8 +1842,7 @@ void OpC_SoundProcess() {
     }
 
     for (int i = 0; i < 43; i++) {
-        // The table counts 60 Hz ticks; the 50 Hz count reaches the same moment at five sixths.
-        if (SndCnt == SndInfo[i].count * 5 / 6) {
+        if (SndCnt == SndInfo[i].count) {
             OpPlayVolSE(SndInfo[i].group, SndInfo[i].no, SndInfo[i].voice, 1.0f);
         }
     }
@@ -1871,7 +1870,7 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[11].motion_type.state.time;
 
         if (wait == 0) {
-            if (motion_frame > 73.0f && motion_frame < 76.0f) {
+            if (motion_frame > 73.0f && motion_frame < 75.0f) {
                 if (footstep_ground == 40) {
                     OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 20);
                 } else {
@@ -1879,7 +1878,7 @@ void OpC_SoundProcess() {
                 }
 
                 wait = 4;
-            } else if (motion_frame > 83.0f && motion_frame < 86.0f) {
+            } else if (motion_frame > 83.0f && motion_frame < 85.0f) {
                 if (footstep_ground == 40) {
                     OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
                 } else {
@@ -1902,10 +1901,10 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[11].motion_type.state.time;
 
         if (wait == 0) {
-            if (motion_frame > 258.0f && motion_frame < 261) {
+            if (motion_frame > 258.0f && motion_frame < 260.0f) {
                 OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
-            } else if (motion_frame > 268.0f && motion_frame < 271) {
+            } else if (motion_frame > 268.0f && motion_frame < 270.0f) {
                 OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
                 wait = 4;
             }
@@ -1923,10 +1922,10 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[13].motion_type.state.time;
 
         if (wait == 0) {
-            if (motion_frame > 123.0f && motion_frame < 126.0f) {
+            if (motion_frame > 123.0f && motion_frame < 125.0f) {
                 OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
-            } else if (motion_frame > 133.0f && motion_frame < 136.0f) {
+            } else if (motion_frame > 133.0f && motion_frame < 135.0f) {
                 OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 21);
                 wait = 4;
             }
@@ -1944,10 +1943,10 @@ void OpC_SoundProcess() {
         motion_frame = (int) Chara__3[12].motion_type.state.time;
 
         if (wait == 0) {
-            if (motion_frame > 33.0f && motion_frame < 36.0f) {
+            if (motion_frame > 33.0f && motion_frame < 35.0f) {
                 OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
-            } else if (motion_frame > 43.0f && motion_frame < 46.0f) {
+            } else if (motion_frame > 43.0f && motion_frame < 45.0f) {
                 OpPlayVolPanSE(position, 10.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
                 wait = 4;
             }
@@ -2712,9 +2711,9 @@ static void MajinBeemProcess() {
         float speed;
 
         if (CScript__2.scene == OP_SCENE_MAJIN) {
-            speed = 5.4f;
+            speed = 4.5f;
         } else {
-            speed = 9.6f;
+            speed = 8.0f;
         }
 
         int beam = CScript__2.beem_no;
