@@ -76,8 +76,7 @@ void BtSetMapJumpFloor(int floor);
 
 // Retail's EditLoop without its VU1 program upload, which aborts in the port. EditLoop calls the
 // static RunEvent and RunSystemEvent, so they come along. It also calls editloop's MainDraw, which
-// the PS2 build keeps apart from the dungeon's (MainDraw__Fv__3) and the port's merge does not: the
-// merged MainDraw() is the dungeon's, so the editor's is kept here as EditMainDraw.
+// is kept here as EditMainDraw.
 static void EditMainDraw();
 
 extern int start_event_no;

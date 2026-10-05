@@ -17,8 +17,9 @@ file is stale.
   (the replacement recovers the pointer, e.g. `PortImagePointer` for image globals).
 
 State of the enclosing function in the linked `darkcloud`: **port** (port/src's own code),
-**replaced** (a ps2/src body a port/src definition displaces; never runs), **retail** (a ps2/src
-body that is linked and can run), **dead** (dropped by `--gc-sections`; never runs).
+**replaced** (a ps2/src body a `PC_OVERRIDE` definition in port/src replaces; never compiled),
+**retail** (a ps2/src body that is linked and can run), **dead** (dropped by `--gc-sections`; never
+runs).
 
 Origin is where the pointer points, where the expression shows it: **image** (a global, a literal,
 a function), **stack**, **arena** (an arena allocation or global), **parameter**, **field**,
@@ -74,11 +75,11 @@ recovered, as `CCharacter::ClothStep` does with `PortImagePointer`) fixes the ro
 
 | site | function | state | class | expression | origin | use |
 |---|---|---|---|---|---|---|
-| port/src/title/op_b.cpp:762 | OpB_InitProcess2 | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[8].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/op_c.cpp:887 | OpC_InitProcess5 | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[11].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/op_c.cpp:1590 | OpC_MotionProcess | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[11].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/rushmovi.cpp:447 | MotionProcess | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
-| port/src/title/rushmovi.cpp:449 | MotionProcess | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/op_b.cpp:761 | OpB_InitProcess2 | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[8].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/op_c.cpp:886 | OpC_InitProcess5 | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[11].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/op_c.cpp:1589 | OpC_MotionProcess | port | resolved | `(intptr_t)& Wind` | image | store: Chara__3[11].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/rushmovi.cpp:446 | MotionProcess | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[1].wind (read back only in CCharacter::ClothStep) |
+| port/src/title/rushmovi.cpp:448 | MotionProcess | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
 | port/src/title/title.cpp:305 | InitProcA | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
 | port/src/title/title.cpp:662 | InitProcB | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |
 | port/src/title/title.cpp:957 | InitProcC | port | resolved | `(intptr_t)& Wind__4` | image | store: Chara__3[0].wind (read back only in CCharacter::ClothStep) |

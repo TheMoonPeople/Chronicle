@@ -8,7 +8,8 @@ The game casts pointers to int (MWCC's 32-bit ABI). The port links PIE and maps 
 the system puts them, above 4 GiB, as arm64 macOS must, so every cast whose value comes back as a
 pointer and can run has to be widened in port/src. This tool finds the casts with
 libclang, using the compile commands of the port's build (CMAKE_EXPORT_COMPILE_COMMANDS is on), and
-sorts them:
+sorts them. A ps2/src unit is read as it is, not as the copy the port compiles without the
+definitions port/src overrides, so the bodies port/src replaces are listed too:
 
 - round-trip: the value comes back as a pointer: cast back, stored or passed into an int that is
   cast back somewhere (followed across units by USR), returned from a function whose result is
@@ -20,8 +21,10 @@ sorts them:
 
 Each site carries the pointer's origin where it can be derived (image, stack, arena, parameter,
 field, ...) and the state of its function in the linked darkcloud: port (port/src's own code),
-replaced (a ps2/src body port/src displaces), retail (a ps2/src body that is linked) or dead
-(dropped by --gc-sections; never runs).
+replaced (a ps2/src body a PC_OVERRIDE definition in port/src replaces; the port never compiles
+it), retail (a ps2/src body that is linked) or dead (dropped by --gc-sections; never runs).
+An optimised build inlines functions and drops the bodies, which would then count as dead, so the
+build has to be a Debug one.
 
 Needs the clang Python bindings: `pip install libclang` (bundles the library) or the `clang`
 package with a system libclang, found through --libclang, LIBCLANG or the usual LLVM paths.
@@ -564,6 +567,29 @@ def qualified(cursor):
     return "::".join(reversed(parts))
 
 
+def unit_entries(build):
+    """The compile commands of the game's units and port/src's, each ps2/src unit under its own path."""
+    with open(os.path.join(build, "compile_commands.json")) as f:
+        entries = json.load(f)
+    copies = os.path.join(os.path.realpath(build), "ps2_src") + os.sep
+    for entry in entries:
+        path = os.path.realpath(os.path.join(entry["directory"], entry["file"]))
+        if path.startswith(copies):
+            args = shlex.split(entry.pop("command")) if "command" in entry else entry["arguments"]
+            entry["arguments"] = [a for a in args if os.path.realpath(os.path.join(entry["directory"], a)) != path]
+            entry["file"] = os.path.join(ROOT, "ps2", "src", path[len(copies):])
+    return [e for e in entries if rel(e["file"]).startswith(("ps2/src/", "port/src/")) and
+            "/tests/" not in e["file"]]
+
+
+def debug_build(build):
+    try:
+        with open(os.path.join(build, "CMakeCache.txt")) as f:
+            return re.search(r"^CMAKE_BUILD_TYPE:\w+=Debug$", f.read(), re.MULTILINE) is not None
+    except OSError:
+        return False
+
+
 def command_args(entry):
     args = shlex.split(entry["command"]) if "command" in entry else list(entry["arguments"])
     out = []
@@ -734,8 +760,9 @@ def markdown(sites, totals, returns, out):
     w("  (the replacement recovers the pointer, e.g. `PortImagePointer` for image globals).")
     w("")
     w("State of the enclosing function in the linked `darkcloud`: **port** (port/src's own code),")
-    w("**replaced** (a ps2/src body a port/src definition displaces; never runs), **retail** (a ps2/src")
-    w("body that is linked and can run), **dead** (dropped by `--gc-sections`; never runs).")
+    w("**replaced** (a ps2/src body a `PC_OVERRIDE` definition in port/src replaces; never compiled),")
+    w("**retail** (a ps2/src body that is linked and can run), **dead** (dropped by `--gc-sections`; never")
+    w("runs).")
     w("")
     w("Origin is where the pointer points, where the expression shows it: **image** (a global, a literal,")
     w("a function), **stack**, **arena** (an arena allocation or global), **parameter**, **field**,")
@@ -849,9 +876,9 @@ def main():
         load_libclang(options.libclang)
     except ImportError:
         sys.exit("truncations.py: the clang Python bindings are missing (pip install libclang)")
-    with open(os.path.join(options.build, "compile_commands.json")) as f:
-        entries = [e for e in json.load(f) if rel(e["file"]).startswith(("ps2/src/", "port/src/")) and
-                   "/tests/" not in e["file"]]
+    if not debug_build(options.build):
+        sys.exit("truncations.py: %s is not a Debug build" % options.build)
+    entries = unit_entries(options.build)
     if options.only:
         entries = [e for e in entries if re.search(options.only, e["file"])]
     with multiprocessing.Pool(options.jobs) as pool:

@@ -21,8 +21,8 @@
 #include "renderinfo.hpp"
 #include "texture.hpp"
 
-// Retail defines the window rectangle as mgWindowRectStore and renames it at link time, which the
-// port's merge has no equivalent of.
+// Retail defines the window rectangle as mgWindowRectStore and renames it at link time; the port
+// defines the name its callers use.
 CRect_i_ mgWindowRect;
 
 // Defined by ps2/src/mglib.cpp without a header declaration.

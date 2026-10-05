@@ -2,7 +2,7 @@
 
 // editloop.cpp's globals that this unit redeclares static after a header declares them extern:
 // MWCC makes this unit's copies file-local, clang's -fms-extensions keeps them global and the
-// port's merge would fold them into editloop's. Renamed apart here.
+// port's link would have two of each. Renamed apart here.
 #define Chara EditIn_Chara
 #define MainCamera EditIn_MainCamera
 #define NowCamera EditIn_NowCamera

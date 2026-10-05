@@ -16,11 +16,9 @@
 #include "water.hpp"
 
 // The title units declare these with PS2 layouts of their own (op_a.cpp's 144-byte OBJ_ANIME_SEQ,
-// rushmovi.cpp's 816-byte CWater and so on) and their static constructors still run, after the
-// port's, over the port's host-sized objects: at the PS2 stride for the arrays, and through
-// op_a.cpp's inline CMap constructor, which builds ten 240-byte map objects. Everything the title
-// overlay reads goes through these definitions, so building them again as retail's overlay loader
-// did (the .bss zeroed, then the constructors) undoes that.
+// rushmovi.cpp's 816-byte CWater and so on). The port's definitions are PC_OVERRIDE, so everything
+// the title overlay reads goes through these host-sized ones. TitleOverlayConstruct builds them
+// again as retail's overlay loader did: the .bss zeroed, then the constructors.
 
 namespace {
 

@@ -55,8 +55,7 @@ extern "C" [[noreturn]] void exit__2(int status) {
 
 // TITLE.BIN and DUN.BIN are linked into the executable, so there is no file to load. Retail's
 // loader re-ran an overlay's static constructors whenever a mode needed the other overlay; the
-// port re-runs the title overlay's for the objects it lays out with host classes, whose PS2-sized
-// constructors in the title units also run at start-up, over them.
+// port re-runs the title overlay's for the objects it lays out with host classes.
 PC_OVERRIDE void LoadOverlay(int mode) {
     enum Overlay { kNone, kTitle, kDungeon };
     constexpr Overlay kOverlay[] = {kTitle, kTitle, kNone, kDungeon, kDungeon, kTitle, kNone, kNone,
