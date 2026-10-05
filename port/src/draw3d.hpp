@@ -119,6 +119,10 @@ struct Draw3DStrip {
     float    ambient[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     float    specular[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     int      texture = -1; // TexManager handle; -1 draws untextured
+    // The name the handle held when the visual was built. Retail bakes the texture's VRAM address,
+    // which a reloaded block refills in place; a table slot is not kept, so the draw looks the name
+    // up again when the slot has since been given to another texture.
+    char     texture_name[32] = {};
     u_long   tex0 = 0;
     u_long   tex1 = 0;
 };

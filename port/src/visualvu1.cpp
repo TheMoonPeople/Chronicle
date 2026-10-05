@@ -275,7 +275,16 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
 
         gfx::TextureBinding binding;
         if (lit && strip.texture >= 0) {
-            PortTextureRef ref = Draw3DResolveHandle(strip.texture);
+            int handle = strip.texture;
+            if (strip.texture_name[0] != 0 && std::strcmp(TexManager.GetTexture(handle)->name, strip.texture_name) != 0) {
+                char name[sizeof(strip.texture_name)];
+                std::memcpy(name, strip.texture_name, sizeof(name));
+                int moved = TexManager.GetTextureHandle(name, -1);
+                if (moved >= 0) {
+                    handle = moved;
+                }
+            }
+            PortTextureRef ref = Draw3DResolveHandle(handle);
             if (ref.valid) {
                 binding = ref.binding;
                 // SetEnv sends CLAMP_1 = 5 every frame; TEX1's MMAG picks the filter.
@@ -351,6 +360,8 @@ PC_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int u
             MDT_MATERIAL &entry = view.materials[material];
             int           handle = TexManager.GetTextureHandle(entry.texture, -1);
             current.texture = handle;
+            std::strncpy(current.texture_name, handle >= 0 ? TexManager.GetTexture(handle)->name : "",
+                         sizeof(current.texture_name) - 1);
             current.tex0 = TexManager.GetTexture(handle)->tex0;
             current.tex1 = TexManager.GetTexture(handle)->tex1;
             TakeMaterial(current, entry);
