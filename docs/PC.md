@@ -841,7 +841,7 @@ widens it against the image's own address.
 
 ## What is still a stub
 
-`port/src/stubs/sce/` holds the only stubs left: libdma, libgraph (all but
+`port/src/stubs/sce/` holds the remaining SDK stubs: libdma, libgraph (all but
 `sceGsSyncV`, which is `port/src/sce/libgraph.cpp`) and libpkt. Each calls
 `PS2_UNIMPLEMENTED()` (`port/include/port.h`), which prints the function,
 file and line and aborts. They stay stubs by design: the port does not
@@ -852,20 +852,25 @@ Everything else from the SDK is implemented in `port/src/sce/`: libvu0 in
 C++ (static constructors call it before `main`), libpad, libmc, sifdev,
 eekernel (`FlushCache` and friends do nothing, `Exit` exits), libcdvd's
 `sceCdInit`/`sceCdMmode` and sifrpc's IOP boot and module loads (no-ops).
-The Metrowerks runtime calls are in `port/src/runtime.cpp`: `mwInit` and
-`LoadOverlay` do nothing, `mwLoadOverlay` succeeds, `__assert` prints and
-exits with status 4, `exit__2` exits.
+The Metrowerks runtime calls are in `port/src/runtime.cpp`: `mwInit` does
+nothing; `LoadOverlay` reconstructs selected title objects when switching to
+the title overlay; `mwLoadOverlay` succeeds, `__assert` prints and exits with
+status 4, `exit__2` exits. The same file replaces the stand-ins in `ps2/src`
+for what the PS2 runtime generated that use names only the PS2 link defines:
+four constructors and `__unexpected` become functions that call
+`PS2_UNIMPLEMENTED()`, and `std::exception`'s virtual table and the overlay
+address table become empty tables. Nothing in the port reaches them, but a
+COFF link wants every name an object uses defined.
 
-None of the 39 stubbed functions is linked into `darkcloud`, and neither is
+None of the 44 aborting stub functions is linked into `darkcloud`, and neither is
 `Ps2Unimplemented` itself: `--gc-sections` keeps only what `main` reaches,
-and no function it reaches calls a stub. `darkcloud_tests` still links some
-through the units the tests call directly. To check after a change,
+and no function it reaches calls a stub. To check after a change,
 disassemble `port/build/pc/darkcloud` (`llvm-objdump -d`), collect the functions
 with a `call` to a stub's address and map them to their source with
 `llvm-addr2line`; static helpers inlined into a caller show under that
 caller.
 
-At the last count `port/src` tagged 323 definitions `PC_OVERRIDE`, each
+At the last count `port/src` tagged 330 definitions `PC_OVERRIDE`, each
 replacing one of `ps2/src`'s, and the final link held 4,145 of the game's own
 (`llvm-nm` of the `dc_ps2` objects' external definitions against the
 executable's symbols).
