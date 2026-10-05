@@ -17,6 +17,7 @@
 #include "clothread.hpp"
 #include "clsmes.hpp"
 #include "collisiondata.hpp"
+#include "dataread.hpp"
 #include "debugfont.hpp"
 #include "dispctrl.hpp"
 #include "dngmessageman.hpp"
@@ -47,7 +48,9 @@
 #include "mglib.hpp"
 #include "monstorunit.hpp"
 #include "motionmodel.hpp"
+#include "nowload.hpp"
 #include "npcharacter.hpp"
+#include "platform/config.hpp"
 #include "randomitem.hpp"
 #include "rect.hpp"
 #include "runeffect.hpp"
@@ -62,8 +65,6 @@
 #include "userstatus.hpp"
 #include "weaponeffect.hpp"
 #include "weaponelement.hpp"
-
-#include "platform/config.hpp"
 
 // The dungeon's MainDraw and LoaderLoop, replaced to drop what the renderer has no use for: the VU1
 // program call each opens with and MainDraw's wait for GIF path idle before the frame grab, which
@@ -710,6 +711,84 @@ PC_OVERRIDE void DunMainDraw() {
         TexManager.ReloadTexture(Vif1Packet, 0x17);
         MGMoveFrameBuffImage((sceGsTex0 *) &NamedTexture("frame_image")->tex0, 0, 0, 0);
     }
+}
+
+extern LOADTEXTURE_INFO2 texdata__2[];
+
+// Retail formats the floor's gate key image over the third name in texdata__2, a string literal the
+// PS2 left writable and a host need not; the port formats it into a buffer of its own. Everything
+// else is retail's, PAL's branch only.
+PC_OVERRIDE void LoadBaseTexture() {
+    LOADTEXTURE_INFO2 info[96];
+    int               size;
+    int               i;
+    char             *name;
+    char              gate_key[16];
+
+    snprintf(gate_key, sizeof(gate_key), "gatekey0%d.img", selectMapNo + 1);
+
+    char path[64] = "dun/pack/dun/pack/teximg2.pac";
+
+    if (LanguageCode > LANG_JAPANESE) {
+        sprintf(path, "dun/pack/teximg2_%d.pac", LanguageCode);
+    }
+
+    LoadFile(path, (void *) read_buffer, NULL);
+    wait_now_loading_vsync();
+
+    i = 0;
+
+    while ((name = texdata__2[i].name) != NULL) {
+        if (i == 2) {
+            name = gate_key;
+        }
+
+        // A name that starts with '#' asks the manager for a blank page of that size rather than
+        // for a file inside the pack.
+        if (name[0] == '#') {
+            info[i].name = name;
+        } else {
+            u_int *found = GetPackFile(read_buffer, name, &size);
+
+            if (found != NULL) {
+                info[i].name = (char *) found;
+            } else {
+                printf("Error::Pack->FileNotFound [%d]%s!!\n", i, name);
+                exit__2(-1);
+            }
+        }
+
+        info[i].block_no = texdata__2[i].block_no;
+        i++;
+    }
+
+    info[i].name = NULL;
+    TexManager.LoadTextureBlock(-1, info);
+
+    // The message window's pages, and the three images the language's own pack supplies in place of
+    // the names written here.
+    LOADTEXTURE_INFO2 mes_info[8] = {
+        {(char *) "#mes_frame_buff#640#480#4", 0x1A, 0},
+        {(char *) "#fukidashibase#640#224#4",  0x1A, 0},
+        {(char *) "#fontbase#512#256#1",       0x1A, 0},
+        {(char *) "meswin/gaiji.img",          0x1A, 0},
+        {(char *) "meswin/fuki256.img",        0x1A, 0},
+        {(char *) "meswin/syst04.img",         0x1A, 0},
+    };
+
+    char mes_path[64] = "meswin/mes_tex.pak";
+
+    if (LanguageCode > LANG_JAPANESE) {
+        sprintf(mes_path, "meswin/mes_tex_%d.pak", LanguageCode);
+    }
+
+    LoadFile(mes_path, read_buffer, NULL);
+    wait_now_loading_vsync();
+
+    mes_info[3].name = (char *) GetPackFile(read_buffer, (char *) "gaiji.img", NULL);
+    mes_info[4].name = (char *) GetPackFile(read_buffer, (char *) "fuki256.img", NULL);
+    mes_info[5].name = (char *) GetPackFile(read_buffer, (char *) "syst04.img", NULL);
+    TexManager.LoadTextureBlock(-1, mes_info);
 }
 
 PC_OVERRIDE int LoaderLoop() {
