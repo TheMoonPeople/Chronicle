@@ -148,6 +148,14 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
         config.mouse_sensitivity = sensitivity;
         return true;
     }
+    if (name == "input.stick_sensitivity") {
+        float sensitivity = 0.0f;
+        if (!ReadNumber(value, sensitivity) || !(sensitivity > 0.0f) || !std::isfinite(sensitivity)) {
+            return false;
+        }
+        config.stick_sensitivity = sensitivity;
+        return true;
+    }
     if (name == "input.mouse_invert_y") {
         return ReadBool(value, config.mouse_invert_y);
     }
@@ -308,6 +316,7 @@ std::string ConfigSerialize(const Config &config) {
     root["video"]["shadow_distance"] = Shortest(config.shadow_distance);
     root["audio"]["master_volume"] = Shortest(config.master_volume);
     root["input"]["mouse_sensitivity"] = Shortest(config.mouse_sensitivity);
+    root["input"]["stick_sensitivity"] = Shortest(config.stick_sensitivity);
     root["input"]["mouse_invert_y"] = config.mouse_invert_y;
     root["input"]["mouse_capture"] = config.mouse_capture;
     root["input"]["mouse_release"] = config.mouse_release_keys;

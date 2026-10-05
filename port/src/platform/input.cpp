@@ -270,6 +270,27 @@ std::uint8_t StickToByte(Sint16 value) {
     return static_cast<std::uint8_t>((static_cast<int>(value) + 32768) >> 8);
 }
 
+// The DualShock 2 read full deflection well before its stick's stop and reached its corners on a
+// diagonal; a modern stick reports a circle and reaches full only at the stop. The game's thresholds
+// expect the former (the town runs past a magnitude of 0.85, after AxisCalibration's dead zone,
+// which needs over 90% of a modern stick's travel), so the deflection is scaled by
+// input.stick_sensitivity (1.33 by default, PCSX2's analog sensitivity) and the circle is stretched
+// onto the square, keeping the direction.
+float g_stick_sensitivity = 1.33f;
+
+void StickPairToBytes(Sint16 x, Sint16 y, std::uint8_t &byte_x, std::uint8_t &byte_y) {
+    float fx = std::clamp(static_cast<float>(x) / 32767.0f, -1.0f, 1.0f);
+    float fy = std::clamp(static_cast<float>(y) / 32767.0f, -1.0f, 1.0f);
+    float radius = std::min(1.0f, std::hypot(fx, fy) * g_stick_sensitivity);
+    float edge = std::max(std::fabs(fx), std::fabs(fy));
+    if (edge > 0.0f) {
+        fx *= radius / edge;
+        fy *= radius / edge;
+    }
+    byte_x = StickToByte(static_cast<Sint16>(std::lround(std::clamp(fx, -1.0f, 1.0f) * 32767.0f)));
+    byte_y = StickToByte(static_cast<Sint16>(std::lround(std::clamp(fy, -1.0f, 1.0f) * 32767.0f)));
+}
+
 bool Deflected(std::uint8_t byte) {
     int offset = static_cast<int>(byte) - kInputAxisCentre;
     return offset > kDeadZoneAbove || offset < -kDeadZoneBelow;
@@ -301,10 +322,10 @@ void ReadGamepad(SDL_Gamepad *gamepad, InputPadState &state) {
     if (SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > kTriggerThreshold) {
         state.buttons |= kInputR2;
     }
-    state.left_x = StickToByte(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX));
-    state.left_y = StickToByte(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY));
-    state.right_x = StickToByte(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX));
-    state.right_y = StickToByte(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY));
+    StickPairToBytes(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX),
+                     SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY), state.left_x, state.left_y);
+    StickPairToBytes(SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX),
+                     SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY), state.right_x, state.right_y);
 }
 
 InputKeyboardMouse LiveKeyboardMouse() {
@@ -433,6 +454,7 @@ void InputInit() {
             std::fprintf(stderr, "input: cannot bind %s\n", binding.action.c_str());
         }
     }
+    g_stick_sensitivity = config.stick_sensitivity;
     InputMouseSettings mouse;
     mouse.sensitivity = config.mouse_sensitivity;
     mouse.invert_y = config.mouse_invert_y;

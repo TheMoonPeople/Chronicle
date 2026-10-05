@@ -92,16 +92,18 @@ TEST(PlatformConfig, LoadsFromSaveRoot) {
 TEST(PlatformConfig, ParsesMouseSettingsAndBindings) {
     Config defaults = ConfigParse("");
     ASSERT_TRUE(defaults.mouse_sensitivity == 0.1f && !defaults.mouse_invert_y && defaults.mouse_capture);
+    ASSERT_TRUE(defaults.stick_sensitivity == 1.33f);
     ASSERT_TRUE(defaults.mouse_release_keys.size() == 1 && defaults.mouse_release_keys[0] == "Escape");
 
     Config config = ConfigParse(R"({"input": {
         "mouse_sensitivity": 0.25,
+        "stick_sensitivity": 1.5,
         "mouse_invert_y": true,
         "mouse_capture": false,
         "mouse_release": ["F12", "Pause"],
         "bindings": {"rx": "MouseX*2", "ry": ["-MouseY"], "r1": ["Mouse2", "X"]}
     }})");
-    ASSERT_TRUE(config.mouse_sensitivity == 0.25f);
+    ASSERT_TRUE(config.mouse_sensitivity == 0.25f && config.stick_sensitivity == 1.5f);
     ASSERT_TRUE(config.mouse_invert_y && !config.mouse_capture);
     ASSERT_TRUE(config.mouse_release_keys.size() == 2 && config.mouse_release_keys[1] == "Pause");
     ASSERT_TRUE(config.key_bindings.size() == 3);
@@ -109,8 +111,8 @@ TEST(PlatformConfig, ParsesMouseSettingsAndBindings) {
     ASSERT_TRUE(config.key_bindings[1].keys[0] == "-MouseY");
     ASSERT_TRUE(config.key_bindings[2].keys.size() == 2 && config.key_bindings[2].keys[0] == "Mouse2");
 
-    Config bad = ConfigParse(R"({"input": {"mouse_sensitivity": -1, "mouse_capture": "maybe"}})");
-    ASSERT_TRUE(bad.mouse_sensitivity == 0.1f && bad.mouse_capture);
+    Config bad = ConfigParse(R"({"input": {"mouse_sensitivity": -1, "stick_sensitivity": 0, "mouse_capture": "maybe"}})");
+    ASSERT_TRUE(bad.mouse_sensitivity == 0.1f && bad.stick_sensitivity == 1.33f && bad.mouse_capture);
     ASSERT_TRUE(ConfigParse(R"({"input": {"mouse_release": []}})").mouse_release_keys.empty());
 }
 

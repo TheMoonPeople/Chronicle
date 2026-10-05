@@ -107,6 +107,7 @@ key is optional; these are the defaults:
     },
     "input": {
         "mouse_sensitivity": 0.1,   // right-stick deflection (1 = full) per pixel moved in one tick
+        "stick_sensitivity": 1.33,  // gamepad stick scale before the game's dead zone (PCSX2's default)
         "mouse_invert_y": false,
         "mouse_capture": true,      // SDL relative mouse mode while the window has focus
         "mouse_release": ["Escape"], // keys that give the cursor back in a window ([]: none)
@@ -204,6 +205,11 @@ Each key-down of a toggle's key counts once, however briefly it is held.
   `AxisCalibration` (a dead zone of 49 above and 50 below the centre, then
   78 steps for 128), so a deflection reaches the game exactly and small
   mouse motion is not lost in the dead zone.
+- **Gamepad sticks.** Each stick's deflection is scaled by `stick_sensitivity`
+  (1.33, PCSX2's default) and stretched from the circle a modern stick reports
+  onto the DualShock 2's square, keeping its direction: the game's dead zone
+  takes 38% of the travel and the town runs past 0.85, so an unscaled stick
+  only runs at over 90% tilt, and a round one never on a diagonal.
 - **Mouse.** The right stick at each pad read is the motion since the
   previous read, divided by the ticks between them, times
   `mouse_sensitivity` (0.1: ten pixels in one tick is full deflection,
