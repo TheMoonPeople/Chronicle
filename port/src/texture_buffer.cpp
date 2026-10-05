@@ -5,7 +5,7 @@
 // Retail's buffer arithmetic with the pointers kept whole: it went through int, which only holds
 // an address below 2 GiB.
 
-void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
+PC_OVERRIDE void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
     int misalignment;
     int skipped_quads;
 
@@ -22,7 +22,7 @@ void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
     buffer_used = 0;
 }
 
-int CTextureManager::CleanUpBuffer() {
+PC_OVERRIDE int CTextureManager::CleanUpBuffer() {
     u_long128 *block_start[72];
     int        block_order[72];
     int        i;

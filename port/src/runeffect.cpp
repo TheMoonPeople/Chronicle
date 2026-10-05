@@ -116,9 +116,9 @@ void RestoreRegisters() {
 // Into the target: a flat 0x80 sprite over the first rect (retail's PRIM there has TME off, so its
 // UVs, the bottom one taken from x, sample nothing), the first texture blended over it with the
 // ALPHA the caller left, then the second added as Cs + Cd * As.
-void blendTextuer(sceVif1Packet *packet, int destination, int width, int format, CTexture *first_texture,
-                  const CRect_i_ &first_destination, const CRect_i_ &first_source, CTexture *second_texture,
-                  const CRect_i_ &second_destination, const CRect_i_ &second_source) {
+PC_OVERRIDE void blendTextuer(sceVif1Packet *packet, int destination, int width, int format, CTexture *first_texture,
+                              const CRect_i_ &first_destination, const CRect_i_ &first_source, CTexture *second_texture,
+                              const CRect_i_ &second_destination, const CRect_i_ &second_source) {
     const draw2d::Services &services = draw2d::Get();
 
     {
@@ -160,9 +160,9 @@ void blendTextuer(sceVif1Packet *packet, int destination, int width, int format,
 // Into the target: two-row strips of the frame, each shifted sideways by the wave scaled with depth
 // (the shimmer), then the texture's alpha over them with ALPHA (0 - 0) * FIX + Cd, which keeps the
 // colour and leaves the texture's alpha behind as the strips' coverage.
-void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int format, const CRect_i_ &source,
-                      CTexture *texture, const CRect_i_ &texture_destination, const CRect_i_ &texture_source,
-                      float depth, float phase) {
+PC_OVERRIDE void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int format, const CRect_i_ &source,
+                                  CTexture *texture, const CRect_i_ &texture_destination, const CRect_i_ &texture_source,
+                                  float depth, float phase) {
     const draw2d::Services &services = draw2d::Get();
     sceGsTex0               frame;
     MGGetFBuffTex(&frame);
@@ -252,7 +252,7 @@ void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int for
 }
 
 // Retail sets ZBUF around the dust with raw register writes; the sprites read the register state.
-void CRunEffect::Draw() {
+PC_OVERRIDE void CRunEffect::Draw() {
     int           top_left[4];
     int           bottom_right[4];
     int           top_right[4];

@@ -105,18 +105,18 @@ extern int EdDebugRunEventNo;
 static int         Debug = 1;
 static CDebugFont *DebugFont;
 
-void EdDDebug(int on) {
+PC_OVERRIDE void EdDDebug(int on) {
     Debug = 0;
 }
 
-void EdDSetFont(CDebugFont *font) {
+PC_OVERRIDE void EdDSetFont(CDebugFont *font) {
     DebugFont = font;
 }
 
 /* The frame counter is printed first, so it stands at the top of whatever the frame appended
    after it. With the overlay switched off the buffer is still emptied every frame, which is what
    keeps a switched-off build from overrunning it. */
-void EdDDrawFont() {
+PC_OVERRIDE void EdDDrawFont() {
     char       work[112];
     static int count = 0;
 
@@ -138,7 +138,7 @@ void EdDDrawFont() {
 
 /* The overflow guard for the frames nothing draws the overlay on: the buffer is 512 bytes and a
    line is short, so emptying it at 500 leaves room for whatever is already on its way in. */
-void EdDCheck() {
+PC_OVERRIDE void EdDCheck() {
     if (DebugFont == 0) {
         return;
     }
@@ -148,7 +148,7 @@ void EdDCheck() {
     }
 }
 
-void EdOutPutFile() {
+PC_OVERRIDE void EdOutPutFile() {
     int fd;
 
     if (Debug == 0) {
@@ -180,7 +180,7 @@ static int AddStr(CDebugFont *font, char *str) {
     return len;
 }
 
-void EdDPrintChara(CMainChara *chara) {
+PC_OVERRIDE void EdDPrintChara(CMainChara *chara) {
     sceVu0FVECTOR vector;
     char          work[128];
 
@@ -205,7 +205,7 @@ void EdDPrintChara(CMainChara *chara) {
     }
 }
 
-void EdDPrintCamera(CCamera *camera) {
+PC_OVERRIDE void EdDPrintCamera(CCamera *camera) {
     sceVu0FVECTOR vector;
     char          work[128];
 
@@ -227,7 +227,7 @@ void EdDPrintCamera(CCamera *camera) {
     AddStr(DebugFont, work);
 }
 
-void EdDPrintVector(char *name, float *vector) {
+PC_OVERRIDE void EdDPrintVector(char *name, float *vector) {
     char work[128];
 
     if (Debug == 0) {
@@ -242,7 +242,7 @@ void EdDPrintVector(char *name, float *vector) {
     AddStr(DebugFont, work);
 }
 
-void EdDPrint(char *text) {
+PC_OVERRIDE void EdDPrint(char *text) {
     if (Debug == 0) {
         return;
     }
@@ -260,7 +260,7 @@ void EdDPrint(char *text) {
    R1 drags the reference point along with the eye, which is what turns a swing into a pan, and
    the D-pad works the field of view. The box is drawn where the reference point is, so the point
    being orbited is visible. */
-void EdDMoveCamera(float *position, float *reference) {
+PC_OVERRIDE void EdDMoveCamera(float *position, float *reference) {
     sceVu0FVECTOR offset;
     sceVu0FVECTOR move;
     float         distance;
@@ -344,7 +344,7 @@ void EdDMoveCamera(float *position, float *reference) {
 
 /* The same camera driven from the other end: the sticks move the reference point and R1 drags the
    eye after it, which is what lets the point being orbited be placed before it is orbited. */
-void EdDMoveCameraRef(float *position, float *reference) {
+PC_OVERRIDE void EdDMoveCameraRef(float *position, float *reference) {
     sceVu0FVECTOR offset;
     sceVu0FVECTOR move;
     float         distance;
@@ -407,7 +407,7 @@ void EdDMoveCameraRef(float *position, float *reference) {
    of the body is what the reference point is lifted by.
    The box is ten across and twenty tall - a stand-in for the body rather than the body's own
    size - and it is drawn with the character's own rotation so the facing can be seen. */
-void EdDMoveChara(CCharacter *character, CCamera *camera) {
+PC_OVERRIDE void EdDMoveChara(CCharacter *character, CCamera *camera) {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR camera_pos;
     sceVu0FVECTOR camera_ref;
@@ -508,7 +508,7 @@ void EdDMoveChara(CCharacter *character, CCamera *camera) {
     }
 }
 
-void EdDebugMenu() {
+PC_OVERRIDE void EdDebugMenu() {
     static int mode = 0;
 
     switch (mode) {
@@ -543,7 +543,7 @@ void EdDebugMenu() {
     DebugFont->Draw();
 }
 
-void DM_Main() {
+PC_OVERRIDE void DM_Main() {
     static int select = 0;
     static int run_event = 150;
     static int talk_chara = 0;
@@ -724,7 +724,7 @@ void DM_Main() {
     }
 }
 
-void DM_Sound() {
+PC_OVERRIDE void DM_Sound() {
     static int select = 0;
     static int bgm_no = 0;
     static int se_no = 0;
@@ -877,7 +877,7 @@ static inline void RaiseFloorReached(CDngStatusData *status, int dungeon, int fl
     }
 }
 
-void DM_Flag() {
+PC_OVERRIDE void DM_Flag() {
     static int      select = 0;
     static int      game_no = 0;
     static int      map_no = 0;
@@ -1254,7 +1254,7 @@ static void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a)
 
 // Runs in the town's step, ahead of the tick's drawing, so the scene to keep behind the menu is
 // the frame before.
-void EdSaveFrameImageTask() {
+PC_OVERRIDE void EdSaveFrameImageTask() {
     if (frame_image_flag != 0) {
         MGPortMovePreviousFrameImage((sceGsTex0 *) &frame_image_tex.tex0);
         frame_image_tex.Initialize();

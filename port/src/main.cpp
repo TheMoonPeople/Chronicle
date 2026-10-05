@@ -249,7 +249,7 @@ int Screenshot(const char *path) {
 
 } // namespace
 
-int main(int argc, const char **argv, const char **envp) {
+PC_OVERRIDE int main(int argc, const char **argv, const char **envp) {
     argc = PathsConsumeArgs(argc, argv);
     Options options = ParseOptions(argc, argv);
     FirstRunIfNoData(options.headless);

@@ -69,8 +69,8 @@ void GetPos_AbsPosSet(int x, int y, int width, int height, int win_width, int wi
 void MyMenuHelpWinDraw(int x, int y, int width, int height, int shade, int u, int v, CTexture *texture);
 
 // Named the other way round from set2DSprite: src is where the sprite lands, dst the texels.
-void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
-                   u8 g, u8 b, u8 a) {
+PC_OVERRIDE void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
+                               u8 g, u8 b, u8 a) {
     if (texture == nullptr) {
         return;
     }
@@ -100,8 +100,8 @@ void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src
     draw2d::Get().set_zbuf(nullptr);
 }
 
-void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
-              int prim) {
+PC_OVERRIDE void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
+                          int prim) {
     float across;
     float down;
     float turn;
@@ -176,7 +176,7 @@ void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int li
     ShapePoint(px, py);
 }
 
-void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
+PC_OVERRIDE void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
     float grown_width;
     float grown_height;
     int   x;
@@ -387,7 +387,7 @@ void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
 // retail's: fans written through the current ALPHA, tiles blended over them, alpha 0 outside.
 // Lost: the antialiased fan edges, and retail's tiles writing Z=0 into the frame's own Z buffer at
 // the target's coordinates.
-void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
+PC_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
     const draw2d::Services &services = draw2d::Get();
 
     g_shapes.clear();
@@ -457,7 +457,7 @@ void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
     services.set_alpha(nullptr);
 }
 
-void ClsMes::DrawMesWin() {
+PC_OVERRIDE void ClsMes::DrawMesWin() {
     CTexture *texture;
     int       offset_x;
     int       offset_y;

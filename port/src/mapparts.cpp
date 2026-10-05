@@ -11,7 +11,7 @@
 // part 100 units away and neighbours meet edge to edge.
 constexpr float kPartsLiftDepth = 0.1f;
 
-void CMapParts::DrawLOD(float *distance, int lowest, int highest, int *out_level) {
+PC_OVERRIDE void CMapParts::DrawLOD(float *distance, int lowest, int highest, int *out_level) {
     sceVu0FVECTOR saved_pos;
     sceVu0FVECTOR lifted_pos;
 

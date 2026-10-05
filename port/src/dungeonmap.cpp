@@ -23,7 +23,7 @@
 
 // Retail's, with the cell picked for a character's key door addressed on the whole pointer.
 
-void CDungeonMap::BuildCharaSpecialParts() {
+PC_OVERRIDE void CDungeonMap::BuildCharaSpecialParts() {
     int          list[128];
     int          roll;
     int          num;
@@ -254,7 +254,7 @@ void CDungeonMap::BuildCharaSpecialParts() {
     }
 }
 
-int CDungeonMap::SetCharaDoor(int chara_no) {
+PC_OVERRIDE int CDungeonMap::SetCharaDoor(int chara_no) {
     int          list[128];
     int          num;
     int          pick;

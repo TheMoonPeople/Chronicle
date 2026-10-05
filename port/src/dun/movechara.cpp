@@ -213,7 +213,7 @@ void DeleteItemModel(int slot) {
 
 } // namespace
 
-void DunMoveChara() {
+PC_OVERRIDE void DunMoveChara() {
     /* Where the camera looks relative to what it follows, before the floor's
        own offset is added. */
     static sceVu0FVECTOR reference = {0.0f, 7.5f, 0.0f, 0.0f};
@@ -3017,7 +3017,7 @@ void DunMoveChara() {
     motionDrive();
 }
 
-int BtCheckDamageProc() {
+PC_OVERRIDE int BtCheckDamageProc() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR from;
     sceVu0FVECTOR blow;

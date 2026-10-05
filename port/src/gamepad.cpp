@@ -9,7 +9,7 @@
 // stick) and whether the game looks at the left stick at all (if not, the movement keys also press
 // the d-pad, for the screens that read only the d-pad).
 
-int pad_button_read(PAD_STATUS *status, int port, int slot) {
+PC_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
     unsigned char data[32];
     InputLatchPad(port);
     if (!scePadRead(port, slot, data)) {
@@ -28,12 +28,12 @@ int pad_button_read(PAD_STATUS *status, int port, int slot) {
     return mode;
 }
 
-int CGamePad::GetLX() {
+PC_OVERRIDE int CGamePad::GetLX() {
     InputNoteLeftStickRead();
     return AxisCalibration(pad[0].input.status.left_x);
 }
 
-int CGamePad::GetLY() {
+PC_OVERRIDE int CGamePad::GetLY() {
     InputNoteLeftStickRead();
     return AxisCalibration(pad[0].input.status.left_y);
 }

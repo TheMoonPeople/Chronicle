@@ -36,7 +36,7 @@ void StatusBarFill(int frame_y, int cells, float value, float max, spRGBA *left,
 } // namespace
 
 // Retail brackets the copy with TEXFLUSH; the renderer orders copies and draws itself.
-void setItemToReserved(char *page_name, int x, int y, char *item_name, int dsax, int dsay) {
+PC_OVERRIDE void setItemToReserved(char *page_name, int x, int y, char *item_name, int dsax, int dsay) {
     CTexture *page = TexManager.GetTexture(page_name, -1);
     CTexture *item = TexManager.GetTexture(item_name, -1);
 
@@ -49,7 +49,7 @@ void setItemToReserved(char *page_name, int x, int y, char *item_name, int dsax,
 }
 
 // Retail's but for the life and weapon bars' fills, PAL's branch only.
-void topStatusInfo(int y, int selected_item, int floor) {
+PC_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
     int       alpha;
     CTexture *icons;
     CTexture *frame;

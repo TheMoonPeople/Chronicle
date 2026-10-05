@@ -15,11 +15,11 @@
 //   0x8010 allocate stream input buffer  0x8090+p is playing  0x80E0+p port volume
 //   0x9050+p bind bank     0x9070 copy bank body to sound memory
 
-int ezMidiInit() {
+PC_OVERRIDE int ezMidiInit() {
     return 1;
 }
 
-int ezMidi(int command, int argument) {
+PC_OVERRIDE int ezMidi(int command, int argument) {
     audio::Mixer &mixer = audio::DefaultMixer();
     const int     port = command & 0x0F;
     audio::Trace("ezMidi 0x%X 0x%X", command, argument);
@@ -53,7 +53,7 @@ int ezMidi(int command, int argument) {
     }
 }
 
-int ezTransToIOP(void *iop_address, void *ee_address, int size) {
+PC_OVERRIDE int ezTransToIOP(void *iop_address, void *ee_address, int size) {
     std::memcpy(iop_address, ee_address, size);
     return 0;
 }

@@ -67,7 +67,7 @@ void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRec
 // op_d's FaceChange. The PS2 build renames the four title units' FaceChange apart and binds op_c's
 // call to this one as FaceChangeD (ps2/config/pal/object_fixups.json); the port gives it that name.
 // The texture-cache flushes around the transfers are gone: the copies are ordered on the renderer.
-void FaceChangeD(int actor_no) {
+PC_OVERRIDE void FaceChangeD(int actor_no) {
     static FACE_INFO face[21] = {
         {0,        0,            42, 40, 87, 35, 0, 0, 256, 2, 0},
         {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
@@ -184,7 +184,7 @@ void LensFreaProcess() asm("OpD_LensFreaProcess");
 void Setsumei() asm("OpD_Setsumei");
 void HamonProcess() asm("OpD_HamonProcess");
 
-void OpD_InitProcess() {
+PC_OVERRIDE void OpD_InitProcess() {
     while (ReadBGSync())
         ;
 
@@ -326,7 +326,7 @@ void OpD_InitProcess() {
     CScript__2.init_no = 0;
 }
 
-void OpD_InitProcess2() {
+PC_OVERRIDE void OpD_InitProcess2() {
     while (ReadBGSync())
         ;
 
@@ -436,7 +436,7 @@ void OpD_InitProcess2() {
     CScript__2.init_no = 0;
 }
 
-void OpD_DrawProcess() {
+PC_OVERRIDE void OpD_DrawProcess() {
     OP_CharaFrame__2 = Cam__2[SceneNp__2].frame;
 
     switch (CScript__2.camera_start) {

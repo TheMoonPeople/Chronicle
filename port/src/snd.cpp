@@ -118,37 +118,37 @@ void Sprite3D(CTexture *texture, const CRect_i_ &source, int *top_left, int *bot
 } // namespace
 
 // Retail aligns through a 32-bit int, which truncates a buffer above 4 GiB.
-void SndSetReadBuffer(unsigned int *buffer) {
+PC_OVERRIDE void SndSetReadBuffer(unsigned int *buffer) {
     const auto address = reinterpret_cast<std::uintptr_t>(buffer);
     const auto misalign = address % 64;
     snd_read_buf = misalign != 0 ? reinterpret_cast<unsigned int *>(address + 64 - misalign) : buffer;
 }
 
-void setbilinear(int on) { g_linear = on; }
+PC_OVERRIDE void setbilinear(int on) { g_linear = on; }
 
-void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha) { draw2d::Get().set_alpha(alpha); }
+PC_OVERRIDE void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha) { draw2d::Get().set_alpha(alpha); }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, int u, int v) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, int u, int v) {
     RectSprite(texture, screen, CRect_i_(u, v, screen.width, screen.height), {0x80, 0x80, 0x80, 0x80});
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel) {
     RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, 0x80});
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                 unsigned char alpha) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                             unsigned char alpha) {
     RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, alpha});
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                 unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                             unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
     RectSprite(texture, screen, texel, {red, green, blue, alpha});
 }
 
 // A gouraud strip, so the corner order decides the diagonal the colours interpolate across.
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                 spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                             spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
     if (texture == nullptr) {
         return;
     }
@@ -174,9 +174,9 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &scree
     draw2d::RestoreTestZbuf();
 }
 
-void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
-                    spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
-                    spRGBA *bottom_right_colour) {
+PC_OVERRIDE void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
+                                spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
+                                spRGBA *bottom_right_colour) {
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, 0.0f, 0.0f, ToColour(top_left_colour), false),
         GsVertex(top_right, 0.0f, 0.0f, ToColour(top_right_colour), false),
@@ -186,16 +186,16 @@ void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *b
     draw2d::DrawUntextured(gfx::Primitive::TriangleStrip, strip, CurrentState(false));
 }
 
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                 int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
+PC_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+                             int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     spRGBA colour = {0x80, 0x80, 0x80, 0};
 
     colour.a = alpha;
     set3DSprite(packet, texture, source, top_left, top_right, bottom_left, bottom_right, &colour);
 }
 
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                 int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
+PC_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+                             int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -203,8 +203,8 @@ void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sourc
     Sprite3D(texture, source, top_left, top_right, bottom_left, bottom_right, ToColour(colour), false);
 }
 
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                 int *bottom_right, spRGBA *colour) {
+PC_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+                             int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -212,8 +212,8 @@ void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sourc
     Sprite3D(texture, source, top_left, bottom_right, ToColour(colour), false);
 }
 
-void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                    int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
+PC_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+                                int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }
@@ -222,8 +222,8 @@ void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &so
              true);
 }
 
-void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                    int *bottom_right, spRGBA *colour) {
+PC_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+                                int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -231,8 +231,8 @@ void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &so
     Sprite3D(texture, source, top_left, bottom_right, ToColour(colour), true);
 }
 
-void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
-                  unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+PC_OVERRIDE void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
+                              unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
     const Colour                 colour = {red, green, blue, alpha};
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, 0.0f, 0.0f, colour, false, true),
@@ -243,8 +243,8 @@ void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bot
     draw2d::DrawUntextured(gfx::Primitive::TriangleStrip, strip, CurrentState(false));
 }
 
-void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
-                   spRGBA *bottom_left, spRGBA *bottom_right) {
+PC_OVERRIDE void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
+                               spRGBA *bottom_left, spRGBA *bottom_right) {
     const float x0 = static_cast<float>(screen.x);
     const float y0 = static_cast<float>(screen.y);
     const float x1 = static_cast<float>(screen.x + screen.width);
@@ -266,8 +266,8 @@ void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_le
 // axes swapped at angle 0. Retail truncates each turned corner to a pixel, so a slow turn (the
 // title's backdrop, half a milliradian a tick) moves the corners one at a time; they are kept as
 // turned here.
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                 int pivot_x, int pivot_y, float angle) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                             int pivot_x, int pivot_y, float angle) {
     draw2d::TurnedSprite(texture, screen, texel, pivot_x, pivot_y, angle, 1.0f);
 }
 
@@ -313,9 +313,9 @@ void draw2d::TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect
 
 // Retail's rotation in 12.4 units: the far edges a sixteenth short, mirrored about the pivot at
 // angle 0, y halved for the field after turning.
-void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                    int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
-                    unsigned char blue, unsigned char alpha) {
+PC_OVERRIDE void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                                int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
+                                unsigned char blue, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }
@@ -353,7 +353,7 @@ void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sc
     draw2d::RestoreTestZbuf();
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, RECT *screen, RECT *texel, unsigned char alpha) {
+PC_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, RECT *screen, RECT *texel, unsigned char alpha) {
     set2DSprite(packet, texture, CRect_i_(screen->x, screen->y, screen->width, screen->height),
                 CRect_i_(texel->x, texel->y, texel->width, texel->height), alpha);
 }

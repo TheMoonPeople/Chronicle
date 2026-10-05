@@ -47,7 +47,7 @@ extern "C" int rand() LIBC_NOEXCEPT {
 }
 
 // The host runs the static constructors mwInit would have run.
-extern "C" void mwInit(int argc, const char **argv, const char **envp) {}
+PC_OVERRIDE extern "C" void mwInit(int argc, const char **argv, const char **envp) {}
 
 extern "C" [[noreturn]] void exit__2(int status) {
     std::exit(status);
@@ -57,7 +57,7 @@ extern "C" [[noreturn]] void exit__2(int status) {
 // loader re-ran an overlay's static constructors whenever a mode needed the other overlay; the
 // port re-runs the title overlay's for the objects it lays out with host classes, whose PS2-sized
 // constructors in the title units also run at start-up, over them.
-void LoadOverlay(int mode) {
+PC_OVERRIDE void LoadOverlay(int mode) {
     enum Overlay { kNone, kTitle, kDungeon };
     constexpr Overlay kOverlay[] = {kTitle, kTitle, kNone, kDungeon, kDungeon, kTitle, kNone, kNone,
                                     kDungeon, kDungeon, kNone, kNone, kNone, kNone, kNone};
@@ -72,6 +72,6 @@ void LoadOverlay(int mode) {
     }
 }
 
-extern "C" int mwLoadOverlay(char *path, void *address) {
+PC_OVERRIDE extern "C" int mwLoadOverlay(char *path, void *address) {
     return 1;
 }

@@ -130,7 +130,7 @@ void AppendStrip(std::vector<gfx::Vertex2D> &triangles, const std::vector<gfx::V
 // images live in targets of their own, as wide as what the target shows, and frame_image is left
 // alone. The two outermost columns of the second pass stay on the edges, so the wander never
 // uncovers a strip of the sharp frame.
-void DepthOfField(float *focus, int level, int alpha, int blur) {
+PC_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
     int phase;
     int i;
     int j;

@@ -13,7 +13,7 @@ void Move(const CTextureTexAnime &from, int x, int y, int width, int height, con
 } // namespace
 
 // Retail's TexAnime with each MGMoveImage done on the renderer and the TEXFLUSH packets gone.
-void CTextureAnime::TexAnime(int texture_block) {
+PC_OVERRIDE void CTextureAnime::TexAnime(int texture_block) {
     for (int i = 0; i < 24; i++) {
         if (enabled[i] != 0 && current[i] != NULL && current[i]->linked_group >= 0) {
             Enable(current[i]->linked_group);

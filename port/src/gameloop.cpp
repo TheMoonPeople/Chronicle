@@ -563,7 +563,7 @@ bool GameStopRequested() {
 // Retail's SetEnv sends TEX1, TEST, ZBUF, ALPHA and CLAMP at the top of every frame. TEX1 is
 // read where a texture is bound and CLAMP is the sampler's; the window rectangle is what
 // sceGsSwapDBuff's draw environment restored every frame.
-void SetEnv(sceVif1Packet *packet) {
+PC_OVERRIDE void SetEnv(sceVif1Packet *packet) {
     MGSetGsTEST(nullptr);
     MGSetGsZBUF(nullptr);
     MGSetGsALPHA(nullptr);

@@ -10,7 +10,7 @@
 // InitProc*, op_b, op_c, op_d, rushmovi, editloop's MainEditMode, EdEventNPCStep's copies) stores
 // an image global there. Retail's cast back only survives an image below 4 GiB, so the pointer is
 // recovered from the image instead.
-void CCharacter::ClothStep(int step) {
+PC_OVERRIDE void CCharacter::ClothStep(int step) {
     sceVu0FVECTOR world_pos;
     CFrame       *root;
     int           i;

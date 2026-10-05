@@ -105,7 +105,7 @@ Draw3DIdentityScope::~Draw3DIdentityScope() {
 // the current register shadows the visual's draw reads. The screen-bound test runs on an
 // unsqueezed view, so its vertical limits are the frame's full half-height (retail's quarter on
 // the squeezed field), and its limits are what the target shows: past a 4:3 window, the sides.
-int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
+PC_OVERRIDE int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     sceVu0FMATRIX matrix;
     sceVu0FMATRIX screen_matrix;
     sceVu0FMATRIX turn;
@@ -321,6 +321,6 @@ int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     return 0;
 }
 
-int CFrameVu1::DrawVu1(sceVif1Packet *packet, RenderInfo *info) {
+PC_OVERRIDE int CFrameVu1::DrawVu1(sceVif1Packet *packet, RenderInfo *info) {
     return DrawVu1(g_cursor, info);
 }

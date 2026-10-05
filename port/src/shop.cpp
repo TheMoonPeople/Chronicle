@@ -138,7 +138,7 @@ int FishMenuTextureLoad() {
 
 } // namespace
 
-int FishingExchangeKey() {
+PC_OVERRIDE int FishingExchangeKey() {
     int result = 0;
 
     ReadBG();

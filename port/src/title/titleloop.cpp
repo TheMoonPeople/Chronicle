@@ -42,7 +42,7 @@ int  OpeningBookKey();
 void OpeningBookDraw();
 void TiPlayVolSE(int group, int no, int voice, float volume);
 
-int TitleLoop() {
+PC_OVERRIDE int TitleLoop() {
     sceVu0FVECTOR pos;
     sceVu0FMATRIX matrix;
     int           i;
@@ -329,7 +329,7 @@ int TitleLoop() {
    the taller PAL one. */
 #define MENU_Y(y) ((y) + (SCREEN_HEIGHT - 448) / 2)
 
-void TitleDraw() {
+PC_OVERRIDE void TitleDraw() {
     sceVu0FVECTOR light0 = {2.4578f, 9.9294f, -2.8074f, 0.0f};
     sceVu0FVECTOR light1 = {4.6086f, -10.4028f, -0.8286f, 0.0f};
     sceVu0FVECTOR light2 = {0.0f, 0.0f, -10.0f, 0.0f};

@@ -150,7 +150,7 @@ static int           BgmOff;
 static int           BgmVol;
 static int           BgmNo;
 
-void OpeningInit() {
+PC_OVERRIDE void OpeningInit() {
     wait_now_loading_vsync();
     InitializeDataBuffer();
     SetDataBuffer(&VisualData, 7500);
@@ -279,7 +279,7 @@ static void LoadScene() {
     }
 }
 
-void LoadSceneBG() {
+PC_OVERRIDE void LoadSceneBG() {
     CDataAlloc2<1> *buffer;
     int             slot;
     char           *files[126][2] = {
@@ -451,7 +451,7 @@ void LoadSceneBG() {
     }
 }
 
-int OpeningLoop() {
+PC_OVERRIDE int OpeningLoop() {
     ReadBG();
     PauseProcess();
 
@@ -1100,7 +1100,7 @@ static void DrawMess() {
     Mes1.DrawMesWin();
 }
 
-void OpBgmPlay() {
+PC_OVERRIDE void OpBgmPlay() {
     int volumes[8] = {82, 106, 64, 69, 91, 92, 95, 108};
 
     if (BgmOff == 0) {

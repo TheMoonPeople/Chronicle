@@ -8,8 +8,8 @@ class CCloth;
 
 // A local-to-local GS transfer between two images the registry knows by base pointer. The direction
 // only orders overlapping transfers within one buffer, which the renderer's copy does not need.
-void MoveImageTest(sceVif1Packet *packet, int src_base, int src_width, int src_format, const CRect_i_ &rect,
-                   int dst_base, int dst_width, int dst_format, int dst_x, int dst_y, int direction) {
+PC_OVERRIDE void MoveImageTest(sceVif1Packet *packet, int src_base, int src_width, int src_format, const CRect_i_ &rect,
+                               int dst_base, int dst_width, int dst_format, int dst_x, int dst_y, int direction) {
     if (rect.width <= 0 || rect.height <= 0) {
         return;
     }

@@ -462,11 +462,11 @@ void MGPortWorldToClip(float clip[4][4]) {
 
 // ---- VSync group -----------------------------------------------------------------------------
 
-int MGGetVSyncCount() {
+PC_OVERRIDE int MGGetVSyncCount() {
     return static_cast<int>(ClockTickCount());
 }
 
-void MGInit() {
+PC_OVERRIDE void MGInit() {
     DBuffID = 0;
     mgWaitVSync = 0;
     VSyncField__2 = 0;
@@ -539,7 +539,7 @@ void MGInit() {
     g_old_vcount = 0;
 }
 
-void MGInitVSyncCallBack(int (*callback)(int)) {
+PC_OVERRIDE void MGInitVSyncCallBack(int (*callback)(int)) {
     ClockSetTickCallback(callback);
 }
 
@@ -549,7 +549,7 @@ void MGPortCutInterpolation() {
 
 // A tick records its drawing as a display list; MGEndFrame renders it. A frame someone opened
 // with gfx::BeginFrame is drawn into as it is.
-void MGBeginFrame() {
+PC_OVERRIDE void MGBeginFrame() {
     if (!gfx::InFrame()) {
         gfx::BeginRecording();
         if (g_cut_next_tick) {
@@ -595,7 +595,7 @@ void MGBeginFrame() {
 // Retail waits for the next VSync unless one already passed while the frame was built and the
 // game asked not to wait twice (mgWaitVSync 0). The count only moves when the clock is pumped, so
 // it is pumped first to see whether a tick went by.
-void MGEndFrame() {
+PC_OVERRIDE void MGEndFrame() {
     for (int i = 0; i < 16; i++) {
         g_pick_pending[i].reset();
         if (!mgPickZBuff[i].enable) {
@@ -650,13 +650,13 @@ void MGEndFrame() {
     DBuffID = !DBuffID;
 }
 
-void MGFlipWaitVSync(int wait) {
+PC_OVERRIDE void MGFlipWaitVSync(int wait) {
     mgWaitVSync = wait;
 }
 
 // The display position only moved the PAL picture on a television; the clamped values are kept
 // for the save data's screen-position setting, and nothing moves.
-void MGAdjustScreen(int x, int y) {
+PC_OVERRIDE void MGAdjustScreen(int x, int y) {
     if (x > 32 || x < -32) {
         x = 0;
     }
@@ -667,13 +667,13 @@ void MGAdjustScreen(int x, int y) {
     mgAdjustY = (y >> 1) << 1;
 }
 
-sceVif1Packet *GetVif1Packet() {
+PC_OVERRIDE sceVif1Packet *GetVif1Packet() {
     return Vif1Packet;
 }
 
 // ---- Projection, camera, lights, fog ---------------------------------------------------------
 
-void MGSetRenderInfo(float scale, float near_z, float far_z) {
+PC_OVERRIDE void MGSetRenderInfo(float scale, float near_z, float far_z) {
     float w = 1.0f;
     float z_range = 16699999;
     float near_far = near_z * far_z;
@@ -725,16 +725,16 @@ void MGSetRenderInfo(float scale, float near_z, float far_z) {
     mgRenderInfo.viewport[3][3] = w;
 }
 
-void MGSetProjection(float scale) {
+PC_OVERRIDE void MGSetProjection(float scale) {
     MGSetRenderInfo(scale, mgRenderInfo.near[2], mgRenderInfo.far[2]);
 }
 
-float MGGetProjection() {
+PC_OVERRIDE float MGGetProjection() {
     return mgRenderInfo.projection;
 }
 
 // SCAX0 takes half of x, as retail sends it; the rectangle counts field rows.
-void MGSetWindowRect(CRect_i_ rect) {
+PC_OVERRIDE void MGSetWindowRect(CRect_i_ rect) {
     mgWindowRect = rect;
     float left = static_cast<float>(rect.x >> 1);
     float right = static_cast<float>(rect.x + rect.width + 1);
@@ -743,12 +743,12 @@ void MGSetWindowRect(CRect_i_ rect) {
     MGPortCurrent().window = {left, top, right - left, bottom - top};
 }
 
-void MGSetWindowRect() {
+PC_OVERRIDE void MGSetWindowRect() {
     MGSetWindowRect(CRect_i_(0, 0, 640, SCREEN_HALF_HEIGHT));
     MGPortCurrent().window = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
 }
 
-void MGSetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
+PC_OVERRIDE void MGSetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
     sceVu0CopyMatrix(mgRenderInfo.light_direction, direction);
     sceVu0CopyMatrix(mgRenderInfo.light_color, color);
     for (int i = 0; i < 4; i++) {
@@ -757,24 +757,24 @@ void MGSetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
     }
 }
 
-void MGGetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
+PC_OVERRIDE void MGGetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
     sceVu0CopyMatrix(direction, mgRenderInfo.light_direction);
     sceVu0CopyMatrix(color, mgRenderInfo.light_color);
 }
 
-void MGSetAmbient(float *ambient) {
+PC_OVERRIDE void MGSetAmbient(float *ambient) {
     sceVu0CopyVector(mgRenderInfo.ambient, ambient);
 }
 
-void MGGetAmbient(float *ambient) {
+PC_OVERRIDE void MGGetAmbient(float *ambient) {
     sceVu0CopyVector(ambient, mgRenderInfo.ambient);
 }
 
-void MGSetViewMatrix(sceVu0FMATRIX view) {
+PC_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view) {
     SetViewMatrix(view);
 }
 
-void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
+PC_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     SetViewMatrix(view);
     sceVu0CopyVector(mgRenderInfo.view_position, position);
     mgRenderInfo.position[0] = position[0];
@@ -783,7 +783,7 @@ void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     mgRenderInfo.position[3] = 0.0f;
 }
 
-void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {
+PC_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {
     mgRenderInfo.fog_far = far_fog;
     mgRenderInfo.fog_near = near_fog;
     mgRenderInfo.fog_a = ((far_fog + near_fog) + (far_fog - near_fog) * (far_z + near_z) / (far_z - near_z)) / 2.0f;
@@ -793,7 +793,7 @@ void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float
     mgRenderInfo.fog_blue = b;
 }
 
-void MGSetBGColor(float red, float green, float blue, float alpha) {
+PC_OVERRIDE void MGSetBGColor(float red, float green, float blue, float alpha) {
     mgClearBackFlag = !(red < 0.0f && green < 0.0f && blue < 0.0f && alpha < 0.0f);
     mgBackColor[0] = std::clamp(red, 0.0f, 255.0f);
     mgBackColor[1] = std::clamp(green, 0.0f, 255.0f);
@@ -801,15 +801,15 @@ void MGSetBGColor(float red, float green, float blue, float alpha) {
     mgBackColor[3] = std::clamp(alpha, 0.0f, 255.0f);
 }
 
-void MGSetBGColor(float *color) {
+PC_OVERRIDE void MGSetBGColor(float *color) {
     MGSetBGColor(color[0], color[1], color[2], color[3]);
 }
 
-void MGGetBGColor(float *color) {
+PC_OVERRIDE void MGGetBGColor(float *color) {
     sceVu0CopyVector(color, mgBackColor);
 }
 
-void MGScisioringForce(int force) {
+PC_OVERRIDE void MGScisioringForce(int force) {
     mgRenderInfo.scissoring = force;
 }
 
@@ -817,7 +817,7 @@ void MGScisioringForce(int force) {
 
 // view_scaled no longer halves y, so the field squeeze is applied here to keep the GS coordinates
 // retail produced.
-int MGRotTransPers(int *screen, float *position, int fog) {
+PC_OVERRIDE int MGRotTransPers(int *screen, float *position, int fog) {
     sceVu0FVECTOR point;
     int           visible = true;
 
@@ -850,7 +850,7 @@ int MGRotTransPers(int *screen, float *position, int fog) {
 
 // Logical frame pixels: retail doubled the squeezed y back, which with an unsqueezed view is the
 // identity. The on-screen test still runs in GS field units, as retail's did.
-int MGRotTransPers2D(int *screen, float *position, int fog) {
+PC_OVERRIDE int MGRotTransPers2D(int *screen, float *position, int fog) {
     sceVu0FVECTOR point;
     int           visible = true;
 
@@ -885,7 +885,7 @@ int MGRotTransPers2D(int *screen, float *position, int fog) {
 
 // view_screen keeps retail's GS field units, so the vertical bound is half the frame's half-height;
 // both bounds are what the current target shows, which past a 4:3 window is wider than retail's.
-int MGClipVertex(float *position) {
+PC_OVERRIDE int MGClipVertex(float *position) {
     sceVu0FVECTOR point;
     int           outside = 0;
     Draw3DExtent  extent = Draw3DVisibleExtent();
@@ -919,7 +919,7 @@ int MGClipVertex(float *position) {
     return outside;
 }
 
-int MGClipBox(CBoxVu0 *box) {
+PC_OVERRIDE int MGClipBox(CBoxVu0 *box) {
     sceVu0FVECTOR corner;
     float        *extreme[2] = {box->min, box->max};
     int           outside = 63;
@@ -943,39 +943,39 @@ int MGClipBox(CBoxVu0 *box) {
 
 // ---- Drawing ---------------------------------------------------------------------------------
 
-void MGDraw(CFrame *frame) {
+PC_OVERRIDE void MGDraw(CFrame *frame) {
     if (frame) {
         frame->DrawVu1(g_draw_cursor, &mgRenderInfo);
     }
 }
 
-void MGSetGsTEST(sceGsTest *test) {
+PC_OVERRIDE void MGSetGsTEST(sceGsTest *test) {
     MGPortCurrent().test = test ? *test : mgPixelTest;
 }
 
-void MGSetGsZBUF(sceGsZbuf *zbuf) {
+PC_OVERRIDE void MGSetGsZBUF(sceGsZbuf *zbuf) {
     MGPortCurrent().zbuf = zbuf ? *zbuf : mgZBuffer;
 }
 
-void MGSetGsALPHA(sceGsAlpha *alpha) {
+PC_OVERRIDE void MGSetGsALPHA(sceGsAlpha *alpha) {
     MGPortCurrent().alpha = alpha ? *alpha : mgAlpha;
 }
 
-void MGSetGsTEXA(sceGsTexa *texa) {
+PC_OVERRIDE void MGSetGsTEXA(sceGsTexa *texa) {
     MGPortCurrent().texa = texa ? *texa : mgTexa;
 }
 
-void MGGetFBuffTex(sceGsTex0 *tex0) {
+PC_OVERRIDE void MGGetFBuffTex(sceGsTex0 *tex0) {
     *reinterpret_cast<u_long *>(tex0) = FrameTex0(kMGPortFrameTbp0);
 }
 
-void MGGetFBuffBackTex(sceGsTex0 *tex0) {
+PC_OVERRIDE void MGGetFBuffBackTex(sceGsTex0 *tex0) {
     *reinterpret_cast<u_long *>(tex0) = FrameTex0(kMGPortPreviousFrameTbp0);
 }
 
 // Moves between two of the texture manager's images (CLUT moves included) are its business; a move
 // that reads or writes the frame scales the frame's field rows to its logical ones.
-void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {
+PC_OVERRIDE void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {
     if (rect.width <= 0 || rect.height <= 0) {
         return;
     }
@@ -1062,7 +1062,7 @@ static void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::Tex
 // TA0 0x80) makes every texel 0x80 but pure black, which is 0, and that is the alpha the copy
 // carries. The title's smoke and the depth of field blend the copy back by it; a raw copy carries
 // whatever the frame's last draw left, which feeds the title's trail its own decaying alpha.
-void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, sceGsTex0 *dst, const CRect_i_ &dst_rect) {
+PC_OVERRIDE void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, sceGsTex0 *dst, const CRect_i_ &dst_rect) {
     std::optional<ResolvedRect> from =
         ResolveRect(*src, src_rect.x / 16, src_rect.y / 16, src_rect.width / 16, src_rect.height / 16);
     std::optional<ResolvedRect> to =
@@ -1097,7 +1097,7 @@ static void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
 }
 
 // Retail weaves the two fields line by line into a full-height image; one blit of the frame does.
-void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction) {
+PC_OVERRIDE void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction) {
     MoveFrameImage(gfx::kMainTarget, dst);
     (void) x;
     (void) y;
@@ -1108,7 +1108,7 @@ void MGPortMovePreviousFrameImage(sceGsTex0 *dst) {
     MoveFrameImage(gfx::kPreviousFrame, dst);
 }
 
-void MGFillBox(const CRect_i_ &rect, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+PC_OVERRIDE void MGFillBox(const CRect_i_ &rect, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 1;
     test.bits.aref = 0;
@@ -1143,14 +1143,14 @@ void MGFillBox(const CRect_i_ &rect, unsigned char r, unsigned char g, unsigned 
     current.zbuf = mgZBuffer;
 }
 
-void MGClearZBuffer(int mode) {
+PC_OVERRIDE void MGClearZBuffer(int mode) {
     gfx::LogicalRect frame = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
     uint8_t          unused[4] = {};
     gfx::Clear(false, unused, true, MGPortDepth(static_cast<unsigned>(mode)), &frame);
     MGPortRestoreRegisters();
 }
 
-void MGClearScreen(u_char r, u_char g, u_char b, u_char a) {
+PC_OVERRIDE void MGClearScreen(u_char r, u_char g, u_char b, u_char a) {
     gfx::LogicalRect frame = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
     uint8_t          color[4] = {r, g, b, a};
     gfx::Clear(true, color, true, 0.0f, &frame);
@@ -1159,19 +1159,19 @@ void MGClearScreen(u_char r, u_char g, u_char b, u_char a) {
 
 // ---- Shadows ---------------------------------------------------------------------------------
 
-void MGDrawShadowFast(CFrame *frame, float *position, float *normal) {
+PC_OVERRIDE void MGDrawShadowFast(CFrame *frame, float *position, float *normal) {
     DrawShadowPass(frame, position, normal, 1, Draw3DShadowProgram::Every);
 }
 
-void MGDrawShadowFast2(CFrame *frame, float *position, float *normal) {
+PC_OVERRIDE void MGDrawShadowFast2(CFrame *frame, float *position, float *normal) {
     DrawShadowPass(frame, position, normal, 1, Draw3DShadowProgram::AwayFromLight);
 }
 
-void MGDrawShadow(CFrame *frame, float *position, float *normal) {
+PC_OVERRIDE void MGDrawShadow(CFrame *frame, float *position, float *normal) {
     DrawShadowPass(frame, position, normal, 2, Draw3DShadowProgram::Clipped);
 }
 
-void MGDrawShade(CFrame *frame) {
+PC_OVERRIDE void MGDrawShade(CFrame *frame) {
     if (!frame) {
         return;
     }
@@ -1196,7 +1196,7 @@ void MGDrawShade(CFrame *frame) {
 
 // Retail points FRAME_1 at shadow_buf and clears it black with a sprite, Z untouched; the volumes
 // then count into it against the scene's depth.
-void MGBeginDrawShadow(sceGsTex0 tex0) {
+PC_OVERRIDE void MGBeginDrawShadow(sceGsTex0 tex0) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 1;
     test.bits.aref = 0;
@@ -1228,7 +1228,7 @@ void MGBeginDrawShadow(sceGsTex0 tex0) {
 // Retail draws shadow_buf over the frame as a 24-bit texture with TEXA AEM 1, TA0 alpha and ALPHA
 // (0 - Cd) * As + Cd: a black texel (no volume covered it) gets alpha 0 and leaves the frame, any
 // other darkens it by alpha / 128 once, however many volumes counted there.
-void MGEndDrawShadow(u_char alpha) {
+PC_OVERRIDE void MGEndDrawShadow(u_char alpha) {
     gfx::TextureHandle target = g_shadow_target;
     g_shadow_target = gfx::kNullTexture;
 

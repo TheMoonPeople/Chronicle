@@ -113,11 +113,11 @@ void InitializeDataBuffer() {
     Carve(&ActiveData1, 25000);
 }
 
-void SetDataBuffer(CDataAlloc2<1> *arena, int quads) {
+PC_OVERRIDE void SetDataBuffer(CDataAlloc2<1> *arena, int quads) {
     Carve(arena, quads);
 }
 
-void SetPacketReadBuffer(int packet_quads, int read_quads) {
+PC_OVERRIDE void SetPacketReadBuffer(int packet_quads, int read_quads) {
     CarveReadBuffer(read_quads);
     MGInitVif1Packet(CarvePackets(packet_quads, 0), CarvePackets(packet_quads, 1));
     CarveWorkBuffer(2048);
@@ -138,4 +138,4 @@ void BufferAllClear() {
 }
 
 // The renderer builds no VIF packets; nothing reads the packet builders.
-void MGInitVif1Packet(u_long128 *buffer0, u_long128 *buffer1) {}
+PC_OVERRIDE void MGInitVif1Packet(u_long128 *buffer0, u_long128 *buffer1) {}

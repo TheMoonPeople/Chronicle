@@ -20,7 +20,7 @@ constexpr float kClothResetDistance = 10.0f;
 // polygon_divide says so, all with the fixed cloth material and the model's texture. The vertices
 // are world positions under an identity model, so the draw is known by the cloth and the display
 // list interpolates its vertices between ticks as it does the matrices of the body it hangs from.
-int CCloth::CreateVUData(u_int *packet) {
+PC_OVERRIDE int CCloth::CreateVUData(u_int *packet) {
     if (packet == nullptr) {
         return kDraw3DBlockQuads;
     }
@@ -73,8 +73,8 @@ int CCloth::CreateVUData(u_int *packet) {
     return kDraw3DBlockQuads;
 }
 
-int CCloth::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state,
-                    int unknown1, int unknown2) {
+PC_OVERRIDE int CCloth::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state,
+                                int unknown1, int unknown2) {
     CreateVUData(vu_block[DBuffID]);
     vu_data = vu_block[DBuffID];
     if (const Draw3DVisual *visual = Draw3DFindVisual(vu_data)) {
@@ -84,7 +84,7 @@ int CCloth::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PRO
     return 0;
 }
 
-int CCloth::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                    u_long128 *draw_state, int unknown1, int unknown2) {
+PC_OVERRIDE int CCloth::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+                                u_long128 *draw_state, int unknown1, int unknown2) {
     return CCloth::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }

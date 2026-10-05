@@ -82,7 +82,7 @@ vmcode_t *CodeAt(char *code, int offset) {
 
 } // namespace
 
-int chk_int(RS_STACKDATA data, funcdata *function) {
+PC_OVERRIDE int chk_int(RS_STACKDATA data, funcdata *function) {
     if (data.type == RS_INT) {
         return data.i;
     }
@@ -92,7 +92,7 @@ int chk_int(RS_STACKDATA data, funcdata *function) {
     return 0;
 }
 
-void CRunScript::load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, int stack_num, RS_CALLDATA *call, int call_num) {
+PC_OVERRIDE void CRunScript::load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, int stack_num, RS_CALLDATA *call, int call_num) {
     (void) stack;
     (void) call;
     HostStacks &host = Stacks()[this];
@@ -123,12 +123,12 @@ void RunEvent(CRunScript *script, int program, CDataAlloc2<1> *arena);
 // Retail's body, with the return it leaves to v0: 1 for an event still running, 0 for one that
 // ran to its end and -1 for a program the script does not have. EdEventInit treats the last two
 // as an event with nothing to show.
-int EdRunEvent(int program, CDataAlloc2<1> *arena) {
+PC_OVERRIDE int EdRunEvent(int program, CDataAlloc2<1> *arena) {
     RunEvent(&EdEventScript, program, arena);
     return g_run_result;
 }
 
-int CRunScript::run(int no) {
+PC_OVERRIDE int CRunScript::run(int no) {
     if (prog == 0) {
         return g_run_result = -1;
     }
@@ -169,7 +169,7 @@ int CRunScript::run(int no) {
 }
 
 // Retail's interpreter, opcode for opcode; only CALL's record and the diagnostics' names differ.
-void CRunScript::exe(vmcode_t *entry) {
+PC_OVERRIDE void CRunScript::exe(vmcode_t *entry) {
     RS_STACKDATA value;
     RS_STACKDATA rhs;
     RS_STACKDATA lhs;

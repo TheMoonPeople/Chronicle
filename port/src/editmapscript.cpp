@@ -9,7 +9,7 @@
 
 // Retail's CommandWATER_SHAKE, with the wave slot's address formed on the whole pointer.
 
-void CommandWATER_SHAKE(void **arguments) {
+PC_OVERRIDE void CommandWATER_SHAKE(void **arguments) {
     EDIT_WATER_INFO *info = water_info;
 
     if (info != NULL) {

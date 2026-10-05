@@ -14,7 +14,7 @@ char *PastNext64(char *pointer) {
 
 } // namespace
 
-void CMemoryCardAccess::SetBuff(char *buffer) {
+PC_OVERRIDE void CMemoryCardAccess::SetBuff(char *buffer) {
     char *data;
     char *sum;
     u32   i;

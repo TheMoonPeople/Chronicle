@@ -65,7 +65,7 @@ u_char *escape_file;
 
 RS_STACKDATA *PortItemSelectResult;
 
-void BtGetTreasureboxBig_Init() {
+PC_OVERRIDE void BtGetTreasureboxBig_Init() {
     u_char *mds;
     u_char *img;
     u_char *chr;
@@ -154,7 +154,7 @@ void BtGetTreasureboxBig_Init() {
     autoCamTrial();
 }
 
-int BtGetTreasureboxBig_Loop() {
+PC_OVERRIDE int BtGetTreasureboxBig_Loop() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR item_position;
     int           done = 0;
@@ -317,7 +317,7 @@ int BtGetTreasureboxBig_Loop() {
     return done;
 }
 
-void BtGetTreasureboxSmall_Init(int dungeon) {
+PC_OVERRIDE void BtGetTreasureboxSmall_Init(int dungeon) {
     u_char *mds;
     u_char *img;
     u_char *chr;
@@ -411,7 +411,7 @@ void BtGetTreasureboxSmall_Init(int dungeon) {
     autoCamTrial();
 }
 
-int BtGetTreasureboxSmall_Loop() {
+PC_OVERRIDE int BtGetTreasureboxSmall_Loop() {
     int done = 0;
 
     switch (BtGetTreasurebox_Sled) {
@@ -564,7 +564,7 @@ int BtGetTreasureboxSmall_Loop() {
     return done;
 }
 
-int BtMiniItemSelect_Loop() {
+PC_OVERRIDE int BtMiniItemSelect_Loop() {
     int done = 0;
 
     switch (BtMiniItemSelect_Sled) {
@@ -606,7 +606,7 @@ int BtMiniItemSelect_Loop() {
     return done;
 }
 
-void BtGetGateKey_Init(int item_no) {
+PC_OVERRIDE void BtGetGateKey_Init(int item_no) {
     char    model_path[64];
     char    texture_path[64];
     u_char *model;
@@ -639,7 +639,7 @@ void BtGetGateKey_Init(int item_no) {
     autoCamTrial();
 }
 
-int BtGetGateKey_Loop() {
+PC_OVERRIDE int BtGetGateKey_Loop() {
     sceVu0FVECTOR eye;
     sceVu0FVECTOR ref;
     sceVu0FVECTOR ahead;
@@ -722,7 +722,7 @@ int BtGetGateKey_Loop() {
     return done;
 }
 
-void BtEscape_Init() {
+PC_OVERRIDE void BtEscape_Init() {
     u_char *chr;
     int     size;
 
@@ -754,7 +754,7 @@ void BtEscape_Init() {
     autoCamTrial();
 }
 
-int BtEscape_Loop() {
+PC_OVERRIDE int BtEscape_Loop() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR rotation;
     int           done = 0;

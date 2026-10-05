@@ -81,7 +81,7 @@ void KeepNearVillagers(CCamera *camera, CCharacter *player) {
 
 // Retail's EdMoveVillager, with KeepNearVillagers in place of GetNearVill and the choice of the
 // two nearest.
-void EdMoveVillager(VILLAGER_INFO *villagers) {
+PC_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
     CEditGround *ground = EdExchangeInfo.ground;
     CCharacter  *player = EdExchangeInfo.player;
     CCamera     *camera = EdExchangeInfo.camera;
@@ -192,7 +192,7 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
 
 // Retail's EdMoveVillagerSubMap, with KeepNearVillagers in place of GetNearVill and the choice of
 // the two nearest.
-void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
+PC_OVERRIDE void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
     CCharacter *player = EdExchangeInfo.player;
     CCamera    *camera = EdExchangeInfo.camera;
     int         i;
@@ -225,7 +225,7 @@ void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
 // Retail's EdInitToEPInfo lays the cell map and names out 0x78 bytes in, past its own header; the
 // host header is 0xA0 bytes, so 0x78 lands on its element names and function table. They start past
 // the host's header instead.
-int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header) {
+PC_OVERRIDE int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header) {
     header->header_size = sizeof(EPARTS_INFO_HEADER);
     header->width = init->width;
     header->height = init->height;

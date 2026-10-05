@@ -8,7 +8,7 @@
 // Retail's GetFuncPoint copies each interior part's function records with the host's EPARTS_FUNC_DATA
 // stride and words; the disc's are the PS2's (eparts_port.hpp). parts carries the part's index, which
 // LoadData turns into its frame.
-int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points) {
+PC_OVERRIDE int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points) {
     const char      *definition = (char *) archive + archive[1];
     EPartsDiscHeader header = EPartsReadHeader(definition);
     int              i;

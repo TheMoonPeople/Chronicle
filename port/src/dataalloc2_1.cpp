@@ -52,15 +52,15 @@ void *Place(std::size_t size, u_long128 *block) {
 
 } // namespace
 
-void *operator new(size_t size, u_long128 *block) {
+PC_OVERRIDE void *operator new(size_t size, u_long128 *block) {
     return Place(size, block);
 }
 
-void *operator new[](size_t size, u_long128 *block) {
+PC_OVERRIDE void *operator new[](size_t size, u_long128 *block) {
     return Place(size, block);
 }
 
-u_char *CDataAlloc2<1>::Alloc(int quads) {
+PC_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
     if (used + quads > limit) {
         ArenaOverflow(this, used + quads, limit);
     }
@@ -70,7 +70,7 @@ u_char *CDataAlloc2<1>::Alloc(int quads) {
     return block;
 }
 
-u_char *CDataAlloc2<1>::Alloc64(int quads) {
+PC_OVERRIDE u_char *CDataAlloc2<1>::Alloc64(int quads) {
     Align64();
     u_char *block = base + used * 16;
     used += quads;
@@ -97,7 +97,7 @@ u_char *CDataAlloc<1, 1690000>::Alloc(int quads) {
     return allocation;
 }
 
-u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
+PC_OVERRIDE u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
     Align64();
     u_char *allocation = GlobalBlock() + used * 16;
     used += quads;
@@ -116,7 +116,7 @@ void CDataAlloc<1, 1690000>::Align64() {
 
 // SystemMesBuffer keeps its embedded storage: LoadSystemMessage points
 // SystemMes at block[used] directly.
-u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
+PC_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
     if (used + quads > 6000) {
         ArenaOverflow(this, used + quads, 6000);
     }

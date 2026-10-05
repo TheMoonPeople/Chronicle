@@ -167,7 +167,7 @@ static int checkArg(char *buf, int pos, int *command);
    arguments are checked into the buffers at the next level, and the level moves on. A line naming
    no command at all is fatal, because a definition file the loader half-understands would place
    half a scene. */
-void OPAnalyz(char *name) {
+PC_OVERRIDE void OPAnalyz(char *name) {
     char *buffer;
     int   i;
     int   position;
@@ -685,7 +685,7 @@ void OPAnalyz(char *name) {
    command as often as it likes and the last one to run wins. The frame attribute the loader builds
    as it goes is what every model it places is given, which is why the two commands that place a
    whole building save it and put it back: what they set is theirs alone. */
-void OPMdsLoad() {
+PC_OVERRIDE void OPMdsLoad() {
     CFrameAttr    saved_attr;
     CFrameAttr    attr;
     char          path[4][128];

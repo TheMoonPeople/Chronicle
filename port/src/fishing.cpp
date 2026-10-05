@@ -30,7 +30,7 @@ gfx::Vertex2D LineVertex(const int *screen) {
 
 // The line is a GS line strip in which an XYZF3 write moves the pen without drawing: a segment
 // exists only into a vertex sent with XYZF2. It becomes a line list of those segments.
-void FishLineDraw(int above_water) {
+PC_OVERRIDE void FishLineDraw(int above_water) {
     int           screen[4] = {};
     sceVu0FVECTOR center;
     sceVu0FVECTOR direction;

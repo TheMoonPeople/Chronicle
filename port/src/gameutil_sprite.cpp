@@ -20,7 +20,7 @@ std::vector<gfx::Vertex2D> g_batch;
 
 // The batch draws when it closes, which is where retail's packet reaches the GS: nothing else may
 // write to the packet between Start and End.
-void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
+PC_OVERRIDE void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
     g_batch.clear();
     g_batch_open = texture != nullptr;
     if (texture != nullptr) {
@@ -28,8 +28,8 @@ void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
     }
 }
 
-void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                      u8 red, u8 green, u8 blue, u8 alpha) {
+PC_OVERRIDE void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                                  u8 red, u8 green, u8 blue, u8 alpha) {
     if (texture == nullptr || !g_batch_open) {
         return;
     }
@@ -49,7 +49,7 @@ void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &
     g_batch.push_back(draw2d::Vertex(x0, y1, 0.0f, u0, v1, red, green, blue, alpha));
 }
 
-void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
+PC_OVERRIDE void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
     if (!g_batch_open) {
         return;
     }
@@ -60,7 +60,7 @@ void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
     g_batch.clear();
 }
 
-void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut) {
+PC_OVERRIDE void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut) {
     if (texture == nullptr || clut == nullptr) {
         return;
     }

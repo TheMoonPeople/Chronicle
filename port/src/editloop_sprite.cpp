@@ -8,8 +8,8 @@
 
 // The editor's own rotation in 12.4 units: offsets turned with the axes swapped at angle 0, the far
 // edges a sixteenth short, y halved for the field after turning. Always point-sampled.
-void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                    int pivot_x, int pivot_y, float angle, unsigned char alpha) {
+PC_OVERRIDE void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                                int pivot_x, int pivot_y, float angle, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }

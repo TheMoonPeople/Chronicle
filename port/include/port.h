@@ -19,6 +19,10 @@
 
 #define PS2_UNIMPLEMENTED() Ps2Unimplemented(__func__, __FILE__, __LINE__)
 
+// Marks a definition in port/src that replaces the one ps2/src gives the same name. The port
+// compiles ps2/src without that one (scripts/port/pc_override.py, docs/PC.md).
+#define PC_OVERRIDE
+
 /**
  * The Metrowerks runtime's assertion failure.
  */

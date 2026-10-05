@@ -11,7 +11,7 @@
 // Retail's DrawShadowMonstor, which casts the shadows of the monsters taking part. A dormant
 // monster within video.detail_distance of the player draws its model (DrawMonstorDetail,
 // dun/gameloop.cpp), so it casts its shadow here too.
-void CMonstorUnit::DrawShadowMonstor() {
+PC_OVERRIDE void CMonstorUnit::DrawShadowMonstor() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR rotation;
     sceVu0FVECTOR light = {0.0f, 1.0f, 0.0f, 0.0f};

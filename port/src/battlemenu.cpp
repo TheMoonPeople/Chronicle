@@ -153,7 +153,7 @@ char g_frame_image_name[] = "frame_image";
 
 } // namespace
 
-void BattleMenuDraw() {
+PC_OVERRIDE void BattleMenuDraw() {
     int text_x = 0;
     int text_y = 0;
 

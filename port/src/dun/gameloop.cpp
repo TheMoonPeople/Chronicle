@@ -162,7 +162,7 @@ CTexture *NamedTexture(const char *name) {
 
 } // namespace
 
-void DunMainDraw() {
+PC_OVERRIDE void DunMainDraw() {
     sceVu0FMATRIX camera;
     sceVu0FVECTOR eye;
     sceVu0FMATRIX view;
@@ -712,7 +712,7 @@ void DunMainDraw() {
     }
 }
 
-int LoaderLoop() {
+PC_OVERRIDE int LoaderLoop() {
     char       name[96];
     int        i;
     int        chosen = 0;
