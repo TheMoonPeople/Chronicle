@@ -1,5 +1,5 @@
 #requires -Version 7.0
-param([string]$Root)
+param([string]$Root, [switch]$VulkanLoader)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/common.ps1"
 $root = Resolve-WindowsRoot $Root
@@ -14,6 +14,9 @@ $downloads = @(
     @('glslang', 'https://github.com/KhronosGroup/glslang/releases/download/16.6.0/glslang-16.6.0-windows-x86_64-release.zip', '82BF434E69B9BB4829DE7E2B4BC2C5E7A7861E53D66CF75E5CC70F5F694A8D9B'),
     @('vulkan', 'https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.zip', 'F4BE95220FF0EE0B1C620301FF4FE9AE48592D71F4C30F2D5C571351A153AE81')
 )
+if ($VulkanLoader) {
+    $downloads += ,@('vulkan-runtime', 'https://sdk.lunarg.com/sdk/download/1.4.363.0/windows/VulkanRT-X64-1.4.363.0-Components.zip', 'A25A927AA8B9F0371048F1861CF88AC3B9BC9B1FB332C42D897C8AB32695769A')
+}
 $downloads | ForEach-Object -Parallel {
     $name,$url,$expected = $_
     $archive = Join-Path $using:archives "$name.zip"

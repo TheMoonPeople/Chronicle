@@ -33,6 +33,11 @@ saves may live beside them.
 
 `acquire.ps1` verifies every pinned archive against its recorded SHA-256 before extraction.
 
+On a machine without a Vulkan loader (CI), `-VulkanLoader` also fetches
+LunarG's 1.4.363 loader. Pass it to `configure.ps1` with `-VulkanLibrary` and
+copy it beside the built executables, as the Windows job in
+`.github/workflows/pc.yml` does.
+
 ## Building
 
 ```powershell

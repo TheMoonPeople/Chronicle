@@ -1,4 +1,5 @@
-param([string]$Root, [string]$BuildDirectory, [switch]$Tests, [string]$BuildType = 'Debug')
+param([string]$Root, [string]$BuildDirectory, [switch]$Tests, [string]$BuildType = 'Debug',
+      [string]$VulkanLibrary = "$env:SystemRoot/System32/vulkan-1.dll")
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/common.ps1"
 $root = (Resolve-WindowsRoot $Root).Replace('\', '/')
@@ -14,6 +15,6 @@ $testOption = if ($Tests) { 'ON' } else { 'OFF' }
     "-DCMAKE_MAKE_PROGRAM=$root/deps/ninja/ninja.exe" "-DPython3_EXECUTABLE=$python" `
     "-DSDL3_DIR=$root/deps/sdl/SDL3-3.4.18/x86_64-w64-mingw32/lib/cmake/SDL3" `
     "-DVulkan_INCLUDE_DIR=$root/deps/vulkan/Vulkan-Headers-vulkan-sdk-1.4.363.0/include" `
-    "-DVulkan_LIBRARY=$env:SystemRoot/System32/vulkan-1.dll" `
+    "-DVulkan_LIBRARY=$VulkanLibrary" `
     "-DGLSLANG_VALIDATOR=$root/deps/glslang/bin/glslang.exe"
 exit $LASTEXITCODE

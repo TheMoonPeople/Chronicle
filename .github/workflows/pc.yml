@@ -4,7 +4,8 @@
 # No game data is needed: the smoke tests build their own fixtures.
 #
 # The macOS job (docs/MACOS.md) runs the tests and then darkcloud on MoltenVK,
-# the driver the game uses there.
+# the driver the game uses there. The Windows job (docs/WINDOWS.md) builds with
+# tools/windows' scripts and runs the cases that need no Vulkan device.
 name: PC port
 
 on:
@@ -113,3 +114,34 @@ jobs:
           name: macos
           path: artifacts/
           if-no-files-found: warn
+
+  windows:
+    name: Build and test (Windows x64)
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner has no GPU and may have no Vulkan loader; the tests need the loader to start.
+      - name: Install the toolchain and libraries
+        run: |
+          ./tools/windows/acquire.ps1 -Root $env:RUNNER_TEMP -VulkanLoader
+          "VULKAN_RUNTIME=$env:RUNNER_TEMP/deps/vulkan-runtime/VulkanRT-X64-1.4.363.0-Components/x64" >> $env:GITHUB_ENV
+
+      - name: Configure
+        run: |
+          ./tools/windows/configure.ps1 -Root $env:RUNNER_TEMP -BuildDirectory $env:GITHUB_WORKSPACE/port/build/windows -Tests `
+            -VulkanLibrary $env:VULKAN_RUNTIME/vulkan-1.dll
+
+      # Beside the executables, the downloaded loader is found before any in System32.
+      - name: Build
+        run: |
+          ./tools/windows/build.ps1 -Root $env:RUNNER_TEMP -BuildDirectory $env:GITHUB_WORKSPACE/port/build/windows -Tests
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item $env:VULKAN_RUNTIME/vulkan-1.dll port/build/windows
+
+      # The renderer's cases run on Linux and macOS.
+      - name: Test
+        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|TexDecode)\.'
