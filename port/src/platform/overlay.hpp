@@ -6,7 +6,7 @@
 
 #include "gfx/gfx.hpp"
 
-// A line of text over presented frames (the FPS counter), in the port's own 5x7 font, drawn with
+// A line of text over presented frames (the FPS counter), in the Dark Cloud Compendium Community Font (by Dayuppy MoonBunny), drawn with
 // gfx::Draw2D at the window's top-left corner.
 
 inline constexpr int kOverlayGlyphWidth = 5;
@@ -16,7 +16,7 @@ inline constexpr int kOverlayAdvance = 6;
 // Backdrop around the text and its distance from the corner, in font pixels.
 inline constexpr int kOverlayPadding = 2;
 
-// The seven rows of c's glyph, bit 4 the leftmost column: upper case (lower case maps to it), digits
+// The 5x7 bitmap font the first-run screen uses: the seven rows of c's glyph, bit 4 the leftmost column: upper case (lower case maps to it), digits
 // and .,:;/()+-_%'[]?~. nullptr for a space; anything else is '?'.
 const std::uint8_t *OverlayGlyph(char c);
 

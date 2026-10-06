@@ -12,8 +12,20 @@ struct Glyph {
     std::uint8_t rows[kOverlayGlyphHeight];
 };
 
+// A glyph of the counter's font (tools/font/gen_overlay_font.py), as 8-bit coverage: the w x h bitmap's
+// top-left corner lies x font pixels right of the pen and y below the line's top.
+struct FontGlyph {
+    char                 c;
+    int                  advance;
+    int                  x;
+    int                  y;
+    int                  w;
+    int                  h;
+    const std::uint8_t *bits;
+};
+
 // clang-format off
-constexpr Glyph kFont[] = {
+constexpr Glyph kPixelFont[] = {
     {'A', {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}}, {'B', {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E}},
     {'C', {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}}, {'D', {0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E}},
     {'E', {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}}, {'F', {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}},
@@ -43,6 +55,20 @@ constexpr Glyph kFont[] = {
 };
 // clang-format on
 
+#include "overlay_font.inc"
+
+const FontGlyph *FindFontGlyph(char c) {
+    if (c >= 'a' && c <= 'z') {
+        c = static_cast<char>(c - 'a' + 'A');
+    }
+    for (const FontGlyph &glyph : kFont) {
+        if (glyph.c == c) {
+            return &glyph;
+        }
+    }
+    return c == '?' ? nullptr : FindFontGlyph('?');
+}
+
 constexpr std::uint8_t kBackdropAlpha = 0x60;
 
 gfx::Vertex2D Vertex(float x, float y, std::uint8_t grey, std::uint8_t alpha) {
@@ -60,7 +86,7 @@ const std::uint8_t *OverlayGlyph(char c) {
     if (c == ' ') {
         return nullptr;
     }
-    for (const Glyph &glyph : kFont) {
+    for (const Glyph &glyph : kPixelFont) {
         if (glyph.c == c) {
             return glyph.rows;
         }
@@ -89,41 +115,49 @@ void OverlayDrawText(std::string_view text, const gfx::LogicalMapping &mapping, 
         out.push_back(Vertex(x0, y1, grey, alpha));
     };
 
-    int                        columns = static_cast<int>(text.size()) * kOverlayAdvance - 1;
+    int columns = 0;
+    for (char c : text) {
+        if (const FontGlyph *glyph = FindFontGlyph(c)) {
+            columns += glyph->advance;
+        }
+    }
     std::vector<gfx::Vertex2D> backdrop;
     quad(backdrop, x, y, x + (columns + 2 * kOverlayPadding) * pixel,
-         y + (kOverlayGlyphHeight + 2 * kOverlayPadding) * pixel, 0, kBackdropAlpha);
+         y + (kFontHeight + 2 * kOverlayPadding) * pixel, 0, kBackdropAlpha);
 
-    // One quad per run of lit pixels in a glyph row.
+    // One quad per run of equal coverage in a glyph row; coverage becomes alpha (0x80 is opaque).
     std::vector<gfx::Vertex2D> glyphs;
     int                        pen = x + kOverlayPadding * pixel;
     int                        top = y + kOverlayPadding * pixel;
     for (char c : text) {
-        if (const std::uint8_t *rows = OverlayGlyph(c)) {
-            for (int row = 0; row < kOverlayGlyphHeight; row++) {
-                for (int column = 0; column < kOverlayGlyphWidth;) {
-                    if ((rows[row] & (0x10 >> column)) == 0) {
-                        column++;
-                        continue;
-                    }
-                    int end = column;
-                    while (end < kOverlayGlyphWidth && (rows[row] & (0x10 >> end)) != 0) {
-                        end++;
-                    }
-                    int y0 = top + row * pixel;
-                    quad(glyphs, pen + column * pixel, y0, pen + end * pixel, y0 + pixel, 0xFF, 0x80);
-                    column = end;
+        const FontGlyph *glyph = FindFontGlyph(c);
+        if (glyph == nullptr) {
+            continue;
+        }
+        for (int row = 0; row < glyph->h; row++) {
+            const std::uint8_t *line = glyph->bits + row * glyph->w;
+            for (int column = 0; column < glyph->w;) {
+                int end = column;
+                while (end < glyph->w && line[end] == line[column]) {
+                    end++;
                 }
+                if (line[column] != 0) {
+                    int left = pen + (glyph->x + column) * pixel;
+                    int y0 = top + (glyph->y + row) * pixel;
+                    quad(glyphs, left, y0, pen + (glyph->x + end) * pixel, y0 + pixel, 0xFF,
+                         static_cast<std::uint8_t>((line[column] * 0x80 + 127) / 255));
+                }
+                column = end;
             }
         }
-        pen += kOverlayAdvance * pixel;
+        pen += glyph->advance * pixel;
     }
 
     gfx::DrawState blended;
     blended.blend = true;
     gfx::Draw2D(gfx::Primitive::Quads, backdrop, {}, blended);
     if (!glyphs.empty()) {
-        gfx::Draw2D(gfx::Primitive::Quads, glyphs, {}, gfx::DrawState{});
+        gfx::Draw2D(gfx::Primitive::Quads, glyphs, {}, blended);
     }
 }
 
