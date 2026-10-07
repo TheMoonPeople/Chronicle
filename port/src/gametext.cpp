@@ -106,8 +106,180 @@ void AppendUtf8(std::string &out, char32_t ch) {
     }
 }
 
-// "{N}" at utf8[at]: N into code and at past the '}'.
+// The control codes that are not characters, by the names the text is written with. Codes in a family
+// (a colour, a value, a name) are written with their number: "{value3}", "{wait 12}".
+struct Named {
+    s16         code;
+    const char *name;
+};
+
+constexpr Named kNamed[] = {
+    {-0xFD,  "page"        },
+    {-0x400, "/color"      },
+    {-0x3FF, "white"       },
+    {-0x3FE, "yellow"      },
+    {-0x3FD, "cyan"        },
+    {-0x3FC, "green"       },
+    {-0x3FB, "dark"        },
+    {-0x3FA, "gold"        },
+    {-0x3F9, "grey"        },
+    {-0x301, "highlight"   },
+    {-0x401, "value"       },
+    {-0x300, "select"      },
+    {-0x2FF, "start"       },
+    {-0x2FE, "L1"          },
+    {-0x2FD, "R1"          },
+    {-0x2FC, "L2"          },
+    {-0x2FB, "R2"          },
+    {-0x2FA, "circle"      },
+    {-0x2F9, "triangle"    },
+    {-0x2F8, "cross"       },
+    {-0x2F7, "square"      },
+    {-0x2F6, "dpad"        },
+    {-0x2F5, "dpad-updown" },
+    {-0x2F4, "dpad-sides"  },
+    {-0x2F3, "red-slash"   },
+    {-0x2F2, "heart"       },
+    {-0x2F1, "note"        },
+    {-0x2F0, "red-x"       },
+    {-0x2EF, "yellow-arrow"},
+    {-0x2EE, "icon-sword"  },
+    {-0x2ED, "icon-orb"    },
+    {-0x2EC, "icon-georama"},
+    {-0x2EB, "icon-jar"    },
+    {-0x2EA, "orange-arrow"},
+    {-0x2E9, "bait"        },
+    {-0x2E8, "word-button" },
+    {-0x2E7, "monster"     },
+    {-0x2E6, "alert"       },
+    {-0x2E5, "up"          },
+    {-0x2E4, "right"       },
+    {-0x2E3, "down"        },
+    {-0x2E2, "left"        },
+    {-0x2E1, "hand"        },
+};
+
+// The families: a name, the lowest code, how many, and where the number starts. A code is written as
+// the name and the number (code - first + origin), joined by a space where the name ends in a letter
+// that a digit would be read as part of ("wait 12") or directly ("value3").
+struct Family {
+    const char *name;
+    int         first;
+    int         last;
+    int         origin;
+    bool        spaced;
+};
+
+constexpr Family kFamilies[] = {
+    {"wait",    -0x200, -0x101, 0, true },
+    {"color",   -0x3FF, -0x302, 2, true },
+    {"gap",     -0x700, -0x601, 0, true },
+    {"spacing", -0x800, -0x701, 0, true },
+    {"justify", -0x900, -0x801, 0, true },
+    {"bubble",  -0xA00, -0x901, 0, true },
+    {"icon",    -0x300, -0x2E0, 0, true },
+    {"name",    -0x506, -0x501, 1, false},
+    {"value",   -0x40D, -0x406, 1, false},
+};
+
+// "insert" runs over two stretches of codes.
+constexpr int kInsertFirst[] = {-0x402, -0x40E};
+constexpr int kInsertCount[] = {4, 6};
+
+std::string Lower(std::string_view text) {
+    std::string out(text);
+    for (char &ch : out) {
+        if (ch >= 'A' && ch <= 'Z') {
+            ch = static_cast<char>(ch - 'A' + 'a');
+        }
+    }
+    return out;
+}
+
+// "12" as a number up to 4 digits, or -1.
+int ParseNumber(std::string_view text) {
+    if (text.empty() || text.size() > 4) {
+        return -1;
+    }
+    int value = 0;
+    for (char ch : text) {
+        if (ch < '0' || ch > '9') {
+            return -1;
+        }
+        value = value * 10 + (ch - '0');
+    }
+    return value;
+}
+
+// The name of a control code, or empty where it has none (a character, or a code the game does not use).
+std::string ControlName(s16 code) {
+    for (const Named &named : kNamed) {
+        if (named.code == code) {
+            return named.name;
+        }
+    }
+    for (const Family &family : kFamilies) {
+        if (code >= family.first && code <= family.last) {
+            // values count upwards in number while their codes run downwards.
+            const bool downwards = std::string_view(family.name) == "value";
+            const int  number = downwards ? family.last - code + family.origin : code - family.first + family.origin;
+            return std::string(family.name) + (family.spaced ? " " : "") + std::to_string(number);
+        }
+    }
+    for (int stretch = 0; stretch < 2; stretch++) {
+        const int first = kInsertFirst[stretch];
+        if (code <= first && code > first - kInsertCount[stretch]) {
+            return "insert" + std::to_string((stretch == 0 ? 0 : kInsertCount[0]) + (first - code) + 1);
+        }
+    }
+    return {};
+}
+
+// The code a name stands for; false where it is none.
+bool ControlFromName(std::string_view token, s16 &code) {
+    const std::string name = Lower(token);
+    for (const Named &named : kNamed) {
+        if (name == Lower(named.name)) {
+            code = named.code;
+            return true;
+        }
+    }
+    for (const Family &family : kFamilies) {
+        const std::string_view prefix = family.name;
+        if (name.size() <= prefix.size() || name.compare(0, prefix.size(), prefix) != 0) {
+            continue;
+        }
+        std::string_view rest = std::string_view(name).substr(prefix.size());
+        if (family.spaced != (rest.front() == ' ')) {
+            continue;
+        }
+        const int number = ParseNumber(family.spaced ? rest.substr(1) : rest);
+        const bool downwards = prefix == "value";
+        const int  value = downwards ? family.last - (number - family.origin) : family.first + (number - family.origin);
+        if (number >= 0 && value >= family.first && value <= family.last) {
+            code = static_cast<s16>(value);
+            return true;
+        }
+    }
+    if (name.size() > 6 && name.compare(0, 6, "insert") == 0) {
+        const int number = ParseNumber(std::string_view(name).substr(6));
+        if (number >= 1 && number <= kInsertCount[0] + kInsertCount[1]) {
+            const int index = number - 1;
+            code = static_cast<s16>(index < kInsertCount[0] ? kInsertFirst[0] - index
+                                                            : kInsertFirst[1] - (index - kInsertCount[0]));
+            return true;
+        }
+    }
+    return false;
+}
+
+// "{N}" or "{name}" at utf8[at]: the code into code and at past the '}'.
 bool ReadEscape(std::string_view utf8, size_t &at, s16 &code) {
+    if (const size_t close = utf8.find('}', at); close != std::string_view::npos && close - at <= 24 &&
+                                                  ControlFromName(utf8.substr(at + 1, close - at - 1), code)) {
+        at = close + 1;
+        return true;
+    }
     size_t i = at + 1;
     bool   negative = false;
     long   value = 0;
@@ -226,7 +398,8 @@ std::string GameTextDecode(const s16 *codes) {
         const char32_t ch = GameTextChar(*codes);
 
         if (ch == 0) {
-            text += '{' + std::to_string(*codes) + '}';
+            const std::string name = ControlName(*codes);
+            text += '{' + (name.empty() ? std::to_string(*codes) : name) + '}';
         } else if (ch == U'{') {
             text += "{{";
         } else {

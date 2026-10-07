@@ -54,6 +54,10 @@ AGENTS.md
 /data/
 /save/
 
+# The game's message files exported as JSON (darkcloud --export-text, docs/LOCALIZATION.md): the
+# disc's own text, never committed.
+/lang-export/
+
 # Flatpak builds (docs/FLATPAK.md)
 /.flatpak-builder/
 /build-dir/

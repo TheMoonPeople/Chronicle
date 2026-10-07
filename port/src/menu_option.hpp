@@ -1,6 +1,8 @@
 #pragma once
 
 #include <span>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "platform/config.hpp"
@@ -11,6 +13,11 @@ class CSaveData;
 // Whether the Options screen is open, from InitMenuOption until MenuOptionKey reports it closed.
 // The host keeps the interface at 100% meanwhile: video.ui_scale applies from when it closes.
 bool MenuOptionOpen();
+
+// Every string the Options screen draws that is its own, not the game's: key and English, as
+// localize.hpp's LocalizeText takes them (options.<setting>.label, .help, .choice.<n>, options.page.<name>...).
+// The export lists them in every language's file; port/lang/ ships their translations.
+std::vector<std::pair<std::string, std::string>> OptionStrings();
 
 // Puts the game's options from config.json into the save, where the game reads them (its
 // configuration words, the dungeon map's status and the menu cursors' reset flag), and sets the

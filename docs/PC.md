@@ -1177,8 +1177,9 @@ characters in it, and its own accents only.
 
 `GameTextEncode` turns UTF-8 into codes. Curly quotes and dashes become the
 font's own; any other character the font lacks, and any byte that is not
-UTF-8, becomes `?` and is counted. `{N}` writes code N as it is, for control
-codes and icons, and `{{` a `{`; `GameTextDecode` writes the same form, so
+UTF-8, becomes `?` and is counted. A control code or icon is written in braces by its name (`{page}`, `{cyan}`, `{L1}`,
+`{value3}`; the list is in LOCALIZATION.md) or by its number, `{N}`, and `{{` is a `{`;
+`GameTextDecode` writes the name where there is one, else the number, so
 any message reads back and encodes to the same codes. `GameTextFile` lays
 texts out as a message file for `ClsMes::SetBuff`. `GameText` is one piece of
 text drawn as the menus draw their help line (`InitMenuMesSet`'s
@@ -1187,7 +1188,7 @@ the text, `SetColour` a `FontColor`, then `Draw(x, y, alpha)` from a menu's
 draw function; `Width` gives its width for aligning a value.
 
 Both have retail's fixed sizes. A window lays out at most `MES_WIN_LINE_MAX`
-(720) characters, counting the end and what a `{N}` name, value or system
+(720) characters, counting the end and what a `{name1}`, `{value}` or `{insert1}` name, value or system
 message code expands to; retail's `SetMesWinTbl` writes on past the table, so
 the port's (`port/src/clsmes.cpp`) takes no more, and `GameText::Set` gives back
 -1, draws nothing and has a width of 0 for a text that did not fit. A line past
@@ -1196,6 +1197,9 @@ without one does. A message file is s16 throughout: an id is -0x8000 to
 0x7FFF. Every message must start within 0x7FFF codes of `&buff[1 + count]`;
 the last message by id may extend beyond that range. `GameTextFile::Set`
 gives back -1 and leaves the file as it was where either would not hold.
+
+The text of retail's message files can be replaced from JSON, one file per language, with the
+disc's text as the fallback: see [LOCALIZATION.md](LOCALIZATION.md).
 
 ## The Options screen
 

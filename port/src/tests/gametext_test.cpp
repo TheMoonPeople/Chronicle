@@ -69,7 +69,7 @@ TEST(GameText, ReplacesWhatTheFontLacks) {
 TEST(GameText, EscapesRoundTrip) {
     const std::vector<s16> codes = {-0x2DF, MES_CODE_NEWLINE, -0x2F0, MES_CODE_PAGE, -0x299, -0x298, -0x2DE, MES_CODE_END};
     const std::string      text = GameTextDecode(codes.data());
-    EXPECT_EQ(text, "A\n{-752}{-253}{{}B");
+    EXPECT_EQ(text, "A\n{red-x}{page}{{}B");
     EXPECT_EQ(Encode(text), codes);
     EXPECT_EQ(Encode("{x}"), Encode("{{x}"));
 }
@@ -131,4 +131,49 @@ TEST(GameText, FileLimits) {
     EXPECT_EQ(GameTextDecode(mes.GetTextLineDataTop(-0x8000)), "low");
     EXPECT_EQ(GameTextDecode(mes.GetTextLineDataTop(0x7FFF)), "high");
     EXPECT_EQ(GameTextDecode(mes.GetTextLineDataTop(0)).size(), 0x7FF6U);
+}
+
+// A control code is written by its name where it has one, and by its number where it does not; either way
+// the same code comes back.
+TEST(GameText, ControlCodesHaveNames) {
+    EXPECT_EQ(GameTextDecode(Encode("{page}{/color}{cyan}{L1}{R1}{cross}{circle}{square}{triangle}").data()),
+              "{page}{/color}{cyan}{L1}{R1}{cross}{circle}{square}{triangle}");
+    EXPECT_EQ(Encode("{-253}{-1024}{-1021}{-766}{-760}"), Encode("{page}{/color}{cyan}{L1}{cross}"));
+    EXPECT_EQ(Encode("{value}{value1}{value8}{insert1}{insert10}{name1}{name6}"),
+              (std::vector<s16>{-0x401, -0x406, -0x40D, -0x402, -0x413, -0x506, -0x501, MES_CODE_END}));
+    EXPECT_EQ(Encode("{wait 12}{gap 8}{spacing 10}{justify 3}{bubble 5}{color 9}{icon 32}"),
+              (std::vector<s16>{-0x200 + 12, -0x700 + 8, -0x800 + 10, -0x900 + 3, -0xA00 + 5, -0x401 + 9, -0x2E0, MES_CODE_END}));
+    // Names are not case sensitive, and a name the game has no code for is left as the text it is.
+    EXPECT_EQ(Encode("{PAGE}{l1}"), Encode("{page}{L1}"));
+    int missing = 0;
+    EXPECT_EQ(Encode("{nonsense}", &missing).size(), 11U);
+    EXPECT_EQ(Encode("{value9}{insert11}{name7}{wait 300}", &missing).front(), Encode("{").front());
+}
+
+TEST(GameText, EveryCodeSurvivesBeingWrittenAndReadBack) {
+    int named = 0;
+    for (int code = INT16_MIN; code <= INT16_MAX; code++) {
+        if (code == MES_CODE_END) {
+            continue;
+        }
+        const std::vector<s16> codes = {static_cast<s16>(code), MES_CODE_END};
+        const std::string      text = GameTextDecode(codes.data());
+        ASSERT_EQ(Encode(text), codes) << code << " written as " << text;
+        if (text.size() > 2 && text[0] == '{' && text[1] != '-' && !(text[1] >= '0' && text[1] <= '9') && text[1] != '{') {
+            named++;
+        }
+    }
+    // Every code the PAL game's text uses, and more, has a name: 33 icons less the one unnamed, the families,
+    // the colours and the page break.
+    EXPECT_GT(named, 300);
+}
+
+// No control code the game's text uses is left as a number.
+TEST(GameText, TheCodesThePalTextUsesAreAllNamed) {
+    for (int code : {-0xFD, -0x400, -0x3FF, -0x3FE, -0x3FD, -0x3FC, -0x3FB, -0x3FA, -0x301, -0x401, -0x402, -0x405, -0x406, -0x40D,
+                     -0x506, -0x501, -0x6F8, -0x7F6, -0x2F8, -0x2EE, -0x2E1, -0x1FF}) {
+        const std::vector<s16> codes = {static_cast<s16>(code), MES_CODE_END};
+        const std::string      text = GameTextDecode(codes.data());
+        EXPECT_FALSE(text.size() > 2 && (text[1] == '-' || (text[1] >= '0' && text[1] <= '9'))) << code << " is " << text;
+    }
 }

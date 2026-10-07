@@ -20,14 +20,15 @@ s16 GameTextCode(char32_t ch);
 // The character code draws, or 0 where code is not one (a control code, an icon).
 char32_t GameTextChar(s16 code);
 
-// Appends utf8's codes and MES_CODE_END to out. "{N}" puts the code N (decimal, as the game's
-// s16) in as it is, for control codes and icons; "{{" is a '{'. Typographic quotes and dashes
+// Appends utf8's codes and MES_CODE_END to out. A control code, one that is not a character, is
+// written in braces by its name ("{page}", "{cyan}...{/color}", "{L1}", "{value3}", "{name1}", "{wait 12}",
+// "{icon 32}"; docs/LOCALIZATION.md lists them) or by its number, "{-253}", the s16 the game stores. "{{" is a '{'. Typographic quotes and dashes
 // become the font's own. A character the font lacks, or a byte that is not UTF-8, becomes '?';
 // gives back how many did.
 int GameTextEncode(std::string_view utf8, std::vector<s16> &out);
 
-// The text of codes up to MES_CODE_END, as GameTextEncode reads it back: a code that is not a
-// character is written as "{N}" and '{' as "{{".
+// The text of codes up to MES_CODE_END, as GameTextEncode reads it back: a control code is written by
+// its name where it has one, else as "{N}", and '{' as "{{".
 std::string GameTextDecode(const s16 *codes);
 
 // A message file of port text, laid out as ClsMes::SetBuff reads one: the count, then each

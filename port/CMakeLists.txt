@@ -34,6 +34,11 @@ FetchContent_Declare(nlohmann_json
     FIND_PACKAGE_ARGS CONFIG)
 FetchContent_MakeAvailable(nlohmann_json)
 
+# The message font's rasterizer (platform/ttffont.cpp): a single-file library, public domain or MIT, fetched at a pinned commit.
+set(TTF_DIR ${CMAKE_BINARY_DIR}/stb_truetype)
+file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_truetype.h
+    ${TTF_DIR}/stb_truetype.h EXPECTED_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab)
+
 set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
 set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 file(GLOB_RECURSE PS2_SOURCES CONFIGURE_DEPENDS RELATIVE ${PS2_DIR} ${PS2_DIR}/*.cpp)
@@ -177,12 +182,12 @@ file(CONFIGURE OUTPUT ${SHADER_HEADER_DIR}/icon/chronicle.hpp
     CONTENT "#pragma once\n#include <cstdint>\ninline constexpr int kIconSize = 128;\ninline constexpr std::uint8_t kIconRgba[] = {${icon_bytes}};\n")
 
 add_library(dc_host OBJECT ${HOST_SOURCES} ${SHADER_HEADERS})
-target_include_directories(dc_host PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
+target_include_directories(dc_host PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR} ${TTF_DIR})
 target_link_libraries(dc_host PRIVATE SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
 target_compile_options(dc_host PRIVATE -Wall -ffunction-sections -fdata-sections)
 
 add_library(dc_port OBJECT ${PORT_LIB_SOURCES})
-target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan)
+target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
 # Replacement units reach the host side as "gfx/gfx.hpp", "platform/window.hpp".
 target_include_directories(dc_port PRIVATE ${PORT_DIR})
 # The game's headers trip a few warnings that only describe how MWCC's source
@@ -232,6 +237,14 @@ endif()
 
 include(GNUInstallDirs)
 install(TARGETS darkcloud RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# The strings the port draws itself, translated (docs/LOCALIZATION.md): lang/ beside the executable, where the
+# game reads its language files.
+add_custom_target(dc_lang
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lang $<TARGET_FILE_DIR:darkcloud>/lang
+    COMMENT "Copying the port's translated strings")
+add_dependencies(darkcloud dc_lang)
+install(DIRECTORY lang/ DESTINATION ${CMAKE_INSTALL_BINDIR}/lang)
 
 # The tests use an installed GoogleTest, or fetch one at configure time; a build with neither turns them off.
 option(DC_BUILD_TESTS "Build darkcloud_tests" ON)

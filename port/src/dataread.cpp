@@ -11,6 +11,7 @@
 #include <unordered_map>
 
 #include "../../tools/dcdata/dcdata.hpp"
+#include "localize.hpp"
 #include "platform/paths.hpp"
 
 namespace fs = std::filesystem;
@@ -85,6 +86,28 @@ int ReadWhole(const fs::path &file, void *buffer) {
     return static_cast<int>(size);
 }
 
+// One file inside a pack, as ps2/src/dataread.cpp has it: offsets are bytes from the entry, and a
+// first byte of zero ends the table.
+struct PackEntry {
+    char name[64];
+    int  offset;
+    int  size;
+    int  next;
+};
+
+bool SameName(const char *name, std::string_view other) {
+    std::size_t length = std::strlen(name);
+    return length == other.size() && dcdata::FoldPath(std::string_view(name, length)) == dcdata::FoldPath(other);
+}
+
+// Hands a file just read to the localization layer: a message file may be rewritten from the
+// language's JSON in place (it fits the whole sectors ReadWhole zeroed), and a pack is noted so
+// its message entries can be told from GetPackFile.
+void Localized(std::string_view path, void *buffer, int *size) {
+    LocalizeLoaded(path, buffer);
+    LocalizeFile(path, buffer, dcdata::SectorsFor(static_cast<std::uint64_t>(*size)) * dcdata::kSector, size);
+}
+
 } // namespace
 
 PC_OVERRIDE void InitCDFile() {
@@ -142,6 +165,7 @@ PC_OVERRIDE int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
         return 0;
     }
     int size = ReadWhole(*file, buffer);
+    Localized(path, buffer, &size);
     if (out_size) {
         *out_size = size;
     }
@@ -189,6 +213,7 @@ PC_OVERRIDE int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
         return 0;
     }
     int size = ReadWhole(*file, buffer);
+    Localized(name, buffer, &size);
     std::snprintf(info->name, sizeof info->name, "%s", name);
     info->busy = true;
     info->id = 1;
@@ -244,4 +269,29 @@ PC_OVERRIDE int WriteFile(char *path, void *buffer, int size) {
     }
     stream.write(static_cast<const char *>(buffer), size);
     return stream ? 1 : 0;
+}
+
+// A pack is looked up by the last component of a path, as retail does; a message file in it is
+// given as the language's JSON has it.
+PC_OVERRIDE u_int *GetPackFile(u_int *pack, char *name, int *out_size) {
+    if (!pack) {
+        return 0;
+    }
+    std::string_view base = name;
+    if (std::size_t slash = base.rfind('/'); slash != std::string_view::npos) {
+        base = base.substr(slash + 1);
+    }
+    for (PackEntry *entry = reinterpret_cast<PackEntry *>(pack); entry->name[0];
+         entry = reinterpret_cast<PackEntry *>(reinterpret_cast<char *>(entry) + entry->next)) {
+        if (SameName(entry->name, base)) {
+            u_int *data = reinterpret_cast<u_int *>(reinterpret_cast<char *>(entry) + entry->offset);
+            int    size = entry->size;
+            data = const_cast<u_int *>(LocalizePack(pack, base, data, &size));
+            if (out_size) {
+                *out_size = size;
+            }
+            return data;
+        }
+    }
+    return 0;
 }
