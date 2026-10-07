@@ -15,15 +15,20 @@ void Pump() {
 class MouseCapture : public testing::Test {
 protected:
     void SetUp() override {
+        // WindowInit exits on video initialization failure. A CI runner may have no
+        // desktop driver at all, so establish that prerequisite before calling it.
+        if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
+            GTEST_SKIP() << "Capture needs a desktop video driver: " << SDL_GetError();
+        }
+        const char *driver = SDL_GetCurrentVideoDriver();
+        if (driver && (SDL_strcmp(driver, "offscreen") == 0 || SDL_strcmp(driver, "dummy") == 0)) {
+            GTEST_SKIP() << "Capture needs a focused desktop window";
+        }
         WindowConfig config;
         config.width = 320;
         config.height = 240;
         config.vulkan = false;
         WindowInit(config);
-        const char *driver = SDL_GetCurrentVideoDriver();
-        if (driver && (SDL_strcmp(driver, "offscreen") == 0 || SDL_strcmp(driver, "dummy") == 0)) {
-            GTEST_SKIP() << "Capture needs a focused desktop window";
-        }
         MouseConfigure(true, {});
     }
 
