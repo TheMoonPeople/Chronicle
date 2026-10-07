@@ -216,6 +216,8 @@ TEST(PlatformMouseLook, UncontrolledCamerasAndLaterReadsDoNotConsumePitch) {
     ASSERT_EQ(MouseLookViewPitch(&camera, .3f), .3f);
     MouseLookControlPitch(&camera, true);
     ASSERT_EQ(MouseLookViewPitch(&camera, .3f), .3f);
+    // Without a manual offset even an authored/controller pitch past the mouse limit is exact.
+    ASSERT_EQ(MouseLookViewPitch(&camera, 1.56f), 1.56f);
 }
 
 TEST(PlatformMouseLook, FirstPersonPitchHasTheSameFreerRange) {

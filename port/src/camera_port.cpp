@@ -141,6 +141,9 @@ float MouseLookViewPitch(CCamera *camera, float base) {
         g_pitch.offset -= look.pitch;
         g_pitch.applied = look.read;
     }
+    if (g_pitch.offset == 0.0f) {
+        return base;
+    }
     float angle = std::clamp(base + g_pitch.offset, -kMaxTilt, kMaxTilt);
     // Excess motion at the limit is discarded, so reversing the mouse responds immediately.
     g_pitch.offset = angle - base;
