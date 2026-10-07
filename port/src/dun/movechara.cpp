@@ -1564,9 +1564,9 @@ PC_OVERRIDE void DunMoveChara() {
                                                             }
 
                                                             HealingWater();
-                                                            float turn = MouseLookTurn(NowCamera__3, 0.04f, GamePad.GetRXf(), lockOnTargetFlag == 0);
+                                                            float turn = MouseLookTurn(NowCamera__3, 0.04f, GamePad.GetRXf());
 
-                                                            NowCamera__3->AddHeight(-GamePad.GetRYf());
+                                                            NowCamera__3->AddHeight(-MouseLookRise(NowCamera__3, GamePad.GetRYf(), 30.0f));
 
                                                             if (NowCamera__3->GetHeight() >= 30.0f) {
                                                                 NowCamera__3->SetHeight(30.0f);

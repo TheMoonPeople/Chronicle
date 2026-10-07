@@ -1541,7 +1541,7 @@ static void EditMainDraw() {
 
 // Retail's MoveCamera, the georama view's, with the mouse turning it beside the right stick.
 PC_OVERRIDE void MoveCamera(CCameraFollow *camera) {
-    float horizontal = MouseLookTurn(camera, 0.03f, GamePad.GetRXf(), false);
+    float horizontal = MouseLookTurn(camera, 0.03f, GamePad.GetRXf());
     camera->AddHeight(-GamePad.GetRYf());
 
     if (EdDebugCameraFlag == 0 && !(camera->GetHeight() <= 30.0f)) {

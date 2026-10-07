@@ -209,7 +209,7 @@ int PortEdCheckKeyMode(int mode);
 // wall is on that side) and raises it by RY while it is under 30. RX stays the stick's: the mouse's
 // turn goes to EditLoop's request (camera_port.hpp), which checks it against the walls itself; so
 // the drift behind a walking character and R1 and L1, which wait for RX to rest, see only the stick.
-// RY retains the stick's height control; the mouse pitches the view independently. In an interior EdMoveChara
+// RY takes the mouse as camera_port.hpp describes. In an interior's first-person view EdMoveChara
 // turns the character by RX only while the left stick rests, so the mouse turns it in EyeCamera.
 
 PC_OVERRIDE float EdGetRXf(int mode) {
@@ -227,7 +227,9 @@ PC_OVERRIDE float EdGetRXf(int mode) {
 // EdMoveChara reads it for the town's camera only; EyeCamera below reads the stick itself.
 PC_OVERRIDE float EdGetRYf(int mode) {
     if (PortEdCheckKeyMode(mode)) {
-        return GamePad.GetRYf();
+        CCameraFollow *camera = EdMoveCharaInfo.camera;
+        float          stick = GamePad.GetRYf();
+        return camera != NULL ? MouseLookRise(camera, stick, EdDebugCameraFlag == 0 ? 30.0f : INFINITY) : stick;
     }
 
     return 0.0f;

@@ -19,26 +19,30 @@ class CEditGround;
 // the mouse's share with the camera, and the camera's next AddAngle within the same pad read, if
 // it is exactly that reading's delta, turns the camera by the share at once
 // (port/src/camerafollow.cpp); the stick's share and everything else the camera does still ease.
-// Vertical mouse motion changes view pitch independently of the retail height controls.
+// Height is not taken at once: the floor and ceiling limits the game puts on it afterwards bound
+// only where the eye is going.
 
 // The stick's reading plus the mouse's turn this tick, for a camera that turns by
 // AddAngle(radians * -reading): right turns right.
-float MouseLookTurn(CCameraFollow *camera, float radians, float stick, bool pitch = true);
+float MouseLookTurn(CCameraFollow *camera, float radians, float stick);
 
-// Marks the camera currently under player control; lock-on disables manual pitch.
-void MouseLookControlPitch(CCamera *camera, bool enabled);
-
-// The view's pitch after this read's mouse motion, once per read, within 86 degrees of level.
-// It changes the view matrix, not the eye, follow height, look target or pending camera positions.
-float MouseLookViewPitch(CCamera *camera, float base);
+// The stick's reading plus the mouse's tilt this tick, for a follow camera that lowers its eye by
+// AddHeight(-reading): the change of height that tilts the line from the eye to the point it
+// circles by the mouse's angle, mouse up looking up. The mouse raises the eye no higher than
+// ceiling.
+float MouseLookRise(CCameraFollow *camera, float stick, float ceiling);
 
 // The mouse's share of an AddAngle delta on camera: nonzero only for the delta of the reading
 // MouseLookTurn last gave for it in the current pad read. Any AddAngle on that camera ends the
 // reading.
 float MouseLookTakeTurn(CCameraFollow *camera, float delta);
 
-// A first-person view's vertical angle (above zero looks down) once the mouse tilts it, within the mouse's
-// 86-degree limits; the stick retains the retail limits.
+// The eye's height over the point it circles from `distance` away once the view tilts up by `pitch`
+// radians, short of straight up or down.
+float MouseLookTiltHeight(float height, float distance, float pitch);
+
+// A first-person view's vertical angle (above zero looks down) once the mouse tilts it, inside the
+// game's limits (EyeCamera, dun/gameloop.cpp:9598): the stick stops past 0.65 down and -1 up.
 float MouseLookEyeAngleV(float angle);
 
 // A first-person view's heading once the mouse turns it, within half a turn either way.
