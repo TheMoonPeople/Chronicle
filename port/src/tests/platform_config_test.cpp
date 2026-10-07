@@ -41,6 +41,19 @@ TEST(PlatformConfig, ShadowDistance) {
     ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).shadow_distance == 320.0f);
 }
 
+TEST(PlatformConfig, OptionalMouseZoomRoundTripsAndKeepsResetBindings) {
+    ASSERT_FALSE(ConfigParse("").mouse_zoom);
+    ASSERT_FALSE(ConfigParse(R"({"input":{"mouse_zoom":"on"}})").mouse_zoom);
+    Config config = ConfigParse(R"({"input":{"mouse_zoom":true,"bindings":{
+        "zoom_reset":["Mouse5","Home"],"cross":["Space","Z"]}}})");
+    ASSERT_TRUE(config.mouse_zoom);
+    Config restored = ConfigParse(ConfigSerialize(config));
+    ASSERT_EQ(restored, config);
+    ASSERT_EQ(restored.key_bindings.size(), 2u);
+    ASSERT_FALSE(ConfigAppliesOnRestart("input.mouse_zoom"));
+    ASSERT_FALSE(ConfigAppliesOnRestart("input.bindings.zoom_reset"));
+}
+
 TEST(PlatformConfig, ParsesJson) {
     Config config = ConfigParse(R"({
         // comment

@@ -55,6 +55,7 @@ struct InputKeyboardMouse {
     std::uint32_t    mouse_buttons = 0;
     float            mouse_dx = 0.0f;
     float            mouse_dy = 0.0f;
+    float            mouse_wheel = 0.0f;
 };
 
 struct InputMouseSettings {
@@ -101,6 +102,9 @@ struct InputMouseLook {
     float pitch = 0.0f;
     // Which read of pad 0 this is, counting from 1.
     std::uint64_t read = 0;
+    // Wheel notches, positive zooms in. Only emitted with input.mouse_zoom enabled outside menus.
+    float zoom = 0.0f;
+    bool  zoom_reset = false;
 };
 
 const InputMouseLook &InputGetMouseLook();
@@ -172,6 +176,7 @@ enum class InputHostAction {
     DeveloperMenu,
     DebugMenu,
     GyroHold,
+    ZoomReset,
 };
 
 // Whether a key, mouse button or gamepad button bound to the action is held, live or scripted.

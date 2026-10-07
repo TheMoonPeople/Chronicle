@@ -10,6 +10,7 @@
 #include "camerafollow.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
+#include "dungeonmap.hpp"
 #include "frame.hpp"
 #include "rect.hpp"
 
@@ -150,7 +151,8 @@ struct Bound {
     double Radius() const { return Length(max - min) * 0.5; }
 };
 
-bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *polys, int count) {
+bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *polys, int count,
+                   float floor_clearance = 18.0f) {
     constexpr double turn = 2 * std::numbers::pi;
     double           gap = std::remainder(double(camera.next_angle) - camera.angle, turn);
     Vec              ref = V(camera.ref), next_ref = V(camera.next_ref), follow = V(camera.follow);
@@ -179,7 +181,7 @@ bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *po
     // CCamera eases coordinates separately (and may snap/limit a coordinate), so bounding each
     // coordinate encloses its subsequent states, including the generated follow destinations.
     return MouseCameraClear(ep, rp, float(eyes.Radius()), float(refs.Radius()), polys, count,
-                            float((eyes.max.y - eyes.min.y) / 2));
+                            float((eyes.max.y - eyes.min.y) / 2), floor_clearance);
 }
 
 double ClearPrefix(CCameraFollow &camera, double from, double to, CCPoly *polys, int count,
@@ -273,25 +275,73 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
     return int(polys.size());
 }
 
+int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys) {
+    polys.clear();
+    int visits = 0;
+    auto append = [&](CFrame *frame, float x, float y, float z, int turn) {
+        if (!frame) {
+            return true;
+        }
+        int bound = FrameBound(frame, visits);
+        if (bound < 0 || bound > kPolyBudget - int(polys.size()) || turn < 0 || turn > 6) {
+            return false;
+        }
+        // Match the retail transform, without relying on camera_dist's old draw visibility.
+        if (turn > 3) turn -= 3;
+        if (turn == 3) turn = -1;
+        frame->SetRotation(0.0f, std::numbers::pi_v<float> * (-90.0f * turn) / 180.0f, 0.0f);
+        frame->SetPosition(x, y, z);
+        if (!bound) return true;
+        auto start = polys.size();
+        polys.resize(start + bound);
+        int found = frame->PickUpNearPoly(polys.data() + start, box);
+        if (found < 0 || found > bound) return false;
+        polys.resize(start + found);
+        return true;
+    };
+    if (map.map_type != 1) {
+        for (auto &part : map.parts) {
+            if (!part.frame[0]) break;
+            if (!append(part.camera_collision, part.frame_offset[0][0], part.frame_offset[0][1],
+                        part.frame_offset[0][2], int(part.frame_turn[0]) + part.camera_collision_turn)) return -1;
+        }
+    } else {
+        for (int j = 0; j < 20; ++j) {
+            for (int i = 0; i < 20; ++i) {
+                auto &cell = map.cells[i + j * 20];
+                if (cell.parts_no == -1) continue;
+                if (cell.parts_no < 0 || cell.parts_no >= 72 || cell.direction < 0 || cell.direction > 3) return -1;
+                auto &part = map.parts[cell.parts_no];
+                if (!append(part.camera_collision, 160.0f * i, 0.0f, 160.0f * j,
+                            cell.direction + part.camera_collision_turn)) return -1;
+            }
+        }
+    }
+    return int(polys.size());
+}
+
 bool MouseCameraClear(const float *eye, const float *look, float eye_radius, float look_radius,
-                      CCPoly *polys, int count, float vertical_radius) {
+                      CCPoly *polys, int count, float vertical_radius, float floor_clearance) {
     Vec e = V(eye), r = V(look);
     if (count < 0 || (count && !polys) || !Finite(e) || !Finite(r) ||
         !std::isfinite(eye_radius) || !std::isfinite(look_radius) || !std::isfinite(vertical_radius) ||
-        eye_radius < 0 || look_radius < 0 || vertical_radius < 0) {
+        eye_radius < 0 || look_radius < 0 || vertical_radius < 0 ||
+        !std::isfinite(floor_clearance) || floor_clearance <= 0) {
         return false;
     }
     double ray_margin = std::max(eye_radius, look_radius) + kMargin;
-    Vec    down = e + Vec{0, -18, 0}, up = e + Vec{0, 15, 0};
+    Vec    down = e + Vec{0, -floor_clearance, 0}, up = e + Vec{0, 15, 0};
     for (int i = 0; i < count; ++i) {
         const CCPoly &p = polys[i];
         if (!Finite(V(p.vertex[0])) || !Finite(V(p.vertex[1])) || !Finite(V(p.vertex[2]))) {
             return false;
         }
-        if (SegmentTriangle(r, e, p) <= ray_margin || PointTriangle(e, V(p.vertex[0]), V(p.vertex[1]), V(p.vertex[2])) <= 10 + eye_radius + kMargin) {
+        Vec    normal = Cross(V(p.vertex[1]) - V(p.vertex[0]), V(p.vertex[2]) - V(p.vertex[0]));
+        bool horizontal = std::fabs(normal.y) > 0.5 * Length(normal);
+        double clearance = horizontal ? std::min(10.0f, floor_clearance) : 10.0;
+        if (SegmentTriangle(r, e, p) <= ray_margin || PointTriangle(e, V(p.vertex[0]), V(p.vertex[1]), V(p.vertex[2])) <= clearance + eye_radius + kMargin) {
             return false;
         }
-        Vec    normal = Cross(V(p.vertex[1]) - V(p.vertex[0]), V(p.vertex[2]) - V(p.vertex[0]));
         double floor_min = std::min({double(p.vertex[0][1]), double(p.vertex[1][1]), double(p.vertex[2][1])});
         double floor_max = std::max({double(p.vertex[0][1]), double(p.vertex[1][1]), double(p.vertex[2][1])});
         if (floor_max < down.y - vertical_radius - kMargin || floor_min > up.y + vertical_radius + kMargin) {
@@ -327,4 +377,27 @@ float MouseCameraClamp(CCameraFollow &camera, float turn, CCPoly *polys, int cou
         accepted = end;
     }
     return turn;
+}
+
+float MouseCameraClampDistance(CCameraFollow &camera, float distance, CCPoly *polys, int count,
+                               float floor_clearance) {
+    if (!std::isfinite(distance) || distance <= 0.0f || !std::isfinite(camera.distance) ||
+        !std::isfinite(camera.angle) || !std::isfinite(camera.next_angle) ||
+        !std::isfinite(camera.height) || !std::isfinite(camera.speed) || camera.speed < 1.0f ||
+        !CorridorClear(camera, 0, 0, polys, count, floor_clearance)) {
+        return camera.distance;
+    }
+    CCameraFollow candidate(camera);
+    candidate.distance = distance;
+    if (CorridorClear(candidate, 0, 0, polys, count, floor_clearance)) return distance;
+    float accepted = camera.distance;
+    float refused = distance;
+    int checks = std::min(16, 1000000 / std::max(count, 1));
+    for (int i = 0; i < checks; ++i) {
+        float middle = (accepted + refused) * 0.5f;
+        candidate.distance = middle;
+        if (CorridorClear(candidate, 0, 0, polys, count, floor_clearance)) accepted = middle;
+        else refused = middle;
+    }
+    return accepted;
 }

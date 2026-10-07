@@ -135,12 +135,14 @@ key is optional; these are the defaults:
         "gyro_invert_y": false,
         "mouse_invert_y": false,
         "mouse_capture": true,      // SDL relative mouse mode while the window has focus
+        "mouse_zoom": false,        // optional third-person wheel zoom; middle click resets by default
         "mouse_release": ["Escape"], // keys that give the cursor back in a window ([]: none)
         "vibration": true,          // the gamepad's rumble
         "bindings": {
             "cross": ["Mouse1", "Space"], // an action: its keys and mouse buttons; replaces the defaults
             "ry": "-MouseY*0.5",    // lx ly rx ry take MouseX or MouseY, with a sign and a scale: the mouse as that stick
-            "fps_toggle": "F3"      // the FPS counter on and off
+            "fps_toggle": "F3",     // the FPS counter on and off
+            "zoom_reset": "Mouse3"  // optional zoom: restore the camera's normal distance
         }
     },
     "discord": {
@@ -370,6 +372,27 @@ whatever the display's frames do between ticks; a pause in the reads longer
 than a quarter of a second (a load) drops what came during it. A script's
 `mouse:DX,DY` is the motion of each read.
 
+Third-person mouse pitch changes the follow camera's height while it keeps
+looking at the player. It does not rotate the view independently of the player.
+Height requests stay inside the gameplay limits, and the return toward the
+baseline is one fifth of its retail rate after mouse pitch input. Floor and
+wall correction and the automatic horizontal swing behind a walking player
+retain their retail behavior.
+
+Optional **Mouse Wheel Zoom**, under Options > Controls, changes the distance
+from the player: wheel up moves closer, wheel down farther. **Reset Zoom**
+defaults to middle mouse; Controls offers middle mouse, either side button,
+Home or Disabled. Other bindings can be set with `input.bindings.zoom_reset`.
+With zoom enabled its reset binding takes priority over conflicting pad
+bindings; disabling zoom restores normal input behavior. Reset restores the
+town's normal distance or the dungeon camera's starting distance, as far as
+geometry allows. Zoom is limited to 30–140 world units, follows normal camera
+easing and validates the entire pending distance corridor. Dungeon zoom retains
+ten-unit wall clearance and five-unit floor clearance for its normally lower
+eye. Collision can limit the requested distance and restore it when clear.
+Menus, first-person views, Georama, fishing, lock-on and scripted cameras do
+not consume wheel zoom input. The feature is off by default.
+
 | View | Horizontal | Vertical |
 |---|---|---|
 | dungeon (`DunMoveChara`) | `AddAngle(0.04 * -turn)` | camera height, `AddHeight(-ry)`, at most 30 |
@@ -399,7 +422,7 @@ the item viewer) and the event script's `GET_APAD` read the stick alone.
 a script, through `InputSetOverride`. Each line is
 
 ```
-<frame> [pad1|pad2] [button ...] [key:NAME ...] [mouseN ...] [mouse:DX,DY] [lx ly rx ry]
+<frame> [pad1|pad2] [button ...] [key:NAME ...] [mouseN ...] [mouse:DX,DY] [wheel:NOTCHES] [lx ly rx ry]
 ```
 
 and holds the named buttons (`cross circle square triangle start select l1

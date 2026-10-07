@@ -11,6 +11,7 @@
 #include <numbers>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "clock.hpp"
@@ -78,6 +79,7 @@ constexpr Action kActions[] = {
     {"developer_menu", ActionKind::Host,   0,              kAxisLeftX,  0,  "Gamepad:paddle2"},
     {"debug_menu",   ActionKind::Host,     0,              kAxisLeftX,  0,  "Gamepad:paddle1"},
     {"gyro_hold",    ActionKind::Host,     0,              kAxisLeftX,  0,  "Gamepad:paddle4"},
+    {"zoom_reset",   ActionKind::Host,     0,              kAxisLeftX,  0,  "Mouse3"},
 };
 
 struct ButtonMap {
@@ -104,11 +106,12 @@ const ButtonMap kGamepadButtons[] = {
 // clang-format on
 
 constexpr std::size_t kActionCount = std::size(kActions);
-constexpr std::size_t kFirstHostAction = kActionCount - 4;
+constexpr std::size_t kFirstHostAction = kActionCount - 5;
 constexpr std::size_t kHostActionCount = kActionCount - kFirstHostAction;
 static_assert(kActions[kFirstHostAction].name == "fps_toggle");
 static_assert(static_cast<std::size_t>(InputHostAction::FpsToggle) == 0);
-static_assert(static_cast<std::size_t>(InputHostAction::GyroHold) == kHostActionCount - 1);
+static_assert(static_cast<std::size_t>(InputHostAction::ZoomReset) == kHostActionCount - 1);
+constexpr std::size_t kZoomResetHost = static_cast<std::size_t>(InputHostAction::ZoomReset);
 
 // AxisCalibration (ps2/src/gamepad.cpp): a byte within 49 above or 50 below the centre reads as
 // zero, and the remaining 78 steps each side span the game's +-128.
@@ -167,6 +170,8 @@ std::array<bool, SDL_SCANCODE_COUNT>                     g_keys{};
 float                                                    g_mouse_dx = 0.0f;
 float                                                    g_mouse_dy = 0.0f;
 InputMouseLook                                           g_mouse_look;
+bool                                                     g_mouse_zoom = false;
+float                                                    g_scripted_wheel = 0.0f;
 std::int64_t                                             g_last_latch_tick = -1;
 std::int64_t                                             g_latch_serial = 0;
 std::int64_t                                             g_stick_read_serial = -1;
@@ -277,6 +282,7 @@ void EnsureBindings() {
         ParseSources(names, kActions[i].kind, g_bindings[i]);
     }
     g_mouse = InputMouseSettings{};
+    g_mouse_zoom = false;
     g_mouse.release_scancodes = {SDL_SCANCODE_ESCAPE};
     MouseConfigure(g_mouse.capture, g_mouse.release_scancodes);
     g_bindings_ready = true;
@@ -292,7 +298,7 @@ std::uint8_t StickToByte(Sint16 value) {
 // which needs over 90% of a modern stick's travel), so the deflection is scaled by
 // input.stick_sensitivity (1.33 by default, PCSX2's analog sensitivity) and the circle is stretched
 // onto the square, keeping the direction.
-float g_stick_sensitivity = 1.33f;
+float      g_stick_sensitivity = 1.33f;
 float      g_gyro_sensitivity = 0.5f;
 ConfigGyro g_gyro = ConfigGyro::Off;
 bool       g_gyro_invert_x = false;
@@ -366,7 +372,7 @@ void ReadGamepad(SDL_Gamepad *gamepad, InputPadState &state) {
                       SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY),
                       SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX),
                       SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY)};
-    auto invert = [&](int x) {
+    auto   invert = [&](int x) {
         if (g_stick_invert_x) {
             axes[x] = Flip(axes[x]);
         }
@@ -512,6 +518,15 @@ bool MouseAxisBound(int code) {
     });
 }
 
+// A zoom reset binding owns its physical sources while zoom is enabled. Keyboard alternatives
+// of the same game action and actual controller buttons still work normally.
+bool ZoomReserved(const Source &source) {
+    return g_mouse_zoom && !g_menu_mouse &&
+           std::ranges::any_of(g_bindings[kFirstHostAction + kZoomResetHost], [&](const Source &reset) {
+               return reset.kind == source.kind && reset.code == source.code;
+           });
+}
+
 float MouseRadiansPerCount() { return g_mouse.sensitivity * std::numbers::pi_v<float> / 180.0f; }
 
 InputMouseLook MouseLookFromMotion(float dx, float dy) {
@@ -528,6 +543,11 @@ InputMouseLook MouseLookFromMotion(float dx, float dy) {
 void PollHostActions() {
     for (std::size_t host = 0; host < kHostActionCount; ++host) {
         bool held = HostPolledHeld(host);
+        if (host == kZoomResetHost && (!g_mouse_zoom || g_menu_mouse)) {
+            g_host_presses[host] = 0;
+            g_host_polled[host] = held;
+            continue;
+        }
         if (held && !g_host_polled[host]) {
             ++g_host_presses[host];
         }
@@ -584,6 +604,13 @@ void InputApplyConfig(const Config &config) {
         mouse.release_scancodes.push_back(scancode);
     }
     InputSetMouseSettings(mouse);
+    g_mouse_zoom = config.mouse_zoom;
+    g_mouse_look.zoom = 0.0f;
+    g_mouse_look.zoom_reset = false;
+    g_scripted_wheel = 0.0f;
+    MouseTakeWheel();
+    g_host_presses[kZoomResetHost] = 0;
+    g_host_polled[kZoomResetHost] = HostPolledHeld(kZoomResetHost);
 }
 
 void InputShutdown() {
@@ -594,6 +621,7 @@ void InputShutdown() {
     g_mouse_look = {0.0f, 0.0f, g_mouse_look.read};
     g_keys.fill(false);
     g_scripted = {};
+    g_scripted_wheel = 0.0f;
     g_host_presses.fill(0);
     g_host_polled.fill(false);
     g_gyro = ConfigGyro::Off;
@@ -640,14 +668,38 @@ void InputHandleEvent(const SDL_Event &event) {
                 EnsureBindings();
                 for (std::size_t host = 0; host < kHostActionCount; ++host) {
                     if (KeyBound(host, event.key.scancode)) {
+                        if (host == kZoomResetHost && (!g_mouse_zoom || g_menu_mouse)) {
+                            continue;
+                        }
                         ++g_host_presses[host];
                     }
                 }
             }
             break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            // Preserve a click released before the next poll; don't count its poll edge twice.
+            EnsureBindings();
+            if (g_mouse_zoom && !g_menu_mouse &&
+                std::ranges::any_of(g_bindings[kFirstHostAction + kZoomResetHost], [&](const Source &source) {
+                    // SDL numbers middle 2/right 3; bindings use right Mouse2/middle Mouse3.
+                    int button = event.button.button == SDL_BUTTON_MIDDLE ? 3 : event.button.button == SDL_BUTTON_RIGHT ? 2
+                                                                                                                        : event.button.button;
+                    return source.kind == Source::MouseButton && source.code == button;
+                })) {
+                ++g_host_presses[kZoomResetHost];
+            }
+            g_host_polled[kZoomResetHost] = HostPolledHeld(kZoomResetHost);
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            g_host_polled[kZoomResetHost] = HostPolledHeld(kZoomResetHost);
+            break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             g_keys.fill(false);
             g_mouse_look.yaw = g_mouse_look.pitch = 0.0f;
+            g_mouse_look.zoom = 0.0f;
+            g_mouse_look.zoom_reset = false;
+            g_scripted_wheel = 0.0f;
+            g_host_presses[kZoomResetHost] = 0;
             g_menu_dx = 0.0f;
             g_menu_dy = 0.0f;
             break;
@@ -691,6 +743,16 @@ void InputLatchPad(int pad) {
     std::uint64_t read = g_mouse_look.read + 1;
     g_mouse_look = MouseLookFromMotion(dx, dy);
     g_mouse_look.read = read;
+    // Menus take the live wheel themselves. Everything else drains it each pad read, including
+    // disabled zoom and loads, so it cannot be played back when gameplay next owns the camera.
+    float wheel = g_menu_mouse ? 0.0f : MouseTakeWheel() + std::exchange(g_scripted_wheel, 0.0f);
+    bool  reset = g_host_presses[kZoomResetHost] != 0;
+    g_host_presses[kZoomResetHost] = 0;
+    if (g_mouse_zoom && !g_menu_mouse &&
+        static_cast<double>(ticks) <= kMouseLookMaxGapSeconds * ClockTickRate()) {
+        g_mouse_look.zoom = std::isfinite(wheel) ? wheel : 0.0f;
+        g_mouse_look.zoom_reset = reset;
+    }
     Compose(0);
 }
 
@@ -704,6 +766,11 @@ void InputSetMenuMouse(bool on) {
     g_mouse_dx = 0.0f;
     g_mouse_dy = 0.0f;
     g_mouse_look.yaw = g_mouse_look.pitch = 0.0f;
+    g_mouse_look.zoom = 0.0f;
+    g_mouse_look.zoom_reset = false;
+    g_scripted_wheel = 0.0f;
+    g_host_presses[kZoomResetHost] = 0;
+    g_host_polled[kZoomResetHost] = HostPolledHeld(kZoomResetHost);
     MouseTakeWheel();
     Compose(0);
 }
@@ -716,12 +783,13 @@ InputMenuMouse InputTakeMenuMouse() {
     // A script's motion is per tick, and a menu takes once a tick.
     mouse.dx = g_menu_dx + dx + g_scripted.mouse_dx;
     mouse.dy = g_menu_dy + dy + g_scripted.mouse_dy;
-    mouse.wheel = MouseTakeWheel();
+    mouse.wheel = MouseTakeWheel() + std::exchange(g_scripted_wheel, 0.0f);
     mouse.buttons = MouseButtons() | g_scripted.mouse_buttons;
     g_menu_dx = 0.0f;
     g_menu_dy = 0.0f;
     return mouse;
 }
+
 const InputMouseLook &InputGetMouseLook() { return g_mouse_look; }
 
 void InputNoteLeftStickRead() { g_stick_read_serial = g_latch_serial; }
@@ -779,6 +847,9 @@ InputPadState InputApplyKeyboardMouse(InputPadState base, const InputKeyboardMou
     for (std::size_t i = 0; i < kActionCount; ++i) {
         bool down = false;
         for (const Source &source : g_bindings[i]) {
+            if (kActions[i].kind != ActionKind::Host && ZoomReserved(source)) {
+                continue;
+            }
             switch (source.kind) {
                 case Source::Key:
                     down |= std::ranges::find(held.keys, source.code) != held.keys.end();
@@ -927,5 +998,6 @@ bool InputHostPressed(InputHostAction action) {
 void InputSetScriptedDevices(const InputKeyboardMouse &held) {
     EnsureBindings();
     g_scripted = held;
+    g_scripted_wheel = held.mouse_wheel;
     PollHostActions();
 }

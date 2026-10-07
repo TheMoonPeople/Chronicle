@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <numbers>
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -22,6 +23,7 @@
 #include "edit.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
+#include "dungeonmap.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
 
@@ -379,6 +381,68 @@ TEST(PlatformMouseLook, ThinWallStopsTheContinuousRayFan) {
     float accepted = MouseLookClampOrbit(eye, look, .06f, walls);
     ASSERT_GE(accepted, 0);
     ASSERT_LT(accepted, .015f);
+}
+
+TEST(PlatformMouseLook, ZoomDistanceCannotCrossAWallOrLeaveAnUnsafePendingTarget) {
+    CCameraFollow camera(60.0f, 30.0f, 0.0f, 8.0f);
+    camera.Step(-1);
+    CCPoly wall = Triangle({-200, -100, 90}, {200, -100, 90}, {0, 200, 90});
+    float accepted = MouseCameraClampDistance(camera, 140.0f, &wall, 1);
+    ASSERT_GT(accepted, 60.0f);
+    ASSERT_LT(accepted, 80.0f);
+    camera.SetDistance(accepted);
+    for (int step = 0; step < 100; ++step) {
+        camera.Step(1);
+        ASSERT_LT(camera.pos[2], 80.0f);
+        ASSERT_LT(camera.next_pos[2], 80.0f);
+        ASSERT_FLOAT_EQ(camera.ref[2], 0.0f);
+    }
+    ASSERT_FLOAT_EQ(MouseCameraClampDistance(camera, 40.0f, &wall, 1), 40.0f);
+    ASSERT_FLOAT_EQ(MouseCameraClampDistance(camera, 100.0f, nullptr, -1), camera.distance);
+    camera.next_pos[2] = 100.0f;
+    ASSERT_FLOAT_EQ(MouseCameraClampDistance(camera, 40.0f, &wall, 1), camera.distance);
+}
+
+TEST(PlatformMouseLook, DungeonZoomCollectorRejectsInvalidCellsAndOversizedMeshes) {
+    auto map = std::make_unique<CDungeonMap>();
+    map->map_type = 1;
+    for (auto &cell : map->cells) cell.parts_no = -1;
+    CBoxVu0 box{};
+    for (int i = 0; i < 3; ++i) {
+        box.min[i] = -1000.0f;
+        box.max[i] = 1000.0f;
+    }
+    std::vector<CCPoly> output;
+    ASSERT_EQ(MouseCameraPolys(*map, box, output), 0);
+    map->cells[0].parts_no = 72;
+    ASSERT_EQ(MouseCameraPolys(*map, box, output), -1);
+    map->cells[0].parts_no = 0;
+    map->cells[0].direction = 0;
+    CFrame frame;
+    CCollisionMDT collision;
+    frame.flags = 1;
+    frame.collision = &collision;
+    collision.mesh_count = 32769;
+    map->parts[0].camera_collision = &frame;
+    ASSERT_EQ(MouseCameraPolys(*map, box, output), -1);
+    ASSERT_TRUE(output.empty());
+}
+
+TEST(PlatformMouseLook, LowDungeonCameraZoomRetainsFloorAndWallClearance) {
+    CCameraFollow camera(60.0f, 1.6f, 0.0f, 8.0f);
+    camera.SetFollow(0.0f, 6.0f, 0.0f);
+    camera.Step(-1);
+    CCPoly floor = Triangle({-1000, 0, -1000}, {1000, 0, -1000}, {0, 0, 1000});
+    for (int step = 0; step < 240; ++step) {
+        float goal = step < 120 ? 100.0f : 60.0f;
+        camera.SetDistance(MouseCameraClampDistance(camera, goal, &floor, 1, 5.0f));
+        camera.Step(1);
+        ASSERT_GT(camera.pos[1], 5.0f);
+        if (step == 119) ASSERT_NEAR(camera.distance, 100.0f, 1e-3f);
+    }
+    ASSERT_NEAR(camera.distance, 60.0f, 1e-3f);
+    CCPoly wall = Triangle({-200, -100, 90}, {200, -100, 90}, {0, 200, 90});
+    ASSERT_LT(MouseCameraClampDistance(camera, 140.0f, &wall, 1, 5.0f), 80.0f);
 }
 
 TEST(PlatformMouseLook, InvalidFloorDoesNotDisableClearance) {

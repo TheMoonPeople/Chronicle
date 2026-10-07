@@ -128,3 +128,47 @@ TEST(MenuOption, ResolutionListKeepsConfiguredSize) {
     ASSERT_TRUE(Has(list, 3840, 2160));
     ASSERT_EQ(list.front().width, 0);
 }
+
+TEST(MenuOption, ZoomResetPresetsPreserveOtherBindingsAndRestoreDefault) {
+    Config config;
+    config.key_bindings.push_back({
+        "cross", {"Space", "Z"}
+    });
+    ASSERT_EQ(OptionZoomResetChoice(config), 0);
+    ASSERT_EQ(OptionZoomResetText(config), "Middle Mouse");
+    ASSERT_EQ(OptionZoomResetCount(config), 5);
+    OptionSetZoomReset(config, 2);
+    ASSERT_EQ(OptionZoomResetChoice(config), 2);
+    ASSERT_EQ(OptionZoomResetText(config), "Mouse5");
+    ASSERT_EQ(config.key_bindings.front(), (ConfigKeyBinding{
+                                               "cross", {"Space", "Z"}
+    }));
+    Config restored = ConfigParse(ConfigSerialize(config));
+    ASSERT_EQ(OptionZoomResetText(restored), "Mouse5");
+    OptionSetZoomReset(config, 4);
+    ASSERT_EQ(OptionZoomResetText(config), "Disabled");
+    OptionRestoreZoomReset(config, Config{});
+    ASSERT_EQ(OptionZoomResetText(config), "Middle Mouse");
+    ASSERT_EQ(config.key_bindings.size(), 1u);
+    ASSERT_EQ(config.key_bindings.front().action, "cross");
+}
+
+TEST(MenuOption, CustomZoomResetBindingIsShownAndKeptUntilChanged) {
+    Config config;
+    config.key_bindings = {
+        {"zoom_reset", {"F12", "Mouse4"}},
+        {"r3",         {"B"}            }
+    };
+    ASSERT_EQ(OptionZoomResetChoice(config), 5);
+    ASSERT_EQ(OptionZoomResetCount(config), 6);
+    ASSERT_EQ(OptionZoomResetText(config), "F12, Mouse4");
+    Config before = config;
+    OptionSetZoomReset(config, 5);
+    ASSERT_EQ(config, before);
+    OptionSetZoomReset(config, 3);
+    ASSERT_EQ(OptionZoomResetText(config), "Home");
+    ASSERT_EQ(config.key_bindings[1], before.key_bindings[1]);
+    OptionRestoreZoomReset(config, before);
+    ASSERT_EQ(OptionZoomResetText(config), "F12, Mouse4");
+    ASSERT_EQ(config.key_bindings.front(), before.key_bindings[1]);
+}

@@ -10,12 +10,13 @@
 
 // Scripted input for headless runs. Each line is
 //
-//     <frame> [pad1|pad2] [button ...] [key:<name> ...] [mouseN ...] [mouse:dx,dy] [lx ly rx ry]
+//     <frame> [pad1|pad2] [button ...] [key:<name> ...] [mouseN ...] [mouse:dx,dy] [wheel:notches] [lx ly rx ry]
 //
 // and holds those buttons (and sticks, centred when omitted) on that pad (pad 1 when omitted) from
 // that frame of the game's main loop until the pad's next line. Keys (SDL names), mouse buttons and
 // mouse motion (counts per tick) go through the keyboard and mouse bindings and the mouse look as
-// live input does, on pad 1 only. Frame 0 covers the start-up warm-up too. `#` starts a comment.
+// live input does, on pad 1 only. Wheel notches are per tick, positive zooms in; use a released line
+// on the next frame for one wheel step. Frame 0 covers the start-up warm-up too. `#` starts a comment.
 // Pad 1 is held released before its first line; pad 2 is left to its device unless a line names it.
 
 struct InputScriptStep {

@@ -15,6 +15,7 @@
 #include "btsysscript.hpp"
 #include "camera.hpp"
 #include "camera_port.hpp"
+#include "camera_zoom.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "clothread.hpp"
@@ -1654,7 +1655,13 @@ PC_OVERRIDE void DunMoveChara() {
                                                                     NowCamera__3->SetFollow(pos[0] + to_target[0], BtActStatus.camera_shake_offset + (to_target[1] + (6.0f + pos[1] + reference[1])), pos[2] + to_target[2]);
                                                                 }
 
+                                                                extern float camera_up_near_dist;
+                                                                float normal_near = camera_up_near_dist;
+                                                                float zoom_start_distance = NowCamera__3->GetDistance();
+                                                                camera_up_near_dist = DungeonZoomNearDistance(NowCamera__3, normal_near, lockOnTargetFlag != 0);
                                                                 autoCamTrial();
+                                                                camera_up_near_dist = normal_near;
+                                                                DungeonZoomApply(NowCamera__3, NowDngMap, lockOnTargetFlag != 0, zoom_start_distance);
                                                             }
                                                         }
                                                     }

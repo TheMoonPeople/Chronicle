@@ -79,6 +79,7 @@ struct Config {
     bool                          gyro_invert_y = false;
     bool                          mouse_invert_y = false;
     bool                          mouse_capture = true;
+    bool                          mouse_zoom = false;
     std::vector<std::string>      mouse_release_keys = {"Escape"};
     ConfigGameOptions             options;
     bool                          discord_rich_presence = true;

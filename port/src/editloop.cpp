@@ -13,6 +13,7 @@
 #include "boxvu0.hpp"
 #include "camera.hpp"
 #include "camera_port.hpp"
+#include "camera_zoom.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
@@ -411,6 +412,7 @@ PC_OVERRIDE int EditLoop() {
         case ED_MODE_WALK:
             if (loop_counter > 0) {
                 TownMouseBegin(&MainCamera, pEditGround, MapNo, GameMode);
+                if (EdCheckViewMode() == 0) TownZoomBegin(&MainCamera, pEditGround, MapNo);
                 MainMode();
             }
 
@@ -677,6 +679,7 @@ PC_OVERRIDE int EditLoop() {
             break;
     }
 
+    TownZoomEnd();
     TownMouseApply(NowCamera, pEditGround, MapNo, GameMode);
 
     sceVu0FMATRIX view;

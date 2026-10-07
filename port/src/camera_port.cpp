@@ -13,6 +13,7 @@
 #include "editground.hpp"
 #include "gameutil.hpp"
 #include "mouse_collision.hpp"
+#include "camera_zoom.hpp"
 #include "platform/input.hpp"
 
 namespace {
@@ -231,6 +232,7 @@ void TownMouseRecord(CCameraFollow *camera, bool fishing) {
     if (g_town.open && g_town.camera == camera && g_town.read == InputGetMouseLook().read && g_town.yaw == 0.0f) {
         g_town.yaw = InputGetMouseLook().yaw;
         g_town.fishing = fishing;
+        if (!fishing) TownZoomRead(camera);
     }
 }
 
