@@ -7,17 +7,211 @@
 #include <vector>
 
 #include "draw2d_port.hpp"
+#include "gametext.hpp"
 #include "gameutil.hpp"
+#include "localize.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
+#include "platform/ttffont.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
 
 extern float RandTbl[64];
 extern float RandTbl2[64];
+extern MES_FUCHI FuchiTbl_E[];
 
 namespace {
+
+// ---- Message text from a TrueType font ----
+// With font.ttf in a lang folder (the save's or the executable's), a character the font has is drawn
+// from it at the screen's own resolution, in the cell the game laid the bitmap character out in,
+// instead of from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
+
+bool TtfReady() {
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        std::filesystem::path file = LocalizeFindFile("font.ttf");
+        if (!file.empty() && ttffont::Load(file)) {
+            std::fprintf(stderr, "font: message text from %s\n", file.string().c_str());
+        }
+    }
+    return ttffont::Loaded();
+}
+
+// What DrawGaijiFont tints a character with: the colour table's entry, the flashing cursor row's,
+// and double for a lit row.
+void GlyphTint(int clut, int dark, int wide, int &r, int &g, int &b, int &alpha) {
+    alpha = 0x80;
+    switch (FontColorTbl[clut]) {
+        case FONT_COLOR_WHITE: r = g = b = 0x5F; break;
+        case FONT_COLOR_BROWN: r = 0x22; g = 0x20; b = 0x18; break;
+        case FONT_COLOR_YELLOW: r = 0x5E; g = 0x5E; b = 0x20; break;
+        case FONT_COLOR_CYAN: r = 0x20; g = 0x5E; b = 0x5E; break;
+        case FONT_COLOR_GREEN: r = 0x20; g = 0x5E; b = 0x20; break;
+        case FONT_COLOR_BROWN_OPAQUE: r = 0x22; g = 0x20; b = 0x18; break;
+        case FONT_COLOR_GOLD: r = 0x73; g = 0x67; b = 0x33; break;
+        case FONT_COLOR_GREY: r = g = b = 0x47; break;
+        case FONT_COLOR_MAGENTA: r = 0x5F; g = 0x1F; b = 0x5F; break;
+        default: r = 0x28; g = 0x28; b = 0x20; break;
+    }
+    if (clut == 0xFF) {
+        if (dark != 0) {
+            r = 0x7F; g = 0x22; b = 0x22;
+        } else {
+            r = 0x40; g = 0x11; b = 0x11;
+        }
+    }
+    if (wide == 1) {
+        r *= 2;
+        g *= 2;
+        b *= 2;
+    }
+}
+
+void TtfQuad(std::vector<gfx::Vertex2D> &out, const ttffont::Glyph &glyph, float x, float y, float width,
+             float height, int r, int g, int b, int alpha) {
+    auto clamp = [](int v) { return static_cast<u_char>(v < 0 ? 0 : v > 255 ? 255 : v); };
+    const u_char red = clamp(r), green = clamp(g), blue = clamp(b), a = clamp(alpha);
+    out.push_back(draw2d::Vertex(x, y, 0.0f, glyph.u0, glyph.v0, red, green, blue, a));
+    out.push_back(draw2d::Vertex(x + width, y, 0.0f, glyph.u1, glyph.v0, red, green, blue, a));
+    out.push_back(draw2d::Vertex(x + width, y + height, 0.0f, glyph.u1, glyph.v1, red, green, blue, a));
+    out.push_back(draw2d::Vertex(x, y + height, 0.0f, glyph.u0, glyph.v1, red, green, blue, a));
+}
+
+// The em the font is drawn at: its line fits 82% of the cell's height and its widest glyph the cell's
+// width, so a glyph never leaves the cell the game sized the window for.
+float TtfEm(const ClsMes &mes, const ttffont::Metrics &metrics) {
+    return std::min(mes.char_height * 0.82f, mes.char_width * 0.95f / metrics.advance);
+}
+
+// Where each laid-out character of a window starts, in the window's own coordinates. A word (a run of
+// characters the font draws) keeps the place the game gave it: its letters go one after another by
+// their own widths and the word is centred on the cells the game gave it, so rows, indents, centring and
+// the icons between words stay where the game put them. A glyph is never given more than its cell, so
+// a word is never wider than the game's.
+void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs) {
+    const int count = mes.win_line_num;
+    xs.assign(static_cast<size_t>(count), 0.0f);
+    for (int i = 0; i < count; i++) {
+        xs[static_cast<size_t>(i)] = static_cast<float>(mes.win_line[i].x);
+    }
+    if (mes.char_height <= 0 || mes.char_width <= 0) {
+        return;
+    }
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const ttffont::Metrics    metrics = ttffont::GetMetrics();
+    const float               em = TtfEm(mes, metrics);
+    const int                 em_px = static_cast<int>(em * mapping.scale_x + 0.5f);
+    const float               gap = em * 0.1f;
+
+    auto glyph_of = [&](int i, ttffont::Glyph &glyph) {
+        const int code = mes.win_line[i].code;
+        const char32_t ch = code >= -0x2DF && code < -0x251 ? GameTextChar(static_cast<s16>(code)) : 0;
+        return ch != 0 && ttffont::GetGlyph(ch, em_px, glyph);
+    };
+    auto cell_of = [&](int i) {
+        const bool next = i + 1 < count && mes.win_line[i + 1].y == mes.win_line[i].y;
+        return next ? static_cast<float>(mes.win_line[i + 1].x - mes.win_line[i].x) : static_cast<float>(mes.char_width);
+    };
+
+    int i = 0;
+    while (i < count) {
+        ttffont::Glyph glyph;
+        if (!glyph_of(i, glyph)) {
+            i++;
+            continue;
+        }
+        int                last = i;
+        float              natural = 0.0f;
+        std::vector<float> pen;
+        for (; last < count && mes.win_line[last].y == mes.win_line[i].y && glyph_of(last, glyph); last++) {
+            pen.push_back(natural);
+            natural += std::min(glyph.width / mapping.scale_x + gap, cell_of(last));
+        }
+        const float span = static_cast<float>(mes.win_line[last - 1].x - mes.win_line[i].x) + cell_of(last - 1);
+        const float start = static_cast<float>(mes.win_line[i].x) + (span - (natural - gap)) / 2;
+        for (int k = i; k < last; k++) {
+            xs[static_cast<size_t>(k)] = start + pen[static_cast<size_t>(k - i)];
+        }
+        i = last;
+    }
+}
+
+// Queues the font's glyph for win_line[index]: an edge pass per outline and one fill. False where
+// the font has none, and the bitmap character is drawn.
+bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y, const std::vector<float> &xs,
+                   std::vector<gfx::Vertex2D> &edges, std::vector<gfx::Vertex2D> &fills) {
+    const MES_WIN_LINE &line = mes.win_line[index];
+    const char32_t      ch = GameTextChar(line.code);
+    if (ch == 0 || mes.char_height <= 0 || mes.char_width <= 0 || static_cast<size_t>(index) >= xs.size()) {
+        return false;
+    }
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float               rows = draw2d::RowScale();
+    const ttffont::Metrics    metrics = ttffont::GetMetrics();
+    const float               em = TtfEm(mes, metrics);
+    const int                 em_px = static_cast<int>(em * mapping.scale_x + 0.5f);
+    ttffont::Glyph            glyph;
+    if (!ttffont::GetGlyph(ch, em_px, glyph)) {
+        return false;
+    }
+
+    // The window's origin for this row, as the bitmap characters take it.
+    const int row = line.y / mes.char_height;
+    float     origin_x, cell_y;
+    if (row >= static_cast<int>(std::size(mes.line_pos)) || mes.line_pos[row].x < 0 || mes.line_pos[row].y < 0) {
+        origin_x = static_cast<float>(offset_x + mes.text_x);
+        cell_y = static_cast<float>(offset_y + line.y + mes.text_y);
+    } else {
+        origin_x = static_cast<float>(mes.line_pos[row].x);
+        cell_y = static_cast<float>(line.y + mes.line_pos[row].y - row * mes.char_height);
+    }
+
+    // The font's line is centred in the cell's height. The bitmap's pixels are screen pixels, so a quad
+    // is as many logical units as they come to.
+    const float width = glyph.width / mapping.scale_x;
+    const float height = glyph.height / mapping.scale_y * rows;
+    const float base = cell_y + (mes.char_height - em * (metrics.ascent + metrics.descent)) / 2 + em * metrics.ascent;
+    float       x = origin_x + xs[static_cast<size_t>(index)];
+    float       y = (base * rows) + glyph.y_offset / mapping.scale_y;
+
+    // On whole pixels, so the edges of the strokes are not smeared across two.
+    auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    x = snap(x, mapping.scale_x, mapping.offset_x);
+    y = snap(y, mapping.scale_y, mapping.offset_y);
+
+    int wide = 0;
+    if (mes.cursor_row >= 0) {
+        wide = mes.cursor_lit == 1 ? (row == mes.cursor_row ? 1 : 0) : (row == mes.cursor_row ? 0 : 1);
+    }
+    int r, g, b, alpha;
+    GlyphTint(line.clut, dark, wide, r, g, b, alpha);
+
+    // The bitmaps' outlines were soft; a crisp glyph's reads thick at the same offsets, so they are
+    // brought in to 60%.
+    const int cap = mes.edge_alpha;
+    auto      edge = [&](float dx, float dy, int er, int eg, int eb, int ea) {
+        TtfQuad(edges, glyph, x + dx * 0.6f, y + dy * 0.6f * rows, width, height, er, eg, eb, std::min(cap, ea));
+    };
+    switch (mes.style) {
+        case MES_EDGE_WHITE: edge(1, 1, 0xFF, 0xFF, 0xFF, 0x40); break;
+        case MES_EDGE_BLACK: edge(1, 1, 0, 0, 0, 0x40); break;
+        case MES_EDGE_TABLE:
+            for (int i = 0; FuchiTbl_E[i].alpha > 0; i++) {
+                edge(static_cast<float>(FuchiTbl_E[i].x), static_cast<float>(FuchiTbl_E[i].y), FuchiTbl_E[i].r,
+                     FuchiTbl_E[i].g, FuchiTbl_E[i].b, FuchiTbl_E[i].alpha);
+            }
+            break;
+        case MES_EDGE_DOUBLE:
+            edge(1, 1, 0x40, 0x40, 0x40, 0x80);
+            edge(2, 2, 0, 0, 0, 0x80);
+            break;
+    }
+    TtfQuad(fills, glyph, x, y, width, height, r, g, b, std::min(cap, alpha));
+    return true;
+}
 
 enum {
     GAIJI_CODE,
@@ -600,6 +794,13 @@ PC_OVERRIDE void ClsMes::DrawMesWin() {
     texture = draw2d::Get().find_texture("gaiji");
     setbilinear(0);
     set2DSprite_Start(Vif1Packet, texture);
+    const bool                 ttf = TtfReady();
+    std::vector<gfx::Vertex2D> ttf_edges;
+    std::vector<gfx::Vertex2D> ttf_fills;
+    std::vector<float>         ttf_xs;
+    if (ttf) {
+        TtfLayoutRows(*this, ttf_xs);
+    }
 
     for (index = this->text_from; index < this->text_no; index++) {
         if (MesAbsDrawOff != 0) {
@@ -609,6 +810,10 @@ PC_OVERRIDE void ClsMes::DrawMesWin() {
         int code = this->win_line[index].code;
 
         if (code < -0x300 || code >= -0x251) {
+            continue;
+        }
+
+        if (ttf && code >= -0x2DF && QueueTtfGlyph(*this, index, dark, offset_x, offset_y, ttf_xs, ttf_edges, ttf_fills)) {
             continue;
         }
 
@@ -713,6 +918,15 @@ PC_OVERRIDE void ClsMes::DrawMesWin() {
     }
 
     set2DSprite_End(Vif1Packet, texture);
+
+    if (!ttf_fills.empty()) {
+        const gfx::TextureBinding binding = ttffont::Binding();
+        if (!ttf_edges.empty()) {
+            gfx::Draw2D(gfx::Primitive::Quads, ttf_edges, binding, draw2d::SpriteState());
+        }
+        gfx::Draw2D(gfx::Primitive::Quads, ttf_fills, binding, draw2d::SpriteState());
+        draw2d::RestoreTestZbuf();
+    }
 
     if (this->page_arrow != 0) {
         if ((this->text_no >= this->text_len && this->cursor_row < 0) || this->waiting != 0) {

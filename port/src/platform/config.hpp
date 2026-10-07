@@ -91,6 +91,9 @@ struct Config {
     std::vector<std::string>      mouse_release_keys = {"Escape"};
     ConfigGameOptions             options;
     bool                          discord_rich_presence = true;
+    // game.language: 0 asks at start-up, as retail does; 2 to 6 is the language to start in
+    // (LanguageCode: English, Francais, Deutsch, Italiano, Espanol) and skips the language screen.
+    int                           language = 0;
 
     bool operator==(const Config &) const = default;
 };

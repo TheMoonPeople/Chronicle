@@ -150,6 +150,23 @@ bool ReadGyro(const Json &value, ConfigGyro &out) {
     return false;
 }
 
+constexpr const char *kLanguageNames[] = {"ask", "", "english", "francais", "deutsch", "italiano", "espanol"};
+
+// "ask" or a language's name, as config.json spells them, becoming LanguageCode 0 or 2 to 6.
+bool ReadLanguage(const Json &value, int &out) {
+    if (!value.is_string()) {
+        return false;
+    }
+    std::string language = Lower(value.get<std::string>());
+    for (std::size_t i = 0; i < std::size(kLanguageNames); ++i) {
+        if (kLanguageNames[i][0] != '\0' && language == kLanguageNames[i]) {
+            out = static_cast<int>(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ReadList(const Json &value, std::vector<std::string> &out) {
     std::vector<std::string> items;
     if (value.is_string()) {
@@ -322,6 +339,9 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "game.debug_mode") {
         return ReadBool(value, config.debug_mode);
     }
+    if (name == "game.language") {
+        return ReadLanguage(value, config.language);
+    }
     if (name == "video.present_mode") {
         return ReadPresentMode(value, config.present_mode);
     }
@@ -474,6 +494,7 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["tick_rate"] = config.tick_rate;
     root["game"]["debug_mode"] = config.debug_mode;
     root["game"]["qte_always_win"] = config.qte_always_win;
+    root["game"]["language"] = kLanguageNames[config.language >= 2 && config.language <= 6 ? config.language : 0];
     const ConfigGameOptions &options = config.options;
     root["game"]["save_cursor_position"] = options.save_cursor_position;
     root["game"]["message_speed"] = options.fast_messages ? "fast" : "normal";

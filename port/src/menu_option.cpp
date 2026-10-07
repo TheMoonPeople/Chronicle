@@ -1,9 +1,12 @@
 #include "menu_option.hpp"
 
+#include "localize.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <deque>
+#include <memory>
 #include <format>
 #include <span>
 #include <string>
@@ -19,6 +22,7 @@
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
+#include "mainselect.hpp"
 #include "menuetc.hpp"
 #include "platform/display.hpp"
 #include "platform/input.hpp"
@@ -146,6 +150,27 @@ std::string ChoiceName(const char *names, int choice) {
     return std::string(rest.substr(0, rest.find('|')));
 }
 
+// The Options screen's own text is looked up by key, in the language the game is in (localize.hpp); the
+// English here is what it shows where the language has none. A setting's strings are options.<its
+// config.json name>.label, .help and .choice.<n>, and a page's is options.page.<name>.
+std::string ChoiceText(const Row &row, int choice) {
+    return LocalizeText("options." + std::string(row.key) + ".choice." + std::to_string(choice),
+                        ChoiceName(row.names, choice));
+}
+
+// A value a row works out itself ("Desktop", "Unlimited") by its English: options.<name>.value.<English>.
+std::string ValueText(const Row &row, const std::string &english) {
+    return LocalizeText("options." + std::string(row.key) + ".value." + english, english);
+}
+
+std::string PageKey(const char *name) {
+    std::string key = "options.page.";
+    for (const char *c = name; *c != '\0'; ++c) {
+        key += static_cast<char>(*c >= 'A' && *c <= 'Z' ? *c - 'A' + 'a' : *c);
+    }
+    return key;
+}
+
 int Nearest(std::span<const double> choices, double value) {
     int best = 0;
     for (int i = 1; i < static_cast<int>(choices.size()); ++i) {
@@ -227,6 +252,19 @@ void SetMap(Config &config, int choice) {
 
 int MapCount(const Config &) {
     return 4;
+}
+
+// Ask, then the five languages of the language screen (LanguageCode 2 to 6).
+int LanguageChoice(const Config &config) {
+    return config.language >= 2 && config.language <= 6 ? config.language - 1 : 0;
+}
+
+void SetLanguage(Config &config, int choice) {
+    config.language = choice == 0 ? 0 : choice + 1;
+}
+
+int LanguageCount(const Config &) {
+    return 6;
 }
 
 int ResolutionCount(const Config &) {
@@ -519,6 +557,9 @@ const Row kGameRows[] = {
                                              "\"Discord Rich Presence\"\nShows what you are\nplaying on Discord."),
     OnOffRow<&Config::qte_always_win>("game.qte_always_win", "Always Win QTEs",
                                       "\"Always Win QTEs\"\nButton prompts always\nend in a perfect."),
+    Row{"game.language", "Language",
+        "\"Language\"\nThe language of the game;\nAsk shows the language\nscreen at start-up.", -1,
+        LanguageCount, LanguageChoice, SetLanguage, nullptr, "Ask|English|Francais|Deutsch|Italiano|Espanol"},
 };
 
 const Row kDisplayRows[] = {
@@ -595,6 +636,18 @@ const Tab kTabs[] = {
 };
 
 constexpr int kTabCount = static_cast<int>(std::size(kTabs));
+
+// The screen's fixed texts in English, with the keys their translations have.
+constexpr const char *kShortcutsText = PAD_GLYPH_SQUARE " Reset tab\n" PAD_GLYPH_TRIANGLE " Undo changes\n" PAD_GLYPH_CIRCLE
+                                                         " Close";
+constexpr const char *kSaveHelpText = "Could not save.\nChanges apply now.\nClose to retry writing\nconfig.json.";
+constexpr const char *kDisplayHelpText = "The display could not\nchange, and kept the\nmode it had. Try\nanother mode or size.";
+constexpr const char *kTabHelpText = "\"Options\"\n" PAD_GLYPH_L1 " " PAD_GLYPH_R1 " or left and right\nturn the page.";
+constexpr const char *kExitHelpText = PAD_GLYPH_CROSS " Close\n" PAD_GLYPH_SQUARE " This page's defaults\n" PAD_GLYPH_TRIANGLE
+                                                      " Undo every change\n" PAD_GLYPH_CIRCLE " Close from any row";
+constexpr const char *kDisplayNowText = "The display could not\nchange as asked. It is\nnow %1";
+constexpr const char *kFullscreenNowText = "fullscreen.";
+constexpr const char *kWindowNowText = "a %1 x %2\nwindow.";
 constexpr int kTabHelp = 998;
 constexpr int kExitHelp = 999;
 constexpr int kSaveHelp = 997;
@@ -669,20 +722,19 @@ struct Texts {
         right.Set(">");
         l1.Set(PAD_GLYPH_L1);
         r1.Set(PAD_GLYPH_R1);
-        shortcuts.Set(PAD_GLYPH_SQUARE " Reset tab\n" PAD_GLYPH_TRIANGLE " Undo changes\n" PAD_GLYPH_CIRCLE " Close");
-        help.Set(kSaveHelp, "Could not save.\nChanges apply now.\nClose to retry writing\nconfig.json.");
-        help.Set(kDisplayHelp, "The display could not\nchange, and kept the\nmode it had. Try\nanother mode or size.");
-        help.Set(kTabHelp, "\"Options\"\n" PAD_GLYPH_L1 " " PAD_GLYPH_R1 " or left and right\nturn the page.");
-        help.Set(kExitHelp, PAD_GLYPH_CROSS " Close\n" PAD_GLYPH_SQUARE " This page's defaults\n" PAD_GLYPH_TRIANGLE
-                                            " Undo every change\n" PAD_GLYPH_CIRCLE " Close from any row");
+        shortcuts.Set(LocalizeText("options.shortcuts", kShortcutsText));
+        help.Set(kSaveHelp, LocalizeText("options.help.save_failed", kSaveHelpText));
+        help.Set(kDisplayHelp, LocalizeText("options.help.display_kept", kDisplayHelpText));
+        help.Set(kTabHelp, LocalizeText("options.help.tabs", kTabHelpText));
+        help.Set(kExitHelp, LocalizeText("options.help.exit", kExitHelpText));
         int index = 0;
         for (int t = 0; t < kTabCount; ++t) {
-            tabs[t].Set(kTabs[t].name);
+            tabs[t].Set(LocalizeText(PageKey(kTabs[t].name), kTabs[t].name));
             for (const Row &row : kTabs[t].rows) {
-                labels.emplace_back().Set(row.label);
+                labels.emplace_back().Set(LocalizeText("options." + std::string(row.key) + ".label", row.label));
                 values.emplace_back();
                 if (row.help != nullptr) {
-                    help.Set(kRowHelp + index, row.help);
+                    help.Set(kRowHelp + index, LocalizeText("options." + std::string(row.key) + ".help", row.help));
                 }
                 ++index;
             }
@@ -690,9 +742,22 @@ struct Texts {
     }
 };
 
+std::unique_ptr<Texts> g_texts;
+int                    g_texts_language = -1;
+
 Texts &GetTexts() {
-    static Texts texts;
-    return texts;
+    if (!g_texts) {
+        g_texts = std::make_unique<Texts>();
+        g_texts_language = LanguageCode;
+    }
+    return *g_texts;
+}
+
+// The screen's text is laid out for a language; opening the screen in another lays it out again.
+void RefreshTextsForLanguage() {
+    if (g_texts && g_texts_language != LanguageCode) {
+        g_texts.reset();
+    }
 }
 
 int RowCount(int tab) {
@@ -828,10 +893,13 @@ void ShowHelp() {
         message = kDisplayHelp;
     } else if (DisplayGetWarning() == DisplayWarning::Changed) {
         WindowMode  mode = DisplayShownMode();
-        std::string now = mode.fullscreen ? "fullscreen." : std::format("a {} x {}\nwindow.", mode.width, mode.height);
+        std::string now = mode.fullscreen ? LocalizeText("options.display.fullscreen_now", kFullscreenNowText)
+                                          : LocalizeFormat(LocalizeText("options.display.window_now", kWindowNowText),
+                                                           {std::to_string(mode.width), std::to_string(mode.height)});
         if (now != g_screen.display_now) {
             g_screen.display_now = now;
-            GetTexts().help.Set(kDisplayNowHelp, "The display could not\nchange as asked. It is\nnow " + now);
+            GetTexts().help.Set(kDisplayNowHelp,
+                                LocalizeFormat(LocalizeText("options.help.display_now", kDisplayNowText), {now}));
             buffer = GetTexts().help.Data();
             mes.mes_made = -1;
         }
@@ -1270,6 +1338,7 @@ PC_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
         return 0;
     }
 
+    RefreshTextsForLanguage();
     g_screen.open = true;
     g_screen.mode = mode;
     g_screen.block_no = block_no;
@@ -1475,7 +1544,7 @@ PC_OVERRIDE void DrawMenuOption() {
         int        choice = row.get(config);
         texts.labels[index + r].Draw(kLabelX, y, alpha);
         GameText   &value = texts.values[index + r];
-        std::string text = row.text != nullptr ? row.text(config) : ChoiceName(row.names, choice);
+        std::string text = row.text != nullptr ? ValueText(row, row.text(config)) : ChoiceText(row, choice);
         if (ConfigAppliesOnRestart(row.key)) {
             text += " *";
         }
@@ -1497,4 +1566,45 @@ PC_OVERRIDE void DrawMenuOption() {
 
 PC_OVERRIDE int OptionMenuFadeOutStart() {
     return g_screen.step == OPTION_STEP_FADE_OUT;
+}
+
+std::vector<std::pair<std::string, std::string>> OptionStrings() {
+    std::vector<std::pair<std::string, std::string>> out;
+    // Rows may share a key (the key-binding rows share one help); the same text twice is listed once, and two
+    // texts under one key are both kept for the tests to find.
+    auto add = [&](std::string key, std::string english) {
+        for (const auto &[have_key, have_english] : out) {
+            if (have_key == key && have_english == english) {
+                return;
+            }
+        }
+        out.emplace_back(std::move(key), std::move(english));
+    };
+    add("options.shortcuts", kShortcutsText);
+    add("options.help.save_failed", kSaveHelpText);
+    add("options.help.display_kept", kDisplayHelpText);
+    add("options.help.tabs", kTabHelpText);
+    add("options.help.exit", kExitHelpText);
+    add("options.help.display_now", kDisplayNowText);
+    add("options.display.fullscreen_now", kFullscreenNowText);
+    add("options.display.window_now", kWindowNowText);
+    for (const Tab &tab : kTabs) {
+        add(PageKey(tab.name), tab.name);
+        for (const Row &row : tab.rows) {
+            const std::string prefix = "options." + std::string(row.key);
+            add(prefix + ".label", row.label);
+            if (row.help != nullptr) {
+                add(prefix + ".help", row.help);
+            }
+            if (row.names != nullptr) {
+                const int count = row.count(ConfigGet());
+                for (int choice = 0; choice < count; ++choice) {
+                    add(prefix + ".choice." + std::to_string(choice), ChoiceName(row.names, choice));
+                }
+            }
+        }
+    }
+    add("options.video.width.value.Desktop", "Desktop");
+    add("options.video.max_fps.value.Unlimited", "Unlimited");
+    return out;
 }

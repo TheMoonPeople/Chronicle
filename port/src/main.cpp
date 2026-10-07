@@ -16,6 +16,7 @@
 #include "gamemode.hpp"
 #include "gfx/gfx.hpp"
 #include "langset.hpp"
+#include "localize.hpp"
 #include "menu_option.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
@@ -56,6 +57,7 @@ struct Options {
     bool         fast_load = false;
     bool         show_fps = false;
     bool         screenshot_fps = false;
+    const char  *export_text = nullptr;
 };
 
 Options g_options;
@@ -80,6 +82,7 @@ Options g_options;
                  "  --screenshot-fps   with --screenshot and --show-fps: the image as a window shows it, the\n"
                  "                     FPS counter over it\n"
                  "  --display-per-tick N  headless: also render N interpolated display frames per tick\n"
+                 "  --export-text DIR  write the game's message files to DIR as language JSON (docs/LOCALIZATION.md)\n"
                  "  --show-fps         draw the FPS counter on presented frames when headless too\n"
                  "test hooks:\n"
                  "  --jump MODE[:MAP]  start in edit:<map>, dungeon:<0-6>, title, rush, opening or menu,\n"
@@ -126,6 +129,8 @@ Options ParseOptions(int argc, const char **argv) {
             options.jump = value();
         } else if (arg == "--fast-load") {
             options.fast_load = true;
+        } else if (arg == "--export-text") {
+            options.export_text = value();
         } else if (arg == "--show-fps") {
             options.show_fps = true;
         } else if (arg == "--screenshot-fps") {
@@ -334,6 +339,21 @@ int Run(int argc, const char **argv) {
     const char *fast_load = std::getenv("DC_FAST_LOAD");
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
     RequireData();
+    if (options.export_text == nullptr) {
+        // Once per save folder: the extracted data's text as JSON for translators (docs/LOCALIZATION.md).
+        std::filesystem::path seed = PathsSaveRoot() / "lang-export";
+        std::error_code       error;
+        if (!std::filesystem::exists(seed / "en_gb.json", error)) {
+            std::fprintf(stderr, "exporting the game text to %s\n", PathsDisplay(seed).c_str());
+            if (LocalizeExport(seed, false) < 0) {
+                std::fprintf(stderr, "the game text could not be exported\n");
+            }
+        }
+    }
+    if (options.export_text != nullptr) {
+        // The game's message files as language JSON for translators; no window, no game.
+        return LocalizeExport(options.export_text, true) >= 0 ? kExitOk : kExitUsage;
+    }
     LoadInputScript(options.input);
 
     ConfigLoad();
@@ -366,6 +386,7 @@ int Run(int argc, const char **argv) {
     ConfigAddChangeHook(ApplyConfigChange);
     ConfigAddChangeHook(DisplayChanged);
     ConfigAddChangeHook(GameOptionsChanged);
+    ConfigAddChangeHook(LocalizeConfigChanged);
 
     int status = RunGame(argc, const_cast<char **>(argv));
     if (status == kExitOk && options.screenshot != nullptr) {
@@ -373,6 +394,7 @@ int Run(int argc, const char **argv) {
     }
     ReportPresentStats();
 
+    ConfigRemoveChangeHook(LocalizeConfigChanged);
     ConfigRemoveChangeHook(GameOptionsChanged);
     ConfigRemoveChangeHook(DisplayChanged);
     ConfigRemoveChangeHook(ApplyConfigChange);
