@@ -12,6 +12,7 @@
 #include "collision.hpp"
 #include "editground.hpp"
 #include "gameutil.hpp"
+#include "gamepad.hpp"
 #include "mouse_collision.hpp"
 #include "platform/input.hpp"
 
@@ -34,6 +35,19 @@ struct Share {
 
 Share g_turn;
 
+// Only a gameplay height read grants ownership for this pad read. Scripted height changes,
+// floor clearance and controller-only cameras retain their retail behavior.
+struct HeightControl {
+    CCameraFollow *camera = nullptr;
+    std::uint64_t read = 0;
+    float input_delta = 0.0f;
+    bool input_pending = false;
+    bool native = false;
+    bool moving = false;
+    bool stick = false;
+};
+HeightControl g_height;
+
 struct TownRequest {
     bool           open = false;
     CCameraFollow *camera = nullptr;
@@ -43,6 +57,7 @@ struct TownRequest {
     std::uint64_t  read = 0;
     float          yaw = 0.0f;
     bool           fishing = false;
+    bool           recorded = false;
 };
 
 TownRequest g_town;
@@ -90,17 +105,50 @@ float MouseLookTurn(CCameraFollow *camera, float radians, float stick) {
     return reading;
 }
 
-float MouseLookRise(CCameraFollow *camera, float stick, float ceiling) {
-    float pitch = InputGetMouseLook().pitch;
-    if (pitch == 0.0f) {
+float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float floor) {
+    const InputMouseLook &look = InputGetMouseLook();
+    float pitch = look.pitch;
+    bool native = g_height.camera == camera && g_height.native;
+    if (!camera->follow_on || CCamera::StopCamera) {
+        g_height = {};
         return stick;
     }
     float height = camera->GetHeight();
-    float rise = MouseLookTiltHeight(height, camera->GetDistance(), pitch) - height;
-    if (rise > 0.0f) {
-        rise = std::min(rise, std::max(ceiling - height, 0.0f));
+    float target = MouseLookTiltHeight(height, camera->GetDistance(), pitch);
+    if (pitch < 0.0f) {
+        target = std::min(target, std::max(height, ceiling));
+    } else if (pitch > 0.0f) {
+        target = std::max(target, std::min(height, floor));
     }
-    return stick - rise;
+    float reading = stick - (target - height);
+    g_height = {camera, look.read, -reading, true, native || pitch != 0.0f || look.yaw != 0.0f,
+                pitch != 0.0f, stick != 0.0f};
+    return reading;
+}
+
+float MouseLookHeightDelta(CCameraFollow *camera, float delta) {
+    if (g_height.camera != camera || g_height.read != InputGetMouseLook().read ||
+        !camera->follow_on || CCamera::StopCamera) {
+        return delta;
+    }
+    if (g_height.input_pending && delta == g_height.input_delta) {
+        g_height.input_pending = false;
+        return delta;
+    }
+    if (!g_height.native || g_height.stick) {
+        return delta;
+    }
+    // EdMoveChara and autoCamTrial use this exact descent toward their baseline.
+    // Recognize that operation rather than slowing arbitrary camera or collision changes.
+    for (float baseline : {5.0f, 35.0f}) {
+        if (camera->height > 5.0f) {
+            float drop = std::clamp((camera->height - baseline) * 0.05f, 0.15f, 0.5f);
+            if (delta == -drop) {
+                return g_height.moving ? 0.0f : delta * 0.2f;
+            }
+        }
+    }
+    return delta;
 }
 
 float MouseLookTakeTurn(CCameraFollow *camera, float delta) {
@@ -186,7 +234,25 @@ void TownMouseRecord(CCameraFollow *camera, bool fishing) {
     if (g_town.open && g_town.camera == camera && g_town.read == InputGetMouseLook().read && g_town.yaw == 0.0f) {
         g_town.yaw = InputGetMouseLook().yaw;
         g_town.fishing = fishing;
+        g_town.recorded = true;
     }
+}
+
+float MouseLookTownTurnDelta(CCameraFollow *camera, float delta) {
+    const InputMouseLook &look = InputGetMouseLook();
+    if (!g_town.open || !g_town.recorded || g_town.camera != camera || g_town.read != look.read ||
+        g_town.fishing || g_height.camera != camera || g_height.read != look.read || !g_height.native ||
+        !camera->follow_on || CCamera::StopCamera || GamePad.GetRXf() != 0.0f ||
+        GamePad.On(kInputL1 | kInputR1) != 0) {
+        return delta;
+    }
+    // EdMoveChara's walking drift is 2 degrees times a clamped 0.4..1.0 stick share.
+    // The explicit recenter button (0.1 radians), side buttons and collision turns keep priority.
+    constexpr float degree = std::numbers::pi_v<float> / 180.0f;
+    if (std::fabs(delta) >= 2.0f * degree * 0.4f - 1e-6f && std::fabs(delta) <= 2.0f * degree + 1e-6f) {
+        return look.yaw != 0.0f ? 0.0f : delta;
+    }
+    return delta;
 }
 
 void TownMouseApply(CCamera *shown, CEditGround *ground, int map, int mode) {

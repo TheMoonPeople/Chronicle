@@ -10,6 +10,7 @@
 #include "snd.hpp"
 
 #include "platform/config.hpp"
+#include "platform/input.hpp"
 
 struct EB_KEY {
     int frame;
@@ -229,7 +230,17 @@ PC_OVERRIDE float EdGetRYf(int mode) {
     if (PortEdCheckKeyMode(mode)) {
         CCameraFollow *camera = EdMoveCharaInfo.camera;
         float          stick = GamePad.GetRYf();
-        return camera != NULL ? MouseLookRise(camera, stick, EdDebugCameraFlag == 0 ? 30.0f : INFINITY) : stick;
+        if (camera == NULL) {
+            return stick;
+        }
+        float reading = MouseLookRise(camera, stick, EdDebugCameraFlag == 0 ? 30.0f : INFINITY, 5.0f);
+        // Retail ignores RY at the ceiling, including a request to lower the camera. Let a
+        // native mouse reversal leave that ceiling; the subsequent floor checks still apply.
+        if (EdDebugCameraFlag == 0 && camera->GetHeight() >= 30.0f && InputGetMouseLook().pitch > 0.0f) {
+            camera->AddHeight(-reading);
+            return 0.0f;
+        }
+        return reading;
     }
 
     return 0.0f;

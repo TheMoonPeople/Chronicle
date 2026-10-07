@@ -5,6 +5,10 @@
 
 #include "camera_port.hpp"
 
+PC_OVERRIDE void CCameraFollow::AddHeight(float delta) {
+    this->height += MouseLookHeightDelta(this, delta);
+}
+
 // Retail's AddAngle, which sets only where the camera is turning to, plus the mouse's share of the
 // delta (camera_port.hpp) applied to where it is as well: the angle and the eye turn about the point
 // the eye looks at at once. The angle stays within half a turn, so Step's interpolation still sees
@@ -14,7 +18,7 @@ PC_OVERRIDE void CCameraFollow::AddAngle(float delta) {
     float mouse = MouseLookTakeTurn(this, delta);
 
     if (mouse == 0.0f || !this->follow_on || CCamera::StopCamera) {
-        this->next_angle += delta;
+        this->next_angle += MouseLookTownTurnDelta(this, delta);
         return;
     }
 

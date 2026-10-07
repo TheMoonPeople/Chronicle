@@ -182,6 +182,120 @@ TEST(PlatformMouseLook, FollowCameraHeightStaysInBounds) {
     ASSERT_NEAR(MouseLookRise(&camera, 0.0f, 30.0f), -1.0f, 1e-4f);
 }
 
+TEST(PlatformMouseLook, ThirdPersonHeightKeepsTheFollowTargetAndSoftensDescent) {
+    Settings(0.2f, false);
+    CCameraFollow camera(60.0f, 5.0f, 0.0f, 8.0f);
+    camera.SetFollow(12.0f, 14.0f, 20.0f);
+    camera.Step(-1);
+    Move(0.0f, 1000.0f);
+    InputLatchPad(0);
+    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
+    ASSERT_FLOAT_EQ(camera.height, 30.0f);
+    camera.AddHeight(-0.5f); // The retail descent must not fight this mouse read.
+    ASSERT_FLOAT_EQ(camera.height, 30.0f);
+    for (int frame = 0; frame < 60; ++frame) {
+        ClockPump();
+        InputLatchPad(0);
+        camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
+        camera.AddHeight(-std::clamp((camera.height - 5.0f) * 0.05f, 0.15f, 0.5f));
+        camera.Step(1);
+        ASSERT_FLOAT_EQ(camera.ref[0], 12.0f);
+        ASSERT_FLOAT_EQ(camera.ref[1], 14.0f);
+        ASSERT_FLOAT_EQ(camera.ref[2], 20.0f);
+        ASSERT_NEAR(std::hypot(camera.pos[0] - camera.ref[0], camera.pos[2] - camera.ref[2]), 60.0f, 1e-4f);
+        ASSERT_GT(camera.pos[1], camera.ref[1]);
+    }
+    // Retail would already be nearly back to baseline after one second.
+    ASSERT_NEAR(camera.height, 24.0f, 1e-3f);
+    // Collision raises remain immediate, even during mouse ownership.
+    camera.AddHeight(7.0f);
+    ASSERT_NEAR(camera.height, 31.0f, 1e-3f);
+    // No gameplay height read in this pad read: a scripted descent stays retail.
+    ClockPump();
+    InputLatchPad(0);
+    camera.AddHeight(-0.5f);
+    ASSERT_NEAR(camera.height, 30.5f, 1e-3f);
+}
+
+TEST(PlatformMouseLook, ThirdPersonHeightBoundsReverseAndLeaveControllerUnchanged) {
+    Settings(0.2f, false);
+    CCameraFollow camera(60.0f, 30.0f, 0.0f, 8.0f);
+    camera.Step(-1);
+    Move(0.0f, -1000.0f);
+    InputLatchPad(0);
+    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
+    ASSERT_FLOAT_EQ(camera.height, 5.0f);
+    Move(0.0f, 10.0f);
+    InputLatchPad(0);
+    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
+    ASSERT_GT(camera.height, 5.0f);
+    // Explicit stick input retains both its height delta and retail descent.
+    camera.SetHeight(20.0f);
+    InputLatchPad(0);
+    camera.AddHeight(-MouseLookRise(&camera, 0.5f, 30.0f, 5.0f));
+    ASSERT_FLOAT_EQ(camera.height, 19.5f);
+    camera.AddHeight(-0.5f);
+    ASSERT_FLOAT_EQ(camera.height, 19.0f);
+    camera.FollowOff();
+    MouseLookRise(&camera, 0.0f, 30.0f, 5.0f);
+    camera.FollowOn();
+    camera.AddHeight(-0.5f);
+    ASSERT_FLOAT_EQ(camera.height, 18.5f);
+}
+
+TEST(PlatformMouseLook, TownMouseCanLowerTheCameraAtItsCeiling) {
+    Settings(0.2f, false);
+    CCameraFollow camera(60.0f, 30.0f, 0.0f, 8.0f);
+    camera.Step(-1);
+    EdMoveCharaInfo.camera = &camera;
+    EdMoveCharaInfo.interior = 0;
+    EdDebugCameraFlag = 0;
+    Move(0.0f, -10.0f);
+    InputLatchPad(0);
+    ASSERT_FLOAT_EQ(EdGetRYf(1), 0.0f);
+    ASSERT_LT(camera.height, 30.0f);
+    ASSERT_GT(camera.height, 5.0f);
+}
+
+TEST(PlatformMouseLook, TownWalkingDriftDoesNotFightNativeMouse) {
+    static unsigned char dma[2][1024];
+    ASSERT_TRUE(scePadInit(0) == 1 && scePadPortOpen(0, 0, dma[0]) == 1 && scePadPortOpen(1, 0, dma[1]) == 1);
+    Settings(0.2f, false);
+    InputPadState pad;
+    pad.connected = true;
+    InputSetOverride(0, &pad);
+    for (int i = 0; i < 4; ++i) {
+        GamePad.UpDate();
+    }
+    ASSERT_FLOAT_EQ(GamePad.GetRXf(), 0.0f);
+    InputSetOverride(0, nullptr);
+    CCameraFollow camera(60.0f, 5.0f, 0.0f, 8.0f);
+    camera.Step(-1);
+    constexpr float drift = -2.0f * kDegree;
+    Move(30.0f, 0.0f);
+    InputLatchPad(0);
+    TownMouseBegin(&camera, nullptr, 0, 0);
+    TownMouseRecord(&camera, false);
+    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
+    camera.AddAngle(drift);
+    ASSERT_FLOAT_EQ(camera.next_angle, 0.0f);
+    ClockPump();
+    InputLatchPad(0);
+    TownMouseBegin(&camera, nullptr, 0, 0);
+    TownMouseRecord(&camera, false);
+    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
+    camera.AddAngle(drift);
+    ASSERT_NEAR(camera.next_angle, drift, 1e-6f);
+    // The explicit recenter button retains its full turn.
+    camera.AddAngle(0.1f);
+    ASSERT_NEAR(camera.next_angle, drift + 0.1f, 1e-6f);
+    // Closing the gameplay request releases ownership.
+    TownMouseApply(&camera, nullptr, 0, 0);
+    float before = camera.next_angle;
+    camera.AddAngle(drift);
+    ASSERT_NEAR(camera.next_angle - before, drift, 1e-6f);
+}
+
 TEST(PlatformMouseLook, InteriorEyeTurnsTheCharacter) {
     static unsigned char dma[2][1024];
     ASSERT_TRUE(scePadInit(0) == 1 && scePadPortOpen(0, 0, dma[0]) == 1 && scePadPortOpen(1, 0, dma[1]) == 1);

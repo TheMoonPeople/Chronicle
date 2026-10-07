@@ -29,8 +29,16 @@ float MouseLookTurn(CCameraFollow *camera, float radians, float stick);
 // The stick's reading plus the mouse's tilt this tick, for a follow camera that lowers its eye by
 // AddHeight(-reading): the change of height that tilts the line from the eye to the point it
 // circles by the mouse's angle, mouse up looking up. The mouse raises the eye no higher than
-// ceiling.
-float MouseLookRise(CCameraFollow *camera, float stick, float ceiling);
+// ceiling, and never requests a height below floor. The eye continues looking at the follow
+// target; height changes keep the retail easing and collision correction.
+float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float floor = 1.6f);
+
+// Preserves manual input and floor clearance, but slows the retail baseline descent to one fifth
+// after native mouse use. Only an active gameplay height read owns this operation.
+float MouseLookHeightDelta(CCameraFollow *camera, float delta);
+
+// Prevents the town's walking drift from fighting active mouse motion. Idle behavior stays retail.
+float MouseLookTownTurnDelta(CCameraFollow *camera, float delta);
 
 // The mouse's share of an AddAngle delta on camera: nonzero only for the delta of the reading
 // MouseLookTurn last gave for it in the current pad read. Any AddAngle on that camera ends the
