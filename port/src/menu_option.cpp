@@ -71,6 +71,7 @@ constexpr int kValueRight = 554;
 constexpr int kBarX = 580;
 constexpr int kExitX = 136;
 constexpr int kExitY = 352;
+constexpr int kExitHeight = 31;
 // A help window's frame round its middle (MenuHelpWinDraw): 24 pixels a side and 22 above and below.
 constexpr int kPlateSide = 24;
 constexpr int kPlateHeight = 44;
@@ -541,7 +542,7 @@ const Row kControlRows[] = {
     OnOffRow<&Config::mouse_invert_y>("input.mouse_invert_y", "Invert Mouse Y",
                                       "\"Invert Mouse Y\"\nMoving the mouse up\nlooks down."),
     OnOffRow<&Config::mouse_zoom>("input.mouse_zoom", "Mouse Wheel Zoom",
-                                  "\"Mouse Wheel Zoom\"\nScroll to move closer\nor farther from Toan."),
+                                  "\"Mouse Wheel Zoom\"\nScroll to move closer\nor farther from your\ncharacter."),
     Row{"input.bindings.zoom_reset", "Reset Zoom", "\"Reset Zoom\"\nRestores the normal\ncamera distance.",
         -1, ZoomResetCount, ZoomResetChoice, SetZoomReset, ZoomResetText, nullptr, RestoreZoomReset},
     Row{"input.stick_sensitivity", "Stick Sensitivity", "\"Stick Sensitivity\"\nHow far a gamepad's\nstick has to tilt.",
@@ -952,7 +953,7 @@ void RunMouse() {
             over_row = r;
         }
     }
-    if (Inside(x, y, kExitX, kExitY, kExitX + 60, kExitY + 29)) {
+    if (Inside(x, y, kExitX, kExitY, kExitX + 60, kExitY + kExitHeight)) {
         over_row = rows;
     }
     for (int t = 0; t < kTabCount; ++t) {
@@ -1396,7 +1397,7 @@ PC_OVERRIDE void DrawMenuOption() {
     DrawTabPlate(alpha);
     DrawScrollBar(alpha);
     MenuTextureReload(g_screen.block_no);
-    DrawSprite(kExitX, kExitY, 452, 224, 60, 29, alpha);
+    DrawSprite(kExitX, kExitY, 452, 224, 60, kExitHeight, alpha);
 
     if (g_screen.step == OPTION_STEP_RUN) {
         // The brackets go round whatever a click would act on.
