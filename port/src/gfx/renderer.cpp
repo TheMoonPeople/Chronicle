@@ -303,6 +303,8 @@ void CreateDevice() {
     features13.pNext = g.dynamic_color_write_mask ? &dynamic3 : dynamic3.pNext;
     features13.dynamicRendering = VK_TRUE;
     features13.synchronization2 = VK_TRUE;
+    // The fragment shaders' discard compiles to OpDemoteToHelperInvocation, which needs this on.
+    features13.shaderDemoteToHelperInvocation = VK_TRUE;
 
     VkPhysicalDeviceVulkan12Features features12 = {};
     features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;

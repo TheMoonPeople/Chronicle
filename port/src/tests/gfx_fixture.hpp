@@ -39,7 +39,7 @@ struct GfxFixture {
 
     GfxFixture(int width, int height, float render_scale, const GfxOptions &options) {
         // Synchronization validation too, unless the environment already chose layer features.
-        dc::test::SetEnv("VK_LAYER_ENABLES", "VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT", 0);
+        dc::test::SetEnv("VK_LAYER_VALIDATE_SYNC", "1", 0);
         WindowConfig window{width, height, true};
         window.vulkan = !options.offscreen;
         WindowInit(window);
