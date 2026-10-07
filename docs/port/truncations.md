@@ -61,7 +61,7 @@ recovered, as `CCharacter::ClothStep` does with `PortImagePointer`) fixes the ro
 | site | function | state | class | expression | origin | use |
 |---|---|---|---|---|---|---|
 | port/src/dataread.cpp:184 | LoadFileBG | port | low-bits | `reinterpret_cast < std :: uintptr_t >(buffer)` | parameter | test |
-| port/src/edit_in.cpp:1757 | LoadData | port | low-bits | `(intptr_t)func_point[i].parts` | field | index: InteriorParts[(int)(intptr_t)func_point[i].parts] |
+| port/src/edit_in.cpp:1758 | LoadData | port | low-bits | `(intptr_t)func_point[i].parts` | field | index: InteriorParts[(int)(intptr_t)func_point[i].parts] |
 | port/src/editloop_init.cpp:405 | EditInit | port | low-bits | `reinterpret_cast < std :: intptr_t >(EdNPCReadBuffer)` | global pointer | store: read_misalign |
 | port/src/texture_buffer.cpp:14 | CTextureManager::SetBuffer | port | low-bits | `reinterpret_cast < std :: uintptr_t >(this->buffer)` | field | store: misalignment |
 | ps2/src/dataset.cpp:381 | LoadMDSFile | retail | low-bits | `(int)data` | parameter | test |
