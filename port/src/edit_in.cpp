@@ -11,6 +11,7 @@
 #include "battlemenu.hpp"
 #include "boxvu0.hpp"
 #include "camera.hpp"
+#include "camera_port.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
@@ -1259,7 +1260,7 @@ static void MoveCharacter() {
 }
 
 /**
- * Applies the right stick to the interior camera, holding its height and distance in
+ * Applies the right stick and the mouse to the interior camera, holding its height and distance in
  * range.
  *
  * @mangled MoveCamera__FP13CCameraFollow__2
@@ -1270,8 +1271,8 @@ static void MoveCharacter() {
 static void MoveCamera(CCameraFollow *camera) {
     static float camera_distance[3] = {20.0f, 60.0f, 100.0f};
 
-    float horizontal = GamePad.GetRXf();
-    camera->AddHeight(-GamePad.GetRYf());
+    float horizontal = MouseLookTurn(camera, 0.04f, GamePad.GetRXf());
+    camera->AddHeight(-MouseLookRise(camera, GamePad.GetRYf(), 30.0f));
 
     if (!(camera->GetHeight() <= 30.0f)) {
         camera->SetHeight(30.0f);

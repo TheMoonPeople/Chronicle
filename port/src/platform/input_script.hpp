@@ -14,10 +14,9 @@
 //
 // and holds those buttons (and sticks, centred when omitted) on that pad (pad 1 when omitted) from
 // that frame of the game's main loop until the pad's next line. Keys (SDL names), mouse buttons and
-// mouse motion (pixels per tick) go through the keyboard and mouse bindings as live input does, on
-// pad 1 only. Frame 0 covers the start-up
-// warm-up too. `#` starts a comment. Pad 1 is held released before its first line; pad 2 is left to
-// its device unless a line names it.
+// mouse motion (counts per tick) go through the keyboard and mouse bindings and the mouse look as
+// live input does, on pad 1 only. Frame 0 covers the start-up warm-up too. `#` starts a comment.
+// Pad 1 is held released before its first line; pad 2 is left to its device unless a line names it.
 
 struct InputScriptStep {
     std::int64_t       frame = 0;

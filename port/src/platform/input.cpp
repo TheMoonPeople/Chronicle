@@ -72,9 +72,8 @@ constexpr Action kActions[] = {
     {"ry+",          ActionKind::HalfAxis, 0,              kAxisRightY, 1,  "K"},
     {"lx",           ActionKind::Axis,     0,              kAxisLeftX,  0,  ""},
     {"ly",           ActionKind::Axis,     0,              kAxisLeftY,  0,  ""},
-    {"rx",           ActionKind::Axis,     0,              kAxisRightX, 0,  "MouseX"},
-    // Mouse up looks up: a negative ry lowers the follow camera (AddHeight(-GetRYf())).
-    {"ry",           ActionKind::Axis,     0,              kAxisRightY, 0,  "-MouseY"},
+    {"rx",           ActionKind::Axis,     0,              kAxisRightX, 0,  ""},
+    {"ry",           ActionKind::Axis,     0,              kAxisRightY, 0,  ""},
     {"fps_toggle",   ActionKind::Host,     0,              kAxisLeftX,  0,  "F3"},
     {"developer_menu", ActionKind::Host,   0,              kAxisLeftX,  0,  "Gamepad:paddle2"},
     {"debug_menu",   ActionKind::Host,     0,              kAxisLeftX,  0,  "Gamepad:paddle1"},
@@ -129,6 +128,12 @@ constexpr Uint32 kRumbleMilliseconds = 500;
 constexpr int kMouseButtonCount = 5;
 
 constexpr float kGyroDeadband = 0.03f;
+// A stick bound to the mouse takes the deflection that turns the dungeon's camera (0.04 radians a
+// tick at full deflection, dun/gameloop.cpp:4336) as far as the mouse look would.
+constexpr float kMouseStickRadians = 0.04f;
+
+// Longer between two reads of pad 0 and the game was loading, not looking.
+constexpr double kMouseLookMaxGapSeconds = 0.25;
 
 struct Source {
     enum Kind {
@@ -161,6 +166,7 @@ std::array<std::optional<InputPadState>, kInputPadCount> g_override;
 std::array<bool, SDL_SCANCODE_COUNT>                     g_keys{};
 float                                                    g_mouse_dx = 0.0f;
 float                                                    g_mouse_dy = 0.0f;
+InputMouseLook                                           g_mouse_look;
 std::int64_t                                             g_last_latch_tick = -1;
 std::int64_t                                             g_latch_serial = 0;
 std::int64_t                                             g_stick_read_serial = -1;
@@ -498,6 +504,27 @@ bool HostPolledHeld(std::size_t host) {
     return false;
 }
 
+bool MouseAxisBound(int code) {
+    return std::ranges::any_of(g_bindings, [&](const std::vector<Source> &sources) {
+        return std::ranges::any_of(sources, [&](const Source &source) {
+            return source.kind == Source::MouseAxis && source.code == code;
+        });
+    });
+}
+
+float MouseRadiansPerCount() { return g_mouse.sensitivity * std::numbers::pi_v<float> / 180.0f; }
+
+InputMouseLook MouseLookFromMotion(float dx, float dy) {
+    InputMouseLook look;
+    if (!MouseAxisBound(0)) {
+        look.yaw = dx * MouseRadiansPerCount();
+    }
+    if (!MouseAxisBound(1)) {
+        look.pitch = (g_mouse.invert_y ? dy : -dy) * MouseRadiansPerCount();
+    }
+    return look;
+}
+
 void PollHostActions() {
     for (std::size_t host = 0; host < kHostActionCount; ++host) {
         bool held = HostPolledHeld(host);
@@ -564,6 +591,7 @@ void InputShutdown() {
     g_menu_mouse = false;
     g_menu_dx = 0.0f;
     g_menu_dy = 0.0f;
+    g_mouse_look = {0.0f, 0.0f, g_mouse_look.read};
     g_keys.fill(false);
     g_scripted = {};
     g_host_presses.fill(0);
@@ -619,6 +647,7 @@ void InputHandleEvent(const SDL_Event &event) {
             break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             g_keys.fill(false);
+            g_mouse_look.yaw = g_mouse_look.pitch = 0.0f;
             g_menu_dx = 0.0f;
             g_menu_dy = 0.0f;
             break;
@@ -650,6 +679,18 @@ void InputLatchPad(int pad) {
     }
     g_mouse_dx = dx / static_cast<float>(ticks);
     g_mouse_dy = dy / static_cast<float>(ticks);
+    // The look takes the whole motion rather than a per-tick speed, so the camera turns by what the
+    // mouse moved, once, however the reads fall against the display's frames.
+    if (g_override[0] && !g_menu_mouse) {
+        dx = g_scripted.mouse_dx;
+        dy = g_scripted.mouse_dy;
+    } else if (static_cast<double>(ticks) > kMouseLookMaxGapSeconds * ClockTickRate()) {
+        dx = 0.0f;
+        dy = 0.0f;
+    }
+    std::uint64_t read = g_mouse_look.read + 1;
+    g_mouse_look = MouseLookFromMotion(dx, dy);
+    g_mouse_look.read = read;
     Compose(0);
 }
 
@@ -662,6 +703,7 @@ void InputSetMenuMouse(bool on) {
     MouseTakeMotion(dx, dy);
     g_mouse_dx = 0.0f;
     g_mouse_dy = 0.0f;
+    g_mouse_look.yaw = g_mouse_look.pitch = 0.0f;
     MouseTakeWheel();
     Compose(0);
 }
@@ -680,6 +722,7 @@ InputMenuMouse InputTakeMenuMouse() {
     g_menu_dy = 0.0f;
     return mouse;
 }
+const InputMouseLook &InputGetMouseLook() { return g_mouse_look; }
 
 void InputNoteLeftStickRead() { g_stick_read_serial = g_latch_serial; }
 
@@ -747,8 +790,8 @@ InputPadState InputApplyKeyboardMouse(InputPadState base, const InputKeyboardMou
                     if (g_menu_mouse) {
                         break;
                     }
-                    mouse[kActions[i].axis] +=
-                        source.scale * g_mouse.sensitivity * (source.code == 0 ? held.mouse_dx : mouse_y);
+                    mouse[kActions[i].axis] += source.scale * MouseRadiansPerCount() / kMouseStickRadians *
+                                               (source.code == 0 ? held.mouse_dx : mouse_y);
                     break;
                 case Source::GamepadButton:
                     break;

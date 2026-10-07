@@ -58,8 +58,8 @@ struct InputKeyboardMouse {
 };
 
 struct InputMouseSettings {
-    // Stick deflection (1 is full) per pixel of motion in one tick.
-    float            sensitivity = 0.1f;
+    // Degrees of camera turn per count of mouse motion.
+    float            sensitivity = 0.2f;
     bool             invert_y = false;
     bool             capture = true;
     std::vector<int> release_scancodes;
@@ -86,10 +86,24 @@ void InputPoll();
 // The window event hook InputInit installs: keys, mouse buttons and motion, focus.
 void InputHandleEvent(const SDL_Event &event);
 
-// The game is about to read pad: the mouse motion since the previous read becomes the stick
-// deflection for this read, and whether the game read the left stick since then decides whether
-// stick_dpad applies to it.
+// The game is about to read pad: the mouse motion since the previous read becomes this read's mouse
+// look (and the deflection of a stick bound to the mouse), and whether the game read the left stick
+// since then decides whether stick_dpad applies to it.
 void InputLatchPad(int pad);
+
+// How far the mouse turns the camera over one tick, in radians: the motion between the game's last
+// two reads of pad 0 at input.mouse_sensitivity, the script's motion while one drives the pad. yaw
+// above zero turns the view right, pitch above zero looks up. An axis a stick binding takes the
+// mouse for (MouseX, MouseY) reads zero. Motion during a pause in the reads longer than a quarter
+// of a second, a load, is dropped.
+struct InputMouseLook {
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+    // Which read of pad 0 this is, counting from 1.
+    std::uint64_t read = 0;
+};
+
+const InputMouseLook &InputGetMouseLook();
 
 // The game read pad 0's left stick (CGamePad::GetLX/GetLY, port/src/gamepad.cpp).
 void InputNoteLeftStickRead();
@@ -120,8 +134,8 @@ std::uint8_t InputStickByte(float deflection);
 
 // Rebinds one action ("cross", "up", "lx-", "rx", ...) to the names given: SDL key names, Mouse1 to
 // Mouse5 (left, right, middle, X1, X2), and for the whole-axis actions lx ly rx ry MouseX or MouseY
-// with an optional sign and scale (-MouseY, MouseX*0.5). Returns false if the action or a name is
-// unknown or does not fit the action.
+// with an optional sign and scale (-MouseY, MouseX*0.5), which make the mouse a stick instead of
+// the camera's own. Returns false if the action or a name is unknown or does not fit the action.
 bool InputBindKeys(std::string_view action, std::span<const std::string_view> keys);
 
 // Restores the default bindings and mouse settings.

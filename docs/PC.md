@@ -125,7 +125,7 @@ key is optional; these are the defaults:
         "sound": "stereo"           // stereo or mono
     },
     "input": {
-        "mouse_sensitivity": 0.1,   // right-stick deflection (1 = full) per pixel moved in one tick
+        "mouse_sensitivity": 0.2,   // degrees the camera turns per count of mouse motion
         "stick_sensitivity": 1.33,  // gamepad stick scale before the game's dead zone (PCSX2's default)
         "stick_invert_x": false,    // the gamepad's camera stick, flipped left to right
         "stick_invert_y": false,    // ...and up and down
@@ -139,7 +139,7 @@ key is optional; these are the defaults:
         "vibration": true,          // the gamepad's rumble
         "bindings": {
             "cross": ["Mouse1", "Space"], // an action: its keys and mouse buttons; replaces the defaults
-            "ry": "-MouseY",        // lx ly rx ry take MouseX or MouseY, with a sign and a scale (MouseX*0.5)
+            "ry": "-MouseY*0.5",    // lx ly rx ry take MouseX or MouseY, with a sign and a scale: the mouse as that stick
             "fps_toggle": "F3"      // the FPS counter on and off
         }
     },
@@ -227,7 +227,7 @@ dungeon's `PadInput_OK` is cross and `PadInput_NO` circle,
 | Input | Pad | What the game does with it |
 |---|---|---|
 | WASD | left stick | walk (`dun/gameloop.cpp:3006`, the town's `EdMoveChara`); menus with `MenuModeOn` turn it into the d-pad; d-pad as well where nothing reads the stick (below) |
-| mouse motion | right stick | camera: `AddAngle(0.04 * -GetRXf())`, `AddHeight(-GetRYf())` (`dun/gameloop.cpp:4327`; the town's `MoveCamera`, `editloop.cpp:3793`) |
+| mouse motion | none | the camera, directly (see "Mouse look") |
 | left click, Space | cross | attack, open, talk (`dun/gameloop.cpp:3585`, `editloop.cpp:3885`); confirm |
 | right click, X | R1 | held while locked on: guard (`dun/gameloop.cpp:3347`, `guard_mode = 5` at :3374); unlocked, turns the camera (:4338) |
 | F | circle | lock on to the nearest enemy or let go; with none in range, swing the camera behind the character (`dun/gameloop.cpp:3243`); back in menus |
@@ -247,12 +247,12 @@ dungeon's `PadInput_OK` is cross and `PadInput_NO` circle,
 | gamepad L5 (`paddle4`) | none | held, the gyroscope turns the camera (`gyro` set to `held`) |
 
 The square button is not a guard in this game: the guard is R1 held while
-locked on, so right click is R1. The camera turns the way the view moves on
-PC: the follow camera sits at `follow + distance * (sin a, cos a)`
-(`camerafollow.cpp`) and the stick's right is the screen's right
-(`move_x = lx cos a + ly sin a`), so a positive RX, which lowers `a`, turns
-the view right; a positive RY lowers the camera, which looks up, so the
-default `ry = -MouseY` makes mouse up look up and `mouse_invert_y` flips it.
+locked on, so right click is R1. The follow camera sits at
+`follow + distance * (sin a, cos a)` (`camerafollow.cpp`) and the stick's
+right is the screen's right (`move_x = lx cos a + ly sin a`), so a positive
+RX, which lowers `a`, turns the view right, and a positive RY lowers the
+camera, which looks up. Mouse right turns the view right and mouse up looks
+up; `mouse_invert_y` flips the latter.
 
 The actions are `up down left right cross circle square triangle l1 r1 l2
 r2 l3 r3 start select lx- lx+ ly- ly+ rx- rx+ ry- ry+ lx ly rx ry`, and the
@@ -283,18 +283,25 @@ Each key-down of a toggle's key counts once, however briefly it is held.
   is ignored as drift. `gyro_invert_x`/`_y` flip it, and `stick_invert_x`/`_y`
   flip the camera stick the same way.
 - **First-person view.** R2's view, in a dungeon or outdoors in a town, reads
-  only the left stick, so while it is on, the right stick, the mouse and the gyro drive the left stick whenever
+  only the left stick, so while it is on, the right stick and the gyro drive the left stick whenever
   the left stick itself is centred.
-- **Mouse.** The right stick at each pad read is the motion since the
-  previous read, divided by the ticks between them, times
-  `mouse_sensitivity` (0.1: ten pixels in one tick is full deflection,
-  0.04 radians of dungeon camera per frame). A mouse that stops reads
-  centred at the next read; motion during a load does not land at once.
+- **Mouse.** The mouse turns the camera itself ("Mouse look"), not the
+  right stick. Binding `MouseX` or `MouseY` to `lx ly rx ry` makes it a
+  stick again on that axis and takes that axis from the mouse look: the
+  stick reads the motion since the previous read divided by the ticks
+  between them, at the deflection that would turn the dungeon's camera
+  (0.04 radians a tick at full deflection) as far as the mouse look does,
+  times the binding's scale, and full deflection at most.
 - **Capture.** With `mouse_capture`, SDL relative mode holds the cursor
-  while the window has focus. Losing focus releases it, and so does
+  while the window has focus. Fullscreen startup captures when focus arrives,
+  and focus regain restores capture. Losing focus releases it, and so does
   `mouse_release` (Escape) when the window is not fullscreen; a click in
   the window captures again and does nothing else. While released, motion
-  and clicks do not reach the game. Without capture they always do.
+  and clicks do not reach the game. Without capture they always do, and
+  the motion is the cursor's, after the system's pointer acceleration;
+  captured, it is the mouse's raw counts (SDL's relative mode with
+  `SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE` off, unless the environment sets
+  `SDL_MOUSE_RELATIVE_SYSTEM_SCALE`, which wins).
 - **WASD on the d-pad.** The developer menu (`MenuLoop`) and the dungeon
   loader read only the d-pad and never call `MenuModeOn`; the dungeon reads
   the d-pad to pick the active item while WASD walks. So the movement keys
@@ -308,6 +315,83 @@ Each key-down of a toggle's key counts once, however briefly it is held.
   dungeon and town menus) read the stick, so the game's own conversion
   turns a full WASD deflection (128) into the d-pad; a diagonal (91 per
   axis) stays under their threshold, as a gamepad's does.
+
+### Mouse look
+
+The mouse turns each camera the right stick turns, by the angle it moved:
+`mouse_sensitivity` degrees per count, with no dead zone, no steps and no
+full deflection to cap it (`port/src/camera_port.cpp`). The dungeon's,
+the interior's and the georama view's cameras and the first-person views
+read it in the stick's units, added to the stick's reading, so their own
+conditions see both alike; the town's walk camera takes it apart (below). A
+gamepad's stick is unchanged.
+
+A follow camera eases towards its angle and its eye towards its place
+(`CCameraFollow::Step`, `CCamera::Step`): a turn shows over a few tenths of
+a second, and one past half a turn would go the short way round, backwards.
+That suits the stick's small steady steps, not the mouse, so the mouse's
+share of a turn is applied at once: when the camera's next `AddAngle` in the
+same pad read is exactly the delta of the reading the mouse went into, the
+port's replacement (`port/src/camerafollow.cpp`) turns the angle and the eye
+about the point it looks at by that share immediately. Any other `AddAngle`
+on that camera, or the next pad read, ends the reading unused; mouse and
+stick that cancel turn nothing. The stick's share, the following of the
+character and the game's own camera moves still ease.
+
+The town's walk camera (`EdMoveChara`, walking and fishing) tests the walls
+from where the eye is before the stick turns it, which allows for a stick's
+small step but not for a mouse's whole turn: taken the same way, a fast turn
+put the eye past a wall, and the camera then swung round behind it. So the
+town's RX stays the stick's, and `EdGetRXf` records the mouse's turn in a
+request `EditLoop` opens around the walk. After the camera's step, if the
+same camera is still shown on the same ground, map and mode in the same pad
+read, `EditLoop` applies the safe prefix of the mouse turn immediately. A
+continuous clearance bound covers the look-ray fan and the eye's movement,
+including pending positions and the remaining follow-camera easing corridor.
+Intervals whose bound touches geometry are subdivided; clear endpoint samples
+alone never authorize a turn. The eye keeps 10 units of clearance and the
+floor query keeps 18 below it. An initially invalid corridor rejects the
+mouse turn until the game repairs it; refused motion is dropped.
+
+The port collector allocates a proven upper bound before calling each frame's
+collector and includes all grid cells crossed by the sweep. Unknown collision
+types, invalid dimensions, or work-budget exhaustion reject unvalidated motion.
+Collection is limited to 32,768 polygons and 4,096 frame visits; each turn has
+at most 4,096 interval checks and one million polygon checks. The camera can
+stop earlier than the stick,
+which may slide along a wall the town finds beside the eye. As RX no longer
+carries the mouse, the drift behind a walking character and R1 and L1, which
+wait for RX to rest, see only the stick: the camera can swing behind while
+the mouse turns it.
+
+Live motion is taken whole at each read of pad 1 (`InputLatchPad`, once per
+pass of the main loop), so each count reaches the camera at one read
+whatever the display's frames do between ticks; a pause in the reads longer
+than a quarter of a second (a load) drops what came during it. A script's
+`mouse:DX,DY` is the motion of each read.
+
+| View | Horizontal | Vertical |
+|---|---|---|
+| dungeon (`DunMoveChara`) | `AddAngle(0.04 * -turn)` | camera height, `AddHeight(-ry)`, at most 30 |
+| dungeon, first person (R2, `EyeCamera`) | heading, beside the left stick | pitch, inside retail's -1 to 0.65 |
+| town (`EdMoveChara`, `EdGetRXf`/`EdGetRYf`, `EditLoop`) | the eye turned after the step, as far as it stays clear of walls | camera height while under 30, the mouse raising it to 30 at most |
+| town, first person (R2, `EyeCamera`) | heading, beside the left stick | pitch, inside -1 to 0.65 |
+| interior (`MoveCamera`, `edit_in.cpp`) | `AddAngle(0.04 * -horizontal)` | camera height, at most 30 |
+| interior, first person (`EyeCamera`) | the character's heading, which the view follows, beside both sticks | pitch, inside -1 to 0.65 |
+| georama (`MoveCamera`, `editloop.cpp`) | `AddAngle(0.03 * -horizontal)` | none: the view sets its height each frame |
+
+Vertical motion on a follow camera, which has a height rather than a pitch,
+changes the height by what tilts the line from the eye to the point it
+circles by the mouse's angle (`MouseLookTiltHeight`). It changes only the
+height the camera is going to, as the stick does, and eases: the game's
+corrections bound that height afterwards (the dungeon at least 1.6, and 25
+over the floor under the eye; the town 18 over it where the floor is level
+enough), and the mouse raises it to 30 at most, the player's limit. It is not
+a free pitch: looking up from the default view moves the camera little, and
+the dungeon moves its height on its own (`autoCamTrial`), so a raised dungeon
+camera drifts back. A first-person view takes the mouse only while it is
+shown, and its heading stays within half a turn. The developer cameras (`EdDMoveCamera`,
+the item viewer) and the event script's `GET_APAD` read the stick alone.
 
 ### Scripted input
 
@@ -323,9 +407,9 @@ r1 l2 r2 l3 r3 up down left right`, any case) and the four stick bytes
 (0-255, centred at 128 when left out) on that pad, pad 1 unless the line
 says `pad2`, from that frame until the pad's next line. On pad 1 lines,
 `key:NAME` (an SDL key name, `_` for a space), `mouse1` to `mouse5` and
-`mouse:DX,DY` (pixels per tick) go through the keyboard and mouse bindings
-as live input does, d-pad rule included, and reach `fps_toggle` too: a
-line that starts holding `key:F3` is one press of it. A line with no
+`mouse:DX,DY` (counts per tick) go through the keyboard and mouse bindings
+and the mouse look as live input does, d-pad rule included, and reach
+`fps_toggle` too: a line that starts holding `key:F3` is one press of it. A line with no
 button releases everything. Frames count the game's main loop as
 `--frames` does; frame 0 also covers the 60-tick warm-up and the loading
 screens before the first frame. `#` starts a comment; a pad's frames must

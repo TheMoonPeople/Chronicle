@@ -1,5 +1,7 @@
 #include "ebattle.hpp"
 
+#include <cmath>
+
 #include "character.hpp"
 #include "dataread.hpp"
 #include "editloop.hpp"
@@ -186,4 +188,109 @@ PC_OVERRIDE int EBLoop() {
     draw_ok_loop();
     eb_count++;
     return 0;
+}
+
+#include <libvu0.h>
+#include "camera.hpp"
+#include "camera_port.hpp"
+#include "camerafollow.hpp"
+#include "character.hpp"
+#include "edit.hpp"
+
+// Defined by ps2/src/ebattle.cpp without a header declaration.
+extern int   viewMode;
+extern int   chara_mode;
+extern float viewAngleH;
+extern float viewAngleV;
+
+int PortEdCheckKeyMode(int mode);
+
+// The right stick of the town's walk: EdMoveChara turns its camera by RX (0.03 a tick, unless a
+// wall is on that side) and raises it by RY while it is under 30. RX stays the stick's: the mouse's
+// turn goes to EditLoop's request (camera_port.hpp), which checks it against the walls itself; so
+// the drift behind a walking character and R1 and L1, which wait for RX to rest, see only the stick.
+// RY takes the mouse as camera_port.hpp describes. In an interior's first-person view EdMoveChara
+// turns the character by RX only while the left stick rests, so the mouse turns it in EyeCamera.
+
+PC_OVERRIDE float EdGetRXf(int mode) {
+    if (PortEdCheckKeyMode(mode)) {
+        CCameraFollow *camera = EdMoveCharaInfo.camera;
+        if (viewMode == 0 && !EdMoveCharaInfo.interior && camera != NULL) {
+            TownMouseRecord(camera, EdMoveCharaInfo.fishing != 0);
+        }
+        return GamePad.GetRXf();
+    }
+
+    return 0.0f;
+}
+
+// EdMoveChara reads it for the town's camera only; EyeCamera below reads the stick itself.
+PC_OVERRIDE float EdGetRYf(int mode) {
+    if (PortEdCheckKeyMode(mode)) {
+        CCameraFollow *camera = EdMoveCharaInfo.camera;
+        float          stick = GamePad.GetRYf();
+        return camera != NULL ? MouseLookRise(camera, stick, EdDebugCameraFlag == 0 ? 30.0f : INFINITY) : stick;
+    }
+
+    return 0.0f;
+}
+
+// Retail's, with the mouse turning the view while it is the one shown. In an interior the view
+// takes its heading from the character's (EdMoveChara), so the mouse turns the character too.
+PC_OVERRIDE void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
+    float stick_x;
+    float stick_y;
+    bool  unlocked = (chara_mode & 3) == 0;
+
+    if (right_stick != 0) {
+        stick_x = 0.0f;
+        stick_y = unlocked && PortEdCheckKeyMode(1) ? -GamePad.GetRYf() : 0.0f;
+    } else {
+        stick_x = unlocked ? EdGetLXf(1) : 0.0f;
+        stick_y = unlocked ? -EdGetLYf(1) : 0.0f;
+    }
+
+    if (stick_x > 0.0f) {
+        float rate = 0.02f;
+        viewAngleH -= stick_x * rate;
+
+        if (viewAngleH < -PI) {
+            viewAngleH += TWO_PI;
+        }
+    }
+
+    if (stick_x < -0.0f) {
+        float rate = 0.02f;
+        viewAngleH -= stick_x * rate;
+
+        if (viewAngleH > PI) {
+            viewAngleH -= TWO_PI;
+        }
+    }
+
+    if (stick_y > 0.0f && viewAngleV < 0.65f) {
+        float rate = 0.02f;
+        viewAngleV += stick_y * rate;
+    }
+
+    if (stick_y < -0.0f && viewAngleV > -1.0f) {
+        float rate = 0.02f;
+        viewAngleV += stick_y * rate;
+    }
+
+    if (viewMode != 0 && unlocked && PortEdCheckKeyMode(1)) {
+        float heading = MouseLookEyeAngleH(viewAngleH);
+
+        if (right_stick != 0 && heading != viewAngleH) {
+            sceVu0FVECTOR rotation;
+            character->GetRotation(rotation);
+            rotation[1] = heading;
+            character->SetRotation(rotation);
+        }
+
+        viewAngleH = heading;
+        viewAngleV = MouseLookEyeAngleV(viewAngleV);
+    }
+
+    EdEyeCamera(camera, character);
 }
