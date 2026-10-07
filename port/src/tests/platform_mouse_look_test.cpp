@@ -20,6 +20,7 @@
 #include "collision.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
+#include "editarea.hpp"
 #include "editground.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
@@ -471,6 +472,53 @@ TEST(PlatformMouseLook, CollectorHandlesMoreThanRetailScratchAndStopsBeforeBudge
     collision.mesh_count = 32769;
     ASSERT_EQ(MouseCameraPolys(ground, box, 0xFFFF, output), -1);
     ASSERT_TRUE(output.empty());
+}
+
+TEST(PlatformMouseLook, CollectorAppendsEveryGridAreaAndRejectsInvalidMetadata) {
+    CEditGround ground{};
+    ground.Initialize();
+    CEditArea first{}, second{};
+    first.SetSize(16, 16, 20, 1);
+    second.SetSize(16, 16, 20, 1);
+    second.offset_y = 100;
+    ground.areas[0] = &first;
+    ground.areas[1] = &second;
+    CBoxVu0             box{};
+    std::vector<CCPoly> output;
+    EXPECT_EQ(MouseCameraPolys(ground, box, 0xffff, output), 1024);
+    ASSERT_EQ(output.size(), 1024u);
+    EXPECT_EQ(output[0].vertex[0][1], 0);
+    EXPECT_EQ(output[512].vertex[0][1], 100);
+    second.width = 17;
+    EXPECT_EQ(MouseCameraPolys(ground, box, 0xffff, output), -1);
+    second.width = 16;
+    second.map_no = 5;
+    EXPECT_EQ(MouseCameraPolys(ground, box, 0xffff, output), -1);
+    ground.areas[0] = ground.areas[1] = nullptr;
+}
+
+TEST(PlatformMouseLook, CollectorBoundsVisitsEvenForDisabledSiblingCycles) {
+    CEditGround ground{};
+    ground.Initialize();
+    CFrame parent, child;
+    parent.flags = 0;
+    child.flags = 4;
+    parent.child = &child;
+    child.brother = &child;
+    ground.parts[0].handle = 0;
+    ground.parts[0].camera_frame = &parent;
+    CBoxVu0 box{};
+    for (int i = 0; i < 3; ++i) {
+        ground.parts[0].bound.min[i] = -100;
+        ground.parts[0].bound.max[i] = 100;
+        box.min[i] = -200;
+        box.max[i] = 200;
+    }
+    std::vector<CCPoly> output;
+    int                 result = MouseCameraPolys(ground, box, 0xffff, output);
+    parent.child = child.brother = nullptr;
+    EXPECT_EQ(result, -1);
+    EXPECT_TRUE(output.empty());
 }
 
 TEST(PlatformMouseLook, MenuMotionAndFocusLossCannotReachTheCamera) {

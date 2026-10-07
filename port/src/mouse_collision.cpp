@@ -100,11 +100,14 @@ double SegmentTriangle(Vec from, Vec to, const CCPoly &poly) {
 // The frame routine can write at most every triangle in its eligible subtree. Prove that
 // bound before it sees an output pointer; unknown collision implementations fail closed.
 int FrameBound(CFrame *frame, int &visits, int depth = 0) {
-    if (!frame || frame->flags == 4) {
+    if (!frame) {
         return 0;
     }
     if (++visits > kFrameBudget || depth > 64) {
         return -1;
+    }
+    if (frame->flags == 4) {
+        return 0;
     }
     int count = 0;
     if (frame->collision && (frame->flags & 1)) {
@@ -248,7 +251,8 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
         if (!area) {
             continue;
         }
-        if (area->width < 0 || area->width > 16 || area->height < 0 || area->height > 16) {
+        if (area->width < 0 || area->width > 16 || area->height < 0 || area->height > 16 ||
+            area->map_no < 0 || area->map_no > 4) {
             return -1;
         }
         int bound = 2 * area->width * area->height;
