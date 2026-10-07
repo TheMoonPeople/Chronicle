@@ -372,26 +372,28 @@ than a quarter of a second (a load) drops what came during it. A script's
 
 | View | Horizontal | Vertical |
 |---|---|---|
-| dungeon (`DunMoveChara`) | `AddAngle(0.04 * -turn)` | camera height, `AddHeight(-ry)`, at most 30 |
-| dungeon, first person (R2, `EyeCamera`) | heading, beside the left stick | pitch, inside retail's -1 to 0.65 |
-| town (`EdMoveChara`, `EdGetRXf`/`EdGetRYf`, `EditLoop`) | the eye turned after the step, as far as it stays clear of walls | camera height while under 30, the mouse raising it to 30 at most |
-| town, first person (R2, `EyeCamera`) | heading, beside the left stick | pitch, inside -1 to 0.65 |
-| interior (`MoveCamera`, `edit_in.cpp`) | `AddAngle(0.04 * -horizontal)` | camera height, at most 30 |
-| interior, first person (`EyeCamera`) | the character's heading, which the view follows, beside both sticks | pitch, inside -1 to 0.65 |
+| dungeon (`DunMoveChara`) | `AddAngle(0.04 * -turn)` | view pitch, up to 86 degrees either way |
+| dungeon, first person (R2, `EyeCamera`) | heading, beside the left stick | pitch, up to 86 degrees either way |
+| town (`EdMoveChara`, `EdGetRXf`/`EdGetRYf`, `EditLoop`) | the eye turned after the step, as far as it stays clear of walls | view pitch, up to 86 degrees either way |
+| town, first person (R2, `EyeCamera`) | heading, beside the left stick | pitch, up to 86 degrees either way |
+| interior (`MoveCamera`, `edit_in.cpp`) | `AddAngle(0.04 * -horizontal)` | view pitch, up to 86 degrees either way |
+| interior, first person (`EyeCamera`) | the character's heading, which the view follows, beside both sticks | pitch, up to 86 degrees either way |
 | georama (`MoveCamera`, `editloop.cpp`) | `AddAngle(0.03 * -horizontal)` | none: the view sets its height each frame |
 
-Vertical motion on a follow camera, which has a height rather than a pitch,
-changes the height by what tilts the line from the eye to the point it
-circles by the mouse's angle (`MouseLookTiltHeight`). It changes only the
-height the camera is going to, as the stick does, and eases: the game's
-corrections bound that height afterwards (the dungeon at least 1.6, and 25
-over the floor under the eye; the town 18 over it where the floor is level
-enough), and the mouse raises it to 30 at most, the player's limit. It is not
-a free pitch: looking up from the default view moves the camera little, and
-the dungeon moves its height on its own (`autoCamTrial`), so a raised dungeon
-camera drifts back. A first-person view takes the mouse only while it is
-shown, and its heading stays within half a turn. The developer cameras (`EdDMoveCamera`,
-the item viewer) and the event script's `GET_APAD` read the stick alone.
+Vertical mouse motion is direct view pitch, applied once per pad read in
+`CCamera::GetCameraMatrix`. It does not raise or lower the collision-safe eye,
+change follow distance/height, or alter the retail and pending look targets.
+Looking at the sky or ground can therefore move the character out of the view;
+it is free look from the camera's position, rather than a vertical orbit through
+the floor. Up/down is limited to 86 degrees either side of level to avoid the
+vertical singularity and flipping the view. Motion beyond that limit is
+discarded, so reversing the mouse responds immediately.
+
+The input site identifies the controlled follow camera each read. Other cameras,
+scripted/event views and stale reads cannot consume that pitch. Dungeon lock-on
+resets manual pitch so its target stays framed; Georama keeps its own vertical
+view. Gamepad height and first-person pitch retain the retail rules. Binding a
+mouse axis to a stick explicitly still opts that axis into stick emulation.
 
 ### Scripted input
 

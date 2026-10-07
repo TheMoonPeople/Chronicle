@@ -1272,7 +1272,7 @@ static void MoveCamera(CCameraFollow *camera) {
     static float camera_distance[3] = {20.0f, 60.0f, 100.0f};
 
     float horizontal = MouseLookTurn(camera, 0.04f, GamePad.GetRXf());
-    camera->AddHeight(-MouseLookRise(camera, GamePad.GetRYf(), 30.0f));
+    camera->AddHeight(-GamePad.GetRYf());
 
     if (!(camera->GetHeight() <= 30.0f)) {
         camera->SetHeight(30.0f);

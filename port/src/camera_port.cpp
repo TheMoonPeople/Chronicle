@@ -20,9 +20,6 @@ namespace {
 // About 86 degrees: the tangent stays finite.
 constexpr float kMaxTilt = 1.5f;
 
-constexpr float kEyeDownLimit = 0.65f;
-constexpr float kEyeUpLimit = -1.0f;
-
 // What a reading left with its camera: the AddAngle delta it makes, the stick's share of that
 // delta, and the pad read it belongs to.
 struct Share {
@@ -34,6 +31,16 @@ struct Share {
 
 Share g_turn;
 
+struct Pitch {
+    CCamera      *camera = nullptr;
+    std::uint64_t read = 0;
+    std::uint64_t applied = 0;
+    float         offset = 0.0f;
+    bool          enabled = false;
+};
+
+Pitch g_pitch;
+
 struct TownRequest {
     bool           open = false;
     CCameraFollow *camera = nullptr;
@@ -43,6 +50,7 @@ struct TownRequest {
     std::uint64_t  read = 0;
     float          yaw = 0.0f;
     bool           fishing = false;
+    bool           recorded = false;
 };
 
 TownRequest g_town;
@@ -76,7 +84,8 @@ void Orbit(float *point, const float *centre, float turn) {
 
 } // namespace
 
-float MouseLookTurn(CCameraFollow *camera, float radians, float stick) {
+float MouseLookTurn(CCameraFollow *camera, float radians, float stick, bool pitch) {
+    MouseLookControlPitch(camera, pitch && camera->follow_on);
     const InputMouseLook &look = InputGetMouseLook();
     g_turn = {};
     if (look.yaw == 0.0f) {
@@ -88,19 +97,6 @@ float MouseLookTurn(CCameraFollow *camera, float radians, float stick) {
         g_turn = {camera, radians * -reading, radians * -stick, look.read};
     }
     return reading;
-}
-
-float MouseLookRise(CCameraFollow *camera, float stick, float ceiling) {
-    float pitch = InputGetMouseLook().pitch;
-    if (pitch == 0.0f) {
-        return stick;
-    }
-    float height = camera->GetHeight();
-    float rise = MouseLookTiltHeight(height, camera->GetDistance(), pitch) - height;
-    if (rise > 0.0f) {
-        rise = std::min(rise, std::max(ceiling - height, 0.0f));
-    }
-    return stick - rise;
 }
 
 float MouseLookTakeTurn(CCameraFollow *camera, float delta) {
@@ -117,29 +113,48 @@ float MouseLookTakeTurn(CCameraFollow *camera, float delta) {
     return delta - share.stick_delta;
 }
 
-float MouseLookTiltHeight(float height, float distance, float pitch) {
-    if (pitch == 0.0f || !(distance > 0.0f)) {
-        return height;
+void MouseLookControlPitch(CCamera *camera, bool enabled) {
+    if (g_pitch.camera != camera) {
+        g_pitch = {};
     }
-    float tilt = std::atan2(height, distance);
-    float tilted = tilt - pitch;
-    // Only the way the mouse moves is held back: an eye already past the limit stays where it is.
-    if (pitch < 0.0f) {
-        tilted = std::min(tilted, std::max(tilt, kMaxTilt));
-    } else {
-        tilted = std::max(tilted, std::min(tilt, -kMaxTilt));
+    g_pitch.camera = camera;
+    g_pitch.read = InputGetMouseLook().read;
+    g_pitch.enabled = enabled;
+    if (!enabled) {
+        g_pitch.offset = 0.0f;
     }
-    return distance * std::tan(tilted);
+}
+
+float MouseLookViewPitch(CCamera *camera, float base) {
+    const InputMouseLook &look = InputGetMouseLook();
+    if (g_pitch.camera != camera || !g_pitch.enabled) {
+        return base;
+    }
+    // Paused menus retain the view, but only an active owner can consume new motion.
+    // Scripted follow-off cameras restore their authored framing.
+    auto *follow = dynamic_cast<CCameraFollow *>(camera);
+    if (!follow || !follow->follow_on) {
+        g_pitch = {};
+        return base;
+    }
+    if (g_pitch.read == look.read && !CCamera::StopCamera && g_pitch.applied != look.read) {
+        g_pitch.offset -= look.pitch;
+        g_pitch.applied = look.read;
+    }
+    float angle = std::clamp(base + g_pitch.offset, -kMaxTilt, kMaxTilt);
+    // Excess motion at the limit is discarded, so reversing the mouse responds immediately.
+    g_pitch.offset = angle - base;
+    return angle;
 }
 
 float MouseLookEyeAngleV(float angle) {
     float pitch = InputGetMouseLook().pitch;
     float tilted = angle - pitch;
     if (pitch > 0.0f) {
-        return std::max(tilted, std::min(angle, kEyeUpLimit));
+        return std::max(tilted, std::min(angle, -kMaxTilt));
     }
     if (pitch < 0.0f) {
-        return std::min(tilted, std::max(angle, kEyeDownLimit));
+        return std::min(tilted, std::max(angle, kMaxTilt));
     }
     return angle;
 }
@@ -183,9 +198,10 @@ void TownMouseBegin(CCameraFollow *camera, CEditGround *ground, int map, int mod
 }
 
 void TownMouseRecord(CCameraFollow *camera, bool fishing) {
-    if (g_town.open && g_town.camera == camera && g_town.read == InputGetMouseLook().read && g_town.yaw == 0.0f) {
+    if (g_town.open && g_town.camera == camera && g_town.read == InputGetMouseLook().read && !g_town.recorded) {
         g_town.yaw = InputGetMouseLook().yaw;
         g_town.fishing = fishing;
+        g_town.recorded = true;
     }
 }
 
@@ -193,12 +209,16 @@ void TownMouseApply(CCamera *shown, CEditGround *ground, int map, int mode) {
     TownRequest request = g_town;
     g_town = {};
     CCameraFollow *camera = request.camera;
-    if (!request.open || request.yaw == 0.0f || static_cast<CCamera *>(camera) != shown || request.ground != ground ||
+    if (!request.open || !request.recorded || static_cast<CCamera *>(camera) != shown || request.ground != ground ||
         request.map != map || request.mode != mode || request.read != InputGetMouseLook().read ||
         !camera->follow_on || CCamera::StopCamera) {
         return;
     }
     if (!ground) {
+        return;
+    }
+    MouseLookControlPitch(camera, true);
+    if (request.yaw == 0.0f) {
         return;
     }
     int     mask = request.fishing ? 1 : 0xFFFF;

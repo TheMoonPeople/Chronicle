@@ -108,17 +108,6 @@ TEST(PlatformMouseLook, DropsMotionAcrossALoad) {
     ASSERT_TRUE(InputGetMouseLook().yaw == 0.0f);
 }
 
-TEST(PlatformMouseLook, TiltHeight) {
-    ASSERT_TRUE(MouseLookTiltHeight(5.0f, 60.0f, 0.0f) == 5.0f);
-    // Level, then 45 degrees down: the eye rises to the distance.
-    ASSERT_NEAR(MouseLookTiltHeight(0.0f, 60.0f, -45.0f * kDegree), 60.0f, 1e-3f);
-    ASSERT_NEAR(MouseLookTiltHeight(60.0f, 60.0f, 45.0f * kDegree), 0.0f, 1e-3f);
-    // Short of straight down, and an eye already past that is not pulled back.
-    ASSERT_TRUE(std::isfinite(MouseLookTiltHeight(0.0f, 60.0f, -3.0f)));
-    ASSERT_TRUE(MouseLookTiltHeight(0.0f, 60.0f, -3.0f) < 60.0f * 20.0f);
-    ASSERT_NEAR(MouseLookTiltHeight(40.0f, 0.5f, -0.2f), 40.0f, 1e-2f);
-}
-
 TEST(PlatformMouseLook, FollowCameraTurnsAtOnce) {
     Settings(0.2f, false);
     CCameraFollow camera(60.0f, 5.0f, 0.0f, 8.0f);
@@ -156,29 +145,137 @@ TEST(PlatformMouseLook, FollowCameraTurnsAtOnce) {
     ASSERT_TRUE(camera.GetAngle() == start && camera.pos[0] == eye_x);
 }
 
-TEST(PlatformMouseLook, FollowCameraHeightStaysInBounds) {
+TEST(PlatformMouseLook, ThirdPersonPitchIsInstantAndKeepsTheEyeCollisionSafe) {
     Settings(0.2f, false);
-    CCameraFollow camera(60.0f, 5.0f, 0.0f, 8.0f);
+    CCameraFollow camera(70, 5, 0, 8);
+    camera.SetFollow(0, 14, 0);
     camera.Step(-1);
-
-    // Looking up again and again lowers only where the eye is going, which the game's own minimum
-    // (the dungeon's 1.6) puts back each time, so the eye never passes under it.
-    for (int read = 0; read < 10; ++read) {
-        Move(0.0f, -100.0f);
-        InputLatchPad(0);
-        camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f));
-        if (camera.GetHeight() <= 1.6f) {
-            camera.SetHeight(1.6f);
-        }
-        camera.Step(1);
-        ASSERT_TRUE(camera.pos[1] >= 1.6f - 1e-4f);
-    }
-
-    // The mouse raises the eye no higher than the ceiling the camera keeps.
-    camera.SetHeight(29.0f);
-    Move(0.0f, 100.0f);
+    std::array<float, 4> eye, ref, next_eye, next_ref;
+    std::copy_n(camera.pos, 4, eye.begin());
+    std::copy_n(camera.ref, 4, ref.begin());
+    std::copy_n(camera.next_pos, 4, next_eye.begin());
+    std::copy_n(camera.next_ref, 4, next_ref.begin());
+    Move(0, -300);
     InputLatchPad(0);
-    ASSERT_NEAR(MouseLookRise(&camera, 0.0f, 30.0f), -1.0f, 1e-4f);
+    MouseLookControlPitch(&camera, true);
+    float base = std::atan2(5.0f, 70.0f);
+    float matrix[4][4], again[4][4];
+    camera.GetCameraMatrix(matrix);
+    ASSERT_NEAR(std::asin(-matrix[1][2]), base - 60 * kDegree, 1e-5f);
+    camera.GetCameraMatrix(again);
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            ASSERT_EQ(matrix[i][j], again[i][j]);
+        }
+    }
+    ASSERT_EQ(camera.height, 5);
+    ASSERT_EQ(camera.distance, 70);
+    for (int i = 0; i < 4; ++i) {
+        ASSERT_EQ(camera.pos[i], eye[i]);
+        ASSERT_EQ(camera.ref[i], ref[i]);
+        ASSERT_EQ(camera.next_pos[i], next_eye[i]);
+        ASSERT_EQ(camera.next_ref[i], next_ref[i]);
+    }
+    // Repeating a zero-motion read retains the view while following the player.
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    camera.SetFollow(5, 14, 0);
+    camera.Step(1);
+    camera.GetCameraMatrix(again);
+    ASSERT_NEAR(std::asin(-again[1][2]), base - 60 * kDegree, 1e-5f);
+}
+
+TEST(PlatformMouseLook, PitchLimitDiscardsExcessAndLockOnRestoresFraming) {
+    Settings(0.2f, false);
+    CCameraFollow camera(70, 5, 0, 8);
+    camera.Step(-1);
+    Move(0, -4000);
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_NEAR(MouseLookViewPitch(&camera, 0), -1.5f, 1e-6f);
+    Move(0, 10);
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_NEAR(MouseLookViewPitch(&camera, 0), -1.5f + 2 * kDegree, 1e-6f);
+    MouseLookControlPitch(&camera, false);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .25f), .25f);
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .25f), .25f);
+}
+
+TEST(PlatformMouseLook, UncontrolledCamerasAndLaterReadsDoNotConsumePitch) {
+    Settings(0.2f, false);
+    CCameraFollow camera(70, 5, 0, 8), other(70, 5, 0, 8);
+    Move(0, -100);
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_EQ(MouseLookViewPitch(&other, .3f), .3f);
+    InputLatchPad(0);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .3f), .3f);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .3f), .3f);
+}
+
+TEST(PlatformMouseLook, FirstPersonPitchHasTheSameFreerRange) {
+    Settings(0.2f, false);
+    Move(0, -400);
+    InputLatchPad(0);
+    ASSERT_NEAR(MouseLookEyeAngleV(0), -80 * kDegree, 1e-6f);
+    Move(0, 1000);
+    InputLatchPad(0);
+    ASSERT_NEAR(MouseLookEyeAngleV(0), 1.5f, 1e-6f);
+}
+
+TEST(PlatformMouseLook, PausedViewsHoldPitchWithoutConsumingMotionAndScriptsResetIt) {
+    Settings(.2f, false);
+    CCameraFollow camera(70, 5, 0, 8);
+    camera.Step(-1);
+    Move(0, -100);
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    float held = MouseLookViewPitch(&camera, .1f);
+    ASSERT_NEAR(held, .1f - 20 * kDegree, 1e-6f);
+    Move(0, -200);
+    InputLatchPad(0);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .1f), held);
+    CCamera::StopCamera = 1;
+    MouseLookControlPitch(&camera, true);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .1f), held);
+    CCamera::StopCamera = 0;
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .1f), held);
+    camera.FollowOff();
+    ASSERT_EQ(MouseLookViewPitch(&camera, .1f), .1f);
+    camera.FollowOn();
+    InputLatchPad(0);
+    MouseLookControlPitch(&camera, true);
+    ASSERT_EQ(MouseLookViewPitch(&camera, .1f), .1f);
+}
+
+TEST(PlatformMouseLook, TownPitchNeedsTheSameCameraMapAndInputRead) {
+    Settings(.2f, false);
+    CEditGround ground{};
+    ground.Initialize();
+    CCameraFollow camera(70, 5, 0, 8);
+    camera.Step(-1);
+    float base = std::atan2(5.0f, 70.0f);
+    Move(0, -100);
+    InputLatchPad(0);
+    TownMouseBegin(&camera, &ground, 0, 1);
+    TownMouseRecord(&camera, false);
+    TownMouseApply(&camera, &ground, 1, 1);
+    ASSERT_EQ(MouseLookViewPitch(&camera, base), base);
+    // Closing an invalid request does not let a later Apply consume its pitch.
+    TownMouseApply(&camera, &ground, 0, 1);
+    ASSERT_EQ(MouseLookViewPitch(&camera, base), base);
+    Move(0, -100);
+    InputLatchPad(0);
+    TownMouseBegin(&camera, &ground, 0, 1);
+    TownMouseRecord(&camera, false);
+    TownMouseApply(&camera, &ground, 0, 1);
+    ASSERT_NEAR(MouseLookViewPitch(&camera, base), base - 20 * kDegree, 1e-6f);
 }
 
 TEST(PlatformMouseLook, InteriorEyeTurnsTheCharacter) {
