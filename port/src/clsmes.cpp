@@ -506,6 +506,203 @@ PC_OVERRIDE int ClsMes::SetMesWinTbl(int code, int mode, short x, short y) {
     return 1;
 }
 
+// Read a colour only for a palette entry FontColorTbl has. Retail looks up the red text's 0xFF too,
+// 240 entries past the table, and then sets that colour itself.
+PC_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen,
+                                       int wide, int dark) {
+    u8  r;
+    u8  g;
+    u8  b;
+    u8  alpha;
+    u8  clut;
+    int code;
+    int u;
+    int v;
+
+    code = this->win_line[index].code;
+
+    if (code >= -0x300 && code < -0x2DF) {
+        set2DSprite_Core(Vif1Packet, texture, screen, texel, 0x80, 0x80, 0x80,
+                         this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
+        return;
+    }
+
+    clut = this->win_line[index].clut;
+
+    switch (clut < std::size(FontColorTbl) ? FontColorTbl[clut] : 0) {
+        case FONT_COLOR_WHITE:
+            r = 0x5F;
+            g = 0x5F;
+            b = 0x5F;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_BROWN:
+            r = 0x22;
+            g = 0x20;
+            b = 0x18;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_YELLOW:
+            r = 0x5E;
+            g = 0x5E;
+            b = 0x20;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_CYAN:
+            r = 0x20;
+            g = 0x5E;
+            b = 0x5E;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_GREEN:
+            r = 0x20;
+            g = 0x5E;
+            b = 0x20;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_BROWN_OPAQUE:
+            r = 0x22;
+            g = 0x20;
+            b = 0x18;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_GOLD:
+            r = 0x73;
+            g = 0x67;
+            b = 0x33;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_GREY:
+            r = 0x47;
+            g = 0x47;
+            b = 0x47;
+            alpha = 0x80;
+            break;
+
+        case FONT_COLOR_MAGENTA:
+            r = 0x5F;
+            g = 0x1F;
+            b = 0x5F;
+            alpha = 0x80;
+            break;
+
+        default:
+            r = 0x28;
+            g = 0x28;
+            b = 0x20;
+            alpha = 0x80;
+            break;
+    }
+
+    if (clut == 0xFF) {
+        if (dark != 0) {
+            alpha = 0x80;
+            b = 0x22;
+            g = 0x22;
+            r = 0x7F;
+        } else {
+            alpha = 0x80;
+            b = 0x11;
+            g = 0x11;
+            r = 0x40;
+        }
+    }
+
+    if (wide == 1) {
+        r = r * 2;
+        g = g * 2;
+        b = b * 2;
+    }
+
+    set2DSprite_Core(Vif1Packet, texture, screen, texel, r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
+
+    switch (this->win_line[index].code) {
+        case -0x284:
+        case -0x280:
+        case -0x27F:
+        case -0x27A:
+        case -0x275:
+        case -0x271:
+        case -0x26C:
+        case -0x268:
+        case -0x25E:
+        case -0x258:
+            u = 0xE2;
+            v = 0xB4;
+            break;
+
+        case -0x282:
+        case -0x27D:
+        case -0x278:
+        case -0x274:
+        case -0x26F:
+        case -0x26B:
+        case -0x260:
+        case -0x25C:
+        case -0x25A:
+        case -0x256:
+            u = 0xF0;
+            v = 0xB4;
+            break;
+
+        case -0x281:
+        case -0x27C:
+        case -0x277:
+        case -0x273:
+        case -0x26E:
+        case -0x26A:
+        case -0x267:
+        case -0x266:
+        case -0x264:
+        case -0x25D:
+            u = 0x80;
+            v = 0xC8;
+            break;
+
+        case -0x27B:
+        case -0x276:
+        case -0x272:
+        case -0x26D:
+        case -0x269:
+        case -0x25F:
+        case -0x25B:
+        case -0x259:
+        case -0x257:
+        case -0x255:
+            u = 0x9C;
+            v = 0xC8;
+            break;
+
+        case -0x270:
+        case -0x254:
+            u = 0x8E;
+            v = 0xC8;
+            break;
+
+        default:
+            return;
+    }
+
+    if (this->narrow_gaiji_set != 1) {
+        if (this->narrow_gaiji_set == 2) {
+            u += 0x80;
+        } else if (this->char_width < 0xB) {
+            u += 0x80;
+        }
+    }
+
+    this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen.x, screen.y, screen.width, screen.height, u, v, 14, 20);
+    set2DSprite_Core(Vif1Packet, texture, screen, CRect_i_(u, v, 14, 20), r, g, b,
+                     this->edge_alpha < alpha ? this->edge_alpha : alpha);
+}
+
 PC_OVERRIDE void ClsMes::DrawMesWin() {
     CTexture *texture;
     int       offset_x;
