@@ -257,45 +257,6 @@ TEST(PlatformMouseLook, TownMouseCanLowerTheCameraAtItsCeiling) {
     ASSERT_GT(camera.height, 5.0f);
 }
 
-TEST(PlatformMouseLook, TownWalkingDriftDoesNotFightNativeMouse) {
-    static unsigned char dma[2][1024];
-    ASSERT_TRUE(scePadInit(0) == 1 && scePadPortOpen(0, 0, dma[0]) == 1 && scePadPortOpen(1, 0, dma[1]) == 1);
-    Settings(0.2f, false);
-    InputPadState pad;
-    pad.connected = true;
-    InputSetOverride(0, &pad);
-    for (int i = 0; i < 4; ++i) {
-        GamePad.UpDate();
-    }
-    ASSERT_FLOAT_EQ(GamePad.GetRXf(), 0.0f);
-    InputSetOverride(0, nullptr);
-    CCameraFollow camera(60.0f, 5.0f, 0.0f, 8.0f);
-    camera.Step(-1);
-    constexpr float drift = -2.0f * kDegree;
-    Move(30.0f, 0.0f);
-    InputLatchPad(0);
-    TownMouseBegin(&camera, nullptr, 0, 0);
-    TownMouseRecord(&camera, false);
-    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
-    camera.AddAngle(drift);
-    ASSERT_FLOAT_EQ(camera.next_angle, 0.0f);
-    ClockPump();
-    InputLatchPad(0);
-    TownMouseBegin(&camera, nullptr, 0, 0);
-    TownMouseRecord(&camera, false);
-    camera.AddHeight(-MouseLookRise(&camera, 0.0f, 30.0f, 5.0f));
-    camera.AddAngle(drift);
-    ASSERT_NEAR(camera.next_angle, drift, 1e-6f);
-    // The explicit recenter button retains its full turn.
-    camera.AddAngle(0.1f);
-    ASSERT_NEAR(camera.next_angle, drift + 0.1f, 1e-6f);
-    // Closing the gameplay request releases ownership.
-    TownMouseApply(&camera, nullptr, 0, 0);
-    float before = camera.next_angle;
-    camera.AddAngle(drift);
-    ASSERT_NEAR(camera.next_angle - before, drift, 1e-6f);
-}
-
 TEST(PlatformMouseLook, InteriorEyeTurnsTheCharacter) {
     static unsigned char dma[2][1024];
     ASSERT_TRUE(scePadInit(0) == 1 && scePadPortOpen(0, 0, dma[0]) == 1 && scePadPortOpen(1, 0, dma[1]) == 1);

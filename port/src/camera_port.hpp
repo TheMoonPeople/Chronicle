@@ -37,9 +37,6 @@ float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float flo
 // after native mouse use. Only an active gameplay height read owns this operation.
 float MouseLookHeightDelta(CCameraFollow *camera, float delta);
 
-// Prevents the town's walking drift from fighting active mouse motion. Idle behavior stays retail.
-float MouseLookTownTurnDelta(CCameraFollow *camera, float delta);
-
 // The mouse's share of an AddAngle delta on camera: nonzero only for the delta of the reading
 // MouseLookTurn last gave for it in the current pad read. Any AddAngle on that camera ends the
 // reading.

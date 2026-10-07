@@ -12,7 +12,6 @@
 #include "collision.hpp"
 #include "editground.hpp"
 #include "gameutil.hpp"
-#include "gamepad.hpp"
 #include "mouse_collision.hpp"
 #include "platform/input.hpp"
 
@@ -57,7 +56,6 @@ struct TownRequest {
     std::uint64_t  read = 0;
     float          yaw = 0.0f;
     bool           fishing = false;
-    bool           recorded = false;
 };
 
 TownRequest g_town;
@@ -121,8 +119,7 @@ float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float flo
         target = std::max(target, std::min(height, floor));
     }
     float reading = stick - (target - height);
-    g_height = {camera, look.read, -reading, true, native || pitch != 0.0f || look.yaw != 0.0f,
-                pitch != 0.0f, stick != 0.0f};
+    g_height = {camera, look.read, -reading, true, native || pitch != 0.0f, pitch != 0.0f, stick != 0.0f};
     return reading;
 }
 
@@ -234,25 +231,7 @@ void TownMouseRecord(CCameraFollow *camera, bool fishing) {
     if (g_town.open && g_town.camera == camera && g_town.read == InputGetMouseLook().read && g_town.yaw == 0.0f) {
         g_town.yaw = InputGetMouseLook().yaw;
         g_town.fishing = fishing;
-        g_town.recorded = true;
     }
-}
-
-float MouseLookTownTurnDelta(CCameraFollow *camera, float delta) {
-    const InputMouseLook &look = InputGetMouseLook();
-    if (!g_town.open || !g_town.recorded || g_town.camera != camera || g_town.read != look.read ||
-        g_town.fishing || g_height.camera != camera || g_height.read != look.read || !g_height.native ||
-        !camera->follow_on || CCamera::StopCamera || GamePad.GetRXf() != 0.0f ||
-        GamePad.On(kInputL1 | kInputR1) != 0) {
-        return delta;
-    }
-    // EdMoveChara's walking drift is 2 degrees times a clamped 0.4..1.0 stick share.
-    // The explicit recenter button (0.1 radians), side buttons and collision turns keep priority.
-    constexpr float degree = std::numbers::pi_v<float> / 180.0f;
-    if (std::fabs(delta) >= 2.0f * degree * 0.4f - 1e-6f && std::fabs(delta) <= 2.0f * degree + 1e-6f) {
-        return look.yaw != 0.0f ? 0.0f : delta;
-    }
-    return delta;
 }
 
 void TownMouseApply(CCamera *shown, CEditGround *ground, int map, int mode) {

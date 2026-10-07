@@ -18,7 +18,7 @@ PC_OVERRIDE void CCameraFollow::AddAngle(float delta) {
     float mouse = MouseLookTakeTurn(this, delta);
 
     if (mouse == 0.0f || !this->follow_on || CCamera::StopCamera) {
-        this->next_angle += MouseLookTownTurnDelta(this, delta);
+        this->next_angle += delta;
         return;
     }
 
