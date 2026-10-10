@@ -1635,8 +1635,8 @@ The root `CMakeLists.txt` only picks the platform:
 
 - `ps2/src` is the game's code, exactly as the PS2 build compiles it, and
   nothing else. Port accommodations never live in `ps2/src` or `ps2/include`;
-  the exceptions are the `#ifndef PORT` around functions written in
-  assembly and the port's fixes to retail data tables (below).
+  the one exception is the `#ifndef PORT` around functions written in
+  assembly (below).
   `ps2/CMakeLists.txt` (with `ps2/cmake/`) is the PS2 build.
 - `port/src` is code only the port compiles. `port/CMakeLists.txt` is the
   port's build. `main.cpp` and `gameloop.cpp` start the game;
@@ -1847,11 +1847,6 @@ code for the port:
   cannot parse them. It replaces blank lines, so no line number moves. The
   generic `CDataAlloc<Kind, Size>::Align64()` in `ps2/include/dataalloc.hpp`
   is guarded too; nothing instantiates it, since both arenas specialise it.
-- **Fixes to retail data tables**, where the fix is a value in a table: a
-  macro that is retail's value without `PORT` and the fixed one with it, so
-  the PS2 build still emits retail's data. `NO_DROP_FIX` in
-  `ps2/include/monstorunit_model_data.inc` lets sixteen regular monsters drop
-  items, which retail leaves unable to.
 
 Retail's own mistakes stay in `ps2/src`, because the match reproduces them:
 locals read before anything sets them (`SaveToMc`'s `status`, `main`'s

@@ -17,7 +17,7 @@ const MONSTOR_MODEL *Species(const char *model) {
 
 } // namespace
 
-// The port's MonstorTable, with ps2/include's NO_DROP_FIX on the regular monsters retail leaves
+// The port's MonstorTable (port/src/monstorunit.cpp): retail's, with the regular monsters retail leaves
 // unable to drop.
 TEST(MonsterDrops, RegularMonstersDropButNotTheUnlockable) {
     const char *dropping[] = {"e09a", "e21a", "e22a", "e42a", "e51a", "e58a", "e60a", "e61a",
