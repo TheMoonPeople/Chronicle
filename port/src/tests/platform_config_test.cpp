@@ -657,3 +657,10 @@ TEST(PlatformConfig, ElementPicker) {
     ASSERT_TRUE(!ConfigParse(R"({"game": {"element_quick_select": "yes"}})").element_quick_select);
 }
 
+TEST(PlatformConfig, TextFont) {
+    ASSERT_TRUE(ConfigParse("").font_sharp);
+    Config config = ConfigParse(R"({"video": {"text_font": "original"}})");
+    ASSERT_TRUE(!config.font_sharp);
+    ASSERT_TRUE(!ConfigParse(ConfigSerialize(config)).font_sharp);
+    ASSERT_TRUE(ConfigParse(R"({"video": {"text_font": "blurry"}})").font_sharp);
+}
