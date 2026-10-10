@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <format>
@@ -695,6 +696,8 @@ struct Release {
     std::uint64_t    index_size;
     std::uint64_t    index_fnv; // FNV-1a, 64-bit
     std::vector<int> languages;
+    // Whether its other languages' floor plates are blank, to be filled from American English's.
+    bool blank_floor_plates = false;
 };
 
 // NTSC shipped American English alone. The disc's other languages are early drafts whose images
@@ -714,7 +717,7 @@ inline const std::vector<int> &PalLanguages() {
 inline const std::vector<Release> &KnownReleases() {
     static const std::vector<Release> releases = {
         {"NTSC 1.02",                     294080, 0x806bb1d43be8a8dcULL, NtscLanguages()},
-        {"PAL prototype (July 12, 2001)", 312864, 0x5942a32563c2a8b1ULL, PalLanguages() },
+        {"PAL prototype (July 12, 2001)", 312864, 0x5942a32563c2a8b1ULL, PalLanguages(),  true},
     };
     return releases;
 }
@@ -952,6 +955,103 @@ inline void Normalize(const fs::path &out, const std::vector<Record> &records) {
     }
 }
 
+// Where texel (x, y) of an 8-bit TIM2 picture `width` texels wide lies in its pixel data: the game's
+// files keep them in the GS's PSMT8 block order.
+inline std::size_t Tim2T8Texel(int x, int y, int width) {
+    return (y & ~0xF) * width + (x & ~0xF) * 2 + ((((y & ~3) >> 1) + (y & 1)) & 7) * width * 2 +
+           ((x + (((y + 2) >> 2) & 1) * 4) & 7) * 4 + ((y >> 1) & 1) + ((x >> 2) & 2);
+}
+
+// The CLUT entry a pixel value names: the GS reads 8-bit CLUTs in CSM1 order, bits 3 and 4 swapped.
+inline int Tim2T8Slot(int value) {
+    return (value & ~0x18) | ((value & 8) << 1) | ((value & 0x10) >> 1);
+}
+
+// The dungeon HUD's floor plates, in itempack.img's itempack picture: the plate the floor number is
+// drawn on and the back floors' over its right side. Every release's carry the word for floor, the
+// American and Japanese "Floor", and the HUD draws the number below it. The July 12 PAL prototype
+// left its British, French, German, Italian and Spanish ones blank (the retail release lettered
+// them), so they take American English's, each texel the nearest colour of the sheet's own palette.
+inline void FillFloorPlates(const fs::path &out) {
+    struct Rect {
+        int x, y, width, height;
+    };
+    constexpr Rect kPlates[] = {
+        {0x9A, 0x01, 0x66, 0x29},
+        {0xDA, 0x2B, 0x26, 0x29},
+    };
+    // The picture's pixel and palette offsets in its bank, or none for one not an 8-bit 256 by 192.
+    struct Sheet {
+        std::vector<unsigned char> bank;
+        std::size_t                pixels = 0;
+        std::size_t                clut = 0;
+        int                        width = 0;
+    };
+    auto open = [&](const std::string &path, bool prefer_normalized) {
+        Sheet    sheet;
+        fs::path file = out / "normalized" / path;
+        if (!prefer_normalized || !fs::is_regular_file(file)) {
+            file = out / path;
+        }
+        if (!fs::is_regular_file(file)) {
+            return sheet;
+        }
+        sheet.bank = ReadFile(file);
+        Im2Picture picture = FindIm2Picture(sheet.bank, "itempack");
+        const unsigned char *header = sheet.bank.data() + picture.offset + 16;
+        if (picture.size == 0 || header[0x13] != 5 || (header[0x14] | header[0x15] << 8) != 256 ||
+            (header[0x16] | header[0x17] << 8) != 192 || (header[0x0E] | header[0x0F] << 8) != 256) {
+            return Sheet{};
+        }
+        sheet.width = 256;
+        sheet.pixels = picture.offset + 16 + (header[0x0C] | header[0x0D] << 8);
+        sheet.clut = sheet.pixels + Le32(header + 8);
+        return sheet;
+    };
+    Sheet american = open("commenu/a_usa/itempack.img", false);
+    if (american.width == 0) {
+        return;
+    }
+    for (const char *language : {"a_eng", "a_fre", "a_ger", "a_ita", "a_spa"}) {
+        std::string path = std::format("commenu/{}/itempack.img", language);
+        Sheet       sheet = open(path, true);
+        if (sheet.width == 0) {
+            continue;
+        }
+        const unsigned char *palette = sheet.bank.data() + sheet.clut;
+        for (const Rect &plate : kPlates) {
+            for (int y = plate.y; y < plate.y + plate.height; y++) {
+                for (int x = plate.x; x < plate.x + plate.width; x++) {
+                    int value = american.bank[american.pixels + Tim2T8Texel(x, y, american.width)];
+                    const unsigned char *colour = american.bank.data() + american.clut + Tim2T8Slot(value) * 4;
+                    int best = -1;
+                    int best_distance = 0;
+                    for (int slot = 0; slot < 256; slot++) {
+                        const unsigned char *entry = palette + slot * 4;
+                        if ((colour[3] == 0) != (entry[3] == 0)) {
+                            continue;
+                        }
+                        int distance = colour[3] == 0 ? 0
+                                                      : std::abs(entry[0] - colour[0]) + std::abs(entry[1] - colour[1]) +
+                                                            std::abs(entry[2] - colour[2]) + 2 * std::abs(entry[3] - colour[3]);
+                        if (best < 0 || distance < best_distance) {
+                            best = slot;
+                            best_distance = distance;
+                        }
+                    }
+                    if (best >= 0) {
+                        sheet.bank[sheet.pixels + Tim2T8Texel(x, y, sheet.width)] = static_cast<unsigned char>(Tim2T8Slot(best));
+                    }
+                }
+            }
+        }
+        fs::path target = out / "normalized" / path;
+        if (!fs::is_regular_file(target) || ReadFile(target) != sheet.bank) {
+            WriteFile(target, sheet.bank);
+        }
+    }
+}
+
 inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *log,
                        const ProgressCallback &progress = {}) {
     std::vector<unsigned char> hd2 = ReadExtent(archive.hd2);
@@ -1018,6 +1118,9 @@ inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *l
     Normalize(out, records);
     Release release = ReleaseOf(hd2, records);
     Log(log, "release: {}\n", release.name);
+    if (release.blank_floor_plates) {
+        FillFloorPlates(out);
+    }
     WriteLanguages(out, release);
     return summary;
 }

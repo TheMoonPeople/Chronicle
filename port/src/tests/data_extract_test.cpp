@@ -394,3 +394,60 @@ TEST(DataExtract, SplitsNtscSystemPacks) {
     EXPECT_FALSE(fs::exists(out / "gedit/system/sys_2.img"));
     fs::remove_all(dir);
 }
+
+// An itempack.img: one 256 by 192 eight-bit picture named itempack, every texel `fill` but those of
+// the floor plate's first row, `plate`, and colour i of the palette at the CLUT slot of value i.
+static Bytes MakeItempack(const std::vector<std::uint32_t> &colours, unsigned char fill, unsigned char plate) {
+    constexpr std::size_t pixels = 256 * 192;
+    Bytes                 tim(16 + 48 + pixels + 1024, 0);
+    std::memcpy(tim.data(), "TIM2", 4);
+    Put32(tim, 16 + 4, 1024);
+    Put32(tim, 16 + 8, pixels);
+    tim[16 + 0x0C] = 0x30;
+    tim[16 + 0x0F] = 0x01;
+    tim[16 + 0x13] = 5;
+    tim[16 + 0x15] = 1;
+    tim[16 + 0x16] = 192;
+    std::fill(tim.begin() + 64, tim.begin() + 64 + pixels, fill);
+    for (int x = 0x9A; x < 0x9A + 0x66; x++) {
+        tim[64 + dcdata::Tim2T8Texel(x, 1, 256)] = plate;
+    }
+    for (int i = 0; i < 256; i++) {
+        Put32(tim, 64 + pixels + dcdata::Tim2T8Slot(i) * 4, colours[i]);
+    }
+    Bytes bank(16 + 48, 0);
+    std::memcpy(bank.data(), "IM2", 3);
+    Put32(bank, 4, 1);
+    std::memcpy(bank.data() + 16, "itempack", 8);
+    Put32(bank, 16 + 32, 16 + 48);
+    bank.insert(bank.end(), tim.begin(), tim.end());
+    return bank;
+}
+
+// The July 12 PAL prototype's blank floor plates take American English's, in each sheet's palette.
+TEST(DataExtract, FillsBlankFloorPlates) {
+    fs::path dir = TempDir("floor_plates");
+    std::vector<std::uint32_t> american(256), british(256);
+    for (int i = 0; i < 256; i++) {
+        american[i] = 0x80000000u | (i * 0x010101u);         // grey i, opaque
+        british[i] = 0x80000000u | ((255 - i) * 0x010101u); // the same greys, reversed
+    }
+    american[0] = 0x00000000u; // transparent
+    british[7] = 0x00123456u;  // transparent, elsewhere
+    WriteBytes(dir / "commenu/a_usa/itempack.img", MakeItempack(american, 0, 40));
+    WriteBytes(dir / "commenu/a_eng/itempack.img", MakeItempack(british, 200, 200));
+    dcdata::FillFloorPlates(dir);
+
+    Bytes          sheet = ReadBytes(dir / "normalized/commenu/a_eng/itempack.img");
+    const unsigned char *pixels = sheet.data() + 16 + 48 + 64;
+    auto           value = [&](int x, int y) { return pixels[dcdata::Tim2T8Texel(x, y, 256)]; };
+    EXPECT_EQ(value(0x9A, 1), 255 - 40);    // grey 40, at its place in the British palette
+    EXPECT_EQ(value(0x9A + 0x65, 1), 255 - 40);
+    EXPECT_EQ(value(0x9A, 2), 7);           // the American plate's transparent texels
+    EXPECT_EQ(value(0xDA, 0x2B + 0x28), 7); // and the back floor's plate
+    EXPECT_EQ(value(0x99, 1), 200);         // outside the plates: the sheet's own
+    EXPECT_EQ(value(0x9A, 0x2A), 200);
+    EXPECT_EQ(ReadBytes(dir / "commenu/a_eng/itempack.img"), MakeItempack(british, 200, 200));
+    EXPECT_FALSE(fs::exists(dir / "normalized/commenu/a_usa/itempack.img"));
+    fs::remove_all(dir);
+}
