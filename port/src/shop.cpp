@@ -13,6 +13,7 @@
 #include "dataread.hpp"
 #include "editloop.hpp"
 #include "gamepad.hpp"
+#include "gamepad_port.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "mathutil.hpp"
@@ -26,6 +27,7 @@
 #include "mglib.hpp"
 #include "rect.hpp"
 #include "savedata.hpp"
+#include "shop_menu.hpp"
 #include "snd.hpp"
 #include "stockitem.hpp"
 #include "texture.hpp"
@@ -504,4 +506,33 @@ PC_OVERRIDE int FishingExchangeKey() {
     }
 
     return result;
+}
+
+// Retail's, but for one frame. On the item shop's stock board retail moves the cursor before it
+// reads that frame's cross or triangle: right from the board's last column hands the cursor to the
+// personal board in that board's numbering, and down from its last row to the check button, and
+// the press then took the stock board's good at the new number. On the personal board's last rows
+// that is past the board's 30 goods, in the never-cleared work buffer behind them: the Broken
+// Dagger glitch (#109). Such a frame's cross and triangle wait for the next press.
+PC_OVERRIDE int CommonShopLoop() {
+    int done = 0;
+
+    ShopMenu.key_used = 0;
+
+    switch (ChargeOrShopFlag) {
+        case SHOP_KIND_CHARGE:
+            done = ChargeShopLoop();
+            break;
+        case SHOP_KIND_ITEM: {
+            int  cursor = ShopMenu.board.cursor;
+            bool leaving = ShopMenu.ready != 0 && ShopMenu.talk_mode == SHOP_TALK_NONE && ShopMenu.side == SHOP_SIDE_STOCK &&
+                           ((GamePad.Down(PAD_RIGHT) && cursor % 5 == 4) || (GamePad.Down(PAD_DOWN) && cursor >= 25));
+            PadHoldDown(leaving ? PAD_CROSS | PAD_TRIANGLE : 0);
+            done = ItemShopLoop2();
+            PadHoldDown(0);
+            break;
+        }
+    }
+
+    return done;
 }
