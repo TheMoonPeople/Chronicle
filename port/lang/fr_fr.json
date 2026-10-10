@@ -254,5 +254,6 @@
     "options.video.anisotropy.choice.4": "16x",
     "options.video.anisotropy.help": "\"Filtre anisotrope\"\nTextures plus nettes\nsur les surfaces vues\nde biais.",
     "options.video.anisotropy.label": "Filtre anisotrope",
+    "options.quit_game.help": "Quitter le jeu et revenir au bureau.",
     "options.quit_game.label": "Quitter le jeu"
 }

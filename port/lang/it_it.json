@@ -254,5 +254,6 @@
     "options.video.anisotropy.choice.4": "16x",
     "options.video.anisotropy.help": "\"Filtro anisotropico\"\nTexture più nitide\nsulle superfici viste\ndi sbieco.",
     "options.video.anisotropy.label": "Filtro anisotropico",
+    "options.quit_game.help": "Esci dal gioco e torna al desktop.",
     "options.quit_game.label": "Esci dal gioco"
 }
