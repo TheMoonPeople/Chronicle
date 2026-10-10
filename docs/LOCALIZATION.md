@@ -19,7 +19,8 @@ The files are laid out as Minecraft's language files are: one flat JSON file per
 2. **Sharp text.** The port draws message text from a TrueType font instead of the game's blurry bitmaps. The
    Dark Cloud Compendium Community Font (by Dayuppy and Moonbunny, used with their permission) is in
    `tools/font/`, and the build copies it to `lang/font.ttf` beside the executable, so it works as built. To use another font, put it at `<save folder>/lang/font.ttf` (that wins), or start with
-   `--font <file>`; delete `lang/font.ttf` to go back to the game's bitmaps. The port says
+   `--font <file>`. To go back to the game's bitmaps, set Options, Text page, Text Font to Original
+   (`video.text_font` in `config.json`), or delete `lang/font.ttf`. The port says
    `font: message text from ...` when it found one, and `font: no font.ttf ...` when it did not.
 3. **The language.** Options, Text page, Language row (or `game.language` in `config.json`).
 

@@ -137,6 +137,7 @@ key is optional; these are the defaults:
         "present_mode": "fifo",     // fifo, mailbox or immediate (each falls back to the next safer one)
         "interpolation": true,      // false: present each tick's image once, as rendered
         "max_fps": 0,               // display frames per second at most; 0: as the present mode allows
+        "text_font": "sharp",       // sharp: message text from lang/font.ttf; original: the game's bitmaps
         "width": 0,                 // window size in pixels; 0: the monitor's resolution. Both 0: fullscreen on the
         "height": 0,                //   monitor, so "aspect": "auto" takes the monitor's shape; headless: 1280x960
         "fullscreen": false,        // fullscreen at a given width and height
@@ -1313,7 +1314,7 @@ help. Retail's screen-position row is gone: `MGAdjustScreen` moves nothing on PC
 | Display | window mode, resolution (the monitor's own and the sizes that fit it), V-Sync (`fifo`, `mailbox`, `immediate`), frame limit, aspect ratio, interface size (`ui_scale`), smooth motion (`interpolation`), FPS counter, FPS info (`fps_detail`), anisotropic filter (`anisotropy`), soft focus |
 | Audio | volume, sound (mono, stereo or surround), soundtrack (PS2 or custom) |
 | Controls | vibration, mouse sensitivity (in hundredths below 1 and tenths above, whatever its unit), invert mouse Y, vertical return, mouse wheel zoom, reset zoom (its binding), stick sensitivity, invert stick X and Y, gyro, gyro sensitivity, invert gyro X and Y |
-| Text | language, message speed, button symbols (original or new), symbols shown (glyph device), text shadow, symbol shadow, area name shadow, floor label shadow, boss name shadow |
+| Text | language, message speed, button symbols (original or new), symbols shown (glyph device), text font (sharp or original), text shadow, symbol shadow, area name shadow, floor label shadow, boss name shadow |
 | Accessibility | always win QTEs |
 | Bindings | keyboard and mouse button bindings for game actions |
 

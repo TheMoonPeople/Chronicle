@@ -34,6 +34,10 @@ namespace {
 // instead of from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
 
 bool TtfReady() {
+    // video.text_font set to the game's own letters: the bitmaps, whatever font there is.
+    if (!ConfigGet().font_sharp) {
+        return false;
+    }
     static bool tried = false;
     if (!tried) {
         tried = true;
