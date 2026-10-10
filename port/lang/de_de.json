@@ -250,5 +250,6 @@
     "options.video.anisotropy.choice.4": "16x",
     "options.video.anisotropy.help": "\"Anisotroper Filter\"\nSchärfere Texturen\nauf schräg betrachteten\nFlächen.",
     "options.video.anisotropy.label": "Anisotroper Filter",
+    "options.quit_game.help": "Das Spiel beenden und zum Desktop zurückkehren.",
     "options.quit_game.label": "Spiel beenden"
 }
