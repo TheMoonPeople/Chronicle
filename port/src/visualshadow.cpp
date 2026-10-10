@@ -104,21 +104,9 @@ void Emit(std::vector<gfx::Vertex3D> &out, std::span<const Vec3> polygon) {
     }
 }
 
-// A planar face of a convex prism; inside is any point strictly inside the prism.
-void AddFace(Volume &volume, std::vector<Vec3> polygon, Vec3 inside, Count count) {
-    Vec3 normal = {0.0f, 0.0f, 0.0f};
-    Vec3 centre = {0.0f, 0.0f, 0.0f};
-    for (size_t i = 1; i + 1 < polygon.size(); i++) {
-        normal = normal + Cross(polygon[i] - polygon[0], polygon[i + 1] - polygon[0]);
-    }
-    for (size_t i = 0; i < polygon.size(); i++) {
-        centre = centre + polygon[i];
-    }
-    centre = centre * (1.0f / static_cast<float>(polygon.size()));
-    if (!Finite(normal) || !Finite(centre) || !Finite(inside) || Length(normal) == 0.0f) {
-        return;
-    }
-    if (Dot(normal, centre - inside) < 0.0f) {
+// A face of a prism, wound outwards when as_given (else reversed).
+void AddFace(Volume &volume, std::vector<Vec3> polygon, bool as_given, Count count) {
+    if (!as_given) {
         std::reverse(polygon.begin(), polygon.end());
     }
     Emit(count == Count::Both ? volume.both : volume.away, polygon);
@@ -143,16 +131,18 @@ void AddPrism(Volume &volume, const Vec3 top[3], const Vec3 drop[3], const bool 
         !std::isfinite(thickness) || std::fabs(thickness) <= 1e-4f * area * span) {
         return;
     }
-    Vec3 inside = (centre_top + centre_drop) * 0.5f;
-    if (!Finite(inside)) {
-        return;
-    }
-    AddFace(volume, {top[0], top[1], top[2]}, inside, Count::Both);
-    AddFace(volume, {drop[0], drop[1], drop[2]}, inside, far_cap);
+    // Every face's outward winding follows from the one sign of the prism's thickness: a triangle
+    // extruded against its normal keeps its own winding on top, and each side runs down its edge.
+    // A test per face, of the side the prism's centre lies on, is not used: for a prism the light
+    // nearly grazes the centre lies almost on the long sides, float error turns one inwards, and it
+    // counts with the wrong sign, a streak from the triangle to the ground (#87).
+    bool down = thickness < 0.0f;
+    AddFace(volume, {top[0], top[1], top[2]}, down, Count::Both);
+    AddFace(volume, {drop[0], drop[1], drop[2]}, !down, far_cap);
     for (int edge = 0; edge < 3; edge++) {
         int next = (edge + 1) % 3;
         if (sides[edge]) {
-            AddFace(volume, {top[edge], top[next], drop[next], drop[edge]}, inside, Count::Both);
+            AddFace(volume, {top[edge], drop[edge], drop[next], top[next]}, down, Count::Both);
         }
     }
 }
