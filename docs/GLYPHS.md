@@ -38,7 +38,14 @@ The PS3, Steam Deck and Steam Controller styles (and PS5, below) are drawn from 
 the Steam Controller style is used for both of Valve's pads, the 2015 one and the 2026 one. A Valve pad is told from
 its USB vendor (0x28DE), the Deck by its product (0x1205).
 
-The PS5 style is drawn from a flat pack of 64 px buttons (`ps5_a_butt.png`, `ps5_lstick_all.png`...):
+The PS5 styles are drawn from flat packs of 64 px buttons (`ps5_a_butt.png`, `ps5_lstick_all.png`...):
 `tools/glyphs/build_glyphs.py --ps5-pack <folder>` rebuilds only `ps5.png` and its entry in `glyphs.json`, leaving the
-other styles; `--ps3-pack` (`ps3_*.png`), `--steamdeck-pack` (`sd_*.png`) and `--steamcontroller-pack` (`sc_*.png`)
+other styles; `--ps5-color-pack <folder>` builds the separate `ps5color` style from the same pack format. Options >
+Text > Symbols Shown keeps the monochrome PS5 style and adds PS5 Colored. The supplied pack is in
+`port/glyphs/ps5color-pack/`. Its Cross, Circle, Square and Triangle use the source
+`P5Gamepad/Alt/T_P5_{Cross,Circle,Square,Triangle}_Color_Alt.png` images (normalized to 64 px); the remaining
+glyphs use the flat pack's A, B, X and Y as those four face-button positions, plus its shoulder, menu, d-pad and stick
+images. The source `T_P5_Alt_Sprite.svg` / `.png` shows the full layout; the individual colored images are used so the
+other glyphs can keep their existing pack art. No license or attribution file was present with the supplied assets.
+`--ps3-pack` (`ps3_*.png`), `--steamdeck-pack` (`sd_*.png`) and `--steamcontroller-pack` (`sc_*.png`)
 do the same for theirs. The pack's A, B, X and Y are Cross, Circle, Square and Triangle; L3 and R3 are its plain stick icons.

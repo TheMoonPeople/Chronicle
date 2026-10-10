@@ -199,12 +199,16 @@ const char *GlyphName(Button button) {
 }
 
 const char *StyleName(const Config &config) {
+    if (config.glyph_device == ConfigGlyphDevice::Ps5Color) {
+        return "ps5color";
+    }
     InputGlyphFamily family = InputGlyphFamily::Ps4;
     switch (config.glyph_device) {
         case ConfigGlyphDevice::Auto: family = InputActiveGlyphFamily(); break;
         case ConfigGlyphDevice::Ps3: family = InputGlyphFamily::Ps3; break;
         case ConfigGlyphDevice::Ps4: family = InputGlyphFamily::Ps4; break;
         case ConfigGlyphDevice::Ps5: family = InputGlyphFamily::Ps5; break;
+        case ConfigGlyphDevice::Ps5Color: family = InputGlyphFamily::Ps5; break;
         case ConfigGlyphDevice::Xbox: family = InputGlyphFamily::Xbox; break;
         case ConfigGlyphDevice::Switch: family = InputGlyphFamily::Switch; break;
         case ConfigGlyphDevice::SteamDeck: family = InputGlyphFamily::SteamDeck; break;

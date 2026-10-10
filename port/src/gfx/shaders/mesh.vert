@@ -56,6 +56,13 @@ out float gl_ClipDistance[2];
 void main() {
     vec4 position = vec4(a_position, 1.0);
     vec4 clip     = mc.mvp * position;
+    // The GS rasterises vertices at 1/16-pixel precision. Separate ground cells can reach the
+    // same screen edge through different transforms, whose last floating-point bits may differ.
+    // Quantise in logical-pixel units before viewport conversion so both edges use one location.
+    vec2 logical_pixel_ndc = pc.xform.xy;
+    vec2 ndc = clip.xy / clip.w;
+    ndc = round(ndc / (logical_pixel_ndc / 16.0)) * (logical_pixel_ndc / 16.0);
+    clip.xy = ndc * clip.w;
     gl_Position   = clip;
 
     gl_ClipDistance[0] = (mc.flags & kClip0) != 0u ? dot(mc.clip_plane[0], position) : 1.0;

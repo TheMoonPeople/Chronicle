@@ -183,11 +183,12 @@
     "options.input.glyph_device.choice.1": "PS3",
     "options.input.glyph_device.choice.2": "PS4",
     "options.input.glyph_device.choice.3": "PS5",
-    "options.input.glyph_device.choice.4": "Xbox",
-    "options.input.glyph_device.choice.5": "Switch",
-    "options.input.glyph_device.choice.6": "Steam Deck",
-    "options.input.glyph_device.choice.7": "Steam Controller",
-    "options.input.glyph_device.choice.8": "Tastiera",
+    "options.input.glyph_device.choice.4": "PS5 (a colori)",
+    "options.input.glyph_device.choice.5": "Xbox",
+    "options.input.glyph_device.choice.6": "Switch",
+    "options.input.glyph_device.choice.7": "Steam Deck",
+    "options.input.glyph_device.choice.8": "Steam Controller",
+    "options.input.glyph_device.choice.9": "Tastiera",
     "options.input.bindings.circle.help": "\"Cerchio\"\nConferma, poi premi\nun tasto o pulsante\ndel mouse per\ncambiare comando.",
     "options.input.bindings.circle.label": "Cerchio",
     "options.input.bindings.cross.help": "\"Croce\"\nConferma, poi premi\nun tasto o pulsante\ndel mouse per\ncambiare comando.",
@@ -252,5 +253,6 @@
     "options.video.anisotropy.choice.3": "8x",
     "options.video.anisotropy.choice.4": "16x",
     "options.video.anisotropy.help": "\"Filtro anisotropico\"\nTexture più nitide\nsulle superfici viste\ndi sbieco.",
-    "options.video.anisotropy.label": "Filtro anisotropico"
+    "options.video.anisotropy.label": "Filtro anisotropico",
+    "options.quit_game.label": "Esci dal gioco"
 }

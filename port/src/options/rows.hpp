@@ -24,6 +24,8 @@ struct Row {
     // A binding row: the input action it edits. Its value is the action's current keys, and
     // pressing confirm starts listening for the next one. nullptr for every other row.
     const char *action = nullptr;
+    // An action row runs when the player confirms it instead of changing a setting.
+    void (*activate)() = nullptr;
 };
 
 struct Page {

@@ -16,6 +16,8 @@
 #include "weapon_buildup.hpp"
 #include "menu_misc.hpp"
 #include "menu_option.hpp"
+#include "menu_save.hpp"
+#include "save_slots.hpp"
 #include "menu_mouse.hpp"
 #include "name_mouse.hpp"
 #include "platform/input.hpp"
@@ -38,6 +40,8 @@ struct Rect {
 
 // Which pause-menu screen is on, drawn since the last tick.
 bool g_battle_drawn = false;
+MenuPointer g_save;
+bool g_save_open = false;
 
 MenuPointer g_battle;
 
@@ -256,6 +260,52 @@ void MoveMouse(const MenuPointerTake &take) {
                 MenuPointerPress(kInputCircle);
             }
             break;
+    }
+}
+
+void SaveMouse() {
+    bool open = SaveMenu.texture_ready != 0 && SaveMenu.key_no != SAVE_KEY_FADE_OUT &&
+                SaveMenu.key_no != SAVE_KEY_FADE_IN;
+    if (!open) {
+        if (g_save_open) {
+            g_save.Close();
+            g_save_open = false;
+        }
+        return;
+    }
+    if (!g_save_open) {
+        g_save.Open();
+        g_save_open = true;
+    }
+    MenuPointerTake take = g_save.Take(320.0f, 240.0f);
+    MenuPointerShow(&g_save);
+    bool slots = SaveMenu.key_no == SAVE_KEY_FILE_SELECT;
+    if (slots) {
+        int count = SaveSlotRows(SaveSlots, SaveMenu.access_kind == SAVE_ACCESS_SAVE);
+        int selected = SaveSlotRow(SaveSlots, SaveMenu.file_no, SaveMenu.access_kind == SAVE_ACCESS_SAVE);
+        if (take.pointing) {
+            for (int row = 0; row < count; ++row) {
+                float top = SaveMenu.board_y + (row - selected) * 150.0f;
+                if (g_save.x >= 140.0f && g_save.x < 500.0f && g_save.y >= top && g_save.y < top + 126.0f) {
+                    if (row != selected && take.moved) {
+                        SaveMenu.file_no = SaveSlotFileAt(SaveSlots, row);
+                        ComMenuSePlay(MENU_SOUND_CURSOR);
+                    }
+                    if ((take.clicked & 1) != 0) MenuPointerPress(kInputCross);
+                    break;
+                }
+            }
+        }
+    } else {
+        bool confirm = SaveMenu.key_no == SAVE_KEY_LOAD_DECIDE || SaveMenu.key_no == SAVE_KEY_SAVE_DECIDE ||
+                       SaveMenu.key_no == SAVE_KEY_AFTER_ENDING;
+        int x = SaveMenu.key_no == SAVE_KEY_AFTER_ENDING ? 196 : 246;
+        int y = SaveMenu.key_no == SAVE_KEY_AFTER_ENDING ? 140 : 156;
+        int hit = take.pointing ? YesNoHit(x, y, g_save.x, g_save.y) : -1;
+        if (confirm && hit >= 0) {
+            if ((take.clicked & 1) != 0) MenuPointerPress(hit == 0 ? kInputCross : kInputCircle);
+            if ((take.clicked & 2) != 0) MenuPointerPress(kInputCircle);
+        }
     }
 }
 
@@ -946,6 +996,21 @@ void MenuMouseUpdate() {
     MenuPointerShow(nullptr);
     bool battle = g_battle_drawn;
     g_battle_drawn = false;
+
+    bool save = SaveMenu.texture_ready != 0 && SaveMenu.key_no != SAVE_KEY_FADE_OUT;
+    if (save) {
+        g_battle.Abandon();
+        if (MenuOptionOpen() || NameMouseOpen()) {
+            g_save.Abandon();
+            g_save_open = false;
+        }
+        SaveMouse();
+        return;
+    }
+    if (g_save_open) {
+        g_save.Close();
+        g_save_open = false;
+    }
 
     if (MenuOptionOpen()) {
         // The Options screen takes the mouse for itself (options/screen.cpp).

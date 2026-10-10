@@ -140,7 +140,9 @@ void DrawRows(int alpha) {
         label.RefreshGlyphs();
         label.Draw(kLabelX, y, alpha);
         GameText &value = texts.values[g_screen.page][r];
-        if (row.action != nullptr && g_screen.binding_row == r) {
+        if (row.activate != nullptr) {
+            value.Set("");
+        } else if (row.action != nullptr && g_screen.binding_row == r) {
             value.Set(g_screen.binding_prompt);
         } else {
             value.Set(RowValue(row, config));
@@ -149,7 +151,7 @@ void DrawRows(int alpha) {
         value.FitWidth(kValueRight - kValueX - 32);
         value.SetColour(selected ? FONT_COLOR_YELLOW : FONT_COLOR_WHITE);
         value.Draw((kValueX + kValueRight - value.Width()) / 2, y, alpha);
-        if (selected && row.action == nullptr) {
+        if (selected && row.action == nullptr && row.activate == nullptr) {
             int choice = row.get(config);
             if (choice > 0) {
                 texts.left.Draw(kValueX + 8, y, alpha);

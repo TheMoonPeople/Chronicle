@@ -383,8 +383,14 @@ void RunMouse() {
             return;
         } else if (over_row >= 0) {
             const Row &row = CurrentPage().rows[over_row];
-            if (row.action != nullptr) {
+            if (row.activate != nullptr) {
+                if (x < kValueX) {
+                    row.activate();
+                }
+            } else if (row.action != nullptr) {
                 BeginBinding(over_row);
+            } else if (x < kValueX - 8) {
+                // A setting's label has no action; clicking it only selects the row.
             } else if (x >= kValueX - 8 && x < kValueX + 24) {
                 Step(row, -1, false);
             } else if (x >= kValueRight - 16) {
@@ -450,7 +456,9 @@ void RunKeys() {
         if (direction != 0) {
             Step(*row, direction, false);
         } else if ((actions & PAD_CROSS) != 0) {
-            if (row->action != nullptr) {
+            if (row->activate != nullptr) {
+                row->activate();
+            } else if (row->action != nullptr) {
                 BeginBinding(g_screen.row);
             } else {
                 Step(*row, 1, true);

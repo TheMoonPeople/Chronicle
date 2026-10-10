@@ -27,6 +27,30 @@ void PortEdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEdit
 
 namespace {
 
+float g_villager_ground_height[10] = {};
+bool  g_villager_ground_height_valid[10] = {};
+int   g_villager_ground_height_map = -1;
+
+float SmoothVillagerGroundHeight(int villager, int map_no, float height) {
+    if (g_villager_ground_height_map != map_no) {
+        for (int i = 0; i < 10; i++) {
+            g_villager_ground_height_valid[i] = false;
+        }
+        g_villager_ground_height_map = map_no;
+    }
+
+    if (!g_villager_ground_height_valid[villager]) {
+        g_villager_ground_height[villager] = height;
+        g_villager_ground_height_valid[villager] = true;
+    } else {
+        // Adjacent terrain triangles can produce slightly different ray hits from tick to tick.
+        // Ease toward the sampled surface so those changes do not move a walking villager abruptly.
+        g_villager_ground_height[villager] += (height - g_villager_ground_height[villager]) * 0.25f;
+    }
+
+    return g_villager_ground_height[villager];
+}
+
 // Retail's GetNearVill and the choice its callers make from it. Of the villagers flagged to draw,
 // the two nearest the player that stand in front of the camera stay flagged where they are within
 // 150 of the player, and so does every one within video.detail_distance of the player; the rest
@@ -149,6 +173,7 @@ PC_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
             sceVu0FVECTOR hit;
             sceVu0CopyVector(position, EdVillager[i].pos);
             float altitude = ground->GetAlt(position[0], position[1], position[2]);
+            bool  use_terrain = ground->map_no == TOWN_MUSKA_LACKA && villagers[i].initial_motion != 0;
             EdVillager[i].SetPosition(position[0], altitude, position[2]);
             EdVillager[i].FootSoundEnable(0);
 
@@ -157,7 +182,6 @@ PC_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
                 WorkBuffer__2->used = 0;
                 CCPoly    *polys = (CCPoly *) WorkBuffer__2->Alloc(2000);
                 int        count = 0;
-                bool       use_terrain = ground->map_no == TOWN_MUSKA_LACKA && villagers[i].initial_motion != 0;
                 if (!use_terrain) {
                     count = ground->PickUpEditAreaPoly(polys, position[0], position[1], position[2]);
                 }
@@ -207,6 +231,9 @@ PC_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
                 }
 
                 position[1] = altitude;
+                if (use_terrain) {
+                    position[1] = SmoothVillagerGroundHeight(i, ground->map_no, altitude);
+                }
                 EdVillager[i].SetPosition(position);
             }
         }

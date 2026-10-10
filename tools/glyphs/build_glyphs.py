@@ -159,6 +159,21 @@ def build_ps5_pack(folder, out, style="ps5", prefix="ps5_"):
             images[name] = load(path)
         else:
             missing.append(path)
+    if style == "ps5color":
+        # The supplied Alt pack's four colored face symbols are 128x128; normalize
+        # them to the 64px pack cells while keeping the rest of the controller art.
+        color_faces = {
+            "cross": "T_P5_Cross_Color_Alt.png",
+            "circle": "T_P5_Circle_Color_Alt.png",
+            "square": "T_P5_Square_Color_Alt.png",
+            "triangle": "T_P5_Triangle_Color_Alt.png",
+        }
+        for name, filename in color_faces.items():
+            path = os.path.join(folder, filename)
+            if os.path.exists(path):
+                images[name] = load(path).resize((64, 64), Image.LANCZOS)
+            else:
+                missing.append(path)
     atlas, rects = pack(images, PS5_PACK_REFERENCE)
     atlas.save(os.path.join(out, style + ".png"), optimize=True)
     index_path = os.path.join(out, "glyphs.json")
@@ -179,6 +194,7 @@ def main():
     ap.add_argument("--src")
     ap.add_argument("--ps5-pack", help="folder of ps5_*.png buttons: rebuilds only the ps5 atlas from it, "
                     "keeping the other styles in the existing glyphs.json")
+    ap.add_argument("--ps5-color-pack", help="folder of ps5_*.png buttons: builds the selectable colored PS5 style")
     for style in EXTRA_PACKS:
         ap.add_argument("--%s-pack" % style, help="folder of %s*.png buttons: rebuilds only the %s atlas, as --ps5-pack "
                         "does for ps5" % (EXTRA_PACKS[style], style))
@@ -187,6 +203,8 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     if args.ps5_pack:
         return build_ps5_pack(args.ps5_pack, args.out)
+    if args.ps5_color_pack:
+        return build_ps5_pack(args.ps5_color_pack, args.out, style="ps5color")
     for style, prefix in EXTRA_PACKS.items():
         folder = getattr(args, style + "_pack")
         if folder:

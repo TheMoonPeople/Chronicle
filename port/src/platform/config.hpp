@@ -37,6 +37,7 @@ enum class ConfigGlyphDevice {
     Ps3,
     Ps4,
     Ps5,
+    Ps5Color,
     Xbox,
     Switch,
     SteamDeck,

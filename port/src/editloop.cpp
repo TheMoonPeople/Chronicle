@@ -804,7 +804,9 @@ PC_OVERRIDE int EditLoop() {
                     }
                 }
 
-                if (MapNo == TOWN_MATATAKI && SaveData->GetGameFlag(0x14) == 0 && EditPartsInfo.request[16] != 0) {
+                // floor_reached records the deepest floor entered, so reaching 9 means floor 8 is cleared.
+                if (MapNo == TOWN_MATATAKI && SaveData->GetGameFlag(0x14) == 0 && EditPartsInfo.request[16] != 0 &&
+                    SaveData->GetDngStatus()->floor_reached[1] >= 9) {
                     FadeOutToEvent(0xB, 0xA);
                 }
             }

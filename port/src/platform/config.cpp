@@ -134,7 +134,7 @@ bool ReadAspect(const Json &value, ConfigAspect &out) {
     return true;
 }
 
-constexpr const char *kGlyphDeviceNames[] = {"auto", "ps3", "ps4", "ps5", "xbox", "switch", "steamdeck", "steamcontroller", "keyboard"};
+constexpr const char *kGlyphDeviceNames[] = {"auto", "ps3", "ps4", "ps5", "ps5color", "xbox", "switch", "steamdeck", "steamcontroller", "keyboard"};
 
 bool ReadGlyphDevice(const Json &value, ConfigGlyphDevice &out) {
     if (!value.is_string()) {

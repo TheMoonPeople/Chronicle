@@ -29,6 +29,64 @@ PC_OVERRIDE float menudebugrot[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
 PC_OVERRIDE float menudebugrscale[4] = {3.0f, 3.0f, 3.0f, 0.0f};
 
+/* A save/menu slot is caller supplied. Reject bad attachment IDs and slot
+   indices before looking up data or forming a pointer into the inventory. */
+PC_OVERRIDE int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST *unused) {
+    (void) unused;
+
+    if (slot < 0 || slot >= 43 || GetAttachData(item_no) == 0) {
+        return -1;
+    }
+
+    if (SaveData == 0) {
+        return -1;
+    }
+
+    CDngStatusData *status = SaveData->GetDngStatus();
+    if (status == 0) {
+        return -1;
+    }
+
+    DNG_CONSUMABLE *items = status->consumable_items;
+    ATTACH_LIST *attach = (ATTACH_LIST *) &items[slot];
+    s16 held_no = attach->item_no;
+    if (GetAttachData(held_no) == 0) {
+        return -1;
+    }
+
+    ATTACH_DATA *data = GetAttachData(item_no);
+    memset(attach, 0, sizeof(*attach));
+    memcpy(attach, data, sizeof(*attach));
+
+    if (level <= 0) {
+        level = 1;
+    } else if (level > 3) {
+        level = 3;
+    }
+
+    if (held_no >= ITEM_ATTACH_ATTACK && held_no <= ITEM_ATTACH_MAGICAL_POWER) {
+        attach->status[held_no - ITEM_ATTACH_ATTACK] += level;
+    }
+
+    return 0;
+}
+
+PC_OVERRIDE int GetAttachVolumeForMsg(ATTACH_LIST *attach) {
+    if (attach == 0 || GetAttachData(attach->item_no) == 0) {
+        return 0;
+    }
+
+    if (attach->item_no >= ITEM_ATTACH_STAT_START && attach->item_no < ITEM_ATTACH_GEM_START) {
+        return attach->status[attach->item_no - ITEM_ATTACH_STAT_START];
+    }
+
+    if (attach->item_no == ITEM_ATTACH_SYNTHESIS_SPHERE) {
+        return attach->sphere_level;
+    }
+
+    return 0;
+}
+
 /* The dungeon's quick-change menu, opened with D-pad Up, as a picker for the equipped weapon's
    element: the ring holds a stone for each element the weapon's attachments give it and, where
    the weapon may go without one, a grey synth sphere for none. X takes the highlighted element,
