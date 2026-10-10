@@ -14,17 +14,23 @@
 namespace {
 
 // Where the flooded clearing's three more chests stand. The clearing's chests hang off a frame
-// placed at the origin, so these are world positions; y is the ground there.
+// placed at the origin, so these are world positions; y is the ground there. A chest of yaw r faces
+// (sin r, cos r) in x and z; the clearing's own Gourd, Fruit of Eden and Grass Cake face kChestYaw.
 struct TreantChest {
     int   item;
     float position[3];
+    float yaw;
     int   flag;
 };
 
+constexpr float kChestYaw = -1.862f;
+constexpr float kPi = 3.14159265f;
+
 constexpr TreantChest kExtraChests[] = {
-    {ITEM_GOURD,               {60.0f, 0.6f, 165.0f},  365},
-    {ITEM_FRUIT_OF_EDEN,       {125.0f, 0.1f, 95.0f},  366},
-    {ITEM_ATTACH_BEAST_BUSTER, {-20.0f, 0.0f, 195.0f}, 367},
+    // By the new pond, facing straight away from its bank.
+    {ITEM_GOURD,               {-20.0f, 0.0f, 195.0f}, 1.937f,                 365},
+    {ITEM_FRUIT_OF_EDEN,       {125.0f, 0.1f, 95.0f},  kChestYaw + kPi / 6.0f, 366},
+    {ITEM_ATTACH_BEAST_BUSTER, {60.0f, 0.6f, 165.0f},  kChestYaw + kPi / 2.0f, 367},
 };
 
 constexpr int kExtraChestProgress = 9;
@@ -89,6 +95,7 @@ int AddTreantChests(CMapParts *parts, EPARTS_FUNC_DATA *functions, int function_
         extra[i].position[0] = chest.position[0];
         extra[i].position[1] = chest.position[1];
         extra[i].position[2] = chest.position[2];
+        extra[i].rotation[1] = chest.yaw;
         extra[i].values[0] = static_cast<float>(chest.item);
         extra[i].values[2] = static_cast<float>(kExtraChestProgress);
 
