@@ -656,3 +656,4 @@ TEST(PlatformConfig, ElementPicker) {
     ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).element_quick_select);
     ASSERT_TRUE(!ConfigParse(R"({"game": {"element_quick_select": "yes"}})").element_quick_select);
 }
+

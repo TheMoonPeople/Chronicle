@@ -474,6 +474,9 @@ Texts::Texts() {
     l1.Set(PAD_GLYPH_L1);
     r1.Set(PAD_GLYPH_R1);
     shortcuts.Set(LocalizeText("options.shortcuts", kShortcutsText));
+    l1.RefreshGlyphs();
+    r1.RefreshGlyphs();
+    shortcuts.RefreshGlyphs();
     help.Set(kSaveHelp, LocalizeText("options.help.save_failed", kSaveHelpText));
     help.Set(kDisplayHelp, LocalizeText("options.help.display_kept", kDisplayHelpText));
     help.Set(kExitHelp, LocalizeText("options.help.exit", kExitHelpText));
@@ -481,12 +484,14 @@ Texts::Texts() {
     for (int p = 0; p < static_cast<int>(Pages().size()); ++p) {
         const Page &page = Pages()[p];
         tabs.emplace_back().Set(LocalizeText(PageKey(page.name), page.name));
+        tabs.back().RefreshGlyphs();
         help.Set(kPageHelp + p, LocalizeText(PageKey(page.name) + ".help", page.help) + "\n" +
                                     LocalizeText("options.help.turn_page", kTurnPageText));
         labels.emplace_back();
         values.emplace_back();
         for (const Row &row : page.rows) {
             labels.back().emplace_back().Set(LocalizeText("options." + std::string(row.key) + ".label", row.label));
+            labels.back().back().RefreshGlyphs();
             values.back().emplace_back();
             if (row.help != nullptr) {
                 help.Set(kRowHelp + index, LocalizeText("options." + std::string(row.key) + ".help", row.help));

@@ -1,5 +1,9 @@
 #include "gametext.hpp"
 
+#include "platform/config.hpp"
+#include "platform/input.hpp"
+
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <string_view>
@@ -506,6 +510,10 @@ int GameText::Set(std::string_view utf8) {
         }
     }
 
+    if (cell_width_ > 0) {
+        FitWidth(cell_width_);
+    }
+
     return missing_;
 }
 
@@ -514,6 +522,31 @@ void GameText::SetColour(u32 colour) {
         colour_ = colour;
         if (mes_.mes_made >= 0 && !Layout()) {
             missing_ = -1;
+        }
+    }
+}
+
+void GameText::FitWidth(int width) {
+    cell_width_ = width;
+    if (mes_.mes_made >= 0 && width > 0 && mes_.text_width > width) {
+        Layout();
+    } else if (mes_.mes_made >= 0 && width > 0 && mes_.char_width != base_char_width_) {
+        Layout();
+    }
+}
+
+void GameText::RefreshGlyphs() {
+    const Config &config = ConfigGet();
+    int style = static_cast<int>(config.glyphs_new) * 32 + static_cast<int>(config.glyph_device) * 2 +
+                static_cast<int>(InputActiveGlyphFamily());
+    // Original glyph mode still uses the PS2 font atlas, so the selected device does not affect it.
+    if (!config.glyphs_new) {
+        style = 0;
+    }
+    if (style != glyph_style_) {
+        glyph_style_ = style;
+        if (mes_.mes_made >= 0) {
+            Layout();
         }
     }
 }
@@ -527,6 +560,7 @@ bool GameText::Layout() {
         bool on_;
     } keep(keep_random_);
 
+    mes_.char_width = base_char_width_;
     mes_.SetBuff(file_.Data());
     if (SystemMes != nullptr) {
         mes_.SetBuff_system(SystemMes);
@@ -535,6 +569,16 @@ bool GameText::Layout() {
     mes_.clut_now = mes_.clut_default;
     mes_.mes_made = -1;
     mes_.MakeMesWin(0);
+
+    if (cell_width_ > 0 && mes_.text_width > cell_width_) {
+        int fitted = std::max(1, static_cast<int>(base_char_width_ * cell_width_ /
+                                                 static_cast<float>(mes_.text_width)));
+        if (fitted < mes_.char_width) {
+            mes_.char_width = fitted;
+            mes_.mes_made = -1;
+            mes_.MakeMesWin(0);
+        }
+    }
 
     if (mes_.win_line_num > 0 && mes_.win_line[mes_.win_line_num - 1].code == MES_CODE_END) {
         return true;

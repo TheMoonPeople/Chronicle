@@ -68,6 +68,11 @@ public:
     // A FontColor, as FontColorTbl holds them; FONT_COLOR_WHITE until set.
     void SetColour(u32 colour);
 
+    // Re-layout when controller glyphs change: pad symbols are baked into the text texture.
+    void RefreshGlyphs();
+    // Limit this text to a fixed horizontal cell, shrinking its character width as needed.
+    void FitWidth(int width);
+
     // Draws the text with its first line's top-left corner at (x, y) on the game's 640-wide
     // screen, at alpha (0x80 solid), as DrawMenuClsMes does. Call it from a menu's draw function
     // once the message textures are loaded, as for CommonMenuMes2.
@@ -95,4 +100,7 @@ private:
     int          missing_ = 0;
     bool         set_ = false;
     bool         keep_random_ = false;
+    int          glyph_style_ = -1;
+    int          cell_width_ = 0;
+    int          base_char_width_ = 11;
 };

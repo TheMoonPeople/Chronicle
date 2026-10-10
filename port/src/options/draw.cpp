@@ -136,13 +136,17 @@ void DrawRows(int alpha) {
         const Row &row = page.rows[r];
         int        y = RowTop(r) + 2;
         bool       selected = g_screen.row == r;
-        texts.labels[g_screen.page][r].Draw(kLabelX, y, alpha);
+        GameText &label = texts.labels[g_screen.page][r];
+        label.RefreshGlyphs();
+        label.Draw(kLabelX, y, alpha);
         GameText &value = texts.values[g_screen.page][r];
         if (row.action != nullptr && g_screen.binding_row == r) {
             value.Set(g_screen.binding_prompt);
         } else {
             value.Set(RowValue(row, config));
         }
+        value.RefreshGlyphs();
+        value.FitWidth(kValueRight - kValueX - 32);
         value.SetColour(selected ? FONT_COLOR_YELLOW : FONT_COLOR_WHITE);
         value.Draw((kValueX + kValueRight - value.Width()) / 2, y, alpha);
         if (selected && row.action == nullptr) {
