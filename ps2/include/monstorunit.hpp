@@ -34,27 +34,6 @@ enum MonsterKind {
 
 // clang-format on
 
-/**
- * Families of monster, as MONSTOR_MODEL::attachment_kind holds them: the slayer attachment the
- * monster drops (ITEM_ATTACH_SLAYER_START plus the family) and the anti-monster value of a weapon
- * that hits it.
- */
-// clang-format off
-enum MonsterFamily {
-    MONSTER_FAMILY_DINO   = 0, /**< Dinoslayer. */
-    MONSTER_FAMILY_UNDEAD = 1, /**< Undead Buster. */
-    MONSTER_FAMILY_SEA    = 2, /**< Sea Killer. */
-    MONSTER_FAMILY_STONE  = 3, /**< Stone Breaker. */
-    MONSTER_FAMILY_PLANT  = 4, /**< Plant Buster. */
-    MONSTER_FAMILY_BEAST  = 5, /**< Beast Buster. */
-    MONSTER_FAMILY_SKY    = 6, /**< Sky Hunter. */
-    MONSTER_FAMILY_METAL  = 7, /**< Metal Breaker. */
-    MONSTER_FAMILY_MIMIC  = 8, /**< Mimic Breaker. */
-    MONSTER_FAMILY_MAGE   = 9, /**< Mage Slayer. */
-};
-
-// clang-format on
-
 class CDungeonMap;
 
 /**
@@ -71,7 +50,7 @@ struct MONSTOR {
     s32           base_model;           /**< Index of the loaded model the monster was set up from. */
     s32           max_hp;               /**< Life the monster has at full health. */
     s32           hp;                   /**< Life the monster has left. */
-    s16           attachment_kind;      /**< Family of the monster. @see MonsterFamily. */
+    s16           attachment_kind;      /**< Attachment family the monster drops from. */
     s16           attachment_weight[5]; /**< Weight of each attachment kind in the drop choice and in elemental damage. */
     s32           money;                /**< Least amount of money the monster drops. */
     s32           money_chance;         /**< Percentage chance that the monster drops money. */
@@ -183,7 +162,7 @@ struct MONSTOR_MODEL {
     char  model_name[4][16];    /**< Model file of the monster and of up to three attachments. */
     char  script_name[16];      /**< Script file that drives the monster. */
     s32   max_hp;               /**< Life the monster has at full health. */
-    s16   attachment_kind;      /**< Family of the monster. @see MonsterFamily. */
+    s16   attachment_kind;      /**< Attachment family the monster drops from. */
     s16   attachment_weight[5]; /**< Weight of each attachment kind in the drop choice and in elemental damage. */
     float collision_radius;     /**< Radius the monster keeps from other monsters. */
     s16   defense;              /**< Amount taken off the damage of each hit. */
