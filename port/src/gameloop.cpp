@@ -28,7 +28,6 @@
 #include "mainselect.hpp"
 #include "menu_option.hpp"
 #include "menu_save.hpp"
-#include "monstorunit_port.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
 #include "nowload.hpp"
@@ -794,7 +793,6 @@ int RunGame(int argc, char **argv) {
     main_select_menu_no = 0;
     std::strcpy(main_select_param, "e01");
     InitCDFile();
-    FixMonsterDrops();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
     std::vector<s32> languages = SupportedLanguages();

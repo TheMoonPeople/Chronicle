@@ -6,21 +6,7 @@
 #include "framevu1.hpp"
 #include "mglib.hpp"
 
-#include "monstorunit_port.hpp"
 #include "platform/config.hpp"
-
-// Sixteen of the regular monsters (model e...) ship with drops_items 0, so a kill skips the death
-// drop entirely: no money, no attachment, no gate key and no rare item, though most of them have a
-// money chance and a rare item set (Hornet, the Witches, Ghost, Lich, Phantom, the Bats, Gol and
-// Sil, and the Enhanced kinds of six of them). They drop as the others do. Wine Keg and Gacious
-// keep theirs: they are MONSTER_KIND_NO_LOCK_ON, which the death drop also leaves out.
-void FixMonsterDrops() {
-    for (MONSTOR_MODEL &species : MonstorTable) {
-        if (species.model_name[0][0] == 'e' && species.drops_items == 0 && species.kind != MONSTER_KIND_NO_LOCK_ON) {
-            species.drops_items = 1;
-        }
-    }
-}
 
 // Retail's DrawShadowMonstor, which casts the shadows of the monsters taking part. A dormant
 // monster within video.detail_distance of the player draws its model (DrawMonstorDetail,

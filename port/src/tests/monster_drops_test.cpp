@@ -2,7 +2,6 @@
 
 #include <cstring>
 
-#include "../monstorunit_port.hpp"
 #include "monstorunit.hpp"
 
 namespace {
@@ -18,9 +17,9 @@ const MONSTOR_MODEL *Species(const char *model) {
 
 } // namespace
 
+// The port's MonstorTable, with ps2/include's NO_DROP_FIX on the regular monsters retail leaves
+// unable to drop.
 TEST(MonsterDrops, RegularMonstersDropButNotTheUnlockable) {
-    FixMonsterDrops();
-    FixMonsterDrops(); // idempotent
     const char *dropping[] = {"e09a", "e21a", "e22a", "e42a", "e51a", "e58a", "e60a", "e61a",
                               "e90a", "e91a", "e127a", "e136a", "e140a", "e141a", "e158a", "e162a"};
     for (const char *model : dropping) {
