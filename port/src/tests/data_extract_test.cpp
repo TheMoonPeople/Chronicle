@@ -143,6 +143,24 @@ TEST(DataExtract, IsIdempotent) {
     fs::remove_all(dir);
 }
 
+static Bytes MakeIconBank(const std::vector<std::tuple<std::string, std::uint32_t, unsigned char>> &pictures);
+
+// An NTSC town system pack: its pause and day-of-adventure pictures of the given colour.
+static Bytes MakeNtscSystemPack(std::uint32_t colour) {
+    return MakePack({
+        {"whatsday.img", MakeIconBank({{"whatsday", colour + 1, 1}})},
+        {"cursor.img", Pattern(8, 1)},
+        {"gaiji.img", Pattern(8, 2)},
+        {"system.img", MakeIconBank({{"dayclock", 0x10, 3},
+                                     {"syst08", 0x20, 4},
+                                     {"skip_bord", 0x30, 5},
+                                     {"pause", 0x40, 6},
+                                     {"pnplate", 0x50, 7}})},
+        {"takara.mds", Pattern(8, 3)},
+        {"pause.img", MakeIconBank({{"pause", colour, 2}})},
+    });
+}
+
 TEST(DataExtract, NormalizesNtscAssets) {
     fs::path dir = TempDir("normalize_ntsc");
     Bytes   start = Pattern(32, 7);
@@ -158,7 +176,7 @@ TEST(DataExtract, NormalizesNtscAssets) {
     Put32(image, 64 + 32, 16 + 2 * 48 + 4);
     std::iota(image.begin() + 16 + 2 * 48, image.end(), 1);
     Disc disc = MakeDisc({
-        {"gedit/system/esys.pak", MakePack({{"cursor.img", Pattern(8, 1)}})},
+        {"gedit/system/esys.pak", MakeNtscSystemPack(0x100)},
         {"meswin/mes_tex.pak", Pattern(16, 2)},
         {"rmdat/rmdat1.pak", MakePack({{"start.img", start}})},
         {"dun/img/us/dname00.img", Pattern(16, 3)},
@@ -327,6 +345,53 @@ TEST(DataExtract, RejectsTruncation) {
 
     WriteBytes(dir / "junk.iso", Bytes(40 * dcdata::kSector, 0x55));
     ASSERT_TRUE(Throws([&] { dcdata::OpenArchive(dir / "junk.iso"); }, "not an ISO 9660 image"));
+    fs::remove_all(dir);
+}
+
+// PAL's town system packs, out of NTSC's: the common pack without the pictures PAL moved, with
+// sys_cmn.img three of system.img's pictures, and each language's pause and day-of-adventure
+// pictures as sys_N.img.
+TEST(DataExtract, SplitsNtscSystemPacks) {
+    fs::path        dir = TempDir("split_system");
+    Disc            disc = MakeDisc({
+        {"gedit/system/esys.pak",   MakeNtscSystemPack(0x100)},
+        {"gedit/system/esys_1.pak", MakeNtscSystemPack(0x200)},
+    });
+    fs::path        out = dir / "data";
+    dcdata::Archive archive = dcdata::OpenArchive(WriteStandardIso(dir, disc));
+    dcdata::Extract(archive, out, nullptr);
+
+    auto picture = [](const Bytes &bank, std::string_view name) {
+        dcdata::Im2Picture found = dcdata::FindIm2Picture(bank, name);
+        return Bytes(bank.begin() + found.offset, bank.begin() + found.offset + found.size);
+    };
+    auto names = [](const Bytes &bank) {
+        std::vector<std::string> list;
+        for (std::uint32_t i = 0; i < dcdata::Le32(bank.data() + 4); i++) {
+            list.emplace_back(reinterpret_cast<const char *>(bank.data() + 16 + i * 48));
+        }
+        return list;
+    };
+    auto ntsc = dcdata::ReadPack(disc.files[0].data);
+    auto common = dcdata::ReadPack(ReadBytes(out / "gedit/system/esys_cmn.pak"));
+    ASSERT_EQ(common.size(), 3);
+    EXPECT_EQ(common[0].name, "cursor.img");
+    EXPECT_EQ(common[1].name, "takara.mds");
+    EXPECT_EQ(common[2].name, "sys_cmn.img");
+    EXPECT_EQ(names(common[2].data), (std::vector<std::string>{"syst08", "pnplate", "dayclock"}));
+    for (const char *name : {"syst08", "pnplate", "dayclock"}) {
+        EXPECT_EQ(picture(common[2].data, name), picture(ntsc[3].data, name)) << name;
+    }
+    EXPECT_EQ(dcdata::Le32(common[2].data.data() + 16 + 32), 16 + 3 * 48);
+
+    for (int language : {0, 1}) {
+        auto  pack = dcdata::ReadPack(disc.files[language].data);
+        Bytes bank = ReadBytes(out / (language == 0 ? std::string("gedit/system/sys.img") : "gedit/system/sys_1.img"));
+        EXPECT_EQ(names(bank), (std::vector<std::string>{"pause", "whatsday"}));
+        EXPECT_EQ(picture(bank, "pause"), picture(pack[5].data, "pause")) << language;
+        EXPECT_EQ(picture(bank, "whatsday"), picture(pack[0].data, "whatsday")) << language;
+    }
+    EXPECT_FALSE(fs::exists(out / "gedit/system/sys_2.img"));
     fs::remove_all(dir);
 }
 
