@@ -1,4 +1,5 @@
 #include "gamepad.hpp"
+#include "gamepad_port.hpp"
 
 #include <libpad.h>
 
@@ -14,6 +15,12 @@
 constexpr int kDebugButtonsModifier = PAD_SELECT | PAD_L2;
 
 static bool g_debug_menu_pressed = false;
+
+static int g_held_down = 0;
+
+void PadHoldDown(int mask) {
+    g_held_down = mask;
+}
 
 PC_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
     unsigned char data[32];
@@ -68,6 +75,12 @@ PC_OVERRIDE int CGamePad::On2(int mask) {
 
 PC_OVERRIDE int CGamePad::Down(int mask) {
     if (key_lock) {
+        return 0;
+    }
+
+    mask &= ~g_held_down;
+
+    if (mask == 0) {
         return 0;
     }
 
