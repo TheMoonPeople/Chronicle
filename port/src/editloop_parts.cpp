@@ -21,6 +21,7 @@
 #include "mathutil.hpp"
 #include "objanime.hpp"
 #include "savedata.hpp"
+#include "treant_chests_port.hpp"
 
 // Retail's LoadPTS, with the .pts definition decoded into host records (eparts_port.hpp) where
 // retail copied it into EPartsInfoBuff and relocated its pointer fields in place.
@@ -155,6 +156,7 @@ PC_OVERRIDE EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive,
     EPARTS_FUNC_DATA *funcs = header->func;
 
     EditMapInfo->event_count += EdInitEventPoint(parts, info->events, funcs, header->func_count, points, 0x100);
+    EditMapInfo->event_count += AddTreantChests(parts, funcs, header->func_count, points);
 
     EPARTS_FUNC_DATA *func = header->func;
 
