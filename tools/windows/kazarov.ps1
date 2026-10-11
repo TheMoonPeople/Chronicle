@@ -117,6 +117,18 @@ if (-not $iso) {
         [Console]::Error.WriteLine('kazarov: no PAL disc image found; the game will ask for its data')
     }
 } else {
+    # Every port configuration extracts into the same data\, so they take one lock for it.
+    $dataLockFile = Join-Path $locks 'port-data.lock'
+    $dataLock = $null
+    $dataAnnounced = $false
+    while ($null -eq $dataLock) {
+        try {
+            $dataLock = [IO.File]::Open($dataLockFile, 'OpenOrCreate', 'ReadWrite', 'None')
+        } catch [IO.IOException], [UnauthorizedAccessException] {
+            if (-not $dataAnnounced) { Write-Host "kazarov: waiting for $dataLockFile"; $dataAnnounced = $true }
+            Start-Sleep -Milliseconds 500
+        }
+    }
     $dcdata = Join-Path $build 'dcdata.exe'
     $isoInfo = Get-Item -LiteralPath $iso
     $dcdataInfo = Get-Item -LiteralPath $dcdata
@@ -129,6 +141,7 @@ if (-not $iso) {
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
         Set-Content -LiteralPath $stamp -Value $want
     }
+    $dataLock.Dispose()
 }
 
 $lock.Dispose()
