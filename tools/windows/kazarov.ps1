@@ -158,6 +158,16 @@ while ($null -eq $dataShared) {
     }
 }
 
+# Another configuration can re-extract between the two locks; the game then refuses to start.
+if ($iso) {
+    $have = if (Test-Path -LiteralPath $stamp) { (Get-Content -LiteralPath $stamp -Raw) -replace "`r", '' } else { '' }
+    if ($have.Trim() -ne $want) {
+        $dataShared.Dispose()
+        [Console]::Error.WriteLine("kazarov: $stamp no longer matches this build's dcdata; run again")
+        exit 1
+    }
+}
+
 Push-Location $checkout
 & (Join-Path $build 'darkcloud.exe') @rest
 $code = $LASTEXITCODE
