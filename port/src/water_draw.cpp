@@ -153,7 +153,7 @@ void DrawRefracted(const CWater &water, const Refraction &refraction, const Draw
 
 } // namespace
 
-PC_OVERRIDE int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
+PORT_OVERRIDE int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
     if (output == nullptr || rows < 2 || columns < 2) {
         return kDraw3DBlockQuads;
     }
@@ -229,7 +229,7 @@ PC_OVERRIDE int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
     return kDraw3DBlockQuads;
 }
 
-PC_OVERRIDE extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info,
+PORT_OVERRIDE extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info,
                                                                             sceVif1Packet *draw_packet, void *parent_info) {
     if (water->CheckClip() != 0) {
         return 0;

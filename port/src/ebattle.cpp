@@ -52,7 +52,7 @@ void set_draw_ok(int type, int button) {
 
 } // namespace
 
-PC_OVERRIDE int EBLoop() {
+PORT_OVERRIDE int EBLoop() {
     if (ebattle_flag == 0) {
         return 1;
     }
@@ -216,7 +216,7 @@ int PortEdCheckKeyMode(int mode);
 // RY takes the mouse as camera_port.hpp describes. In an interior's first-person view EdMoveChara
 // turns the character by RX only while the left stick rests, so the mouse turns it in EyeCamera.
 
-PC_OVERRIDE float EdGetRXf(int mode) {
+PORT_OVERRIDE float EdGetRXf(int mode) {
     if (PortEdCheckKeyMode(mode)) {
         CCameraFollow *camera = EdMoveCharaInfo.camera;
         if (viewMode == 0 && !EdMoveCharaInfo.interior && camera != NULL) {
@@ -229,7 +229,7 @@ PC_OVERRIDE float EdGetRXf(int mode) {
 }
 
 // EdMoveChara reads it for the town's camera only; EyeCamera below reads the stick itself.
-PC_OVERRIDE float EdGetRYf(int mode) {
+PORT_OVERRIDE float EdGetRYf(int mode) {
     if (PortEdCheckKeyMode(mode)) {
         CCameraFollow *camera = EdMoveCharaInfo.camera;
         float          stick = GamePad.GetRYf();
@@ -251,7 +251,7 @@ PC_OVERRIDE float EdGetRYf(int mode) {
 
 // Retail's, with the mouse turning the view while it is the one shown. In an interior the view
 // takes its heading from the character's (EdMoveChara), so the mouse turns the character too.
-PC_OVERRIDE void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
+PORT_OVERRIDE void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
     float stick_x;
     float stick_y;
     bool  unlocked = (chara_mode & 3) == 0;
@@ -314,7 +314,7 @@ PC_OVERRIDE void EyeCamera(CCamera *camera, CCharacter *character, int right_sti
 extern int chara_fishing;
 
 // Suppress the interior's keyboard steering; the collision seam supplies camera-relative WASD.
-PC_OVERRIDE float EdGetLXf(int mode) {
+PORT_OVERRIDE float EdGetLXf(int mode) {
     auto move = InputGetKeyboardMovement();
     if (!PortEdCheckKeyMode(mode) || (viewMode && (move.x || move.y))) {
         return 0.0f;
@@ -322,7 +322,7 @@ PC_OVERRIDE float EdGetLXf(int mode) {
     return GamePad.GetLXf();
 }
 
-PC_OVERRIDE float EdGetLYf(int mode) {
+PORT_OVERRIDE float EdGetLYf(int mode) {
     auto move = InputGetKeyboardMovement();
     if (!PortEdCheckKeyMode(mode) || (viewMode && (move.x || move.y))) {
         return 0.0f;

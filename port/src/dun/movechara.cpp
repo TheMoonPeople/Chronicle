@@ -221,7 +221,7 @@ void DeleteItemModel(int slot) {
 
 } // namespace
 
-PC_OVERRIDE void DunMoveChara() {
+PORT_OVERRIDE void DunMoveChara() {
     /* Where the camera looks relative to what it follows, before the floor's
        own offset is added. */
     static sceVu0FVECTOR reference = {0.0f, 7.5f, 0.0f, 0.0f};
@@ -2978,7 +2978,7 @@ PC_OVERRIDE void DunMoveChara() {
     motionDrive();
 }
 
-PC_OVERRIDE int BtCheckDamageProc() {
+PORT_OVERRIDE int BtCheckDamageProc() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR from;
     sceVu0FVECTOR blow;
@@ -3347,7 +3347,7 @@ PC_OVERRIDE int BtCheckDamageProc() {
     return taken;
 }
 
-PC_OVERRIDE void EyeCamera() {
+PORT_OVERRIDE void EyeCamera() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR ref;
     sceVu0FMATRIX rotation;

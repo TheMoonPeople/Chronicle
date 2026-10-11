@@ -1,9 +1,9 @@
 # The x64 port: the game's code built with clang as C++26 for the host.
 #
 # ps2/src holds only the game's code as the PS2 build compiles it. A definition
-# port/src tags PC_OVERRIDE replaces the one ps2/src gives the same name: the
+# port/src tags PORT_OVERRIDE replaces the one ps2/src gives the same name: the
 # port compiles a copy of each unit without those definitions
-# (scripts/port/pc_override.py) and links it with port/src. That is how the
+# (tools/kazarov/scripts/port_override.py) and links it with port/src. That is how the
 # PS2-only parts are replaced: the SDK, the Metrowerks runtime, the functions
 # that touch the hardware directly and those written in assembly.
 #
@@ -21,7 +21,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # darkcloud is position-independent (DC_LINK_OPTIONS below).
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Python runs scripts/port/pc_override.py.
+set(KZ_ROOT ${CMAKE_SOURCE_DIR}/tools/kazarov)
+if(NOT EXISTS ${KZ_ROOT}/include/kazarov/port.h)
+    message(FATAL_ERROR "${KZ_ROOT} is empty: run git submodule update --init tools/kazarov")
+endif()
+
+# Python runs ${KZ_ROOT}/scripts/port_override.py.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # SDL3 owns the window and input; Vulkan 1.4 renders.
 find_package(SDL3 REQUIRED CONFIG)
@@ -70,28 +75,28 @@ set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 file(GLOB_RECURSE PS2_SOURCES CONFIGURE_DEPENDS RELATIVE ${PS2_DIR} ${PS2_DIR}/*.cpp)
 file(GLOB_RECURSE PORT_SOURCES CONFIGURE_DEPENDS ${PORT_DIR}/*.cpp)
 list(FILTER PORT_SOURCES EXCLUDE REGEX "/tests/")
-# tools/mwccgap compiles a temporary beside the source it came from.
+# Temporary files beside a source are not units.
 list(FILTER PS2_SOURCES EXCLUDE REGEX "(^|/)tmp[^/]*$")
 
 set(PS2_UNITS "")
 # What both halves are compiled with (dc_options below). PORT leaves out the
 # functions ps2/src writes in MIPS assembly.
 set(PORT_DEFINITIONS PORT PAL)
-list(TRANSFORM PORT_DEFINITIONS PREPEND --define= OUTPUT_VARIABLE pc_override_defines)
-# The names port/src's PC_OVERRIDE definitions link under. The list is rewritten
+list(TRANSFORM PORT_DEFINITIONS PREPEND --define= OUTPUT_VARIABLE port_override_defines)
+# The names port/src's PORT_OVERRIDE definitions link under. The list is rewritten
 # only when it changes, so other edits to port/src rebuild nothing of ps2/src.
-# PC_OVERRIDE_SOURCES changes when a unit or a stub header comes or goes, which no
+# PORT_OVERRIDE_SOURCES changes when a unit or a stub header comes or goes, which no
 # timestamp shows.
-set(PC_OVERRIDE_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/port/pc_override.py)
-set(PC_OVERRIDES ${CMAKE_BINARY_DIR}/pc_overrides.txt)
-set(PC_OVERRIDE_SOURCES ${CMAKE_BINARY_DIR}/pc_override_sources.txt)
-file(GLOB_RECURSE PC_OVERRIDE_STUBS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/port/include/stubs/*.hpp)
-string(JOIN "\n" pc_override_sources ${PORT_SOURCES} ${PS2_SOURCES} ${PC_OVERRIDE_STUBS})
-file(CONFIGURE OUTPUT ${PC_OVERRIDE_SOURCES} CONTENT "${pc_override_sources}\n" @ONLY)
-add_custom_command(OUTPUT ${PC_OVERRIDES}
-    COMMAND ${Python3_EXECUTABLE} ${PC_OVERRIDE_SCRIPT} list ${PORT_DIR} -o ${PC_OVERRIDES}
-    DEPENDS ${PORT_SOURCES} ${PC_OVERRIDE_SOURCES} ${PC_OVERRIDE_SCRIPT}
-    COMMENT "Listing port/src's PC_OVERRIDE definitions"
+set(PORT_OVERRIDE_SCRIPT ${KZ_ROOT}/scripts/port_override.py)
+set(PORT_OVERRIDES ${CMAKE_BINARY_DIR}/port_overrides.txt)
+set(PORT_OVERRIDE_SOURCES ${CMAKE_BINARY_DIR}/port_override_sources.txt)
+file(GLOB_RECURSE PORT_OVERRIDE_STUBS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/port/include/stubs/*.hpp)
+string(JOIN "\n" port_override_sources ${PORT_SOURCES} ${PS2_SOURCES} ${PORT_OVERRIDE_STUBS})
+file(CONFIGURE OUTPUT ${PORT_OVERRIDE_SOURCES} CONTENT "${port_override_sources}\n" @ONLY)
+add_custom_command(OUTPUT ${PORT_OVERRIDES}
+    COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} list ${PORT_DIR} -o ${PORT_OVERRIDES}
+    DEPENDS ${PORT_SOURCES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT}
+    COMMENT "Listing port/src's PORT_OVERRIDE definitions"
     VERBATIM)
 # What is compiled of a unit is its copy without the definitions of those names.
 # port/include/stubs/<unit>.hpp, if it exists, is included ahead of that unit
@@ -107,9 +112,9 @@ foreach(unit IN LISTS PS2_SOURCES)
         set(header "")
     endif()
     add_custom_command(OUTPUT ${copy}
-        COMMAND ${Python3_EXECUTABLE} ${PC_OVERRIDE_SCRIPT} strip --overrides ${PC_OVERRIDES} ${stubs}
-            ${pc_override_defines} ${PS2_DIR}/${unit} ${copy}
-        DEPENDS ${PS2_DIR}/${unit} ${PC_OVERRIDES} ${PC_OVERRIDE_SOURCES} ${PC_OVERRIDE_SCRIPT} ${header}
+        COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} strip --overrides ${PORT_OVERRIDES} ${stubs}
+            ${port_override_defines} ${PS2_DIR}/${unit} ${copy}
+        DEPENDS ${PS2_DIR}/${unit} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT} ${header}
         COMMENT "Removing overridden definitions from ps2/src/${unit}"
         VERBATIM)
     list(APPEND PS2_UNITS ${copy})
@@ -121,13 +126,13 @@ foreach(unit IN LISTS PS2_SOURCES)
 endforeach()
 # A tag that names no definition in ps2/src stops the build: its replacement
 # would be unused wherever the two signatures differ.
-set(PC_OVERRIDES_CHECKED ${CMAKE_BINARY_DIR}/pc_overrides.checked)
-add_custom_command(OUTPUT ${PC_OVERRIDES_CHECKED}
-    COMMAND ${Python3_EXECUTABLE} ${PC_OVERRIDE_SCRIPT} check --overrides ${PC_OVERRIDES}
-        --stubs ${CMAKE_SOURCE_DIR}/port/include/stubs ${pc_override_defines} ${PS2_DIR}
-        -o ${PC_OVERRIDES_CHECKED}
-    DEPENDS ${PS2_ORIGINALS} ${PC_OVERRIDES} ${PC_OVERRIDE_SOURCES} ${PC_OVERRIDE_SCRIPT}
-    COMMENT "Checking that every PC_OVERRIDE definition replaces one of ps2/src's"
+set(PORT_OVERRIDES_CHECKED ${CMAKE_BINARY_DIR}/port_overrides.checked)
+add_custom_command(OUTPUT ${PORT_OVERRIDES_CHECKED}
+    COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} check --overrides ${PORT_OVERRIDES}
+        --stubs ${CMAKE_SOURCE_DIR}/port/include/stubs ${port_override_defines} ${PS2_DIR}
+        -o ${PORT_OVERRIDES_CHECKED}
+    DEPENDS ${PS2_ORIGINALS} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT}
+    COMMENT "Checking that every PORT_OVERRIDE definition replaces one of ps2/src's"
     VERBATIM)
 
 # What both halves are compiled with. The game was written for MWCC, which
@@ -136,7 +141,7 @@ add_custom_command(OUTPUT ${PC_OVERRIDES_CHECKED}
 add_library(dc_options INTERFACE)
 target_compile_definitions(dc_options INTERFACE ${PORT_DEFINITIONS})
 target_include_directories(dc_options INTERFACE
-    ${CMAKE_SOURCE_DIR}/port/include ${CMAKE_SOURCE_DIR}/ps2/include ${CMAKE_SOURCE_DIR}/ps2/include/sce)
+    ${CMAKE_SOURCE_DIR}/port/include ${KZ_ROOT}/include ${CMAKE_SOURCE_DIR}/ps2/include ${CMAKE_SOURCE_DIR}/ps2/include/sce)
 target_compile_options(dc_options INTERFACE
     "SHELL:-include \"${CMAKE_SOURCE_DIR}/port/include/port.h\""
     -fms-extensions -ffunction-sections -fdata-sections
@@ -149,7 +154,7 @@ if(WIN32 AND (NOT MINGW OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
     message(FATAL_ERROR "The Windows build requires clang/llvm-mingw")
 endif()
 
-add_library(dc_ps2 OBJECT ${PS2_UNITS} ${PC_OVERRIDES_CHECKED})
+add_library(dc_ps2 OBJECT ${PS2_UNITS} ${PORT_OVERRIDES_CHECKED})
 target_link_libraries(dc_ps2 PRIVATE dc_options)
 # Retail's code reads locals it never set and falls off the end of functions
 # that return a value, and ps2/src keeps both because the match depends on

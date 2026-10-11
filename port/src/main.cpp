@@ -459,7 +459,7 @@ int Run(int argc, const char **argv) {
 
 } // namespace
 
-PC_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
     return Run(argc, argv);
 }
 

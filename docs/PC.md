@@ -40,7 +40,7 @@ windowed start asks for the disc image and extracts it; `dcdata` does the
 same from a shell:
 
 ```sh
-port/build/pc/dcdata extract "rom/Dark Cloud (PAL).iso" data
+port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
 port/build/pc/darkcloud --data data --save save
 ```
 
@@ -1547,7 +1547,7 @@ with a `call` to a stub's address and map them to their source with
 `llvm-addr2line`; static helpers inlined into a caller show under that
 caller.
 
-At the last count `port/src` tagged 330 definitions `PC_OVERRIDE`, each
+At the last count `port/src` tagged 330 definitions `PORT_OVERRIDE`, each
 replacing one of `ps2/src`'s, and the final link held 4,145 of the game's own
 (`llvm-nm` of the `dc_ps2` objects' external definitions against the
 executable's symbols).
@@ -1622,7 +1622,7 @@ reader's state) and op_d's `OpD_InitProcess`, `OpD_InitProcess2` and
 gives them. The smoke pools are sized from the host `CEffect` (288 bytes,
 where retail asked for fifty 256-byte ones).
 
-The port's definitions of those objects are tagged `PC_OVERRIDE`, so the
+The port's definitions of those objects are tagged `PORT_OVERRIDE`, so the
 title units' own are left out and only the port's constructors run over them
 at start-up, never the title units' at the PS2 strides. `LoadOverlay`
 (`port/src/runtime.cpp`) does what retail's overlay loader did when a mode
@@ -1657,28 +1657,28 @@ The root `CMakeLists.txt` only picks the platform:
 ## How `port/src` takes precedence
 
 `port/src` tags every definition that replaces one of `ps2/src`'s with
-`PC_OVERRIDE`, which `port/include/port.h` defines as nothing:
+`PORT_OVERRIDE`, which `port/include/port.h` defines as nothing:
 
 ```cpp
-PC_OVERRIDE void MGClearScreen(u_char r) {
+PORT_OVERRIDE void MGClearScreen(u_char r) {
 ```
 
 `ps2/src` carries no mark of it. `port/CMakeLists.txt` builds the two halves
 like this, on every platform:
 
-1. `scripts/port/pc_override.py list` reads the tags in `port/src` and writes
+1. `tools/kazarov/scripts/port_override.py list` reads the tags in `port/src` and writes
    the name each tagged definition links under to
-   `port/build/pc/pc_overrides.txt`: a function's qualified name and
+   `port/build/pc/port_overrides.txt`: a function's qualified name and
    parameter types, or the name alone for a variable and for a function with
    C linkage.
-2. `pc_override.py strip` writes a copy of every unit in `ps2/src` under
+2. `port_override.py strip` writes a copy of every unit in `ps2/src` under
    `port/build/pc/ps2_src` without its definitions of those names. A function
    becomes its declaration, a member function is removed (its class declares
    it; an explicit specialization keeps its declaration) and a variable
    becomes an `extern` declaration. Lines keep their numbers and a `#line`
    directive names the original, so diagnostics and debug information point
    into `ps2/src`.
-3. `pc_override.py check` stops the build if a listed name is defined by no
+3. `port_override.py check` stops the build if a listed name is defined by no
    unit of `ps2/src`.
 4. The copies are compiled, with `PORT` defined.
 5. The units in `port/src` are compiled and linked with them.
@@ -1690,7 +1690,7 @@ whose signature `ps2/src` does not have fails the check: the two would be
 different symbols, both would link, and the game would go on calling
 `ps2/src`'s.
 
-To replace a function, define it in `port/src` with `PC_OVERRIDE` in front and
+To replace a function, define it in `port/src` with `PORT_OVERRIDE` in front and
 the signature `ps2/src` gives it: the parameter types are compared as they are
 spelled, names and default arguments aside. By convention it goes in the file
 that mirrors its unit: `port/src/mglib.cpp` holds the replacements for
@@ -1881,7 +1881,7 @@ the function is the port's ("Pointers and 32-bit integers").
 ## Checking the PS2 build
 
 An edit to `ps2/src` or `ps2/include` made for the port is checked by building
-both regions (`scripts/build/cmake.sh build`, and again with `REGION=PAL`),
+both regions (`./build.sh ps2-ntsc` and `./build.sh ps2-pal`),
 which verifies every image byte for byte.
 
 ## Game data
@@ -1890,8 +1890,8 @@ The game reads its files from a plain directory, not from the disc.
 `port/build/pc/dcdata` (`tools/dcdata`) makes it:
 
 ```sh
-port/build/pc/dcdata extract "rom/Dark Cloud (PAL).iso" data
-port/build/pc/dcdata list "rom/Dark Cloud (PAL).iso"
+port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
+port/build/pc/dcdata list "rom/pal/Dark Cloud (PAL).iso"
 ```
 
 The source is a disc image, read through its ISO 9660 tree, or a directory

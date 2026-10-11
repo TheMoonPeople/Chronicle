@@ -182,7 +182,7 @@ static void RunSystemEvent(int event_no, CCamera *camera) {
  * @address 0x1797E0
  * @size 0x1FE8
  */
-PC_OVERRIDE int EditLoop() {
+PORT_OVERRIDE int EditLoop() {
     goto_return_menu = 0;
 
     // Pausing is a walking action: a cutscene/event must not open the pause menu over itself.
@@ -1551,7 +1551,7 @@ static void EditMainDraw() {
 
 
 // Retail's MoveCamera, the georama view's, with the mouse turning it beside the right stick.
-PC_OVERRIDE void MoveCamera(CCameraFollow *camera) {
+PORT_OVERRIDE void MoveCamera(CCameraFollow *camera) {
     float horizontal = MouseLookTurn(camera, 0.03f, GamePad.GetRXf());
     camera->AddHeight(-GamePad.GetRYf());
 
@@ -1576,7 +1576,7 @@ PC_OVERRIDE void MoveCamera(CCameraFollow *camera) {
 // DrawSysGra with two corrections: the day-transition text is a cutscene of its own and is not
 // drawn over an event (#72), and the pause sprite is not drawn from a null handle when an event
 // left the texture block without "pause" loaded (#113).
-PC_OVERRIDE void DrawSysGra() {
+PORT_OVERRIDE void DrawSysGra() {
     if (EdDebugParamDrawOff == 0) {
         TexManager.ReloadTexture(Vif1Packet, 20);
         EdDrawSysCursor(EditMapInfo->work.events.points, 256);
@@ -1616,7 +1616,7 @@ PC_OVERRIDE void DrawSysGra() {
     }
 }
 
-PC_OVERRIDE void EdDrawClock(int x, int y) {
+PORT_OVERRIDE void EdDrawClock(int x, int y) {
     if (draw_clock != 0 && EditMapInfo->time_stop == 0) {
         gfx::UiAnchorScope anchor(gfx::UiAnchor::Side(1, -1));
 
@@ -1653,7 +1653,7 @@ PC_OVERRIDE void EdDrawClock(int x, int y) {
     }
 }
 
-PC_OVERRIDE int LoadTexture() {
+PORT_OVERRIDE int LoadTexture() {
     int        entered;
     int        image;
     u_long128 *buffer = (u_long128 *) (DataBuffer__2.base + DataBuffer__2.used * 16);

@@ -118,8 +118,8 @@ static int        VolFade;
 static void setTexAnime();
 void        FaceChangeC(int no);
 
-PC_OVERRIDE CMapObject OP_NornMapObj[76];
-PC_OVERRIDE CMapObject OP_NornMapObj2[87];
+PORT_OVERRIDE CMapObject OP_NornMapObj[76];
+PORT_OVERRIDE CMapObject OP_NornMapObj2[87];
 
 static CFireOmni     CFire;
 static CCharacter    Komono;
@@ -137,7 +137,7 @@ static CMapObject    OP_ToanMapObj;
    The mouth is driven from the script's own clock, a new frame picked at random every sixth
    hundredth of a second left on the line's timer while the actor is talking. */
 // op_b's FaceChange is the one op_a calls; FaceChangeC is op_c's body (port/src/title/op_c.cpp).
-PC_OVERRIDE void FaceChange(int actor_no) {
+PORT_OVERRIDE void FaceChange(int actor_no) {
     static FACE_INFO face[8] = {
         {"c07a01",  "c07a01an",  42, 40, 87, 35, 0, 0, 256, 2, 0},
         {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, 0},
@@ -290,7 +290,7 @@ u_int *OpeningDancePack(int dancer) {
 
 /* Plays the couple's dance from separate motion buffers so object loads cannot overwrite the next
    step before it starts. */
-PC_OVERRIDE void LoadMotionData() {
+PORT_OVERRIDE void LoadMotionData() {
     char *motion_files[20][2] = {
         {"opdat/chara/01p19a1a.chr", "01p19a1a.cfg"},
         {"opdat/chara/01p19a1b.chr", "01p19a1b.cfg"},
@@ -363,7 +363,7 @@ PC_OVERRIDE void LoadMotionData() {
    tenths of a world unit and a heading in degrees, one row per piece of scenery. The rows with no
    model of their own are further copies of the row above them, which is why the frame is only
    reloaded where a name is given. */
-PC_OVERRIDE void OpB_InitProcess() {
+PORT_OVERRIDE void OpB_InitProcess() {
     LOADTEXTURE_INFO2 texture_list[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",       0,  0},
         {"#fontbase#512#256#1",                             26, 0},
@@ -704,7 +704,7 @@ PC_OVERRIDE void OpB_InitProcess() {
    loaded one at a time rather than through a table because each is followed by set-up of its own —
    Toan's mother has a frame turned off, Toan himself carries the cloth the wind drives, and the
    second Toan is the one the door animation is timed against. */
-PC_OVERRIDE void OpB_InitProcess2() {
+PORT_OVERRIDE void OpB_InitProcess2() {
     LOADTEXTURE_INFO2 texture_list[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",       0,  0},
         {"#fontbase#512#256#1",                             26, 0},
@@ -873,7 +873,7 @@ PC_OVERRIDE void OpB_InitProcess2() {
    has run past its last key falls through to whatever motion was queued behind it. Then the three
    models the camera's own frame tree carries drive three more actors: each is found by name in the
    camera model, and its world transform becomes that actor's position and heading. */
-PC_OVERRIDE void OpB_MotionProcess() {
+PORT_OVERRIDE void OpB_MotionProcess() {
     for (int i = 8; i < 12; i++) {
         if (CScript__2.obj[i].disp) {
             if (CScript__2.obj[i].motion_end != -1) {
@@ -978,7 +978,7 @@ PC_OVERRIDE void OpB_MotionProcess() {
    then the actors themselves, and last the depth of field the two outdoor scenes take. The near
    plane is pulled in to half a unit because the camera passes through the scenery, and the far one
    is the largest the Z buffer holds. */
-PC_OVERRIDE void OpB_DrawProcess() {
+PORT_OVERRIDE void OpB_DrawProcess() {
     RenderInfo *info = &mgRenderInfo;
 
     MGSetRenderInfo(info->scale[0], 0.5f, 0xffff);

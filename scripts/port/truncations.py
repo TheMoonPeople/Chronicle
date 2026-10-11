@@ -21,7 +21,7 @@ definitions port/src overrides, so the bodies port/src replaces are listed too:
 
 Each site carries the pointer's origin where it can be derived (image, stack, arena, parameter,
 field, ...) and the state of its function in the linked darkcloud: port (port/src's own code),
-replaced (a ps2/src body a PC_OVERRIDE definition in port/src replaces; the port never compiles
+replaced (a ps2/src body a PORT_OVERRIDE definition in port/src replaces; the port never compiles
 it), retail (a ps2/src body that is linked) or dead (dropped by --gc-sections; never runs).
 An optimised build inlines functions and drops the bodies, which would then count as dead, so the
 build has to be a Debug one.
@@ -760,7 +760,7 @@ def markdown(sites, totals, returns, out):
     w("  (the replacement recovers the pointer, e.g. `PortImagePointer` for image globals).")
     w("")
     w("State of the enclosing function in the linked `darkcloud`: **port** (port/src's own code),")
-    w("**replaced** (a ps2/src body a `PC_OVERRIDE` definition in port/src replaces; never compiled),")
+    w("**replaced** (a ps2/src body a `PORT_OVERRIDE` definition in port/src replaces; never compiled),")
     w("**retail** (a ps2/src body that is linked and can run), **dead** (dropped by `--gc-sections`; never")
     w("runs).")
     w("")

@@ -2,7 +2,7 @@
 
 This plan brings the PC port (`docs/PC.md`, `docs/PC_PORT_PLAN.md`) to macOS on
 arm64, rendering through KosmicKrisp, Mesa's Vulkan driver on top of Metal.
-Nothing here changes the port's rules: C++26, SDL3, native Vulkan, `PC_OVERRIDE`
+Nothing here changes the port's rules: C++26, SDL3, native Vulkan, `PORT_OVERRIDE`
 replacement, no PS2 emulation, no edits under `ps2/src`.
 
 ## 1. What KosmicKrisp is, and what must be checked

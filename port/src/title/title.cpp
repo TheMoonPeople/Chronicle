@@ -118,7 +118,7 @@ static void SetFirePosition(CFireOmni &fire, float x, float y, float z) {
     fire.pos[3] = 1.0f;
 }
 
-PC_OVERRIDE void DataLoad() {
+PORT_OVERRIDE void DataLoad() {
     if (CScript.load_no != RUSH_SCENE_NONE) {
     load_wait:
         if (ReadBGSync()) {
@@ -410,7 +410,7 @@ static void InitProcA() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcA() {
+PORT_OVERRIDE void DrawProcA() {
     sceVu0FMATRIX flash = {
         {100.0f, 80.0f, 60.0f, 0.0f},
         {90.0f,  90.0f, 50.0f, 0.0f},
@@ -726,7 +726,7 @@ static void InitProcB() {
     Water__2.SetColor(100, 110, 120, 128);
 }
 
-PC_OVERRIDE void DrawProcB() {
+PORT_OVERRIDE void DrawProcB() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
     OP_BuildingMap.Draw();
@@ -1048,7 +1048,7 @@ static void InitProcC() {
     Water__2.SetColor(128, 128, 128, 128);
 }
 
-PC_OVERRIDE void DrawProcC() {
+PORT_OVERRIDE void DrawProcC() {
     TexManager.ReloadTexture(Vif1Packet, 10);
 
     for (int i = 0; i < 26; i++) {
@@ -1252,7 +1252,7 @@ static void InitProcD() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcD() {
+PORT_OVERRIDE void DrawProcD() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
     OP_BuildingMap.Draw();
@@ -1419,7 +1419,7 @@ static void InitProcE() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcE() {
+PORT_OVERRIDE void DrawProcE() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
 
@@ -1603,7 +1603,7 @@ static void InitProcF() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcF() {
+PORT_OVERRIDE void DrawProcF() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
     OP_BuildingMap.Draw();
@@ -1787,7 +1787,7 @@ static void InitProcG() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcG() {
+PORT_OVERRIDE void DrawProcG() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
     OP_BuildingMap.Draw();
@@ -2009,7 +2009,7 @@ static void InitProcH() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcH() {
+PORT_OVERRIDE void DrawProcH() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
     OP_BuildingMap.Draw();
@@ -2229,7 +2229,7 @@ static void InitProcI() {
     OPMdsLoad();
 }
 
-PC_OVERRIDE void DrawProcI() {
+PORT_OVERRIDE void DrawProcI() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
     OP_BuildingMap.Draw();
@@ -2306,7 +2306,7 @@ static void InitProcTitle() {
     TexManager.LoadTextureBlock(-1, textures);
 }
 
-PC_OVERRIDE void DrawProcTitle() {
+PORT_OVERRIDE void DrawProcTitle() {
     TexManager.ReloadTexture(Vif1Packet, 1);
 
     TitlePortCard(TexManager.GetTexture("bg01", -1), TitleAngle);

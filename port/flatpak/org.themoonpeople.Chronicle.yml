@@ -70,6 +70,7 @@ modules:
         skip:
           - .git
           - .flatpak-builder
+          - .kazarov
           - build
           - ps2/build
           - port/build
