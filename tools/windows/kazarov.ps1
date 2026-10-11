@@ -111,14 +111,14 @@ $iso = @(
 ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 
 $data = Join-Path $checkout 'data'
+# Every port configuration extracts into the same data\, so they take one lock for it. The game holds it shared while it runs.
+$dataLockFile = Join-Path $locks 'port-data.lock'
 if (-not $iso) {
     # Without a disc image an existing data\ is used; otherwise the game asks for its data.
     if (-not (Test-Path -LiteralPath $data -PathType Container)) {
         [Console]::Error.WriteLine('kazarov: no PAL disc image found; the game will ask for its data')
     }
 } else {
-    # Every port configuration extracts into the same data\, so they take one lock for it.
-    $dataLockFile = Join-Path $locks 'port-data.lock'
     $dataLock = $null
     $dataAnnounced = $false
     while ($null -eq $dataLock) {
@@ -145,6 +145,22 @@ if (-not $iso) {
 }
 
 $lock.Dispose()
+
+# The game reads data\ while it runs, so it holds the data lock shared; another configuration's extraction waits for it.
+$dataShared = $null
+$dataSharedAnnounced = $false
+while ($null -eq $dataShared) {
+    try {
+        $dataShared = [IO.File]::Open($dataLockFile, 'OpenOrCreate', 'Read', 'Read')
+    } catch [IO.IOException], [UnauthorizedAccessException] {
+        if (-not $dataSharedAnnounced) { Write-Host "kazarov: waiting for $dataLockFile"; $dataSharedAnnounced = $true }
+        Start-Sleep -Milliseconds 500
+    }
+}
+
 Push-Location $checkout
 & (Join-Path $build 'darkcloud.exe') @rest
-exit $LASTEXITCODE
+$code = $LASTEXITCODE
+Pop-Location
+$dataShared.Dispose()
+exit $code
