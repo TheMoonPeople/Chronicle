@@ -1,12 +1,11 @@
 {
 	"name": "Dev",
 	"build": {
-		"context": "..",
-		"dockerfile": "../Dockerfile",
-		"target": "dev"
+		"context": "../tools/kazarov/image",
+		"dockerfile": "../tools/kazarov/image/Dockerfile"
 	},
-	"workspaceMount": "source=${localWorkspaceFolder},target=/dcdecomp,type=bind",
-	"workspaceFolder": "/dcdecomp",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/work/chronicle,type=bind",
+	"workspaceFolder": "/work/chronicle",
 	"customizations": {
 		"vscode": {
 			"extensions": [
