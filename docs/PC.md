@@ -123,6 +123,7 @@ key is optional; these are the defaults:
         "debug_mode": false,        // Start with debug controls off; the debug toggle chord enables them
         "qte_always_win": false,    // button-prompt events (event battles) still play, but always end in a perfect
         "element_quick_select": false, // D-pad Up in a dungeon opens the quick-change menu as an element picker
+        "keep_lock_on": false,      // switching characters with SELECT keeps the lock-on (port/src/dun/keep_lock_on.hpp)
         "save_cursor_position": true, // the game's own options, for every save (see "The Options screen")
         "message_speed": "normal",  // normal or fast
         "clock": true,              // the town clock
@@ -1310,7 +1311,7 @@ help. Retail's screen-position row is gone: `MGAdjustScreen` moves nothing on PC
 
 | Page | Rows |
 |---|---|
-| Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select |
+| Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select, keep lock-on |
 | Display | window mode, resolution (the monitor's own and the sizes that fit it), V-Sync (`fifo`, `mailbox`, `immediate`), frame limit, aspect ratio, interface size (`ui_scale`), smooth motion (`interpolation`), FPS counter, FPS info (`fps_detail`), anisotropic filter (`anisotropy`), soft focus |
 | Audio | volume, sound (mono, stereo or surround), soundtrack (PS2 or custom) |
 | Controls | vibration, mouse sensitivity (in hundredths below 1 and tenths above, whatever its unit), invert mouse Y, vertical return, mouse wheel zoom, reset zoom (its binding), stick sensitivity, invert stick X and Y, gyro, gyro sensitivity, invert gyro X and Y |

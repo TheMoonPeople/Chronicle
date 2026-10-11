@@ -17,6 +17,7 @@
 #include "camera_port.hpp"
 #include "camera_zoom.hpp"
 #include "first_person_walk.hpp"
+#include "dun/keep_lock_on.hpp"
 #include "platform/input.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
@@ -435,6 +436,7 @@ PORT_OVERRIDE void DunMoveChara() {
                                     ElementPickerHasChoice();
 
                     if ((party || elements) && BtActStatus.action_on == 0) {
+                        KeepLockOnSave();
                         QuickChangeOpenElements(elements);
                         DngMessMan.enabled = false;
                         DngMessMan.message = -1;
@@ -2653,6 +2655,8 @@ PORT_OVERRIDE void DunMoveChara() {
             break;
         case GAME_TASK_CHARA_SELECT_LOOP:
             if (BtMiniChrSelect_Loop() != 0) {
+                KeepLockOnRestore();
+
                 if (BtMiniChrSelectNo == 2) {
                     ClearSystemMes();
                     driveStepHold = 1;

@@ -37,6 +37,7 @@ struct Config : HostSettings {
     bool              debug_mode = false;
     bool              qte_always_win = false;
     bool              element_quick_select = false;
+    bool              keep_lock_on = false;
     bool              interpolation = true;
     ConfigAspect      aspect = ConfigAspect::Auto;
     float             ui_scale = 1.0f;
