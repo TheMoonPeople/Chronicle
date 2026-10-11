@@ -408,8 +408,8 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "game.element_quick_select") {
         return ReadBool(value, config.element_quick_select);
     }
-    if (name == "game.keep_lock_on") {
-        return ReadBool(value, config.keep_lock_on);
+    if (name == "game.swap_keeps_lock_on") {
+        return ReadBool(value, config.swap_keeps_lock_on);
     }
     if (name == "game.debug_mode") {
         return ReadBool(value, config.debug_mode);
@@ -621,7 +621,7 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["debug_mode"] = config.debug_mode;
     root["game"]["qte_always_win"] = config.qte_always_win;
     root["game"]["element_quick_select"] = config.element_quick_select;
-    root["game"]["keep_lock_on"] = config.keep_lock_on;
+    root["game"]["swap_keeps_lock_on"] = config.swap_keeps_lock_on;
     root["game"]["language"] = kLanguageNames[config.language >= 2 && config.language <= 6 ? config.language : 0];
     const ConfigGameOptions &options = config.options;
     root["game"]["save_cursor_position"] = options.save_cursor_position;

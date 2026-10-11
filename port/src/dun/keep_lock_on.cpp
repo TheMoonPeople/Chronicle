@@ -26,7 +26,7 @@ KeptLockOn kept;
 void KeepLockOnSave() {
     kept = KeptLockOn{};
 
-    if (!ConfigGet().keep_lock_on || lockOnTargetFlag == 0 || lockOnTargetNo < 0 || lockOnTargetNo >= 16) {
+    if (!ConfigGet().swap_keeps_lock_on || lockOnTargetFlag == 0 || lockOnTargetNo < 0 || lockOnTargetNo >= 16) {
         return;
     }
 

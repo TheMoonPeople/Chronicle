@@ -657,12 +657,12 @@ TEST(PlatformConfig, ElementPicker) {
     ASSERT_TRUE(!ConfigParse(R"({"game": {"element_quick_select": "yes"}})").element_quick_select);
 }
 
-TEST(PlatformConfig, KeepLockOn) {
-    ASSERT_TRUE(!ConfigParse("").keep_lock_on);
-    Config config = ConfigParse(R"({"game": {"keep_lock_on": true}})");
-    ASSERT_TRUE(config.keep_lock_on);
-    ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).keep_lock_on);
-    ASSERT_TRUE(!ConfigParse(R"({"game": {"keep_lock_on": "yes"}})").keep_lock_on);
+TEST(PlatformConfig, SwapKeepsLockOn) {
+    ASSERT_TRUE(!ConfigParse("").swap_keeps_lock_on);
+    Config config = ConfigParse(R"({"game": {"swap_keeps_lock_on": true}})");
+    ASSERT_TRUE(config.swap_keeps_lock_on);
+    ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).swap_keeps_lock_on);
+    ASSERT_TRUE(!ConfigParse(R"({"game": {"swap_keeps_lock_on": "yes"}})").swap_keeps_lock_on);
 }
 
 TEST(PlatformConfig, TextFont) {

@@ -592,8 +592,8 @@ const Row kGameRows[] = {
                                              "\"Discord Rich Presence\"\nShows what you are\nplaying on Discord."),
     OnOffRow<&Config::element_quick_select>("game.element_quick_select", "Element Quick Select",
                                             "\"Element Quick Select\"\nD-pad Up in a dungeon\npicks the element."),
-    OnOffRow<&Config::keep_lock_on>("game.keep_lock_on", "Keep Lock-On",
-                                    "\"Keep Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on."),
+    OnOffRow<&Config::swap_keeps_lock_on>("game.swap_keeps_lock_on", "Swap Keeps Lock-On",
+                                          "\"Swap Keeps Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on."),
     Row{.key = "quit_game", .label = "Quit Game", .help = "Exit the game and return to the desktop.",
         .activate = QuitGame},
 };
