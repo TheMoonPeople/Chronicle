@@ -51,6 +51,14 @@ or from `rom\Dark Cloud (PAL).iso` when the first is missing, into `data\` in th
 It records the disc's and `dcdata.exe`'s sizes and times in `data\.kazarov-data`, so a
 later run with both unchanged skips the extraction.
 
+The PowerShell examples in this file use the variables below. Set them once,
+from the checkout root:
+
+```powershell
+$root = (Get-Location).Path
+$build = "$root\port\build\windows-x64-release"
+```
+
 To extract by hand:
 
 ```powershell
