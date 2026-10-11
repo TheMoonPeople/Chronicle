@@ -1,9 +1,9 @@
 # The x64 port: the game's code built with clang as C++26 for the host.
 #
 # ps2/src holds only the game's code as the PS2 build compiles it. A definition
-# port/src tags PC_OVERRIDE replaces the one ps2/src gives the same name: the
+# port/src tags PORT_OVERRIDE replaces the one ps2/src gives the same name: the
 # port compiles a copy of each unit without those definitions
-# (scripts/port/pc_override.py) and links it with port/src. That is how the
+# (tools/kazarov/scripts/port_override.py) and links it with port/src. That is how the
 # PS2-only parts are replaced: the SDK, the Metrowerks runtime, the functions
 # that touch the hardware directly and those written in assembly.
 #
@@ -21,77 +21,46 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # darkcloud is position-independent (DC_LINK_OPTIONS below).
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Python runs scripts/port/pc_override.py.
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-# SDL3 owns the window and input; Vulkan 1.4 renders.
-find_package(SDL3 REQUIRED CONFIG)
-find_package(Vulkan 1.4 REQUIRED)
-# nlohmann/json reads config.json: the installed package where there is one, fetched otherwise.
-include(FetchContent)
-FetchContent_Declare(nlohmann_json
-    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
-    URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
-    FIND_PACKAGE_ARGS CONFIG)
-FetchContent_MakeAvailable(nlohmann_json)
+set(KZ_ROOT ${CMAKE_SOURCE_DIR}/tools/kazarov)
+if(NOT EXISTS ${KZ_ROOT}/include/kazarov/port.h)
+    message(FATAL_ERROR "${KZ_ROOT} is empty: run git submodule update --init tools/kazarov")
+endif()
 
-# The soundtrack decoders are Flatpak sources there, since its build sandbox has no network.
-# Other builds fetch the same pinned files at configure time.
-if(EXISTS ${CMAKE_SOURCE_DIR}/audio_decoders/dr_wav.h AND
-   EXISTS ${CMAKE_SOURCE_DIR}/audio_decoders/dr_flac.h AND
-   EXISTS ${CMAKE_SOURCE_DIR}/audio_decoders/stb_vorbis.c)
-    set(AUDIO_DECODER_DIR ${CMAKE_SOURCE_DIR}/audio_decoders)
-else()
-    set(AUDIO_DECODER_DIR ${CMAKE_BINARY_DIR}/audio_decoders)
-    file(DOWNLOAD https://raw.githubusercontent.com/mackron/dr_libs/dfe8377631000664666519fdb83da193fd8037f4/dr_wav.h
-        ${AUDIO_DECODER_DIR}/dr_wav.h EXPECTED_HASH SHA256=03e70c1a2d9787cd7ed3e966c075bea7bac6373f759db9cd7ca9ccdfc4ec4493)
-    file(DOWNLOAD https://raw.githubusercontent.com/mackron/dr_libs/dfe8377631000664666519fdb83da193fd8037f4/dr_flac.h
-        ${AUDIO_DECODER_DIR}/dr_flac.h EXPECTED_HASH SHA256=111144e778f55738db6851cb226015c419e00d04b916a09506d4856d9cff945c)
-    file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_vorbis.c
-        ${AUDIO_DECODER_DIR}/stb_vorbis.c EXPECTED_HASH SHA256=4c7cb2ff1f7011e9d67950446b7eb9ca044f2e464d76bfbb0b84dd2e23e65636)
-endif()
-# The message font's rasterizer (platform/ttffont.cpp): a single-file library, public domain or MIT, at a pinned
-# commit. Flatpak has it as a source, since its build sandbox has no network; other builds fetch the same file.
-if(EXISTS ${CMAKE_SOURCE_DIR}/stb_truetype/stb_truetype.h)
-    set(TTF_DIR ${CMAKE_SOURCE_DIR}/stb_truetype)
-else()
-    set(TTF_DIR ${CMAKE_BINARY_DIR}/stb_truetype)
-    file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_truetype.h
-        ${TTF_DIR}/stb_truetype.h EXPECTED_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab)
-endif()
-# The button symbols' PNG atlases (platform/glyphs.cpp): the same library family at the same pinned commit, a
-# Flatpak source beside stb_truetype.h, or fetched.
-if(NOT EXISTS ${TTF_DIR}/stb_image.h)
-    file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h
-        ${TTF_DIR}/stb_image.h EXPECTED_HASH SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3)
-endif()
+include(${KZ_ROOT}/cmake/KazarovPort.cmake)
+
+# Python runs ${KZ_ROOT}/scripts/port_override.py.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+# Flatpak builds have no network: their single-file libraries are staged in audio_decoders/ and stb_truetype/; others fetch them.
+set(KZ_PORT_VENDOR_DIRS ${CMAKE_SOURCE_DIR}/audio_decoders ${CMAKE_SOURCE_DIR}/stb_truetype)
+kz_port_host_library(dc_host)
 
 set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
 set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 file(GLOB_RECURSE PS2_SOURCES CONFIGURE_DEPENDS RELATIVE ${PS2_DIR} ${PS2_DIR}/*.cpp)
 file(GLOB_RECURSE PORT_SOURCES CONFIGURE_DEPENDS ${PORT_DIR}/*.cpp)
 list(FILTER PORT_SOURCES EXCLUDE REGEX "/tests/")
-# tools/mwccgap compiles a temporary beside the source it came from.
+# Temporary files beside a source are not units.
 list(FILTER PS2_SOURCES EXCLUDE REGEX "(^|/)tmp[^/]*$")
 
 set(PS2_UNITS "")
 # What both halves are compiled with (dc_options below). PORT leaves out the
 # functions ps2/src writes in MIPS assembly.
 set(PORT_DEFINITIONS PORT PAL)
-list(TRANSFORM PORT_DEFINITIONS PREPEND --define= OUTPUT_VARIABLE pc_override_defines)
-# The names port/src's PC_OVERRIDE definitions link under. The list is rewritten
+list(TRANSFORM PORT_DEFINITIONS PREPEND --define= OUTPUT_VARIABLE port_override_defines)
+# The names port/src's PORT_OVERRIDE definitions link under. The list is rewritten
 # only when it changes, so other edits to port/src rebuild nothing of ps2/src.
-# PC_OVERRIDE_SOURCES changes when a unit or a stub header comes or goes, which no
+# PORT_OVERRIDE_SOURCES changes when a unit or a stub header comes or goes, which no
 # timestamp shows.
-set(PC_OVERRIDE_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/port/pc_override.py)
-set(PC_OVERRIDES ${CMAKE_BINARY_DIR}/pc_overrides.txt)
-set(PC_OVERRIDE_SOURCES ${CMAKE_BINARY_DIR}/pc_override_sources.txt)
-file(GLOB_RECURSE PC_OVERRIDE_STUBS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/port/include/stubs/*.hpp)
-string(JOIN "\n" pc_override_sources ${PORT_SOURCES} ${PS2_SOURCES} ${PC_OVERRIDE_STUBS})
-file(CONFIGURE OUTPUT ${PC_OVERRIDE_SOURCES} CONTENT "${pc_override_sources}\n" @ONLY)
-add_custom_command(OUTPUT ${PC_OVERRIDES}
-    COMMAND ${Python3_EXECUTABLE} ${PC_OVERRIDE_SCRIPT} list ${PORT_DIR} -o ${PC_OVERRIDES}
-    DEPENDS ${PORT_SOURCES} ${PC_OVERRIDE_SOURCES} ${PC_OVERRIDE_SCRIPT}
-    COMMENT "Listing port/src's PC_OVERRIDE definitions"
+set(PORT_OVERRIDE_SCRIPT ${KZ_ROOT}/scripts/port_override.py)
+set(PORT_OVERRIDES ${CMAKE_BINARY_DIR}/port_overrides.txt)
+set(PORT_OVERRIDE_SOURCES ${CMAKE_BINARY_DIR}/port_override_sources.txt)
+file(GLOB_RECURSE PORT_OVERRIDE_STUBS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/port/include/stubs/*.hpp)
+string(JOIN "\n" port_override_sources ${PORT_SOURCES} ${PS2_SOURCES} ${PORT_OVERRIDE_STUBS})
+file(CONFIGURE OUTPUT ${PORT_OVERRIDE_SOURCES} CONTENT "${port_override_sources}\n" @ONLY)
+add_custom_command(OUTPUT ${PORT_OVERRIDES}
+    COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} list ${PORT_DIR} -o ${PORT_OVERRIDES}
+    DEPENDS ${PORT_SOURCES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT}
+    COMMENT "Listing port/src's PORT_OVERRIDE definitions"
     VERBATIM)
 # What is compiled of a unit is its copy without the definitions of those names.
 # port/include/stubs/<unit>.hpp, if it exists, is included ahead of that unit
@@ -107,9 +76,9 @@ foreach(unit IN LISTS PS2_SOURCES)
         set(header "")
     endif()
     add_custom_command(OUTPUT ${copy}
-        COMMAND ${Python3_EXECUTABLE} ${PC_OVERRIDE_SCRIPT} strip --overrides ${PC_OVERRIDES} ${stubs}
-            ${pc_override_defines} ${PS2_DIR}/${unit} ${copy}
-        DEPENDS ${PS2_DIR}/${unit} ${PC_OVERRIDES} ${PC_OVERRIDE_SOURCES} ${PC_OVERRIDE_SCRIPT} ${header}
+        COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} strip --overrides ${PORT_OVERRIDES} ${stubs}
+            ${port_override_defines} ${PS2_DIR}/${unit} ${copy}
+        DEPENDS ${PS2_DIR}/${unit} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT} ${header}
         COMMENT "Removing overridden definitions from ps2/src/${unit}"
         VERBATIM)
     list(APPEND PS2_UNITS ${copy})
@@ -121,13 +90,13 @@ foreach(unit IN LISTS PS2_SOURCES)
 endforeach()
 # A tag that names no definition in ps2/src stops the build: its replacement
 # would be unused wherever the two signatures differ.
-set(PC_OVERRIDES_CHECKED ${CMAKE_BINARY_DIR}/pc_overrides.checked)
-add_custom_command(OUTPUT ${PC_OVERRIDES_CHECKED}
-    COMMAND ${Python3_EXECUTABLE} ${PC_OVERRIDE_SCRIPT} check --overrides ${PC_OVERRIDES}
-        --stubs ${CMAKE_SOURCE_DIR}/port/include/stubs ${pc_override_defines} ${PS2_DIR}
-        -o ${PC_OVERRIDES_CHECKED}
-    DEPENDS ${PS2_ORIGINALS} ${PC_OVERRIDES} ${PC_OVERRIDE_SOURCES} ${PC_OVERRIDE_SCRIPT}
-    COMMENT "Checking that every PC_OVERRIDE definition replaces one of ps2/src's"
+set(PORT_OVERRIDES_CHECKED ${CMAKE_BINARY_DIR}/port_overrides.checked)
+add_custom_command(OUTPUT ${PORT_OVERRIDES_CHECKED}
+    COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} check --overrides ${PORT_OVERRIDES}
+        --stubs ${CMAKE_SOURCE_DIR}/port/include/stubs ${port_override_defines} ${PS2_DIR}
+        -o ${PORT_OVERRIDES_CHECKED}
+    DEPENDS ${PS2_ORIGINALS} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT}
+    COMMENT "Checking that every PORT_OVERRIDE definition replaces one of ps2/src's"
     VERBATIM)
 
 # What both halves are compiled with. The game was written for MWCC, which
@@ -136,7 +105,7 @@ add_custom_command(OUTPUT ${PC_OVERRIDES_CHECKED}
 add_library(dc_options INTERFACE)
 target_compile_definitions(dc_options INTERFACE ${PORT_DEFINITIONS})
 target_include_directories(dc_options INTERFACE
-    ${CMAKE_SOURCE_DIR}/port/include ${CMAKE_SOURCE_DIR}/ps2/include ${CMAKE_SOURCE_DIR}/ps2/include/sce)
+    ${CMAKE_SOURCE_DIR}/port/include ${KZ_ROOT}/include ${CMAKE_SOURCE_DIR}/ps2/include ${CMAKE_SOURCE_DIR}/ps2/include/sce)
 target_compile_options(dc_options INTERFACE
     "SHELL:-include \"${CMAKE_SOURCE_DIR}/port/include/port.h\""
     -fms-extensions -ffunction-sections -fdata-sections
@@ -149,7 +118,7 @@ if(WIN32 AND (NOT MINGW OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
     message(FATAL_ERROR "The Windows build requires clang/llvm-mingw")
 endif()
 
-add_library(dc_ps2 OBJECT ${PS2_UNITS} ${PC_OVERRIDES_CHECKED})
+add_library(dc_ps2 OBJECT ${PS2_UNITS} ${PORT_OVERRIDES_CHECKED})
 target_link_libraries(dc_ps2 PRIVATE dc_options)
 # Retail's code reads locals it never set and falls off the end of functions
 # that return a value, and ps2/src keeps both because the match depends on
@@ -172,32 +141,8 @@ target_compile_options(dc_ps2 PRIVATE -Wall -Wno-writable-strings -Wno-unknown-p
 
 set(PORT_LIB_SOURCES ${PORT_SOURCES})
 list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$")
-# The host side (platform, gfx, audio) never sees a game header, so it is built
-# without dc_options: no port.h ahead of each unit and no game include paths.
-set(HOST_SOURCES ${PORT_LIB_SOURCES})
-list(FILTER HOST_SOURCES INCLUDE REGEX "/port/src/(platform|gfx|audio)/")
-list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/port/src/(platform|gfx|audio)/")
 
-# Every shaders/*.vert|frag under port/src/gfx becomes a header holding its
-# SPIR-V words as a const uint32_t array named after the file (draw.frag ->
-# draw_frag), in ${SHADER_HEADER_DIR}/shaders/<file>.spv.hpp.
-find_program(GLSLANG_VALIDATOR NAMES glslangValidator REQUIRED)
-set(SHADER_DIR ${PORT_DIR}/gfx/shaders)
 set(SHADER_HEADER_DIR ${CMAKE_BINARY_DIR}/generated)
-file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag)
-set(SHADER_HEADERS "")
-foreach(shader IN LISTS SHADER_SOURCES)
-    get_filename_component(shader_name ${shader} NAME)
-    string(REPLACE "." "_" shader_symbol ${shader_name})
-    set(header ${SHADER_HEADER_DIR}/shaders/${shader_name}.spv.hpp)
-    add_custom_command(OUTPUT ${header}
-        COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.4 --quiet --vn ${shader_symbol}
-            --depfile ${header}.d -o ${header} ${shader}
-        DEPENDS ${shader}
-        DEPFILE ${header}.d
-        COMMENT "Compiling ${shader_name} to SPIR-V")
-    list(APPEND SHADER_HEADERS ${header})
-endforeach()
 
 # port/icon/chronicle-128.rgba, the window icon's raw 128x128 RGBA pixels, as a byte array.
 set(ICON_RGBA ${CMAKE_SOURCE_DIR}/port/icon/chronicle-128.rgba)
@@ -227,14 +172,9 @@ endif()
 file(CONFIGURE OUTPUT ${SHADER_HEADER_DIR}/options/credits.hpp
     CONTENT "#pragma once\ninline constexpr const char *kCredits[] = {${credit_names}};\n")
 
-add_library(dc_host OBJECT ${HOST_SOURCES} ${SHADER_HEADERS})
-target_include_directories(dc_host PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR} ${AUDIO_DECODER_DIR} ${TTF_DIR})
-target_link_libraries(dc_host PRIVATE SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
-target_compile_options(dc_host PRIVATE -Wall -ffunction-sections -fdata-sections)
-
-add_library(dc_port OBJECT ${PORT_LIB_SOURCES})
-target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
-# Replacement units reach the host side as "gfx/gfx.hpp", "platform/window.hpp".
+kz_port_sce_sources(DC_SCE_SOURCES LIBS libvu0 libpad libmc sifdev sifrpc eekernel libcdvd libgraph libdma libpkt)
+add_library(dc_port OBJECT ${PORT_LIB_SOURCES} ${DC_SCE_SOURCES})
+target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json kz_port_headers)
 target_include_directories(dc_port PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
 # The game's headers trip a few warnings that only describe how MWCC's source
 # was written, not a problem in the port.
@@ -265,7 +205,7 @@ endif()
 
 function(dc_link_game target)
     target_sources(${target} PRIVATE $<TARGET_OBJECTS:dc_port> $<TARGET_OBJECTS:dc_host> $<TARGET_OBJECTS:dc_ps2>)
-    target_link_libraries(${target} PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan)
+    target_link_libraries(${target} PRIVATE dc_options kz_port_headers SDL3::SDL3 Vulkan::Vulkan)
     target_include_directories(${target} PRIVATE ${PORT_DIR})
     target_compile_options(${target} PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
         -Wno-overloaded-virtual -Wno-unused-function)

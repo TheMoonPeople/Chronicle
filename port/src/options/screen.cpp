@@ -114,7 +114,7 @@ void ShowPageTab() {
 }
 
 void Apply(const Config &config) {
-    g_screen.save_failed = !DisplayApply(config);
+    g_screen.save_failed = !DisplayApply([&] { return ConfigChange(config); });
     ListResolutions();
 }
 

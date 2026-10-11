@@ -7,6 +7,7 @@
 #include <string>
 
 #include "mglib_port.hpp"
+#include "screen.hpp"
 #include "texture.hpp"
 
 namespace {
@@ -425,8 +426,8 @@ PortTextureRef PortTextureFromTex0(u_long tex0, u_long tex1) {
     ref.binding.filter = (tex1 >> 5) & 1 ? gfx::Filter::Linear : gfx::Filter::Nearest;
     if (tbp == kMGPortFrameTbp0 || tbp == kMGPortPreviousFrameTbp0) {
         ref.binding.texture = tbp == kMGPortFrameTbp0 ? gfx::kMainTarget : gfx::kPreviousFrame;
-        ref.width = static_cast<unsigned>(gfx::kLogicalWidth);
-        ref.height = static_cast<unsigned>(gfx::kLogicalHeight);
+        ref.width = static_cast<unsigned>(kScreenWidth);
+        ref.height = static_cast<unsigned>(kScreenHeight);
         ref.valid = true;
         return ref;
     }

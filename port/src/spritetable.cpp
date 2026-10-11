@@ -8,7 +8,7 @@
 
 // Layers draw from the last to the first, so layer 0 ends up on top. The table blends with mglib's
 // ALPHA shadow whatever the register held, and leaves ALPHA, TEST and ZBUF at the shadows.
-PC_OVERRIDE void CSpriteTable::DrawTable() {
+PORT_OVERRIDE void CSpriteTable::DrawTable() {
     const draw2d::Services &services = draw2d::Get();
     gfx::DrawState          state = draw2d::SpriteState();
     MGPortApplyAlpha(state, mgAlpha);
@@ -43,7 +43,7 @@ PC_OVERRIDE void CSpriteTable::DrawTable() {
 }
 
 // Retail compares the pointers as 32-bit integers, which a pool above 4 GiB defeats.
-PC_OVERRIDE SPRITE_TABLE *CSpriteTable::GetNext() {
+PORT_OVERRIDE SPRITE_TABLE *CSpriteTable::GetNext() {
     SPRITE_TABLE *next = NULL;
 
     if (current < end) {

@@ -79,8 +79,8 @@ def dump_names():
 def dump_of(image, address):
     """The whole-section dump an address falls in, e.g. 'main.data', or None.
 
-    An address in `.text` or `.rodata` belongs to a translation unit and is
-    supplied by the markers in that unit's own source.
+    An address in `.text` or `.rodata` belongs to the translation unit whose
+    source defines it.
     """
     for name, kind, start, end in SECTIONS[image]:
         if start <= address < end:
@@ -124,7 +124,7 @@ SUBSEGMENT = re.compile(
 
 # The subsegment types that stand for a translation unit, and how each is
 # built: `asm` is linked from the single file splat writes, `mixed` is compiled
-# with tools/mwccgap splicing retail's bytes into every marker.
+# from its source.
 UNIT_TYPES = {"asmtu": "asm", "c": "mixed", "cpp": "mixed"}
 
 
@@ -142,10 +142,9 @@ def read_units(config_dir=CONFIG, src_dir=SRC):
     """
     sources = {}
     for path in sorted(Path(src_dir).rglob("*")):
-        # tools/mwccgap writes its second compile to a temporary beside the
-        # source it came from. It is gone again a moment later, so a scan that
-        # catches one would make a translation unit of a file the next scan
-        # cannot find.
+        # A compiler temporary beside a source is gone again a moment later, so a
+        # scan that catches one would make a translation unit of a file that
+        # cannot be found.
         if path.suffix in (".c", ".cpp") and not path.name.startswith("tmp"):
             unit = path.with_suffix("").relative_to(src_dir).as_posix()
             sources[unit] = path.as_posix()
@@ -186,7 +185,7 @@ def read_units(config_dir=CONFIG, src_dir=SRC):
             sources[unit] = handwritten[unit]
 
     # Library units are always linked from their split assembly until they
-    # have real source. They therefore do not need marker-only source files
+    # have real source. They therefore do not need placeholder source files
     # merely to make the unit discoverable.
     for unit in classified:
         if unit.startswith("lib/") and unit not in sources:
@@ -404,8 +403,8 @@ BRANCH_TARGET = re.compile(
 # so the leading whitespace has to be allowed for and kept.
 GLOBAL_LABEL = re.compile(r"^[ \t]*(?:glabel|jlabel) (\S+)$", re.M)
 
-# gas treats a label starting with `.L` as local, and tools/mwccgap skips
-# exactly the lines that look like `.L...:` when it sizes a function.
+# gas treats a label starting with `.L` as local, and a function's size skips
+# exactly the lines that look like `.L...:`.
 TWIN_PREFIX = ".L"
 TWIN_SUFFIX = "$b"
 
@@ -431,7 +430,7 @@ def globalize_addressed_labels(text):
     """Make every label whose address is taken a real, linker-visible symbol.
 
     gas otherwise writes the address against the section symbol, which
-    tools/mwccgap cannot carry across as it renumbers an object's symbol table.
+    the symbol table rebuilt by the object pipeline does not keep the name.
     A `.L` name is renamed to `T_`, because gas keeps `.L` out of the table.
     """
     addressed = {m.group(1) or m.group(2) for m in ADDRESSED_LABEL.finditer(text)}
@@ -454,15 +453,14 @@ def globalize_addressed_labels(text):
         re.escape(name) for name in sorted(set(renamed.values()), key=len, reverse=True)
     )
     # `glabel` is deliberately not matched: such a label is already a symbol,
-    # and mwccgap rejects a promoted one in .rodata.
+    # and promoting one in .rodata is not a valid constant.
     return re.sub(rf"^[ \t]*(?:alabel )?({finals}):?$", r"jlabel \1", text, flags=re.M)
 
 
 def localize_alt_labels(text):
     """Give every named branch target inside a function a `.L` name.
 
-    tools/mwccgap sizes a function by counting lines and only skips labels
-    spelled `.L...`. One whose address is taken becomes a `glabel` instead,
+    A function's size counts lines and only skips labels spelled `.L...`. One whose address is taken becomes a `glabel` instead,
     which it also skips, and which stays visible to the linker.
     """
     names = list(dict.fromkeys(BARE_LABEL.findall(text)))
@@ -948,11 +946,11 @@ class ActiveSource:
 
 
 def configure_region_markers():
-    """Read a source's markers and definitions as this release compiles it.
+    """Read a source's function definitions as this release compiles it.
 
     splat decides which functions still need reference assembly from the
-    INCLUDE_ASM markers and function definitions in the source text; a marker
-    or a definition a `#ifdef PAL` guard leaves out is not this release's.
+    function definitions in the source text; a definition a `#ifdef PAL` guard
+    leaves out is not this release's.
     """
     from splat.segtypes.common.c import CommonSegC
 

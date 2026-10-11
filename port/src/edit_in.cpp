@@ -397,7 +397,7 @@ static void InitWorkBuffer() {
  * @address 0x19BE30
  * @size 0x478
  */
-PC_OVERRIDE int EditInInit(float time, char *name) {
+PORT_OVERRIDE int EditInInit(float time, char *name) {
     MGSetFogParm(10000.0f, 50000.0f, 0, 0, 0, 255.0f, 255.0f);
     memset(EdInInfo, 0, sizeof(EDIT_IN_INFO));
     EdInInfo->projection = 800.0f;
@@ -490,7 +490,7 @@ PC_OVERRIDE int EditInInit(float time, char *name) {
  * @address 0x19C2B0
  * @size 0x1014
  */
-PC_OVERRIDE int EditInLoop() {
+PORT_OVERRIDE int EditInLoop() {
     sceVu0FMATRIX view;
     sceVu0FVECTOR position;
 
@@ -1096,7 +1096,7 @@ static void MainDraw() {
  * @address 0x19D980
  * @size 0x15C
  */
-PC_OVERRIDE void DrawWaterSurface(CCamera *camera) {
+PORT_OVERRIDE void DrawWaterSurface(CCamera *camera) {
     sceVu0FVECTOR eye;
     sceVu0FVECTOR position;
     sceVu0FVECTOR dir;
@@ -1310,7 +1310,7 @@ static void MoveCamera(CCameraFollow *camera) {
  * @address 0x19E1F0
  * @size 0xF4
  */
-PC_OVERRIDE EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
+PORT_OVERRIDE EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
     sceVu0FVECTOR     world;
     int               i;
     EPARTS_FUNC_DATA *point = func_point;
@@ -1338,7 +1338,7 @@ PC_OVERRIDE EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
  * @address 0x19E2F0
  * @size 0x12C
  */
-PC_OVERRIDE void GetMapJumpPos(CCharacter *chara) {
+PORT_OVERRIDE void GetMapJumpPos(CCharacter *chara) {
     EPARTS_FUNC_DATA *point = func_point;
 
     for (int i = 0; i < func_num; i++, point++) {
@@ -1381,7 +1381,7 @@ static int GetDoorPos(int door_no, float *position, float *rotation, int *door_s
  * @address 0x19E520
  * @size 0x3F8
  */
-PC_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
+PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
     sceVu0FVECTOR     position;
     sceVu0FVECTOR     local;
     int               i;
@@ -1668,7 +1668,7 @@ static void LoadChara() {
  * @address 0x19EED0
  * @size 0x818
  */
-PC_OVERRIDE void LoadData() {
+PORT_OVERRIDE void LoadData() {
     func_point = new ((u_long128 *) EdNPCBuffer.Alloc(0x600)) EPARTS_FUNC_DATA[128];
 
     for (int i = 0; i < 128; i++) {

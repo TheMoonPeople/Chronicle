@@ -5,6 +5,7 @@
 
 #include "mglib.hpp"
 #include "mglib_port.hpp"
+#include "screen.hpp"
 #include "texture.hpp"
 
 namespace draw2d {
@@ -55,8 +56,8 @@ bool Resolve(u_long tex0, u_long tex1, gfx::DrawState &state, Texture &texture) 
 
     if (texture.binding.texture == gfx::kMainTarget) {
         gfx::TextureHandle snapshot =
-            gfx::NamedRenderTarget(kFrameSnapshot, static_cast<uint32_t>(gfx::kLogicalWidth),
-                                   static_cast<uint32_t>(gfx::kLogicalHeight), true, false, true);
+            gfx::NamedRenderTarget(kFrameSnapshot, static_cast<uint32_t>(kScreenWidth),
+                                   static_cast<uint32_t>(kScreenHeight), true, false, true);
         if (snapshot == gfx::kNullTexture || !gfx::SnapshotFrame(snapshot)) {
             return false;
         }

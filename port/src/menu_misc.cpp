@@ -65,7 +65,7 @@ void SetWepEffectMenuReadBuf(u_long128 *buffer) {
 
 } // namespace
 
-PC_OVERRIDE int EnterWeaponModel(int chara, int texture_block, int weapon_slot) {
+PORT_OVERRIDE int EnterWeaponModel(int chara, int texture_block, int weapon_slot) {
     BG_READ_INFO *pack = GetReadBGFile(0);
     BG_READ_INFO *shadow = GetReadBGFile(1);
     BG_READ_INFO *effect = GetReadBGFile(2);
@@ -157,7 +157,7 @@ PC_OVERRIDE int EnterWeaponModel(int chara, int texture_block, int weapon_slot) 
     return 1;
 }
 
-PC_OVERRIDE void WeaponModelBuildFunc(int chara, int texture_block) {
+PORT_OVERRIDE void WeaponModelBuildFunc(int chara, int texture_block) {
     printf("weapon model build func start\n");
     InitMenuWeaponModelReference();
     LOADTEXTURE_INFO2 textures[] = {
@@ -241,7 +241,7 @@ PC_OVERRIDE void WeaponModelBuildFunc(int chara, int texture_block) {
     printf("WepMenuEffectReadBuf = %p\n", WepMenuEffectReadBuf);
 }
 
-PC_OVERRIDE int DngWeaponEquipModelBuild(int chara, int texture_block, u_long128 *read_buffer) {
+PORT_OVERRIDE int DngWeaponEquipModelBuild(int chara, int texture_block, u_long128 *read_buffer) {
     TexManager.DeleteTextureBlock(texture_block);
     u_int **first = GetMenuWeaponModelData(0);
     u_int **second = GetMenuWeaponModelData(1);

@@ -34,8 +34,8 @@ just does not get the state.
 
 `--wibo` makes it a drop-in for wibo itself -- it takes the guest executable as
 its first argument and keeps quiet otherwise -- which is how the build reaches
-it: `scripts/build/mwccgap.sh` hands mwccgap `--wibo-path` pointing at
-`scripts/build/statefix-wibo.sh`.
+it: tools/kazarov's `kz-mwcc-exec` runs `scripts/build/statefix-wibo.sh` in
+place of wibo.
 
 Compiling one unit this way and diffing the object against a plain compile is
 how to measure the model's effect.
@@ -49,7 +49,7 @@ import subprocess
 import json
 import struct
 
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import region  # noqa: E402
 COMPILER = os.path.join(REPO, 'tools', 'compilers', 'mw', '2.3.3', 'mwccmips.exe')
@@ -71,7 +71,7 @@ WIBO = (os.environ.get('WIBO')
 # takes for a name it does not know -- skip to end of line and return -- which
 # is where a pragma of ours is sent once it has been acted on. LEXER holds the
 # source pointer, standing just past the name, which is how the argument is
-# read. All four come from tools/mwcc-debug/profiles/.
+# read. All four come from the profiles in KZ_MWCC_DEBUG_DIR.
 PRAGMA, PRAGMA_IGNORE = 0x004440C6, 0x00444505
 TOKEN, LEXER = 0x005570FC, 0x00555614
 NAME_TEXT = 10
@@ -255,8 +255,8 @@ def load_argument_read_overrides(path=ARGUMENT_READ_OVERRIDES):
 def source_of(arguments):
     """The unit being compiled.
 
-    `STATEFIX_SOURCE` wins over the command line: mwccgap's second pass
-    compiles a temporary whose name says nothing about the unit.
+    `STATEFIX_SOURCE` wins over the command line: the compiler may be given a
+    temporary whose name says nothing about the unit.
     """
     named = os.environ.get('STATEFIX_SOURCE')
     if named:
@@ -380,9 +380,8 @@ def install(arguments=()):
     def compiled_identity():
         """(unit, function) the compiler is working on, by the source's name.
 
-        mwccgap's second compile uses a temporary filename. The live FSSpec
-        remains authoritative for ordinary compiles; STATEFIX_SOURCE supplies
-        the original identity only for a recognized temporary compilation.
+        The live FSSpec remains authoritative for ordinary compiles;
+        STATEFIX_SOURCE supplies the identity for a temporary copy of the unit.
         """
         memory_unit = current_translation_unit()
         memory_function = current_function_name()
@@ -820,10 +819,10 @@ def drive(arguments, executable=None, verify=False, quiet=False):
     ]
     capture = os.environ.get('STATEFIX_CAPTURE')
     if capture:
-        # `STATEFIX_CAPTURE=<dir>[:<function>]` also records tools/mwcc-debug's
+        # `STATEFIX_CAPTURE=<dir>[:<function>]` also records the mwcc-debug tools'
         # PCode and allocator state, under the compiler state statefix sets.
         directory, _, function = capture.partition(':')
-        tool = os.path.join(REPO, 'tools', 'mwcc-debug')
+        tool = os.environ.get('KZ_MWCC_DEBUG_DIR', '/opt/kazarov/mwcc-debug')
         start = 'mwcc-capture start --profile %s --output %s --executable %s' % (
             os.path.join(tool, 'profiles', 'mwccmips-2.3.3-000921.json'),
             os.path.abspath(directory), executable or COMPILER)
@@ -848,7 +847,7 @@ def drive(arguments, executable=None, verify=False, quiet=False):
         environment['STATEFIX_QUIET'] = '1'
     try:
         done = subprocess.run(['gdb', '--batch', '--nx', '--quiet', '--command', path],
-                              cwd=REPO, env=environment)
+                              cwd=os.environ.get('KZ_MWCC_CWD') or REPO, env=environment)
     finally:
         os.unlink(path)
     return done.returncode

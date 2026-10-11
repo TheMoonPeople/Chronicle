@@ -230,7 +230,7 @@ int SaveMenuKeyEndSaveEnding() {
 
 } // namespace
 
-PC_OVERRIDE int (*SaveMenuFunc[26])() = {
+PORT_OVERRIDE int (*SaveMenuFunc[26])() = {
     SaveMenuKeyFadeIn,
     SaveMenuKeyFadeOut,
     SaveMenuKeyModeSelect,
@@ -262,7 +262,7 @@ PC_OVERRIDE int (*SaveMenuFunc[26])() = {
 // Retail's, with the boards of SaveSlots: the chosen one sits where retail's did and the rest
 // scroll past above and below it, only those on screen drawn. The boards stay up while the
 // list is read again after a save, which no longer takes long enough to show.
-PC_OVERRIDE void DrawMenuSave(char *frame_name) {
+PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
     if (SaveMenu.texture_ready == 0) {
         return;
     }
@@ -469,7 +469,7 @@ PC_OVERRIDE void DrawMenuSave(char *frame_name) {
 }
 
 // The menus' hand follows the mouse while a screen has taken it as a pointer (port/src/menu_mouse.cpp).
-PC_OVERRIDE void DrawMenuObjectVibe(int x, int y, int shadow, int icon_u) {
+PORT_OVERRIDE void DrawMenuObjectVibe(int x, int y, int shadow, int icon_u) {
     CTexture *texture = TexManager.GetTexture(AtoraVibeTextureName, -1);
     CRect_i_  src(icon_u, 0x28, 0x20, 0x20);
     float     pointer_x = 0.0f;

@@ -16,7 +16,7 @@
 #include "water.hpp"
 
 // The title units declare these with PS2 layouts of their own (op_a.cpp's 144-byte OBJ_ANIME_SEQ,
-// rushmovi.cpp's 816-byte CWater and so on). The port's definitions are PC_OVERRIDE, so everything
+// rushmovi.cpp's 816-byte CWater and so on). The port's definitions are PORT_OVERRIDE, so everything
 // the title overlay reads goes through these host-sized ones. TitleOverlayConstruct builds them
 // again as retail's overlay loader did: the .bss zeroed, then the constructors.
 

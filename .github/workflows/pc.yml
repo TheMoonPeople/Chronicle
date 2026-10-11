@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Install the toolchain and libraries
         run: |
@@ -63,6 +65,8 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: 1
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Install the toolchain and libraries
         run: |
@@ -142,6 +146,8 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       # The runner has no GPU and may have no Vulkan loader; the tests need the loader to start.
       - name: Install the toolchain and libraries
@@ -188,6 +194,8 @@ jobs:
       MANIFEST: port/flatpak/ci.yml
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Point the manifest at this commit
         run: |
@@ -199,7 +207,6 @@ jobs:
               print "      - type: git"
               print "        path: ../.."
               print "        commit: " commit
-              print "        disable-submodules: true"
               skip = 1
               next
             }

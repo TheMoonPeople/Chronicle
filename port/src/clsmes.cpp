@@ -19,6 +19,7 @@
 #include "platform/glyphs.hpp"
 #include "platform/ttffont.hpp"
 #include "rect.hpp"
+#include "screen.hpp"
 #include "snd.hpp"
 #include "text_shadow.hpp"
 #include "texture.hpp"
@@ -34,6 +35,10 @@ namespace {
 // instead of from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
 
 bool TtfReady() {
+    // video.text_font set to the game's own letters: the bitmaps, whatever font there is.
+    if (!ConfigGet().font_sharp) {
+        return false;
+    }
     static bool tried = false;
     if (!tried) {
         tried = true;
@@ -327,7 +332,7 @@ void GetPos_AbsPosSet(int x, int y, int width, int height, int win_width, int wi
 void MyMenuHelpWinDraw(int x, int y, int width, int height, int shade, int u, int v, CTexture *texture);
 
 // Named the other way round from set2DSprite: src is where the sprite lands, dst the texels.
-PC_OVERRIDE void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
+PORT_OVERRIDE void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
                                u8 g, u8 b, u8 a) {
     if (texture == nullptr) {
         return;
@@ -358,7 +363,7 @@ PC_OVERRIDE void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const C
     draw2d::Get().set_zbuf(nullptr);
 }
 
-PC_OVERRIDE void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
+PORT_OVERRIDE void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
                           int prim) {
     float across;
     float down;
@@ -434,7 +439,7 @@ PC_OVERRIDE void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int he
     ShapePoint(px, py);
 }
 
-PC_OVERRIDE void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
+PORT_OVERRIDE void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
     float grown_width;
     float grown_height;
     int   x;
@@ -645,7 +650,7 @@ PC_OVERRIDE void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
 // retail's: fans written through the current ALPHA, tiles blended over them, alpha 0 outside.
 // Lost: the antialiased fan edges, and retail's tiles writing Z=0 into the frame's own Z buffer at
 // the target's coordinates.
-PC_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
+PORT_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
     const draw2d::Services &services = draw2d::Get();
 
     g_shapes.clear();
@@ -672,8 +677,8 @@ PC_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
         const float                  fill_bottom = static_cast<float>(SCREEN_HALF_HEIGHT);
         std::array<gfx::Vertex2D, 4> fill = {
             draw2d::Vertex(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
-            draw2d::Vertex(gfx::kLogicalWidth, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
-            draw2d::Vertex(gfx::kLogicalWidth, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
+            draw2d::Vertex(kScreenWidth, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
+            draw2d::Vertex(kScreenWidth, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
             draw2d::Vertex(0.0f, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
         };
         gfx::Draw2D(gfx::Primitive::Quads, fill, {}, state);
@@ -716,7 +721,7 @@ PC_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
 }
 
 // Keep the message layout within the fixed character table.
-PC_OVERRIDE int ClsMes::SetMesWinTbl(int code, int mode, short x, short y) {
+PORT_OVERRIDE int ClsMes::SetMesWinTbl(int code, int mode, short x, short y) {
     if (code >= -0x200 && code <= -0x101) {
         if (this->win_line_num > 0) {
             this->win_line[this->win_line_num - 1].space += code + 0x200;
@@ -790,7 +795,7 @@ static bool DrawPadGlyph(int code, const CRect_i_ &screen, int alpha) {
 
 // Read a colour only for a palette entry FontColorTbl has. Retail looks up the red text's 0xFF too,
 // 240 entries past the table, and then sets that colour itself.
-PC_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen,
+PORT_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen,
                                        int wide, int dark) {
     u8  r;
     u8  g;
@@ -988,7 +993,7 @@ PC_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect
                      this->edge_alpha < alpha ? this->edge_alpha : alpha);
 }
 
-PC_OVERRIDE void ClsMes::DrawMesWin() {
+PORT_OVERRIDE void ClsMes::DrawMesWin() {
     CTexture *texture;
     int       offset_x;
     int       offset_y;

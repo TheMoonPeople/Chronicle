@@ -5,51 +5,11 @@
 #include <string_view>
 #include <vector>
 
-enum class ConfigPresentMode {
-    Fifo,
-    Mailbox,
-    Immediate,
-};
-
-// What the FPS counter shows: the frame rate alone, with the logic ticks, or all of it with the draws.
-enum class ConfigFpsDetail {
-    Fps,
-    Ticks,
-    All,
-};
+#include "platform/settings.hpp"
 
 enum class ConfigAspect {
     Auto,
     FourThree,
-};
-
-enum class ConfigGyro {
-    Off,
-    Always,
-    FirstPerson,
-    Held,
-};
-
-// input.glyph_device: whose button symbols the game draws. Auto follows the device in use (the
-// last of keyboard/mouse or gamepad to be touched; a gamepad's own family; Xbox for a pad of unknown make), PS4 until one is.
-enum class ConfigGlyphDevice {
-    Auto,
-    Ps3,
-    Ps4,
-    Ps5,
-    Ps5Color,
-    Xbox,
-    Switch,
-    SteamDeck,
-    SteamController,
-    Keyboard,
-};
-
-struct ConfigKeyBinding {
-    std::string              action;
-    std::vector<std::string> keys;
-
-    bool operator==(const ConfigKeyBinding &) const = default;
 };
 
 // The game's own Options screen settings, which retail keeps in each save: here they hold for every
@@ -73,59 +33,26 @@ struct ConfigGameOptions {
     bool operator==(const ConfigGameOptions &) const = default;
 };
 
-struct Config {
-    double            tick_rate = 60.0;
+struct Config : HostSettings {
     bool              debug_mode = false;
     bool              qte_always_win = false;
     bool              element_quick_select = false;
-    ConfigPresentMode present_mode = ConfigPresentMode::Fifo;
     bool              interpolation = true;
-    double            max_fps = 0.0;
-    // 0: the monitor's (WindowConfig).
-    int                           window_width = 0;
-    int                           window_height = 0;
-    bool                          fullscreen = false;
-    ConfigAspect                  aspect = ConfigAspect::Auto;
-    float                         ui_scale = 1.0f;
-    bool                          show_fps = true;
-    ConfigFpsDetail               fps_detail = ConfigFpsDetail::All;
-    float                         detail_distance = 0.0f;
-    float                         shadow_distance = 0.0f;
-    int                           anisotropy = 0;
-    float                         master_volume = 1.0f;
-    bool                          surround = false;
-    // audio.soundtrack "custom": play recordings from soundtrack/ beside save/ and data/.
-    bool                          soundtrack = false;
-    std::vector<ConfigKeyBinding> key_bindings;
-    float                         mouse_sensitivity = 0.1f;
-    float                         stick_sensitivity = 1.33f;
-    bool                          stick_invert_x = false;
-    bool                          stick_invert_y = false;
-    ConfigGyro                    gyro = ConfigGyro::Held;
-    float                         gyro_sensitivity = 0.5f;
-    bool                          gyro_invert_x = false;
-    bool                          gyro_invert_y = false;
-    bool                          mouse_invert_y = false;
-    bool                          mouse_capture = true;
-    bool                          mouse_zoom = false;
-    // A DualSense's touchpad as the menus' mouse, at this speed (1 is a swipe across the pad for 1500
-    // window pixels), and its lightbar showing the active character's life.
-    bool                          touchpad = true;
-    float                         touchpad_sensitivity = 1.0f;
-    bool                          lightbar = true;
-    // Scales a gamepad's rumble motors, 0 to 1.
-    float                         rumble_strength = 1.0f;
-    // input.glyphs "new": the button symbols of glyphs/ (see glyphs.hpp); "original": the game's own.
-    bool                          glyphs_new = true;
-    ConfigGlyphDevice             glyph_device = ConfigGlyphDevice::Auto;
+    ConfigAspect      aspect = ConfigAspect::Auto;
+    float             ui_scale = 1.0f;
+    float             detail_distance = 0.0f;
+    float             shadow_distance = 0.0f;
+    int               anisotropy = 0;
     // Third-person vertical return after mouse input: 0 holds height, 1 is retail's rate.
     float                    mouse_camera_return = 0.2f;
-    std::vector<std::string> mouse_release_keys;
     ConfigGameOptions        options;
     bool                     discord_rich_presence = true;
     // game.language: 0 asks at start-up, as retail does; 2 to 6 is the language to start in
     // (LanguageCode: English, Francais, Deutsch, Italiano, Espanol) and skips the language screen.
     int                           language = 0;
+    // video.text_font: "sharp" draws the message text from the TrueType font (lang/font.ttf, --font),
+    // "original" from the game's own 14x20 bitmaps. Takes effect at once.
+    bool                          font_sharp = true;
     // video.text_shadow and video.glyph_shadow: how strong the shadow under the TrueType message text and
     // under the button symbols in it is, in percent in steps of 5. 0 casts none, 50 is the soft shadow
     // (the letters' default), 100 the deep one. The symbols' is lighter, because a solid shape stacks
@@ -179,6 +106,8 @@ using ConfigChangeHook = void (*)(const Config &before, const Config &after);
 void ConfigAddChangeHook(ConfigChangeHook hook);
 
 void ConfigRemoveChangeHook(ConfigChangeHook hook);
+
+void ConfigDisplayChanged(const Config &before, const Config &after);
 
 // What a settings screen calls with the settings it edited. They are taken as config.json would read
 // them back (a bad value is reported and becomes its default), become ConfigGet(), are saved (comments

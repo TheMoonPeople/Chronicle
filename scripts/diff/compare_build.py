@@ -26,11 +26,10 @@ PLACEMENT -- the symbol table. Un-migrated functions are reassembled from .s
 Placement needs a symbol table, so it covers the main executable only -- the
 overlays ship as raw images. Content covers all three.
 
-Needs mips-ps2-decompals-nm/readelf/objdump on PATH, so run it in the dev
-container:
+Needs mips-ps2-decompals-nm/readelf/objdump on PATH, so run it in the Kazarov
+shell:
 
-    podman run --rm -v "$PWD:/dcdecomp:Z" -w /dcdecomp dcdecomp_dev \
-        python3 scripts/diff/compare_build.py
+    tools/kazarov/bin/kazarov shell python3 scripts/diff/compare_build.py
 """
 import argparse
 import bisect
@@ -97,10 +96,10 @@ def require_tools():
     missing = [tool for tool in (NM, READELF, OBJDUMP) if not shutil.which(tool)]
     if missing:
         raise SystemExit(
-            "compare_build: %s not on PATH. This has to run in the dev\n"
-            "container, which is where the toolchain lives:\n\n"
-            '    podman run --rm -v "$PWD:$PWD:Z" -w "$PWD" dcdecomp_dev \\\n'
-            "        python3 scripts/diff/compare_build.py\n" % ", ".join(missing))
+            "compare_build: %s not on PATH. This has to run in the Kazarov\n"
+            "shell, which is where the toolchain lives:\n\n"
+            "    tools/kazarov/bin/kazarov shell python3 scripts/diff/compare_build.py\n"
+            % ", ".join(missing))
 
 
 # ---------------------------------------------------------------- symbol table

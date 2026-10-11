@@ -12,10 +12,10 @@ update its status here and move the architectural facts into `docs/PC.md`.
   `port/src` and `port/include`. `ps2/src` and `ps2/include` are the PAL
   game as the PS2 build compiles it and are never edited for the port beyond
   the rules in `docs/PC.md`.
-- **`PC_OVERRIDE` replacement is the only mechanism.** Any function in
+- **`PORT_OVERRIDE` replacement is the only mechanism.** Any function in
   `ps2/src` that depends on PS2 hardware (GS, VU0, VU1, VIF, GIF, DMA, SPU2,
   IOP, scratchpad, timers, memory card, CD) is replaced by a definition in
-  `port/src`, tagged `PC_OVERRIDE` and written from scratch. A `static`
+  `port/src`, tagged `PORT_OVERRIDE` and written from scratch. A `static`
   function cannot be replaced, so its non-static callers are replaced instead.
 - **No emulation of the PS2.** No GS register interpreter, no VU1
   interpreter, no VIF or GIF packet decoder, no DMA chain walker, no SPU2
@@ -232,8 +232,8 @@ unbounded speed.
 
 `tools/dcdata extract <iso-or-dir> <data-dir>`: reads the ISO 9660 volume
 (own reader, 2048-byte sectors, primary volume descriptor, path walk;
-pycdlib's fallback in `scripts/build/extract.py` is the reference for the
-PAL prototype's quirks), locates `DATA.DAT` and `DATA.HD2`, and writes every
+pycdlib's fallback reader, removed with the old extract script, is the reference
+for the PAL prototype's quirks), locates `DATA.DAT` and `DATA.HD2`, and writes every
 record to `<data-dir>/<lowercased path>` with `std::filesystem`. It also
 accepts a directory already holding `DATA.DAT` and `DATA.HD2`. It verifies
 sizes, prints a manifest and is idempotent.

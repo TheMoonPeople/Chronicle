@@ -14,6 +14,7 @@
 #include "mglib.hpp"
 #include "mglib_port.hpp"
 #include "rect.hpp"
+#include "screen.hpp"
 #include "texture.hpp"
 
 namespace {
@@ -41,7 +42,7 @@ struct Span {
 // A band vertex: x in 12.4 GS units of the logical frame, stretched over the span; across is how
 // far over the blurred image it samples, v its row there.
 gfx::Vertex2D StripVertex(const Span &span, int x, int y, unsigned z, float across, int v, int alpha) {
-    const float place = MGPortLogicalX(x) / gfx::kLogicalWidth;
+    const float place = MGPortLogicalX(x) / kScreenWidth;
     return draw2d::Vertex(span.left + place * (span.right - span.left), MGPortLogicalY(y) * draw2d::RowScale(),
                           MGPortDepth(z & 0xFFFFFF), span.sample_left + across * span.texels,
                           static_cast<float>(v) / 16.0f * span.row_scale, 0x80,
@@ -84,8 +85,8 @@ void DrawBeyond(gfx::TextureHandle beyond, gfx::TextureHandle snapshot, float fr
         sceVu0ApplyMatrix(point, mgRenderInfo.screen, point);
         point[2] /= point[3];
         float depth = MGPortDepth(static_cast<unsigned>(static_cast<int>(point[2])) & 0xFFFFFF);
-        std::array<gfx::Vertex2D, 4> quad = Quad(0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight, depth, 0.0f,
-                                                 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight);
+        std::array<gfx::Vertex2D, 4> quad = Quad(0.0f, 0.0f, kScreenWidth, kScreenHeight, depth, 0.0f,
+                                                 0.0f, kScreenWidth, kScreenHeight);
         if (feather) {
             for (gfx::Vertex2D &vertex : quad) {
                 vertex.color[0] = vertex.color[1] = vertex.color[2] = 0x10;
@@ -158,7 +159,7 @@ void AppendStrip(std::vector<gfx::Vertex2D> &triangles, const std::vector<gfx::V
 // object takes up as much of the wobble as its depth gives, and the background haze blends into the
 // foreground rather than starting at a line partway up the view. The two outermost columns do not
 // wander past the edges of the image.
-PC_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
+PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
     int phase;
     int i;
     int j;
@@ -218,7 +219,7 @@ PC_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
         DrawBeyond(haze ? near_image : beyond, snapshot, haze ? focus[0] - 84.0f : focus[0],
                    haze ? focus[0] + 84.0f : focus[0], haze);
         if (!haze) {
-            Resize(beyond, span.left, 0.0f, span.right, gfx::kLogicalHeight, near_image, half_width, half_height);
+            Resize(beyond, span.left, 0.0f, span.right, kScreenHeight, near_image, half_width, half_height);
         }
 
         if (level >= 2) {
@@ -234,7 +235,7 @@ PC_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
 
                 if (half != gfx::kNullTexture && quarter != gfx::kNullTexture && far_image != gfx::kNullTexture) {
                     DrawBeyond(beyond, snapshot, focus[1], focus[1], false);
-                    Resize(beyond, span.left, 0.0f, span.right, gfx::kLogicalHeight, half, half_width, half_height);
+                    Resize(beyond, span.left, 0.0f, span.right, kScreenHeight, half, half_width, half_height);
                     Resize(half, 0.0f, 0.0f, static_cast<float>(half_width), static_cast<float>(half_height), quarter,
                            quarter_width, quarter_height);
                     Resize(quarter, 0.0f, 0.0f, static_cast<float>(quarter_width), static_cast<float>(quarter_height),

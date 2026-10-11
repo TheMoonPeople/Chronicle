@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "../platform/input.hpp"
+#include "platform/input.hpp"
 #include "gameloop.hpp"
 #include "gamepad.hpp"
 #include "memcard.hpp"

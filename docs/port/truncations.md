@@ -17,7 +17,7 @@ file is stale.
   (the replacement recovers the pointer, e.g. `PortImagePointer` for image globals).
 
 State of the enclosing function in the linked `darkcloud`: **port** (port/src's own code),
-**replaced** (a ps2/src body a `PC_OVERRIDE` definition in port/src replaces; never compiled),
+**replaced** (a ps2/src body a `PORT_OVERRIDE` definition in port/src replaces; never compiled),
 **retail** (a ps2/src body that is linked and can run), **dead** (dropped by `--gc-sections`; never
 runs).
 

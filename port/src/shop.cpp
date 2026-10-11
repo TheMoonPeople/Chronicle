@@ -140,7 +140,7 @@ int FishMenuTextureLoad() {
 
 } // namespace
 
-PC_OVERRIDE int FishingExchangeKey() {
+PORT_OVERRIDE int FishingExchangeKey() {
     int result = 0;
 
     ReadBG();
@@ -514,7 +514,7 @@ PC_OVERRIDE int FishingExchangeKey() {
 // the press then took the stock board's good at the new number. On the personal board's last rows
 // that is past the board's 30 goods, in the never-cleared work buffer behind them: the Broken
 // Dagger glitch (#109). Such a frame's cross and triangle wait for the next press.
-PC_OVERRIDE int CommonShopLoop() {
+PORT_OVERRIDE int CommonShopLoop() {
     int done = 0;
 
     ShopMenu.key_used = 0;

@@ -18,9 +18,9 @@ config records and writes the new names in.
 `rekey_sections_skip` can omit an initial run that remains in ordinary `.data`.
 Its entries count symbols, including named symbols, rather than bytes.
 
-    scripts/build/cmake.sh objdiff        # with the entries emptied
+    ./build.sh ps2-pal objdiff        # with the entries emptied
     scripts/build/rekey_sections.py ps2/src/editloop3.cpp
-    scripts/build/cmake.sh objdiff        # with the names filled in
+    ./build.sh ps2-pal objdiff        # with the names filled in
 
 A re-keyable entry is one whose name matches `rekey_sections` in the unit's
 fixups: a list of `[section, [size, ...]]` pairs in emission order.

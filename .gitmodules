@@ -1,9 +1,4 @@
-[submodule "tools/m2c"]
-	path = tools/m2c
-	url = https://github.com/matt-kempster/m2c.git
-[submodule "tools/mwccgap"]
-	path = tools/mwccgap
-	url = https://github.com/Adubbz/mwccgap.git
-[submodule "tools/mwccps2-debugger"]
-	path = tools/mwccps2-debugger
-	url = https://github.com/Raikaru/mwccps2-debugger.git
+[submodule "tools/kazarov"]
+	path = tools/kazarov
+	url = https://github.com/TheMoonPeople/Kazarov.git
+	branch = main

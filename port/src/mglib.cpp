@@ -19,6 +19,7 @@
 #include "platform/clock.hpp"
 #include "rect.hpp"
 #include "renderinfo.hpp"
+#include "screen.hpp"
 #include "texture.hpp"
 
 // Retail defines the window rectangle as mgWindowRectStore and renames it at link time; the port
@@ -93,9 +94,9 @@ void ClearBars() {
     uint8_t          black[4] = {0, 0, 0, 0x80};
     gfx::LogicalRect bars[4] = {
         {left,               top,                 -left,                      bottom - top                },
-        {gfx::kLogicalWidth, top,                 right - gfx::kLogicalWidth, bottom - top                },
-        {0.0f,               top,                 gfx::kLogicalWidth,         -top                        },
-        {0.0f,               gfx::kLogicalHeight, gfx::kLogicalWidth,         bottom - gfx::kLogicalHeight},
+        {kScreenWidth, top,                 right - kScreenWidth, bottom - top                },
+        {0.0f,               top,                 kScreenWidth,         -top                        },
+        {0.0f,               kScreenHeight, kScreenWidth,         bottom - kScreenHeight},
     };
     for (const gfx::LogicalRect &bar : bars) {
         if (bar.w > 0.0f && bar.h > 0.0f) {
@@ -162,8 +163,8 @@ void Blit(const ResolvedRect &src, const ResolvedRect &dst, gfx::Filter filter) 
     if (src.texture == gfx::kMainTarget && dst.texture != gfx::kMainTarget) {
         g_last_frame_copy = dst.texture;
         g_frame_copies++;
-        g_frame_picture = gfx::NamedRenderTarget("frame copy picture", static_cast<uint32_t>(gfx::kLogicalWidth),
-                                                 static_cast<uint32_t>(gfx::kLogicalHeight), false, false, true);
+        g_frame_picture = gfx::NamedRenderTarget("frame copy picture", static_cast<uint32_t>(kScreenWidth),
+                                                 static_cast<uint32_t>(kScreenHeight), false, false, true);
         if (g_frame_picture != gfx::kNullTexture && !gfx::SnapshotFrame(g_frame_picture)) {
             g_frame_picture = gfx::kNullTexture;
         }
@@ -312,11 +313,11 @@ Draw3DExtent Draw3DVisibleExtent() {
     gfx::TextureHandle              target = gfx::CurrentRenderTarget();
     std::optional<gfx::TextureInfo> info = gfx::GetTextureInfo(target);
     gfx::LogicalRect                visible = gfx::VisibleLogicalRect(target);
-    float                           width = info ? static_cast<float>(info->width) : gfx::kLogicalWidth;
-    float                           height = info ? static_cast<float>(info->height) : gfx::kLogicalHeight;
+    float                           width = info ? static_cast<float>(info->width) : kScreenWidth;
+    float                           height = info ? static_cast<float>(info->height) : kScreenHeight;
     float                           wider = std::max({0.0f, -visible.x, visible.x + visible.w - width});
     float                           taller = std::max({0.0f, -visible.y, visible.y + visible.h - height});
-    return {gfx::kLogicalWidth * 0.5f + wider, SCREEN_HALF_HEIGHT_F + taller / MGPortTargetRowScale(target)};
+    return {kScreenWidth * 0.5f + wider, SCREEN_HALF_HEIGHT_F + taller / MGPortTargetRowScale(target)};
 }
 
 bool MGPortFrameTarget(std::string_view name) {
@@ -352,8 +353,8 @@ void Draw3DEyeToClip(const RenderInfo &info, float clip[4][4]) {
     float               ox = 2.0f * mapping.offset_x / width - 1.0f;
     float               ky = 2.0f * mapping.scale_y * rows / height;
     float               oy = 2.0f * mapping.offset_y / height - 1.0f;
-    float               centre_x = info.offset[0] - (kGsCentre - gfx::kLogicalWidth * 0.5f);
-    float               centre_y = info.offset[1] - (kGsCentre - gfx::kLogicalHeight * 0.5f);
+    float               centre_x = info.offset[0] - (kGsCentre - kScreenWidth * 0.5f);
+    float               centre_y = info.offset[1] - (kGsCentre - kScreenHeight * 0.5f);
 
     std::memset(clip, 0, sizeof(float) * 16);
     clip[0][0] = kx * info.scale[0];
@@ -462,11 +463,11 @@ void MGPortWorldToClip(float clip[4][4]) {
 
 // ---- VSync group -----------------------------------------------------------------------------
 
-PC_OVERRIDE int MGGetVSyncCount() {
+PORT_OVERRIDE int MGGetVSyncCount() {
     return static_cast<int>(ClockTickCount());
 }
 
-PC_OVERRIDE void MGInit() {
+PORT_OVERRIDE void MGInit() {
     DBuffID = 0;
     mgWaitVSync = 0;
     VSyncField__2 = 0;
@@ -486,7 +487,7 @@ PC_OVERRIDE void MGInit() {
     mgWindowRect.y = 0;
     mgWindowRect.width = 640;
     mgWindowRect.height = SCREEN_HALF_HEIGHT;
-    MGPortCurrent().window = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
+    MGPortCurrent().window = {0.0f, 0.0f, kScreenWidth, kScreenHeight};
     MGAdjustScreen(0, 0);
 
     mgBackColor[0] = 0.0f;
@@ -539,7 +540,7 @@ PC_OVERRIDE void MGInit() {
     g_old_vcount = 0;
 }
 
-PC_OVERRIDE void MGInitVSyncCallBack(int (*callback)(int)) {
+PORT_OVERRIDE void MGInitVSyncCallBack(int (*callback)(int)) {
     ClockSetTickCallback(callback);
 }
 
@@ -549,7 +550,7 @@ void MGPortCutInterpolation() {
 
 // A tick records its drawing as a display list; MGEndFrame renders it. A frame someone opened
 // with gfx::BeginFrame is drawn into as it is.
-PC_OVERRIDE void MGBeginFrame() {
+PORT_OVERRIDE void MGBeginFrame() {
     if (!gfx::InFrame()) {
         gfx::BeginRecording();
         if (g_cut_next_tick) {
@@ -595,7 +596,7 @@ PC_OVERRIDE void MGBeginFrame() {
 // Retail waits for the next VSync unless one already passed while the frame was built and the
 // game asked not to wait twice (mgWaitVSync 0). The count only moves when the clock is pumped, so
 // it is pumped first to see whether a tick went by.
-PC_OVERRIDE void MGEndFrame() {
+PORT_OVERRIDE void MGEndFrame() {
     for (int i = 0; i < 16; i++) {
         g_pick_pending[i].reset();
         if (!mgPickZBuff[i].enable) {
@@ -650,13 +651,13 @@ PC_OVERRIDE void MGEndFrame() {
     DBuffID = !DBuffID;
 }
 
-PC_OVERRIDE void MGFlipWaitVSync(int wait) {
+PORT_OVERRIDE void MGFlipWaitVSync(int wait) {
     mgWaitVSync = wait;
 }
 
 // The display position only moved the PAL picture on a television; the clamped values are kept
 // for the save data's screen-position setting, and nothing moves.
-PC_OVERRIDE void MGAdjustScreen(int x, int y) {
+PORT_OVERRIDE void MGAdjustScreen(int x, int y) {
     if (x > 32 || x < -32) {
         x = 0;
     }
@@ -667,13 +668,13 @@ PC_OVERRIDE void MGAdjustScreen(int x, int y) {
     mgAdjustY = (y >> 1) << 1;
 }
 
-PC_OVERRIDE sceVif1Packet *GetVif1Packet() {
+PORT_OVERRIDE sceVif1Packet *GetVif1Packet() {
     return Vif1Packet;
 }
 
 // ---- Projection, camera, lights, fog ---------------------------------------------------------
 
-PC_OVERRIDE void MGSetRenderInfo(float scale, float near_z, float far_z) {
+PORT_OVERRIDE void MGSetRenderInfo(float scale, float near_z, float far_z) {
     float w = 1.0f;
     float z_range = 16699999;
     float near_far = near_z * far_z;
@@ -725,16 +726,16 @@ PC_OVERRIDE void MGSetRenderInfo(float scale, float near_z, float far_z) {
     mgRenderInfo.viewport[3][3] = w;
 }
 
-PC_OVERRIDE void MGSetProjection(float scale) {
+PORT_OVERRIDE void MGSetProjection(float scale) {
     MGSetRenderInfo(scale, mgRenderInfo.near[2], mgRenderInfo.far[2]);
 }
 
-PC_OVERRIDE float MGGetProjection() {
+PORT_OVERRIDE float MGGetProjection() {
     return mgRenderInfo.projection;
 }
 
 // SCAX0 takes half of x, as retail sends it; the rectangle counts field rows.
-PC_OVERRIDE void MGSetWindowRect(CRect_i_ rect) {
+PORT_OVERRIDE void MGSetWindowRect(CRect_i_ rect) {
     mgWindowRect = rect;
     float left = static_cast<float>(rect.x >> 1);
     float right = static_cast<float>(rect.x + rect.width + 1);
@@ -743,12 +744,12 @@ PC_OVERRIDE void MGSetWindowRect(CRect_i_ rect) {
     MGPortCurrent().window = {left, top, right - left, bottom - top};
 }
 
-PC_OVERRIDE void MGSetWindowRect() {
+PORT_OVERRIDE void MGSetWindowRect() {
     MGSetWindowRect(CRect_i_(0, 0, 640, SCREEN_HALF_HEIGHT));
-    MGPortCurrent().window = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
+    MGPortCurrent().window = {0.0f, 0.0f, kScreenWidth, kScreenHeight};
 }
 
-PC_OVERRIDE void MGSetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
+PORT_OVERRIDE void MGSetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
     sceVu0CopyMatrix(mgRenderInfo.light_direction, direction);
     sceVu0CopyMatrix(mgRenderInfo.light_color, color);
     for (int i = 0; i < 4; i++) {
@@ -757,24 +758,24 @@ PC_OVERRIDE void MGSetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
     }
 }
 
-PC_OVERRIDE void MGGetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
+PORT_OVERRIDE void MGGetPLight(sceVu0FMATRIX direction, sceVu0FMATRIX color) {
     sceVu0CopyMatrix(direction, mgRenderInfo.light_direction);
     sceVu0CopyMatrix(color, mgRenderInfo.light_color);
 }
 
-PC_OVERRIDE void MGSetAmbient(float *ambient) {
+PORT_OVERRIDE void MGSetAmbient(float *ambient) {
     sceVu0CopyVector(mgRenderInfo.ambient, ambient);
 }
 
-PC_OVERRIDE void MGGetAmbient(float *ambient) {
+PORT_OVERRIDE void MGGetAmbient(float *ambient) {
     sceVu0CopyVector(ambient, mgRenderInfo.ambient);
 }
 
-PC_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view) {
+PORT_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view) {
     SetViewMatrix(view);
 }
 
-PC_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
+PORT_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     SetViewMatrix(view);
     sceVu0CopyVector(mgRenderInfo.view_position, position);
     mgRenderInfo.position[0] = position[0];
@@ -783,7 +784,7 @@ PC_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     mgRenderInfo.position[3] = 0.0f;
 }
 
-PC_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {
+PORT_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {
     mgRenderInfo.fog_far = far_fog;
     mgRenderInfo.fog_near = near_fog;
     mgRenderInfo.fog_a = ((far_fog + near_fog) + (far_fog - near_fog) * (far_z + near_z) / (far_z - near_z)) / 2.0f;
@@ -793,7 +794,7 @@ PC_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_c
     mgRenderInfo.fog_blue = b;
 }
 
-PC_OVERRIDE void MGSetBGColor(float red, float green, float blue, float alpha) {
+PORT_OVERRIDE void MGSetBGColor(float red, float green, float blue, float alpha) {
     mgClearBackFlag = !(red < 0.0f && green < 0.0f && blue < 0.0f && alpha < 0.0f);
     mgBackColor[0] = std::clamp(red, 0.0f, 255.0f);
     mgBackColor[1] = std::clamp(green, 0.0f, 255.0f);
@@ -801,15 +802,15 @@ PC_OVERRIDE void MGSetBGColor(float red, float green, float blue, float alpha) {
     mgBackColor[3] = std::clamp(alpha, 0.0f, 255.0f);
 }
 
-PC_OVERRIDE void MGSetBGColor(float *color) {
+PORT_OVERRIDE void MGSetBGColor(float *color) {
     MGSetBGColor(color[0], color[1], color[2], color[3]);
 }
 
-PC_OVERRIDE void MGGetBGColor(float *color) {
+PORT_OVERRIDE void MGGetBGColor(float *color) {
     sceVu0CopyVector(color, mgBackColor);
 }
 
-PC_OVERRIDE void MGScisioringForce(int force) {
+PORT_OVERRIDE void MGScisioringForce(int force) {
     mgRenderInfo.scissoring = force;
 }
 
@@ -817,7 +818,7 @@ PC_OVERRIDE void MGScisioringForce(int force) {
 
 // view_scaled no longer halves y, so the field squeeze is applied here to keep the GS coordinates
 // retail produced.
-PC_OVERRIDE int MGRotTransPers(int *screen, float *position, int fog) {
+PORT_OVERRIDE int MGRotTransPers(int *screen, float *position, int fog) {
     sceVu0FVECTOR point;
     int           visible = true;
 
@@ -850,7 +851,7 @@ PC_OVERRIDE int MGRotTransPers(int *screen, float *position, int fog) {
 
 // Logical frame pixels: retail doubled the squeezed y back, which with an unsqueezed view is the
 // identity. The on-screen test still runs in GS field units, as retail's did.
-PC_OVERRIDE int MGRotTransPers2D(int *screen, float *position, int fog) {
+PORT_OVERRIDE int MGRotTransPers2D(int *screen, float *position, int fog) {
     sceVu0FVECTOR point;
     int           visible = true;
 
@@ -885,7 +886,7 @@ PC_OVERRIDE int MGRotTransPers2D(int *screen, float *position, int fog) {
 
 // view_screen keeps retail's GS field units, so the vertical bound is half the frame's half-height;
 // both bounds are what the current target shows, which past a 4:3 window is wider than retail's.
-PC_OVERRIDE int MGClipVertex(float *position) {
+PORT_OVERRIDE int MGClipVertex(float *position) {
     sceVu0FVECTOR point;
     int           outside = 0;
     Draw3DExtent  extent = Draw3DVisibleExtent();
@@ -919,7 +920,7 @@ PC_OVERRIDE int MGClipVertex(float *position) {
     return outside;
 }
 
-PC_OVERRIDE int MGClipBox(CBoxVu0 *box) {
+PORT_OVERRIDE int MGClipBox(CBoxVu0 *box) {
     sceVu0FVECTOR corner;
     float        *extreme[2] = {box->min, box->max};
     int           outside = 63;
@@ -943,39 +944,39 @@ PC_OVERRIDE int MGClipBox(CBoxVu0 *box) {
 
 // ---- Drawing ---------------------------------------------------------------------------------
 
-PC_OVERRIDE void MGDraw(CFrame *frame) {
+PORT_OVERRIDE void MGDraw(CFrame *frame) {
     if (frame) {
         frame->DrawVu1(g_draw_cursor, &mgRenderInfo);
     }
 }
 
-PC_OVERRIDE void MGSetGsTEST(sceGsTest *test) {
+PORT_OVERRIDE void MGSetGsTEST(sceGsTest *test) {
     MGPortCurrent().test = test ? *test : mgPixelTest;
 }
 
-PC_OVERRIDE void MGSetGsZBUF(sceGsZbuf *zbuf) {
+PORT_OVERRIDE void MGSetGsZBUF(sceGsZbuf *zbuf) {
     MGPortCurrent().zbuf = zbuf ? *zbuf : mgZBuffer;
 }
 
-PC_OVERRIDE void MGSetGsALPHA(sceGsAlpha *alpha) {
+PORT_OVERRIDE void MGSetGsALPHA(sceGsAlpha *alpha) {
     MGPortCurrent().alpha = alpha ? *alpha : mgAlpha;
 }
 
-PC_OVERRIDE void MGSetGsTEXA(sceGsTexa *texa) {
+PORT_OVERRIDE void MGSetGsTEXA(sceGsTexa *texa) {
     MGPortCurrent().texa = texa ? *texa : mgTexa;
 }
 
-PC_OVERRIDE void MGGetFBuffTex(sceGsTex0 *tex0) {
+PORT_OVERRIDE void MGGetFBuffTex(sceGsTex0 *tex0) {
     *reinterpret_cast<u_long *>(tex0) = FrameTex0(kMGPortFrameTbp0);
 }
 
-PC_OVERRIDE void MGGetFBuffBackTex(sceGsTex0 *tex0) {
+PORT_OVERRIDE void MGGetFBuffBackTex(sceGsTex0 *tex0) {
     *reinterpret_cast<u_long *>(tex0) = FrameTex0(kMGPortPreviousFrameTbp0);
 }
 
 // Moves between two of the texture manager's images (CLUT moves included) are its business; a move
 // that reads or writes the frame scales the frame's field rows to its logical ones.
-PC_OVERRIDE void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {
+PORT_OVERRIDE void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {
     if (rect.width <= 0 || rect.height <= 0) {
         return;
     }
@@ -997,8 +998,8 @@ PC_OVERRIDE void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *ds
 // off (retail's ALPHA there is (0 - 0) * FIX + Cs).
 static void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::TextureHandle dst, gfx::Rect dst_rect,
                             const sceGsTexa &texa) {
-    uint32_t width = static_cast<uint32_t>(gfx::kLogicalWidth);
-    uint32_t height = static_cast<uint32_t>(gfx::kLogicalHeight);
+    uint32_t width = static_cast<uint32_t>(kScreenWidth);
+    uint32_t height = static_cast<uint32_t>(kScreenHeight);
     if (src != gfx::kMainTarget) {
         std::optional<gfx::TextureInfo> info = gfx::GetTextureInfo(src);
         if (!info) {
@@ -1062,7 +1063,7 @@ static void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::Tex
 // TA0 0x80) makes every texel 0x80 but pure black, which is 0, and that is the alpha the copy
 // carries. The title's smoke and the depth of field blend the copy back by it; a raw copy carries
 // whatever the frame's last draw left, which feeds the title's trail its own decaying alpha.
-PC_OVERRIDE void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, sceGsTex0 *dst, const CRect_i_ &dst_rect) {
+PORT_OVERRIDE void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, sceGsTex0 *dst, const CRect_i_ &dst_rect) {
     std::optional<ResolvedRect> from =
         ResolveRect(*src, src_rect.x / 16, src_rect.y / 16, src_rect.width / 16, src_rect.height / 16);
     std::optional<ResolvedRect> to =
@@ -1097,7 +1098,7 @@ static void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
 }
 
 // Retail weaves the two fields line by line into a full-height image; one blit of the frame does.
-PC_OVERRIDE void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction) {
+PORT_OVERRIDE void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction) {
     MoveFrameImage(gfx::kMainTarget, dst);
     (void) x;
     (void) y;
@@ -1108,7 +1109,7 @@ void MGPortMovePreviousFrameImage(sceGsTex0 *dst) {
     MoveFrameImage(gfx::kPreviousFrame, dst);
 }
 
-PC_OVERRIDE void MGFillBox(const CRect_i_ &rect, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+PORT_OVERRIDE void MGFillBox(const CRect_i_ &rect, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 1;
     test.bits.aref = 0;
@@ -1143,15 +1144,15 @@ PC_OVERRIDE void MGFillBox(const CRect_i_ &rect, unsigned char r, unsigned char 
     current.zbuf = mgZBuffer;
 }
 
-PC_OVERRIDE void MGClearZBuffer(int mode) {
-    gfx::LogicalRect frame = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
+PORT_OVERRIDE void MGClearZBuffer(int mode) {
+    gfx::LogicalRect frame = {0.0f, 0.0f, kScreenWidth, kScreenHeight};
     uint8_t          unused[4] = {};
     gfx::Clear(false, unused, true, MGPortDepth(static_cast<unsigned>(mode)), &frame);
     MGPortRestoreRegisters();
 }
 
-PC_OVERRIDE void MGClearScreen(u_char r, u_char g, u_char b, u_char a) {
-    gfx::LogicalRect frame = {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight};
+PORT_OVERRIDE void MGClearScreen(u_char r, u_char g, u_char b, u_char a) {
+    gfx::LogicalRect frame = {0.0f, 0.0f, kScreenWidth, kScreenHeight};
     uint8_t          color[4] = {r, g, b, a};
     gfx::Clear(true, color, true, 0.0f, &frame);
     MGPortRestoreRegisters();
@@ -1159,19 +1160,19 @@ PC_OVERRIDE void MGClearScreen(u_char r, u_char g, u_char b, u_char a) {
 
 // ---- Shadows ---------------------------------------------------------------------------------
 
-PC_OVERRIDE void MGDrawShadowFast(CFrame *frame, float *position, float *normal) {
+PORT_OVERRIDE void MGDrawShadowFast(CFrame *frame, float *position, float *normal) {
     DrawShadowPass(frame, position, normal, 1, Draw3DShadowProgram::Every);
 }
 
-PC_OVERRIDE void MGDrawShadowFast2(CFrame *frame, float *position, float *normal) {
+PORT_OVERRIDE void MGDrawShadowFast2(CFrame *frame, float *position, float *normal) {
     DrawShadowPass(frame, position, normal, 1, Draw3DShadowProgram::AwayFromLight);
 }
 
-PC_OVERRIDE void MGDrawShadow(CFrame *frame, float *position, float *normal) {
+PORT_OVERRIDE void MGDrawShadow(CFrame *frame, float *position, float *normal) {
     DrawShadowPass(frame, position, normal, 2, Draw3DShadowProgram::Clipped);
 }
 
-PC_OVERRIDE void MGDrawShade(CFrame *frame) {
+PORT_OVERRIDE void MGDrawShade(CFrame *frame) {
     if (!frame) {
         return;
     }
@@ -1196,7 +1197,7 @@ PC_OVERRIDE void MGDrawShade(CFrame *frame) {
 
 // Retail points FRAME_1 at shadow_buf and clears it black with a sprite, Z untouched; the volumes
 // then count into it against the scene's depth.
-PC_OVERRIDE void MGBeginDrawShadow(sceGsTex0 tex0) {
+PORT_OVERRIDE void MGBeginDrawShadow(sceGsTex0 tex0) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 1;
     test.bits.aref = 0;
@@ -1228,7 +1229,7 @@ PC_OVERRIDE void MGBeginDrawShadow(sceGsTex0 tex0) {
 // Retail draws shadow_buf over the frame as a 24-bit texture with TEXA AEM 1, TA0 alpha and ALPHA
 // (0 - Cd) * As + Cd: a black texel (no volume covered it) gets alpha 0 and leaves the frame, any
 // other darkens it by alpha / 128 once, however many volumes counted there.
-PC_OVERRIDE void MGEndDrawShadow(u_char alpha) {
+PORT_OVERRIDE void MGEndDrawShadow(u_char alpha) {
     gfx::TextureHandle target = g_shadow_target;
     g_shadow_target = gfx::kNullTexture;
 
@@ -1249,8 +1250,8 @@ PC_OVERRIDE void MGEndDrawShadow(u_char alpha) {
         state.texa_ta0 = alpha;
         state.scissor = true;
         state.scissor_rect = current.window;
-        float         xs[4] = {0.0f, gfx::kLogicalWidth, gfx::kLogicalWidth, 0.0f};
-        float         ys[4] = {0.0f, 0.0f, gfx::kLogicalHeight, gfx::kLogicalHeight};
+        float         xs[4] = {0.0f, kScreenWidth, kScreenWidth, 0.0f};
+        float         ys[4] = {0.0f, 0.0f, kScreenHeight, kScreenHeight};
         gfx::Vertex2D quad[4] = {};
         for (int i = 0; i < 4; i++) {
             quad[i].x = quad[i].u = xs[i];

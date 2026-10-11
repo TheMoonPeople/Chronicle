@@ -16,7 +16,7 @@
 #include "rect.hpp"
 
 // Retail rounds up to 64 bytes through int, which only holds an address below 2 GiB.
-PC_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
+PORT_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
     auto address = reinterpret_cast<std::uintptr_t>(buffer);
     return reinterpret_cast<u_long128 *>((address + 63) & ~std::uintptr_t{63});
 }
@@ -26,7 +26,7 @@ PC_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
 // where the grid begins. A window that scales the picture shows what the squeeze left between
 // them: the border ends at y=128.6 and the grid, clipped to start at 129, leaves a sliver of the
 // scene across the top of the grid. Drawing the strip a row to a texel ends the border on 129.
-PC_OVERRIDE void PersonalBoardDrawWaku(int x, int y, CTexture *texture, int alpha) {
+PORT_OVERRIDE void PersonalBoardDrawWaku(int x, int y, CTexture *texture, int alpha) {
     DrawMenu2DSprite(texture, CRect_i_(x, y + 1, 0x14, 0xBF), CRect_i_(0, 0, 0x14, 0xC0), alpha);
     DrawMenu2DSprite(texture, CRect_i_(x + 0x14, y + 1, 0xC8, 0x14), CRect_i_(0x14, 0, 0xC8, 0x14), alpha);
     DrawMenu2DSprite(texture, CRect_i_(x + 0xDC, y + 1, 0x24, 0xBF), CRect_i_(0xDC, 0, 0x24, 0xC0), alpha);
@@ -38,7 +38,7 @@ PC_OVERRIDE void PersonalBoardDrawWaku(int x, int y, CTexture *texture, int alph
 // stretched across what the target shows instead (the dungeon entrance's backdrop, the opening
 // book, the escape card, the east king's picture). At 4:3 the visible rect is the frame itself and
 // the picture lands exactly where it did, byte for byte.
-PC_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha) {
+PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha) {
     if (texture == nullptr) {
         return;
     }
@@ -51,7 +51,7 @@ PC_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha)
 }
 
 // The Register Name screen's hand follows the mouse while the pointer is in use.
-PC_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, unsigned char r, unsigned char g,
+PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, unsigned char r, unsigned char g,
                                   unsigned char b, int alpha) {
     NameMouseHand(texture, screen, texel, r == 0 && g == 0 && b == 0);
     set2DSprite(GetVif1Packet(), texture, screen, texel, r, g, b, alpha);
@@ -61,7 +61,7 @@ extern PERSONAL_BOARD *PerBoardPt;
 
 // The item the cursor holds rides the mouse's hand while a screen has taken the mouse as a pointer
 // (port/src/menu_mouse.cpp); otherwise retail's body.
-PC_OVERRIDE void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, int alpha) {
+PORT_OVERRIDE void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, int alpha) {
     float pointer_x = 0.0f;
     float pointer_y = 0.0f;
 

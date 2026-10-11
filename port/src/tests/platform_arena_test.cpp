@@ -67,12 +67,12 @@ TEST(PlatformArena, ReusesAndZeroes) {
 TEST(PlatformArena, OverflowAborts) {
     InitializeDataBuffer();
     SetDataBuffer(&VisualData, 100);
-    DC_ASSERT_ABORT([] { VisualData.Alloc(401); });
-    DC_ASSERT_ABORT([] { VisualData.Alloc64(400); });
-    DC_ASSERT_EXIT([] { VisualData.Alloc(400); }, 0);
+    KZ_ASSERT_ABORT([] { VisualData.Alloc(401); });
+    KZ_ASSERT_ABORT([] { VisualData.Alloc64(400); });
+    KZ_ASSERT_EXIT([] { VisualData.Alloc(400); }, 0);
     // An overrun that skips the allocator runs into the guard page behind the block.
-    DC_ASSERT_FAULT([] { VisualData.base[VisualData.limit * 16] = 1; });
-    DC_ASSERT_ABORT([] { SystemMesBuffer.Alloc(6001); });
+    KZ_ASSERT_FAULT([] { VisualData.base[VisualData.limit * 16] = 1; });
+    KZ_ASSERT_ABORT([] { SystemMesBuffer.Alloc(6001); });
 }
 
 TEST(PlatformArena, ModeBuffers) {

@@ -11,7 +11,7 @@
 
 extern "C" {
 void sceFsReset(void);
-int sceOpen(const char *name, int flags);
+int sceOpen(const char *name, int flags, ...);
 int sceClose(int fd);
 int sceLseek(int fd, int offset, int whence);
 int sceRead(int fd, void *buffer, int size);

@@ -65,7 +65,7 @@ u_char *escape_file;
 
 RS_STACKDATA *PortItemSelectResult;
 
-PC_OVERRIDE void BtGetTreasureboxBig_Init() {
+PORT_OVERRIDE void BtGetTreasureboxBig_Init() {
     u_char *mds;
     u_char *img;
     u_char *chr;
@@ -154,7 +154,7 @@ PC_OVERRIDE void BtGetTreasureboxBig_Init() {
     autoCamTrial();
 }
 
-PC_OVERRIDE int BtGetTreasureboxBig_Loop() {
+PORT_OVERRIDE int BtGetTreasureboxBig_Loop() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR item_position;
     int           done = 0;
@@ -317,7 +317,7 @@ PC_OVERRIDE int BtGetTreasureboxBig_Loop() {
     return done;
 }
 
-PC_OVERRIDE void BtGetTreasureboxSmall_Init(int dungeon) {
+PORT_OVERRIDE void BtGetTreasureboxSmall_Init(int dungeon) {
     u_char *mds;
     u_char *img;
     u_char *chr;
@@ -411,7 +411,7 @@ PC_OVERRIDE void BtGetTreasureboxSmall_Init(int dungeon) {
     autoCamTrial();
 }
 
-PC_OVERRIDE int BtGetTreasureboxSmall_Loop() {
+PORT_OVERRIDE int BtGetTreasureboxSmall_Loop() {
     int done = 0;
 
     switch (BtGetTreasurebox_Sled) {
@@ -564,7 +564,7 @@ PC_OVERRIDE int BtGetTreasureboxSmall_Loop() {
     return done;
 }
 
-PC_OVERRIDE int BtMiniItemSelect_Loop() {
+PORT_OVERRIDE int BtMiniItemSelect_Loop() {
     int done = 0;
 
     switch (BtMiniItemSelect_Sled) {
@@ -606,7 +606,7 @@ PC_OVERRIDE int BtMiniItemSelect_Loop() {
     return done;
 }
 
-PC_OVERRIDE void BtGetGateKey_Init(int item_no) {
+PORT_OVERRIDE void BtGetGateKey_Init(int item_no) {
     char    model_path[64];
     char    texture_path[64];
     u_char *model;
@@ -639,7 +639,7 @@ PC_OVERRIDE void BtGetGateKey_Init(int item_no) {
     autoCamTrial();
 }
 
-PC_OVERRIDE int BtGetGateKey_Loop() {
+PORT_OVERRIDE int BtGetGateKey_Loop() {
     sceVu0FVECTOR eye;
     sceVu0FVECTOR ref;
     sceVu0FVECTOR ahead;
@@ -722,7 +722,7 @@ PC_OVERRIDE int BtGetGateKey_Loop() {
     return done;
 }
 
-PC_OVERRIDE void BtEscape_Init() {
+PORT_OVERRIDE void BtEscape_Init() {
     u_char *chr;
     int     size;
 
@@ -754,7 +754,7 @@ PC_OVERRIDE void BtEscape_Init() {
     autoCamTrial();
 }
 
-PC_OVERRIDE int BtEscape_Loop() {
+PORT_OVERRIDE int BtEscape_Loop() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR rotation;
     int           done = 0;

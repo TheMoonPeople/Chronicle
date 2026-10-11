@@ -8,6 +8,7 @@
 #include "localize.hpp"
 #include "localize_texture.hpp"
 #include "mainselect.hpp"
+#include "platform_fixture.hpp"
 #include "texture_port.hpp"
 
 namespace {
@@ -23,7 +24,8 @@ const unsigned char kPng[] = {
     0x60, 0x82};
 
 struct TextureDir {
-    fs::path dir = fs::temp_directory_path() / "dc_localize_texture_test";
+    // Its own per process: ctest runs each test in a process of its own, side by side, and each clears its folder.
+    fs::path dir = fs::temp_directory_path() / ("dc_localize_texture_test_" + std::to_string(dc::test::ProcessId()));
 
     TextureDir() {
         std::error_code error;

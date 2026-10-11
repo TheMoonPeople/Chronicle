@@ -37,12 +37,12 @@ TEST(MacArenaMemory, MapsAbove4gib) {
 
 TEST(MacArenaMemory, GuardPageFaults) {
     ArenaMemory memory = ArenaMemoryMap(4096 + 64);
-    DC_ASSERT_EXIT([&] { memory.base[memory.capacity - 1] = 1; }, 0);
-    DC_ASSERT_FAULT([&] { const_cast<unsigned char *>(ArenaMemoryGuard(memory))[0] = 1; });
+    KZ_ASSERT_EXIT([&] { memory.base[memory.capacity - 1] = 1; }, 0);
+    KZ_ASSERT_FAULT([&] { const_cast<unsigned char *>(ArenaMemoryGuard(memory))[0] = 1; });
     ArenaMemoryZero(memory);
-    DC_ASSERT_FAULT([&] { memory.base[memory.capacity] = 1; });
+    KZ_ASSERT_FAULT([&] { memory.base[memory.capacity] = 1; });
     ArenaMemoryZeroByRemap(memory);
-    DC_ASSERT_FAULT([&] { memory.base[memory.capacity] = 1; });
+    KZ_ASSERT_FAULT([&] { memory.base[memory.capacity] = 1; });
     ArenaMemoryUnmap(memory);
 }
 

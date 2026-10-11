@@ -48,17 +48,17 @@ Row GameRow(const char *key, const char *label, const char *names, int game_help
             .names = names};
 }
 
-template <bool Config::*Field>
+template <auto Field>
 int GetOnOff(const Config &config) {
     return config.*Field ? 0 : 1;
 }
 
-template <bool Config::*Field>
+template <auto Field>
 void SetOnOff(Config &config, int choice) {
     config.*Field = choice == 0;
 }
 
-template <bool Config::*Field>
+template <auto Field>
 Row OnOffRow(const char *key, const char *label, const char *help) {
     return {.key = key,
             .label = label,
@@ -69,7 +69,7 @@ Row OnOffRow(const char *key, const char *label, const char *help) {
             .names = "On|Off"};
 }
 
-template <bool Config::*Field>
+template <auto Field>
 Row NamedRow(const char *key, const char *label, const char *help, const char *names) {
     return {.key = key,
             .label = label,
@@ -685,6 +685,9 @@ const Row kTextRows[] = {
     SettingRow("input.glyph_device", "Symbols Shown",
                "\"Symbols Shown\"\nAuto: the device you\nuse. Or always show one\nof the others.", GlyphDeviceCount,
                GlyphDeviceChoice, SetGlyphDevice, nullptr, "Auto|PS3|PS4|PS5|PS5 Colored|Xbox|Switch|Steam Deck|Steam Controller|Keyboard"),
+    NamedRow<&Config::font_sharp>("video.text_font", "Text Font",
+                                  "\"Text Font\"\nSharp: a clear font at\nthe screen's size.\nOriginal: the game's.",
+                                  "Original|Sharp"),
     SettingRow("video.text_shadow", "Text Shadow",
                "\"Text Shadow\"\nHow dark the shadow\nunder the letters is.\n50% is the soft one.", ShadowCount,
                TextShadowChoice, SetTextShadow, TextShadowText),
