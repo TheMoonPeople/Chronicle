@@ -20,11 +20,11 @@
 #    keep the sanitised name, which is what the rest of the build uses.
 # 4. Applies any extra objcopy arguments given after the object. Two callers
 #    use that: an overlay's objects get their sections renamed onto the
-#    overlay's private prefix (see cmake/Overlays.cmake), and the library
+#    overlay's private prefix (see tools/kazarov/cmake/KazarovOverlays.cmake), and the library
 #    translation units get .text dropped to 4-byte alignment.
 #
 #    The alignment matters because MWCC gives every function's .text 16-byte
-#    alignment and a unit built through tools/mwccgap has one such section per
+#    alignment, and a unit compiled as one object has one such section per
 #    function. The game's own code is 16-aligned in retail too, so that is
 #    exactly right for it. The libraries are not -- 305 of their 739 functions
 #    start 8 bytes off a 16-byte boundary -- and padding each one up grew the

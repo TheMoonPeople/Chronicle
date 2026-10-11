@@ -121,10 +121,9 @@ NUMBERED_DATUM = re.compile(r'^@\d+(?:__\d+)?$')
 # A function-local static: `name$N`, with splat's `__N` on a duplicate.
 LOCAL_STATIC = re.compile(r'^[A-Za-z_]\w*\$\d+(?:__\d+)?$')
 
-# tools/mwccgap marks a `@<n>` that spliced assembly only *references* -- so
-# retail's constant rather than the one MWCC invented for this unit's compiled
-# half, which would otherwise absorb the reference. The suffix keeps the two
-# apart through the assembler; the address to pin is still retail's.
+# A `@<n>` marked as external names retail's constant, not the one MWCC
+# invented for this unit. The suffix keeps the two apart through the assembler;
+# the address to pin is still retail's.
 EXTERNAL_INVENTED = '$ext'
 EXTERNAL_DATUM = re.compile(r'^(@\d+(?:__\d+)?)%s$' % re.escape(EXTERNAL_INVENTED))
 
@@ -713,9 +712,9 @@ def resolve_names(path, addresses):
         external = EXTERNAL_DATUM.match(sym.name)
         if sym.shndx == SHN_UNDEF and LOCAL_STATIC.match(sym.name) \
                 and sym.name in addresses:
-            # A function an INCLUDE_ASM marker supplies reaches its own
-            # function-local statics under retail's names; the source defines
-            # them where retail put them, so the address is retail's.
+            # A function reaches its own function-local statics under retail's
+            # names; the source defines them where retail put them, so the address
+            # is retail's.
             sym.value = addresses[sym.name]
             sym.size = 0
             sym.info = STT_OBJECT

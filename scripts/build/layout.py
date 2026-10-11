@@ -12,11 +12,8 @@ carries the retail address of its first byte in the comment beside it. The link
 order is those units in address order, a unit owns everything from its start to
 the next one's, and nothing here reads a compiled object.
 
-Placement deliberately does not come from the INCLUDE_ASM markers. A marker
-says a function is not decompiled yet, which is a fact about progress, not
-about where code lives -- deriving position from it would move a unit as its
-last marker was retired. The markers are read for one thing only: a function
-one of them names has no decompiled base for objdiff to compare against.
+Placement comes from the linker script alone: where a unit starts is a fact
+about the retail layout, not about how far its functions have been decompiled.
 """
 
 import argparse
@@ -39,17 +36,10 @@ import region  # noqa: E402
 SECTIONS = ("main", "title", "dun")
 
 SRC_DIR = "ps2/src"
-# Where splat files a function's own assembly: still supplied by a marker
-# under the first, decompiled under the second.
+# Where splat files a function's own assembly: `nonmatchings` for a function no
+# source defines yet, `matchings` for one a source does.
 ASM_DIRS = (f"{region.ASM}/nonmatchings", f"{region.ASM}/matchings")
 LCF = region.LCF
-
-# A marker names the directory its reference assembly is in and the symbol it
-# stands for. Only the symbol is read: retail's names are unique across the
-# three images, so nothing else is needed to tell two apart.
-MARKER = re.compile(
-    r'^INCLUDE_(ASM|RODATA)\s*\(\s*"[^"]*"\s*,\s*([^)\s]+)\s*\)', re.M
-)
 
 # A unit's placement in the linker script: the object, the section it is placed
 # by, and the retail address it starts at. Which image it belongs to is the
@@ -69,7 +59,7 @@ IMAGE_OF = {".text": "main", ".ttext": "title", ".dtext": "dun"}
 OBJDIFF = {
     "min_version": "2.0.0-beta.5",
     "custom_make": "sh",
-    "custom_args": ["-c", "exec scripts/build/build_objdiff.sh"],
+    "custom_args": ["-c", "exec ./build.sh ps2-pal objdiff"],
     "build_target": False,
     "build_base": True,
     "watch_patterns": [
@@ -81,7 +71,7 @@ OBJDIFF = {
     # What each function is expected to be, so objdiff can show the three
     # apart. A perfect function's bytes are retail's; a fuzzy one is the same
     # instructions in the same order with different registers, and says so with
-    # FUZZY_MATCH; an undecompiled one is still supplied by INCLUDE_ASM.
+    # FUZZY_MATCH; an undecompiled one has none.
     "progress_categories": [
         {"id": "game", "name": "Game"},
         {"id": "title", "name": "TITLE overlay"},
@@ -124,27 +114,7 @@ def included_in_objdiff(source):
     return not source.startswith("ps2/src/lib/")
 
 
-# Which image an address belongs to. The overlays share a range with each
-# other but not with main, and only one of them is ever loaded at a time.
-IMAGE_RANGES = (
-    ("main",) + disassemble.image_range("main"),
-    ("title",) + disassemble.image_range("title"),
-)
-
-ADDRESS_COMMENT = re.compile(r"^\s*/\* [0-9A-F]+ ([0-9A-F]{8}) ")
-
-
-def first_address(path):
-    """The retail address a reference file starts at, from its own comments."""
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            m = ADDRESS_COMMENT.match(line)
-            if m:
-                return int(m.group(1), 16)
-    return None
-
-
-def read_reference(code=(), placed=()):
+def read_reference(placed=()):
     """(functions, dumps) for every image.
 
     `functions` is one row per per-function reference file, `dumps` one per
@@ -155,11 +125,6 @@ def read_reference(code=(), placed=()):
     A function in a unit that is taken whole has no file of its own; its
     reference is the unit's single assembly file, which is what objdiff
     compares it against and all the link ever needs.
-
-    `code` names the symbols an INCLUDE_ASM marker supplies. Retail types most
-    of them FUNC, but not the padding a segment starts with -- `_dun_text_start`
-    is a NOTYPE that a marker supplies all the same -- so a marked symbol counts
-    as code whatever its type says.
     """
     functions = {s: [] for s in SECTIONS}
     dumps = {s: [] for s in SECTIONS}
@@ -193,7 +158,6 @@ def read_reference(code=(), placed=()):
         return reference.get(source)
 
     table = disassemble.read_symbol_table()
-    seen = set()
     for image in SECTIONS:
         # main's list carries the overlays' symbols too, so that its code can
         # name what it calls into. Those belong to the overlay, not to main.
@@ -201,26 +165,10 @@ def read_reference(code=(), placed=()):
         for name, (vram, sym_type, size) in table.get(image, {}).items():
             if not lo <= vram < hi:
                 continue
-            if sym_type == "func" or name in code:
+            if sym_type == "func":
                 path = file_for(image, name, vram)
                 if path is not None:
                     functions[image].append((vram, name, size, path))
-                    seen.add(name)
-
-    # A function retail's symbol table does not name -- spimdisasm calls it
-    # func_<address> -- has a marker and a file but no table entry, so its
-    # address is read off the file itself.
-    for name in sorted(code - seen):
-        path = paths.get(name)
-        if path is None:
-            continue
-        vram = first_address(path)
-        if vram is None:
-            continue
-        for image, lo, hi in IMAGE_RANGES:
-            if lo <= vram < hi:
-                functions[image].append((vram, name, 0, path))
-                break
 
     for image in SECTIONS:
         functions[image].sort()
@@ -246,29 +194,20 @@ def unit_references():
 
 
 def read_sources(src_dir=SRC_DIR):
-    """Return markers and synthetic identities for all translation units."""
-    out = {}
+    """The source files of the translation units, and the identities of the
+    units that have none."""
+    out = set()
     for root, _dirs, files in os.walk(src_dir):
-        for name in sorted(files):
-            if not name.endswith((".c", ".cpp")):
-                continue
-            # tools/mwccgap writes its second compile to a temporary beside the
-            # source it came from, and that file is gone again a moment later.
-            if name.startswith("tmp"):
-                continue
-            path = os.path.join(root, name)
-            try:
-                text = open(path, encoding="utf-8", errors="replace").read()
-            except OSError:
-                continue
-            # A marker under `#ifdef PAL` is the PAL build's alone.
-            out[path] = MARKER.findall(region.active_text(text))
+        for name in files:
+            # Compiler temporaries are not units.
+            if name.endswith((".c", ".cpp")) and not name.startswith("tmp"):
+                out.add(os.path.join(root, name))
     # Whole-assembly library units have no placeholder source. Keep their
     # synthetic source identities so linker-script object names still map to
     # the units derived from the split configuration.
     for _kind, _image, source, _reference in disassemble.read_units():
-        out.setdefault(source, [])
-    return out
+        out.add(source)
+    return sorted(out)
 
 
 def read_units(sources, path=LCF):
@@ -358,33 +297,12 @@ def owned_symbols(placed, functions, section):
     return grouped
 
 
-def check(placed, functions, marked):
-    """Complain if a marker sits in a unit that does not cover it.
-
-    mwcc emits a unit's functions as one contiguous .text, so a marker in the
-    wrong file moves everything after it. This is the one thing that has to
-    hold for the link to reproduce retail.
-    """
-    problems = []
-    for section in SECTIONS:
-        spans = owners(placed, section)
-        for address, symbol, _size, _src in functions[section]:
-            source = marked.get(symbol)
-            if source and owner_of(spans, address) != source:
-                problems.append(
-                    f"{symbol} at {address:#010x} is marked in {source}, but that "
-                    f"address belongs to {owner_of(spans, address)}"
-                )
-    return problems
-
-
 def link_order(args, placed, dumps, carved):
     """One mwld response file per image, in retail address order.
 
     A unit with nothing decompiled in it is taken whole: splat writes its code
     and its constants to a single assembly file and the link takes that object.
-    A unit with any decompiled function is compiled instead, and tools/mwccgap
-    splices the rest back in around what the compiler produced.
+    A unit with any decompiled function is compiled instead.
 
     A whole-section dump is excluded when the migration carves it: the carved
     parts replace it and --main-tail or --tail supplies them.
@@ -418,7 +336,7 @@ def link_order(args, placed, dumps, carved):
     return sum(1 for _ in placed)
 
 
-def provenance(path, placed, functions, marked, build_dir):
+def provenance(path, placed, functions, build_dir):
     """Where each function comes from, for reading rather than for the build."""
     rows = []
     kinds = {source: kind for kind, _image, source, _ref
@@ -427,11 +345,7 @@ def provenance(path, placed, functions, marked, build_dir):
         spans = owners(placed, section)
         for address, symbol, _size, _src in functions[section]:
             source = owner_of(spans, address)
-            kind = (
-                "asm"
-                if kinds.get(source) == "asm" or marked.get(symbol)
-                else "cpp"
-            )
+            kind = "asm" if kinds.get(source) == "asm" else "cpp"
             rows.append((address, kind, f"{build_dir}/{source}.o", symbol))
     rows.sort()
     with open(path, "w") as f:
@@ -465,7 +379,7 @@ def objdiff_data_units(lcf=LCF, build_dir=region.BUILD):
     return out
 
 
-def objdiff(path, placed, functions, marked, build_dir, declared):
+def objdiff(path, placed, functions, build_dir, declared):
     """objdiff.json: one unit per translation unit.
 
     The target of a compiled unit is written by scripts/build/objdiff_data.py:
@@ -474,10 +388,8 @@ def objdiff(path, placed, functions, marked, build_dir, declared):
     unit compiled on its own. Pairing them that way is what lets a function be
     opened and diffed on its own, and what lets objdiff count the data.
 
-    Progress stays honest because the functions a marker still supplies are
-    declared hidden in the target, and objdiff leaves a hidden symbol out of
-    its totals. A unit with nothing decompiled in it is given no base at all,
-    so it scores zero.
+    A unit with nothing decompiled in it is given no base at all, so it scores
+    zero.
     """
     kinds = {source: kind for kind, _image, source, _ref
              in disassemble.read_units()}
@@ -502,15 +414,11 @@ def objdiff(path, placed, functions, marked, build_dir, declared):
             unit["target_path"] = f"{build_dir}/{reference[source]}.o"
         else:
             continue
-        # The source compiled on its own, not the object the link takes: that
-        # one has retail's instructions spliced into every marker and would
-        # match whether the function was written or not.
+        # The source compiled on its own, not the object the link takes, so a
+        # function scores only for what the source writes.
         #
-        # Only where there is a source to compile. A unit with nothing
-        # decompiled in it is markers and nothing else, so its base would be an
-        # empty object -- which scores the same zero as having no base, at the
-        # cost of a compile per unit and a pairing that claims a comparison
-        # nobody has written the other half of yet.
+        # Only where there is a source to compile: a unit taken whole has no
+        # base, and a hand-written assembly source is its own base.
         if kinds.get(source) != "asm":
             unit["base_path"] = f"{build_dir}/diff/{source}.o"
         elif source.endswith(".s"):
@@ -518,7 +426,6 @@ def objdiff(path, placed, functions, marked, build_dir, declared):
             unit["base_path"] = f"{build_dir}/{source}.o"
 
         here = owned[image].get(source, [])
-        # Absence of assembly markers means implemented, not object-exact.
         # objdiff's `complete` flag overrides measured percentages; omit it
         # so regressions and unresolved symbol aliases remain visible.
         unit["metadata"] = {
@@ -573,48 +480,20 @@ def main():
     )
     args = ap.parse_args()
 
-    # The markers are read first: which symbols are code, and so which
-    # reference files are a function rather than a constant, comes from them.
     sources = read_sources()
     placed = read_units(sources, args.lcf)
-    functions, dumps = read_reference(
-        {symbol for markers in sources.values() for kind, symbol in markers
-         if kind == "ASM"},
-        placed,
-    )
+    functions, dumps = read_reference(placed)
 
     if args.list_extra_objects:
-        # What objdiff needs as a target and the link does not already build:
-        # the per-function assembly of every compiled unit, which tools/mwccgap
-        # reads rather than assembles. A unit taken whole is assembled from its
-        # own file into the object the link takes, so it needs nothing extra.
-        # Every unit's whole-unit assembly, which is what objdiff compares
-        # against. None of these objects is linked -- a unit taken whole is
-        # assembled separately into the object the link takes -- so the
-        # undecompiled functions can be hidden in them without the link
-        # losing sight of those symbols.
+        # The whole-unit assembly of every unit objdiff shows, which is what its
+        # target is compared against. None is linked: a unit taken whole is
+        # assembled separately into the object the link takes.
         print("\n".join(sorted(
             reference
             for source, reference in unit_references().items()
             if included_in_objdiff(source) and os.path.exists(reference)
         )))
         return 0
-
-    marked = {}
-    for source, markers in sources.items():
-        for _kind, symbol in markers:
-            marked[symbol] = source
-
-    problems = check(placed, functions, marked)
-    for message in problems:
-        print(f"  ERROR: {message}", file=sys.stderr)
-    if problems:
-        print(
-            f"layout: {len(problems)} problem(s); the link would not reproduce "
-            f"retail",
-            file=sys.stderr,
-        )
-        return 1
 
     if args.link_order:
         n = link_order(args, placed, dumps, set(args.carved))
@@ -624,7 +503,7 @@ def main():
         )
     if args.provenance:
         cpp, asm = provenance(
-            args.provenance, placed, functions, marked, args.build_dir
+            args.provenance, placed, functions, args.build_dir
         )
         print(f"layout: {cpp} functions from cpp, {asm} from asm -> {args.provenance}")
     if args.objdiff:
@@ -632,7 +511,6 @@ def main():
             args.objdiff,
             placed,
             functions,
-            marked,
             args.build_dir,
             verify.declarations(),
         )
