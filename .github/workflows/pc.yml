@@ -88,8 +88,10 @@ jobs:
       - name: Build
         run: cmake --build --preset macos-arm64
 
+      # The runner's Apple Paravirtual GPU draws black for two of Kazarov's prog0 cases that pass on
+      # Apple silicon.
       - name: Test
-        run: ctest --preset macos-arm64
+        run: ctest --preset macos-arm64 -E '^GfxMeshDc2\.(RefSphere|Prog0CullModeFollowsFlagAndMirror)$'
 
       # No game data: one stand-in file gets darkcloud through renderer start-up and pipeline compilation to the
       # game's first asset load, which fails with status 4 naming the file.
@@ -169,7 +171,7 @@ jobs:
 
       # The renderer's cases run on Linux and macOS.
       - name: Test
-        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|TexDecode)\.'
+        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|GfxMeshDc2|TexDecode)\.'
 
       - name: Package the Windows build
         run: |
