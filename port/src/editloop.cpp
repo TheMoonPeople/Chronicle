@@ -991,6 +991,8 @@ PORT_OVERRIDE int EditLoop() {
         }
     }
 
+    // An event starting clears the time-of-day text left from walking, so it is not drawn over a
+    // cutscene (#72); the text an event starts itself (the time-change event's _DRAW_DAY) is drawn.
     if (EdDebugEventEnable != 0 && (start_event_no > 0 || start_system_event > 0)) {
         sceVu0FVECTOR camera_pos;
         sceVu0FVECTOR camera_ref;
@@ -1005,11 +1007,13 @@ PORT_OVERRIDE int EditLoop() {
         if (start_system_event > 0) {
             if (EdEventInit(start_system_event, &EdWorkBuffer, (char *) EdSystemEventData) != 0) {
                 EdInitMesParam();
+                EdInitDrawDay();
                 GameMode = ED_MODE_EVENT;
             }
         } else {
             if (EdEventInit(start_event_no, &EdWorkBuffer, (char *) EdEventData) != 0) {
                 EdInitMesParam();
+                EdInitDrawDay();
                 GameMode = ED_MODE_EVENT;
                 ItemVolumeStep.CheckItemVolume();
             }
@@ -1573,9 +1577,8 @@ PORT_OVERRIDE void MoveCamera(CCameraFollow *camera) {
 }
 
 // Retail's EdDrawClock, kept in the window's top right corner.
-// DrawSysGra with two corrections: the day-transition text is a cutscene of its own and is not
-// drawn over an event (#72), and the pause sprite is not drawn from a null handle when an event
-// left the texture block without "pause" loaded (#113).
+// DrawSysGra with the pause sprite not drawn from a null handle when an event left the texture
+// block without "pause" loaded (#113).
 PORT_OVERRIDE void DrawSysGra() {
     if (EdDebugParamDrawOff == 0) {
         TexManager.ReloadTexture(Vif1Packet, 20);
@@ -1585,9 +1588,7 @@ PORT_OVERRIDE void DrawSysGra() {
             EdDrawClock(0, 0);
         }
 
-        if (GameMode != ED_MODE_EVENT) {
-            DrawDay();
-        }
+        DrawDay();
 
         char      pause_texture[] = "pause";
         CTexture *pause = TexManager.GetTexture(pause_texture, -1);
