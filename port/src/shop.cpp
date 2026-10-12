@@ -33,7 +33,8 @@
 #include "weaponlevelup.hpp"
 
 // Retail's FishingExchangeKey, with the attachment slots of the board's page addressed on the whole
-// pointer, and the static helpers it calls.
+// pointer, and ChargeShopBoardDraw, drawing as many stock cells as it fills; with the static helpers
+// they call.
 
 // Defined by ps2/src/shop.cpp without a header declaration.
 struct FishMenuWork {
@@ -55,6 +56,45 @@ struct FishMenuWork {
 
 extern FishMenuWork FishMenu;
 extern CTexture    *FishMenuTex;
+
+// Defined by ps2/src/shop.cpp without a header declaration.
+struct ShopMenuWork {
+    s16            shop_no;
+    s16            side;
+    s16            mode;
+    s16            key_used;
+    PERSONAL_BOARD board;
+    s32            unk_168;
+    float          stock_y;
+    float          stock_scroll;
+    s16            stock_row_offset;
+    u8             stock_top_row;
+    u8             unk_177;
+    float          cursor_x;
+    float          cursor_y;
+    s16            talk_mode;
+    s16            unk_182;
+    s32            step_count;
+    s16            ready;
+    s16            tex_block;
+    s16            unk_18C;
+    s16            alpha;
+    s16            lang;
+    s16            unk_192;
+    s16            person_state;
+    s16            person_tex_block;
+    s16            unk_198;
+    s16            msg_mode;
+    s16            motion;
+    s16            msg_no;
+    s32            draw_delay;
+    s32            idle_count;
+};
+
+extern ShopMenuWork ShopMenu;
+extern CTexture    *ShopBoard;
+extern CStockItem  *ShopStockPt;
+extern s16          ChargeShopMax[3];
 
 // The bodies are retail's, spelled as MWCC took them.
 #pragma clang diagnostic ignored "-Wwritable-strings"
@@ -136,7 +176,143 @@ int FishMenuTextureLoad() {
     return done;
 }
 
+void ShopIconDraw(short *item_no, unsigned char *value, int count, int x, int y, int clip_top, int clip_bottom, int alpha) {
+    int draw_x = x;
+    int draw_y = y;
+    int i;
+
+    for (i = 0; i < count; i++) {
+        DrawIconParts(item_no[i], draw_x, draw_y, clip_top, clip_bottom, alpha, value[i]);
+        draw_x += 0x28;
+
+        if (i % 5 == 4) {
+            draw_x = x;
+            draw_y += 0x28;
+        }
+    }
+}
+
+void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
+    int left = x + 0xD2;
+    int top = y - 0x28;
+
+    DrawMenu2DSprite(ShopBoard, CRect_i_(left, top + 1, 0x30, 0x2F), CRect_i_(0x100, 0x90, 0x30, 0x30), alpha);
+    RECT digits = {0x90, 0xDC, 12, 13};
+    left = x + 0xF7;
+    top = y - 0xE;
+    DrawMenuNumber(max, left, top, ShopBoard, digits, 1, alpha);
+    left = x + 0xF2;
+    top = y - 0x22;
+    int count = 0;
+    int i;
+
+    switch (ShopMenu.board.page) {
+        case BOARD_PAGE_ITEM:
+            for (i = 0; i < 60; i++) {
+                if (ShopStockPt->dungeon_items[i] >= ITEM_DUNGEON_START) {
+                    count++;
+                }
+            }
+
+            break;
+        case BOARD_PAGE_WEAPON:
+            for (i = 0; i < 30; i++) {
+                if (ShopStockPt->weapons[i].item_no >= ITEM_WEAPON_START) {
+                    count++;
+                }
+            }
+
+            break;
+        case BOARD_PAGE_ATTACH:
+            for (i = 0; i < 30; i++) {
+                if (ShopStockPt->attachments[i].item_no >= ITEM_ATTACH_START) {
+                    count++;
+                }
+            }
+
+            break;
+    }
+
+    DrawMenuNumber(count, left, top, ShopBoard, digits, 1, alpha);
+}
+
 } // namespace
+
+// The stock board's 60 cells (12 rows) are filled and drawn; retail drew 128 cells from its 120-cell
+// arrays, reading past them, and the rows past the twelfth lie below the board's clip in any case.
+PORT_OVERRIDE void ChargeShopBoardDraw(int x, int y, int alpha) {
+    s16 items[60];
+    u8  values[60];
+    int top = y + 9;
+    int bottom = y + 0xA9;
+    int board_y;
+    int left = x + 0x14;
+
+    board_y = y + 6 - ShopMenu.stock_top_row * 0x28;
+    ShopMenu.stock_y += ((float) board_y - ShopMenu.stock_y) / 4.0f;
+    board_y = ShopMenu.stock_y;
+    DrawPerBoardDraw(0, 0x64, left, board_y, top, bottom, ShopBoard, alpha);
+
+    int board_mode = ShopMenu.board.page;
+    int i = 0;
+
+    switch (board_mode) {
+        case BOARD_PAGE_WEAPON:
+            for (i = 0; i < 30; i++) {
+                items[i] = ShopStockPt->weapons[i].item_no;
+                values[i] = 0;
+            }
+
+            break;
+        case BOARD_PAGE_ITEM:
+            for (i = 0; i < 60; i++) {
+                items[i] = ShopStockPt->dungeon_items[i];
+                values[i] = 0;
+            }
+
+            break;
+        case BOARD_PAGE_ATTACH:
+            for (i = 0; i < 30; i++) {
+                items[i] = ShopStockPt->attachments[i].item_no;
+
+                if (items[i] >= ITEM_ATTACH_STAT_START && items[i] < ITEM_ATTACH_GEM_START) {
+                    values[i] = (&ShopStockPt->attachments[i].item_no)[items[i] - ITEM_ATTACH_STAT_START + 4];
+                } else if (items[i] == ITEM_ATTACH_SYNTHESIS_SPHERE) {
+                    values[i] = ShopStockPt->attachments[i].sphere_weapon_no;
+                } else {
+                    values[i] = 0;
+                }
+            }
+
+            break;
+    }
+
+    for (; i < 60; i++) {
+        items[i] = -1;
+        values[i] = 0;
+    }
+
+    ShopIconDraw(items, values, 60, left + 4, board_y + 6, top, bottom, 0x80);
+
+    int tag = 0;
+
+    switch (board_mode) {
+        case BOARD_PAGE_ITEM:
+            tag += 0xC;
+            break;
+        case BOARD_PAGE_WEAPON:
+            tag += 0xA;
+            break;
+        case BOARD_PAGE_ATTACH:
+            tag = 1;
+            break;
+    }
+
+    PersonalBoardTagDraw(board_mode, x, y, ShopBoard, tag, alpha);
+    PersonalBoardDrawWaku(x, y, ShopBoard, alpha);
+    PersonalBoardScrlBarDraw(ChargeShopMax[board_mode], x, y, ShopMenu.stock_scroll, ShopMenu.stock_top_row, ShopBoard, alpha);
+    ChargeShopMaxDraw(ChargeShopMax[board_mode], x, y, alpha);
+}
 
 PORT_OVERRIDE int FishingExchangeKey() {
     int result = 0;
