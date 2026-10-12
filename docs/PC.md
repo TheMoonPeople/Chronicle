@@ -220,6 +220,16 @@ band with the precise program (`port/src/editground.cpp`). The characters'
 shadows have no such distances, the overhead view of georama mode keeps its
 own faint shadows, and a map whose `SHADOW_LEVEL` is 0 still has none.
 
+Retail draws the town's characters and shadows after its soft focus
+(`EdDrawDOF`, `ps2/src/editloop.cpp:2212`), so they are never softened, and
+it drew few of them far enough for that to show. The villagers that
+`detail_distance` keeps past retail's 150 from the player, with their
+shadows, and the part shadows that `shadow_distance` moves into the near band
+past `shadow_near` are drawn before the soft focus instead, which softens
+them with the scenery around them (`EdDrawBeyondRetailReach`,
+`port/src/editloop.cpp`). The player, the villagers retail draws and the
+shadows of its own bands keep retail's place after it.
+
 `video.vsync` is shorthand for `present_mode`: `true` is `fifo`, `false`
 `immediate`. A binding is one name or a list of names. The `bindings` shown
 are examples of the form (the defaults are in the table below); a

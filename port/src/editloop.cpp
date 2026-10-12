@@ -28,6 +28,7 @@
 #include "edit_in.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
+#include "editground_port.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
@@ -1103,6 +1104,75 @@ PORT_OVERRIDE int EditLoop() {
     return 0;
 }
 
+// How far from the player retail draws a villager (KeepNearVillagers, editloop3.cpp); the port
+// keeps those within video.detail_distance too.
+constexpr float kRetailVillagerReach = 150.0f;
+
+/**
+ * Draws, before the depth of field, what the port draws past retail's distances, so that the
+ * softening takes it in with the scenery: the villagers further than retail's reach from the player,
+ * with their shadows, and the town parts' shadows that video.shadow_distance moves into the near
+ * band. Retail draws the characters and the shadows after the depth of field, and they keep that
+ * place. far_marks receives the draw marks of the villagers drawn here, which the characters' own
+ * pass then leaves out; returns whether it marked any.
+ */
+static bool EdDrawBeyondRetailReach(int *far_marks) {
+    bool drawn = false;
+
+    for (int i = 0; i < 10; i++) {
+        far_marks[i] = 0;
+    }
+
+    switch (GameMode) {
+        case ED_MODE_RETURN_MENU_WALK:
+        case ED_MODE_MENU_INIT:
+        case ED_MODE_WALK:
+        case ED_MODE_FISHING:
+        case ED_MODE_TALK:
+        case ED_MODE_TIME_CHANGE: {
+            sceVu0FVECTOR player_position;
+            sceVu0FVECTOR villager_position;
+
+            Chara->GetPosition(player_position);
+
+            for (int i = 0; i < 10; i++) {
+                EdVillager[i].GetPosition(villager_position);
+
+                if (EdVillager[i].initialized != 0 && DistVector(player_position, villager_position) >= kRetailVillagerReach) {
+                    far_marks[i] = 3;
+                    drawn = true;
+                }
+            }
+
+            if (drawn) {
+                int shadow_on = GameMode != ED_MODE_TALK && EdSystemMesCheck() == 0;
+                EdDrawCharacter(Chara, 0, 10, EdVillager, far_marks, shadow_on, NULL);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    if (EdDrawOffMapShadow == 0 && edit_mode_draw == 0 && EditMapInfo->shadow_level > 0) {
+        float saved_light[4][4];
+        float shadow_light[4][4];
+        float light_colour[4][4];
+
+        MGGetPLight(saved_light, light_colour);
+        sceVu0CopyMatrix(shadow_light, saved_light);
+        EdLimitShadowLight(shadow_light, 3.0f);
+        MGSetPLight(shadow_light, light_colour);
+        TexManager.ReloadTexture(Vif1Packet, 0x16);
+        MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+        EdGroundDrawShadowBeyondNear(pEditGround, EditMapInfo->shadow_near);
+        MGEndDrawShadow(EditMapInfo->shadow_mode);
+        MGSetPLight(saved_light, light_colour);
+    }
+
+    return drawn;
+}
+
 /**
  * Draws the editor's world for one frame.
  *
@@ -1116,6 +1186,8 @@ static void EditMainDraw() {
     int            detail;
     int           *marks;
     int            i;
+    int            far_marks[10];
+    bool           far_drawn = false;
 
     if (EdDrawOffFlag == 0) {
         if (EdPauseFlag != 0 || (unsigned int) (GameMode - 9) < 2U) {
@@ -1223,9 +1295,10 @@ static void EditMainDraw() {
 
             pEditGround->DrawRipple(0x15);
 
-
             if (depth_of_field != 0) {
                 int dof_level = 2;
+
+                far_drawn = EdDrawBeyondRetailReach(far_marks);
 
                 if (((int *) SaveData->GetConfigData())[6] != 0) {
                     dof_level = 1;
@@ -1303,7 +1376,7 @@ static void EditMainDraw() {
                     marks = NULL;
                 } else {
                     for (i = 0; i < 10; i++) {
-                        marks_store[i] = 3;
+                        marks_store[i] = far_drawn && far_marks[i] != 0 ? 0 : 3;
                     }
                 }
 
