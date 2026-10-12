@@ -443,6 +443,9 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "video.interpolation") {
         return ReadBool(value, config.interpolation);
     }
+    if (name == "video.georama_detail") {
+        return ReadBool(value, config.georama_detail);
+    }
     if (name == "video.max_fps") {
         double fps = 0.0;
         if (!ReadNumber(value, fps) || !(fps >= 0.0) || !std::isfinite(fps)) {
@@ -647,6 +650,7 @@ std::string ConfigSerialize(const Config &config) {
     root["video"]["fps_detail"] = FpsDetailName(config.fps_detail);
     root["video"]["detail_distance"] = Shortest(config.detail_distance);
     root["video"]["shadow_distance"] = Shortest(config.shadow_distance);
+    root["video"]["georama_detail"] = config.georama_detail;
     root["video"]["anisotropy"] = config.anisotropy;
     root["video"]["soft_focus"] = options.soft_focus;
     root["audio"]["master_volume"] = Shortest(config.master_volume);

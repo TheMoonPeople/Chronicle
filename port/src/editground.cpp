@@ -177,6 +177,11 @@ PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float
     position[3] = 0.0f;
     preview = fits != 0 ? PreviewFrame(source, source->preview_frame) : PreviewFrame(source, source->blocked_preview_frame);
 
+    // The preview is the part's coarsest level of detail, or with video.georama_detail its finest.
+    if (preview != NULL && ConfigGet().georama_detail && source->frame[0] != NULL) {
+        preview = source->frame[0];
+    }
+
     if (width % 2 == 1) {
         position[0] += 0.5f * area->GetUnitSize();
     }

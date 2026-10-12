@@ -48,6 +48,7 @@
 #include "mglib.hpp"
 #include "npcharacter.hpp"
 #include "objanime.hpp"
+#include "platform/config.hpp"
 #include "platform/input.hpp"
 #include "objectframe.hpp"
 #include "rect.hpp"
@@ -1145,7 +1146,9 @@ static void EditMainDraw() {
             far_lod = 0.0f;
             float mid_lod = 0.0f;
 
-            if (edit_mode_draw != 0) {
+            // Georama mode draws every part at its coarsest level of detail, unless video.georama_detail
+            // keeps walking's levels.
+            if (edit_mode_draw != 0 && !ConfigGet().georama_detail) {
                 near_lod = 3.0f;
                 far_lod = 3.0f;
                 mid_lod = 3.0f;

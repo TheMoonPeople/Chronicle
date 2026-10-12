@@ -147,6 +147,7 @@ key is optional; these are the defaults:
         "fps_detail": "all",        // what it shows: fps (the frame rate alone), ticks (and the logic ticks) or all (and the draws)
         "detail_distance": 0,       // how far full detail reaches (world units); 0: at any distance
         "shadow_distance": 0,       // how far town parts cast full shadows (world units); 0: at any distance
+        "georama_detail": false,    // georama mode draws town parts at walking's levels of detail, not the coarsest
         "anisotropy": 0,            // anisotropic filtering of 3D textures: 0 (off), 2, 4, 8 or 16 samples
         "soft_focus": true          // the game's farside soft focus
     },
@@ -204,6 +205,13 @@ while still dormant: it wakes, acts, and shows on the map only at its own
 clip distance (300 unless its script sets one) and under retail's limit of
 four awake at once. The overhead view of georama mode keeps its coarse
 models, and the 1200 cull of far town parts is unchanged.
+
+`video.georama_detail` (off by default) draws georama mode's parts with the
+levels of detail walking uses, so `video.detail_distance` decides them there
+too. Retail's `MainDraw` (`ps2/src/editloop.cpp:2125`) pins every part and
+fixed part to level 3, its coarsest model, in georama mode, and the part on the
+cursor is that level as well (`LoadObjectParts`); with the option the cursor
+shows the finest level. Every part's four levels stay loaded in both modes.
 
 `video.shadow_distance` is how deep into the view a town part (a house, a
 tree, a fixed part) casts its shadow at full strength; past it the game's own
@@ -1311,7 +1319,7 @@ help. Retail's screen-position row is gone: `MGAdjustScreen` moves nothing on PC
 | Page | Rows |
 |---|---|
 | Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select |
-| Display | window mode, resolution (the monitor's own and the sizes that fit it), V-Sync (`fifo`, `mailbox`, `immediate`), frame limit, aspect ratio, interface size (`ui_scale`), smooth motion (`interpolation`), FPS counter, FPS info (`fps_detail`), anisotropic filter (`anisotropy`), soft focus |
+| Display | window mode, resolution (the monitor's own and the sizes that fit it), V-Sync (`fifo`, `mailbox`, `immediate`), frame limit, aspect ratio, interface size (`ui_scale`), smooth motion (`interpolation`), FPS counter, FPS info (`fps_detail`), anisotropic filter (`anisotropy`), georama detail (`georama_detail`), soft focus |
 | Audio | volume, sound (mono, stereo or surround), soundtrack (PS2 or custom) |
 | Controls | vibration, mouse sensitivity (in hundredths below 1 and tenths above, whatever its unit), invert mouse Y, vertical return, mouse wheel zoom, reset zoom (its binding), stick sensitivity, invert stick X and Y, gyro, gyro sensitivity, invert gyro X and Y |
 | Text | language, message speed, button symbols (original or new), symbols shown (glyph device), text font (sharp or original), text shadow, symbol shadow, area name shadow, floor label shadow, boss name shadow |

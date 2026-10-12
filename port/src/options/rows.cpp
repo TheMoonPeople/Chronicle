@@ -620,6 +620,8 @@ const Row kDisplayRows[] = {
     SettingRow("video.anisotropy", "Anisotropic Filter",
                "\"Anisotropic Filter\"\nSharper textures on\nsurfaces seen at a\nslant.", AnisotropyCount,
                AnisotropyChoice, SetAnisotropy, nullptr, "Off|2x|4x|8x|16x"),
+    OnOffRow<&Config::georama_detail>("video.georama_detail", "Georama Detail",
+                                      "\"Georama Detail\"\nGeorama mode draws\nthe town's parts in\nfull detail."),
     GameRow<&ConfigGameOptions::soft_focus, true>("video.soft_focus", "Soft Focus", "On|Off", 0x169),
 };
 
