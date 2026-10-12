@@ -649,14 +649,6 @@ TEST(PlatformConfig, Anisotropy) {
     ASSERT_TRUE(ConfigParse(ConfigSerialize(ConfigParse(R"({"video": {"anisotropy": 8}})"))).anisotropy == 8);
 }
 
-TEST(PlatformConfig, GeoramaDetail) {
-    ASSERT_TRUE(!ConfigParse("").georama_detail);
-    Config config = ConfigParse(R"({"video": {"georama_detail": true}})");
-    ASSERT_TRUE(config.georama_detail);
-    ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).georama_detail);
-    ASSERT_TRUE(!ConfigParse(R"({"video": {"georama_detail": "yes"}})").georama_detail);
-}
-
 TEST(PlatformConfig, ElementPicker) {
     ASSERT_TRUE(!ConfigParse("").element_quick_select);
     Config config = ConfigParse(R"({"game": {"element_quick_select": true}})");

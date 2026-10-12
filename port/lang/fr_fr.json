@@ -254,10 +254,6 @@
     "options.video.anisotropy.choice.4": "16x",
     "options.video.anisotropy.help": "\"Filtre anisotrope\"\nTextures plus nettes\nsur les surfaces vues\nde biais.",
     "options.video.anisotropy.label": "Filtre anisotrope",
-    "options.video.georama_detail.label": "Détails Georama",
-    "options.video.georama_detail.help": "\"Détails Georama\"\nLe mode Georama\naffiche les pièces\nen plein détail.",
-    "options.video.georama_detail.choice.0": "Activé",
-    "options.video.georama_detail.choice.1": "Désactivé",
     "options.quit_game.help": "Quitter le jeu et revenir au bureau.",
     "options.quit_game.label": "Quitter le jeu"
 }

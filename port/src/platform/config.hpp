@@ -42,9 +42,6 @@ struct Config : HostSettings {
     float             ui_scale = 1.0f;
     float             detail_distance = 0.0f;
     float             shadow_distance = 0.0f;
-    // video.georama_detail: georama mode draws the town's parts at the levels of detail walking does,
-    // where retail draws them all at their coarsest.
-    bool              georama_detail = false;
     int               anisotropy = 0;
     // Third-person vertical return after mouse input: 0 holds height, 1 is retail's rate.
     float                    mouse_camera_return = 0.2f;
