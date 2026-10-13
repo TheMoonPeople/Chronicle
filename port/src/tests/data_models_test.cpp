@@ -29,10 +29,10 @@ Bytes Text(std::string_view text) {
     return Bytes(text.begin(), text.end());
 }
 
-std::string Report(const fs::path &iso) {
+std::string Report(const fs::path &iso, const std::vector<std::string> &filters = {}) {
     fs::path   path = iso.parent_path() / "report.txt";
     std::FILE *out = std::fopen(path.string().c_str(), "wb");
-    int        result = dcdata::ModelReport(dcdata::OpenArchive(iso), out, "dun/mainchara/c01d.chr");
+    int        result = dcdata::ModelReport(dcdata::OpenArchive(iso), out, "dun/mainchara/c01d.chr", filters);
     std::fclose(out);
     EXPECT_EQ(result, 0);
     Bytes bytes = ReadBytes(path);
@@ -86,4 +86,50 @@ TEST(DataModels, ReportRanksBySharedBones) {
     EXPECT_NE(report.find("parent   1 (kosi)"), std::string::npos);
     // A scene outside a pack is no character.
     EXPECT_EQ(report.find("map/m01.mds"), std::string::npos);
+}
+
+// Bones under the same names but hung differently share names, not parents or places.
+TEST(DataModels, ComparesParentsAndIndices) {
+    dcdata::Model toan{"toan", *dcdata::ParseMds(MakeMds({"root", "kosi", "mune", "atama"})), "", 0};
+    dcdata::Model other{
+        "other", {{"root", -1}, {"mune", 0}, {"kosi", 1}, {"atama", 1}},
+         "", 0
+    };
+    EXPECT_EQ(dcdata::SharedBones(other, toan), 4);
+    // atama keeps mune as its parent, and root and atama keep their places.
+    EXPECT_EQ(dcdata::SameParents(other, toan), 2);
+    EXPECT_EQ(dcdata::SameIndices(other, toan), 2);
+}
+
+// With a filter, the report gives only the details of the models it names.
+TEST(DataModels, FilterKeepsTheNamedModels) {
+    fs::path dir = TempDir("models_filter");
+    Bytes    toan = MakePack({
+        {"c01d.cfg", Text("MODEL \"c01d.mds\"\n")     },
+        {"c01d.mds", MakeMds({"c01d", "kosi", "mune"})},
+    });
+    Bytes    p68 = MakePack({
+        {"e502p68b.cfg", Text("MODEL \"e502p68b.mds\"\nKEY 0 5 1.0\n")},
+        {"e502p68b.mds", MakeMds({"p68b", "kosi", "mune"})            },
+    });
+    Bytes    p69 = MakePack({
+        {"e502p69a.mds", MakeMds({"p69a"})},
+    });
+    Disc     disc = MakeDisc({
+        {"DUN\\MAINCHARA\\C01D.CHR",        toan},
+        {"gedit\\s16\\chara\\e502p68b.chr", p68 },
+        {"gedit\\s16\\chara\\e502p69a.chr", p69 },
+    });
+    fs::path iso = dir / "disc.iso";
+    WriteBytes(iso, MakeIso("DATA.DAT;1", disc.dat, "DATA.HD2;1", disc.hd2));
+
+    std::string report = Report(iso, {"P68"});
+    EXPECT_EQ(report.find("## Every model"), std::string::npos);
+    EXPECT_NE(report.find("     2        2        2     3      3     1  gedit/s16/chara/e502p68b.chr :: e502p68b.mds"),
+              std::string::npos)
+        << report;
+    EXPECT_NE(report.find("3 bones, 1 motion keys; of the reference's 3: 2 by name, 2 with the same parent, 2 at the "
+                          "same index"),
+              std::string::npos);
+    EXPECT_EQ(report.find("p69a"), std::string::npos);
 }

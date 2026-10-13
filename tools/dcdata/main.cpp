@@ -10,9 +10,10 @@ namespace {
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
                "       dcdata list <iso-or-directory>\n"
-               "       dcdata models <iso-or-directory> [reference-pack]\n"
+               "       dcdata models <iso-or-directory> [--ref <pack>] [--detail <text>]...\n"
                "           lists every character model and how its skeleton compares with the\n"
-               "           reference's (dun/mainchara/c01d.chr, Toan, unless named)\n",
+               "           reference's (dun/mainchara/c01d.chr, Toan, unless named); with --detail,\n"
+               "           only the details of the models whose place contains the text\n",
                stderr);
     return 2;
 }
@@ -71,9 +72,21 @@ int main(int argc, char **argv) {
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
         }
-        if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "models") == 0) {
-            return dcdata::ModelReport(dcdata::OpenArchive(argv[2]), stdout,
-                                       argc == 4 ? argv[3] : "dun/mainchara/c01d.chr");
+        if (argc >= 3 && std::strcmp(argv[1], "models") == 0) {
+            std::string              reference = "dun/mainchara/c01d.chr";
+            std::vector<std::string> filters;
+            for (int i = 3; i < argc; i++) {
+                if (std::strcmp(argv[i], "--ref") == 0 && i + 1 < argc) {
+                    reference = argv[++i];
+                } else if (std::strcmp(argv[i], "--detail") == 0 && i + 1 < argc) {
+                    filters.push_back(argv[++i]);
+                } else if (argv[i][0] != '-' && i == 3) {
+                    reference = argv[i]; // the older form: the reference pack alone
+                } else {
+                    return Usage();
+                }
+            }
+            return dcdata::ModelReport(dcdata::OpenArchive(argv[2]), stdout, reference, filters);
         }
         return Usage();
     } catch (const std::exception &error) {

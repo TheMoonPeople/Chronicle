@@ -16,6 +16,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -150,6 +151,46 @@ inline int SharedBones(const Model &model, const Model &reference) {
     return shared;
 }
 
+// The name of a bone's parent, with a root standing as "<root>": each model names its root after
+// itself, so roots match one another whatever they are called.
+inline std::string ParentName(const Model &model, const Bone &bone) {
+    if (bone.parent < 0 || bone.parent >= static_cast<int>(model.bones.size())) {
+        return std::string();
+    }
+    const Bone &parent = model.bones[bone.parent];
+    bool        root = parent.parent < 0 || parent.parent >= static_cast<int>(model.bones.size());
+    return root ? std::string("<root>") : parent.name;
+}
+
+// How many of the reference's bones the model has under the same name and the same parent's name
+// (or as a root, where the reference's is one): what a motion that drives bones by name needs.
+inline int SameParents(const Model &model, const Model &reference) {
+    std::unordered_map<std::string, std::string> parent_of;
+    for (const Bone &bone : model.bones) {
+        parent_of.emplace(bone.name, ParentName(model, bone));
+    }
+    int same = 0;
+    for (const Bone &bone : reference.bones) {
+        auto found = parent_of.find(bone.name);
+        same += found != parent_of.end() && found->second == ParentName(reference, bone);
+    }
+    return same;
+}
+
+// How many of the reference's bones the model has at the same index under the same name: what a
+// motion that drives bones by index needs.
+inline int SameIndices(const Model &model, const Model &reference) {
+    int same = 0;
+    for (std::size_t i = 0; i < reference.bones.size() && i < model.bones.size(); i++) {
+        same += model.bones[i].name == reference.bones[i].name;
+    }
+    return same;
+}
+
+inline bool ContainsFolded(std::string_view text, std::string_view needle) {
+    return FoldPath(text).find(FoldPath(needle)) != std::string::npos;
+}
+
 inline void WriteSkeleton(std::FILE *out, const Model &model) {
     for (std::size_t i = 0; i < model.bones.size(); i++) {
         const Bone &bone = model.bones[i];
@@ -181,9 +222,10 @@ inline void WriteConfig(std::FILE *out, const std::string &config) {
 }
 
 // Every model on the disc, the ones most like the reference's skeleton first, then the details of
-// the closest ones and of every model in a pack named c<digits> (the story's characters).
+// the closest ones and of every model in a pack named c<digits> (the story's characters). With
+// filters, only the details of the models whose place contains one of them.
 inline int ModelReport(const Archive &archive, std::FILE *out, std::string_view reference_path,
-                       std::size_t detailed = 40) {
+                       const std::vector<std::string> &filters = {}, std::size_t detailed = 40) {
     std::vector<unsigned char> hd2 = ReadExtent(archive.hd2);
     std::vector<Record>        records = ParseIndex(hd2);
     std::size_t                duplicates = 0;
@@ -228,11 +270,28 @@ inline int ModelReport(const Archive &archive, std::FILE *out, std::string_view 
     Log(out, "reference: {} ({} bones, {} motion keys)\n", ref.where, ref.bones.size(), ref.motions);
     Log(out, "{} models found\n\n", models.size());
 
-    Log(out, "## Every model, most like the reference first\n\n");
-    Log(out, "shared/ref  bones  keys  model\n");
-    for (const Row &row : rows) {
-        Log(out, "{:4}/{:<4}  {:5}  {:4}  {}\n", row.shared, ref.bones.size(), row.model->bones.size(),
-            row.model->motions, row.model->where);
+    auto matches = [&](const Model &model) {
+        return std::any_of(filters.begin(), filters.end(),
+                           [&](const std::string &filter) { return ContainsFolded(model.where, filter); });
+    };
+
+    if (filters.empty()) {
+        Log(out, "## Every model, most like the reference first\n\n");
+        Log(out, "shared/ref  bones  keys  model\n");
+        for (const Row &row : rows) {
+            Log(out, "{:4}/{:<4}  {:5}  {:4}  {}\n", row.shared, ref.bones.size(), row.model->bones.size(),
+                row.model->motions, row.model->where);
+        }
+    } else {
+        Log(out, "## Models matching the filters\n\n");
+        Log(out, "shared  parents  indices  /ref  bones  keys  model\n");
+        for (const Row &row : rows) {
+            if (matches(*row.model)) {
+                Log(out, "{:6}  {:7}  {:7}  {:4}  {:5}  {:4}  {}\n", row.shared, SameParents(*row.model, ref),
+                    SameIndices(*row.model, ref), ref.bones.size(), row.model->bones.size(), row.model->motions,
+                    row.model->where);
+            }
+        }
     }
 
     Log(out, "\n## Reference\n\n{}\n  configuration:\n", ref.where);
@@ -251,12 +310,15 @@ inline int ModelReport(const Archive &archive, std::FILE *out, std::string_view 
         std::string_view file = std::string_view(model.where).substr(0, model.where.find(" :: "));
         std::string_view base = file.substr(file.rfind('/') + 1);
         bool             character = base.size() > 2 && (base[0] == 'c' || base[0] == 'C') && base[1] >= '0' && base[1] <= '9';
-        if (written >= detailed && !character) {
+        if (filters.empty() ? written >= detailed && !character : !matches(model)) {
             continue;
         }
         written++;
-        Log(out, "\n{}\n  {} bones, {}/{} of the reference's, {} motion keys\n", model.where, model.bones.size(),
-            row.shared, ref.bones.size(), model.motions);
+        Log(out,
+            "\n{}\n  {} bones, {} motion keys; of the reference's {}: {} by name, {} with the same parent, {} at the "
+            "same index\n",
+            model.where, model.bones.size(), model.motions, ref.bones.size(), row.shared, SameParents(model, ref),
+            SameIndices(model, ref));
         std::unordered_set<std::string> names;
         for (const Bone &bone : model.bones) {
             names.insert(bone.name);

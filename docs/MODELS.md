@@ -12,8 +12,11 @@ c++ -std=c++23 -O2 tools/dcdata/main.cpp -o dcdata
 ./dcdata models "rom/pal/Dark Cloud (PAL).iso" > models_report.txt
 ```
 
-`port/build/pc/dcdata`, built with the port, does the same. A third argument names another
-reference pack than Toan's `dun/mainchara/c01d.chr`.
+`port/build/pc/dcdata`, built with the port, does the same. `--ref <pack>` names another reference
+pack than Toan's `dun/mainchara/c01d.chr`. `--detail <text>`, given once or more, gives instead only
+the details of the models whose place contains the text, for example
+`--detail e502p68b`, with three counts for each: the reference's bones it has by name, by name under
+the same parent (roots count as alike whatever they are called), and by name at the same index.
 
 The report has:
 
