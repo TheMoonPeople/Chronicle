@@ -112,6 +112,7 @@
 #include "runeffect.hpp"
 #include "runscript_opcodes.hpp"
 #include "savedata.hpp"
+#include "sedamod.hpp"
 #include "shot_effect.hpp"
 #include "shot_effect_pack.hpp"
 #include "shot_firebar.hpp"
@@ -2256,7 +2257,11 @@ void Draw_MainUnit() {
     CharaMain.TextureAnime(0x11);
     CharaMain.Draw();
 
+#ifdef MOD_SEDA
+    if (NowWeapon != NULL && NowWeapon->frame != NULL && BtActStatus.weapon_visible != 0 && SedaEquippedDrawn()) {
+#else
     if (NowWeapon != NULL && NowWeapon->frame != NULL && BtActStatus.weapon_visible != 0) {
+#endif
         TexManager.ReloadTexture(Vif1Packet, 0x1D);
         NowWeapon->Draw();
     }

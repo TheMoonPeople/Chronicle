@@ -74,6 +74,19 @@ const fs::path *Lookup(std::string_view path) {
     if (SedaActive() && folded == "dun/mainchara/c01d.chr") {
         auto seda = data_index.find(std::string(dcdata::kSedaPack));
         if (seda != data_index.end()) {
+            // Whether the pack shows the character's own sword instead of the equipped weapon.
+            static fs::path checked;
+            if (checked != seda->second) {
+                checked = seda->second;
+                bool hidden = false;
+                try {
+                    for (const dcdata::PackMember &member : dcdata::ReadPack(dcdata::ReadFile(seda->second))) {
+                        hidden = hidden || member.name == dcdata::kSedaHideEquipped;
+                    }
+                } catch (const std::exception &) {
+                }
+                SedaSetEquippedHidden(hidden);
+            }
             return &seda->second;
         }
         static bool warned = false;

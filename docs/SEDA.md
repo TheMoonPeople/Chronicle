@@ -63,8 +63,18 @@ playing motion into the same share of the way through Toan's motion of that numb
 far into Seda's swing as it did into Toan's. Without `MOD_SEDA` the macro is the time itself and the
 PS2 build is unchanged.
 
-`dcdata seda <data-directory> [seda|king] --weapon OBJECT --hide-weapon|--show-weapon --item OBJECT`
-chooses the objects anew, to try another place for the weapon without building anything.
+A cutscene loads its characters' shared images from a pack of its own (as `gedit/s99/chara/e29img.pak`),
+so a character's pack can lack images its configuration loads; drawn without them those parts are black.
+`MissingImages` finds them in the packs beside the character's and puts them in its pack.
+
+Seda shows his own sword; the equipped weapon still deals the blows (its damage, element and reach)
+but is not drawn. The pack says so with a member `seda_hide_equipped`, which the port reads when it
+gives the pack (`SedaEquippedDrawn`, used by `Draw_MainUnit`). King Seda's sword gives way to the
+equipped weapon, which is drawn.
+
+`dcdata seda <data-directory> [seda|king] --weapon OBJECT --hide-weapon|--show-weapon --item OBJECT
+--show-equipped|--hide-equipped` chooses anew, to try another place for the weapon without building
+anything.
 
 Seda has no run of his own (only `dun/mainchara/c07a.chr`, another model with another skeleton,
 has one); his walk, played quicker, stands in for it.

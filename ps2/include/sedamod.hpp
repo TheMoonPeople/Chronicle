@@ -7,7 +7,7 @@
  * plays its own motion's frames, so with the mod those times are first turned back into Toan's: the
  * same share of the way through the motion playing, in Toan's motion of the same number.
  *
- * Retail has none of this; without MOD_SEDA TOAN_TIME is the time itself.
+ * Retail has none of this; without MOD_SEDA TOAN_TIME is the time itself and the weapon is drawn.
  */
 
 #ifdef MOD_SEDA
@@ -16,6 +16,9 @@
 float SedaToanTime(float time);
 
 #define TOAN_TIME(time) SedaToanTime(time)
+
+/** Whether the equipped weapon is drawn: not while the character in Toan's place shows its own. */
+bool SedaEquippedDrawn();
 
 #else
 

@@ -15,11 +15,12 @@ int Usage() {
                "           reference's (dun/mainchara/c01d.chr, Toan, unless named); with --detail,\n"
                "           only the details of the models whose place contains the text\n"
                "       dcdata seda <data-directory> [seda|king] [--weapon OBJECT] [--hide-weapon]\n"
-               "                   [--show-weapon] [--item OBJECT]\n"
+               "                   [--show-weapon] [--item OBJECT] [--show-equipped] [--hide-equipped]\n"
                "           builds the Seda mod's pack into data extracted before, from Seda (c07a, the\n"
                "           default, as extract does) or King Seda (e502p68b); the options choose the\n"
                "           object the equipped weapon hangs from, whether that object is drawn, and the\n"
-               "           object that holds items\n",
+               "           object that holds items, and whether the equipped weapon is drawn\n"
+               "           (--hide-weapon draws it, in the place of the character's own)\n",
                stderr);
     return 2;
 }
@@ -95,6 +96,11 @@ int main(int argc, char **argv) {
                     variant.item = argv[++i];
                 } else if (std::strcmp(argv[i], "--hide-weapon") == 0) {
                     variant.weapon_drawn = false;
+                    variant.equipped_drawn = true;
+                } else if (std::strcmp(argv[i], "--show-equipped") == 0) {
+                    variant.equipped_drawn = true;
+                } else if (std::strcmp(argv[i], "--hide-equipped") == 0) {
+                    variant.equipped_drawn = false;
                 } else if (std::strcmp(argv[i], "--show-weapon") == 0) {
                     variant.weapon_drawn = true;
                 } else {

@@ -9,6 +9,7 @@
 namespace {
 
 bool g_forced = false;
+bool g_equipped_hidden = false;
 
 // Toan's KEYs (dun/mainchara/c01d.chr), the frames his attack code times things by.
 struct ToanKey {
@@ -68,6 +69,14 @@ void SedaSetForced(bool forced) {
 
 bool SedaActive() {
     return g_forced;
+}
+
+void SedaSetEquippedHidden(bool hidden) {
+    g_equipped_hidden = hidden;
+}
+
+bool SedaEquippedDrawn() {
+    return !(SedaActive() && g_equipped_hidden);
 }
 
 float SedaToanTime(float time) {

@@ -114,7 +114,9 @@ TEST(Seda, PackPutsSedasMotionsInToansOrder) {
 // Seda keeps his sword and holds the equipped weapon at his right hand.
 TEST(Seda, C07PackKeepsHisSword) {
     std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(C07Source(), Seda()));
-    ASSERT_EQ(pack.size(), 3u);
+    ASSERT_EQ(pack.size(), 4u);
+    // His own sword shows; the equipped weapon deals the blows unseen.
+    EXPECT_EQ(pack[3].name, dcdata::kSedaHideEquipped);
     std::string config(pack[0].data.begin(), pack[0].data.end());
     EXPECT_EQ(dcdata::CountMotionKeys(config), 41);
     EXPECT_NE(config.find("// seda in Toan's place, made by dcdata from gedit/s99/chara/c07a.chr\n"), std::string::npos);
@@ -124,6 +126,34 @@ TEST(Seda, C07PackKeepsHisSword) {
     EXPECT_EQ(ObjectData(pack[1].data, 5), 0x400u);
     EXPECT_EQ(ObjectName(pack[1].data, 3), "item");
     EXPECT_EQ(ObjectName(pack[1].data, 6), "obj10");
+}
+
+// The images a configuration loads from elsewhere are found in the packs beside it and come along.
+TEST(Seda, PackFindsImagesBesideIt) {
+    fs::path dir = TempDir("seda_images") / "chara";
+    fs::create_directories(dir);
+    Bytes source = MakePack({
+        {"c07a.cfg", Text("//Seda\nIMG 0,\"c07a01.img\"\nIMG 1,\"c07a02.img\"\nIMG_END\nMODEL \"c07a.mds\"\n"
+                          "KEY_START 0\nMOTION_END\n")},
+        {"c07a.mds", Scene({"skel_1_1", "r_hand3", "r_hand4"})},
+        {"c07a01.img", Pattern(16, 1)},
+    });
+    WriteBytes(dir / "c07a.chr", source);
+    WriteBytes(dir / "e29img.pak", MakePack({
+                                       {"other.img",  Pattern(8,  2)},
+                                       {"c07a02.img", Pattern(24, 3)}
+    }));
+    std::vector<dcdata::PackMember> members = dcdata::ReadPack(source);
+    std::vector<dcdata::PackMember> images =
+        dcdata::MissingImages(dir, members, dcdata::PackConfig(members), nullptr);
+    ASSERT_EQ(images.size(), 1u);
+    EXPECT_EQ(images[0].name, "c07a02.img");
+
+    std::vector<dcdata::PackMember> pack =
+        dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), std::move(images)));
+    ASSERT_EQ(pack.size(), 5u);
+    EXPECT_EQ(pack[3].name, "c07a02.img");
+    EXPECT_EQ(pack[3].data, Pattern(24, 3));
 }
 
 TEST(Seda, EveryVariantHasToansKeys) {
@@ -161,10 +191,15 @@ TEST(Seda, ToansDungeonPackIsSedasWhileActive) {
     ASSERT_EQ(LoadFile2(path, buffer, &size, 0), 1);
     EXPECT_EQ(std::string(buffer), "toan");
 
+    EXPECT_TRUE(SedaEquippedDrawn());
+
     SedaSetForced(true);
     ASSERT_EQ(LoadFile2(path, buffer, &size, 0), 1);
     EXPECT_EQ(std::string(buffer), "base.cfg");
+    // Seda's pack shows his own sword, so the equipped weapon is not drawn.
+    EXPECT_FALSE(SedaEquippedDrawn());
     SedaSetForced(false);
+    EXPECT_TRUE(SedaEquippedDrawn());
 }
 
 // Toan's attack code times things by frames of his motion; Seda's time is turned back into those.

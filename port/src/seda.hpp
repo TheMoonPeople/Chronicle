@@ -8,3 +8,7 @@ void SedaSetForced(bool forced);
 
 // Whether Seda stands in for Toan now.
 bool SedaActive();
+
+// Notes whether the pack in Toan's place asks for the equipped weapon not to be drawn (the character
+// shows its own sword); dataread.cpp tells it when it gives the pack.
+void SedaSetEquippedHidden(bool hidden);

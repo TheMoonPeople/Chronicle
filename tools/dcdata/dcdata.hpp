@@ -1058,6 +1058,9 @@ inline void FillFloorPlates(const fs::path &out) {
 // cannot move them; their own can.
 inline constexpr std::string_view kSedaPack = "dun/mainchara/c01seda.chr";
 
+// A member of the pack whose presence tells the port not to draw the equipped weapon.
+inline constexpr std::string_view kSedaHideEquipped = "seda_hide_equipped";
+
 struct SedaKey {
     int         start;
     int         end;
@@ -1163,15 +1166,17 @@ struct SedaVariant {
     std::string_view         weapon;       // The object the equipped weapon hangs from, renamed "weapon".
     bool                     weapon_drawn; // Whether that object is still drawn (false: it is the character's own sword).
     std::string_view         item;         // The object items are held by, renamed "item".
+    bool                     equipped_drawn; // Whether the equipped weapon is drawn (false: the character shows its own).
     std::span<const SedaKey> keys;
     std::string_view         feet; // FOOT lines for the walk and the run.
 };
 
 inline constexpr SedaVariant kSedaVariants[] = {
-    // Seda (c07a, //シーダ): his sword is obj10 in his right hand; it stays drawn, the weapon at the hand.
-    {"seda", "gedit/s99/chara/c07a.chr",     "r_hand4",   true,  "r_hand3",    kSedaC07Keys,  "FOOT 43,53\n"},
+    // Seda (c07a, //シーダ): his sword is obj10 in his right hand; it stays drawn, and the equipped weapon,
+    // at the hand, deals the blows unseen.
+    {"seda", "gedit/s99/chara/c07a.chr", "r_hand4", true, "r_hand3", false, kSedaC07Keys, "FOOT 43,53\n"},
     // King Seda (p68b, //シーダ王): his sword is in his left hand and gives way to the equipped one.
-    {"king", "gedit/s16/chara/e502p68b.chr", "seiken__m", false, "cube40_3_2", kKingSedaKeys,
+    {"king", "gedit/s16/chara/e502p68b.chr", "seiken__m", false, "cube40_3_2", true, kKingSedaKeys,
      "FOOT 43,53\nFOOT 398,408\n"                                                                           },
 };
 
@@ -1207,6 +1212,105 @@ inline void RenameSceneObject(std::vector<unsigned char> &scene, std::string_vie
         }
     }
     Fail("the scene has no object {}", from);
+}
+
+// Every image a configuration loads (IMG n,"name").
+inline std::vector<std::string> ConfigImages(std::string_view config) {
+    std::vector<std::string> names;
+    for (std::size_t start = 0; start < config.size();) {
+        std::size_t end = config.find('\n', start);
+        if (end == std::string_view::npos) {
+            end = config.size();
+        }
+        std::string_view line = config.substr(start, end - start);
+        start = end + 1;
+        std::size_t first = line.find_first_not_of(" \t\r");
+        if (first == std::string_view::npos || !line.substr(first).starts_with("IMG") ||
+            line.substr(first).starts_with("IMG_END")) {
+            continue;
+        }
+        std::size_t open = line.find('"');
+        std::size_t close = open == std::string_view::npos ? open : line.find('"', open + 1);
+        if (close != std::string_view::npos) {
+            names.emplace_back(line.substr(open + 1, close - open - 1));
+        }
+    }
+    return names;
+}
+
+// Looks for a member of that name in a pack and the packs nested in it.
+inline bool FindPackMember(std::span<const unsigned char> data, std::string_view name, int depth, PackMember &found) {
+    if (data.size() < 76 || !data[0]) {
+        return false;
+    }
+    std::vector<PackMember> members;
+    try {
+        members = ReadPack(data);
+    } catch (const Error &) {
+        return false;
+    }
+    for (PackMember &member : members) {
+        if (EqualsFolded(member.name, name)) {
+            found = std::move(member);
+            return true;
+        }
+    }
+    if (depth > 0) {
+        for (const PackMember &member : members) {
+            if (FindPackMember(member.data, name, depth - 1, found)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// The images a character's configuration loads that its own pack lacks, as the other packs of its
+// directory hold them: a cutscene loads its characters' shared images from a pack of its own (as
+// gedit/s99/chara/e29img.pak), so without them parts of the character are drawn untextured, black.
+inline std::vector<PackMember> MissingImages(const fs::path &directory, const std::vector<PackMember> &members,
+                                             std::string_view config, std::FILE *log) {
+    std::vector<PackMember> found;
+    for (const std::string &name : ConfigImages(config)) {
+        bool have = false;
+        for (const PackMember &member : members) {
+            have = have || EqualsFolded(member.name, name);
+        }
+        if (have) {
+            continue;
+        }
+        PackMember image;
+        bool       located = false;
+        std::error_code error;
+        for (const fs::directory_entry &entry : fs::directory_iterator(directory, error)) {
+            if (!entry.is_regular_file() || entry.file_size() > (64u << 20)) {
+                continue;
+            }
+            if (FindPackMember(ReadFile(entry.path()), name, 2, image)) {
+                Log(log, "seda: {} from {}\n", name, entry.path().filename().string());
+                located = true;
+                break;
+            }
+        }
+        if (located) {
+            found.push_back(std::move(image));
+        } else {
+            Log(log, "seda: {} is in no pack beside it; that part will be untextured\n", name);
+        }
+    }
+    return found;
+}
+
+// The text of a pack's first configuration, or empty.
+inline std::string PackConfig(const std::vector<PackMember> &members) {
+    for (const PackMember &member : members) {
+        std::string_view name = member.name;
+        if (name.size() > 4 && EqualsFolded(name.substr(name.size() - 4), ".cfg")) {
+            const char *text = reinterpret_cast<const char *>(member.data.data());
+            return std::string(text, strnlen(text, member.data.size()));
+        }
+    }
+    return std::string();
 }
 
 // The character's configuration with the variant's keys in place of its own, and its foot sounds on
@@ -1252,17 +1356,12 @@ inline std::string SedaConfig(std::string_view config, const SedaVariant &varian
 }
 
 // The pack: the character's members, its scene renamed as the variant says, and its configuration
-// rewritten as base.cfg, the name the dungeon loads a player character's by.
-inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source, const SedaVariant &variant) {
+// rewritten as base.cfg, the name the dungeon loads a player character's by, with the images its
+// configuration loads from elsewhere (MissingImages).
+inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source, const SedaVariant &variant,
+                                               std::vector<PackMember> extra_images = {}) {
     std::vector<PackMember> members = ReadPack(source);
-    std::string             config;
-    for (const PackMember &member : members) {
-        std::string_view name = member.name;
-        if (config.empty() && name.size() > 4 && EqualsFolded(name.substr(name.size() - 4), ".cfg")) {
-            const char *text = reinterpret_cast<const char *>(member.data.data());
-            config.assign(text, strnlen(text, member.data.size()));
-        }
-    }
+    std::string             config = PackConfig(members);
     if (config.empty()) {
         Fail("{} holds no configuration", variant.source);
     }
@@ -1300,6 +1399,12 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
     if (!found) {
         Fail("{} holds no {}", variant.source, model);
     }
+    for (PackMember &image : extra_images) {
+        pack.push_back(std::move(image));
+    }
+    if (!variant.equipped_drawn) {
+        pack.push_back({std::string(kSedaHideEquipped), {'1'}});
+    }
     return WritePack(pack);
 }
 
@@ -1311,13 +1416,17 @@ inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant
         Log(log, "seda: no {}; the Seda mod has no pack\n", variant.source);
         return false;
     }
-    std::vector<unsigned char> pack = MakeSedaPack(ReadFile(source), variant);
+    std::vector<unsigned char> source_pack = ReadFile(source);
+    std::vector<PackMember>    source_members = ReadPack(source_pack);
+    std::vector<PackMember>    images =
+        MissingImages(source.parent_path(), source_members, PackConfig(source_members), log);
+    std::vector<unsigned char> pack = MakeSedaPack(source_pack, variant, std::move(images));
     fs::path                   target = out / "normalized" / kSedaPack;
     if (!fs::is_regular_file(target) || ReadFile(target) != pack) {
         WriteFile(target, pack);
     }
-    Log(log, "seda: weapon at {}{}, items at {}\n", variant.weapon, variant.weapon_drawn ? "" : " (not drawn)",
-        variant.item);
+    Log(log, "seda: weapon at {}{}, items at {}; the equipped weapon is {}\n", variant.weapon,
+        variant.weapon_drawn ? "" : " (not drawn)", variant.item, variant.equipped_drawn ? "drawn" : "not drawn");
     Log(log, "seda: wrote {} from {} ({} bytes)\n", (fs::path("normalized") / kSedaPack).generic_string(), variant.source,
         pack.size());
     return true;
