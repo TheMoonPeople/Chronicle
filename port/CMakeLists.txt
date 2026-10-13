@@ -51,6 +51,11 @@ option(MOD_DEMON_SHAFT_GEORAMA "Build the Demon Shaft georama mod" ON)
 if(MOD_DEMON_SHAFT_GEORAMA)
     list(APPEND PORT_DEFINITIONS MOD_DEMON_SHAFT_GEORAMA)
 endif()
+# The Seda mod (docs/SEDA.md).
+option(MOD_SEDA "Build the Seda mod" ON)
+if(MOD_SEDA)
+    list(APPEND PORT_DEFINITIONS MOD_SEDA)
+endif()
 list(TRANSFORM PORT_DEFINITIONS PREPEND --define= OUTPUT_VARIABLE port_override_defines)
 # The names port/src's PORT_OVERRIDE definitions link under. The list is rewritten
 # only when it changes, so other edits to port/src rebuild nothing of ps2/src.

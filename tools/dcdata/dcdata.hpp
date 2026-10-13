@@ -1052,6 +1052,199 @@ inline void FillFloorPlates(const fs::path &out) {
     }
 }
 
+// The Seda mod (docs/SEDA.md): a player pack for Toan's place built from Seda's cutscene character,
+// with his own motions put in the order of Toan's. The game drives a model's bones by their index
+// in its scene, and Seda's skeleton is not Toan's, so Toan's motions cannot move him; his own can.
+inline constexpr std::string_view kSedaSource = "gedit/s16/chara/e502p68b.chr";
+inline constexpr std::string_view kSedaPack = "dun/mainchara/c01seda.chr";
+
+struct SedaKey {
+    int         start;
+    int         end;
+    float       speed;
+    const char *what; // Toan's motion the key takes the place of, then Seda's that plays.
+};
+
+// One per KEY of Toan's dun/mainchara/c01d.chr, in its order, as frames of Seda's e502p68b.mot.
+inline constexpr SedaKey kSedaKeys[] = {
+    {10,  20,  0.1f,  "stand: stand"                                  },
+    {395, 415, 0.5f,  "run: run with the sword ready"                 },
+    {40,  60,  0.2f,  "walk: walk"                                    },
+    {560, 570, 0.2f,  "charged attack loop 2: trembling guard"        },
+    {465, 470, 0.3f,  "damage: held fast"                             },
+    {560, 560, 0.0f,  "charged attack loop 3: trembling guard"        },
+    {465, 481, 0.3f,  "heavy damage: held fast"                       },
+    {890, 895, 0.25f, "get up: stand up"                              },
+    {350, 352, 0.8f,  "stand to guard: hold the sword"                },
+    {350, 360, 0.1f,  "guard loop: hold the sword"                    },
+    {355, 360, 0.8f,  "guard to stand: hold the sword"                },
+    {365, 375, 0.3f,  "attack 1: cut down"                            },
+    {575, 625, 1.0f,  "attack 2: run the assassin through"            },
+    {535, 545, 0.4f,  "stand to charge: trembling guard"              },
+    {560, 570, 0.4f,  "charge loop: trembling guard"                  },
+    {365, 370, 0.4f,  "charged attack start: cut down"                },
+    {370, 370, 0.0f,  "charged attack loop 1: cut down"               },
+    {370, 390, 0.4f,  "charged attack end: cut down"                  },
+    {350, 360, 0.3f,  "attack stance: hold the sword"                 },
+    {295, 315, 0.4f,  "lock-on right: walk with the sword"            },
+    {295, 315, 0.4f,  "lock-on left: walk with the sword"             },
+    {295, 315, 0.4f,  "lock-on forward: walk with the sword"          },
+    {295, 315, 0.4f,  "lock-on back: walk with the sword"             },
+    {770, 780, 0.2f,  "defeated: crouch"                              },
+    {670, 700, 0.4f,  "special: push the assassin off"                },
+    {390, 390, 0.0f,  "charged attack loop 3: cut down"               },
+    {745, 745, 0.0f,  "throw hold: throw the sword away"              },
+    {745, 765, 0.4f,  "throw: throw the sword away"                   },
+    {85,  100, 0.15f, "drink: talk"                                   },
+    {645, 665, 0.5f,  "run while hurt: run with the sword drawn"      },
+    {295, 315, 0.3f,  "move while charging: walk with the sword"      },
+    {825, 835, 0.3f,  "no good: shake the head"                       },
+    {495, 501, 0.3f,  "fall: tremble"                                 },
+    {295, 315, 0.3f,  "move while guarding: walk with the sword"      },
+    {450, 460, 0.3f,  "atla get in: look up"                          },
+    {450, 460, 0.1f,  "atla get loop: look up"                        },
+    {365, 375, 0.3f,  "combo 1: cut down"                             },
+    {575, 600, 0.6f,  "combo 2: run the assassin through"            },
+    {365, 375, 0.3f,  "combo 1 again: cut down"                       },
+    {670, 700, 0.6f,  "combo 2 again: push the assassin off"          },
+    {420, 445, 0.3f,  "combo 3: fight the assassin"                   },
+};
+
+// Seda's sword stands in his left hand; it becomes "weapon", where the game hangs the equipped
+// weapon, and is no longer drawn itself. His right hand becomes "item", which holds items.
+inline constexpr std::string_view kSedaSword = "seiken__m";
+inline constexpr std::string_view kSedaRightHand = "cube40_3_2";
+
+// Renames an object of a scene in place, and with draw false leaves it no model.
+inline void RenameSceneObject(std::vector<unsigned char> &scene, std::string_view from, std::string_view to,
+                              bool draw) {
+    if (scene.size() < 16) {
+        Fail("Seda's scene is {} bytes", scene.size());
+    }
+    std::uint32_t count = Le32(scene.data() + 8);
+    if (16 + static_cast<std::uint64_t>(count) * 112 > scene.size()) {
+        Fail("Seda's scene claims {} objects in {} bytes", count, scene.size());
+    }
+    for (std::uint32_t i = 0; i < count; i++) {
+        unsigned char *object = scene.data() + 16 + i * 112;
+        char          *name = reinterpret_cast<char *>(object + 8);
+        if (std::string_view(name, strnlen(name, 32)) == from) {
+            std::memset(name, 0, 32);
+            std::memcpy(name, to.data(), to.size());
+            if (!draw) {
+                Put32(object + 40, 0);
+            }
+            return;
+        }
+    }
+    Fail("Seda's scene has no object {}", from);
+}
+
+// Seda's configuration with the keys above in place of his own, and his foot sounds on the walk and
+// the run; everything else, his model, motion, textures and events (on his own frames), as it was.
+inline std::string SedaConfig(std::string_view config) {
+    std::string out;
+    bool        in_keys = false;
+    for (std::size_t start = 0; start < config.size();) {
+        std::size_t end = config.find('\n', start);
+        if (end == std::string_view::npos) {
+            end = config.size();
+        }
+        std::string_view line = config.substr(start, end - start);
+        start = end + 1;
+        std::size_t      first = line.find_first_not_of(" \t\r");
+        std::string_view word = first == std::string_view::npos ? std::string_view() : line.substr(first);
+        if (word.starts_with("KEY_START")) {
+            in_keys = true;
+            out += "KEY_START 0\n";
+            for (std::size_t i = 0; i < std::size(kSedaKeys); i++) {
+                const SedaKey &key = kSedaKeys[i];
+                out += std::format("\tKEY\t{},\t{},\t{},\t//{} {}\n", key.start, key.end, key.speed, i, key.what);
+            }
+            continue;
+        }
+        if (in_keys) {
+            if (word.starts_with("MOTION_END")) {
+                in_keys = false;
+                out += "MOTION_END\nFOOT 43,53\nFOOT 398,408\n";
+            }
+            continue;
+        }
+        out += line;
+        out += '\n';
+    }
+    if (in_keys || out.find("MOTION_END") == std::string::npos) {
+        Fail("Seda's configuration has no KEY_START ... MOTION_END");
+    }
+    return "// Seda in Toan's place, made by dcdata from " + std::string(kSedaSource) + "\n" + out;
+}
+
+// The pack: Seda's members, his scene renamed as above, and his configuration rewritten as base.cfg,
+// the name the dungeon loads a player character's by.
+inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source) {
+    std::vector<PackMember> members = ReadPack(source);
+    std::string             config;
+    for (const PackMember &member : members) {
+        std::string_view name = member.name;
+        if (config.empty() && name.size() > 4 && EqualsFolded(name.substr(name.size() - 4), ".cfg")) {
+            const char *text = reinterpret_cast<const char *>(member.data.data());
+            config.assign(text, strnlen(text, member.data.size()));
+        }
+    }
+    if (config.empty()) {
+        Fail("{} holds no configuration", kSedaSource);
+    }
+    std::size_t model_at = config.find("MODEL");
+    while (model_at != std::string::npos && model_at > 0 && config[model_at - 1] == '_') {
+        model_at = config.find("MODEL", model_at + 5); // SHADOW_MODEL
+    }
+    std::size_t open = model_at == std::string::npos ? model_at : config.find('"', model_at);
+    std::size_t close = open == std::string::npos ? open : config.find('"', open + 1);
+    if (close == std::string::npos) {
+        Fail("{}'s configuration names no MODEL", kSedaSource);
+    }
+    std::string model = config.substr(open + 1, close - open - 1);
+
+    std::vector<PackMember> pack{{"base.cfg", {}}};
+    std::string             base = SedaConfig(config);
+    pack[0].data.assign(base.begin(), base.end());
+    pack[0].data.push_back(0);
+    bool found = false;
+    for (PackMember &member : members) {
+        std::string_view name = member.name;
+        if (name.size() > 4 && EqualsFolded(name.substr(name.size() - 4), ".cfg")) {
+            continue;
+        }
+        if (EqualsFolded(name, model)) {
+            RenameSceneObject(member.data, kSedaSword, "weapon", false);
+            RenameSceneObject(member.data, kSedaRightHand, "item", true);
+            found = true;
+        }
+        pack.push_back(std::move(member));
+    }
+    if (!found) {
+        Fail("{} holds no {}", kSedaSource, model);
+    }
+    return WritePack(pack);
+}
+
+// Writes Seda's pack into the extracted data, where the port finds it by its name. A disc without
+// his character leaves nothing; the result says which.
+inline bool WriteSedaPack(const fs::path &out, std::FILE *log) {
+    fs::path source = out / kSedaSource;
+    if (!fs::is_regular_file(source)) {
+        Log(log, "seda: no {}; the Seda mod has no pack\n", kSedaSource);
+        return false;
+    }
+    std::vector<unsigned char> pack = MakeSedaPack(ReadFile(source));
+    fs::path                   target = out / "normalized" / kSedaPack;
+    if (!fs::is_regular_file(target) || ReadFile(target) != pack) {
+        WriteFile(target, pack);
+    }
+    Log(log, "seda: wrote {} ({} bytes)\n", (fs::path("normalized") / kSedaPack).generic_string(), pack.size());
+    return true;
+}
+
 inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *log,
                        const ProgressCallback &progress = {}) {
     std::vector<unsigned char> hd2 = ReadExtent(archive.hd2);
@@ -1122,6 +1315,12 @@ inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *l
         FillFloorPlates(out);
     }
     WriteLanguages(out, release);
+    try {
+        WriteSedaPack(out, log);
+    } catch (const Error &error) {
+        Log(log, "warning: seda: {}\n", error.what());
+        summary.warnings++;
+    }
     return summary;
 }
 

@@ -35,6 +35,7 @@
 #include "platform/settings.hpp"
 #include "platform/window.hpp"
 #include "screen.hpp"
+#include "seda.hpp"
 #include "snd.hpp"
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
@@ -60,6 +61,7 @@ struct Options {
     const char  *jump = nullptr;
     const char  *give = nullptr;
     bool         fast_load = false;
+    bool         seda = false;
     bool         show_fps = false;
     bool         screenshot_fps = false;
     const char  *export_text = nullptr;
@@ -73,7 +75,7 @@ Options g_options;
                  "usage: %s [--data DIR] [--save DIR] [--headless] [--frames N] [--screenshot PATH]\n"
                  "          [--input FILE] [--width W] [--height H] [--offscreen]\n"
                  "          [--display-per-tick N] [--show-fps] [--jump MODE[:MAP]] [--fast-load]\n"
-                 "          [--give ITEM,...]\n"
+                 "          [--give ITEM,...] [--seda]\n"
                  "  --data DIR         the extracted game data (default: DC_DATA, then ./data, then data/\n"
                  "                     beside the executable)\n"
                  "  --save DIR         saves, config.json and the pipeline cache (default: DC_SAVE, then\n"
@@ -97,7 +99,9 @@ Options g_options;
                  "                     skipping the warm-up (DC_JUMP); see docs/PC.md\n"
                  "  --fast-load        loading-screen holds and fades of a few ticks (DC_FAST_LOAD=1)\n"
                  "  --give ITEM,...    give the party these item and weapon numbers when a town or dungeon\n"
-                 "                     starts, unless it holds them (DC_GIVE); see docs/PC.md\n",
+                 "                     starts, unless it holds them (DC_GIVE); see docs/PC.md\n"
+                 "  --seda             Seda in Toan's place in the dungeon from the start (DC_SEDA=1);\n"
+                 "                     see docs/SEDA.md\n",
                  program);
     std::exit(kExitUsage);
 }
@@ -141,6 +145,8 @@ Options ParseOptions(int argc, const char **argv) {
             options.give = value();
         } else if (arg == "--fast-load") {
             options.fast_load = true;
+        } else if (arg == "--seda") {
+            options.seda = true;
         } else if (arg == "--export-text") {
             options.export_text = value();
         } else if (arg == "--font") {
@@ -386,6 +392,8 @@ int Run(int argc, const char **argv) {
     }
     const char *fast_load = std::getenv("DC_FAST_LOAD");
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
+    const char *seda = std::getenv("DC_SEDA");
+    SedaSetForced(options.seda || (seda != nullptr && *seda != '\0' && *seda != '0'));
     RequireData();
     if (options.font != nullptr) {
         LocalizeSetFontPath(PathsFromUtf8(options.font));

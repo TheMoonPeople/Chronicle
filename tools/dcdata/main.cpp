@@ -13,7 +13,9 @@ int Usage() {
                "       dcdata models <iso-or-directory> [--ref <pack>] [--detail <text>]...\n"
                "           lists every character model and how its skeleton compares with the\n"
                "           reference's (dun/mainchara/c01d.chr, Toan, unless named); with --detail,\n"
-               "           only the details of the models whose place contains the text\n",
+               "           only the details of the models whose place contains the text\n"
+               "       dcdata seda <data-directory>\n"
+               "           builds the Seda mod's pack into data extracted before (extract does it too)\n",
                stderr);
     return 2;
 }
@@ -71,6 +73,9 @@ int main(int argc, char **argv) {
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
+        }
+        if (argc == 3 && std::strcmp(argv[1], "seda") == 0) {
+            return dcdata::WriteSedaPack(argv[2], stdout) ? 0 : 1;
         }
         if (argc >= 3 && std::strcmp(argv[1], "models") == 0) {
             std::string              reference = "dun/mainchara/c01d.chr";
