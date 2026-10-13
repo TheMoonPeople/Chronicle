@@ -5,6 +5,12 @@
 !/ps2/build/.gitkeep
 !/port/build/.gitkeep
 
+# Disc images, wherever they are put, and the dcdata built by hand (docs/MODELS.md)
+*.iso
+*.ISO
+/dcdata
+/dcdata.exe
+
 # Reference assembly, split from the disc by splat and never committed: one
 # tree per release, ps2/asm/ntsc and ps2/asm/pal.
 /ps2/asm/
