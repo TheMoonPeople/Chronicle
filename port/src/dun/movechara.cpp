@@ -17,7 +17,6 @@
 #include "camera_port.hpp"
 #include "camera_zoom.hpp"
 #include "first_person_walk.hpp"
-#include "dun/keep_lock_on.hpp"
 #include "platform/input.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
@@ -186,6 +185,11 @@ extern float stickVector;
 extern float stickVector2;
 extern s32 targetCursorShiftNo;
 extern s32 targetCursorShiftRot;
+
+// The lock-on taken into the quick change (game.swap_keeps_lock_on), or -1.
+static s32 quickChangeLockOn = -1;
+static s32 quickChangeShiftNo;
+static s32 quickChangeShiftRot;
 extern s32 tryalExit;
 extern sceVu0FVECTOR velo2;
 extern sceVu0FVECTOR veloOld;
@@ -436,7 +440,9 @@ PORT_OVERRIDE void DunMoveChara() {
                                     ElementPickerHasChoice();
 
                     if ((party || elements) && BtActStatus.action_on == 0) {
-                        KeepLockOnSave();
+                        quickChangeLockOn = ConfigGet().swap_keeps_lock_on && lockOnTargetFlag != 0 ? lockOnTargetNo : -1;
+                        quickChangeShiftNo = targetCursorShiftNo;
+                        quickChangeShiftRot = targetCursorShiftRot;
                         QuickChangeOpenElements(elements);
                         DngMessMan.enabled = false;
                         DngMessMan.message = -1;
@@ -2655,7 +2661,19 @@ PORT_OVERRIDE void DunMoveChara() {
             break;
         case GAME_TASK_CHARA_SELECT_LOOP:
             if (BtMiniChrSelect_Loop() != 0) {
-                KeepLockOnRestore();
+                // CharaChangeKey drops the lock-on; it comes back if its monster can still be locked on.
+                if (quickChangeLockOn >= 0) {
+                    MONSTOR &locked = NowMonstorUnit->monster[quickChangeLockOn];
+
+                    if (locked.state == 2 && locked.hp > 0 && locked.lockon_enabled != 0) {
+                        lockOnTargetNo = quickChangeLockOn;
+                        lockOnTargetFlag = 1;
+                        targetCursorShiftNo = quickChangeShiftNo;
+                        targetCursorShiftRot = quickChangeShiftRot;
+                    }
+
+                    quickChangeLockOn = -1;
+                }
 
                 if (BtMiniChrSelectNo == 2) {
                     ClearSystemMes();
