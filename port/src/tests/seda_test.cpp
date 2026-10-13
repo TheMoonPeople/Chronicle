@@ -156,6 +156,75 @@ TEST(Seda, PackFindsImagesBesideIt) {
     EXPECT_EQ(pack[3].data, Pattern(24, 3));
 }
 
+// A scene of Seda's hands and his sword, whose model draws with the named textures.
+Bytes SceneWithTextures(const std::vector<std::string> &textures) {
+    const char *objects[3] = {"r_hand3", "r_hand4", "obj10"};
+    Bytes       data(16 + 3 * 112, 0);
+    Put32(data, 8, 3);
+    for (int i = 0; i < 3; i++) {
+        std::memcpy(&data[16 + i * 112 + 8], objects[i], std::strlen(objects[i]) + 1);
+        Put32(data, 16 + i * 112 + 44, static_cast<std::uint32_t>(i - 1));
+    }
+    std::size_t model = data.size();
+    Put32(data, 16 + 2 * 112 + 40, static_cast<std::uint32_t>(model));
+    data.resize(model + 64 + textures.size() * 96 + 96, 0); // the entry after the table is no name
+    Put32(data, model + 8, static_cast<std::uint32_t>(data.size() - model));
+    Put32(data, model + 56, 64);
+    for (std::size_t i = 0; i < textures.size(); i++) {
+        std::memcpy(&data[model + 64 + i * 96 + 52], textures[i].c_str(), textures[i].size());
+    }
+    return data;
+}
+
+// An IM2 bank of empty pictures of these names.
+Bytes Bank(const std::vector<std::string> &names) {
+    std::vector<std::pair<std::string, std::vector<unsigned char>>> pictures;
+    for (const std::string &name : names) {
+        pictures.emplace_back(name, std::vector<unsigned char>(48, 0));
+    }
+    return dcdata::WriteIm2(pictures);
+}
+
+TEST(Seda, ReadsTheTexturesAModelDrawsWith) {
+    EXPECT_EQ(dcdata::SceneTextures(SceneWithTextures({"c07a01", "ken01", "c07a01"})),
+              (std::vector<std::string>{"c07a01", "ken01"}));
+    EXPECT_EQ(dcdata::Im2PictureNames(Bank({"c07a01", "c07a01an"})), (std::vector<std::string>{"c07a01", "c07a01an"}));
+}
+
+// A texture no image of the pack holds is looked for in the packs beside it, and its image comes along
+// in the slot left.
+TEST(Seda, PackFindsTexturesBesideIt) {
+    fs::path dir = TempDir("seda_textures") / "chara";
+    fs::create_directories(dir);
+    Bytes source = MakePack({
+        {"c07a.cfg",   Text("//Seda\nIMG 0,\"c07a01.img\"\nIMG_END\nMODEL \"c07a.mds\"\nSHADOW_MODEL \"e17c07s.mds\"\n"
+                          "KEY_START 0\nMOTION_END\n")},
+        {"c07a.mds",   SceneWithTextures({"c07a01", "ken01"})             },
+        {"c07a01.img", Bank({"c07a01"})                                   },
+    });
+    WriteBytes(dir / "c07a.chr", source);
+    WriteBytes(dir / "e29img.pak", MakePack({
+                                       {"e29a.img", Bank({"other"})     },
+                                       {"e29b.img", Bank({"ken01", "x"})}
+    }));
+
+    std::vector<dcdata::PackMember> members = dcdata::ReadPack(source);
+    EXPECT_EQ(dcdata::ConfigModel(dcdata::PackConfig(members)), "c07a.mds");
+    std::vector<dcdata::PackMember> images = dcdata::MissingTextureImages(dir, members, {}, "c07a.mds", nullptr);
+    ASSERT_EQ(images.size(), 1u);
+    EXPECT_EQ(images[0].name, "e29b.img");
+
+    std::vector<dcdata::PackMember> pack =
+        dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), {}, std::move(images)));
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    EXPECT_NE(config.find("IMG 0,\"c07a01.img\"\nIMG 3,\"e29b.img\"\nIMG_END\n"), std::string::npos) << config;
+    bool carried = false;
+    for (const dcdata::PackMember &member : pack) {
+        carried = carried || member.name == "e29b.img";
+    }
+    EXPECT_TRUE(carried);
+}
+
 TEST(Seda, EveryVariantHasToansKeys) {
     for (const dcdata::SedaVariant &variant : dcdata::kSedaVariants) {
         EXPECT_EQ(variant.keys.size(), 41u) << variant.name;
