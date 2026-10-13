@@ -26,6 +26,7 @@
 #include "motionmodel.hpp"
 #include "shot_effect.hpp"
 #include "shot_freefuncs.hpp"
+#include "sedamod.hpp"
 #include "snd.hpp"
 #include "userstatus.hpp"
 #include "weaponeffect.hpp"
@@ -119,45 +120,45 @@ void ToanKey_Play() {
     getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol1", hit_pos);
     sceVu0CopyVector(chara_pos, CharaMain.pos);
 
-    if (time >= 825 && time <= 828.0f) {
+    if (TOAN_TIME(time) >= 825 && TOAN_TIME(time) <= 828.0f) {
         NowColData->Set(hit_pos, damage, 1, 2.8f, 0.0f, 2, 2, 0, 0);
         basic_damage(0, 0);
         NowColData->SetKickBack(chara_pos, 1.2f, 0.2f, 2);
     }
 
-    if (time >= 833 && time <= 835) {
+    if (TOAN_TIME(time) >= 833 && TOAN_TIME(time) <= 835) {
         NowColData->Set(hit_pos, damage, 1, 5.3f, 0.0f, 2, 2, 0, 0);
         basic_damage(0, 0);
         NowColData->SetKickBack(chara_pos, 1.2f, 0.2f, 2);
     }
 
-    if (time >= 842 && time <= 844.0f) {
+    if (TOAN_TIME(time) >= 842 && TOAN_TIME(time) <= 844.0f) {
         NowColData->Set(hit_pos, damage, 1, 6.2f, 0.0f, 2, 2, 0, 0);
         basic_damage(0, 0);
         NowColData->SetKickBack(chara_pos, 1.5f, 0.3f, 2);
     }
 
-    if (time >= 851 && time <= 854) {
+    if (TOAN_TIME(time) >= 851 && TOAN_TIME(time) <= 854) {
         NowColData->Set(hit_pos, damage, 1, 6.2f, 0.0f, 2, 2, 0, 0);
         basic_damage(0, 0);
         NowColData->SetKickBack(chara_pos, 2.0f, 0.4f, 2);
     }
 
-    if (time >= 862 && time <= 866) {
+    if (TOAN_TIME(time) >= 862 && TOAN_TIME(time) <= 866) {
         damage *= 1.8f;
         NowColData->Set(hit_pos, damage, 1, 6.2f, 0.0f, 2, 2, 0, 0);
         basic_damage(0, 0);
         NowColData->SetKickBack(chara_pos, 3.0f, 0.3f, 2);
     }
 
-    if (time >= 193.0f && time <= 196.0f) {
+    if (TOAN_TIME(time) >= 193.0f && TOAN_TIME(time) <= 196.0f) {
         damage *= 1.5;
         NowColData->Set(hit_pos, damage, 1, 6.0f, 0.0f, 2, 2, 0, 0);
         basic_damage(2, 0);
         NowColData->SetKickBack(chara_pos, 3.0f, 0.3f, 2);
     }
 
-    if (time >= 720.0f && time <= 722) {
+    if (TOAN_TIME(time) >= 720.0f && TOAN_TIME(time) <= 722) {
         damage *= 1.5;
         NowColData->Set(hit_pos, damage, 1, 12.0f, 0.0f, 2, 2, 0, 0);
         basic_damage(3, 0);
@@ -175,18 +176,18 @@ void ToanKey_Play() {
         }
     }
 
-    sound_play(825, 825.3f, time, 0x190);
-    sound_play(833, 833.3f, time, 0x191);
-    sound_play(842, 842.3f, time, 0x190);
-    sound_play(852.0f, 852.3f, time, 0x190);
-    sound_play(864.0f, 864.3f, time, 0x191);
-    sound_play(193.0f, 193.3f, time, 0x191);
-    sound_play(717, 717.3f, time, 0x191);
-    sound_play(825, 825.3f, time, 0x1A4);
-    sound_play(833, 833.3f, time, 0x1A5);
-    sound_play(842, 842.3f, time, 0x1A5);
-    sound_play(852.0f, 852.3f, time, 0x1A4);
-    sound_play(864.0f, 864.3f, time, 0x1A6);
+    sound_play(825, 825.3f, TOAN_TIME(time), 0x190);
+    sound_play(833, 833.3f, TOAN_TIME(time), 0x191);
+    sound_play(842, 842.3f, TOAN_TIME(time), 0x190);
+    sound_play(852.0f, 852.3f, TOAN_TIME(time), 0x190);
+    sound_play(864.0f, 864.3f, TOAN_TIME(time), 0x191);
+    sound_play(193.0f, 193.3f, TOAN_TIME(time), 0x191);
+    sound_play(717, 717.3f, TOAN_TIME(time), 0x191);
+    sound_play(825, 825.3f, TOAN_TIME(time), 0x1A4);
+    sound_play(833, 833.3f, TOAN_TIME(time), 0x1A5);
+    sound_play(842, 842.3f, TOAN_TIME(time), 0x1A5);
+    sound_play(852.0f, 852.3f, TOAN_TIME(time), 0x1A4);
+    sound_play(864.0f, 864.3f, TOAN_TIME(time), 0x1A6);
 
     sceVu0FVECTOR forward = {0.0f, 0.0f, 1.0f, 1.0f};
     sceVu0FVECTOR rotation;
@@ -198,7 +199,7 @@ void ToanKey_Play() {
     sceVu0ApplyMatrix(BtActStatus.move_vector, matrix, forward);
 
     if (BtActStatus.action_no == 0x24) {
-        if (time >= 820.0f && time <= 820.5f) {
+        if (TOAN_TIME(time) >= 820.0f && TOAN_TIME(time) <= 820.5f) {
             BtActStatus.move_power = 0.17f;
             BtActStatus.move_power_decay = 0.0f;
         }
@@ -211,7 +212,7 @@ void ToanKey_Play() {
 
         float end = CharaMain.motion_type.motion_info[0x24].end;
 
-        if (time >= 824.0f && time <= 825) {
+        if (TOAN_TIME(time) >= 824.0f && TOAN_TIME(time) <= 825) {
             float tip = 64.0f;
 
             CWeaponFx.Set(8, 32.0f, tip);
@@ -265,7 +266,7 @@ void ToanKey_Play() {
 
         float end = CharaMain.motion_type.motion_info[0x25].end;
 
-        if (time >= 832.0f && time <= 833) {
+        if (TOAN_TIME(time) >= 832.0f && TOAN_TIME(time) <= 833) {
             CWeaponFx.Set(0xA, 32.0f, 32.0f);
         }
 
@@ -311,7 +312,7 @@ void ToanKey_Play() {
 
         float end = CharaMain.motion_type.motion_info[0x26].end;
 
-        if (time >= 841 && time <= 841.5f) {
+        if (TOAN_TIME(time) >= 841 && TOAN_TIME(time) <= 841.5f) {
             CWeaponFx.Set(8, 32.0f, 64.0f);
         }
 
@@ -357,7 +358,7 @@ void ToanKey_Play() {
 
         float end = CharaMain.motion_type.motion_info[0x27].end;
 
-        if (time >= 849 && time <= 849.5f) {
+        if (TOAN_TIME(time) >= 849 && TOAN_TIME(time) <= 849.5f) {
             CWeaponFx.Set(0xA, 32.0f, 32.0f);
         }
 
@@ -394,14 +395,14 @@ void ToanKey_Play() {
     }
 
     if (BtActStatus.action_no == 0x28) {
-        if (time >= 867.5f && time <= 868.0f) {
+        if (TOAN_TIME(time) >= 867.5f && TOAN_TIME(time) <= 868.0f) {
             BtActStatus.move_power = 0.0f;
             BtActStatus.move_power_decay = 0.0f;
         }
 
         BtActStatus.motion_no = 0x28;
 
-        if (time >= 861 && time <= 861.5f) {
+        if (TOAN_TIME(time) >= 861 && TOAN_TIME(time) <= 861.5f) {
             CWeaponFx.Set(0xE, 24.0f, 32.0f);
         }
 
@@ -489,7 +490,7 @@ void ToanKey_Play() {
     }
 
     if (BtActStatus.action_no == 0x18) {
-        if (time >= 720.0f && time <= 720.5f) {
+        if (TOAN_TIME(time) >= 720.0f && TOAN_TIME(time) <= 720.5f) {
             CWeaponFx.Set(0x1E, 28.0f, 16.0f);
         }
 
@@ -520,7 +521,7 @@ void ToanKey_Play() {
         BtActStatus.action_busy = 1;
         BtActStatus.can_act = 0;
 
-        if (time >= 187.0f && time < 188.0f) {
+        if (TOAN_TIME(time) >= 187.0f && TOAN_TIME(time) < 188.0f) {
             sceVu0FVECTOR shot_from;
             sceVu0FVECTOR shot_to;
 

@@ -3,12 +3,26 @@
 #include <exception>
 
 #include "dcdata.hpp"
+#include "models.hpp"
 
 namespace {
 
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
-               "       dcdata list <iso-or-directory>\n",
+               "       dcdata list <iso-or-directory>\n"
+               "       dcdata models <iso-or-directory> [--ref <pack>] [--detail <text>]...\n"
+               "           lists every character model and how its skeleton compares with the\n"
+               "           reference's (dun/mainchara/c01d.chr, Toan, unless named); with --detail,\n"
+               "           only the details of the models whose place contains the text\n"
+               "       dcdata seda <data-directory> [seda|king] [--weapon OBJECT] [--hide-weapon]\n"
+               "                   [--show-weapon] [--item OBJECT] [--show-equipped] [--hide-equipped]\n"
+               "                   [--hide OBJECT]...\n"
+               "           builds the Seda mod's pack into data extracted before, from Seda (c07a, the\n"
+               "           default, as extract does) or King Seda (e502p68b); the options choose the\n"
+               "           object the equipped weapon hangs from, whether that object is drawn, and the\n"
+               "           object that holds items, and whether the equipped weapon is drawn\n"
+               "           (--hide-weapon draws it, in the place of the character's own); --hide leaves\n"
+               "           an object of the model undrawn; it lists the model's objects\n",
                stderr);
     return 2;
 }
@@ -66,6 +80,55 @@ int main(int argc, char **argv) {
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
+        }
+        if (argc >= 3 && std::strcmp(argv[1], "seda") == 0) {
+            int                        i = 3;
+            const dcdata::SedaVariant *found = dcdata::FindSedaVariant("seda");
+            if (i < argc && argv[i][0] != '-') {
+                found = dcdata::FindSedaVariant(argv[i++]);
+            }
+            if (found == nullptr) {
+                return Usage();
+            }
+            dcdata::SedaVariant      variant = *found;
+            std::vector<std::string> hidden;
+            for (; i < argc; i++) {
+                if (std::strcmp(argv[i], "--weapon") == 0 && i + 1 < argc) {
+                    variant.weapon = argv[++i];
+                } else if (std::strcmp(argv[i], "--item") == 0 && i + 1 < argc) {
+                    variant.item = argv[++i];
+                } else if (std::strcmp(argv[i], "--hide-weapon") == 0) {
+                    variant.weapon_drawn = false;
+                    variant.equipped_drawn = true;
+                } else if (std::strcmp(argv[i], "--show-equipped") == 0) {
+                    variant.equipped_drawn = true;
+                } else if (std::strcmp(argv[i], "--hide-equipped") == 0) {
+                    variant.equipped_drawn = false;
+                } else if (std::strcmp(argv[i], "--hide") == 0 && i + 1 < argc) {
+                    hidden.push_back(argv[++i]);
+                } else if (std::strcmp(argv[i], "--show-weapon") == 0) {
+                    variant.weapon_drawn = true;
+                } else {
+                    return Usage();
+                }
+            }
+            return dcdata::WriteSedaPack(argv[2], stdout, variant, hidden) ? 0 : 1;
+        }
+        if (argc >= 3 && std::strcmp(argv[1], "models") == 0) {
+            std::string              reference = "dun/mainchara/c01d.chr";
+            std::vector<std::string> filters;
+            for (int i = 3; i < argc; i++) {
+                if (std::strcmp(argv[i], "--ref") == 0 && i + 1 < argc) {
+                    reference = argv[++i];
+                } else if (std::strcmp(argv[i], "--detail") == 0 && i + 1 < argc) {
+                    filters.push_back(argv[++i]);
+                } else if (argv[i][0] != '-' && i == 3) {
+                    reference = argv[i]; // the older form: the reference pack alone
+                } else {
+                    return Usage();
+                }
+            }
+            return dcdata::ModelReport(dcdata::OpenArchive(argv[2]), stdout, reference, filters);
         }
         return Usage();
     } catch (const std::exception &error) {

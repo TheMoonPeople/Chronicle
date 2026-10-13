@@ -29,6 +29,7 @@
 #include "clsmes.hpp"
 #include "dataread.hpp"
 #include "dngstatusdata.hpp"
+#include "dsgeorama.hpp"
 #include "dun/gameloop.hpp"
 #include "eastking.hpp"
 #include "gamepad.hpp"
@@ -9067,6 +9068,15 @@ int MenuMoveKey() {
                     break;
             }
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+            if (DsgTownRequest != 0 && (GamePad.Down(PAD_CROSS) != 0 || GamePad.Down(PAD_TRIANGLE) != 0)) {
+                // The selection asked for the Demon Shaft's georama, which the
+                // donor town's map number reaches.
+                MenuMapJumpMode = DSG_DONOR_TOWN;
+                stay = 0;
+                ComMenuSePlay(MENU_SOUND_CONFIRM);
+            } else
+#endif
             if (GamePad.Down(PAD_CROSS) != 0) {
                 MenuMapJumpMode = MenuGrobalMapNoTbl[MenuMove.cursor];
 
@@ -9224,12 +9234,28 @@ int MenuMoveKey() {
                         MenuMove.cursor = WORLD_PLACE_FIELD_S04;
                     }
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                    // Triangle on the Demon Shaft goes to its georama instead.
+                    int dsg_town = MenuMove.cursor == WORLD_PLACE_DEMON_SHAFT && GamePad.Down(PAD_TRIANGLE) != 0 && GetVisitInfo(WORLD_PLACE_DEMON_SHAFT, MenuMove.mode) != 0;
+                    int dsg_here = DsgTownActive != 0 && MapNo == DSG_DONOR_TOWN;
+
+                    if (dsg_town != 0 || GamePad.Down(PAD_CROSS) != 0) {
+                        decided = 1;
+                        MenuMapJumpMode = dsg_town != 0 ? DSG_DONOR_TOWN : MenuGrobalMapNoTbl[MenuMove.cursor];
+                        DsgTownRequest = dsg_town;
+
+                        if (MenuMove.mode != MENU_MOVE_WORLD_MAP_DIRECT && MapNo == MenuMapJumpMode && dsg_town == dsg_here) {
+#else
                     if (GamePad.Down(PAD_CROSS) != 0) {
                         decided = 1;
                         MenuMapJumpMode = MenuGrobalMapNoTbl[MenuMove.cursor];
 
                         if (MenuMove.mode != MENU_MOVE_WORLD_MAP_DIRECT && MapNo == MenuMapJumpMode) {
+#endif
                             stay = 1;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                            DsgTownRequest = 0;
+#endif
                             ComMenuSePlay(MENU_SOUND_REFUSE);
                         } else {
                             ComMenuSePlay(MENU_SOUND_CONFIRM);

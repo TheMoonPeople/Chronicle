@@ -75,6 +75,7 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dsgeorama.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -111,6 +112,7 @@
 #include "runeffect.hpp"
 #include "runscript_opcodes.hpp"
 #include "savedata.hpp"
+#include "sedamod.hpp"
 #include "shot_effect.hpp"
 #include "shot_effect_pack.hpp"
 #include "shot_firebar.hpp"
@@ -2255,7 +2257,11 @@ void Draw_MainUnit() {
     CharaMain.TextureAnime(0x11);
     CharaMain.Draw();
 
+#ifdef MOD_SEDA
+    if (NowWeapon != NULL && NowWeapon->frame != NULL && BtActStatus.weapon_visible != 0 && SedaEquippedDrawn()) {
+#else
     if (NowWeapon != NULL && NowWeapon->frame != NULL && BtActStatus.weapon_visible != 0) {
+#endif
         TexManager.ReloadTexture(Vif1Packet, 0x1D);
         NowWeapon->Draw();
     }
@@ -4736,7 +4742,11 @@ void MoveChara() {
                         int atra_no = NowDngMap->atra[i].atra_no;
 
                         if (atra_no != -1) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                            int atra = selectMapNo == DUNGEON_DEMON_SHAFT ? DsgAtlaId(atra_no) : UserStatus->atra_registry[selectMapNo][atra_no].id;
+#else
                             int atra = UserStatus->atra_registry[selectMapNo][atra_no].id;
+#endif
 
                             getAtraToSaveData(atra, atra_no, SaveData, selectMapNo, UserStatus->cur_floor);
                         }

@@ -1,0 +1,2657 @@
+# dcdata models
+
+source: Dark Cloud (Europe) (PAL).iso
+reference: dun/mainchara/c01d.chr :: c01d.mds (77 bones, 41 motion keys)
+5111 models found
+
+## Models matching the filters
+
+shared  parents  indices  /ref  bones  keys  model
+     4        1        0    77     32    15  gedit/s28/chara/e410c07a.chr :: e410c07a.mds
+     4        1        0    77     24    15  gedit/s28/chara/e410c07a.chr :: e410c07s.mds
+     4        1        0    77     37    37  gedit/s28/chara/e501c07a.chr :: e501c07a.mds
+     4        1        0    77     24    37  gedit/s28/chara/e501c07a.chr :: e501c07s.mds
+     4        1        0    77     33    24  gedit/s99/chara/c07a.chr :: c07a.mds
+     4        1        0    77     24    24  gedit/s99/chara/c07a.chr :: e17c07s.mds
+     4        1        0    77     24     6  gedit/s99/chara/e17eb.chr :: e17ebc07s.mds
+     4        1        0    77     35     6  gedit/s99/chara/e17eb.chr :: e17ebc07a.mds
+     4        1        0    77     33     3  gedit/s99/chara/e22.chr :: e22c07a.mds
+     4        1        0    77     24     3  gedit/s99/chara/e22.chr :: e22c07s.mds
+     4        1        0    77     33     7  gedit/s99/chara/e23.chr :: e23c07a.mds
+     4        1        0    77     24     7  gedit/s99/chara/e23.chr :: e23c07s.mds
+     1        1        0    77     65     3  dun/mainchara/c07a.chr :: c07s.mds
+     1        1        0    77     65     3  dun/mainchara/c07a.chr :: c07a.mds
+     1        1        0    77     64     6  opdat/dungeon/dungeon.pak :: 01c07a.mds
+     1        1        0    77     64     6  opdat/sikatest/dungeon.pak :: 01c07a.mds
+     1        1        0    77     64     6  opdat/sikatest/dungeon2.pak :: 01c07a.mds
+     0        0        0    77      2     3  opdat/norn3/norn3.pak :: e01c07_0.mds
+
+## Reference
+
+dun/mainchara/c01d.chr :: c01d.mds
+  configuration:
+    | //キャラクタ情報
+    | IMG 0,"c01d01_dun.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c01d11",0,0,128,48,"c01d01",0,27,0,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c01d11",0,0,128,48,"c01d01",0,27,100,0	//デフォ目
+    | TEX_ANIME_DATA "c01d11",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d11",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d11",0,144,128,48,"c01d01",0,27,1,0	//目ぱち3
+    | TEX_ANIME_DATA "c01d11",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d11",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d11",0,0,128,48,"c01d01",0,27,50,0	//デフォ目
+    | TEX_ANIME_DATA "c01d11",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d11",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d11",0,144,128,48,"c01d01",0,27,1,0	//目ぱち3
+    | TEX_ANIME_DATA "c01d11",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d11",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_MDT "cloth1"
+    | ALLOC_MDT "cloth2"
+    | ALLOC_MDT "cloth3"
+    | ALLOC_DBUFF "skin"
+    | MODEL "c01d.mds"
+    | SHADOW_MODEL "c01s.mds"
+    | CLOTH "turban.clo"
+    | CLOTH "poncho1.clo"
+    | CLOTH "poncho2.clo"
+    | BODY_SIZE 17,7,60
+    | 
+    | MOTION 0, "c01d.mot", "c01d.bbp", "c01d.wgt"
+    | SHADOW_MOTION "c01s.mot", "c01s.bbp", "c01s.wgt"
+    | KEY_START 0
+    | 	KEY	10,	20,	0.2,	//0立ち
+    | 	KEY	70,	90,	0.65,	//1走り
+    | 	KEY	35,	55,	0.5,	//2歩き
+    | 	KEY	191,	196,	0.2,	//3溜め攻撃loop2
+    | 	KEY 	285,	291,	0.4,	//4ダメ－ジ
+    | 	KEY	300,	300,	0.0,	//5溜め攻撃loop3
+    | 	KEY	295,	335,	0.3,	//6ダメージ大
+    | 	KEY	315,	335,	0.3,	//7起き上がり
+    | 	KEY	210,	215,	0.8,	//8立ち＞ガード
+    | 	KEY	216,	224,	0.3,	//9ガードループ
+    | 	KEY	224,	230,	0.8,	//10ガード＞立ち
+    | 	KEY	116,	130,	0.4,	//11攻撃(1)
+    | 	KEY	136,	150,	0.5,	//12攻撃(2)
+    | 	KEY	155,	160,	0.4,	//13立ち＞溜め
+    | 	KEY	160,	170,	0.4,	//14溜めループ
+    | 	KEY	180,	191,	0.40,	//15溜め攻撃start
+    | 	KEY	191,	192,	0.0,	//16溜め攻撃loop1
+    | 	KEY	196,	206,	0.40,	//17溜め攻撃end
+    | 	KEY	100,	110,	0.5,	//18攻撃構え
+    | 	KEY	340,	360,	0.6,	//19攻撃態勢（右）
+    | 	KEY	370,	390,	0.6,	//20攻撃態勢（左）
+    | 	KEY	400,	420,	0.6,	//21攻撃態勢（前）
+    | 	KEY	430,	450,	0.6,	//22攻撃態勢（後ろ）
+    | 	KEY	460,	480,	0.2,	//23やられ
+    | 	KEY	715,	750,	0.4,	//24技２		24やられ
+    | 	KEY	196,	196,	0.0,	//25溜め攻撃loop3
+    | //	KEY	540,	546,	0.4,	//26投げ開始
+    | 	KEY	546,	546,	0.0,	//26投げ停止
+    | 	KEY	546,	566,	0.4,	//27投げる
+    | 	KEY	620,	655,	0.25,	//28飲む
+    | 	KEY	690,	710,	0.65,	//29ダメージ受け走り
+    | 	KEY	756,	766,	0.30,	//30溜め移動
+    | 	KEY	660,	680,	0.5,	//31ダメだし
+    | 	KEY	570,	590,	0.3,	//32落下モーション
+    | 	KEY	778,	788,	0.3,	//33ガード移動
+    | 	KEY	792,	802,	0.3,	//34	Gget In
+    | 	KEY	805,	815,	0.3,	//35	Gget Loop
+    | 	KEY	820,	830,	0.3,	//36連続攻撃1
+    | 	KEY	830,	838,	0.3,	//37連続攻撃2
+    | 	KEY	838,	847,	0.3,	//38連続攻撃1
+    | 	KEY	847,	857,	0.3,	//39連続攻撃2
+    | 	KEY	856,	884,	0.3,	//40連続攻撃3
+    | MOTION_END
+    | 
+    | FOOT 38,48
+    | FOOT 73,83
+    | EVENT 160,0,1 //新規
+    | EVENT 184,0,1 //新規
+    | EVENT 195,0,0 //新規
+    | EVENT 329,0,0 //新規
+    | EVENT 329,0,1 //新規
+    | EVENT 349,0,0 //新規
+    | EVENT 359,0,1 //新規
+    | EVENT 379,0,0 //新規
+    | EVENT 389,0,1 //新規
+    | EVENT 415,0,0 //新規
+    | EVENT 445,0,1 //新規
+    | EVENT 405,0,1 //新規
+    | EVENT 435,0,1 //新規
+    | EVENT 694,0,0 //新規
+    | EVENT 704,0,1 //新規
+    | EVENT 742,0,0 //新規
+    | EVENT 746,0,0 //新規
+    | EVENT 779,0,1 //新規
+    | EVENT 762,0,0 //新規
+    | EVENT 784,0,1 //新規
+    | EVENT 757,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 c01d_1_2_1_1                     parent  -1
+      1 ctr                              parent   0 (c01d_1_2_1_1)
+      2 chn1                             parent   1 (ctr)
+      3 jnt1_1                           parent   2 (chn1)
+      4 eff1                             parent   3 (jnt1_1)
+      5 chn22                            parent   4 (eff1)
+      6 jnt22_1                          parent   5 (chn22)
+      7 jnt22_2                          parent   6 (jnt22_1)
+      8 eff22                            parent   7 (jnt22_2)
+      9 chn23                            parent   8 (eff22)
+     10 jnt23_1                          parent   9 (chn23)
+     11 eff23                            parent  10 (jnt23_1)
+     12 chn24                            parent  11 (eff23)
+     13 jnt24_1                          parent  12 (chn24)
+     14 eff24                            parent  13 (jnt24_1)
+     15 r_f                              parent   7 (jnt22_2)
+     16 footr                            parent   7 (jnt22_2)
+     17 chn5                             parent   4 (eff1)
+     18 jnt5_1                           parent  17 (chn5)
+     19 jnt5_2                           parent  18 (jnt5_1)
+     20 eff5                             parent  19 (jnt5_2)
+     21 chn6                             parent  20 (eff5)
+     22 jnt6_1                           parent  21 (chn6)
+     23 eff6                             parent  22 (jnt6_1)
+     24 chn7                             parent  23 (eff6)
+     25 jnt7_1                           parent  24 (chn7)
+     26 eff7                             parent  25 (jnt7_1)
+     27 l_f                              parent  19 (jnt5_2)
+     28 footl                            parent  19 (jnt5_2)
+     29 chn2                             parent   4 (eff1)
+     30 jnt2_1                           parent  29 (chn2)
+     31 eff2                             parent  30 (jnt2_1)
+     32 chn8                             parent  31 (eff2)
+     33 jnt8_1                           parent  32 (chn8)
+     34 eff8                             parent  33 (jnt8_1)
+     35 chn9                             parent  34 (eff8)
+     36 jnt9_1                           parent  35 (chn9)
+     37 jnt9_2                           parent  36 (jnt9_1)
+     38 eff9                             parent  37 (jnt9_2)
+     39 chn10                            parent  38 (eff9)
+     40 jnt10_1                          parent  39 (chn10)
+     41 eff10                            parent  40 (jnt10_1)
+     42 l_hand                           parent  40 (jnt10_1)
+     43 renzu__m                         parent  40 (jnt10_1)
+     44 item                             parent  40 (jnt10_1)
+     45 l_g                              parent  37 (jnt9_2)
+     46 chn11                            parent  31 (eff2)
+     47 jnt11_1                          parent  46 (chn11)
+     48 eff11                            parent  47 (jnt11_1)
+     49 chn12                            parent  48 (eff11)
+     50 jnt12_1                          parent  49 (chn12)
+     51 eff12                            parent  50 (jnt12_1)
+     52 kao                              parent  50 (jnt12_1)
+     53 kami2                            parent  50 (jnt12_1)
+     54 kami1                            parent  50 (jnt12_1)
+     55 boushi                           parent  50 (jnt12_1)
+     56 cloth1                           parent  50 (jnt12_1)
+     57 face                             parent  50 (jnt12_1)
+     58 chn16                            parent  31 (eff2)
+     59 jnt16_1                          parent  58 (chn16)
+     60 eff16                            parent  59 (jnt16_1)
+     61 chn17                            parent  60 (eff16)
+     62 jnt17_1                          parent  61 (chn17)
+     63 jnt17_2                          parent  62 (jnt17_1)
+     64 eff17                            parent  63 (jnt17_2)
+     65 chn18                            parent  64 (eff17)
+     66 jnt18_1                          parent  65 (chn18)
+     67 eff18                            parent  66 (jnt18_1)
+     68 r_hand                           parent  66 (jnt18_1)
+     69 dcol                             parent  66 (jnt18_1)
+     70 weapon                           parent  66 (jnt18_1)
+     71 r_g                              parent  63 (jnt17_2)
+     72 cloth2                           parent  30 (jnt2_1)
+     73 cloth3                           parent  30 (jnt2_1)
+     74 kaban                            parent   3 (jnt1_1)
+     75 beruto                           parent   3 (jnt1_1)
+     76 skin                             parent   0 (c01d_1_2_1_1)
+
+## Details
+
+gedit/s28/chara/e410c07a.chr :: e410c07a.mds
+  32 bones, 15 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",128,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,60,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",128,280,128,40,"c07a01",0,42,0,0	//驚き目
+    | TEX_ANIME_DATA "c07a01an",128,245,128,35,"c07a01",0,87,0,1	//驚き口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,0,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,0	//険しい目
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,1,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,1,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,1,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,1,1	//険しい目ぱち4
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,2,0	//険しい目ぱち4
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,2,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,2,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,2,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",128,175,128,35,"c07a01",0,87,0,1	//にこり口
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",128,210,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,175,128,35,"c07a01",0,87,7,0	//にこり口
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,140,128,35,"c07a01",0,87,9,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,7,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,140,128,35,"c07a01",0,87,6,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",128,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e410c07a.mds"
+    | SHADOW_MODEL "e410c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "e410c07a.mot", "e410c07a.bbp", "e410c07a.wgt"
+    | SHADOW_MOTION "e410c07s.mot", "e410c07s.bbp", "e410c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.12 //立ち 			0
+    | KEY 40, 60, 0.25 //歩き 		1
+    | KEY 65, 85, 0.15 //会話 		2
+    | KEY 90, 130, 0.25 //キョロ歩き 		3
+    | KEY 135, 160, 0.25 //振り向く 		4
+    | KEY 165, 175, 0.12 //振り向くﾙｰﾌﾟ 		5
+    | KEY 180, 190, 0.20 //驚く 		6
+    | KEY 195, 205, 0.20 //（下向きそうでわない）会話２入り 		7
+    | KEY 210, 230, 0.15 //（下向きそうでわない）会話２ﾙｰﾌﾟ 		8
+    | KEY 235, 245, 0.20 //うつむく 		9
+    | KEY 250, 260, 0.12 //うつむくﾙｰﾌﾟ 		10
+    | KEY 265, 275, 0.10 //うつむく戻り		11
+    | KEY 280, 300, 0.15 //（下向き）会話３ 		12
+    | KEY 305, 325, 0.15 //（下向き）会話４ 		13
+    | KEY 330, 340, 0.12 //（下向き）立ち２ 		14
+    | MOTION_END
+    | EVENT 42,0,0 //新規
+    | EVENT 52,0,1 //新規
+    | EVENT 94,0,0 //新規
+    | EVENT 104,0,1 //新規
+    | EVENT 114,0,0 //新規
+    | EVENT 124,0,1 //新規
+    | EVENT 139,0,0 //新規
+    | EVENT 143,0,1 //新規
+    | EVENT 159.5,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1_2                       parent  -1
+      1 hip                              parent   0 (skel_1_1_2)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 r_hand3                          parent  14 (l_hand)
+     16 obj9                             parent  13 (l_farm)
+     17 l_sdr2                           parent  12 (l_arm_1)
+     18 neck                             parent  10 (spine)
+     19 face                             parent  18 (neck)
+     20 face5_1                          parent  19 (face)
+     21 b_hair_3                         parent  19 (face)
+     22 f_hair_1                         parent  19 (face)
+     23 r_sdr                            parent  10 (spine)
+     24 r_arm                            parent  23 (r_sdr)
+     25 r_farm                           parent  24 (r_arm)
+     26 r_hand                           parent  25 (r_farm)
+     27 r_hand4                          parent  26 (r_hand)
+     28 obj8                             parent  25 (r_farm)
+     29 r_sdr2                           parent  24 (r_arm)
+     30 kazari_2                         parent  10 (spine)
+     31 skin                             parent   0 (skel_1_1_2)
+
+gedit/s28/chara/e410c07a.chr :: e410c07s.mds
+  24 bones, 15 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",128,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,60,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",128,280,128,40,"c07a01",0,42,0,0	//驚き目
+    | TEX_ANIME_DATA "c07a01an",128,245,128,35,"c07a01",0,87,0,1	//驚き口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,0,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,0	//険しい目
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,1,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,1,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,1,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,1,1	//険しい目ぱち4
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,2,0	//険しい目ぱち4
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,2,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,2,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,2,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",128,175,128,35,"c07a01",0,87,0,1	//にこり口
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",128,210,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,175,128,35,"c07a01",0,87,7,0	//にこり口
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,140,128,35,"c07a01",0,87,9,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,7,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,140,128,35,"c07a01",0,87,6,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",128,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",128,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",128,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e410c07a.mds"
+    | SHADOW_MODEL "e410c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "e410c07a.mot", "e410c07a.bbp", "e410c07a.wgt"
+    | SHADOW_MOTION "e410c07s.mot", "e410c07s.bbp", "e410c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.12 //立ち 			0
+    | KEY 40, 60, 0.25 //歩き 		1
+    | KEY 65, 85, 0.15 //会話 		2
+    | KEY 90, 130, 0.25 //キョロ歩き 		3
+    | KEY 135, 160, 0.25 //振り向く 		4
+    | KEY 165, 175, 0.12 //振り向くﾙｰﾌﾟ 		5
+    | KEY 180, 190, 0.20 //驚く 		6
+    | KEY 195, 205, 0.20 //（下向きそうでわない）会話２入り 		7
+    | KEY 210, 230, 0.15 //（下向きそうでわない）会話２ﾙｰﾌﾟ 		8
+    | KEY 235, 245, 0.20 //うつむく 		9
+    | KEY 250, 260, 0.12 //うつむくﾙｰﾌﾟ 		10
+    | KEY 265, 275, 0.10 //うつむく戻り		11
+    | KEY 280, 300, 0.15 //（下向き）会話３ 		12
+    | KEY 305, 325, 0.15 //（下向き）会話４ 		13
+    | KEY 330, 340, 0.12 //（下向き）立ち２ 		14
+    | MOTION_END
+    | EVENT 42,0,0 //新規
+    | EVENT 52,0,1 //新規
+    | EVENT 94,0,0 //新規
+    | EVENT 104,0,1 //新規
+    | EVENT 114,0,0 //新規
+    | EVENT 124,0,1 //新規
+    | EVENT 139,0,0 //新規
+    | EVENT 143,0,1 //新規
+    | EVENT 159.5,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1_4                       parent  -1
+      1 hip                              parent   0 (skel_1_1_4)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 l_sdr2                           parent  12 (l_arm_1)
+     16 neck                             parent  10 (spine)
+     17 face                             parent  16 (neck)
+     18 r_sdr                            parent  10 (spine)
+     19 r_arm                            parent  18 (r_sdr)
+     20 r_farm                           parent  19 (r_arm)
+     21 r_hand                           parent  20 (r_farm)
+     22 r_sdr2                           parent  19 (r_arm)
+     23 skin                             parent   0 (skel_1_1_4)
+
+gedit/s28/chara/e501c07a.chr :: e501c07a.mds
+  37 bones, 37 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,60,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,1	//閉じた目
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,0,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,0	//険しい目
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,1,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,1,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,1,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,1,1	//険しい目ぱち4
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,2,0	//険しい目ぱち4
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,2,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,2,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,2,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,0	//険しい目
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,1,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,1,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,1,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,1,1	//険しい目ぱち4
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",128,0,128,40,"c07a01",0,42,0,0	//ぐあっ目
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,0,1	//ぐあっ口
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,0,1	//苦しい目1
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,0,0	//苦しい目1
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,0	//苦しい目2
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,0,1	//苦しい口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,0	//苦しい目2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//苦しい目3
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,40,"c07a01",0,42,0,0	//苦しい目4
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",128,200,128,40,"c07a01",0,42,0,0	//苦しい目5
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 15,0
+    | TEX_ANIME_DATA "c07a01an",128,240,128,40,"c07a01",0,42,0,0	//苦しい目6
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 16,0
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,0,1	//にこり口
+    | TEX_ANIME_END
+    | TEX_ANIME 17,0
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,20,0	//はあはあ1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,12,0	//はあはあ2
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,21,0	//はあはあ3
+    | TEX_ANIME_END
+    | TEX_ANIME 18,0
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,7,0	//にこり口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,9,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,7,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_END
+    | TEX_ANIME 19,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e501c07a.mds"
+    | SHADOW_MODEL "e501c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "e501c07a.mot", "e501c07a.bbp", "e501c07a.wgt"
+    | SHADOW_MOTION "e501c07s.mot", "e501c07s.bbp", "e501c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.1 //立ち 			0
+    | KEY 40, 60, 0.25 //歩き 		1
+    | KEY 70, 80, 0.10 //下向き立ち 		2
+    | KEY 85, 119, 0.32 //ジャンプ 		3
+    | KEY 120, 140, 0.15 //会話 		4
+    | KEY 145, 150, 0.15 //アトラミリアを指す 5
+    | KEY 155, 165, 0.10 //アトラミリアを指すＬ 6
+    | KEY 170, 175, 0.15 //もどり 		7
+    | KEY 180, 185, 0.15 //下を向く 		8 
+    | KEY 190, 200, 0.10 //下を向くL 		9
+    | KEY 205, 210, 0.20 //もどり 		10
+    | KEY 215, 230, 0.15 //首を振るL 		11
+    | KEY 235, 247, 0.15 //右手をあげる  	12
+    | KEY 251, 261, 0.10 //右手をあげるL  	13
+    | KEY 265, 270, 0.20 //もどり  		14
+    | KEY 275, 285, 0.25 //苦しむ 		15
+    | KEY 290, 300, 0.10 //苦しむL 		16 
+    | KEY 305, 310, 0.15 //上を見る 		17
+    | KEY 315, 325, 0.10 //上を見るL 		18
+    | KEY 330, 335, 0.25 //ぐああああ 		19
+    | KEY 339, 345, 0.25 //ぐああああL 	20
+    | KEY 350, 360, 0.30 //憑依されそう 	21
+    | KEY 365, 375, 0.10 //憑依されそうL 	22
+    | KEY 380, 385, 0.15 //手を下におろす 	23
+    | KEY 390, 410, 0.20 //剣を振りかぶる 	24
+    | KEY 415, 425, 0.10 //剣を振りかぶるL 	25
+    | KEY 430, 445, 0.22 //切腹 	26
+    | KEY 450, 460, 0.10 //切腹L 	27
+    | KEY 465, 470, 0.15 //左手横 	28
+    | KEY 475, 483, 0.10 //左手横L 	29
+    | KEY 487, 495, 0.10 //左手前L 	30
+    | KEY 500, 505, 0.15 //左下向く 	31
+    | KEY 510, 518, 0.10 //左下向くL 	32
+    | KEY 520, 525, 0.15 //もどり 	33
+    | KEY 530, 540, 0.10 //力尽きかけL 	34
+    | KEY 545, 560, 0.10 //力尽きる 	35
+    | KEY 565, 575, 0.10 //トアン見て立ち 	36
+    | MOTION_END
+    | EVENT 44,0,0 //新規
+    | EVENT 54,0,1 //新規
+    | EVENT 91,0,0 //新規
+    | EVENT 109,0,1 //新規
+    | EVENT 109,0,0 //新規
+    | EVENT 118.5,0,0 //新規
+    | EVENT 280,0,0 //新規
+    | EVENT 334.5,0,0 //新規
+    | EVENT 469,0,0 //新規
+    | EVENT 359.5,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1_2                       parent  -1
+      1 hip                              parent   0 (skel_1_1_2)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 r_hand3                          parent  14 (l_hand)
+     16 obj9                             parent  13 (l_farm)
+     17 l_sdr2                           parent  12 (l_arm_1)
+     18 neck                             parent  10 (spine)
+     19 face                             parent  18 (neck)
+     20 face5_1                          parent  19 (face)
+     21 b_hair_3                         parent  19 (face)
+     22 f_hair_1                         parent  19 (face)
+     23 r_sdr                            parent  10 (spine)
+     24 r_arm                            parent  23 (r_sdr)
+     25 r_farm                           parent  24 (r_arm)
+     26 r_hand                           parent  25 (r_farm)
+     27 r_hand4                          parent  26 (r_hand)
+     28 sword1                           parent  27 (r_hand4)
+     29 obj8                             parent  25 (r_farm)
+     30 r_sdr2                           parent  24 (r_arm)
+     31 kazari_2                         parent  10 (spine)
+     32 sword2                           parent   1 (hip)
+     33 LA4                              parent  32 (sword2)
+     34 LA3                              parent  32 (sword2)
+     35 harakiri                         parent  32 (sword2)
+     36 skin                             parent   0 (skel_1_1_2)
+
+gedit/s28/chara/e501c07a.chr :: e501c07s.mds
+  24 bones, 37 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,60,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,1	//閉じた目
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,0,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,0	//険しい目
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,1,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,1,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,1,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,1,1	//険しい目ぱち4
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,2,0	//険しい目ぱち4
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,2,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,2,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,2,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,1	//険しい目
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,1,0	//険しい目
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,1,0	//険しい目ぱち1
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,1,0	//険しい目ぱち2
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,1,0	//険しい目ぱち3
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,1,1	//険しい目ぱち4
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",128,0,128,40,"c07a01",0,42,0,0	//ぐあっ目
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,0,1	//ぐあっ口
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,0,1	//苦しい目1
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,0,0	//苦しい目1
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,0	//苦しい目2
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,0,1	//苦しい口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,0	//苦しい目2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//苦しい目3
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,40,"c07a01",0,42,0,0	//苦しい目4
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",128,200,128,40,"c07a01",0,42,0,0	//苦しい目5
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 15,0
+    | TEX_ANIME_DATA "c07a01an",128,240,128,40,"c07a01",0,42,0,0	//苦しい目6
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,0,1	//結び口
+    | TEX_ANIME_END
+    | TEX_ANIME 16,0
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,0,1	//にこり口
+    | TEX_ANIME_END
+    | TEX_ANIME 17,0
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,20,0	//はあはあ1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,12,0	//はあはあ2
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,21,0	//はあはあ3
+    | TEX_ANIME_END
+    | TEX_ANIME 18,0
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,7,0	//にこり口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,9,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,7,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//ぱく４
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_END
+    | TEX_ANIME 19,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,7,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく２
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,8,0	//ぱく３
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e501c07a.mds"
+    | SHADOW_MODEL "e501c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "e501c07a.mot", "e501c07a.bbp", "e501c07a.wgt"
+    | SHADOW_MOTION "e501c07s.mot", "e501c07s.bbp", "e501c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.1 //立ち 			0
+    | KEY 40, 60, 0.25 //歩き 		1
+    | KEY 70, 80, 0.10 //下向き立ち 		2
+    | KEY 85, 119, 0.32 //ジャンプ 		3
+    | KEY 120, 140, 0.15 //会話 		4
+    | KEY 145, 150, 0.15 //アトラミリアを指す 5
+    | KEY 155, 165, 0.10 //アトラミリアを指すＬ 6
+    | KEY 170, 175, 0.15 //もどり 		7
+    | KEY 180, 185, 0.15 //下を向く 		8 
+    | KEY 190, 200, 0.10 //下を向くL 		9
+    | KEY 205, 210, 0.20 //もどり 		10
+    | KEY 215, 230, 0.15 //首を振るL 		11
+    | KEY 235, 247, 0.15 //右手をあげる  	12
+    | KEY 251, 261, 0.10 //右手をあげるL  	13
+    | KEY 265, 270, 0.20 //もどり  		14
+    | KEY 275, 285, 0.25 //苦しむ 		15
+    | KEY 290, 300, 0.10 //苦しむL 		16 
+    | KEY 305, 310, 0.15 //上を見る 		17
+    | KEY 315, 325, 0.10 //上を見るL 		18
+    | KEY 330, 335, 0.25 //ぐああああ 		19
+    | KEY 339, 345, 0.25 //ぐああああL 	20
+    | KEY 350, 360, 0.30 //憑依されそう 	21
+    | KEY 365, 375, 0.10 //憑依されそうL 	22
+    | KEY 380, 385, 0.15 //手を下におろす 	23
+    | KEY 390, 410, 0.20 //剣を振りかぶる 	24
+    | KEY 415, 425, 0.10 //剣を振りかぶるL 	25
+    | KEY 430, 445, 0.22 //切腹 	26
+    | KEY 450, 460, 0.10 //切腹L 	27
+    | KEY 465, 470, 0.15 //左手横 	28
+    | KEY 475, 483, 0.10 //左手横L 	29
+    | KEY 487, 495, 0.10 //左手前L 	30
+    | KEY 500, 505, 0.15 //左下向く 	31
+    | KEY 510, 518, 0.10 //左下向くL 	32
+    | KEY 520, 525, 0.15 //もどり 	33
+    | KEY 530, 540, 0.10 //力尽きかけL 	34
+    | KEY 545, 560, 0.10 //力尽きる 	35
+    | KEY 565, 575, 0.10 //トアン見て立ち 	36
+    | MOTION_END
+    | EVENT 44,0,0 //新規
+    | EVENT 54,0,1 //新規
+    | EVENT 91,0,0 //新規
+    | EVENT 109,0,1 //新規
+    | EVENT 109,0,0 //新規
+    | EVENT 118.5,0,0 //新規
+    | EVENT 280,0,0 //新規
+    | EVENT 334.5,0,0 //新規
+    | EVENT 469,0,0 //新規
+    | EVENT 359.5,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1_4                       parent  -1
+      1 hip                              parent   0 (skel_1_1_4)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 l_sdr2                           parent  12 (l_arm_1)
+     16 neck                             parent  10 (spine)
+     17 face                             parent  16 (neck)
+     18 r_sdr                            parent  10 (spine)
+     19 r_arm                            parent  18 (r_sdr)
+     20 r_farm                           parent  19 (r_arm)
+     21 r_hand                           parent  20 (r_farm)
+     22 r_sdr2                           parent  19 (r_arm)
+     23 skin                             parent   0 (skel_1_1_4)
+
+gedit/s99/chara/c07a.chr :: c07a.mds
+  33 bones, 24 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,7,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,7,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,7,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,9,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,20,0	//険しい１
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,5,0	//険しい2
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,100,1	//険しい3
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,0,0	//ぐわっ目１
+    | TEX_ANIME_DATA "c07a01an",256,245,128,35,"c07a01",0,87,0,1	//ぐわっ口1
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,0	//ぐわっ目2
+    | TEX_ANIME_DATA "c07a01an",256,280,128,35,"c07a01",0,87,0,1	//ぐわっ口2
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",256,315,128,35,"c07a01",0,87,0,0	//がうう口
+    | TEX_ANIME_DATA "c07a01an",0,320,128,40,"c07a01",0,42,0,1	//がうう目
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,128,"c07a01",0,0,0,1	//Ｂシーダ
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,7,0	//Ｂデフォ口
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,7,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,8,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,9,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,7,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,8,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,7,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,9,0	//Ｂにやりぱく1
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//Ｂおどろき目
+    | TEX_ANIME_DATA "c07a01an",384,315,128,35,"c07a01",0,87,0,1	//Ｂおどろき口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,1	//Ｂわらい目
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",384,280,128,35,"c07a01",0,87,8,0	//Ｂわらい口
+    | TEX_ANIME_DATA "c07a01an",128,288,128,35,"c07a01",0,87,8,0	//Ｂわらい口2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,10,1	//Ｂ思い付く目
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,7,0	//Ｂノーマル口
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,8,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,7,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,245,128,35,"c07a01",0,87,9,0	//Ｂぱく3
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,7,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,8,0	//Ｂぱく1
+    | TEX_ANIME_END
+    | TEX_ANIME 15,0
+    | TEX_ANIME_DATA "c07a01an",128,323,128,40,"c07a01",0,42,0,1	//下向き目
+    | TEX_ANIME_END
+    | TEX_ANIME 16,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,0,1	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 17,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,7,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,8,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,9,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,8,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,7,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,9,0	//にやりぱく
+    | TEX_ANIME_END
+    | 
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "c07a.mds"
+    | SHADOW_MODEL "e17c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "c07a.mot", "c07a.bbp", "c07a.wgt"
+    | SHADOW_MOTION "e17c07s.mot", "e17c07s.bbp", "e17c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.1 //立ち 0
+    | KEY 40, 60, 0.25 //歩き 1
+    | KEY 80, 95, 0.16 //後ろ振り返り 2
+    | KEY 96, 120, 0.2 //指差し会話Ｌ 3
+    | KEY 121, 141, 0.2 //ノーマル会話 4
+    | KEY 142, 150, 0.22 //会話＞苦しみ 5
+    | KEY 153, 161, 0.2 //苦しみＬ 6
+    | KEY 162, 171, 0.2 //遠吠え 7
+    | KEY 165, 170, 0.25 //遠吠えＬ 8 
+    | KEY 172, 215, 0.2 //前のめり＞顔起こす 9
+    | KEY 216, 246, 0.2 //そのまま会話 10
+    | KEY 247, 257, 0.22 //剣構え 11
+    | KEY 258, 268, 0.2 //剣構えＬ  12
+    | KEY 269, 300, 0.3 //露払い＞飛び掛かり  13
+    | KEY 305, 311, 0.2 //立ち＞魔法ポーズ  14
+    | KEY 312, 322, 0.2 //魔法ポーズＬ 15
+    | KEY 325, 332, 0.2 //剣付きつける 16 
+    | KEY 333, 343, 0.2 //突き付けＬ 17
+    | KEY 344, 360, 0.2 //笑い始め 18
+    | KEY 361, 369, 0.2 //笑いＬ 19
+    | KEY 370, 375, 0.2 //笑い＞立ち 20
+    | KEY 378, 398, 0.2 //立ち＞投げ 21
+    | KEY 399, 410, 0.2 //後ろ向き首振り返り 22
+    | KEY 411, 421, 0.1 //上記Ｌ 23
+    | MOTION_END
+    | EVENT 43,0,0 //新規
+    | EVENT 53,0,1 //新規
+    | EVENT 88,0,0 //新規
+    | EVENT 94,0,1 //新規
+    | EVENT 146,0,0 //新規
+    | EVENT 290,0,0 //新規
+    | EVENT 310.5,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1                         parent  -1
+      1 hip                              parent   0 (skel_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 r_hand3                          parent  14 (l_hand)
+     16 obj9                             parent  13 (l_farm)
+     17 l_sdr2                           parent  12 (l_arm_1)
+     18 neck                             parent  10 (spine)
+     19 face                             parent  18 (neck)
+     20 face5_1                          parent  19 (face)
+     21 b_hair_3                         parent  19 (face)
+     22 f_hair_1                         parent  19 (face)
+     23 r_sdr                            parent  10 (spine)
+     24 r_arm                            parent  23 (r_sdr)
+     25 r_farm                           parent  24 (r_arm)
+     26 r_hand                           parent  25 (r_farm)
+     27 r_hand4                          parent  26 (r_hand)
+     28 obj10                            parent  27 (r_hand4)
+     29 obj8                             parent  25 (r_farm)
+     30 r_sdr2                           parent  24 (r_arm)
+     31 kazari_2                         parent  10 (spine)
+     32 skin                             parent   0 (skel_1_1)
+
+gedit/s99/chara/c07a.chr :: e17c07s.mds
+  24 bones, 24 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,7,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,7,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,9,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,7,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,9,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,8,0	//ぱく１
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,20,0	//険しい１
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,5,0	//険しい2
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,100,1	//険しい3
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,0,0	//ぐわっ目１
+    | TEX_ANIME_DATA "c07a01an",256,245,128,35,"c07a01",0,87,0,1	//ぐわっ口1
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,0	//ぐわっ目2
+    | TEX_ANIME_DATA "c07a01an",256,280,128,35,"c07a01",0,87,0,1	//ぐわっ口2
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",256,315,128,35,"c07a01",0,87,0,0	//がうう口
+    | TEX_ANIME_DATA "c07a01an",0,320,128,40,"c07a01",0,42,0,1	//がうう目
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,128,"c07a01",0,0,0,1	//Ｂシーダ
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,7,0	//Ｂデフォ口
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,7,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,8,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,9,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,7,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,8,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,7,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,9,0	//Ｂにやりぱく1
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//Ｂおどろき目
+    | TEX_ANIME_DATA "c07a01an",384,315,128,35,"c07a01",0,87,0,1	//Ｂおどろき口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,1	//Ｂわらい目
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",384,280,128,35,"c07a01",0,87,8,0	//Ｂわらい口
+    | TEX_ANIME_DATA "c07a01an",128,288,128,35,"c07a01",0,87,8,0	//Ｂわらい口2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,10,1	//Ｂ思い付く目
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,7,0	//Ｂノーマル口
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,8,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,7,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,245,128,35,"c07a01",0,87,9,0	//Ｂぱく3
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,7,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,8,0	//Ｂぱく1
+    | TEX_ANIME_END
+    | TEX_ANIME 15,0
+    | TEX_ANIME_DATA "c07a01an",128,323,128,40,"c07a01",0,42,0,1	//下向き目
+    | TEX_ANIME_END
+    | TEX_ANIME 16,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,0,1	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 17,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,7,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,8,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,9,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,8,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,7,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,9,0	//にやりぱく
+    | TEX_ANIME_END
+    | 
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "c07a.mds"
+    | SHADOW_MODEL "e17c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "c07a.mot", "c07a.bbp", "c07a.wgt"
+    | SHADOW_MOTION "e17c07s.mot", "e17c07s.bbp", "e17c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.1 //立ち 0
+    | KEY 40, 60, 0.25 //歩き 1
+    | KEY 80, 95, 0.16 //後ろ振り返り 2
+    | KEY 96, 120, 0.2 //指差し会話Ｌ 3
+    | KEY 121, 141, 0.2 //ノーマル会話 4
+    | KEY 142, 150, 0.22 //会話＞苦しみ 5
+    | KEY 153, 161, 0.2 //苦しみＬ 6
+    | KEY 162, 171, 0.2 //遠吠え 7
+    | KEY 165, 170, 0.25 //遠吠えＬ 8 
+    | KEY 172, 215, 0.2 //前のめり＞顔起こす 9
+    | KEY 216, 246, 0.2 //そのまま会話 10
+    | KEY 247, 257, 0.22 //剣構え 11
+    | KEY 258, 268, 0.2 //剣構えＬ  12
+    | KEY 269, 300, 0.3 //露払い＞飛び掛かり  13
+    | KEY 305, 311, 0.2 //立ち＞魔法ポーズ  14
+    | KEY 312, 322, 0.2 //魔法ポーズＬ 15
+    | KEY 325, 332, 0.2 //剣付きつける 16 
+    | KEY 333, 343, 0.2 //突き付けＬ 17
+    | KEY 344, 360, 0.2 //笑い始め 18
+    | KEY 361, 369, 0.2 //笑いＬ 19
+    | KEY 370, 375, 0.2 //笑い＞立ち 20
+    | KEY 378, 398, 0.2 //立ち＞投げ 21
+    | KEY 399, 410, 0.2 //後ろ向き首振り返り 22
+    | KEY 411, 421, 0.1 //上記Ｌ 23
+    | MOTION_END
+    | EVENT 43,0,0 //新規
+    | EVENT 53,0,1 //新規
+    | EVENT 88,0,0 //新規
+    | EVENT 94,0,1 //新規
+    | EVENT 146,0,0 //新規
+    | EVENT 290,0,0 //新規
+    | EVENT 310.5,0,0 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1                         parent  -1
+      1 hip                              parent   0 (skel_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 l_sdr2                           parent  12 (l_arm_1)
+     16 neck                             parent  10 (spine)
+     17 face                             parent  16 (neck)
+     18 r_sdr                            parent  10 (spine)
+     19 r_arm                            parent  18 (r_sdr)
+     20 r_farm                           parent  19 (r_arm)
+     21 r_hand                           parent  20 (r_farm)
+     22 r_sdr2                           parent  19 (r_arm)
+     23 skin                             parent   0 (skel_1_1)
+
+gedit/s99/chara/e17eb.chr :: e17ebc07s.mds
+  24 bones, 6 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,100,0	//険しい１
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,5,0	//険しい2
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,100,0	//険しい3
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,0,0	//ぐわっ目１
+    | TEX_ANIME_DATA "c07a01an",256,245,128,35,"c07a01",0,87,0,1	//ぐわっ口1
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,0	//ぐわっ目2
+    | TEX_ANIME_DATA "c07a01an",256,280,128,35,"c07a01",0,87,0,1	//ぐわっ口2
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",256,315,128,35,"c07a01",0,87,0,0	//がうう口
+    | TEX_ANIME_DATA "c07a01an",0,320,128,40,"c07a01",0,42,0,1	//がうう目
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,128,"c07a01",0,0,0,1	//Ｂシーダ
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//Ｂおどろき目
+    | TEX_ANIME_DATA "c07a01an",384,315,128,35,"c07a01",0,87,0,1	//Ｂおどろき口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,1	//Ｂわらい目
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",384,280,128,35,"c07a01",0,87,8,0	//Ｂわらい口
+    | TEX_ANIME_DATA "c07a01an",128,288,128,35,"c07a01",0,87,8,0	//Ｂわらい口2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,10,1	//Ｂ思い付く目
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,245,128,35,"c07a01",0,87,6,0	//Ｂぱく3
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e17ebc07a.mds"
+    | SHADOW_MODEL "e17ebc07s.mds"
+    | BODY_SIZE 17,7,60
+    | 
+    | MOTION 0, "e17ebc07a.mot", "e17ebc07a.bbp", "e17ebc07a.wgt"
+    | SHADOW_MOTION "e17ebc07s.mot", "e17ebc07s.bbp", "e17ebc07s.wgt"
+    | KEY_START 0
+    | KEY 10, 23, 0.23 //バトル１ 300
+    | KEY 24, 55, 0.23 //バトル2 301
+    | KEY 56, 143, 0.23 //バトル3 302
+    | KEY 144, 217, 0.23 //バトル4 303
+    | KEY 220, 225, 0.05 //バトル5 304
+    | KEY 226, 250, 0.2 //バトル6 305
+    | MOTION_END
+    | EVENT 14,0,0 //新規
+    | EVENT 14,0,1 //新規
+    | EVENT 38,0,1 //新規
+    | EVENT 46,0,0 //新規
+    | EVENT 50,0,1 //新規
+    | EVENT 53,0,0 //新規
+    | EVENT 113,0,0 //新規
+    | EVENT 148,0,0 //新規
+    | EVENT 167,0,1 //新規
+    | EVENT 190,0,0 //新規
+    | EVENT 203,0,1 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1                         parent  -1
+      1 hip                              parent   0 (skel_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 l_sdr2                           parent  12 (l_arm_1)
+     16 neck                             parent  10 (spine)
+     17 face                             parent  16 (neck)
+     18 r_sdr                            parent  10 (spine)
+     19 r_arm                            parent  18 (r_sdr)
+     20 r_farm                           parent  19 (r_arm)
+     21 r_hand                           parent  20 (r_farm)
+     22 r_sdr2                           parent  19 (r_arm)
+     23 skin                             parent   0 (skel_1_1)
+
+gedit/s99/chara/e17eb.chr :: e17ebc07a.mds
+  35 bones, 6 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,100,0	//険しい１
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,5,0	//険しい2
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,100,0	//険しい3
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,0,0	//ぐわっ目１
+    | TEX_ANIME_DATA "c07a01an",256,245,128,35,"c07a01",0,87,0,1	//ぐわっ口1
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,0	//ぐわっ目2
+    | TEX_ANIME_DATA "c07a01an",256,280,128,35,"c07a01",0,87,0,1	//ぐわっ口2
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",256,315,128,35,"c07a01",0,87,0,0	//がうう口
+    | TEX_ANIME_DATA "c07a01an",0,320,128,40,"c07a01",0,42,0,1	//がうう目
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,128,"c07a01",0,0,0,1	//Ｂシーダ
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//Ｂおどろき目
+    | TEX_ANIME_DATA "c07a01an",384,315,128,35,"c07a01",0,87,0,1	//Ｂおどろき口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,1	//Ｂわらい目
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",384,280,128,35,"c07a01",0,87,8,0	//Ｂわらい口
+    | TEX_ANIME_DATA "c07a01an",128,288,128,35,"c07a01",0,87,8,0	//Ｂわらい口2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,10,1	//Ｂ思い付く目
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,245,128,35,"c07a01",0,87,6,0	//Ｂぱく3
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e17ebc07a.mds"
+    | SHADOW_MODEL "e17ebc07s.mds"
+    | BODY_SIZE 17,7,60
+    | 
+    | MOTION 0, "e17ebc07a.mot", "e17ebc07a.bbp", "e17ebc07a.wgt"
+    | SHADOW_MOTION "e17ebc07s.mot", "e17ebc07s.bbp", "e17ebc07s.wgt"
+    | KEY_START 0
+    | KEY 10, 23, 0.23 //バトル１ 300
+    | KEY 24, 55, 0.23 //バトル2 301
+    | KEY 56, 143, 0.23 //バトル3 302
+    | KEY 144, 217, 0.23 //バトル4 303
+    | KEY 220, 225, 0.05 //バトル5 304
+    | KEY 226, 250, 0.2 //バトル6 305
+    | MOTION_END
+    | EVENT 14,0,0 //新規
+    | EVENT 14,0,1 //新規
+    | EVENT 38,0,1 //新規
+    | EVENT 46,0,0 //新規
+    | EVENT 50,0,1 //新規
+    | EVENT 53,0,0 //新規
+    | EVENT 113,0,0 //新規
+    | EVENT 148,0,0 //新規
+    | EVENT 167,0,1 //新規
+    | EVENT 190,0,0 //新規
+    | EVENT 203,0,1 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1                         parent  -1
+      1 hip                              parent   0 (skel_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 r_hand3                          parent  14 (l_hand)
+     16 obj9                             parent  13 (l_farm)
+     17 l_sdr2                           parent  12 (l_arm_1)
+     18 neck                             parent  10 (spine)
+     19 face                             parent  18 (neck)
+     20 face5_1                          parent  19 (face)
+     21 b_hair_3                         parent  19 (face)
+     22 f_hair_1                         parent  19 (face)
+     23 r_sdr                            parent  10 (spine)
+     24 r_arm                            parent  23 (r_sdr)
+     25 r_farm                           parent  24 (r_arm)
+     26 r_hand                           parent  25 (r_farm)
+     27 r_hand4                          parent  26 (r_hand)
+     28 obj10                            parent  27 (r_hand4)
+     29 dcol1                            parent  28 (obj10)
+     30 dcol0                            parent  28 (obj10)
+     31 obj8                             parent  25 (r_farm)
+     32 r_sdr2                           parent  24 (r_arm)
+     33 kazari_2                         parent  10 (spine)
+     34 skin                             parent   0 (skel_1_1)
+
+gedit/s99/chara/e22.chr :: e22c07a.mds
+  33 bones, 3 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //イベント22トアン
+    | IMG 1,"c01d01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c01d01an",0,0,128,48,"c01d01",0,27,0,0	//デフォ目
+    | TEX_ANIME_DATA "c01d01an",256,0,128,44,"c01d01",0,78,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c01d01an",0,192,128,48,"c01d01",0,27,0,0	//おどろき目
+    | TEX_ANIME_DATA "c01d01an",256,176,128,44,"c01d01",0,78,0,1	//おどろき口1
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c01d01an",0,240,128,48,"c01d01",0,27,100,0	//不思議目
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",128,0,128,48,"c01d01",0,27,1,0	//不思議目4
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,240,128,48,"c01d01",0,27,5,0	//不思議目
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",128,0,128,48,"c01d01",0,27,1,0	//不思議目4
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,240,128,48,"c01d01",0,27,100,0	//不思議目
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c01d01an",0,0,128,48,"c01d01",0,27,100,0	//デフォ目
+    | TEX_ANIME_DATA "c01d01an",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d01an",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d01an",0,144,128,48,"c01d01",0,27,1,0	//目ぱち3
+    | TEX_ANIME_DATA "c01d01an",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d01an",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d01an",0,0,128,48,"c01d01",0,27,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c01d01an",256,264,128,44,"c01d01",0,78,0,1	//不思議口
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c01d01an",0,192,128,48,"c01d01",0,27,0,0	//おどろき目
+    | TEX_ANIME_DATA "c01d01an",256,220,128,44,"c01d01",0,78,0,1	//おどろき口2
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c01d01an",128,48,128,48,"c01d01",0,27,0,0	//にらみ目1
+    | TEX_ANIME_DATA "c01d01an",256,308,128,44,"c01d01",0,78,0,1	//あせり口
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c01d01an",128,96,128,48,"c01d01",0,27,0,0	//にらみ目下
+    | TEX_ANIME_DATA "c01d01an",256,176,128,44,"c01d01",0,78,0,1	//おどろき口1
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c01d01an",128,144,128,48,"c01d01",0,27,0,0	//にらみ目2
+    | TEX_ANIME_DATA "c01d01an",384,0,128,44,"c01d01",0,78,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_DATA "c01d01an",384,0,128,44,"c01d01",0,78,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c01d01an",128,240,128,48,"c01d01",0,27,0,0	//ダメージ目
+    | TEX_ANIME_DATA "c01d01an",384,44,128,44,"c01d01",0,78,0,1	//ダメージ口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_DATA "c01d01an",384,88,128,44,"c01d01",0,78,0,1	//くいしばり血
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_DATA "c01d01an",384,132,128,44,"c01d01",0,78,0,1	//くいしばり2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | 
+    | 
+    | MOTION 1, "e22c01d.mot", "e22c01d.bbp", "e22c01d.wgt"
+    | SHADOW_MOTION "e22c01s.mot", "e22c01s.bbp", "e22c01s.wgt"
+    | KEY_START 200
+    | KEY  31,  54,  0.4  //吹っ飛び           200
+    | KEY  55,  84,  0.20  //体起こす     201
+    | KEY  87,  107,  0.20  //口ぬぐう     202
+    | MOTION_END
+    | 
+    | 
+  skeleton:
+      0 skel_1_1                         parent  -1
+      1 hip                              parent   0 (skel_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 r_hand3                          parent  14 (l_hand)
+     16 obj9                             parent  13 (l_farm)
+     17 l_sdr2                           parent  12 (l_arm_1)
+     18 neck                             parent  10 (spine)
+     19 face                             parent  18 (neck)
+     20 face5_1                          parent  19 (face)
+     21 b_hair_3                         parent  19 (face)
+     22 f_hair_1                         parent  19 (face)
+     23 r_sdr                            parent  10 (spine)
+     24 r_arm                            parent  23 (r_sdr)
+     25 r_farm                           parent  24 (r_arm)
+     26 r_hand                           parent  25 (r_farm)
+     27 r_hand4                          parent  26 (r_hand)
+     28 obj10                            parent  27 (r_hand4)
+     29 obj8                             parent  25 (r_farm)
+     30 r_sdr2                           parent  24 (r_arm)
+     31 kazari_2                         parent  10 (spine)
+     32 skin                             parent   0 (skel_1_1)
+
+gedit/s99/chara/e22.chr :: e22c07s.mds
+  24 bones, 3 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //イベント22トアン
+    | IMG 1,"c01d01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c01d01an",0,0,128,48,"c01d01",0,27,0,0	//デフォ目
+    | TEX_ANIME_DATA "c01d01an",256,0,128,44,"c01d01",0,78,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c01d01an",0,192,128,48,"c01d01",0,27,0,0	//おどろき目
+    | TEX_ANIME_DATA "c01d01an",256,176,128,44,"c01d01",0,78,0,1	//おどろき口1
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c01d01an",0,240,128,48,"c01d01",0,27,100,0	//不思議目
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",128,0,128,48,"c01d01",0,27,1,0	//不思議目4
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,240,128,48,"c01d01",0,27,5,0	//不思議目
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",128,0,128,48,"c01d01",0,27,1,0	//不思議目4
+    | TEX_ANIME_DATA "c01d01an",0,336,128,48,"c01d01",0,27,1,0	//不思議目3
+    | TEX_ANIME_DATA "c01d01an",0,288,128,48,"c01d01",0,27,1,0	//不思議目2
+    | TEX_ANIME_DATA "c01d01an",0,240,128,48,"c01d01",0,27,100,0	//不思議目
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c01d01an",0,0,128,48,"c01d01",0,27,100,0	//デフォ目
+    | TEX_ANIME_DATA "c01d01an",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d01an",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d01an",0,144,128,48,"c01d01",0,27,1,0	//目ぱち3
+    | TEX_ANIME_DATA "c01d01an",0,96,128,48,"c01d01",0,27,1,0	//目ぱち2
+    | TEX_ANIME_DATA "c01d01an",0,48,128,48,"c01d01",0,27,1,0	//目ぱち1
+    | TEX_ANIME_DATA "c01d01an",0,0,128,48,"c01d01",0,27,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c01d01an",256,264,128,44,"c01d01",0,78,0,1	//不思議口
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c01d01an",0,192,128,48,"c01d01",0,27,0,0	//おどろき目
+    | TEX_ANIME_DATA "c01d01an",256,220,128,44,"c01d01",0,78,0,1	//おどろき口2
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c01d01an",128,48,128,48,"c01d01",0,27,0,0	//にらみ目1
+    | TEX_ANIME_DATA "c01d01an",256,308,128,44,"c01d01",0,78,0,1	//あせり口
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c01d01an",128,96,128,48,"c01d01",0,27,0,0	//にらみ目下
+    | TEX_ANIME_DATA "c01d01an",256,176,128,44,"c01d01",0,78,0,1	//おどろき口1
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c01d01an",128,144,128,48,"c01d01",0,27,0,0	//にらみ目2
+    | TEX_ANIME_DATA "c01d01an",384,0,128,44,"c01d01",0,78,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_DATA "c01d01an",384,0,128,44,"c01d01",0,78,0,1	//くいしばり
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c01d01an",128,240,128,48,"c01d01",0,27,0,0	//ダメージ目
+    | TEX_ANIME_DATA "c01d01an",384,44,128,44,"c01d01",0,78,0,1	//ダメージ口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_DATA "c01d01an",384,88,128,44,"c01d01",0,78,0,1	//くいしばり血
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_DATA "c01d01an",384,132,128,44,"c01d01",0,78,0,1	//くいしばり2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c01d01an",128,192,128,48,"c01d01",0,27,0,0	//にらみ目3
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | 
+    | 
+    | MOTION 1, "e22c01d.mot", "e22c01d.bbp", "e22c01d.wgt"
+    | SHADOW_MOTION "e22c01s.mot", "e22c01s.bbp", "e22c01s.wgt"
+    | KEY_START 200
+    | KEY  31,  54,  0.4  //吹っ飛び           200
+    | KEY  55,  84,  0.20  //体起こす     201
+    | KEY  87,  107,  0.20  //口ぬぐう     202
+    | MOTION_END
+    | 
+    | 
+  skeleton:
+      0 skel_1_1_1                       parent  -1
+      1 hip                              parent   0 (skel_1_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 l_sdr2                           parent  12 (l_arm_1)
+     16 neck                             parent  10 (spine)
+     17 face                             parent  16 (neck)
+     18 r_sdr                            parent  10 (spine)
+     19 r_arm                            parent  18 (r_sdr)
+     20 r_farm                           parent  19 (r_arm)
+     21 r_hand                           parent  20 (r_farm)
+     22 r_sdr2                           parent  19 (r_arm)
+     23 skin                             parent   0 (skel_1_1_1)
+
+gedit/s99/chara/e23.chr :: e23c07a.mds
+  33 bones, 7 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,20,0	//険しい１
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,5,0	//険しい2
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,100,1	//険しい3
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,0,0	//ぐわっ目１
+    | TEX_ANIME_DATA "c07a01an",256,245,128,35,"c07a01",0,87,0,1	//ぐわっ口1
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,0	//ぐわっ目2
+    | TEX_ANIME_DATA "c07a01an",256,280,128,35,"c07a01",0,87,0,1	//ぐわっ口2
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",256,315,128,35,"c07a01",0,87,0,0	//がうう口
+    | TEX_ANIME_DATA "c07a01an",0,320,128,40,"c07a01",0,42,0,1	//がうう目
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,128,"c07a01",0,0,0,1	//Ｂシーダ
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//Ｂおどろき目
+    | TEX_ANIME_DATA "c07a01an",384,315,128,35,"c07a01",0,87,0,1	//Ｂおどろき口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,1	//Ｂわらい目
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",384,280,128,35,"c07a01",0,87,8,0	//Ｂわらい口
+    | TEX_ANIME_DATA "c07a01an",128,288,128,35,"c07a01",0,87,8,0	//Ｂわらい口2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,10,1	//Ｂ思い付く目
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,245,128,35,"c07a01",0,87,6,0	//Ｂぱく3
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_END
+    | TEX_ANIME 15,0
+    | TEX_ANIME_DATA "c07a01an",128,323,128,40,"c07a01",0,42,0,1	//下向き目
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e23c07a.mds"
+    | SHADOW_MODEL "e23c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "e23c07a.mot", "e23c07a.bbp", "e23c07a.wgt"
+    | SHADOW_MOTION "e23c07s.mot", "e23c07s.bbp", "e23c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.10 //立ち               0
+    | KEY 40, 60, 0.25 //歩き                1
+    | KEY 80, 95, 0.16 //後ろ振り返り 2
+    | KEY 96, 116, 0.2 //ノーマル会話 3
+    | KEY 128, 137, 0.22 //剣構え      4
+    | KEY 139, 149, 0.2 //剣構えＬ     5
+    | KEY 150, 170, 0.3 //露払い＞飛び掛かり   6
+    | MOTION_END
+    | EVENT 51,0,1 //新規
+    | EVENT 41,0,0 //新規
+    | EVENT 90,0,0 //新規
+    | EVENT 161,0,0 //新規
+    | EVENT 94,0,1 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1                         parent  -1
+      1 hip                              parent   0 (skel_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 r_hand3                          parent  14 (l_hand)
+     16 obj9                             parent  13 (l_farm)
+     17 l_sdr2                           parent  12 (l_arm_1)
+     18 neck                             parent  10 (spine)
+     19 face                             parent  18 (neck)
+     20 face5_1                          parent  19 (face)
+     21 b_hair_3                         parent  19 (face)
+     22 f_hair_1                         parent  19 (face)
+     23 r_sdr                            parent  10 (spine)
+     24 r_arm                            parent  23 (r_sdr)
+     25 r_farm                           parent  24 (r_arm)
+     26 r_hand                           parent  25 (r_farm)
+     27 r_hand4                          parent  26 (r_hand)
+     28 obj10                            parent  27 (r_hand4)
+     29 obj8                             parent  25 (r_farm)
+     30 r_sdr2                           parent  24 (r_arm)
+     31 kazari_2                         parent  10 (spine)
+     32 skin                             parent   0 (skel_1_1)
+
+gedit/s99/chara/e23.chr :: e23c07s.mds
+  24 bones, 7 motion keys; of the reference's 77: 4 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ
+    | IMG 0,"c07a01.img"
+    | IMG 1,"c07a02.img"
+    | IMG 2,"c07a01an.img"
+    | IMG_END
+    | TEX_ANIME 0,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,0,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,0,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 1,0
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,80,128,40,"c07a01",0,42,2,0	//ぱち２
+    | TEX_ANIME_DATA "c07a01an",0,40,128,40,"c07a01",0,42,2,0	//ぱち１
+    | TEX_ANIME_DATA "c07a01an",0,0,128,40,"c07a01",0,42,100,0	//デフォ目
+    | TEX_ANIME_END
+    | TEX_ANIME 2,0
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,175,128,35,"c07a01",0,87,6,0	//にやりぱく
+    | TEX_ANIME_DATA "c07a01an",256,210,128,35,"c07a01",0,87,6,0	//にやりぱく2
+    | TEX_ANIME_DATA "c07a01an",256,140,128,35,"c07a01",0,87,6,0	//にやり口
+    | TEX_ANIME_END
+    | TEX_ANIME 3,0
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,70,128,35,"c07a01",0,87,6,0	//ぱく2
+    | TEX_ANIME_DATA "c07a01an",256,105,128,35,"c07a01",0,87,6,0	//ぱく3
+    | TEX_ANIME_DATA "c07a01an",256,35,128,35,"c07a01",0,87,6,0	//ぱく１
+    | TEX_ANIME_DATA "c07a01an",256,0,128,35,"c07a01",0,87,6,0	//デフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 4,0
+    | TEX_ANIME_DATA "c07a01an",0,120,128,40,"c07a01",0,42,20,0	//険しい１
+    | TEX_ANIME_DATA "c07a01an",0,160,128,40,"c07a01",0,42,5,0	//険しい2
+    | TEX_ANIME_DATA "c07a01an",0,200,128,40,"c07a01",0,42,100,1	//険しい3
+    | TEX_ANIME_END
+    | TEX_ANIME 5,0
+    | TEX_ANIME_DATA "c07a01an",0,240,128,40,"c07a01",0,42,0,0	//ぐわっ目１
+    | TEX_ANIME_DATA "c07a01an",256,245,128,35,"c07a01",0,87,0,1	//ぐわっ口1
+    | TEX_ANIME_END
+    | TEX_ANIME 6,0
+    | TEX_ANIME_DATA "c07a01an",0,280,128,40,"c07a01",0,42,0,0	//ぐわっ目2
+    | TEX_ANIME_DATA "c07a01an",256,280,128,35,"c07a01",0,87,0,1	//ぐわっ口2
+    | TEX_ANIME_END
+    | TEX_ANIME 7,0
+    | TEX_ANIME_DATA "c07a01an",256,315,128,35,"c07a01",0,87,0,0	//がうう口
+    | TEX_ANIME_DATA "c07a01an",0,320,128,40,"c07a01",0,42,0,1	//がうう目
+    | TEX_ANIME_END
+    | TEX_ANIME 8,0
+    | TEX_ANIME_DATA "c07a01an",128,160,128,128,"c07a01",0,0,0,1	//Ｂシーダ
+    | TEX_ANIME_END
+    | TEX_ANIME 9,0
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,70,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく2
+    | TEX_ANIME_DATA "c07a01an",384,105,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく3
+    | TEX_ANIME_DATA "c07a01an",384,35,128,35,"c07a01",0,87,6,0	//Ｂにやりぱく1
+    | TEX_ANIME_DATA "c07a01an",384,0,128,35,"c07a01",0,87,6,0	//Ｂデフォ口
+    | TEX_ANIME_END
+    | TEX_ANIME 10,0
+    | TEX_ANIME_DATA "c07a01an",128,120,128,40,"c07a01",0,42,0,0	//Ｂおどろき目
+    | TEX_ANIME_DATA "c07a01an",384,315,128,35,"c07a01",0,87,0,1	//Ｂおどろき口
+    | TEX_ANIME_END
+    | TEX_ANIME 11,0
+    | TEX_ANIME_DATA "c07a01an",128,80,128,40,"c07a01",0,42,0,1	//Ｂわらい目
+    | TEX_ANIME_END
+    | TEX_ANIME 12,0
+    | TEX_ANIME_DATA "c07a01an",384,280,128,35,"c07a01",0,87,8,0	//Ｂわらい口
+    | TEX_ANIME_DATA "c07a01an",128,288,128,35,"c07a01",0,87,8,0	//Ｂわらい口2
+    | TEX_ANIME_END
+    | TEX_ANIME 13,0
+    | TEX_ANIME_DATA "c07a01an",128,40,128,40,"c07a01",0,42,10,1	//Ｂ思い付く目
+    | TEX_ANIME_END
+    | TEX_ANIME 14,0
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,245,128,35,"c07a01",0,87,6,0	//Ｂぱく3
+    | TEX_ANIME_DATA "c07a01an",384,210,128,35,"c07a01",0,87,6,0	//Ｂぱく2
+    | TEX_ANIME_DATA "c07a01an",384,175,128,35,"c07a01",0,87,6,0	//Ｂぱく1
+    | TEX_ANIME_DATA "c07a01an",384,140,128,35,"c07a01",0,87,6,0	//Ｂノーマル口
+    | TEX_ANIME_END
+    | TEX_ANIME 15,0
+    | TEX_ANIME_DATA "c07a01an",128,323,128,40,"c07a01",0,42,0,1	//下向き目
+    | TEX_ANIME_END
+    | MATERIAL_ANIME 0
+    | VERTEX_ANIME 1
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | ALLOC_DBUFF "skin"
+    | MODEL "e23c07a.mds"
+    | SHADOW_MODEL "e23c07s.mds"
+    | BODY_SIZE 19,7,60
+    | 
+    | MOTION 0, "e23c07a.mot", "e23c07a.bbp", "e23c07a.wgt"
+    | SHADOW_MOTION "e23c07s.mot", "e23c07s.bbp", "e23c07s.wgt"
+    | KEY_START 0
+    | KEY 10, 20, 0.10 //立ち               0
+    | KEY 40, 60, 0.25 //歩き                1
+    | KEY 80, 95, 0.16 //後ろ振り返り 2
+    | KEY 96, 116, 0.2 //ノーマル会話 3
+    | KEY 128, 137, 0.22 //剣構え      4
+    | KEY 139, 149, 0.2 //剣構えＬ     5
+    | KEY 150, 170, 0.3 //露払い＞飛び掛かり   6
+    | MOTION_END
+    | EVENT 51,0,1 //新規
+    | EVENT 41,0,0 //新規
+    | EVENT 90,0,0 //新規
+    | EVENT 161,0,0 //新規
+    | EVENT 94,0,1 //新規
+    | 
+    | 
+  skeleton:
+      0 skel_1_1_1                       parent  -1
+      1 hip                              parent   0 (skel_1_1_1)
+      2 l_upleg                          parent   1 (hip)
+      3 l_leg                            parent   2 (l_upleg)
+      4 l_foot_1                         parent   3 (l_leg)
+      5 l_toe                            parent   4 (l_foot_1)
+      6 r_upleg                          parent   1 (hip)
+      7 r_leg                            parent   6 (r_upleg)
+      8 r_foot_1                         parent   7 (r_leg)
+      9 r_toe                            parent   8 (r_foot_1)
+     10 spine                            parent   1 (hip)
+     11 l_sdr                            parent  10 (spine)
+     12 l_arm_1                          parent  11 (l_sdr)
+     13 l_farm                           parent  12 (l_arm_1)
+     14 l_hand                           parent  13 (l_farm)
+     15 l_sdr2                           parent  12 (l_arm_1)
+     16 neck                             parent  10 (spine)
+     17 face                             parent  16 (neck)
+     18 r_sdr                            parent  10 (spine)
+     19 r_arm                            parent  18 (r_sdr)
+     20 r_farm                           parent  19 (r_arm)
+     21 r_hand                           parent  20 (r_farm)
+     22 r_sdr2                           parent  19 (r_arm)
+     23 skin                             parent   0 (skel_1_1_1)
+
+dun/mainchara/c07a.chr :: c07s.mds
+  65 bones, 3 motion keys; of the reference's 77: 1 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 l_hand renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 face chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 r_hand dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //キャラクタ情報
+    | 
+    | VERTEX_ANIME 1			//頂点移動のアニメがある場合１
+    | SHADOW_VERTEX_ANIME 1		//オブジェクトの回転・移動のみのときは０
+    | 
+    | 
+    | MODEL		"c07a.mds"	//モデルデータ
+    | SHADOW_MODEL	"c07s.mds"
+    | 
+    | 
+    | MOTION		0, "c07a.mot", "c07a.bbp", "c07a.wgt"	//モーションデータ
+    | SHADOW_MOTION	   "c07s.mot", "c07s.bbp", "c07s.wgt"
+    | 
+    | KEY_START 0
+    | 	KEY	10,	20,	0.5,		//立ち	0
+    | 	KEY	60,	80,	0.5,		//走り	1
+    | 	KEY	30,	50,	0.2,		//歩き	2
+    | MOTION_END
+  skeleton:
+      0 null1_2_2_2_3_2                  parent  -1
+      1 null2                            parent   0 (null1_2_2_2_3_2)
+      2 chn48                            parent   1 (null2)
+      3 jnt48_1                          parent   2 (chn48)
+      4 eff48                            parent   3 (jnt48_1)
+      5 chn50                            parent   4 (eff48)
+      6 jnt50_1                          parent   5 (chn50)
+      7 eff50                            parent   6 (jnt50_1)
+      8 chn37                            parent   7 (eff50)
+      9 jnt37_1                          parent   8 (chn37)
+     10 eff37                            parent   9 (jnt37_1)
+     11 chn52                            parent  10 (eff37)
+     12 jnt52_1                          parent  11 (chn52)
+     13 eff52                            parent  12 (jnt52_1)
+     14 face2                            parent  12 (jnt52_1)
+     15 face3                            parent  12 (jnt52_1)
+     16 face1                            parent  12 (jnt52_1)
+     17 chn56                            parent   7 (eff50)
+     18 jnt56_1                          parent  17 (chn56)
+     19 eff56                            parent  18 (jnt56_1)
+     20 chn57                            parent  19 (eff56)
+     21 jnt57_1                          parent  20 (chn57)
+     22 jnt57_2                          parent  21 (jnt57_1)
+     23 eff57                            parent  22 (jnt57_2)
+     24 chn59                            parent  23 (eff57)
+     25 jnt59_1                          parent  24 (chn59)
+     26 eff59                            parent  25 (jnt59_1)
+     27 l_te                             parent  25 (jnt59_1)
+     28 l_ude                            parent  25 (jnt59_1)
+     29 l_kata                           parent  21 (jnt57_1)
+     30 chn39                            parent   7 (eff50)
+     31 jnt39_1                          parent  30 (chn39)
+     32 eff39                            parent  31 (jnt39_1)
+     33 chn40                            parent  32 (eff39)
+     34 jnt40_1                          parent  33 (chn40)
+     35 jnt40_2                          parent  34 (jnt40_1)
+     36 eff40                            parent  35 (jnt40_2)
+     37 chn67                            parent  36 (eff40)
+     38 jnt67_1                          parent  37 (chn67)
+     39 eff67                            parent  38 (jnt67_1)
+     40 r_te                             parent  38 (jnt67_1)
+     41 ken1                             parent  38 (jnt67_1)
+     42 r_ude                            parent  38 (jnt67_1)
+     43 r_kata                           parent  34 (jnt40_1)
+     44 chn30                            parent   4 (eff48)
+     45 jnt30_1                          parent  44 (chn30)
+     46 jnt30_2                          parent  45 (jnt30_1)
+     47 eff30                            parent  46 (jnt30_2)
+     48 chn64                            parent  47 (eff30)
+     49 jnt64_1                          parent  48 (chn64)
+     50 eff64                            parent  49 (jnt64_1)
+     51 chn65                            parent  50 (eff64)
+     52 jnt65_1                          parent  51 (chn65)
+     53 eff65                            parent  52 (jnt65_1)
+     54 chn27                            parent   4 (eff48)
+     55 jnt27_1                          parent  54 (chn27)
+     56 jnt27_2                          parent  55 (jnt27_1)
+     57 eff27                            parent  56 (jnt27_2)
+     58 chn60                            parent  57 (eff27)
+     59 jnt60_1                          parent  58 (chn60)
+     60 eff60                            parent  59 (jnt60_1)
+     61 chn61                            parent  60 (eff60)
+     62 jnt61_1                          parent  61 (chn61)
+     63 eff61                            parent  62 (jnt61_1)
+     64 skin                             parent   0 (null1_2_2_2_3_2)
+
+dun/mainchara/c07a.chr :: c07a.mds
+  65 bones, 3 motion keys; of the reference's 77: 1 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 l_hand renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 face chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 r_hand dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //キャラクタ情報
+    | 
+    | VERTEX_ANIME 1			//頂点移動のアニメがある場合１
+    | SHADOW_VERTEX_ANIME 1		//オブジェクトの回転・移動のみのときは０
+    | 
+    | 
+    | MODEL		"c07a.mds"	//モデルデータ
+    | SHADOW_MODEL	"c07s.mds"
+    | 
+    | 
+    | MOTION		0, "c07a.mot", "c07a.bbp", "c07a.wgt"	//モーションデータ
+    | SHADOW_MOTION	   "c07s.mot", "c07s.bbp", "c07s.wgt"
+    | 
+    | KEY_START 0
+    | 	KEY	10,	20,	0.5,		//立ち	0
+    | 	KEY	60,	80,	0.5,		//走り	1
+    | 	KEY	30,	50,	0.2,		//歩き	2
+    | MOTION_END
+  skeleton:
+      0 null1_2_2_2_4                    parent  -1
+      1 null2                            parent   0 (null1_2_2_2_4)
+      2 chn48                            parent   1 (null2)
+      3 jnt48_1                          parent   2 (chn48)
+      4 eff48                            parent   3 (jnt48_1)
+      5 chn50                            parent   4 (eff48)
+      6 jnt50_1                          parent   5 (chn50)
+      7 eff50                            parent   6 (jnt50_1)
+      8 chn37                            parent   7 (eff50)
+      9 jnt37_1                          parent   8 (chn37)
+     10 eff37                            parent   9 (jnt37_1)
+     11 chn52                            parent  10 (eff37)
+     12 jnt52_1                          parent  11 (chn52)
+     13 eff52                            parent  12 (jnt52_1)
+     14 face2                            parent  12 (jnt52_1)
+     15 face1                            parent  12 (jnt52_1)
+     16 face3                            parent  12 (jnt52_1)
+     17 chn56                            parent   7 (eff50)
+     18 jnt56_1                          parent  17 (chn56)
+     19 eff56                            parent  18 (jnt56_1)
+     20 chn57                            parent  19 (eff56)
+     21 jnt57_1                          parent  20 (chn57)
+     22 jnt57_2                          parent  21 (jnt57_1)
+     23 eff57                            parent  22 (jnt57_2)
+     24 chn59                            parent  23 (eff57)
+     25 jnt59_1                          parent  24 (chn59)
+     26 eff59                            parent  25 (jnt59_1)
+     27 r_te1                            parent  25 (jnt59_1)
+     28 hand9                            parent  25 (jnt59_1)
+     29 l_kata                           parent  21 (jnt57_1)
+     30 chn39                            parent   7 (eff50)
+     31 jnt39_1                          parent  30 (chn39)
+     32 eff39                            parent  31 (jnt39_1)
+     33 chn40                            parent  32 (eff39)
+     34 jnt40_1                          parent  33 (chn40)
+     35 jnt40_2                          parent  34 (jnt40_1)
+     36 eff40                            parent  35 (jnt40_2)
+     37 chn67                            parent  36 (eff40)
+     38 jnt67_1                          parent  37 (chn67)
+     39 eff67                            parent  38 (jnt67_1)
+     40 r_te                             parent  38 (jnt67_1)
+     41 r_ude                            parent  38 (jnt67_1)
+     42 ken1                             parent  38 (jnt67_1)
+     43 r_kata                           parent  34 (jnt40_1)
+     44 chn30                            parent   4 (eff48)
+     45 jnt30_1                          parent  44 (chn30)
+     46 jnt30_2                          parent  45 (jnt30_1)
+     47 eff30                            parent  46 (jnt30_2)
+     48 chn64                            parent  47 (eff30)
+     49 jnt64_1                          parent  48 (chn64)
+     50 eff64                            parent  49 (jnt64_1)
+     51 chn65                            parent  50 (eff64)
+     52 jnt65_1                          parent  51 (chn65)
+     53 eff65                            parent  52 (jnt65_1)
+     54 chn27                            parent   4 (eff48)
+     55 jnt27_1                          parent  54 (chn27)
+     56 jnt27_2                          parent  55 (jnt27_1)
+     57 eff27                            parent  56 (jnt27_2)
+     58 chn60                            parent  57 (eff27)
+     59 jnt60_1                          parent  58 (chn60)
+     60 eff60                            parent  59 (jnt60_1)
+     61 chn61                            parent  60 (eff60)
+     62 jnt61_1                          parent  61 (chn61)
+     63 eff61                            parent  62 (jnt61_1)
+     64 skin                             parent   0 (null1_2_2_2_4)
+
+opdat/dungeon/dungeon.pak :: 01c07a.mds
+  64 bones, 6 motion keys; of the reference's 77: 1 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 l_hand renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 face chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 r_hand dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ情報
+    | 
+    | VERTEX_ANIME 1	//頂点移動のアニメがある場合１
+    | 		//オブジェクトの回転・移動のみのときは０
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | MODEL	"01c07a.mds"	//モデルデータ
+    | 
+    | MOTION	0, "01c07a.mot", "01c07a.bbp", "01c07a.wgt"	//モーションデータ
+    | 
+    | KEY_START 0
+    | KEY 10, 11, 0.0   // 0 立ち
+    | KEY 10, 35, 0.15  // 1 振り向き
+    | KEY 35, 45, 0.1   // 2 振り向きループ
+    | KEY 70, 80, 0.1   // 3 立ち
+    | KEY 55, 65, 0.1   // 4 立ち
+    | KEY 85, 105, 0.8  // 5 走り出し
+    | MOTION_END
+  skeleton:
+      0 null1_2_2_2_4                    parent  -1
+      1 null2                            parent   0 (null1_2_2_2_4)
+      2 chn48                            parent   1 (null2)
+      3 jnt48_1                          parent   2 (chn48)
+      4 eff48                            parent   3 (jnt48_1)
+      5 chn50                            parent   4 (eff48)
+      6 jnt50_1                          parent   5 (chn50)
+      7 eff50                            parent   6 (jnt50_1)
+      8 chn37                            parent   7 (eff50)
+      9 jnt37_1                          parent   8 (chn37)
+     10 eff37                            parent   9 (jnt37_1)
+     11 chn52                            parent  10 (eff37)
+     12 jnt52_1                          parent  11 (chn52)
+     13 eff52                            parent  12 (jnt52_1)
+     14 face2                            parent  12 (jnt52_1)
+     15 face1                            parent  12 (jnt52_1)
+     16 face3                            parent  12 (jnt52_1)
+     17 chn56                            parent   7 (eff50)
+     18 jnt56_1                          parent  17 (chn56)
+     19 eff56                            parent  18 (jnt56_1)
+     20 chn57                            parent  19 (eff56)
+     21 jnt57_1                          parent  20 (chn57)
+     22 jnt57_2                          parent  21 (jnt57_1)
+     23 eff57                            parent  22 (jnt57_2)
+     24 chn59                            parent  23 (eff57)
+     25 jnt59_1                          parent  24 (chn59)
+     26 eff59                            parent  25 (jnt59_1)
+     27 r_te1                            parent  25 (jnt59_1)
+     28 hand9                            parent  22 (jnt57_2)
+     29 l_kata                           parent  21 (jnt57_1)
+     30 chn39                            parent   7 (eff50)
+     31 jnt39_1                          parent  30 (chn39)
+     32 eff39                            parent  31 (jnt39_1)
+     33 chn40                            parent  32 (eff39)
+     34 jnt40_1                          parent  33 (chn40)
+     35 jnt40_2                          parent  34 (jnt40_1)
+     36 eff40                            parent  35 (jnt40_2)
+     37 chn67                            parent  36 (eff40)
+     38 jnt67_1                          parent  37 (chn67)
+     39 eff67                            parent  38 (jnt67_1)
+     40 r_te                             parent  38 (jnt67_1)
+     41 r_ude                            parent  35 (jnt40_2)
+     42 r_kata                           parent  34 (jnt40_1)
+     43 chn30                            parent   4 (eff48)
+     44 jnt30_1                          parent  43 (chn30)
+     45 jnt30_2                          parent  44 (jnt30_1)
+     46 eff30                            parent  45 (jnt30_2)
+     47 chn64                            parent  46 (eff30)
+     48 jnt64_1                          parent  47 (chn64)
+     49 eff64                            parent  48 (jnt64_1)
+     50 chn65                            parent  49 (eff64)
+     51 jnt65_1                          parent  50 (chn65)
+     52 eff65                            parent  51 (jnt65_1)
+     53 chn27                            parent   4 (eff48)
+     54 jnt27_1                          parent  53 (chn27)
+     55 jnt27_2                          parent  54 (jnt27_1)
+     56 eff27                            parent  55 (jnt27_2)
+     57 chn60                            parent  56 (eff27)
+     58 jnt60_1                          parent  57 (chn60)
+     59 eff60                            parent  58 (jnt60_1)
+     60 chn61                            parent  59 (eff60)
+     61 jnt61_1                          parent  60 (chn61)
+     62 eff61                            parent  61 (jnt61_1)
+     63 skin                             parent   0 (null1_2_2_2_4)
+
+opdat/sikatest/dungeon.pak :: 01c07a.mds
+  64 bones, 6 motion keys; of the reference's 77: 1 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 l_hand renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 face chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 r_hand dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ情報
+    | 
+    | VERTEX_ANIME 1	//頂点移動のアニメがある場合１
+    | 		//オブジェクトの回転・移動のみのときは０
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | MODEL	"01c07a.mds"	//モデルデータ
+    | 
+    | MOTION	0, "01c07a.mot", "01c07a.bbp", "01c07a.wgt"	//モーションデータ
+    | 
+    | KEY_START 0
+    | KEY 10, 11, 0.0   // 0 立ち
+    | KEY 10, 35, 0.15  // 1 振り向き
+    | KEY 35, 45, 0.1   // 2 振り向きループ
+    | KEY 70, 80, 0.1   // 3 立ち
+    | KEY 55, 65, 0.1   // 4 立ち
+    | KEY 85, 105, 0.8  // 5 走り出し
+    | MOTION_END
+  skeleton:
+      0 null1_2_2_2_4                    parent  -1
+      1 null2                            parent   0 (null1_2_2_2_4)
+      2 chn48                            parent   1 (null2)
+      3 jnt48_1                          parent   2 (chn48)
+      4 eff48                            parent   3 (jnt48_1)
+      5 chn50                            parent   4 (eff48)
+      6 jnt50_1                          parent   5 (chn50)
+      7 eff50                            parent   6 (jnt50_1)
+      8 chn37                            parent   7 (eff50)
+      9 jnt37_1                          parent   8 (chn37)
+     10 eff37                            parent   9 (jnt37_1)
+     11 chn52                            parent  10 (eff37)
+     12 jnt52_1                          parent  11 (chn52)
+     13 eff52                            parent  12 (jnt52_1)
+     14 face2                            parent  12 (jnt52_1)
+     15 face1                            parent  12 (jnt52_1)
+     16 face3                            parent  12 (jnt52_1)
+     17 chn56                            parent   7 (eff50)
+     18 jnt56_1                          parent  17 (chn56)
+     19 eff56                            parent  18 (jnt56_1)
+     20 chn57                            parent  19 (eff56)
+     21 jnt57_1                          parent  20 (chn57)
+     22 jnt57_2                          parent  21 (jnt57_1)
+     23 eff57                            parent  22 (jnt57_2)
+     24 chn59                            parent  23 (eff57)
+     25 jnt59_1                          parent  24 (chn59)
+     26 eff59                            parent  25 (jnt59_1)
+     27 r_te1                            parent  25 (jnt59_1)
+     28 hand9                            parent  22 (jnt57_2)
+     29 l_kata                           parent  21 (jnt57_1)
+     30 chn39                            parent   7 (eff50)
+     31 jnt39_1                          parent  30 (chn39)
+     32 eff39                            parent  31 (jnt39_1)
+     33 chn40                            parent  32 (eff39)
+     34 jnt40_1                          parent  33 (chn40)
+     35 jnt40_2                          parent  34 (jnt40_1)
+     36 eff40                            parent  35 (jnt40_2)
+     37 chn67                            parent  36 (eff40)
+     38 jnt67_1                          parent  37 (chn67)
+     39 eff67                            parent  38 (jnt67_1)
+     40 r_te                             parent  38 (jnt67_1)
+     41 r_ude                            parent  35 (jnt40_2)
+     42 r_kata                           parent  34 (jnt40_1)
+     43 chn30                            parent   4 (eff48)
+     44 jnt30_1                          parent  43 (chn30)
+     45 jnt30_2                          parent  44 (jnt30_1)
+     46 eff30                            parent  45 (jnt30_2)
+     47 chn64                            parent  46 (eff30)
+     48 jnt64_1                          parent  47 (chn64)
+     49 eff64                            parent  48 (jnt64_1)
+     50 chn65                            parent  49 (eff64)
+     51 jnt65_1                          parent  50 (chn65)
+     52 eff65                            parent  51 (jnt65_1)
+     53 chn27                            parent   4 (eff48)
+     54 jnt27_1                          parent  53 (chn27)
+     55 jnt27_2                          parent  54 (jnt27_1)
+     56 eff27                            parent  55 (jnt27_2)
+     57 chn60                            parent  56 (eff27)
+     58 jnt60_1                          parent  57 (chn60)
+     59 eff60                            parent  58 (jnt60_1)
+     60 chn61                            parent  59 (eff60)
+     61 jnt61_1                          parent  60 (chn61)
+     62 eff61                            parent  61 (jnt61_1)
+     63 skin                             parent   0 (null1_2_2_2_4)
+
+opdat/sikatest/dungeon2.pak :: 01c07a.mds
+  64 bones, 6 motion keys; of the reference's 77: 1 by name, 1 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 l_hand renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 face chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 r_hand dcol weapon r_g cloth2 cloth3 kaban beruto
+  configuration:
+    | //シーダ情報
+    | 
+    | VERTEX_ANIME 1	//頂点移動のアニメがある場合１
+    | 		//オブジェクトの回転・移動のみのときは０
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | MODEL	"01c07a.mds"	//モデルデータ
+    | 
+    | MOTION	0, "01c07a.mot", "01c07a.bbp", "01c07a.wgt"	//モーションデータ
+    | 
+    | KEY_START 0
+    | KEY 10, 11, 0.0   // 0 立ち
+    | KEY 10, 35, 0.15  // 1 振り向き
+    | KEY 35, 45, 0.1   // 2 振り向きループ
+    | KEY 70, 80, 0.1   // 3 立ち
+    | KEY 55, 65, 0.1   // 4 立ち
+    | KEY 85, 105, 0.8  // 5 走り出し
+    | MOTION_END
+  skeleton:
+      0 null1_2_2_2_4                    parent  -1
+      1 null2                            parent   0 (null1_2_2_2_4)
+      2 chn48                            parent   1 (null2)
+      3 jnt48_1                          parent   2 (chn48)
+      4 eff48                            parent   3 (jnt48_1)
+      5 chn50                            parent   4 (eff48)
+      6 jnt50_1                          parent   5 (chn50)
+      7 eff50                            parent   6 (jnt50_1)
+      8 chn37                            parent   7 (eff50)
+      9 jnt37_1                          parent   8 (chn37)
+     10 eff37                            parent   9 (jnt37_1)
+     11 chn52                            parent  10 (eff37)
+     12 jnt52_1                          parent  11 (chn52)
+     13 eff52                            parent  12 (jnt52_1)
+     14 face2                            parent  12 (jnt52_1)
+     15 face1                            parent  12 (jnt52_1)
+     16 face3                            parent  12 (jnt52_1)
+     17 chn56                            parent   7 (eff50)
+     18 jnt56_1                          parent  17 (chn56)
+     19 eff56                            parent  18 (jnt56_1)
+     20 chn57                            parent  19 (eff56)
+     21 jnt57_1                          parent  20 (chn57)
+     22 jnt57_2                          parent  21 (jnt57_1)
+     23 eff57                            parent  22 (jnt57_2)
+     24 chn59                            parent  23 (eff57)
+     25 jnt59_1                          parent  24 (chn59)
+     26 eff59                            parent  25 (jnt59_1)
+     27 r_te1                            parent  25 (jnt59_1)
+     28 hand9                            parent  22 (jnt57_2)
+     29 l_kata                           parent  21 (jnt57_1)
+     30 chn39                            parent   7 (eff50)
+     31 jnt39_1                          parent  30 (chn39)
+     32 eff39                            parent  31 (jnt39_1)
+     33 chn40                            parent  32 (eff39)
+     34 jnt40_1                          parent  33 (chn40)
+     35 jnt40_2                          parent  34 (jnt40_1)
+     36 eff40                            parent  35 (jnt40_2)
+     37 chn67                            parent  36 (eff40)
+     38 jnt67_1                          parent  37 (chn67)
+     39 eff67                            parent  38 (jnt67_1)
+     40 r_te                             parent  38 (jnt67_1)
+     41 r_ude                            parent  35 (jnt40_2)
+     42 r_kata                           parent  34 (jnt40_1)
+     43 chn30                            parent   4 (eff48)
+     44 jnt30_1                          parent  43 (chn30)
+     45 jnt30_2                          parent  44 (jnt30_1)
+     46 eff30                            parent  45 (jnt30_2)
+     47 chn64                            parent  46 (eff30)
+     48 jnt64_1                          parent  47 (chn64)
+     49 eff64                            parent  48 (jnt64_1)
+     50 chn65                            parent  49 (eff64)
+     51 jnt65_1                          parent  50 (chn65)
+     52 eff65                            parent  51 (jnt65_1)
+     53 chn27                            parent   4 (eff48)
+     54 jnt27_1                          parent  53 (chn27)
+     55 jnt27_2                          parent  54 (jnt27_1)
+     56 eff27                            parent  55 (jnt27_2)
+     57 chn60                            parent  56 (eff27)
+     58 jnt60_1                          parent  57 (chn60)
+     59 eff60                            parent  58 (jnt60_1)
+     60 chn61                            parent  59 (eff60)
+     61 jnt61_1                          parent  60 (chn61)
+     62 eff61                            parent  61 (jnt61_1)
+     63 skin                             parent   0 (null1_2_2_2_4)
+
+opdat/norn3/norn3.pak :: e01c07_0.mds
+  2 bones, 3 motion keys; of the reference's 77: 0 by name, 0 with the same parent, 0 at the same index
+  missing from the reference: c01d_1_2_1_1 ctr chn1 jnt1_1 eff1 chn22 jnt22_1 jnt22_2 eff22 chn23 jnt23_1 eff23 chn24 jnt24_1 eff24 r_f footr chn5 jnt5_1 jnt5_2 eff5 chn6 jnt6_1 eff6 chn7 jnt7_1 eff7 l_f footl chn2 jnt2_1 eff2 chn8 jnt8_1 eff8 chn9 jnt9_1 jnt9_2 eff9 chn10 jnt10_1 eff10 l_hand renzu__m item l_g chn11 jnt11_1 eff11 chn12 jnt12_1 eff12 kao kami2 kami1 boushi cloth1 face chn16 jnt16_1 eff16 chn17 jnt17_1 jnt17_2 eff17 chn18 jnt18_1 eff18 r_hand dcol weapon r_g cloth2 cloth3 kaban beruto skin
+  configuration:
+    | //ペイジ情報
+    | 
+    | VERTEX_ANIME 1	//頂点移動のアニメがある場合１
+    | 		//オブジェクトの回転・移動のみのときは０
+    | SHADOW_VERTEX_ANIME 1
+    | 
+    | MODEL	"04p09a.mds"	//モデルデータ
+    | SHADOW_MODEL "04p09s.mds"
+    | 
+    | MOTION	0, "04p09a.mot", "04p09a.bbp", "04p09a.wgt"	//モーションデータ
+    | SHADOW_MOTION "04p09s.mot", "04p09s.bbp", "04p09s.wgt"
+    | 
+    | KEY_START 0
+    | 
+    | KEY	10,20,0.1	//四つんばいループ
+    | KEY	25,35,0.1	//トアンに視線ループ
+    | KEY	40,50,0.1	//手伸ばし
+    | 
+    | MOTION_END
+  skeleton:
+      0 e01c07_0                         parent  -1
+      1 kage__A01z                       parent   0 (e01c07_0)

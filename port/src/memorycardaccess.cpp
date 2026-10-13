@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "dngstatusdata.hpp"
+#include "dsgeorama.hpp"
 #include "menu_option.hpp"
 #include "platform/files.hpp"
 #include "platform/save_state.hpp"
@@ -24,11 +25,20 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr int kImageSize = 0x136A7;
+// Retail's save image: the save data, its version and its checksums.
+constexpr int kRetailImageSize = 0x136A7;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+// The Demon Shaft georama mod's record follows retail's image; a save without it still loads.
+constexpr int kImageSize = kRetailImageSize + DSG_SAVE_SIZE;
+#else
+constexpr int kImageSize = kRetailImageSize;
+#endif
 constexpr int kVersionSize = 0x20;
 
 // The whole save, read before any of it reaches SaveData.
 alignas(64) char g_image[kImageSize];
+// How much of g_image the last ReadImage filled.
+int g_image_read;
 
 // Retail's ((int)p >> 6) + 1) << 6 on the whole pointer: the next 64-byte boundary strictly after p.
 char *PastNext64(char *pointer) {
@@ -54,7 +64,10 @@ SaveState CurrentState() {
 
 // Reads file_no's whole save into g_image: this version's, and every checksum right.
 bool ReadImage(int file_no, const char *version) {
-    if (FilesRead(SaveSlotPath(file_no), g_image, kImageSize) < kImageSize ||
+    std::memset(g_image, 0, sizeof(g_image));
+    g_image_read = static_cast<int>(FilesRead(SaveSlotPath(file_no), g_image, kImageSize));
+
+    if (g_image_read < kRetailImageSize ||
         std::strncmp(g_image + sizeof(CSaveData), version, kVersionSize) != 0) {
         return false;
     }
@@ -114,6 +127,10 @@ PORT_OVERRIDE void CMemoryCardAccess::SetBuff(char *buffer) {
         }
     }
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    DsgWriteSave((char *) this->save_buffer + kRetailImageSize);
+    sum = (char *) this->save_buffer + kImageSize;
+#endif
     this->read_buffer = PastNext64(sum);
     this->load_buffer = this->read_buffer;
 }
@@ -282,6 +299,9 @@ PORT_OVERRIDE int CMemoryCardAccess::LoadFromMc(int file_no) {
     SaveState state = CurrentState();
     SaveStateRead(SaveStatePath(), state);
     memcpy(SaveData, g_image, sizeof(CSaveData));
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    DsgReadSave(g_image + kRetailImageSize, g_image_read - kRetailImageSize);
+#endif
     ConfigWord(kConfigLastFile) = file_no;
     state.last_save = file_no + 1;
     // Cursor memory is useful across restarts, but its failure must not reject a valid save.

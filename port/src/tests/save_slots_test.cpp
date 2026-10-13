@@ -20,6 +20,9 @@
 #include "platform_fixture.hpp"
 #include "save_slots.hpp"
 #include "savedata.hpp"
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+#include "dsgeorama.hpp"
+#endif
 
 #ifndef _WIN32
 #include <sys/stat.h>
@@ -34,7 +37,12 @@ extern int (*SaveMenuFunc[26])();
 
 namespace {
 
-constexpr int kImageSize = 0x136A7;
+constexpr int kRetailImageSize = 0x136A7;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+constexpr int kImageSize = kRetailImageSize + DSG_SAVE_SIZE;
+#else
+constexpr int kImageSize = kRetailImageSize;
+#endif
 constexpr int kSaveDataSize = 0x131C0;
 constexpr int kChecksumOffset = 0x131E0;
 constexpr int kSaveMapNoOffset = 0x1C8;
@@ -198,6 +206,40 @@ TEST(SaveSlots, BoardsListSavesThenTheNewOne) {
     ASSERT_EQ(SaveSlotRow(empty, 3, true), 0);
     ASSERT_EQ(SaveSlotFileAt(empty, 0), 0);
 }
+
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+// The Demon Shaft georama's record rides behind retail's image, and a save without it loads empty.
+TEST(SaveSlots, DemonShaftGeoramaRecord) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    DsgSave.georama.parts_info[0].stock = 7;
+    DsgSave.atla[0].id = 5;
+    g_mc.SetBuff(g_menu_buffer);
+
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_SEARCH_TYPE) == 1);
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_GET_DIR) == 1);
+    ASSERT_TRUE(SaveNew(4) == 1);
+    std::vector<char> image = ReadSave(root, 4);
+    ASSERT_TRUE(image.size() == static_cast<std::size_t>(kImageSize));
+
+    DsgInitialize();
+    g_mc.file_no = 4;
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_LOAD) == 1);
+    ASSERT_TRUE(DsgSave.georama.parts_info[0].stock == 7 && DsgSave.atla[0].id == 5);
+
+    // A save from before the mod: retail's image alone.
+    WriteSave(root, 4, std::vector<char>(image.begin(), image.begin() + kRetailImageSize));
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_LOAD) == 1);
+    ASSERT_TRUE(DsgSave.georama.parts_info[0].stock == 0 && DsgSave.atla[0].id == -1);
+
+    // A broken record loads as an empty georama, not as a failed save.
+    image[kRetailImageSize + 20] ^= 0x40;
+    WriteSave(root, 4, image);
+    DsgSave.atla[0].id = 9;
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_LOAD) == 1);
+    ASSERT_TRUE(DsgSave.atla[0].id == -1);
+}
+#endif
 
 TEST(SaveSlots, SaveListAndLoad) {
     fs::path root = UseTempSaveRoot();

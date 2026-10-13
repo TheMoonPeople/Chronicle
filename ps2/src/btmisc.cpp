@@ -12,6 +12,7 @@
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dngstatusdata.hpp"
+#include "dsgeorama.hpp"
 #include "dun/gameloop.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -245,6 +246,12 @@ void getAtraToSaveData(int atra, int atra_no, CSaveData *save, int dungeon, int 
     }
 
     ((CDngStatusData *) UserStatus)->GetAtraData(dungeon, floor, atra_no);
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+
+    if (dungeon == DUNGEON_DEMON_SHAFT) {
+        DsgAtlaCollected(atra_no);
+    }
+#endif
 }
 
 /**

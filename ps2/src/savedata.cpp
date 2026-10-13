@@ -8,6 +8,15 @@
 #include "editatra.hpp"
 #include "object.hpp"
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+#include <cstdlib>
+#include <cstring>
+
+#include "dsgeorama.hpp"
+#include "editpartsdata.hpp"
+#include "mainselect.hpp"
+#endif
+
 void CObject::SetPosition(float *position) {
     sceVu0CopyVector(this->pos, position);
 }
@@ -173,6 +182,14 @@ SV_FISH_DATA *CSaveData::GetFishingRank(int rank_index) {
 }
 
 SV_GEORAMA_DATA *CSaveData::GetGrdData(int georama_no) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    georama_no = DsgSaveIndex(georama_no);
+
+    if (georama_no == DSG_GEORAMA_NO) {
+        return &DsgSave.georama;
+    }
+
+#endif
     if (georama_no < 0 || georama_no >= 6) {
         return NULL;
     }
@@ -181,6 +198,14 @@ SV_GEORAMA_DATA *CSaveData::GetGrdData(int georama_no) {
 }
 
 SV_EDIT_PARTS_INFO *CSaveData::GetEditPartsInfo(int georama_no, int plot_no) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    georama_no = DsgSaveIndex(georama_no);
+
+    if (georama_no == DSG_GEORAMA_NO) {
+        return plot_no < 0 || plot_no >= 24 ? NULL : &DsgSave.georama.parts_info[plot_no];
+    }
+
+#endif
     if (georama_no < 0 || georama_no >= 6) {
         return NULL;
     }
@@ -196,11 +221,20 @@ SV_GRD_PART *CSaveData::GetParts(int georama_no, int *out_count) {
     SV_GRD_PART *parts;
     int          count;
 
-    if (georama_no < 0 || georama_no >= 6) {
-        return NULL;
-    }
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    georama_no = DsgSaveIndex(georama_no);
 
-    parts = this->georama[georama_no].placed_parts;
+    if (georama_no == DSG_GEORAMA_NO) {
+        parts = DsgSave.georama.placed_parts;
+    } else
+#endif
+    {
+        if (georama_no < 0 || georama_no >= 6) {
+            return NULL;
+        }
+
+        parts = this->georama[georama_no].placed_parts;
+    }
 
     for (count = 0; count < 130; count++) {
         if (parts[count].part_id < 0) {
@@ -228,6 +262,12 @@ SV_GRD_NPC *CSaveData::GetGrdNPCData(int map_no, int npc_no) {
         }
     }
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    if (DsgSaveIndex(map_no) == DSG_GEORAMA_NO) {
+        return npc_no < 0 || npc_no >= 20 ? NULL : &DsgSave.georama.npc[npc_no];
+    }
+
+#endif
     if (map_no < 0 || map_no >= 6) {
         return NULL;
     }
@@ -240,6 +280,14 @@ SV_GRD_NPC *CSaveData::GetGrdNPCData(int map_no, int npc_no) {
 }
 
 s16 *CSaveData::GetElemData(int georama_no) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    georama_no = DsgSaveIndex(georama_no);
+
+    if (georama_no == DSG_GEORAMA_NO) {
+        return DsgSave.elem_data;
+    }
+
+#endif
     if (georama_no < 0 || georama_no >= 6) {
         return NULL;
     }
@@ -660,6 +708,9 @@ void CSaveData::Initialize() {
 
     this->dng_status.Initialize();
     this->stock_item.Initialize();
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    DsgInitialize();
+#endif
 
     memset(this, 0, sizeof(this->config));
     memset(this->game_flags, 0, sizeof(this->game_flags));
@@ -671,3 +722,193 @@ CSaveData::CSaveData() {
     this->menu_cursor.InitPos();
     this->Initialize();
 }
+
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+// The Demon Shaft georama mod (dsgeorama.hpp, docs/DEMON_SHAFT_GEORAMA.md).
+
+#define DSG_SAVE_MAGIC "DSGEO01"
+
+SV_DSG_SAVE DsgSave;
+int         DsgTownActive;
+int         DsgTownRequest;
+
+static s32 DsgCheckSum(const SV_DSG_SAVE *save) {
+    const u8 *data = (const u8 *) save;
+    s32       total = 0;
+    int       size = (int) ((const u8 *) &save->check_sum - data);
+
+    for (int i = 0; i < size; i++) {
+        total += data[i];
+    }
+
+    return total;
+}
+
+void DsgInitialize() {
+    memset(&DsgSave, 0, sizeof(DsgSave));
+    strcpy(DsgSave.magic, DSG_SAVE_MAGIC);
+
+    for (int i = 0; i < DSG_ATLA_MAX; i++) {
+        DsgSave.atla[i].id = -1;
+        DsgSave.atla[i].floor = -1;
+        DsgSave.atla[i].refcount = 0;
+    }
+
+    for (int j = 0; j < 130; j++) {
+        DsgSave.georama.placed_parts[j].part_id = -1;
+    }
+
+    for (int k = 0; k < 128; k++) {
+        DsgSave.elem_data[k] = -1;
+    }
+
+    DsgTownActive = 0;
+    DsgTownRequest = 0;
+}
+
+int DsgSaveIndex(int georama_no) {
+    // MapNo keeps the redirection to the town itself: the donor's dungeon,
+    // reached with the flag still set, has its own atla.
+    if (georama_no == DSG_DONOR_TOWN && DsgTownActive != 0 && MapNo == DSG_DONOR_TOWN) {
+        return DSG_GEORAMA_NO;
+    }
+
+    return georama_no;
+}
+
+int DsgAssetIndex(int georama_no) {
+    if (georama_no == DSG_GEORAMA_NO) {
+        return DSG_DONOR_TOWN;
+    }
+
+    return georama_no;
+}
+
+void DsgEnterTown(int map_no) {
+    DsgTownActive = map_no == DSG_DONOR_TOWN && DsgTownRequest != 0;
+    DsgTownRequest = 0;
+}
+
+/**
+ * Fills the Demon Shaft's atla records from the donor town's table the first
+ * time they are wanted: every part and chip it hands out, but no villager,
+ * each as many times as the donor's dungeon puts it down.
+ */
+static void DsgAtlaListMake() {
+    if (DsgSave.atla_ready != 0) {
+        return;
+    }
+
+    ATRA_APPEAR *appear = AtraAppearData[DSG_DONOR_TOWN];
+    int          count = 0;
+
+    for (int i = 0; appear[i].id != -1 && count < DSG_ATLA_MAX; i++) {
+        if (appear[i].id >= DSG_ATLA_FIRST_VILLAGER) {
+            continue;
+        }
+
+        DsgSave.atla[count].id = appear[i].id;
+        DsgSave.atla[count].floor = -1;
+        DsgSave.atla[count].refcount = appear[i].count;
+        count++;
+    }
+
+    DsgSave.atla_ready = 1;
+}
+
+static int DsgRand(int range) {
+    int value = (int) (((float) range * (float) rand()) / 2147483648.0f);
+
+    if (value < 0 || value >= range) {
+        value = 0;
+    }
+
+    return value;
+}
+
+int DsgAtlaFloorChoose(int floor, int *atra_no) {
+    int candidates[DSG_ATLA_MAX];
+    int candidate_num = 0;
+    int count = 0;
+    int want;
+    int roll;
+
+    for (int i = 0; i < 8; i++) {
+        atra_no[i] = -1;
+    }
+
+    DsgAtlaListMake();
+
+    for (int j = 0; j < DSG_ATLA_MAX; j++) {
+        if (DsgSave.atla[j].id >= 0 && DsgSave.atla[j].refcount > 0) {
+            candidates[candidate_num++] = j;
+        }
+    }
+
+    if (candidate_num == 0) {
+        return 0;
+    }
+
+    // About one floor in three has an atla, and a few of those two.
+    roll = DsgRand(100);
+    want = 0;
+
+    if (roll < 35) {
+        want = 1;
+    }
+
+    if (roll < 8) {
+        want = 2;
+    }
+
+    while (count < want && candidate_num > 0) {
+        int pick = DsgRand(candidate_num);
+
+        atra_no[count++] = candidates[pick];
+        candidates[pick] = candidates[--candidate_num];
+    }
+
+    return count;
+}
+
+int DsgAtlaId(int atra_no) {
+    if (atra_no < 0 || atra_no >= DSG_ATLA_MAX) {
+        return -1;
+    }
+
+    return DsgSave.atla[atra_no].id;
+}
+
+void DsgAtlaCollected(int atra_no) {
+    if (atra_no < 0 || atra_no >= DSG_ATLA_MAX || DsgSave.atla[atra_no].refcount <= 0) {
+        return;
+    }
+
+    DsgSave.atla[atra_no].refcount--;
+}
+
+void DsgWriteSave(char *dst) {
+    DsgSave.in_town = DsgTownActive != 0 && MapNo == DSG_DONOR_TOWN;
+    strcpy(DsgSave.magic, DSG_SAVE_MAGIC);
+    DsgSave.check_sum = DsgCheckSum(&DsgSave);
+    memcpy(dst, &DsgSave, sizeof(DsgSave));
+}
+
+void DsgReadSave(const char *src, int size) {
+    DsgInitialize();
+
+    if (src == NULL || size < DSG_SAVE_SIZE) {
+        return;
+    }
+
+    const SV_DSG_SAVE *save = (const SV_DSG_SAVE *) src;
+
+    if (memcmp(save->magic, DSG_SAVE_MAGIC, sizeof(save->magic)) != 0 || save->check_sum != DsgCheckSum(save)) {
+        return;
+    }
+
+    memcpy(&DsgSave, save, sizeof(DsgSave));
+    // A save made in the Demon Shaft's georama goes back to it.
+    DsgTownRequest = DsgSave.in_town;
+}
+#endif

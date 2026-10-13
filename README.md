@@ -56,6 +56,13 @@ Game text can come from JSON language files (one per language, laid out as Minec
 TrueType font so it stays sharp at any window size. The first start writes the language files from your own
 game data; the Dark Cloud community font is bundled. See `docs/LOCALIZATION.md`.
 
+### The Demon Shaft georama mod
+
+The port builds a mod that gives the Demon Shaft a georama of its own, built from another town's
+models: atla on its floors, and a town reached with Triangle on the Demon Shaft on the world map.
+`DSG=1 ./build.sh ps2-pal` builds it into the PS2 executable, which then no longer matches retail.
+See `docs/DEMON_SHAFT_GEORAMA.md`.
+
 ## Repository layout
 
 - `ps2/src`, `ps2/include`: matching game sources and headers.

@@ -1,0 +1,352 @@
+#include <gtest/gtest.h>
+
+#include <cstring>
+#include <string>
+#include <vector>
+
+#include "../../../tools/dcdata/models.hpp"
+#include "character.hpp"
+#include "data_fixture.hpp"
+#include "dataread.hpp"
+#include "dataread_port.hpp"
+#include "dun/gameloop.hpp"
+#include "gameutil.hpp"
+#include "platform/paths.hpp"
+#include "seda.hpp"
+#include "sedamod.hpp"
+
+// The Seda mod: dcdata's pack (tools/dcdata/dcdata.hpp, MakeSedaPack) and the port's use of it
+// (port/src/dataread.cpp, port/src/seda.cpp).
+
+using namespace datafix;
+
+namespace {
+
+// A scene of the named objects, the first holding model data at a made-up offset.
+Bytes Scene(const std::vector<std::string> &names) {
+    Bytes data(16 + names.size() * 112, 0);
+    Put32(data, 8, static_cast<std::uint32_t>(names.size()));
+    for (std::size_t i = 0; i < names.size(); i++) {
+        std::size_t object = 16 + i * 112;
+        std::memcpy(&data[object + 8], names[i].c_str(), names[i].size() + 1);
+        Put32(data, object + 40, 0x400);
+        Put32(data, object + 44, static_cast<std::uint32_t>(static_cast<std::int32_t>(i) - 1));
+    }
+    return data;
+}
+
+std::string ObjectName(const Bytes &scene, int index) {
+    return reinterpret_cast<const char *>(&scene[16 + index * 112 + 8]);
+}
+
+std::uint32_t ObjectData(const Bytes &scene, int index) {
+    return dcdata::Le32(&scene[16 + index * 112 + 40]);
+}
+
+Bytes Text(std::string_view text) {
+    Bytes data(text.begin(), text.end());
+    data.push_back(0);
+    return data;
+}
+
+const dcdata::SedaVariant &King() {
+    return *dcdata::FindSedaVariant("king");
+}
+
+const dcdata::SedaVariant &Seda() {
+    return *dcdata::FindSedaVariant("seda");
+}
+
+// Seda's cutscene pack (c07a) as the disc has it, cut down.
+Bytes C07Source() {
+    return MakePack({
+        {"c07a.cfg", Text("//Seda\nMODEL \"c07a.mds\"\nMOTION 0, \"c07a.mot\", \"c07a.bbp\", \"c07a.wgt\"\n"
+                          "KEY_START 0\nKEY 10, 20, 0.1 //stand 0\nMOTION_END\nEVENT 43,0,0\n")},
+        {"c07a.mds", Scene({"skel_1_1", "hip", "l_hand", "r_hand3", "r_hand", "r_hand4", "obj10"})},
+        {"c07a.mot", Pattern(64, 3)},
+    });
+}
+
+// King Seda's cutscene pack as the disc has it, cut down.
+Bytes SedaSource() {
+    return MakePack({
+        {"e502p68b.cfg", Text("//King\nIMG 0,\"p68b01.img\"\nIMG_END\nMODEL \"e502p68b.mds\"\nSHADOW_MODEL "
+                              "\"e502p68s.mds\"\nMOTION 0, \"e502p68b.mot\", \"e502p68b.bbp\", \"e502p68b.wgt\"\n"
+                              "KEY_START 0\nKEY \t10, \t20, \t0.1\t//stand 0\nKEY \t40, \t60, \t0.2\t//walk 1\n"
+                              "MOTION_END\nEVENT 42,0,0\n")},
+        {"e502p68b.mds", Scene({"g_1", "c", "cube40_3_2", "cube40_3_3", "seiken__m"})},
+        {"e502p68s.mds", Scene({"g_1", "seiken__m"})},
+        {"e502p68b.mot", Pattern(64, 1)},
+        {"p68b01.img", Pattern(32, 2)},
+    });
+}
+
+} // namespace
+
+TEST(Seda, PackPutsSedasMotionsInToansOrder) {
+    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(SedaSource(), King()));
+    ASSERT_EQ(pack.size(), 5u);
+    EXPECT_EQ(pack[0].name, "base.cfg");
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    // Text only: the game's reader takes a NUL for a letter of a word.
+    EXPECT_EQ(config.find('\0'), std::string::npos);
+    EXPECT_EQ(config.back(), '\n');
+    EXPECT_EQ(dcdata::CountMotionKeys(config), 41);
+    EXPECT_NE(config.find("KEY_START 0\n\tKEY\t10,\t20,\t0.1,\t//0 stand: stand\n"), std::string::npos) << config;
+    EXPECT_NE(config.find("\tKEY\t420,\t445,\t0.3,\t//40 combo 3: fight the assassin\nMOTION_END\nFOOT 43,53\n"),
+              std::string::npos);
+    // His own model, textures and events stay.
+    EXPECT_NE(config.find("MODEL \"e502p68b.mds\"\n"), std::string::npos);
+    EXPECT_NE(config.find("IMG 0,\"p68b01.img\"\n"), std::string::npos);
+    EXPECT_NE(config.find("EVENT 42,0,0\n"), std::string::npos);
+    EXPECT_EQ(config.find("//walk 1"), std::string::npos);
+
+    // The sword is the weapon's place and no longer drawn; the right hand holds items.
+    EXPECT_EQ(pack[1].name, "e502p68b.mds");
+    EXPECT_EQ(ObjectName(pack[1].data, 2), "item");
+    EXPECT_EQ(ObjectData(pack[1].data, 2), 0x400u);
+    EXPECT_EQ(ObjectName(pack[1].data, 4), "weapon");
+    EXPECT_EQ(ObjectData(pack[1].data, 4), 0u);
+    // The shadow model is left as it was.
+    EXPECT_EQ(ObjectName(pack[2].data, 1), "seiken__m");
+}
+
+// Seda keeps his sword and holds the equipped weapon at his right hand.
+TEST(Seda, C07PackKeepsHisSword) {
+    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(C07Source(), Seda()));
+    ASSERT_EQ(pack.size(), 4u);
+    // His own sword shows; the equipped weapon deals the blows unseen.
+    EXPECT_EQ(pack[3].name, dcdata::kSedaHideEquipped);
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    EXPECT_EQ(dcdata::CountMotionKeys(config), 41);
+    EXPECT_NE(config.find("// seda in Toan's place, made by dcdata from gedit/s99/chara/c07a.chr\n"), std::string::npos);
+    EXPECT_NE(config.find("\tKEY\t269,\t285,\t0.4,\t//11 attack 1: sweep\n"), std::string::npos) << config;
+    EXPECT_NE(config.find("MOTION_END\nFOOT 43,53\nEVENT 43,0,0\n"), std::string::npos);
+    EXPECT_EQ(ObjectName(pack[1].data, 5), "weapon");
+    EXPECT_EQ(ObjectData(pack[1].data, 5), 0x400u);
+    EXPECT_EQ(ObjectName(pack[1].data, 3), "item");
+    EXPECT_EQ(ObjectName(pack[1].data, 6), "obj10");
+}
+
+// The images a configuration loads from elsewhere are found in the packs beside it and come along.
+TEST(Seda, PackFindsImagesBesideIt) {
+    fs::path dir = TempDir("seda_images") / "chara";
+    fs::create_directories(dir);
+    Bytes source = MakePack({
+        {"c07a.cfg", Text("//Seda\nIMG 0,\"c07a01.img\"\nIMG 1,\"c07a02.img\"\nIMG_END\nMODEL \"c07a.mds\"\n"
+                          "KEY_START 0\nMOTION_END\n")},
+        {"c07a.mds", Scene({"skel_1_1", "r_hand3", "r_hand4"})},
+        {"c07a01.img", Pattern(16, 1)},
+    });
+    WriteBytes(dir / "c07a.chr", source);
+    WriteBytes(dir / "e29img.pak", MakePack({
+                                       {"other.img",  Pattern(8,  2)},
+                                       {"c07a02.img", Pattern(24, 3)}
+    }));
+    std::vector<dcdata::PackMember> members = dcdata::ReadPack(source);
+    std::vector<dcdata::PackMember> images =
+        dcdata::MissingImages(dir, members, dcdata::PackConfig(members), nullptr);
+    ASSERT_EQ(images.size(), 1u);
+    EXPECT_EQ(images[0].name, "c07a02.img");
+
+    std::vector<dcdata::PackMember> pack =
+        dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), std::move(images)));
+    ASSERT_EQ(pack.size(), 5u);
+    EXPECT_EQ(pack[3].name, "c07a02.img");
+    EXPECT_EQ(pack[3].data, Pattern(24, 3));
+}
+
+// A scene of Seda's hands and his sword, whose model draws with the named textures.
+Bytes SceneWithTextures(const std::vector<std::string> &textures) {
+    const char *objects[3] = {"r_hand3", "r_hand4", "obj10"};
+    Bytes       data(16 + 3 * 112, 0);
+    Put32(data, 8, 3);
+    for (int i = 0; i < 3; i++) {
+        std::memcpy(&data[16 + i * 112 + 8], objects[i], std::strlen(objects[i]) + 1);
+        Put32(data, 16 + i * 112 + 44, static_cast<std::uint32_t>(i - 1));
+    }
+    std::size_t model = data.size();
+    Put32(data, 16 + 2 * 112 + 40, static_cast<std::uint32_t>(model));
+    data.resize(model + 64 + textures.size() * 96 + 96, 0); // the entry after the table is no name
+    Put32(data, model + 8, static_cast<std::uint32_t>(data.size() - model));
+    Put32(data, model + 56, 64);
+    for (std::size_t i = 0; i < textures.size(); i++) {
+        std::memcpy(&data[model + 64 + i * 96 + 52], textures[i].c_str(), textures[i].size());
+    }
+    return data;
+}
+
+// An IM2 bank of empty pictures of these names.
+Bytes Bank(const std::vector<std::string> &names) {
+    std::vector<std::pair<std::string, std::vector<unsigned char>>> pictures;
+    for (const std::string &name : names) {
+        pictures.emplace_back(name, std::vector<unsigned char>(48, 0));
+    }
+    return dcdata::WriteIm2(pictures);
+}
+
+TEST(Seda, ReadsTheTexturesAModelDrawsWith) {
+    EXPECT_EQ(dcdata::SceneTextures(SceneWithTextures({"c07a01", "ken01", "c07a01"})),
+              (std::vector<std::string>{"c07a01", "ken01"}));
+    EXPECT_EQ(dcdata::Im2PictureNames(Bank({"c07a01", "c07a01an"})), (std::vector<std::string>{"c07a01", "c07a01an"}));
+}
+
+// A texture no image of the pack holds is looked for in the packs beside it, and its image comes along
+// in the slot left.
+TEST(Seda, PackFindsTexturesBesideIt) {
+    fs::path dir = TempDir("seda_textures") / "chara";
+    fs::create_directories(dir);
+    Bytes source = MakePack({
+        {"c07a.cfg",   Text("//Seda\nIMG 0,\"c07a01.img\"\nIMG_END\nMODEL \"c07a.mds\"\nSHADOW_MODEL \"e17c07s.mds\"\n"
+                          "KEY_START 0\nMOTION_END\n")},
+        {"c07a.mds",   SceneWithTextures({"c07a01", "ken01"})             },
+        {"c07a01.img", Bank({"c07a01"})                                   },
+    });
+    WriteBytes(dir / "c07a.chr", source);
+    WriteBytes(dir / "e29img.pak", MakePack({
+                                       {"e29a.img", Bank({"other"})     },
+                                       {"e29b.img", Bank({"ken01", "x"})}
+    }));
+
+    std::vector<dcdata::PackMember> members = dcdata::ReadPack(source);
+    EXPECT_EQ(dcdata::ConfigModel(dcdata::PackConfig(members)), "c07a.mds");
+    std::vector<dcdata::PackMember> images = dcdata::MissingTextureImages(dir, members, {}, "c07a.mds", nullptr);
+    ASSERT_EQ(images.size(), 1u);
+    EXPECT_EQ(images[0].name, "e29b.img");
+
+    std::vector<dcdata::PackMember> pack =
+        dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), {}, std::move(images)));
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    EXPECT_NE(config.find("IMG 0,\"c07a01.img\"\nIMG 3,\"e29b.img\"\nIMG_END\n"), std::string::npos) << config;
+    bool carried = false;
+    for (const dcdata::PackMember &member : pack) {
+        carried = carried || member.name == "e29b.img";
+    }
+    EXPECT_TRUE(carried);
+}
+
+// An image of the pack its configuration does not load is never loaded, so a texture only it holds
+// is drawn black: that image takes the slot left, once, before any pack beside it.
+TEST(Seda, PackLoadsItsOwnUnloadedImage) {
+    fs::path dir = TempDir("seda_own_textures") / "chara";
+    fs::create_directories(dir);
+    Bytes source = MakePack({
+        {"c07a.cfg",   Text("//Seda\nIMG 0,\"c07a01.img\"\nIMG_END\nMODEL \"c07a.mds\"\nSHADOW_MODEL \"e17c07s.mds\"\n"
+                          "KEY_START 0\nMOTION_END\n")},
+        {"c07a.mds",   SceneWithTextures({"c07a01", "c07a04"})            },
+        {"c07a01.img", Bank({"c07a01"})                                   },
+        {"c07a03.img", Bank({"c07a03", "c07a04"})                         },
+    });
+    WriteBytes(dir / "c07a.chr", source);
+    WriteBytes(dir / "e29img.pak", MakePack({
+                                       {"e29b.img", Bank({"c07a04"})},
+    }));
+
+    std::vector<dcdata::PackMember> members = dcdata::ReadPack(source);
+    std::vector<dcdata::PackMember> images = dcdata::MissingTextureImages(dir, members, {}, "c07a.mds", nullptr);
+    ASSERT_EQ(images.size(), 1u);
+    EXPECT_EQ(images[0].name, "c07a03.img");
+
+    std::vector<dcdata::PackMember> pack =
+        dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), {}, std::move(images)));
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    EXPECT_NE(config.find("IMG 3,\"c07a03.img\"\nIMG_END\n"), std::string::npos) << config;
+    int carried = 0;
+    for (const dcdata::PackMember &member : pack) {
+        carried += member.name == "c07a03.img";
+    }
+    EXPECT_EQ(carried, 1);
+}
+
+// The model's objects are listed, and one can be left undrawn.
+TEST(Seda, ListsAndHidesObjects) {
+    std::vector<dcdata::SceneModel> models = dcdata::SceneModels(SceneWithTextures({"c07a04"}));
+    ASSERT_EQ(models.size(), 1u);
+    EXPECT_EQ(models[0].name, "obj10");
+    EXPECT_EQ(models[0].parent, "r_hand4");
+    EXPECT_EQ(models[0].textures, (std::vector<std::string>{"c07a04"}));
+
+    Bytes                           source = MakePack({
+        {"c07a.cfg", Text("MODEL \"c07a.mds\"\nKEY_START 0\nMOTION_END\n")},
+        {"c07a.mds", SceneWithTextures({"c07a04"})                        },
+    });
+    std::vector<std::string>        hidden = {"obj10"};
+    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), {}, {}, hidden));
+    EXPECT_EQ(ObjectName(pack[1].data, 2), "obj10");
+    EXPECT_EQ(ObjectData(pack[1].data, 2), 0u);
+}
+
+TEST(Seda, EveryVariantHasToansKeys) {
+    for (const dcdata::SedaVariant &variant : dcdata::kSedaVariants) {
+        EXPECT_EQ(variant.keys.size(), 41u) << variant.name;
+    }
+}
+
+TEST(Seda, PackNeedsSedasSword) {
+    Bytes source = MakePack({
+        {"e502p68b.cfg", Text("MODEL \"e502p68b.mds\"\nKEY_START 0\nMOTION_END\n")},
+        {"e502p68b.mds", Scene({"g_1", "cube40_3_2"})                             },
+    });
+    EXPECT_THROW(dcdata::MakeSedaPack(source, King()), dcdata::Error);
+}
+
+// Extraction builds the pack, and while Seda stands in Toan's dungeon pack is his.
+TEST(Seda, ToansDungeonPackIsSedasWhileActive) {
+    fs::path dir = TempDir("seda");
+    Disc     disc = MakeDisc({
+        {"dun\\mainchara\\c01d.chr",    Text("toan")},
+        {"gedit\\s99\\chara\\c07a.chr", C07Source() },
+    });
+    WriteBytes(dir / "disc.iso", MakeIso("DATA.DAT;1", disc.dat, "DATA.HD2;1", disc.hd2));
+    dcdata::Extract(dcdata::OpenArchive(dir / "disc.iso"), dir / "data", nullptr);
+    ASSERT_TRUE(fs::is_regular_file(dir / "data" / "normalized" / dcdata::kSedaPack));
+    PathsSetDataRoot(dir / "data");
+    PathsSetSaveRoot(dir / "save");
+    InitCDFile();
+
+    alignas(64) static char buffer[8192];
+    int                     size = 0;
+    char                    path[] = "dun/mainchara/c01d.chr";
+    SedaSetForced(false);
+    ASSERT_EQ(LoadFile2(path, buffer, &size, 0), 1);
+    EXPECT_EQ(std::string(buffer), "toan");
+
+    EXPECT_TRUE(SedaEquippedDrawn());
+
+    SedaSetForced(true);
+    ASSERT_EQ(LoadFile2(path, buffer, &size, 0), 1);
+    EXPECT_EQ(std::string(buffer), "base.cfg");
+    // Seda's pack shows his own sword, so the equipped weapon is not drawn.
+    EXPECT_FALSE(SedaEquippedDrawn());
+    SedaSetForced(false);
+    EXPECT_TRUE(SedaEquippedDrawn());
+}
+
+// Toan's attack code times things by frames of his motion; Seda's time is turned back into those.
+TEST(Seda, TimeStandsForToansFrame) {
+    MOTION_INFO  keys[41] = {};
+    MOTION_INFO *saved_info = CharaMain.motion_type.motion_info;
+    int          saved_motion = CharaMain.motion_no;
+    keys[15] = {269, 280, 0.4f, 0}; // Seda's charged attack start; Toan's is 180-191, the leap at 187
+    keys[16] = {280, 280, 0.0f, 0};
+    keys[36] = {269, 285, 0.4f, 0}; // Seda's first combo swing; Toan's is 820-830, the hit at 825-828
+    CharaMain.motion_type.motion_info = keys;
+
+    SedaSetForced(false);
+    CharaMain.motion_no = 15;
+    EXPECT_FLOAT_EQ(TOAN_TIME(276.0f), 276.0f);
+
+    SedaSetForced(true);
+    EXPECT_FLOAT_EQ(TOAN_TIME(269.0f), 180.0f);
+    EXPECT_FLOAT_EQ(TOAN_TIME(276.0f), 187.0f); // the leap
+    EXPECT_FLOAT_EQ(TOAN_TIME(280.0f), 191.0f);
+    EXPECT_LT(TOAN_TIME(250.0f), 180.0f); // outside the key, outside Toan's
+    CharaMain.motion_no = 36;
+    EXPECT_FLOAT_EQ(TOAN_TIME(277.0f), 825.0f); // the hit
+    CharaMain.motion_no = 16;
+    EXPECT_FLOAT_EQ(TOAN_TIME(280.0f), 191.0f); // a key of no length stands for Toan's start
+
+    SedaSetForced(false);
+    CharaMain.motion_type.motion_info = saved_info;
+    CharaMain.motion_no = saved_motion;
+}

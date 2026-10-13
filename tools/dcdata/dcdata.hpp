@@ -1052,6 +1052,639 @@ inline void FillFloorPlates(const fs::path &out) {
     }
 }
 
+// The Seda mod (docs/SEDA.md): a player pack for Toan's place built from a cutscene character of the
+// disc, with that character's own motions put in the order of Toan's. The game drives a model's
+// bones by their index in its scene, and no other character's skeleton is Toan's, so Toan's motions
+// cannot move them; their own can.
+inline constexpr std::string_view kSedaPack = "dun/mainchara/c01seda.chr";
+
+// A member of the pack whose presence tells the port not to draw the equipped weapon.
+inline constexpr std::string_view kSedaHideEquipped = "seda_hide_equipped";
+
+struct SedaKey {
+    int         start;
+    int         end;
+    float       speed;
+    const char *what; // Toan's motion the key takes the place of, then the character's that plays.
+};
+
+// One key per KEY of Toan's dun/mainchara/c01d.chr, in its order, as frames of King Seda's
+// e502p68b.mot (the cutscene of the assassin, near the story's end).
+inline constexpr SedaKey kKingSedaKeys[] = {
+    {10,  20,  0.1f,  "stand: stand"                            },
+    {395, 415, 0.5f,  "run: run with the sword ready"           },
+    {40,  60,  0.2f,  "walk: walk"                              },
+    {560, 570, 0.2f,  "charged attack loop 2: trembling guard"  },
+    {465, 470, 0.3f,  "damage: held fast"                       },
+    {560, 560, 0.0f,  "charged attack loop 3: trembling guard"  },
+    {465, 481, 0.3f,  "heavy damage: held fast"                 },
+    {890, 895, 0.25f, "get up: stand up"                        },
+    {350, 352, 0.8f,  "stand to guard: hold the sword"          },
+    {350, 360, 0.1f,  "guard loop: hold the sword"              },
+    {355, 360, 0.8f,  "guard to stand: hold the sword"          },
+    {365, 375, 0.3f,  "attack 1: cut down"                      },
+    {575, 625, 1.0f,  "attack 2: run the assassin through"      },
+    {535, 545, 0.4f,  "stand to charge: trembling guard"        },
+    {560, 570, 0.4f,  "charge loop: trembling guard"            },
+    {365, 370, 0.4f,  "charged attack start: cut down"          },
+    {370, 370, 0.0f,  "charged attack loop 1: cut down"         },
+    {370, 390, 0.4f,  "charged attack end: cut down"            },
+    {350, 360, 0.3f,  "attack stance: hold the sword"           },
+    {295, 315, 0.4f,  "lock-on right: walk with the sword"      },
+    {295, 315, 0.4f,  "lock-on left: walk with the sword"       },
+    {295, 315, 0.4f,  "lock-on forward: walk with the sword"    },
+    {295, 315, 0.4f,  "lock-on back: walk with the sword"       },
+    {770, 780, 0.2f,  "defeated: crouch"                        },
+    {670, 700, 0.4f,  "special: push the assassin off"          },
+    {390, 390, 0.0f,  "charged attack loop 3: cut down"         },
+    {745, 745, 0.0f,  "throw hold: throw the sword away"        },
+    {745, 765, 0.4f,  "throw: throw the sword away"             },
+    {85,  100, 0.15f, "drink: talk"                             },
+    {645, 665, 0.5f,  "run while hurt: run with the sword drawn"},
+    {295, 315, 0.3f,  "move while charging: walk with the sword"},
+    {825, 835, 0.3f,  "no good: shake the head"                 },
+    {495, 501, 0.3f,  "fall: tremble"                           },
+    {295, 315, 0.3f,  "move while guarding: walk with the sword"},
+    {450, 460, 0.3f,  "atla get in: look up"                    },
+    {450, 460, 0.1f,  "atla get loop: look up"                  },
+    {365, 375, 0.3f,  "combo 1: cut down"                       },
+    {575, 600, 0.6f,  "combo 2: run the assassin through"       },
+    {365, 375, 0.3f,  "combo 1 again: cut down"                 },
+    {670, 700, 0.6f,  "combo 2 again: push the assassin off"    },
+    {420, 445, 0.3f,  "combo 3: fight the assassin"             },
+};
+
+// One key per KEY of Toan's, as frames of Seda's c07a.mot (gedit/s99, the dungeon's cutscenes).
+inline constexpr SedaKey kSedaC07Keys[] = {
+    {10,  20,  0.1f,  "stand: stand"                         },
+    {40,  60,  0.45f, "run: walk, quicker"                   },
+    {40,  60,  0.25f, "walk: walk"                           },
+    {258, 268, 0.2f,  "charged attack loop 2: hold the sword"},
+    {142, 150, 0.3f,  "damage: talk to suffering"            },
+    {268, 268, 0.0f,  "charged attack loop 3: hold the sword"},
+    {142, 161, 0.3f,  "heavy damage: suffering"              },
+    {172, 215, 0.4f,  "get up: lean forward, raise the face" },
+    {247, 250, 0.6f,  "stand to guard: raise the sword"      },
+    {258, 268, 0.1f,  "guard loop: hold the sword"           },
+    {247, 250, 0.8f,  "guard to stand: raise the sword"      },
+    {269, 285, 0.4f,  "attack 1: sweep"                      },
+    {285, 300, 0.4f,  "attack 2: leap at"                    },
+    {305, 311, 0.3f,  "stand to charge: magic pose"          },
+    {312, 322, 0.3f,  "charge loop: magic pose"              },
+    {269, 280, 0.4f,  "charged attack start: sweep"          },
+    {280, 280, 0.0f,  "charged attack loop 1: sweep"         },
+    {280, 300, 0.4f,  "charged attack end: leap at"          },
+    {258, 268, 0.3f,  "attack stance: hold the sword"        },
+    {40,  60,  0.3f,  "lock-on right: walk"                  },
+    {40,  60,  0.3f,  "lock-on left: walk"                   },
+    {40,  60,  0.3f,  "lock-on forward: walk"                },
+    {40,  60,  0.3f,  "lock-on back: walk"                   },
+    {153, 161, 0.2f,  "defeated: suffering"                  },
+    {325, 343, 0.3f,  "special: point the sword"             },
+    {300, 300, 0.0f,  "charged attack loop 3: leap at"       },
+    {378, 378, 0.0f,  "throw hold: throw"                    },
+    {378, 398, 0.4f,  "throw: throw"                         },
+    {121, 141, 0.15f, "drink: talk"                          },
+    {40,  60,  0.4f,  "run while hurt: walk"                 },
+    {40,  60,  0.3f,  "move while charging: walk"            },
+    {399, 410, 0.3f,  "no good: look back over the shoulder" },
+    {162, 171, 0.3f,  "fall: howl"                           },
+    {40,  60,  0.3f,  "move while guarding: walk"            },
+    {344, 360, 0.3f,  "atla get in: start to laugh"          },
+    {361, 369, 0.2f,  "atla get loop: laugh"                 },
+    {269, 285, 0.4f,  "combo 1: sweep"                       },
+    {285, 300, 0.4f,  "combo 2: leap at"                     },
+    {325, 332, 0.4f,  "combo 1 again: thrust the sword"      },
+    {269, 300, 0.5f,  "combo 2 again: sweep and leap"        },
+    {269, 300, 0.4f,  "combo 3: sweep and leap"              },
+};
+
+// A character a pack can be built from, and how.
+struct SedaVariant {
+    std::string_view         name;         // As dcdata seda takes it.
+    std::string_view         source;       // The character's pack on the disc.
+    std::string_view         weapon;       // The object the equipped weapon hangs from, renamed "weapon".
+    bool                     weapon_drawn; // Whether that object is still drawn (false: it is the character's own sword).
+    std::string_view         item;         // The object items are held by, renamed "item".
+    bool                     equipped_drawn; // Whether the equipped weapon is drawn (false: the character shows its own).
+    std::span<const SedaKey> keys;
+    std::string_view         feet; // FOOT lines for the walk and the run.
+};
+
+inline constexpr SedaVariant kSedaVariants[] = {
+    // Seda (c07a, //シーダ): his sword is obj10 in his right hand; it stays drawn, and the equipped weapon,
+    // at the hand, deals the blows unseen.
+    {"seda", "gedit/s99/chara/c07a.chr", "r_hand4", true, "r_hand3", false, kSedaC07Keys, "FOOT 43,53\n"},
+    // King Seda (p68b, //シーダ王): his sword is in his left hand and gives way to the equipped one.
+    {"king", "gedit/s16/chara/e502p68b.chr", "seiken__m", false, "cube40_3_2", true, kKingSedaKeys,
+     "FOOT 43,53\nFOOT 398,408\n"                                                                           },
+};
+
+inline const SedaVariant *FindSedaVariant(std::string_view name) {
+    for (const SedaVariant &variant : kSedaVariants) {
+        if (variant.name == name) {
+            return &variant;
+        }
+    }
+    return nullptr;
+}
+
+// Renames an object of a scene in place, and with draw false leaves it no model.
+inline void RenameSceneObject(std::vector<unsigned char> &scene, std::string_view from, std::string_view to,
+                              bool draw) {
+    if (scene.size() < 16) {
+        Fail("the scene is {} bytes", scene.size());
+    }
+    std::uint32_t count = Le32(scene.data() + 8);
+    if (16 + static_cast<std::uint64_t>(count) * 112 > scene.size()) {
+        Fail("the scene claims {} objects in {} bytes", count, scene.size());
+    }
+    for (std::uint32_t i = 0; i < count; i++) {
+        unsigned char *object = scene.data() + 16 + i * 112;
+        char          *name = reinterpret_cast<char *>(object + 8);
+        if (std::string_view(name, strnlen(name, 32)) == from) {
+            std::memset(name, 0, 32);
+            std::memcpy(name, to.data(), to.size());
+            if (!draw) {
+                Put32(object + 40, 0);
+            }
+            return;
+        }
+    }
+    Fail("the scene has no object {}", from);
+}
+
+// Every image a configuration loads (IMG n,"name").
+inline std::vector<std::string> ConfigImages(std::string_view config) {
+    std::vector<std::string> names;
+    for (std::size_t start = 0; start < config.size();) {
+        std::size_t end = config.find('\n', start);
+        if (end == std::string_view::npos) {
+            end = config.size();
+        }
+        std::string_view line = config.substr(start, end - start);
+        start = end + 1;
+        std::size_t first = line.find_first_not_of(" \t\r");
+        if (first == std::string_view::npos || !line.substr(first).starts_with("IMG") ||
+            line.substr(first).starts_with("IMG_END")) {
+            continue;
+        }
+        std::size_t open = line.find('"');
+        std::size_t close = open == std::string_view::npos ? open : line.find('"', open + 1);
+        if (close != std::string_view::npos) {
+            names.emplace_back(line.substr(open + 1, close - open - 1));
+        }
+    }
+    return names;
+}
+
+// Looks for a member of that name in a pack and the packs nested in it.
+inline bool FindPackMember(std::span<const unsigned char> data, std::string_view name, int depth, PackMember &found) {
+    if (data.size() < 76 || !data[0]) {
+        return false;
+    }
+    std::vector<PackMember> members;
+    try {
+        members = ReadPack(data);
+    } catch (const Error &) {
+        return false;
+    }
+    for (PackMember &member : members) {
+        if (EqualsFolded(member.name, name)) {
+            found = std::move(member);
+            return true;
+        }
+    }
+    if (depth > 0) {
+        for (const PackMember &member : members) {
+            if (FindPackMember(member.data, name, depth - 1, found)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// The images a character's configuration loads that its own pack lacks, as the other packs of its
+// directory hold them: a cutscene loads its characters' shared images from a pack of its own (as
+// gedit/s99/chara/e29img.pak), so without them parts of the character are drawn untextured, black.
+inline std::vector<PackMember> MissingImages(const fs::path &directory, const std::vector<PackMember> &members,
+                                             std::string_view config, std::FILE *log) {
+    std::vector<PackMember> found;
+    for (const std::string &name : ConfigImages(config)) {
+        bool have = false;
+        for (const PackMember &member : members) {
+            have = have || EqualsFolded(member.name, name);
+        }
+        if (have) {
+            continue;
+        }
+        PackMember image;
+        bool       located = false;
+        std::error_code error;
+        for (const fs::directory_entry &entry : fs::directory_iterator(directory, error)) {
+            if (!entry.is_regular_file() || entry.file_size() > (64u << 20)) {
+                continue;
+            }
+            if (FindPackMember(ReadFile(entry.path()), name, 2, image)) {
+                Log(log, "seda: {} from {}\n", name, entry.path().filename().string());
+                located = true;
+                break;
+            }
+        }
+        if (located) {
+            found.push_back(std::move(image));
+        } else {
+            Log(log, "seda: {} is in no pack beside it; that part will be untextured\n", name);
+        }
+    }
+    return found;
+}
+
+// The names of an IM2 bank's pictures, which are the names textures are found by.
+inline std::vector<std::string> Im2PictureNames(std::span<const unsigned char> bank) {
+    std::vector<std::string> names;
+    if (bank.size() < 16 || std::memcmp(bank.data(), "IM2", 3) != 0) {
+        return names;
+    }
+    std::uint32_t count = Le32(bank.data() + 4);
+    if (16 + std::uint64_t(count) * 48 > bank.size()) {
+        return names;
+    }
+    for (std::uint32_t i = 0; i < count; i++) {
+        const char *entry = reinterpret_cast<const char *>(bank.data() + 16 + i * 48);
+        names.emplace_back(entry, strnlen(entry, 32));
+    }
+    return names;
+}
+
+// One object of a scene that has a model: what it hangs from, its size and the textures it draws with.
+struct SceneModel {
+    std::string              name;
+    std::string              parent;
+    std::uint32_t            vertices = 0;
+    float                    extent = 0; // The longest side of its box, in the model's own units.
+    std::vector<std::string> textures;
+};
+
+// The objects of a scene that have models (each model's MDT_HEADER and MDT_MATERIAL table,
+// ps2/include/mdt.hpp). The material table has no count: it is read up to the first entry whose name
+// is not one, or the model's end.
+inline std::vector<SceneModel> SceneModels(std::span<const unsigned char> scene) {
+    std::vector<SceneModel> models;
+    if (scene.size() < 16) {
+        return models;
+    }
+    std::uint32_t count = Le32(scene.data() + 8);
+    if (16 + std::uint64_t(count) * 112 > scene.size()) {
+        return models;
+    }
+    auto name_of = [&](std::int32_t index) {
+        if (index < 0 || static_cast<std::uint32_t>(index) >= count) {
+            return std::string();
+        }
+        const char *name = reinterpret_cast<const char *>(scene.data() + 16 + index * 112 + 8);
+        return std::string(name, strnlen(name, 32));
+    };
+    for (std::uint32_t i = 0; i < count; i++) {
+        const unsigned char *object = scene.data() + 16 + i * 112;
+        std::size_t          at = Le32(object + 40);
+        if (at == 0 || at + 64 > scene.size()) {
+            continue;
+        }
+        SceneModel model;
+        model.name = name_of(static_cast<std::int32_t>(i));
+        model.parent = name_of(static_cast<std::int32_t>(Le32(object + 44)));
+        const unsigned char *header = scene.data() + at;
+        std::size_t          size = std::min<std::size_t>(Le32(header + 8), scene.size() - at);
+        model.vertices = Le32(header + 12);
+        std::size_t vertex_at = Le32(header + 16);
+        if (vertex_at + std::uint64_t(model.vertices) * 16 <= size) {
+            float low[3] = {0, 0, 0};
+            float high[3] = {0, 0, 0};
+            for (std::uint32_t v = 0; v < model.vertices; v++) {
+                for (int axis = 0; axis < 3; axis++) {
+                    float value;
+                    std::memcpy(&value, header + vertex_at + v * 16 + axis * 4, 4);
+                    low[axis] = v == 0 ? value : std::min(low[axis], value);
+                    high[axis] = v == 0 ? value : std::max(high[axis], value);
+                }
+            }
+            for (int axis = 0; axis < 3; axis++) {
+                model.extent = std::max(model.extent, high[axis] - low[axis]);
+            }
+        }
+        std::size_t materials = Le32(header + 56);
+        for (std::size_t m = materials; materials > 0 && m + 96 <= size && m < materials + 64 * 96; m += 96) {
+            const char *name = reinterpret_cast<const char *>(header + m + 52);
+            std::size_t length = strnlen(name, 44);
+            bool        valid = length > 0 && length < 44;
+            for (std::size_t c = 0; valid && c < length; c++) {
+                valid = name[c] > 0x20 && name[c] < 0x7F;
+            }
+            if (!valid) {
+                break;
+            }
+            std::string texture(name, length);
+            if (std::find(model.textures.begin(), model.textures.end(), texture) == model.textures.end()) {
+                model.textures.push_back(texture);
+            }
+        }
+        models.push_back(std::move(model));
+    }
+    return models;
+}
+
+// The textures a scene's models draw with, by name.
+inline std::vector<std::string> SceneTextures(std::span<const unsigned char> scene) {
+    std::vector<std::string> names;
+    for (const SceneModel &model : SceneModels(scene)) {
+        for (const std::string &texture : model.textures) {
+            if (std::find(names.begin(), names.end(), texture) == names.end()) {
+                names.push_back(texture);
+            }
+        }
+    }
+    return names;
+}
+
+// Leaves an object of a scene without its model, so it is not drawn.
+inline void HideSceneObject(std::vector<unsigned char> &scene, std::string_view name) {
+    RenameSceneObject(scene, name, name, false);
+}
+
+// The scene a configuration's MODEL names (not its SHADOW_MODEL), or empty.
+inline std::string ConfigModel(std::string_view config) {
+    std::size_t at = config.find("MODEL");
+    while (at != std::string_view::npos && at > 0 && config[at - 1] == '_') {
+        at = config.find("MODEL", at + 5);
+    }
+    std::size_t open = at == std::string_view::npos ? at : config.find('"', at);
+    std::size_t close = open == std::string_view::npos ? open : config.find('"', open + 1);
+    return close == std::string_view::npos ? std::string() : std::string(config.substr(open + 1, close - open - 1));
+}
+
+// The text of a pack's first configuration, or empty.
+inline std::string PackConfig(const std::vector<PackMember> &members) {
+    for (const PackMember &member : members) {
+        std::string_view name = member.name;
+        if (name.size() > 4 && EqualsFolded(name.substr(name.size() - 4), ".cfg")) {
+            const char *text = reinterpret_cast<const char *>(member.data.data());
+            return std::string(text, strnlen(text, member.data.size()));
+        }
+    }
+    return std::string();
+}
+
+// The images holding the textures a character's model draws with that none of the images its
+// configuration loads (nor those found already) hold. The game loads only the images named by IMG
+// lines, so a picture in another image of the pack is never loaded; that image is taken first, then
+// one from the packs beside it: a cutscene's shared images (its img pack) can hold textures of a
+// character's model that its configuration never names. With at most one image: the pack has one
+// image slot left.
+inline std::vector<PackMember> MissingTextureImages(const fs::path &directory, const std::vector<PackMember> &members,
+                                                    const std::vector<PackMember> &found, std::string_view model,
+                                                    std::FILE *log) {
+    std::vector<std::string> loaded = ConfigImages(PackConfig(members));
+    std::vector<std::string> textures;
+    std::vector<std::pair<std::string, std::string>> held; // picture, image
+    auto hold = [&](const PackMember &member) {
+        for (std::string &name : Im2PictureNames(member.data)) {
+            held.emplace_back(std::move(name), member.name);
+        }
+    };
+    for (const PackMember &member : members) {
+        if (EqualsFolded(member.name, model)) {
+            textures = SceneTextures(member.data);
+        }
+        for (const std::string &name : loaded) {
+            if (EqualsFolded(member.name, name)) {
+                hold(member);
+            }
+        }
+    }
+    for (const PackMember &member : found) {
+        hold(member);
+    }
+    std::string listed;
+    for (const std::string &texture : textures) {
+        listed += (listed.empty() ? "" : ", ") + texture;
+    }
+    Log(log, "seda: {} draws with {}\n", model, listed.empty() ? "no texture found" : listed);
+    auto holder = [&](const std::string &texture) {
+        for (const auto &[picture, image] : held) {
+            if (EqualsFolded(picture, texture)) {
+                return image;
+            }
+        }
+        return std::string();
+    };
+    std::vector<PackMember> images;
+    for (const std::string &texture : textures) {
+        if (std::string image = holder(texture); !image.empty()) {
+            Log(log, "seda: texture {} is in {}, which it loads\n", texture, image);
+            continue;
+        }
+        auto take = [&](PackMember candidate, std::string_view where) {
+            std::vector<std::string> names = Im2PictureNames(candidate.data);
+            if (std::find_if(names.begin(), names.end(), [&](const std::string &name) {
+                    return EqualsFolded(name, texture);
+                }) == names.end()) {
+                return false;
+            }
+            Log(log, "seda: texture {} from {} in {}\n", texture, candidate.name, where);
+            hold(candidate);
+            images.push_back(std::move(candidate));
+            return true;
+        };
+        bool located = false;
+        for (const PackMember &member : members) {
+            if (!located && member.name.size() > 4 &&
+                EqualsFolded(std::string_view(member.name).substr(member.name.size() - 4), ".img")) {
+                located = take(member, "its own pack, which does not load it");
+            }
+        }
+        std::error_code error;
+        for (const fs::directory_entry &entry : fs::directory_iterator(directory, error)) {
+            if (located || !entry.is_regular_file() || entry.file_size() > (64u << 20)) {
+                continue;
+            }
+            std::vector<unsigned char> data = ReadFile(entry.path());
+            std::vector<PackMember>    candidates;
+            try {
+                candidates = ReadPack(data);
+            } catch (const Error &) {
+                continue;
+            }
+            for (PackMember &candidate : candidates) {
+                if (take(std::move(candidate), entry.path().filename().string())) {
+                    located = true;
+                    break;
+                }
+            }
+        }
+        if (!located) {
+            Log(log, "seda: texture {} is in no image beside it; what draws with it will be black\n", texture);
+        }
+    }
+    if (images.size() > 1) {
+        Log(log, "seda: {} images would be wanted for the textures, but one slot is left; the first is taken\n",
+            images.size());
+        images.resize(1);
+    }
+    return images;
+}
+
+// The image slot an image the configuration does not name takes: the characters use 0 to 2 of the four.
+inline constexpr int kSedaExtraImageSlot = 3;
+
+// The character's configuration with the variant's keys in place of its own, and its foot sounds on
+// the walk and the run; everything else, its model, motion, textures and events (on its own frames),
+// as it was.
+inline std::string SedaConfig(std::string_view config, const SedaVariant &variant, std::string_view extra_image = {}) {
+    std::string out;
+    bool        in_keys = false;
+    bool        image_added = extra_image.empty();
+    for (std::size_t start = 0; start < config.size();) {
+        std::size_t end = config.find('\n', start);
+        if (end == std::string_view::npos) {
+            end = config.size();
+        }
+        std::string_view line = config.substr(start, end - start);
+        start = end + 1;
+        std::size_t      first = line.find_first_not_of(" \t\r");
+        std::string_view word = first == std::string_view::npos ? std::string_view() : line.substr(first);
+        if (word.starts_with("KEY_START")) {
+            in_keys = true;
+            out += "KEY_START 0\n";
+            for (std::size_t i = 0; i < variant.keys.size(); i++) {
+                const SedaKey &key = variant.keys[i];
+                out += std::format("\tKEY\t{},\t{},\t{},\t//{} {}\n", key.start, key.end, key.speed, i, key.what);
+            }
+            continue;
+        }
+        if (!image_added && word.starts_with("IMG_END")) {
+            out += std::format("IMG {},\"{}\"\n", kSedaExtraImageSlot, extra_image);
+            image_added = true;
+        }
+        if (in_keys) {
+            if (word.starts_with("MOTION_END")) {
+                in_keys = false;
+                out += "MOTION_END\n";
+                out += variant.feet;
+            }
+            continue;
+        }
+        out += line;
+        out += '\n';
+    }
+    if (in_keys || out.find("MOTION_END") == std::string::npos) {
+        Fail("{}'s configuration has no KEY_START ... MOTION_END", variant.source);
+    }
+    return "// " + std::string(variant.name) + " in Toan's place, made by dcdata from " + std::string(variant.source) +
+           "\n" + out;
+}
+
+// The pack: the character's members, its scene renamed as the variant says, and its configuration
+// rewritten as base.cfg, the name the dungeon loads a player character's by, with the images its
+// configuration loads from elsewhere (MissingImages).
+inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source, const SedaVariant &variant,
+                                               std::vector<PackMember> extra_images = {},
+                                               std::vector<PackMember> texture_images = {},
+                                               std::span<const std::string> hidden = {}) {
+    std::vector<PackMember> members = ReadPack(source);
+    std::string             config = PackConfig(members);
+    if (config.empty()) {
+        Fail("{} holds no configuration", variant.source);
+    }
+    std::string model = ConfigModel(config);
+    if (model.empty()) {
+        Fail("{}'s configuration names no MODEL", variant.source);
+    }
+
+    std::vector<PackMember> pack{
+        {"base.cfg", {}}
+    };
+    std::string base = SedaConfig(config, variant, texture_images.empty() ? std::string() : texture_images[0].name);
+    // No terminating NUL: the game's configuration reader (ps2/src/chararead.cpp) takes a NUL for
+    // a letter, and would read on past the end of the file for the rest of the word.
+    pack[0].data.assign(base.begin(), base.end());
+    bool found = false;
+    for (PackMember &member : members) {
+        std::string_view name = member.name;
+        if (name.size() > 4 && EqualsFolded(name.substr(name.size() - 4), ".cfg")) {
+            continue;
+        }
+        if (EqualsFolded(name, model)) {
+            RenameSceneObject(member.data, variant.weapon, "weapon", variant.weapon_drawn);
+            RenameSceneObject(member.data, variant.item, "item", true);
+            for (const std::string &name : hidden) {
+                HideSceneObject(member.data, name);
+            }
+            found = true;
+        }
+        pack.push_back(std::move(member));
+    }
+    if (!found) {
+        Fail("{} holds no {}", variant.source, model);
+    }
+    for (PackMember &image : extra_images) {
+        pack.push_back(std::move(image));
+    }
+    if (!texture_images.empty() && std::none_of(pack.begin(), pack.end(), [&](const PackMember &member) {
+            return EqualsFolded(member.name, texture_images[0].name);
+        })) {
+        pack.push_back(std::move(texture_images[0]));
+    }
+    if (!variant.equipped_drawn) {
+        pack.push_back({std::string(kSedaHideEquipped), {'1'}});
+    }
+    return WritePack(pack);
+}
+
+// Writes the variant's pack into the extracted data, where the port finds it by its name. A disc
+// without the character leaves nothing; the result says which.
+inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant &variant = kSedaVariants[0],
+                          std::span<const std::string> hidden = {}) {
+    fs::path source = out / variant.source;
+    if (!fs::is_regular_file(source)) {
+        Log(log, "seda: no {}; the Seda mod has no pack\n", variant.source);
+        return false;
+    }
+    std::vector<unsigned char> source_pack = ReadFile(source);
+    std::vector<PackMember>    source_members = ReadPack(source_pack);
+    std::vector<PackMember>    images =
+        MissingImages(source.parent_path(), source_members, PackConfig(source_members), log);
+    std::vector<PackMember> texture_images = MissingTextureImages(source.parent_path(), source_members, images,
+                                                                  ConfigModel(PackConfig(source_members)), log);
+    std::string model_name = ConfigModel(PackConfig(source_members));
+    for (const PackMember &member : source_members) {
+        if (EqualsFolded(member.name, model_name)) {
+            for (const SceneModel &model : SceneModels(member.data)) {
+                std::string textures;
+                for (const std::string &texture : model.textures) {
+                    textures += (textures.empty() ? "" : " ") + texture;
+                }
+                bool is_hidden = std::find(hidden.begin(), hidden.end(), model.name) != hidden.end();
+                Log(log, "seda:   {:<12} on {:<12} {:5} vertices, {:7.1f} long, {}{}\n", model.name, model.parent,
+                    model.vertices, model.extent, textures.empty() ? "no texture" : textures,
+                    is_hidden ? " (hidden)" : "");
+            }
+        }
+    }
+    std::vector<unsigned char> pack =
+        MakeSedaPack(source_pack, variant, std::move(images), std::move(texture_images), hidden);
+    fs::path                   target = out / "normalized" / kSedaPack;
+    if (!fs::is_regular_file(target) || ReadFile(target) != pack) {
+        WriteFile(target, pack);
+    }
+    Log(log, "seda: weapon at {}{}, items at {}; the equipped weapon is {}\n", variant.weapon,
+        variant.weapon_drawn ? "" : " (not drawn)", variant.item, variant.equipped_drawn ? "drawn" : "not drawn");
+    Log(log, "seda: wrote {} from {} ({} bytes)\n", (fs::path("normalized") / kSedaPack).generic_string(), variant.source,
+        pack.size());
+    return true;
+}
+
 inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *log,
                        const ProgressCallback &progress = {}) {
     std::vector<unsigned char> hd2 = ReadExtent(archive.hd2);
@@ -1122,6 +1755,12 @@ inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *l
         FillFloorPlates(out);
     }
     WriteLanguages(out, release);
+    try {
+        WriteSedaPack(out, log);
+    } catch (const Error &error) {
+        Log(log, "warning: seda: {}\n", error.what());
+        summary.warnings++;
+    }
     return summary;
 }
 

@@ -86,10 +86,21 @@ public:
     void    Align64();
 };
 
+/**
+ * Quadwords GlobalDataBuffer holds. The PS2 build of the Demon Shaft georama
+ * mod gives up 16 KB of it: the main image ends where the overlays are loaded,
+ * and the mod's code and save record need the room.
+ */
+#if defined(MOD_DEMON_SHAFT_GEORAMA) && !defined(PORT)
+#define GLOBAL_DATA_QUADS 1688976
+#else
+#define GLOBAL_DATA_QUADS 1690000
+#endif
+
 template <>
 class CDataAlloc<1, 1690000> {
 public:
-    u_long128 block[1690000]; /**< Embedded allocation storage. */
+    u_long128 block[GLOBAL_DATA_QUADS]; /**< Embedded allocation storage. */
     int       used;           /**< Number of occupied quadwords. */
 
     CDataAlloc() { used = 0; }

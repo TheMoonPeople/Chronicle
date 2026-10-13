@@ -14,6 +14,7 @@
 #include "boxvu0.hpp"
 #include "camera.hpp"
 #include "dataread.hpp"
+#include "dsgeorama.hpp"
 #include "editatra.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
@@ -173,6 +174,9 @@ SND_SE_SEQ se_seq[32];
 static void SndSeSeqStep();
 
 EDIT_ELEMENT_ATRA *GetEditAtraData(int ground, int number) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    ground = DsgAssetIndex(ground);
+#endif
     if (ground < 0 || ground >= 6) {
         return 0;
     }
@@ -185,6 +189,9 @@ EDIT_ELEMENT_ATRA *GetEditAtraData(int ground, int number) {
 }
 
 EDIT_PARTS_ATRA *GetEditAtraPartsData(int ground, int number) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    ground = DsgAssetIndex(ground);
+#endif
     if (ground < 0 || ground >= 6) {
         return 0;
     }

@@ -43,7 +43,7 @@ CDataAlloc2<1>         workbuffer(-1);
 #ifndef PORT
 void InitializeDataBuffer() {
     GlobalDataBuffer.used = 0;
-    memset(&GlobalDataBuffer.block[GlobalDataBuffer.used], 0, 1690000 * 16);
+    memset(&GlobalDataBuffer.block[GlobalDataBuffer.used], 0, GLOBAL_DATA_QUADS * 16);
 
     GlobalDataBuffer.Alloc64(10);
     asm {
@@ -91,13 +91,17 @@ void SetPacketReadBuffer(int packet_quads, int read_quads) {
     workbuffer.limit = 2048;
     WorkBuffer = &workbuffer;
     WorkBuffer->used = 0;
-    printf("%d/%d\n", GlobalDataBuffer.used, 1690000);
+    printf("%d/%d\n", GlobalDataBuffer.used, GLOBAL_DATA_QUADS);
 }
 #ifndef PORT
 void BufferAllClear() {
     GlobalDataBuffer.used = 0;
     asm {
+#if GLOBAL_DATA_QUADS == 1690000
         lw $2, GlobalDataBuffer+27040000
+#else
+        lw $2, GlobalDataBuffer+27023616
+#endif
         sll $3, $2, 4
         la $2, GlobalDataBuffer
         addu $2, $2, $3
@@ -109,7 +113,11 @@ clear_loop:
         addiu $4, $4, 1
 clear_test:
         lui $3, 0x19
+#if GLOBAL_DATA_QUADS == 1690000
         ori $3, $3, 0xc990
+#else
+        ori $3, $3, 0xc590
+#endif
         slt $3, $4, $3
         bne $3, $0, clear_loop
     }

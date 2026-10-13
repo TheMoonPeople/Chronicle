@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "dsgeorama.hpp"
 #include "menu_draw.hpp"
 #include "savedata.hpp"
 
@@ -129,6 +130,11 @@ void CMemoryCardAccess::SetBuff(char *buffer) {
         }
     }
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    // The Demon Shaft georama's record follows retail's image.
+    DsgWriteSave((char *) this->save_buffer + 0x136A7);
+    sum = (char *) this->save_buffer + 0x136A7 + DSG_SAVE_SIZE;
+#endif
     this->read_buffer = (char *) ((((int) sum >> 6) + 1) << 6);
     this->load_buffer = this->read_buffer;
 }
@@ -1189,7 +1195,11 @@ int CMemoryCardAccess::SaveToMc(int file_no) {
 
             this->fd = result;
             this->transferred = 0;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+            this->transfer_size = 0x136A7 + DSG_SAVE_SIZE;
+#else
             this->transfer_size = 0x136A7;
+#endif
 
             if (sceMcWrite(this->fd, this->save_buffer, this->transfer_size) == 0) {
                 this->step++;
@@ -1393,7 +1403,11 @@ int CMemoryCardAccess::LoadFromMc(int file_no) {
             }
 
             this->fd = result;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+            this->transfer_size = 0x136A7 + DSG_SAVE_SIZE;
+#else
             this->transfer_size = 0x136A7;
+#endif
             memset(this->load_buffer, 0, this->transfer_size + 0x40);
             this->transferred = 0;
 
@@ -1415,9 +1429,16 @@ int CMemoryCardAccess::LoadFromMc(int file_no) {
 
             this->transferred += result;
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+            // A save from before the mod ends with retail's image.
+            if (this->transferred < 0x136A7) {
+                break;
+            }
+#else
             if (this->transferred < this->transfer_size) {
                 break;
             }
+#endif
 
             if (sceMcClose(this->fd) == 0) {
                 this->step++;
@@ -1468,6 +1489,9 @@ int CMemoryCardAccess::LoadFromMc(int file_no) {
 
             if (ok) {
                 memcpy(SaveData, this->load_buffer, sizeof(CSaveData));
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                DsgReadSave(this->load_buffer + 0x136A7, this->transferred - 0x136A7);
+#endif
                 ((s32 *) SaveData->GetConfigData())[17] = file_no;
             } else {
                 return -1;

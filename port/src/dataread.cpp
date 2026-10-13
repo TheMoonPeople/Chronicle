@@ -18,6 +18,7 @@
 #include "language.h"
 #include "localize.hpp"
 #include "platform/paths.hpp"
+#include "seda.hpp"
 
 namespace fs = std::filesystem;
 
@@ -67,7 +68,36 @@ const fs::path *Lookup(std::string_view path) {
     if (!data_indexed) {
         InitCDFile();
     }
-    auto found = data_index.find(dcdata::FoldPath(StripDevice(path)));
+    std::string folded = dcdata::FoldPath(StripDevice(path));
+#ifdef MOD_SEDA
+    // Toan's dungeon character is Seda's while he stands in for Toan, when his pack was built.
+    if (SedaActive() && folded == "dun/mainchara/c01d.chr") {
+        auto seda = data_index.find(std::string(dcdata::kSedaPack));
+        if (seda != data_index.end()) {
+            // Whether the pack shows the character's own sword instead of the equipped weapon.
+            static fs::path checked;
+            if (checked != seda->second) {
+                checked = seda->second;
+                bool hidden = false;
+                try {
+                    for (const dcdata::PackMember &member : dcdata::ReadPack(dcdata::ReadFile(seda->second))) {
+                        hidden = hidden || member.name == dcdata::kSedaHideEquipped;
+                    }
+                } catch (const std::exception &) {
+                }
+                SedaSetEquippedHidden(hidden);
+            }
+            return &seda->second;
+        }
+        static bool warned = false;
+        if (!warned) {
+            std::fprintf(stderr, "seda: no %s in the data; run dcdata seda on it (docs/SEDA.md)\n",
+                         std::string(dcdata::kSedaPack).c_str());
+            warned = true;
+        }
+    }
+#endif
+    auto found = data_index.find(folded);
     return found == data_index.end() ? nullptr : &found->second;
 }
 
