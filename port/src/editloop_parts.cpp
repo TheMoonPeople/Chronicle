@@ -20,8 +20,8 @@
 #include "mapparts.hpp"
 #include "mathutil.hpp"
 #include "objanime.hpp"
+#include "itemdata.hpp"
 #include "savedata.hpp"
-#include "treant_chests_port.hpp"
 
 // Retail's LoadPTS, with the .pts definition decoded into host records (eparts_port.hpp) where
 // retail copied it into EPartsInfoBuff and relocated its pointer fields in place.
@@ -38,6 +38,63 @@ CFrame *GetCameraFrame(CMapParts *parts) {
     parts->camera_frame->SetPosition(parts->pos[0], parts->pos[1], parts->pos[2]);
     parts->camera_frame->SetRotation(parts->rotation.x, parts->rotation.y, parts->rotation.z);
     return parts->camera_frame;
+}
+
+// The flooded Treant clearing's extra chests, from forest progress 9: the first three chests' items again.
+struct ExtraChest {
+    int   item;
+    float position[3];
+    float yaw;
+    int   flag;
+};
+
+constexpr ExtraChest kTreantChests[] = {
+    {ITEM_GOURD,               {-20.0f, 0.0f, 195.0f}, 1.937f,                        365},
+    {ITEM_FRUIT_OF_EDEN,       {125.0f, 0.1f, 95.0f},  -1.862f + 3.14159265f / 6.0f, 366},
+    {ITEM_ATTACH_BEAST_BUSTER, {60.0f, 0.6f, 165.0f},  -1.862f + 3.14159265f / 2.0f, 367},
+};
+
+// Adds the flooded clearing's extra chests beside the part holding its Gourd chest (flag 360).
+int AddTreantChests(CMapParts *parts, EPARTS_FUNC_DATA *functions, int function_count, ED_EVENT_POINT *points) {
+    if (MapNo != 13) {
+        return 0;
+    }
+
+    const EPARTS_FUNC_DATA *gourd = nullptr;
+
+    for (int i = 0; i < function_count; i++) {
+        if (functions[i].kind == EPARTS_FUNC_ITEM_BOX && functions[i].completion_flag == 360) {
+            gourd = &functions[i];
+            break;
+        }
+    }
+
+    if (gourd == nullptr) {
+        return 0;
+    }
+
+    constexpr int    count = sizeof(kTreantChests) / sizeof(kTreantChests[0]);
+    EPARTS_FUNC_DATA extra[count];
+
+    for (int i = 0; i < count; i++) {
+        const ExtraChest &chest = kTreantChests[i];
+        extra[i] = *gourd;
+        extra[i].completion_flag = chest.flag;
+        extra[i].position[0] = chest.position[0];
+        extra[i].position[1] = chest.position[1];
+        extra[i].position[2] = chest.position[2];
+        extra[i].rotation[1] = chest.yaw;
+        extra[i].values[0] = static_cast<float>(chest.item);
+        extra[i].values[2] = 9.0f;
+
+        // Initialised closed on the map's first load, as LoadPTS does for the part's own flags.
+        if (SaveData->GetMapInitFlag(MapNo, chest.flag) == 0) {
+            SaveData->SetMapInitFlag(MapNo, chest.flag, 1);
+            SaveData->SetMapFlag(MapNo, chest.flag, !(char) extra[i].unk_28[0]);
+        }
+    }
+
+    return EdInitEventPoint(parts, NULL, extra, count, points, 0x100);
 }
 
 } // namespace

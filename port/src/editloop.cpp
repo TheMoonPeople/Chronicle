@@ -176,6 +176,36 @@ static void RunSystemEvent(int event_no, CCamera *camera) {
     }
 }
 
+// Treant's clearing before (map 33) and after (map 13) the flood shares its five chests' flags.
+static bool TreantChestFlag(int flag_no) {
+    return (MapNo == 33 || MapNo == 13) && flag_no >= 360 && flag_no <= 364;
+}
+
+PORT_OVERRIDE int EdGetMapFlag(int flag_no) {
+    if (flag_no <= 0) {
+        return 0;
+    }
+
+    if (TreantChestFlag(flag_no)) {
+        return SaveData->GetMapFlag(33, flag_no) || SaveData->GetMapFlag(13, flag_no);
+    }
+
+    return SaveData->GetMapFlag(MapNo, flag_no);
+}
+
+PORT_OVERRIDE int EdSetMapFlag(int flag_no, int value) {
+    if (flag_no <= 0) {
+        return 0;
+    }
+
+    if (TreantChestFlag(flag_no)) {
+        SaveData->SetMapFlag(33, flag_no, value);
+        return SaveData->SetMapFlag(13, flag_no, value);
+    }
+
+    return SaveData->SetMapFlag(MapNo, flag_no, value);
+}
+
 /**
  * Runs one frame of the editor and reports what it is to do next.
  *
