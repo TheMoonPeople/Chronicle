@@ -16,6 +16,7 @@
 #include "collision.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dsgeorama.hpp"
 #include "dun/gameloop.hpp"
 #include "dungeonmap.hpp"
 #include "editloop.hpp"
@@ -1993,6 +1994,12 @@ int BtAtraFloorCyoice(int map_no, int floor_no, int *atra_no) {
     ATRA_SAVE registry[128];
     int       packed[8];
 
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    if (map_no == DUNGEON_DEMON_SHAFT) {
+        return DsgAtlaFloorChoose(floor_no, atra_no);
+    }
+
+#endif
     if (map_no >= 6) {
         return 0;
     }

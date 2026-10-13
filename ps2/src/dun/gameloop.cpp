@@ -75,6 +75,7 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dsgeorama.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -4736,7 +4737,11 @@ void MoveChara() {
                         int atra_no = NowDngMap->atra[i].atra_no;
 
                         if (atra_no != -1) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                            int atra = selectMapNo == DUNGEON_DEMON_SHAFT ? DsgAtlaId(atra_no) : UserStatus->atra_registry[selectMapNo][atra_no].id;
+#else
                             int atra = UserStatus->atra_registry[selectMapNo][atra_no].id;
+#endif
 
                             getAtraToSaveData(atra, atra_no, SaveData, selectMapNo, UserStatus->cur_floor);
                         }

@@ -14,6 +14,7 @@
 #include "dataread.hpp"
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
+#include "dsgeorama.hpp"
 #include "dun/gameloop.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -744,7 +745,11 @@ int BtAtraGetShort_Loop(int map_no, int floor) {
                 shortAtraEffect.SetMotion(0, 6);
                 atraGetStatusRate__2 = 0.0f;
                 CDngStatusData *status = (CDngStatusData *) UserStatus;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                int atra_id = map_no == DUNGEON_DEMON_SHAFT ? DsgAtlaId(NowDngMap->atra[index].atra_no) : status->atra_registry[map_no][NowDngMap->atra[index].atra_no].id;
+#else
                 int             atra_id = status->atra_registry[map_no][NowDngMap->atra[index].atra_no].id;
+#endif
                 BtAtraGetID = atra_id;
                 NowDngMap->atra[NowDngMap->events[BtAtraGetNo].index].used = 0;
                 NowDngMap->events[BtAtraGetNo].kind = DNG_EVENT_NONE;

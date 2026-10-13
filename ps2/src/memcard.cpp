@@ -12,6 +12,7 @@
 #include "battle_globals.hpp"
 #include "clsmes.hpp"
 #include "dataread.hpp"
+#include "dsgeorama.hpp"
 #include "eastking.hpp"
 #include "editatra.hpp"
 #include "editground.hpp"
@@ -969,6 +970,10 @@ static int AtoraBoardGoToPos(int *enable, int pos, int min) {
 
 int GetAtraMsgNo(int map_no, int element) {
     int mes_no;
+
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    map_no = DsgAssetIndex(map_no);
+#endif
 
     if (element < 0 || element >= 100) {
         mes_no = 999;

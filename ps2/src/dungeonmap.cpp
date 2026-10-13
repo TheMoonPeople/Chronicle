@@ -2298,10 +2298,12 @@ int CDungeonMap::CheckTreasureBox(float *pos, float dist) {
 }
 
 int CDungeonMap::CheckAtra(float *pos, float dist) {
+#ifndef MOD_DEMON_SHAFT_GEORAMA
     // Demon Shaft does not have atla, only the first five maps do.
     if (selectMapNo >= DUNGEON_DEMON_SHAFT) {
         return 1;
     }
+#endif
 
     for (int i = 0; i < this->atra_num; i++) {
         if (this->atra[i].used != 0 && DistVector(this->atra[i].pos, pos) < dist) {

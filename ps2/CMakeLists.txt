@@ -50,6 +50,12 @@ set(CC_MW_FLAGS -O2 -c -Cpp_exceptions off -RTTI off -strings readonly
 if(REGION STREQUAL "PAL")
     list(APPEND CC_MW_FLAGS -DPAL -DPAL_TIMING)
 endif()
+# The Demon Shaft georama mod (docs/DEMON_SHAFT_GEORAMA.md). Off by default: with
+# it on the executable no longer matches retail.
+option(MOD_DEMON_SHAFT_GEORAMA "Build the Demon Shaft georama mod" OFF)
+if(MOD_DEMON_SHAFT_GEORAMA)
+    list(APPEND CC_MW_FLAGS -DMOD_DEMON_SHAFT_GEORAMA)
+endif()
 set(LD_MW_FLAGS -map -nostdlib -m _start -nodead -g)
 set(LD_MW_ISO_FLAGS -nostdlib -m _start -nodead -sym on,noelf)
 set(BIN_FLAGS -B mips:5900 -I binary -O elf32-littlemips)

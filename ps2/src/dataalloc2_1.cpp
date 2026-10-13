@@ -63,8 +63,8 @@ u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
     u_char *allocation = (u_char *) this->block + used * 16;
     used += quads;
 
-    if (used >= 1690000) {
-        printf("Alocation Error! %d/%d\n", used, 1690000);
+    if (used >= GLOBAL_DATA_QUADS) {
+        printf("Alocation Error! %d/%d\n", used, GLOBAL_DATA_QUADS);
 
         while (1)
             ;
@@ -85,8 +85,8 @@ void CDataAlloc<1, 1690000>::Align64() {
         used += (64 - slack) >> 4;
     }
 
-    if (used >= 1690000) {
-        printf("Alocation Error! %d/%d\n", used, 1690000);
+    if (used >= GLOBAL_DATA_QUADS) {
+        printf("Alocation Error! %d/%d\n", used, GLOBAL_DATA_QUADS);
 
         while (1)
             ;

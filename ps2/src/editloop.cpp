@@ -45,6 +45,7 @@
 #include "dataset.hpp"
 #include "debugfont.hpp"
 #include "dngstatusdata.hpp"
+#include "dsgeorama.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
 #include "edit_in.hpp"
@@ -716,6 +717,9 @@ int EditInit(void *param) {
     GamePad.AutoRepeatOff();
     int map_no = MapNo;
     NowEditMap = map_no;
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+    DsgEnterTown(map_no);
+#endif
     interior_test = 0;
 
     if (map_no < 9) {

@@ -16,6 +16,7 @@
 #include "camera.hpp"
 #include "camera_port.hpp"
 #include "camera_zoom.hpp"
+#include "dsgeorama.hpp"
 #include "first_person_walk.hpp"
 #include "platform/input.hpp"
 #include "camerafollow.hpp"
@@ -1995,7 +1996,11 @@ PORT_OVERRIDE void DunMoveChara() {
                         int atra_no = NowDngMap->atra[i].atra_no;
 
                         if (atra_no != -1) {
+#ifdef MOD_DEMON_SHAFT_GEORAMA
+                            int atra = selectMapNo == DUNGEON_DEMON_SHAFT ? DsgAtlaId(atra_no) : UserStatus->atra_registry[selectMapNo][atra_no].id;
+#else
                             int atra = UserStatus->atra_registry[selectMapNo][atra_no].id;
+#endif
 
                             getAtraToSaveData(atra, atra_no, SaveData, selectMapNo, UserStatus->cur_floor);
                         }
