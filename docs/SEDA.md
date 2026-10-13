@@ -34,22 +34,30 @@ with the bracketed numbers of the report in place of the two examples.
 
 ## What it is
 
-Seda's character is `gedit/s16/chara/e502p68b.chr`, the cutscene in which he fights the assassin; its
-configuration opens with `//シーダ王`, King Seda. The game moves a model's bones by their index in its
-scene (`AnimeDataInit`, `ps2/src/gameutil.cpp`), and Seda's skeleton is not Toan's (3 of Toan's 77 bones
-are at the same index), so Toan's motions cannot move him. He keeps his own:
+The disc has two Sedas. Seda himself (`c07a`, his configuration opens with `//シーダ`) and King Seda
+of the story's last flashback (`e502p68b`, `//シーダ王`). `dcdata seda <data-directory> [seda|king]`
+builds the pack from either; `extract` builds Seda's.
 
-- `MakeSedaPack` (`tools/dcdata/dcdata.hpp`) writes `normalized/dun/mainchara/c01seda.chr`: Seda's pack
-  with his configuration rewritten as `base.cfg`, the name the dungeon loads a player character by. Its
-  41 `KEY`s are Toan's, in Toan's order, each a stretch of Seda's motion (`kSedaKeys`): his walk for
-  Toan's walk, his run with the sword ready for the run, cutting down and running the assassin through
-  for the attacks, holding the sword for the guard, and so on. His model, textures and footstep events
-  are his own.
-- In his scene the sword (`seiken__m`, in his left hand) becomes `weapon`, where the game hangs the
-  equipped weapon, and is no longer drawn; his right hand (`cube40_3_2`) becomes `item`. So he fights
-  with the weapon Toan has equipped, its damage and element.
-- The port (`port/src/dataread.cpp`) gives his pack for `dun/mainchara/c01d.chr` while `SedaActive()`.
+| Variant | Character | Motions | Sword |
+| --- | --- | --- | --- |
+| `seda` (default) | `gedit/s99/chara/c07a.chr`, the dungeon's cutscenes | 24: stand, walk, hold the sword, sweep and leap, point the sword, magic pose, throw, laugh, suffer | `obj10` in his right hand stays drawn; the equipped weapon hangs from his hand (`r_hand4`) |
+| `king` | `gedit/s16/chara/e502p68b.chr`, the assassin's cutscene | 52: walk, run with the sword, cut down, run through, push off | his own (`seiken__m`, left hand) is hidden and the equipped weapon takes its place |
+
+The game moves a model's bones by their index in its scene (`AnimeDataInit`, `ps2/src/gameutil.cpp`),
+and neither skeleton is Toan's, so Toan's motions cannot move them. Each keeps its own:
+
+- `MakeSedaPack` (`tools/dcdata/dcdata.hpp`) writes `normalized/dun/mainchara/c01seda.chr`: the
+  character's pack with its configuration rewritten as `base.cfg`, the name the dungeon loads a player
+  character by, and no NUL after its text (the game's reader takes a NUL for a letter). Its 41 `KEY`s
+  are Toan's, in Toan's order, each a stretch of the character's own motion (`kSedaC07Keys`,
+  `kKingSedaKeys`). The model, textures and footstep events are the character's.
+- In the scene one object becomes `weapon`, where the game hangs the equipped weapon, and one `item`,
+  which holds items. So he fights with the weapon Toan has equipped, its damage and element.
+- The port (`port/src/dataread.cpp`) gives that pack for `dun/mainchara/c01d.chr` while `SedaActive()`.
   That is every load of Toan's dungeon character: the dungeon's start, changing character and the menu.
+
+Seda has no run of his own (only `dun/mainchara/c07a.chr`, another model with another skeleton,
+has one); his walk, played quicker, stands in for it.
 
 ## What to look for, and what is not done
 

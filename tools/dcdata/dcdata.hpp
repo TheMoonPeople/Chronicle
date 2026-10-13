@@ -1052,78 +1052,147 @@ inline void FillFloorPlates(const fs::path &out) {
     }
 }
 
-// The Seda mod (docs/SEDA.md): a player pack for Toan's place built from Seda's cutscene character,
-// with his own motions put in the order of Toan's. The game drives a model's bones by their index
-// in its scene, and Seda's skeleton is not Toan's, so Toan's motions cannot move him; his own can.
-inline constexpr std::string_view kSedaSource = "gedit/s16/chara/e502p68b.chr";
+// The Seda mod (docs/SEDA.md): a player pack for Toan's place built from a cutscene character of the
+// disc, with that character's own motions put in the order of Toan's. The game drives a model's
+// bones by their index in its scene, and no other character's skeleton is Toan's, so Toan's motions
+// cannot move them; their own can.
 inline constexpr std::string_view kSedaPack = "dun/mainchara/c01seda.chr";
 
 struct SedaKey {
     int         start;
     int         end;
     float       speed;
-    const char *what; // Toan's motion the key takes the place of, then Seda's that plays.
+    const char *what; // Toan's motion the key takes the place of, then the character's that plays.
 };
 
-// One per KEY of Toan's dun/mainchara/c01d.chr, in its order, as frames of Seda's e502p68b.mot.
-inline constexpr SedaKey kSedaKeys[] = {
-    {10,  20,  0.1f,  "stand: stand"                                  },
-    {395, 415, 0.5f,  "run: run with the sword ready"                 },
-    {40,  60,  0.2f,  "walk: walk"                                    },
-    {560, 570, 0.2f,  "charged attack loop 2: trembling guard"        },
-    {465, 470, 0.3f,  "damage: held fast"                             },
-    {560, 560, 0.0f,  "charged attack loop 3: trembling guard"        },
-    {465, 481, 0.3f,  "heavy damage: held fast"                       },
-    {890, 895, 0.25f, "get up: stand up"                              },
-    {350, 352, 0.8f,  "stand to guard: hold the sword"                },
-    {350, 360, 0.1f,  "guard loop: hold the sword"                    },
-    {355, 360, 0.8f,  "guard to stand: hold the sword"                },
-    {365, 375, 0.3f,  "attack 1: cut down"                            },
-    {575, 625, 1.0f,  "attack 2: run the assassin through"            },
-    {535, 545, 0.4f,  "stand to charge: trembling guard"              },
-    {560, 570, 0.4f,  "charge loop: trembling guard"                  },
-    {365, 370, 0.4f,  "charged attack start: cut down"                },
-    {370, 370, 0.0f,  "charged attack loop 1: cut down"               },
-    {370, 390, 0.4f,  "charged attack end: cut down"                  },
-    {350, 360, 0.3f,  "attack stance: hold the sword"                 },
-    {295, 315, 0.4f,  "lock-on right: walk with the sword"            },
-    {295, 315, 0.4f,  "lock-on left: walk with the sword"             },
-    {295, 315, 0.4f,  "lock-on forward: walk with the sword"          },
-    {295, 315, 0.4f,  "lock-on back: walk with the sword"             },
-    {770, 780, 0.2f,  "defeated: crouch"                              },
-    {670, 700, 0.4f,  "special: push the assassin off"                },
-    {390, 390, 0.0f,  "charged attack loop 3: cut down"               },
-    {745, 745, 0.0f,  "throw hold: throw the sword away"              },
-    {745, 765, 0.4f,  "throw: throw the sword away"                   },
-    {85,  100, 0.15f, "drink: talk"                                   },
-    {645, 665, 0.5f,  "run while hurt: run with the sword drawn"      },
-    {295, 315, 0.3f,  "move while charging: walk with the sword"      },
-    {825, 835, 0.3f,  "no good: shake the head"                       },
-    {495, 501, 0.3f,  "fall: tremble"                                 },
-    {295, 315, 0.3f,  "move while guarding: walk with the sword"      },
-    {450, 460, 0.3f,  "atla get in: look up"                          },
-    {450, 460, 0.1f,  "atla get loop: look up"                        },
-    {365, 375, 0.3f,  "combo 1: cut down"                             },
-    {575, 600, 0.6f,  "combo 2: run the assassin through"            },
-    {365, 375, 0.3f,  "combo 1 again: cut down"                       },
-    {670, 700, 0.6f,  "combo 2 again: push the assassin off"          },
-    {420, 445, 0.3f,  "combo 3: fight the assassin"                   },
+// One key per KEY of Toan's dun/mainchara/c01d.chr, in its order, as frames of King Seda's
+// e502p68b.mot (the cutscene of the assassin, near the story's end).
+inline constexpr SedaKey kKingSedaKeys[] = {
+    {10,  20,  0.1f,  "stand: stand"                            },
+    {395, 415, 0.5f,  "run: run with the sword ready"           },
+    {40,  60,  0.2f,  "walk: walk"                              },
+    {560, 570, 0.2f,  "charged attack loop 2: trembling guard"  },
+    {465, 470, 0.3f,  "damage: held fast"                       },
+    {560, 560, 0.0f,  "charged attack loop 3: trembling guard"  },
+    {465, 481, 0.3f,  "heavy damage: held fast"                 },
+    {890, 895, 0.25f, "get up: stand up"                        },
+    {350, 352, 0.8f,  "stand to guard: hold the sword"          },
+    {350, 360, 0.1f,  "guard loop: hold the sword"              },
+    {355, 360, 0.8f,  "guard to stand: hold the sword"          },
+    {365, 375, 0.3f,  "attack 1: cut down"                      },
+    {575, 625, 1.0f,  "attack 2: run the assassin through"      },
+    {535, 545, 0.4f,  "stand to charge: trembling guard"        },
+    {560, 570, 0.4f,  "charge loop: trembling guard"            },
+    {365, 370, 0.4f,  "charged attack start: cut down"          },
+    {370, 370, 0.0f,  "charged attack loop 1: cut down"         },
+    {370, 390, 0.4f,  "charged attack end: cut down"            },
+    {350, 360, 0.3f,  "attack stance: hold the sword"           },
+    {295, 315, 0.4f,  "lock-on right: walk with the sword"      },
+    {295, 315, 0.4f,  "lock-on left: walk with the sword"       },
+    {295, 315, 0.4f,  "lock-on forward: walk with the sword"    },
+    {295, 315, 0.4f,  "lock-on back: walk with the sword"       },
+    {770, 780, 0.2f,  "defeated: crouch"                        },
+    {670, 700, 0.4f,  "special: push the assassin off"          },
+    {390, 390, 0.0f,  "charged attack loop 3: cut down"         },
+    {745, 745, 0.0f,  "throw hold: throw the sword away"        },
+    {745, 765, 0.4f,  "throw: throw the sword away"             },
+    {85,  100, 0.15f, "drink: talk"                             },
+    {645, 665, 0.5f,  "run while hurt: run with the sword drawn"},
+    {295, 315, 0.3f,  "move while charging: walk with the sword"},
+    {825, 835, 0.3f,  "no good: shake the head"                 },
+    {495, 501, 0.3f,  "fall: tremble"                           },
+    {295, 315, 0.3f,  "move while guarding: walk with the sword"},
+    {450, 460, 0.3f,  "atla get in: look up"                    },
+    {450, 460, 0.1f,  "atla get loop: look up"                  },
+    {365, 375, 0.3f,  "combo 1: cut down"                       },
+    {575, 600, 0.6f,  "combo 2: run the assassin through"       },
+    {365, 375, 0.3f,  "combo 1 again: cut down"                 },
+    {670, 700, 0.6f,  "combo 2 again: push the assassin off"    },
+    {420, 445, 0.3f,  "combo 3: fight the assassin"             },
 };
 
-// Seda's sword stands in his left hand; it becomes "weapon", where the game hangs the equipped
-// weapon, and is no longer drawn itself. His right hand becomes "item", which holds items.
-inline constexpr std::string_view kSedaSword = "seiken__m";
-inline constexpr std::string_view kSedaRightHand = "cube40_3_2";
+// One key per KEY of Toan's, as frames of Seda's c07a.mot (gedit/s99, the dungeon's cutscenes).
+inline constexpr SedaKey kSedaC07Keys[] = {
+    {10,  20,  0.1f,  "stand: stand"                         },
+    {40,  60,  0.45f, "run: walk, quicker"                   },
+    {40,  60,  0.25f, "walk: walk"                           },
+    {258, 268, 0.2f,  "charged attack loop 2: hold the sword"},
+    {142, 150, 0.3f,  "damage: talk to suffering"            },
+    {268, 268, 0.0f,  "charged attack loop 3: hold the sword"},
+    {142, 161, 0.3f,  "heavy damage: suffering"              },
+    {172, 215, 0.4f,  "get up: lean forward, raise the face" },
+    {247, 250, 0.6f,  "stand to guard: raise the sword"      },
+    {258, 268, 0.1f,  "guard loop: hold the sword"           },
+    {247, 250, 0.8f,  "guard to stand: raise the sword"      },
+    {269, 285, 0.4f,  "attack 1: sweep"                      },
+    {285, 300, 0.4f,  "attack 2: leap at"                    },
+    {305, 311, 0.3f,  "stand to charge: magic pose"          },
+    {312, 322, 0.3f,  "charge loop: magic pose"              },
+    {269, 280, 0.4f,  "charged attack start: sweep"          },
+    {280, 280, 0.0f,  "charged attack loop 1: sweep"         },
+    {280, 300, 0.4f,  "charged attack end: leap at"          },
+    {258, 268, 0.3f,  "attack stance: hold the sword"        },
+    {40,  60,  0.3f,  "lock-on right: walk"                  },
+    {40,  60,  0.3f,  "lock-on left: walk"                   },
+    {40,  60,  0.3f,  "lock-on forward: walk"                },
+    {40,  60,  0.3f,  "lock-on back: walk"                   },
+    {153, 161, 0.2f,  "defeated: suffering"                  },
+    {325, 343, 0.3f,  "special: point the sword"             },
+    {300, 300, 0.0f,  "charged attack loop 3: leap at"       },
+    {378, 378, 0.0f,  "throw hold: throw"                    },
+    {378, 398, 0.4f,  "throw: throw"                         },
+    {121, 141, 0.15f, "drink: talk"                          },
+    {40,  60,  0.4f,  "run while hurt: walk"                 },
+    {40,  60,  0.3f,  "move while charging: walk"            },
+    {399, 410, 0.3f,  "no good: look back over the shoulder" },
+    {162, 171, 0.3f,  "fall: howl"                           },
+    {40,  60,  0.3f,  "move while guarding: walk"            },
+    {344, 360, 0.3f,  "atla get in: start to laugh"          },
+    {361, 369, 0.2f,  "atla get loop: laugh"                 },
+    {269, 285, 0.4f,  "combo 1: sweep"                       },
+    {285, 300, 0.4f,  "combo 2: leap at"                     },
+    {325, 332, 0.4f,  "combo 1 again: thrust the sword"      },
+    {269, 300, 0.5f,  "combo 2 again: sweep and leap"        },
+    {269, 300, 0.4f,  "combo 3: sweep and leap"              },
+};
+
+// A character a pack can be built from, and how.
+struct SedaVariant {
+    std::string_view         name;         // As dcdata seda takes it.
+    std::string_view         source;       // The character's pack on the disc.
+    std::string_view         weapon;       // The object the equipped weapon hangs from, renamed "weapon".
+    bool                     weapon_drawn; // Whether that object is still drawn (false: it is the character's own sword).
+    std::string_view         item;         // The object items are held by, renamed "item".
+    std::span<const SedaKey> keys;
+    std::string_view         feet; // FOOT lines for the walk and the run.
+};
+
+inline constexpr SedaVariant kSedaVariants[] = {
+    // Seda (c07a, //シーダ): his sword is obj10 in his right hand; it stays drawn, the weapon at the hand.
+    {"seda", "gedit/s99/chara/c07a.chr",     "r_hand4",   true,  "r_hand3",    kSedaC07Keys,  "FOOT 43,53\n"},
+    // King Seda (p68b, //シーダ王): his sword is in his left hand and gives way to the equipped one.
+    {"king", "gedit/s16/chara/e502p68b.chr", "seiken__m", false, "cube40_3_2", kKingSedaKeys,
+     "FOOT 43,53\nFOOT 398,408\n"                                                                           },
+};
+
+inline const SedaVariant *FindSedaVariant(std::string_view name) {
+    for (const SedaVariant &variant : kSedaVariants) {
+        if (variant.name == name) {
+            return &variant;
+        }
+    }
+    return nullptr;
+}
 
 // Renames an object of a scene in place, and with draw false leaves it no model.
 inline void RenameSceneObject(std::vector<unsigned char> &scene, std::string_view from, std::string_view to,
                               bool draw) {
     if (scene.size() < 16) {
-        Fail("Seda's scene is {} bytes", scene.size());
+        Fail("the scene is {} bytes", scene.size());
     }
     std::uint32_t count = Le32(scene.data() + 8);
     if (16 + static_cast<std::uint64_t>(count) * 112 > scene.size()) {
-        Fail("Seda's scene claims {} objects in {} bytes", count, scene.size());
+        Fail("the scene claims {} objects in {} bytes", count, scene.size());
     }
     for (std::uint32_t i = 0; i < count; i++) {
         unsigned char *object = scene.data() + 16 + i * 112;
@@ -1137,12 +1206,13 @@ inline void RenameSceneObject(std::vector<unsigned char> &scene, std::string_vie
             return;
         }
     }
-    Fail("Seda's scene has no object {}", from);
+    Fail("the scene has no object {}", from);
 }
 
-// Seda's configuration with the keys above in place of his own, and his foot sounds on the walk and
-// the run; everything else, his model, motion, textures and events (on his own frames), as it was.
-inline std::string SedaConfig(std::string_view config) {
+// The character's configuration with the variant's keys in place of its own, and its foot sounds on
+// the walk and the run; everything else, its model, motion, textures and events (on its own frames),
+// as it was.
+inline std::string SedaConfig(std::string_view config, const SedaVariant &variant) {
     std::string out;
     bool        in_keys = false;
     for (std::size_t start = 0; start < config.size();) {
@@ -1157,8 +1227,8 @@ inline std::string SedaConfig(std::string_view config) {
         if (word.starts_with("KEY_START")) {
             in_keys = true;
             out += "KEY_START 0\n";
-            for (std::size_t i = 0; i < std::size(kSedaKeys); i++) {
-                const SedaKey &key = kSedaKeys[i];
+            for (std::size_t i = 0; i < variant.keys.size(); i++) {
+                const SedaKey &key = variant.keys[i];
                 out += std::format("\tKEY\t{},\t{},\t{},\t//{} {}\n", key.start, key.end, key.speed, i, key.what);
             }
             continue;
@@ -1166,7 +1236,8 @@ inline std::string SedaConfig(std::string_view config) {
         if (in_keys) {
             if (word.starts_with("MOTION_END")) {
                 in_keys = false;
-                out += "MOTION_END\nFOOT 43,53\nFOOT 398,408\n";
+                out += "MOTION_END\n";
+                out += variant.feet;
             }
             continue;
         }
@@ -1174,14 +1245,15 @@ inline std::string SedaConfig(std::string_view config) {
         out += '\n';
     }
     if (in_keys || out.find("MOTION_END") == std::string::npos) {
-        Fail("Seda's configuration has no KEY_START ... MOTION_END");
+        Fail("{}'s configuration has no KEY_START ... MOTION_END", variant.source);
     }
-    return "// Seda in Toan's place, made by dcdata from " + std::string(kSedaSource) + "\n" + out;
+    return "// " + std::string(variant.name) + " in Toan's place, made by dcdata from " + std::string(variant.source) +
+           "\n" + out;
 }
 
-// The pack: Seda's members, his scene renamed as above, and his configuration rewritten as base.cfg,
-// the name the dungeon loads a player character's by.
-inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source) {
+// The pack: the character's members, its scene renamed as the variant says, and its configuration
+// rewritten as base.cfg, the name the dungeon loads a player character's by.
+inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source, const SedaVariant &variant) {
     std::vector<PackMember> members = ReadPack(source);
     std::string             config;
     for (const PackMember &member : members) {
@@ -1192,7 +1264,7 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
         }
     }
     if (config.empty()) {
-        Fail("{} holds no configuration", kSedaSource);
+        Fail("{} holds no configuration", variant.source);
     }
     std::size_t model_at = config.find("MODEL");
     while (model_at != std::string::npos && model_at > 0 && config[model_at - 1] == '_') {
@@ -1201,12 +1273,14 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
     std::size_t open = model_at == std::string::npos ? model_at : config.find('"', model_at);
     std::size_t close = open == std::string::npos ? open : config.find('"', open + 1);
     if (close == std::string::npos) {
-        Fail("{}'s configuration names no MODEL", kSedaSource);
+        Fail("{}'s configuration names no MODEL", variant.source);
     }
     std::string model = config.substr(open + 1, close - open - 1);
 
-    std::vector<PackMember> pack{{"base.cfg", {}}};
-    std::string             base = SedaConfig(config);
+    std::vector<PackMember> pack{
+        {"base.cfg", {}}
+    };
+    std::string base = SedaConfig(config, variant);
     // No terminating NUL: the game's configuration reader (ps2/src/chararead.cpp) takes a NUL for
     // a letter, and would read on past the end of the file for the rest of the word.
     pack[0].data.assign(base.begin(), base.end());
@@ -1217,32 +1291,33 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
             continue;
         }
         if (EqualsFolded(name, model)) {
-            RenameSceneObject(member.data, kSedaSword, "weapon", false);
-            RenameSceneObject(member.data, kSedaRightHand, "item", true);
+            RenameSceneObject(member.data, variant.weapon, "weapon", variant.weapon_drawn);
+            RenameSceneObject(member.data, variant.item, "item", true);
             found = true;
         }
         pack.push_back(std::move(member));
     }
     if (!found) {
-        Fail("{} holds no {}", kSedaSource, model);
+        Fail("{} holds no {}", variant.source, model);
     }
     return WritePack(pack);
 }
 
-// Writes Seda's pack into the extracted data, where the port finds it by its name. A disc without
-// his character leaves nothing; the result says which.
-inline bool WriteSedaPack(const fs::path &out, std::FILE *log) {
-    fs::path source = out / kSedaSource;
+// Writes the variant's pack into the extracted data, where the port finds it by its name. A disc
+// without the character leaves nothing; the result says which.
+inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant &variant = kSedaVariants[0]) {
+    fs::path source = out / variant.source;
     if (!fs::is_regular_file(source)) {
-        Log(log, "seda: no {}; the Seda mod has no pack\n", kSedaSource);
+        Log(log, "seda: no {}; the Seda mod has no pack\n", variant.source);
         return false;
     }
-    std::vector<unsigned char> pack = MakeSedaPack(ReadFile(source));
+    std::vector<unsigned char> pack = MakeSedaPack(ReadFile(source), variant);
     fs::path                   target = out / "normalized" / kSedaPack;
     if (!fs::is_regular_file(target) || ReadFile(target) != pack) {
         WriteFile(target, pack);
     }
-    Log(log, "seda: wrote {} ({} bytes)\n", (fs::path("normalized") / kSedaPack).generic_string(), pack.size());
+    Log(log, "seda: wrote {} from {} ({} bytes)\n", (fs::path("normalized") / kSedaPack).generic_string(), variant.source,
+        pack.size());
     return true;
 }
 

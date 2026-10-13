@@ -45,7 +45,25 @@ Bytes Text(std::string_view text) {
     return data;
 }
 
-// Seda's cutscene pack as the disc has it, cut down.
+const dcdata::SedaVariant &King() {
+    return *dcdata::FindSedaVariant("king");
+}
+
+const dcdata::SedaVariant &Seda() {
+    return *dcdata::FindSedaVariant("seda");
+}
+
+// Seda's cutscene pack (c07a) as the disc has it, cut down.
+Bytes C07Source() {
+    return MakePack({
+        {"c07a.cfg", Text("//Seda\nMODEL \"c07a.mds\"\nMOTION 0, \"c07a.mot\", \"c07a.bbp\", \"c07a.wgt\"\n"
+                          "KEY_START 0\nKEY 10, 20, 0.1 //stand 0\nMOTION_END\nEVENT 43,0,0\n")},
+        {"c07a.mds", Scene({"skel_1_1", "hip", "l_hand", "r_hand3", "r_hand", "r_hand4", "obj10"})},
+        {"c07a.mot", Pattern(64, 3)},
+    });
+}
+
+// King Seda's cutscene pack as the disc has it, cut down.
 Bytes SedaSource() {
     return MakePack({
         {"e502p68b.cfg", Text("//King\nIMG 0,\"p68b01.img\"\nIMG_END\nMODEL \"e502p68b.mds\"\nSHADOW_MODEL "
@@ -62,7 +80,7 @@ Bytes SedaSource() {
 } // namespace
 
 TEST(Seda, PackPutsSedasMotionsInToansOrder) {
-    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(SedaSource()));
+    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(SedaSource(), King()));
     ASSERT_EQ(pack.size(), 5u);
     EXPECT_EQ(pack[0].name, "base.cfg");
     std::string config(pack[0].data.begin(), pack[0].data.end());
@@ -89,20 +107,41 @@ TEST(Seda, PackPutsSedasMotionsInToansOrder) {
     EXPECT_EQ(ObjectName(pack[2].data, 1), "seiken__m");
 }
 
+// Seda keeps his sword and holds the equipped weapon at his right hand.
+TEST(Seda, C07PackKeepsHisSword) {
+    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(C07Source(), Seda()));
+    ASSERT_EQ(pack.size(), 3u);
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    EXPECT_EQ(dcdata::CountMotionKeys(config), 41);
+    EXPECT_NE(config.find("// seda in Toan's place, made by dcdata from gedit/s99/chara/c07a.chr\n"), std::string::npos);
+    EXPECT_NE(config.find("\tKEY\t269,\t285,\t0.4,\t//11 attack 1: sweep\n"), std::string::npos) << config;
+    EXPECT_NE(config.find("MOTION_END\nFOOT 43,53\nEVENT 43,0,0\n"), std::string::npos);
+    EXPECT_EQ(ObjectName(pack[1].data, 5), "weapon");
+    EXPECT_EQ(ObjectData(pack[1].data, 5), 0x400u);
+    EXPECT_EQ(ObjectName(pack[1].data, 3), "item");
+    EXPECT_EQ(ObjectName(pack[1].data, 6), "obj10");
+}
+
+TEST(Seda, EveryVariantHasToansKeys) {
+    for (const dcdata::SedaVariant &variant : dcdata::kSedaVariants) {
+        EXPECT_EQ(variant.keys.size(), 41u) << variant.name;
+    }
+}
+
 TEST(Seda, PackNeedsSedasSword) {
     Bytes source = MakePack({
         {"e502p68b.cfg", Text("MODEL \"e502p68b.mds\"\nKEY_START 0\nMOTION_END\n")},
         {"e502p68b.mds", Scene({"g_1", "cube40_3_2"})                             },
     });
-    EXPECT_THROW(dcdata::MakeSedaPack(source), dcdata::Error);
+    EXPECT_THROW(dcdata::MakeSedaPack(source, King()), dcdata::Error);
 }
 
 // Extraction builds the pack, and while Seda stands in Toan's dungeon pack is his.
 TEST(Seda, ToansDungeonPackIsSedasWhileActive) {
     fs::path dir = TempDir("seda");
     Disc     disc = MakeDisc({
-        {"dun\\mainchara\\c01d.chr",        Text("toan")},
-        {"gedit\\s16\\chara\\e502p68b.chr", SedaSource()},
+        {"dun\\mainchara\\c01d.chr",    Text("toan")},
+        {"gedit\\s99\\chara\\c07a.chr", C07Source() },
     });
     WriteBytes(dir / "disc.iso", MakeIso("DATA.DAT;1", disc.dat, "DATA.HD2;1", disc.hd2));
     dcdata::Extract(dcdata::OpenArchive(dir / "disc.iso"), dir / "data", nullptr);
