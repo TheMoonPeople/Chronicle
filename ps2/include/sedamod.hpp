@@ -20,6 +20,14 @@ float SedaToanTime(float time);
 /** Whether the equipped weapon is drawn: not while the character in Toan's place shows its own. */
 bool SedaEquippedDrawn();
 
+class CCharacter;
+
+/**
+ * Whether the character in Toan's place leaves out a motion set its configuration reads: Toan's
+ * other sets (events, presentations) are made for Toan's skeleton.
+ */
+bool SedaRefusesMotionSet(CCharacter *chara, int set);
+
 #else
 
 #define TOAN_TIME(time) (time)

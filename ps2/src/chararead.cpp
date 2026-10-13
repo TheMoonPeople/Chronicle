@@ -18,6 +18,10 @@
 #include "sysmes.hpp"
 #include "texture.hpp"
 
+#ifdef MOD_SEDA
+#include "sedamod.hpp"
+#endif
+
 typedef MOTION_INFO tagMOTION_KEY;
 
 /**
@@ -89,6 +93,11 @@ static char   alloc_smdt[9][16];
 static char   alloc_sdbuff[9][16];
 static u_int *load_img[4];
 
+#ifdef MOD_SEDA
+// The motion set being read is one the character in Toan's place refuses (SedaRefusesMotionSet).
+static int seda_skip_motion;
+#endif
+
 static COMMAND_INFO Command[19] = {
     {"VERTEX_ANIME",        {SCRIPT_ARGUMENT_INTEGER, -1}                                                                        },
     {"SHADOW_VERTEX_ANIME", {SCRIPT_ARGUMENT_INTEGER, -1}                                                                        },
@@ -154,6 +163,9 @@ void ReadInfo(CCharacter *chara, u_int *pack, char *name, CDataAlloc2<1> *model_
     cloth_cnt = 0;
     now_motion_data = 0;
     shadow_motion = 0;
+#ifdef MOD_SEDA
+    seda_skip_motion = 0;
+#endif
     texture_block = texture_block_no;
     alloc_mdt[0][0] = 0;
     alloc_dbuff[0][0] = 0;
@@ -286,6 +298,14 @@ static void CommandMOTION(void **argv) {
     }
 
     now_motion_data = *(int *) argv[0];
+#ifdef MOD_SEDA
+    // Another set of Toan's motions (an event's, a presentation's) moves Toan's bones by their
+    // index; on another skeleton it reads past its bones, so the set is left out.
+    seda_skip_motion = SedaRefusesMotionSet(character, now_motion_data);
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
     character->ClearEvent(now_motion_data);
 
     if (now_motion_data < 0 || now_motion_data >= 8) {
@@ -337,6 +357,12 @@ static void CommandMOTION(void **argv) {
 }
 
 static void CommandSHADOW_MOTION(void **argv) {
+#ifdef MOD_SEDA
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
+
     if (character->shadow_frame == 0) {
         return;
     }
@@ -388,6 +414,12 @@ static void CommandSHADOW_MOTION(void **argv) {
 }
 
 static void CommandKEY_START(void **argv) {
+#ifdef MOD_SEDA
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
+
     if (now_motion_data < 0 || now_motion_data >= 8) {
         return;
     }
@@ -397,6 +429,12 @@ static void CommandKEY_START(void **argv) {
 }
 
 static void CommandKEY(void **argv) {
+#ifdef MOD_SEDA
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
+
     if (motion_info == 0) {
         motion_info = (tagMOTION_KEY *) (buffer->base + buffer->used * 16);
     }
@@ -413,6 +451,12 @@ static void CommandKEY(void **argv) {
 }
 
 static void CommandMOTION_END(void **argv) {
+#ifdef MOD_SEDA
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
+
     if (now_motion_data < 0 || now_motion_data >= 8 || motion_info == 0) {
         return;
     }
@@ -547,10 +591,22 @@ static void CommandIMG_END(void **argv) {
 }
 
 static void CommandFOOT(void **argv) {
+#ifdef MOD_SEDA
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
+
     character->SetFootSound(*(float *) argv[0], *(float *) argv[1], now_motion_data);
 }
 
 static void CommandEVENT(void **argv) {
+#ifdef MOD_SEDA
+    if (seda_skip_motion) {
+        return;
+    }
+#endif
+
     if (*(int *) argv[1] >= 0) {
         character->SetEvent(*(float *) argv[0], *(int *) argv[1], *(int *) argv[2], now_motion_data);
     }

@@ -66,6 +66,15 @@ PS2 build is unchanged.
 A cutscene loads its characters' shared images from a pack of its own (as `gedit/s99/chara/e29img.pak`),
 so a character's pack can lack images its configuration loads; drawn without them those parts are black.
 `MissingImages` finds them in the packs beside the character's and puts them in its pack.
+The model can also draw with a texture that only an image its configuration never loads holds (the
+game loads only the images named by `IMG` lines); `MissingTextureImages` takes that image, from his own
+pack first and else from the packs beside it, into the slot left (`IMG 3`). `dcdata seda` says for each
+texture which image holds it.
+
+Toan's character also reads other motion sets (an event's, the treasure box's and atla's
+presentations), made for Toan's bones. On Seda's skeleton they would read past his bones, so while his
+model is Toan's (no object named `c01...`) `ReadInfo` leaves those sets out (`SedaRefusesMotionSet`); in
+those scenes he stands still.
 
 Seda shows his own sword; the equipped weapon still deals the blows (its damage, element and reach)
 but is not drawn. The pack says so with a member `seda_hide_equipped`, which the port reads when it

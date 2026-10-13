@@ -1,9 +1,11 @@
 #include "seda.hpp"
 
+#include <cstring>
 #include <iterator>
 
 #include "character.hpp"
 #include "dun/gameloop.hpp"
+#include "frame.hpp"
 #include "sedamod.hpp"
 
 namespace {
@@ -73,6 +75,28 @@ bool SedaActive() {
 
 void SedaSetEquippedHidden(bool hidden) {
     g_equipped_hidden = hidden;
+}
+
+namespace {
+
+// Whether a frame or one below it is one of Toan's (his models' objects are named c01...). Not the
+// frame's brothers: the character's frame may hang among the dungeon's other frames.
+bool HasToanFrame(const CFrame *frame, int depth = 0) {
+    if (std::strncmp(frame->name, "c01", 3) == 0) {
+        return true;
+    }
+    for (const CFrame *child = frame->child; child != nullptr && depth < 256; child = child->brother) {
+        if (HasToanFrame(child, depth + 1)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+bool SedaRefusesMotionSet(CCharacter *chara, int set) {
+    return SedaActive() && chara == &CharaMain && set > 0 && chara->frame != nullptr && !HasToanFrame(chara->frame);
 }
 
 bool SedaEquippedDrawn() {

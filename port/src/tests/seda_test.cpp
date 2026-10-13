@@ -225,6 +225,39 @@ TEST(Seda, PackFindsTexturesBesideIt) {
     EXPECT_TRUE(carried);
 }
 
+// An image of the pack its configuration does not load is never loaded, so a texture only it holds
+// is drawn black: that image takes the slot left, once, before any pack beside it.
+TEST(Seda, PackLoadsItsOwnUnloadedImage) {
+    fs::path dir = TempDir("seda_own_textures") / "chara";
+    fs::create_directories(dir);
+    Bytes source = MakePack({
+        {"c07a.cfg",   Text("//Seda\nIMG 0,\"c07a01.img\"\nIMG_END\nMODEL \"c07a.mds\"\nSHADOW_MODEL \"e17c07s.mds\"\n"
+                          "KEY_START 0\nMOTION_END\n")},
+        {"c07a.mds",   SceneWithTextures({"c07a01", "c07a04"})            },
+        {"c07a01.img", Bank({"c07a01"})                                   },
+        {"c07a03.img", Bank({"c07a03", "c07a04"})                         },
+    });
+    WriteBytes(dir / "c07a.chr", source);
+    WriteBytes(dir / "e29img.pak", MakePack({
+                                       {"e29b.img", Bank({"c07a04"})},
+    }));
+
+    std::vector<dcdata::PackMember> members = dcdata::ReadPack(source);
+    std::vector<dcdata::PackMember> images = dcdata::MissingTextureImages(dir, members, {}, "c07a.mds", nullptr);
+    ASSERT_EQ(images.size(), 1u);
+    EXPECT_EQ(images[0].name, "c07a03.img");
+
+    std::vector<dcdata::PackMember> pack =
+        dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), {}, std::move(images)));
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    EXPECT_NE(config.find("IMG 3,\"c07a03.img\"\nIMG_END\n"), std::string::npos) << config;
+    int carried = 0;
+    for (const dcdata::PackMember &member : pack) {
+        carried += member.name == "c07a03.img";
+    }
+    EXPECT_EQ(carried, 1);
+}
+
 // The model's objects are listed, and one can be left undrawn.
 TEST(Seda, ListsAndHidesObjects) {
     std::vector<dcdata::SceneModel> models = dcdata::SceneModels(SceneWithTextures({"c07a04"}));
