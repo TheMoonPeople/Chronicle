@@ -10,6 +10,7 @@
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
+#include "crash_report.hpp"
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
 #include "exitcodes.hpp"
@@ -371,6 +372,7 @@ int Screenshot(const char *path) {
 }
 
 int Run(int argc, const char **argv) {
+    CrashReportInstall();
     GameSetIdentity();
     argc = PathsConsumeArgs(argc, argv);
     g_options = ParseOptions(argc, argv);

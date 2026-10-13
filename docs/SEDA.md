@@ -18,6 +18,20 @@ changed, so the pack is there. `--jump dungeon:0` starts at the Divine Beast Cav
 `--seda` (or `DC_SEDA=1`) puts Seda in Toan's place. Without `--seda` Toan is as he was. The game
 prints `seda: no dun/mainchara/c01seda.chr in the data` when the pack is missing, and then keeps Toan.
 
+## When it crashes
+
+The port prints a crash report to the console: the exception, the address it read or wrote, and the
+call stack as `module+offset (address)`. In the Debug build (`windows-x64`) the addresses in brackets
+name source lines with the llvm-mingw toolchain the build downloaded:
+
+```powershell
+.\build.bat windows-x64
+.\run.bat windows-x64 --jump dungeon:0 --seda --fast-load
+& ".\.kazarov\windows\deps\llvm\llvm-mingw-20260922-ucrt-x86_64\bin\llvm-symbolizer.exe" --obj=port\build\windows-x64\darkcloud.exe 0x140123456 0x140234567
+```
+
+with the bracketed numbers of the report in place of the two examples.
+
 ## What it is
 
 Seda's character is `gedit/s16/chara/e502p68b.chr`, the cutscene in which he fights the assassin; its
