@@ -65,7 +65,10 @@ TEST(Seda, PackPutsSedasMotionsInToansOrder) {
     std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(SedaSource()));
     ASSERT_EQ(pack.size(), 5u);
     EXPECT_EQ(pack[0].name, "base.cfg");
-    std::string config(reinterpret_cast<const char *>(pack[0].data.data()));
+    std::string config(pack[0].data.begin(), pack[0].data.end());
+    // Text only: the game's reader takes a NUL for a letter of a word.
+    EXPECT_EQ(config.find('\0'), std::string::npos);
+    EXPECT_EQ(config.back(), '\n');
     EXPECT_EQ(dcdata::CountMotionKeys(config), 41);
     EXPECT_NE(config.find("KEY_START 0\n\tKEY\t10,\t20,\t0.1,\t//0 stand: stand\n"), std::string::npos) << config;
     EXPECT_NE(config.find("\tKEY\t420,\t445,\t0.3,\t//40 combo 3: fight the assassin\nMOTION_END\nFOOT 43,53\n"),

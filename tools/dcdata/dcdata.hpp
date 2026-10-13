@@ -1207,8 +1207,9 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
 
     std::vector<PackMember> pack{{"base.cfg", {}}};
     std::string             base = SedaConfig(config);
+    // No terminating NUL: the game's configuration reader (ps2/src/chararead.cpp) takes a NUL for
+    // a letter, and would read on past the end of the file for the rest of the word.
     pack[0].data.assign(base.begin(), base.end());
-    pack[0].data.push_back(0);
     bool found = false;
     for (PackMember &member : members) {
         std::string_view name = member.name;
