@@ -125,18 +125,18 @@ void GameOptionsClear(CSaveData &save) {
     save.GetMenuCursor()->reset_pos = 0;
 }
 
-PC_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
+PORT_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
     return options::Open(mode, block_no, buffer);
 }
 
-PC_OVERRIDE int MenuOptionKey() {
+PORT_OVERRIDE int MenuOptionKey() {
     return options::Run();
 }
 
-PC_OVERRIDE void DrawMenuOption() {
+PORT_OVERRIDE void DrawMenuOption() {
     options::Draw();
 }
 
-PC_OVERRIDE int OptionMenuFadeOutStart() {
+PORT_OVERRIDE int OptionMenuFadeOutStart() {
     return options::g_screen.step == OPTION_STEP_FADE_OUT;
 }

@@ -8,10 +8,10 @@
 #include <string_view>
 
 #include "../gameloop.hpp"
-#include "../platform/clock.hpp"
-#include "../platform/config.hpp"
-#include "../platform/input.hpp"
-#include "../platform/input_script.hpp"
+#include "platform/clock.hpp"
+#include "platform/config.hpp"
+#include "platform/input.hpp"
+#include "platform/input_script.hpp"
 #include "gamepad.hpp"
 #include "mainselect.hpp"
 

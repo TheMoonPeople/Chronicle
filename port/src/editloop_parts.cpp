@@ -42,7 +42,7 @@ CFrame *GetCameraFrame(CMapParts *parts) {
 
 } // namespace
 
-PC_OVERRIDE EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime,
+PORT_OVERRIDE EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime,
                                         EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points,
                                         CMapParts *shared) {
     EPARTS_ARCHIVE     *record = (EPARTS_ARCHIVE *) archive;

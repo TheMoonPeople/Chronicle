@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 
+#include "area_card.hpp"
 #include "clsmes.hpp"
 #include "dataread.hpp"
 #include "gamepad.hpp"
@@ -114,7 +115,7 @@ void ShowPageTab() {
 }
 
 void Apply(const Config &config) {
-    g_screen.save_failed = !DisplayApply(config);
+    g_screen.save_failed = !DisplayApply([&] { return ConfigChange(config); });
     ListResolutions();
 }
 
@@ -701,6 +702,9 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
         {"options.display.window_now",    options::kWindowNowText    },
     };
     for (auto &entry : options::RowStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : areacard::Strings()) {
         out.push_back(std::move(entry));
     }
     return out;

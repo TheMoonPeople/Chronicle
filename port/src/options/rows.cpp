@@ -48,17 +48,17 @@ Row GameRow(const char *key, const char *label, const char *names, int game_help
             .names = names};
 }
 
-template <bool Config::*Field>
+template <auto Field>
 int GetOnOff(const Config &config) {
     return config.*Field ? 0 : 1;
 }
 
-template <bool Config::*Field>
+template <auto Field>
 void SetOnOff(Config &config, int choice) {
     config.*Field = choice == 0;
 }
 
-template <bool Config::*Field>
+template <auto Field>
 Row OnOffRow(const char *key, const char *label, const char *help) {
     return {.key = key,
             .label = label,
@@ -69,7 +69,7 @@ Row OnOffRow(const char *key, const char *label, const char *help) {
             .names = "On|Off"};
 }
 
-template <bool Config::*Field>
+template <auto Field>
 Row NamedRow(const char *key, const char *label, const char *help, const char *names) {
     return {.key = key,
             .label = label,
@@ -592,7 +592,7 @@ const Row kGameRows[] = {
                                              "\"Discord Rich Presence\"\nShows what you are\nplaying on Discord."),
     OnOffRow<&Config::element_quick_select>("game.element_quick_select", "Element Quick Select",
                                             "\"Element Quick Select\"\nD-pad Up in a dungeon\npicks the element."),
-    Row{.key = "quit_game", .label = "Quit Game", .help = "Exit the game and return to the desktop.",
+    Row{.key = "quit_game", .label = "Quit Game", .help = "Exit the game and\nreturn to the desktop.",
         .activate = QuitGame},
 };
 

@@ -121,7 +121,7 @@ int RunEvent(int event_no, CCamera *camera) {
 
 } // namespace
 
-PC_OVERRIDE int EditInit(void *param) {
+PORT_OVERRIDE int EditInit(void *param) {
     char map_path[0x80];
     char save_path[0x80];
     int  size;
@@ -561,7 +561,7 @@ PC_OVERRIDE int EditInit(void *param) {
 }
 
 // Retail's, with the 64-byte rounding of the work arena's start done on the whole pointer.
-PC_OVERRIDE void InitWorkBuffer() {
+PORT_OVERRIDE void InitWorkBuffer() {
     int     quads = EdNPCBuffer.used;
     u_char *free_start = EdNPCBuffer.base + quads * 16;
     quads = EdNPCBuffer.limit - quads;

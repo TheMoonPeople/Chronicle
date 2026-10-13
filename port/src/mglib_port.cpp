@@ -5,6 +5,7 @@
 
 #include "draw3d.hpp"
 #include "mglib.hpp"
+#include "screen.hpp"
 
 namespace {
 
@@ -20,7 +21,7 @@ MGPortRegisters g_current = {
     {},
     {},
     {},
-    InitialTexa(), {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight}
+    InitialTexa(), {0.0f, 0.0f, kScreenWidth, kScreenHeight}
 };
 
 constexpr int kGsOriginX = 27648;

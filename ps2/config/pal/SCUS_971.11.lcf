@@ -15,7 +15,7 @@ SECTIONS
 {
     // Overlays, written to their own files by the MEMORY block above. Each
     // @OVERLAY marker expands to that overlay's 64-byte MWo3 header, which
-    // ps2/cmake/Overlays.cmake writes; it also explains why the overlays' objects
+    // tools/kazarov/cmake/KazarovOverlays.cmake writes; it also explains why the overlays' objects
     // carry privately-prefixed section names.
     //
     // These come before .main only because MWLD assigns sections in the order
@@ -700,8 +700,7 @@ SECTIONS
 		func_01DD1AB0 = 0x01DEB060;  // TitleInit__Fi
 		func_01DD2220 = 0x01DEB8A0;  // TitleLoop__Fv
 
-		# Data an INCLUDE_ASM marker names by retail's name, which the source
-		# spells otherwise.
+		# Data a source names by retail's name, which the source spells otherwise.
 		TexAnimeData__3 = 0x01E6A5F0;  // TexAnimeDataMovie (rushmovi)
 
 		# Entries of retail's literal pool that a compiled unit loads from.

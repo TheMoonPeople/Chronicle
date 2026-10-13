@@ -221,7 +221,7 @@ void DeleteItemModel(int slot) {
 
 } // namespace
 
-PC_OVERRIDE void DunMoveChara() {
+PORT_OVERRIDE void DunMoveChara() {
     /* Where the camera looks relative to what it follows, before the floor's
        own offset is added. */
     static sceVu0FVECTOR reference = {0.0f, 7.5f, 0.0f, 0.0f};
@@ -2978,7 +2978,38 @@ PC_OVERRIDE void DunMoveChara() {
     motionDrive();
 }
 
-PC_OVERRIDE int BtCheckDamageProc() {
+// The way hit hit_no throws the player, into velocity. A bomb's blast (SetBombEffect, the only hit that
+// waits for its phase to reach 10) keeps CCollisionData::Set's (1, 0, 0), so retail threw the player toward
+// world +X whichever side of it he stood; it throws him level and away from the blast, or straight back from
+// where he faces when it bursts on him. Any other hit throws him the way it was recorded.
+static void HitBlowVelocity(int hit_no, float *velocity) {
+    COLLISION_HIT &hit = NowColData->hit[hit_no];
+
+    sceVu0CopyVector(velocity, hit.velocity);
+
+    if (hit.ready_phase != 10) {
+        return;
+    }
+
+    float away_x = CharaMain.pos[0] - hit.pos[0];
+    float away_z = CharaMain.pos[2] - hit.pos[2];
+    float length = std::sqrt(away_x * away_x + away_z * away_z);
+
+    if (length < 0.1f) {
+        sceVu0FVECTOR rotation;
+
+        CharaFrame->GetRotation(rotation);
+        away_x = -std::sin(rotation[1]);
+        away_z = -std::cos(rotation[1]);
+        length = 1.0f;
+    }
+
+    velocity[0] = away_x / length;
+    velocity[1] = 0.0f;
+    velocity[2] = away_z / length;
+}
+
+PORT_OVERRIDE int BtCheckDamageProc() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR from;
     sceVu0FVECTOR blow;
@@ -3200,7 +3231,7 @@ PC_OVERRIDE int BtCheckDamageProc() {
                 GamePad.SetVibration(1, 0xE6, 0x16);
 
                 if (BtActStatus.action_no == 9) {
-                    sceVu0CopyVector(blowVelo, NowColData->hit[hit_no].velocity);
+                    HitBlowVelocity(hit_no, blowVelo);
                     velo__2[0] = blowVelo[0] / 10.0f;
                     velo__2[2] = blowVelo[2] / 10.0f;
 
@@ -3224,7 +3255,7 @@ PC_OVERRIDE int BtCheckDamageProc() {
                     number_pos[1] = CharaHeight(UserStatus);
                     HitValueEntry(NowHitValue, number_pos, damage, HIT_VALUE_PLAYER, CharaMain.frame);
 
-                    sceVu0CopyVector(blowVelo, NowColData->hit[hit_no].velocity);
+                    HitBlowVelocity(hit_no, blowVelo);
                     unitBlowActionRot(blowVelo);
 
                     if (NowColData->hit[hit_no].target_mask != 3) {
@@ -3347,7 +3378,7 @@ PC_OVERRIDE int BtCheckDamageProc() {
     return taken;
 }
 
-PC_OVERRIDE void EyeCamera() {
+PORT_OVERRIDE void EyeCamera() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR ref;
     sceVu0FMATRIX rotation;

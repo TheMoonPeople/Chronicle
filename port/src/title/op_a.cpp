@@ -123,10 +123,10 @@ extern tagMOTION_KEY dancer[10];
 /* The scene's own world, and the objects the configuration file fills in. Both frame pointers are
    typed from the loader that writes them rather than from anything here: title/opdata assigns
    LoadCollisionFile's and LoadMDSFile's results to them, and nothing in this file reads either. */
-PC_OVERRIDE CMap          OP_BuildingMap;
-PC_OVERRIDE CMap          OP_BuildingMap2;
-PC_OVERRIDE CMap          OP_GroundMap;
-PC_OVERRIDE OBJ_ANIME_SEQ OP_AnimeSeq[32];
+PORT_OVERRIDE CMap          OP_BuildingMap;
+PORT_OVERRIDE CMap          OP_BuildingMap2;
+PORT_OVERRIDE CMap          OP_GroundMap;
+PORT_OVERRIDE OBJ_ANIME_SEQ OP_AnimeSeq[32];
 extern int           OP_AnimeSeqRot;
 extern int           OP_FireList;
 extern sceVu0FVECTOR OP_FirePosition[96];
@@ -137,7 +137,7 @@ extern CFrameVu1    *OP_SkyFrame;
 extern CFrame       *OP_CharaFrame__2;
 extern char          CloudFlag;
 
-PC_OVERRIDE CFireOmni CFire;
+PORT_OVERRIDE CFireOmni CFire;
 static sceVu0FVECTOR DancerPos[35];
 static sceVu0FVECTOR DancerRot[35];
 static CCharacter    Cloud;
@@ -153,7 +153,7 @@ extern int                 DanceStart;
 /* The dungeon square's set-up. The two maps are cleared first because this scene is placed from a
    configuration file rather than from a table of its own, and the couple's second motion files are
    started in the background so that the first change of step does not wait for a read. */
-PC_OVERRIDE void OpA_InitProcess() {
+PORT_OVERRIDE void OpA_InitProcess() {
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
     OP_GroundMap.Initialize();
@@ -456,7 +456,7 @@ static void InitDancerPos() {
    field. The two ambients that fade are what makes the square go dark as the scene turns: one rides
    up over the buildings while the camera holds on them, the other rides the crowd down as the
    couple's motion runs out. */
-PC_OVERRIDE void OpA_DrawProcess() {
+PORT_OVERRIDE void OpA_DrawProcess() {
     static sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 0.0f};
     static int           wait;
     sceVu0FVECTOR        saved_ambient;
@@ -1078,7 +1078,7 @@ static void DrawShadow(float x, float y, float z) {
    and the wait keeps a motion that stalls there from playing the step twice. The rest is the
    square's own ambience: the fountain from a fixed point, the wind while the sky is up, and the
    change of music the camera makes when it turns away. */
-PC_OVERRIDE void OpA_SoundProcess() {
+PORT_OVERRIDE void OpA_SoundProcess() {
     /* These type-only names preserve the first footfall's argument-selection state. */
     static int    mus = 0;
 
@@ -1326,7 +1326,7 @@ static void setCloudTexScroll() {
     }
 }
 
-PC_OVERRIDE void OpA_MotionProcess() {
+PORT_OVERRIDE void OpA_MotionProcess() {
     switch (CScript__2.camera_start) {
         case 2:
         case 3:

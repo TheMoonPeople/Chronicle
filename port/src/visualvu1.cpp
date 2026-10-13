@@ -576,12 +576,12 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
 
 // ---- CVisualVu1 ------------------------------------------------------------------------------
 
-PC_OVERRIDE int CVisualVu1::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+PORT_OVERRIDE int CVisualVu1::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                     u_long128 *draw_state, int unknown1, int unknown2) {
     return CVisualVu1::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }
 
-PC_OVERRIDE int CVisualVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+PORT_OVERRIDE int CVisualVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                     u_long128 *draw_state, int unknown1, int unknown2) {
     if (vu_data == nullptr || vu_size == 0) {
         return 0;
@@ -595,7 +595,7 @@ PC_OVERRIDE int CVisualVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInf
 // Every {v, n, uv[, colour]} entry of a strip becomes one vertex; strips (GS prim 4) become lists
 // wound as their first triangle, other prims are lists already. A strip whose material is -1 keeps
 // the previous strip's material and texture, as VU1's memory did.
-PC_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int unknown0, int unknown1) {
+PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int unknown0, int unknown1) {
     vu_data = block;
     vu_size = kDraw3DBlockQuads;
     Draw3DVisual &visual = Draw3DRegisterVisual(block, false);
@@ -668,7 +668,7 @@ PC_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int u
 
 // Retail rewrites positions, colours and materials in place after skinning, morphs and material
 // animation; normals and UVs stay as built.
-PC_OVERRIDE int CVisualVu1::CreateVUdataFromMDTRemake(u_int *block, u_int *data, int unknown0) {
+PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDTRemake(u_int *block, u_int *data, int unknown0) {
     vu_data = block;
     vu_size = kDraw3DBlockQuads;
     Draw3DVisual *visual = Draw3DFindVisual(block);
@@ -715,7 +715,7 @@ PC_OVERRIDE int CVisualVu1::CreateVUdataFromMDTRemake(u_int *block, u_int *data,
 
 // copy_on_draw kept a private copy of the block for each draw because the DMA read it at the end
 // of the frame; the renderer orders a remake after a draw of the same frame by itself.
-PC_OVERRIDE int CVisualMDTVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+PORT_OVERRIDE int CVisualMDTVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                        u_long128 *draw_state, int unknown1, int unknown2) {
     vu_data = vu_data_buffer[DBuffID];
     int result = CVisualVu1::DrawVu1(packet, matrix, info, program, draw_state, unknown1, unknown2);
@@ -723,13 +723,13 @@ PC_OVERRIDE int CVisualMDTVu1::DrawVu1(u_int *packet, float (*matrix)[4], Render
     return result;
 }
 
-PC_OVERRIDE int CVisualMDTVu1::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+PORT_OVERRIDE int CVisualMDTVu1::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                        u_long128 *draw_state, int unknown1, int unknown2) {
     vu_data = vu_data_buffer[DBuffID];
     return CVisualVu1::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }
 
-PC_OVERRIDE int CVisualMDTVu1::RemakeData(u_int *block) {
+PORT_OVERRIDE int CVisualMDTVu1::RemakeData(u_int *block) {
     if (data == nullptr) {
         return 0;
     }

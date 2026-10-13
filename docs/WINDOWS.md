@@ -6,54 +6,118 @@ macOS.
 
 ## Dependencies
 
-Install PowerShell 7, CMake 3.28 or later, Python 3 (with `py` or `python` on
-PATH), and 7-Zip. A Vulkan driver with the features listed in
-`port/src/gfx/README.md`, "Device", is required. The scripts find `cmake` and
-`7z` on PATH, then try their standard installations under `C:/Program Files`.
+Install PowerShell 7, Python 3 (with `py` or `python` on PATH) and 7-Zip. CMake
+3.28 or later is needed too; the scripts find `cmake` and `7z` on PATH, then try
+their standard installations under `C:/Program Files`. A Vulkan driver with the
+features listed in `tools/kazarov/port/gfx/README.md`, "Device", is required.
 
-From the checkout, acquire the portable dependencies:
+The build system is Kazarov, a submodule at `tools/kazarov`. A clone needs it:
 
-```powershell
-$root = Split-Path -Parent (Get-Location).Path
-./tools/windows/acquire.ps1 -Root $root
+```bat
+git clone --recurse-submodules https://github.com/TheMoonPeople/Chronicle.git
 ```
 
-This downloads llvm-mingw 20260922 (Clang/lld 23.1.2, x64 UCRT), Ninja 1.13.2,
-SDL3 3.4.18, glslang 16.6.0 and Vulkan headers 1.4.363 from their upstream
-release archives. Archives and dependencies go into `<root>/archives` and
-`<root>/deps`; no toolchain installer is run. CMake also fetches nlohmann/json
-3.12.0 and, with tests enabled, GoogleTest v1.18.0. Vulkan links to the
-system's `vulkan-1.dll`. The scripts do not install validation layers.
+or `git submodule update --init tools/kazarov` in an existing checkout. `build.bat`
+and `run.bat` run that command themselves when the directory is empty.
 
-All scripts default `Root` to the checkout's parent directory. Pass `-Root`
-to use another directory. Sources always come from the checkout containing
-the scripts. Builds default to `<root>/build`, or `<root>/build-tests` for
+## Building and running
+
+From the checkout, in a Command Prompt:
+
+```bat
+build.bat                  & rem windows-x64-release: optimised, port\build\windows-x64-release
+build.bat windows-x64      & rem Debug, port\build\windows-x64
+run.bat                    & rem builds, extracts the game data once, then starts darkcloud.exe
+```
+
+`run.bat` takes the arguments for `darkcloud.exe` after the configuration name, and
+`set CLEAN=1` before a build deletes the configuration's build directory first.
+`set JOBS=N` sets the number of parallel jobs.
+
+`tools/windows/kazarov.ps1` does the work. It runs `build.ps1` and `configure.ps1`
+for the configuration, through the same `acquire.ps1` dependencies, and keeps the
+downloads and locks in `<checkout>\.kazarov`, which both configurations share:
+
+- `acquire.ps1` runs only when a dependency is missing. It verifies each pinned archive's SHA-256.
+- `configure.ps1` runs only when the build directory has no `build.ninja`, or its
+  `CMakeCache.txt` was made for another checkout path. Then the cache files are deleted first.
+- `build.ps1` builds the executables with Ninja, so an unchanged tree rebuilds nothing.
+- A lock in `.kazarov\locks` serialises runs of one configuration; other configurations run in parallel.
+
+## Game data
+
+`run.bat` extracts the data with `dcdata.exe` from `rom\pal\Dark Cloud (PAL).iso`,
+or from `rom\Dark Cloud (PAL).iso` when the first is missing, into `data\` in the checkout.
+It records the disc's and `dcdata.exe`'s sizes and times in `data\.kazarov-data`, so a
+later run with both unchanged skips the extraction.
+
+The PowerShell examples in this file use the variables below. Set them once,
+from the checkout root:
+
+```powershell
+$root = (Get-Location).Path
+$build = "$root\port\build\windows-x64-release"
+```
+
+To extract by hand:
+
+```powershell
+& "$root/port/build/windows-x64-release/dcdata.exe" extract "path/to/Dark Cloud (PAL).iso" "$root/data"
+```
+
+Use only an owned PAL disc image, or a directory holding its `DATA.DAT` and
+`DATA.HD2`. Keep the image and extracted files outside git. Non-ASCII disc
+filename bytes are written with `%xx` escapes on Windows, as on macOS; the
+game uses the same lookup rule.
+
+## Running
+
+```powershell
+& "$root/port/build/windows-x64-release/darkcloud.exe" --data "$root/data" --save "$root/save"
+```
+
+Options, controls and `config.json` are described in `docs/PC.md`. Without
+explicit paths or local directories, Windows uses
+`%LOCALAPPDATA%/chronicle/data` and `%LOCALAPPDATA%/chronicle/save` before the
+XDG/HOME fallbacks. `--data`, `--save`, `DC_DATA` and `DC_SAVE` take precedence.
+
+`--offscreen`, `--frames`, `--input` and `--screenshot` work as on Linux for
+bounded runs; `DC_AUDIO=off` disables the audio device. Offscreen rendering
+needs no Vulkan surface. A headless Vulkan window is a hidden Win32 window,
+since SDL's offscreen video driver cannot make a Vulkan surface on Windows.
+
+## Scripts for CI and manual builds
+
+`.github/workflows/pc.yml` calls the scripts directly, and so can you. They
+default `Root` to the checkout's parent directory; pass `-Root` to use another.
+Sources always come from the checkout containing the scripts. `kazarov.ps1`
+passes `Root` as `<checkout>\.kazarov\windows`.
+
+```powershell
+./tools/windows/acquire.ps1 -Root $root [-VulkanLoader]
+./tools/windows/configure.ps1 -Root $root -BuildDirectory $build [-Tests] [-BuildType RelWithDebInfo] [-VulkanLibrary <dll>]
+./tools/windows/build.ps1 -Root $root -BuildDirectory $build [-Tests] [-Jobs N]
+```
+
+Builds default to `<root>/build`, or `<root>/build-tests` for
 `configure-tests.ps1`; `-BuildDirectory` overrides that location. Data and
 saves may live beside them.
 
-`acquire.ps1` verifies every pinned archive against its recorded SHA-256 before extraction.
+`acquire.ps1` downloads llvm-mingw 20260922 (Clang/lld 23.1.2, x64 UCRT), Ninja
+1.13.2, SDL3 3.4.18, glslang 16.6.0 and Vulkan headers 1.4.363 from their
+upstream release archives into `<root>/archives` and `<root>/deps`; no toolchain
+installer is run. It verifies every pinned archive against its recorded SHA-256
+before extraction. CMake also fetches nlohmann/json 3.12.0 and, with tests
+enabled, GoogleTest v1.18.0. Vulkan links to the system's `vulkan-1.dll`. The
+scripts do not install validation layers.
 
 On a machine without a Vulkan loader (CI), `-VulkanLoader` also fetches
 LunarG's 1.4.363 loader. Pass it to `configure.ps1` with `-VulkanLibrary` and
-copy it beside the built executables, as the Windows job in
-`.github/workflows/pc.yml` does.
-
-## Building
-
-```powershell
-./tools/windows/configure.ps1 -Root $root
-./tools/windows/build.ps1 -Root $root
-```
-
-The scripts configure Ninja with `PLATFORM=PC`, a Debug build
-(`-BuildType RelWithDebInfo` for an optimised one) and the downloaded
-dependencies, then build `darkcloud` and `dcdata`. The build script copies
-`libc++.dll`, `libunwind.dll`, `libwinpthread-1.dll` and `SDL3.dll` beside the
-executables. `-Jobs N` sets parallelism.
+copy it beside the built executables, as the Windows job does.
 
 ### Linking
 
-`port/src`'s `PC_OVERRIDE` definitions replace `ps2/src`'s as on Linux and
+`port/src`'s `PORT_OVERRIDE` definitions replace `ps2/src`'s as on Linux and
 macOS (`docs/PC.md`, "How `port/src` takes precedence"). Two things are there
 for COFF:
 
@@ -66,33 +130,6 @@ for COFF:
 
 The build needs llvm-mingw's clang. MSVC and other architectures are not
 supported.
-
-## Game data
-
-```powershell
-& "$root/build/dcdata.exe" extract "path/to/Dark Cloud (PAL).iso" "$root/data"
-```
-
-Use only an owned PAL disc image, or a directory holding its `DATA.DAT` and
-`DATA.HD2`. Keep the image and extracted files outside git. Non-ASCII disc
-filename bytes are written with `%xx` escapes on Windows, as on macOS; the
-game uses the same lookup rule.
-
-## Running
-
-```powershell
-& "$root/build/darkcloud.exe" --data "$root/data" --save "$root/save"
-```
-
-Options, controls and `config.json` are described in `docs/PC.md`. Without
-explicit paths or local directories, Windows uses
-`%LOCALAPPDATA%/chronicle/data` and `%LOCALAPPDATA%/chronicle/save` before the
-XDG/HOME fallbacks. `--data`, `--save`, `DC_DATA` and `DC_SAVE` take precedence.
-
-`--offscreen`, `--frames`, `--input` and `--screenshot` work as on Linux for
-bounded runs; `DC_AUDIO=off` disables the audio device. Offscreen rendering
-needs no Vulkan surface. A headless Vulkan window is a hidden Win32 window,
-since SDL's offscreen video driver cannot make a Vulkan surface on Windows.
 
 ## Tests
 

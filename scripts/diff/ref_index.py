@@ -30,8 +30,8 @@ import region  # noqa: E402
 
 CONFIG_DIR = os.path.join(REPO, region.CONFIG)
 
-# Where splat files a function's own assembly: still supplied by a marker
-# under the first, decompiled under the second.
+# Where splat files a function's own assembly: `nonmatchings` for a function no
+# source defines yet, `matchings` for one a source does.
 ASM_DIRS = (region.ASM + '/nonmatchings', region.ASM + '/matchings')
 
 # The main executable first: it is what most lookups are for, and the overlays
@@ -111,9 +111,8 @@ def _asm_paths():
                     paths.setdefault(name[:-2],
                                      os.path.relpath(full, REPO))
 
-    # A translation unit that is still wholly supplied by assembly is emitted
-    # as one asmtu file.  Index its glabels too so decompile.sh remains usable
-    # before the first INCLUDE_ASM marker has been migrated.
+    # A translation unit that is still wholly assembly is one asmtu file; index
+    # its glabels too.
     asm_root = os.path.join(REPO, region.ASM)
     if os.path.isdir(asm_root):
         for name in os.listdir(asm_root):
@@ -140,7 +139,7 @@ def entries(section):
 
     if not os.path.isdir(CONFIG_DIR):
         raise SystemExit(
-            'ref_index: %s/ is missing; run `scripts/build/cmake.sh setup` '
+            'ref_index: %s/ is missing; run `./build.sh ps2-pal` '
             'to split the retail binary first.' % region.CONFIG)
 
     paths = _asm_paths()

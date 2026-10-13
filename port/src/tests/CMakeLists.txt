@@ -18,6 +18,7 @@ add_executable(darkcloud_tests ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp ${TEST_SOURC
 set_target_properties(darkcloud_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 target_include_directories(darkcloud_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 dc_link_game(darkcloud_tests)
+kz_port_tests(darkcloud_tests)
 target_link_libraries(darkcloud_tests PRIVATE GTest::gtest nlohmann_json::nlohmann_json)
 
 # A case is a unit test: it finishes in milliseconds, and one that does not is cut off. The clock
@@ -26,8 +27,8 @@ set(DC_TEST_TIMEOUT 5 CACHE STRING "Seconds a test case may run before it is cut
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER -PlatformClock.*
-    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT})
+    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf")
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER PlatformClock.*
-    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} RUN_SERIAL TRUE)
+    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf" RUN_SERIAL TRUE)

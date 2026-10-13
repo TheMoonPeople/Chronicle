@@ -1,8 +1,6 @@
-# Derive object rules from the split configuration.
-#
-# Each ask is a python process that reads the whole split configuration, and
-# configure asks for the same rows once per image, so what a flag produced is
-# kept for the rest of the run.
+# Object rules for the translation units of the split configuration.
+
+# The rows the split configuration gives for one kind of listing, read once per run.
 function(derive_config flag out_var)
     string(MAKE_C_IDENTIFIER "derive_config_${flag}" key)
     get_property(known GLOBAL PROPERTY ${key} SET)
@@ -26,7 +24,7 @@ function(derive_config flag out_var)
     set(${out_var} "${rows}" PARENT_SCOPE)
 endfunction()
 
-# Read uncarved whole-section dumps for one image.
+# The whole-section dumps of one image that the link takes.
 function(read_index_sources section out_var exclude)
     derive_config(--list-dumps rows)
 
@@ -45,28 +43,24 @@ function(read_index_sources section out_var exclude)
     set(${out_var} "${srcs}" PARENT_SCOPE)
 endfunction()
 
-function(make_object_dirs objs)
-    set(dirs "")
-    foreach(obj IN LISTS objs)
-        get_filename_component(dir ${CMAKE_SOURCE_DIR}/${obj} DIRECTORY)
-        list(APPEND dirs ${dir})
-    endforeach()
-    list(REMOVE_DUPLICATES dirs)
-    foreach(dir IN LISTS dirs)
-        file(MAKE_DIRECTORY ${dir})
-    endforeach()
+# The image an object links into, and the section renames it needs. Overlay
+# objects live in their own directory and carry the overlay's section prefix.
+function(object_image obj out_image out_flags)
+    kz_overlay_for_object(${obj} overlay)
+    set(image main)
+    set(flags "")
+    if(overlay)
+        set(image ${overlay})
+        kz_overlay_rename_flags(${overlay} rename_flags)
+        list(APPEND flags ${rename_flags})
+    endif()
+    set(${out_image} ${image} PARENT_SCOPE)
+    set(${out_flags} "${flags}" PARENT_SCOPE)
 endfunction()
 
 # Assemble a unit that has no decompiled source.
 function(add_unit_asm_object obj src)
-    overlay_for_object(${obj} overlay)
-    set(image main)
-    set(fixup_flags "")
-    if(overlay)
-        set(image ${overlay})
-        overlay_rename_flags(${overlay} rename_flags)
-        list(APPEND fixup_flags ${rename_flags})
-    endif()
+    object_image(${obj} image fixup_flags)
     # Retail game units use 16-byte text alignment; libraries use 4-byte alignment.
     if(src MATCHES "^${ASM_DIR}/lib/")
         list(APPEND fixup_flags --set-section-alignment .text=4)
@@ -74,54 +68,33 @@ function(add_unit_asm_object obj src)
         list(APPEND fixup_flags --set-section-alignment .text=16)
     endif()
 
-    add_custom_command(
-        OUTPUT ${CMAKE_SOURCE_DIR}/${obj}
-        COMMAND ${AS} ${AS_FLAGS} -o ${obj} ${src}
-        COMMAND sh ${SCRIPTS_DIR}/build/fixup_sections.sh ${obj} ${fixup_flags}
-        COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
-                --resolve-names ${image} ${obj}
-        DEPENDS ${CMAKE_SOURCE_DIR}/${src}
-                ${CMAKE_SOURCE_DIR}/${INCLUDE_DIR}/macro.inc ${REF_STAMP}
-                ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/literals.py
-                ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${image}.symbols.txt
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "AS ${src}"
-        VERBATIM)
+    kz_asm_object(${obj} ${src}
+        POST COMMAND sh ${SCRIPTS_DIR}/build/fixup_sections.sh ${obj} ${fixup_flags}
+             COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
+                     --resolve-names ${image} ${obj}
+        DEPENDS ${INCLUDE_DIR}/macro.inc ${REF_STAMP}
+                ${SCRIPTS_DIR}/build/literals.py
+                ${CONFIG_DIR}/${image}.symbols.txt)
 endfunction()
 
-# Compile a source-only object for objdiff.
+# The objdiff base for a compiled unit: the linked object's compile (kept as
+# <obj>.raw), with the base's post-processing. The base waits for the linked
+# object, which is what writes the raw file.
 function(add_diff_base_object obj src)
-    overlay_for_object(${obj} overlay)
-    set(image main)
-    set(fixup_flags "")
-    if(overlay)
-        set(image ${overlay})
-        overlay_rename_flags(${overlay} rename_flags)
-        list(APPEND fixup_flags ${rename_flags})
-    endif()
+    object_image(${obj} image fixup_flags)
+    set(compiled ${BUILD_DIR}/${src}.o)
     add_custom_command(
         OUTPUT ${CMAKE_SOURCE_DIR}/${obj}
-        # Use the same compiler-state shim as the linked object. Otherwise the
-        # source-only object ignores the compiler-state model and objdiff
-        # reports register/order differences that are absent from the build.
-        COMMAND ${CMAKE_COMMAND} -E env "MWCIncludes=${LIB_INCLUDE_DIRS}"
-                "STATEFIX_SOURCE=${src}" DCDECOMP_REGION=${REGION}
-                ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/statefix-wibo.sh
-                ${MW}mwccmips.exe ${CC_MW_FLAGS} -o ${obj} ${src}
+        COMMAND ${CMAKE_COMMAND} -E copy ${compiled}.raw ${obj}
         COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py --bind ${obj}
         COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/postprocess_object.py
                 --source-only ${obj} ${src}
         COMMAND sh ${SCRIPTS_DIR}/build/fixup_sections.sh ${obj} ${fixup_flags}
         COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
                 --resolve-names ${image} ${obj}
-        DEPENDS ${CMAKE_SOURCE_DIR}/${src} ${REF_STAMP}
+        DEPENDS ${CMAKE_SOURCE_DIR}/${compiled} ${REF_STAMP}
                 ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/literals.py
                 ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/postprocess_object.py
-                ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/statefix.py
-                ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/statefix-wibo.sh
-                ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/expression_node_overrides.json
-                ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/argument_read_overrides.json
-                ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/object_fixups.json
                 ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${image}.symbols.txt
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "CC (diff base) ${src}"
@@ -138,14 +111,7 @@ function(add_object obj)
         set(src ${BUILD_DIR}/${src})
     endif()
 
-    overlay_for_object(${obj} overlay)
-    set(image main)
-    set(fixup_flags "")
-    if(overlay)
-        set(image ${overlay})
-        overlay_rename_flags(${overlay} rename_flags)
-        list(APPEND fixup_flags ${rename_flags})
-    endif()
+    object_image(${obj} image fixup_flags)
     if(src MATCHES "^${SRC_DIR}/lib/")
         list(APPEND fixup_flags --set-section-alignment .text=4)
     endif()
@@ -158,54 +124,36 @@ function(add_object obj)
     if(OBJDIFF_TARGET_ONLY)
         list(APPEND fixup_flags -w --localize-symbol=.L*)
     endif()
-    set(fixup COMMAND sh ${SCRIPTS_DIR}/build/fixup_sections.sh ${obj} ${fixup_flags})
 
     if(src MATCHES "\\.s$")
-        add_custom_command(
-            OUTPUT ${CMAKE_SOURCE_DIR}/${obj}
-            COMMAND ${AS} ${AS_FLAGS} -o ${obj} ${src}
-            ${fixup}
-            COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
-                    --resolve-names ${image} ${obj}
-            DEPENDS ${CMAKE_SOURCE_DIR}/${src} ${CMAKE_SOURCE_DIR}/${INCLUDE_DIR}/macro.inc
-                    ${ASM_OBJECT_EXTRA_DEPENDS} ${REF_STAMP}
-                    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/literals.py
-                    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${image}.symbols.txt
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            COMMENT "AS ${src}"
-            VERBATIM)
+        kz_asm_object(${obj} ${src}
+            POST COMMAND sh ${SCRIPTS_DIR}/build/fixup_sections.sh ${obj} ${fixup_flags}
+                 COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
+                         --resolve-names ${image} ${obj}
+            DEPENDS ${INCLUDE_DIR}/macro.inc ${ASM_OBJECT_EXTRA_DEPENDS} ${REF_STAMP}
+                    ${SCRIPTS_DIR}/build/literals.py
+                    ${CONFIG_DIR}/${image}.symbols.txt)
     elseif(src MATCHES "\\.(c|cpp)$")
-        # mwccgap inserts remaining retail assembly and writes header dependencies.
-        add_custom_command(
-            OUTPUT ${CMAKE_SOURCE_DIR}/${obj}
-            COMMAND ${CMAKE_COMMAND} -E env
-                    DCDECOMP_REGION=${REGION}
-                    MW_DIR=${MW} MIPS_TOOL_PREFIX=${MIPS_TOOL_PREFIX}
-                    LIB_INCLUDE_DIRS=${LIB_INCLUDE_DIRS}
-                    ASM_DIR=.
-                    sh ${SCRIPTS_DIR}/build/mwccgap.sh ${obj} ${obj}.d ${src}
-                    ${CC_MW_FLAGS} -MD
-            COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py --bind ${obj}
-            COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/postprocess_object.py ${obj} ${src}
-            ${fixup}
-            COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
-                    --resolve-names ${image} ${obj}
-            DEPENDS ${CMAKE_SOURCE_DIR}/${src} ${REF_STAMP}
-                    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/literals.py
-                    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/postprocess_object.py
-                    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/statefix.py
-                    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/statefix-wibo.sh
-                    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/expression_node_overrides.json
-                    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/argument_read_overrides.json
-                    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/object_fixups.json
-                    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${image}.symbols.txt
-                    ${CMAKE_SOURCE_DIR}/${TOOLS_DIR}/mwccgap/mwccgap/mwccgap.py
-                    ${CMAKE_SOURCE_DIR}/${TOOLS_DIR}/mwccgap/mwccgap/elf.py
-                    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/mwccgap_region.py
-            DEPFILE ${CMAKE_SOURCE_DIR}/${obj}.d
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            COMMENT "CC ${src}"
-            VERBATIM)
+        # The linked object is compiled once. Its raw compile is kept for the objdiff base.
+        kz_mwcc_object(${obj} ${src}
+            FLAGS ${CC_MW_FLAGS}
+            ENV DCDECOMP_REGION=${REGION} STATEFIX_SOURCE=${src}
+            RAW ${obj}.raw
+            POST COMMAND ${CMAKE_COMMAND} -E copy ${obj}.raw ${obj}
+                 COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py --bind ${obj}
+                 COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/postprocess_object.py ${obj} ${src}
+                 COMMAND sh ${SCRIPTS_DIR}/build/fixup_sections.sh ${obj} ${fixup_flags}
+                 COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/literals.py
+                         --resolve-names ${image} ${obj}
+            DEPENDS ${REF_STAMP}
+                    ${SCRIPTS_DIR}/build/literals.py
+                    ${SCRIPTS_DIR}/build/postprocess_object.py
+                    ${SCRIPTS_DIR}/build/statefix.py
+                    ${SCRIPTS_DIR}/build/statefix-wibo.sh
+                    ${CONFIG_DIR}/expression_node_overrides.json
+                    ${CONFIG_DIR}/argument_read_overrides.json
+                    ${CONFIG_DIR}/object_fixups.json
+                    ${CONFIG_DIR}/${image}.symbols.txt)
     elseif(src MATCHES "\\.bin$")
         add_custom_command(
             OUTPUT ${CMAKE_SOURCE_DIR}/${obj}

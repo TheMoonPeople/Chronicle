@@ -154,7 +154,7 @@ char g_frame_image_name[] = "frame_image";
 
 } // namespace
 
-PC_OVERRIDE void BattleMenuDraw() {
+PORT_OVERRIDE void BattleMenuDraw() {
     MenuMouseNoteBattleMenu();
     int text_x = 0;
     int text_y = 0;

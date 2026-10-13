@@ -8,9 +8,9 @@
 #include <utility>
 #include <vector>
 
-#include "../platform/config.hpp"
-#include "../platform/display.hpp"
-#include "../platform/paths.hpp"
+#include "platform/config.hpp"
+#include "platform/display.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 TEST(PlatformConfig, Defaults) {
@@ -577,7 +577,7 @@ TEST(PlatformConfig, DisplayFieldsFollowTheWindow) {
         Config      config = ConfigGet();
         g_fake.faults = step.faults;
         if (step.kind == Start || step.kind == StartCli) {
-            ConfigRemoveChangeHook(DisplayChanged);
+            ConfigRemoveChangeHook(ConfigDisplayChanged);
             config.fullscreen = step.fields.fullscreen;
             config.window_width = step.fields.width;
             config.window_height = step.fields.height;
@@ -587,7 +587,7 @@ TEST(PlatformConfig, DisplayFieldsFollowTheWindow) {
             g_fake.mode = step.fullscreen ? kFullscreenWindow : g_fake.windowed;
             DisplayUseWindow(fake);
             DisplaySetOverrides(step.kind == StartCli ? 1024 : 0, step.kind == StartCli ? 768 : 0, false);
-            ConfigAddChangeHook(DisplayChanged);
+            ConfigAddChangeHook(ConfigDisplayChanged);
         } else if (step.kind == Ask || step.kind == Size) {
             if (step.kind == Ask) {
                 config.fullscreen = step.fullscreen;
@@ -595,10 +595,10 @@ TEST(PlatformConfig, DisplayFieldsFollowTheWindow) {
                 config.window_width = 1024;
                 config.window_height = 768;
             }
-            ASSERT_TRUE(DisplayApply(config));
+            ASSERT_TRUE(DisplayApply([&] { return ConfigChange(config); }));
         } else if (step.kind == Edit) {
             config.options.clock = !config.options.clock;
-            ASSERT_TRUE(DisplayApply(config));
+            ASSERT_TRUE(DisplayApply([&] { return ConfigChange(config); }));
         } else if (step.kind == Close) {
             ASSERT_TRUE(ConfigChange(config));
         } else if (step.kind == Finish) {
@@ -627,7 +627,7 @@ TEST(PlatformConfig, DisplayFieldsFollowTheWindow) {
         EXPECT_EQ(g_fake.sets, step.sets);
         EXPECT_EQ(g_fake.changes, step.changes);
     }
-    ConfigRemoveChangeHook(DisplayChanged);
+    ConfigRemoveChangeHook(ConfigDisplayChanged);
     DisplaySetOverrides(0, 0, false);
     DisplayUseWindow({});
     std::error_code error;
@@ -640,6 +640,14 @@ TEST(PlatformConfig, QteAlwaysWin) {
     ASSERT_TRUE(config.qte_always_win);
     ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).qte_always_win);
     ASSERT_TRUE(!ConfigParse(R"({"game": {"qte_always_win": "yes"}})").qte_always_win);
+}
+
+TEST(PlatformConfig, TextWipe) {
+    ASSERT_TRUE(!ConfigParse("").text_wipe);
+    Config config = ConfigParse(R"({"game": {"text_wipe": true}})");
+    ASSERT_TRUE(config.text_wipe);
+    ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).text_wipe);
+    ASSERT_TRUE(!ConfigParse(R"({"game": {"text_wipe": "yes"}})").text_wipe);
 }
 
 TEST(PlatformConfig, Anisotropy) {

@@ -3,7 +3,8 @@ If:
 CompileFlags:
   Add: [-xc++, -std=c++98, --target=mipsel-unknown-elf, -nostdinc, -nostdinc++, -Wno-deprecated-writable-strings,
         -I../ps2/include, -I../ps2/include/std, -I../ps2/include/sce, -I../../ps2/include, -I../../ps2/include/std, -I../../ps2/include/sce,
-        -I../../../ps2/include, -I../../../ps2/include/std, -I../../../ps2/include/sce]
+        -I../../../ps2/include, -I../../../ps2/include/std, -I../../../ps2/include/sce,
+        -I../tools/kazarov/include, -I../../tools/kazarov/include, -I../../../tools/kazarov/include]
 Diagnostics:
   UnusedIncludes: None
 Documentation:

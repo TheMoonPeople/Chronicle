@@ -37,7 +37,7 @@ def print_summary(report):
         passed = float(measures["matched_code_percent"]) == 100.0
         status = f"{green}OK{reset}" if passed else f"{red}FAILED{reset}"
         print(f"{image}: {status} {gray}({perfect} perfect, {fuzzy} fuzzy, "
-              f"0 asm, {unmatched} unmatched){reset}")
+              f"{unmatched} unmatched){reset}")
 
     measures = report["measures"]
     units = report["units"]
@@ -52,7 +52,6 @@ def print_summary(report):
     for label, color, share, count in (
         ("Perfect", green, perfect_share, perfect),
         ("Fuzzy", yellow, fuzzy_share, fuzzy),
-        ("Asm", gray, 0.0, 0),
         ("Unmatched", red, unmatched_share, unmatched),
     ):
         print(f"  {color}{label:<11}{reset} {share:6.2f}%    {count:4d} functions")
@@ -80,7 +79,7 @@ def print_summary(report):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--region", choices=REGIONS,
-                        default=os.environ.get("REGION", "NTSC").upper())
+                        default=os.environ.get("REGION", "PAL").upper())
     args = parser.parse_args()
 
     config = load_region(args.region)

@@ -7,11 +7,6 @@
 #include "mathutil.hpp"
 #include "title/title_port.hpp"
 
-[[noreturn]] void Ps2Unimplemented(const char *function, const char *file, int line) {
-    std::fprintf(stderr, "%s:%d: %s: PlayStation 2 code is not implemented on PC\n", file, line, function);
-    std::abort();
-}
-
 // Retail halted on a failed assertion. The game prints its own context on stdout first (LoadFile
 // names the file), so stdout is flushed ahead of the message. _Exit, not exit: static destructors
 // would tear down the renderer under a frame the game may have open.
@@ -47,7 +42,7 @@ extern "C" int rand() LIBC_NOEXCEPT {
 }
 
 // The host runs the static constructors mwInit would have run.
-PC_OVERRIDE extern "C" void mwInit(int argc, const char **argv, const char **envp) {}
+PORT_OVERRIDE extern "C" void mwInit(int argc, const char **argv, const char **envp) {}
 
 extern "C" [[noreturn]] void exit__2(int status) {
     std::exit(status);
@@ -56,7 +51,7 @@ extern "C" [[noreturn]] void exit__2(int status) {
 // TITLE.BIN and DUN.BIN are linked into the executable, so there is no file to load. Retail's
 // loader re-ran an overlay's static constructors whenever a mode needed the other overlay; the
 // port re-runs the title overlay's for the objects it lays out with host classes.
-PC_OVERRIDE void LoadOverlay(int mode) {
+PORT_OVERRIDE void LoadOverlay(int mode) {
     enum Overlay { kNone, kTitle, kDungeon };
     constexpr Overlay kOverlay[] = {kTitle, kTitle, kNone, kDungeon, kDungeon, kTitle, kNone, kNone,
                                     kDungeon, kDungeon, kNone, kNone, kNone, kNone, kNone};
@@ -71,7 +66,7 @@ PC_OVERRIDE void LoadOverlay(int mode) {
     }
 }
 
-PC_OVERRIDE extern "C" int mwLoadOverlay(char *path, void *address) {
+PORT_OVERRIDE extern "C" int mwLoadOverlay(char *path, void *address) {
     return 1;
 }
 
@@ -79,25 +74,25 @@ PC_OVERRIDE extern "C" int mwLoadOverlay(char *path, void *address) {
 // defines: four constructors MWCC wrote, __unexpected, std::exception's virtual table and the
 // overlay address table. Nothing in the port reaches them, but a COFF link wants every name an
 // object uses defined. These take their place.
-PC_OVERRIDE extern "C" void *__ct__10CCharacterFv(void *self) {
+PORT_OVERRIDE extern "C" void *__ct__10CCharacterFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PC_OVERRIDE extern "C" void *__ct__13CTextureAnimeFv(void *self) {
+PORT_OVERRIDE extern "C" void *__ct__13CTextureAnimeFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PC_OVERRIDE extern "C" void *__ct__7CObjectFv(void *self) {
+PORT_OVERRIDE extern "C" void *__ct__7CObjectFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PC_OVERRIDE extern "C" void *__ct__8CHitMarkFv(void *self) {
+PORT_OVERRIDE extern "C" void *__ct__8CHitMarkFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PC_OVERRIDE extern "C" void __unexpected(void *exception_record) {
+PORT_OVERRIDE extern "C" void __unexpected(void *exception_record) {
     PS2_UNIMPLEMENTED();
 }
 
-PC_OVERRIDE extern "C" void *__vt__Q23std9exception[4] = {};
-PC_OVERRIDE void            *_overlay_group_addresses[2] = {};
+PORT_OVERRIDE extern "C" void *__vt__Q23std9exception[4] = {};
+PORT_OVERRIDE void            *_overlay_group_addresses[2] = {};

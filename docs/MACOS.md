@@ -16,8 +16,9 @@ The presets use Homebrew's `llvm`; Apple's clang is not current enough for C++26
 ## Building
 
 ```sh
-./build.sh macos                              # Debug, port/build/macos-arm64
-cmake --preset macos-arm64-release            # Release, port/build/macos-arm64-release
+./build.sh macos-arm64                        # Debug, port/build/macos-arm64
+./build.sh macos                              # Release, port/build/macos-arm64-release
+cmake --preset macos-arm64-release            # the same Release build, without the container
 cmake --build --preset macos-arm64-release
 ```
 

@@ -27,16 +27,11 @@ import region  # noqa: E402
 
 SECTIONS = ('main', 'title', 'dun')
 
-# A marker names the directory its reference assembly is in and the symbol it
-# stands for. Only the symbol is read: retail's names are unique across the
-# three images, so nothing else is needed to tell two apart.
+# A declaration names a function that is a fuzzy match. Only the symbol is read:
+# retail's names are unique across the three images.
 DECLARATION = re.compile(r'^\s*FUZZY_MATCH\s*\(\s*"[^"]*"\s*,\s*([^)\s]+)\s*\)', re.M)
-ASM_MARKER = re.compile(r'^\s*INCLUDE_ASM\s*\(\s*"[^"]*"\s*,\s*([^)\s]+)\s*\)', re.M)
 
-# ASM is not a quality of the bytes -- a function an INCLUDE_ASM marker supplies
-# is retail's own -- but of the source: nothing about it is decompiled, so it is
-# worth counting apart from a function whose C++ reproduces retail exactly.
-PERFECT, FUZZY, ASM, UNMATCHED = 'perfect', 'fuzzy', 'asm', 'unmatched'
+PERFECT, FUZZY, UNMATCHED = 'perfect', 'fuzzy', 'unmatched'
 
 # Where the register fields sit, by instruction class. Everything outside them
 # -- opcode, function code, shift amount, immediate, branch offset -- has to
@@ -112,11 +107,6 @@ def _scan(pattern, src_dir):
 def declarations(src_dir='ps2/src'):
     """{symbol: source} for every FUZZY_MATCH in the tree."""
     return _scan(DECLARATION, src_dir)
-
-
-def markers(src_dir='ps2/src'):
-    """{symbol: source} for every INCLUDE_ASM in the tree."""
-    return _scan(ASM_MARKER, src_dir)
 
 
 # ------------------------------------------------------------------ file hashes
@@ -260,12 +250,11 @@ COLOR_YELLOW = '\033[93m'
 IMAGE_FILE = {'main': 'SCUS_971.11', 'title': 'TITLE.BIN', 'dun': 'DUN.BIN'}
 
 # Worst last, so the eye lands on the failures.
-ORDER = (PERFECT, FUZZY, ASM, UNMATCHED)
-LABEL = {PERFECT: 'Perfect', FUZZY: 'Fuzzy',
-         ASM: 'Asm', UNMATCHED: 'Unmatched'}
+ORDER = (PERFECT, FUZZY, UNMATCHED)
+LABEL = {PERFECT: 'Perfect', FUZZY: 'Fuzzy', UNMATCHED: 'Unmatched'}
 
 
-def categorise(section, declared, asm):
+def categorise(section, declared):
     """Sort one image's functions into perfect, fuzzy and unmatched.
 
     Returns (rows, data_differs). `rows` is one (entry, verdict) per function;
@@ -293,10 +282,6 @@ def categorise(section, declared, asm):
             # Undeclared drift looks like a fuzzy match but nothing promised it
             # would stay one, so it is not allowed to pass as one.
             verdict = UNMATCHED
-        elif verdict == PERFECT and entry.symbol in asm:
-            # Retail's own bytes, straight from the marker. Right, but not
-            # decompiled, so it is not a perfect match in the sense that counts.
-            verdict = ASM
         rows.append((entry, verdict))
 
     # A build that is not the same length as retail is a failure like any
@@ -312,7 +297,6 @@ def categorise(section, declared, asm):
 def verify_functions(sections=SECTIONS):
     """Report the share of code that is a perfect, fuzzy or unmatched match."""
     declared = declarations()
-    asm = markers()
     totals = {k: [0, 0] for k in ORDER}
     bad_data = 0
     failures = []
@@ -320,7 +304,7 @@ def verify_functions(sections=SECTIONS):
     print('Verifying built files')
     per_image = {}
     for section in sections:
-        rows, data_differs = categorise(section, declared, asm)
+        rows, data_differs = categorise(section, declared)
         bad_data += data_differs
         counts = {k: [0, 0] for k in ORDER}
         for entry, verdict in rows:
@@ -340,7 +324,7 @@ def verify_functions(sections=SECTIONS):
         else:
             verdict = f'{COLOR_GREEN}OK{COLOR_END}'
         detail = (f'{counts[PERFECT][0]} perfect, {counts[FUZZY][0]} fuzzy, '
-                  f'{counts[ASM][0]} asm, {counts[UNMATCHED][0]} unmatched')
+                  f'{counts[UNMATCHED][0]} unmatched')
         if data_differs:
             detail += f', {data_differs} data bytes differ'
         print(f'{name}: {verdict} {COLOR_GREY}({detail}){COLOR_END}')
@@ -352,7 +336,7 @@ def verify_functions(sections=SECTIONS):
 
     print('\nCode, by byte')
     for kind, colour in ((PERFECT, COLOR_GREEN), (FUZZY, COLOR_YELLOW),
-                         (ASM, COLOR_GREY), (UNMATCHED, COLOR_RED)):
+                         (UNMATCHED, COLOR_RED)):
         print(f'  {colour}{LABEL[kind]}{COLOR_END}{" " * (10 - len(LABEL[kind]))}'
               f' {pct(kind):6.2f}%   {totals[kind][0]:>5} functions')
     print('  Data       ' + (f'{COLOR_RED}{bad_data} bytes differ{COLOR_END}'
@@ -388,7 +372,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--file', dest='files', nargs='+', help='Verify built files against the retail originals')
     parser.add_argument('-e', '--verify_extracted', dest='verify_extracted', action='store_true', help='Verify that the game has been extracted correctly')
     parser.add_argument('-c', '--categorise', action='store_true',
-                        help='Report perfect/fuzzy/asm/unmatched shares per function')
+                        help='Report perfect/fuzzy/unmatched shares per function')
     args = parser.parse_args()
 
     if args.categorise:

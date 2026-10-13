@@ -47,8 +47,8 @@ AGENTS.md
 *.i64
 *.idb
 
-# The lock every build of the tree takes; see scripts/build/cmake.sh.
-/.build.lock
+# Kazarov's state: configuration locks and run descriptors.
+/.kazarov/
 
 # The PC port's extracted game data and its saves; see docs/PC_PORT_PLAN.md.
 /data/

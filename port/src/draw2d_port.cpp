@@ -5,7 +5,9 @@
 
 #include "mglib.hpp"
 #include "mglib_port.hpp"
+#include "screen.hpp"
 #include "texture.hpp"
+#include "textwipe.hpp"
 
 namespace draw2d {
 
@@ -55,8 +57,8 @@ bool Resolve(u_long tex0, u_long tex1, gfx::DrawState &state, Texture &texture) 
 
     if (texture.binding.texture == gfx::kMainTarget) {
         gfx::TextureHandle snapshot =
-            gfx::NamedRenderTarget(kFrameSnapshot, static_cast<uint32_t>(gfx::kLogicalWidth),
-                                   static_cast<uint32_t>(gfx::kLogicalHeight), true, false, true);
+            gfx::NamedRenderTarget(kFrameSnapshot, static_cast<uint32_t>(kScreenWidth),
+                                   static_cast<uint32_t>(kScreenHeight), true, false, true);
         if (snapshot == gfx::kNullTexture || !gfx::SnapshotFrame(snapshot)) {
             return false;
         }
@@ -161,7 +163,7 @@ void DrawTextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices, u
         vertex.y *= rows;
         vertex.v *= texture.v_scale;
     }
-    gfx::Draw2D(primitive, vertices, texture.binding, state);
+    textwipe::Draw2D(primitive, vertices, texture.binding, state);
 }
 
 void DrawUntextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices,
@@ -174,7 +176,7 @@ void DrawUntextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices,
     for (gfx::Vertex2D &vertex : vertices) {
         vertex.y *= rows;
     }
-    gfx::Draw2D(primitive, vertices, {}, state);
+    textwipe::Draw2D(primitive, vertices, {}, state);
 }
 
 } // namespace draw2d

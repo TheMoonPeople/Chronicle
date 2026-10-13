@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "../platform/paths.hpp"
+#include "platform/paths.hpp"
 #include "data_fixture.hpp"
 #include "dataread.hpp"
 #include "dataread_port.hpp"
@@ -140,18 +140,18 @@ TEST(DataRead, Loadfile2FoldsCaseAndDevices) {
 TEST(DataRead, LoadfileMissingAsserts) {
     fs::path dir = InstallStandardData("read_assert");
     int      size;
-    DC_ASSERT_EXIT([&] { LoadFile(Mutable("nothing/here.bin"), buffer, &size); }, kExitGameAssert);
+    KZ_ASSERT_EXIT([&] { LoadFile(Mutable("nothing/here.bin"), buffer, &size); }, kExitGameAssert);
     fs::remove_all(dir);
 }
 
 TEST(DataRead, InitcdfileRequiresData) {
     fs::path dir = TempDir("read_nodata");
     PathsSetDataRoot(dir / "data");
-    DC_ASSERT_ABORT([] { InitCDFile(); });
+    KZ_ASSERT_ABORT([] { InitCDFile(); });
     fs::create_directories(dir / "data/empty_dir");
-    DC_ASSERT_ABORT([] { InitCDFile(); });
+    KZ_ASSERT_ABORT([] { InitCDFile(); });
     WriteBytes(dir / "data/a.bin", Pattern(3, 0));
-    DC_ASSERT_EXIT([] { InitCDFile(); }, 0);
+    KZ_ASSERT_EXIT([] { InitCDFile(); }, 0);
     fs::remove_all(dir);
 }
 

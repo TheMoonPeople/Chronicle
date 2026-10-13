@@ -163,7 +163,7 @@ CTexture *NamedTexture(const char *name) {
 
 } // namespace
 
-PC_OVERRIDE void DunMainDraw() {
+PORT_OVERRIDE void DunMainDraw() {
     sceVu0FMATRIX camera;
     sceVu0FVECTOR eye;
     sceVu0FMATRIX view;
@@ -717,7 +717,7 @@ extern LOADTEXTURE_INFO2 texdata__2[];
 
 // Retail formats the floor's gate key image over the third name in texdata__2, a string literal the
 // PS2 left writable and a host need not; the port formats it into a buffer of its own.
-PC_OVERRIDE void LoadBaseTexture() {
+PORT_OVERRIDE void LoadBaseTexture() {
     LOADTEXTURE_INFO2 info[96];
     int               size;
     int               i;
@@ -790,7 +790,7 @@ PC_OVERRIDE void LoadBaseTexture() {
     TexManager.LoadTextureBlock(-1, mes_info);
 }
 
-PC_OVERRIDE int LoaderLoop() {
+PORT_OVERRIDE int LoaderLoop() {
     char       name[96];
     int        i;
     int        chosen = 0;

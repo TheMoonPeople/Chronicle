@@ -1,26 +1,21 @@
-# The PS2 build: compiles ps2/src with MWCC, links the retail images and
-# verifies them byte for byte.
-#
-# The default target builds and verifies the executable.
+# The PS2 build: compiles ps2/src with MWCC, links the retail images and checks
+# them against the disc. The rules come from tools/kazarov; kazarov.conf picks
+# the targets that are built and run.
 
 set(BASENAME SCUS_971.11)
 
 set(SECTIONS main title dun)
 
-# The release the build is for: NTSC 1.02 or the July 12, 2001 PAL prototype.
-# Its disc, split configuration, linker script and split each live in a
-# directory named for it; scripts/build/region.py is the one place that says
-# where, and every script run here is told the region through DCDECOMP_REGION.
-set(REGION NTSC CACHE STRING "Release to build: NTSC or PAL")
-set_property(CACHE REGION PROPERTY STRINGS NTSC PAL)
+# The release: the July 12, 2001 PAL prototype, or NTSC 1.02. Its disc, split
+# configuration, linker script and split each live in a directory named for it;
+# scripts/build/region.py is the one place that says where, and every script run
+# here is told the region through DCDECOMP_REGION.
+set(REGION PAL CACHE STRING "Release to build: PAL or NTSC")
+set_property(CACHE REGION PROPERTY STRINGS PAL NTSC)
 if(NOT REGION MATCHES "^(NTSC|PAL)$")
     message(FATAL_ERROR "REGION must be NTSC or PAL, not ${REGION}")
 endif()
 string(TOLOWER ${REGION} REGION_DIR)
-
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include(ObjectLists)
-include(Overlays)
 
 set(SRC_DIR ps2/src)
 set(INCLUDE_DIR ps2/include)
@@ -29,14 +24,67 @@ set(SCRIPTS_DIR scripts)
 set(ROM_DIR rom)
 set(ROM_REGION_DIR ${ROM_DIR}/${REGION_DIR})
 set(ASM_DIR ps2/asm/${REGION_DIR})
-set(ASM_DATA_DIR ${ASM_DIR}/data)
 set(CONFIG_DIR ps2/config/${REGION_DIR})
-if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${ROM_DIR}/Dark Cloud (${REGION}).iso"
-   AND NOT EXISTS "${CMAKE_SOURCE_DIR}/${ROM_REGION_DIR}/extracted/iso/${BASENAME}")
+set(STD_INCLUDE_DIR ${INCLUDE_DIR}/std)
+set(SCE_INCLUDE_DIR ${INCLUDE_DIR}/sce)
+
+# The compiler, the linker and the runner that gives MWCC the compiler state
+# (scripts/build/statefix.py). MWCIncludes gets the library headers.
+set(MW ${TOOLS_DIR}/compilers/mw/2.3.3)
+set(KZ_MWCC ${MW}/mwccmips.exe)
+set(KZ_MWLD ${MW}/mwldmips.exe)
+set(KZ_LIB_INCLUDE_DIRS ${STD_INCLUDE_DIR} ${SCE_INCLUDE_DIR})
+set(KZ_MWCC_RUNNER scripts/build/statefix-wibo.sh)
+set(KZ_OVERLAYS title dun)
+
+set(AS_FLAGS -EL -march=r5900 -mabi=eabi -g -mno-pdr -non_shared -G0 -I ${INCLUDE_DIR})
+if(REGION STREQUAL "PAL")
+    list(APPEND AS_FLAGS --defsym PAL=1)
+endif()
+set(KZ_AS_FLAGS ${AS_FLAGS})
+
+include(${CMAKE_SOURCE_DIR}/tools/kazarov/cmake/Kazarov.cmake)
+
+set(CC_MW_FLAGS -O2 -c -Cpp_exceptions off -RTTI off -strings readonly
+    -pragma "divbyzerocheck on" -i ${INCLUDE_DIR} -i ${KZ_INCLUDE_REL})
+if(REGION STREQUAL "PAL")
+    list(APPEND CC_MW_FLAGS -DPAL -DPAL_TIMING)
+endif()
+set(LD_MW_FLAGS -map -nostdlib -m _start -nodead -g)
+set(LD_MW_ISO_FLAGS -nostdlib -m _start -nodead -sym on,noelf)
+set(BIN_FLAGS -B mips:5900 -I binary -O elf32-littlemips)
+
+# The tools the rules below call by their short names.
+set(AS ${KZ_AS})
+set(OBJCOPY ${KZ_OBJCOPY})
+set(OBJDUMP ${KZ_OBJDUMP})
+set(LD_MW ${KZ_LD})
+set(PYTHON ${KZ_PYTHON})
+set(PYTHON_CMD ${CMAKE_COMMAND} -E env DCDECOMP_REGION=${REGION} ${PYTHON} -u)
+
+# Decompiled globals replace these retail section dumps.
+set(REPLACED_SECTIONS main.bss main.data main.rdata main.sbss main.sdata
+                      main.vutext main.vudata
+                      title.data title.bss dun.data dun.sinit dun.bss)
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/disassemble.py
+    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/region.py
+    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/main.yaml
+    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/title.yaml
+    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/dun.yaml)
+
+# The disc: the image is in rom/<region>/, or in rom/ as the older layout had it.
+set(RETAIL_ISO "${ROM_REGION_DIR}/Dark Cloud (${REGION}).iso")
+set(LEGACY_ISO "${ROM_DIR}/Dark Cloud (${REGION}).iso")
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${RETAIL_ISO}" AND EXISTS "${CMAKE_SOURCE_DIR}/${LEGACY_ISO}")
+    set(RETAIL_ISO "${LEGACY_ISO}")
+endif()
+set(EXTRACTED_ELF ${ROM_REGION_DIR}/extracted/iso/${BASENAME})
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${RETAIL_ISO}" AND NOT EXISTS "${CMAKE_SOURCE_DIR}/${EXTRACTED_ELF}")
     message(FATAL_ERROR
         "Nothing to split ${ASM_DIR}/ from. Place the ${REGION} disc image at "
-        "rom/Dark Cloud (${REGION}).iso, or copy the extracted binaries in from "
-        "the private repository with scripts/host/overlay_private.sh.")
+        "${ROM_REGION_DIR}/Dark Cloud (${REGION}).iso.")
 endif()
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/main.yaml")
     message(FATAL_ERROR
@@ -50,90 +98,58 @@ else()
     set(REF_STAMP "")
 endif()
 
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/disassemble.py
-    ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/region.py
-    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/main.yaml
-    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/title.yaml
-    ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/dun.yaml)
-
 file(RELATIVE_PATH BUILD_DIR ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
+set(OUTPUT ${BUILD_DIR}/${BASENAME})
+set(BUILT_ISO "${BUILD_DIR}/Dark Cloud (${REGION} Build).iso")
+set(CTX ${BUILD_DIR}/ctx.c)
+set(CTX_CPP ${BUILD_DIR}/ctx.cpp)
+set(LD_TEMPLATE ${CONFIG_DIR}/${BASENAME}.lcf)
 
-set(MIPS_TOOL_PREFIX mips-ps2-decompals-
-    CACHE STRING "Prefix of the binutils-mips-ps2-decompals tools")
-
-set(MW ${TOOLS_DIR}/compilers/mw/2.3.3/)
-# MWCIncludes supplies the compiler's system-header search path.
-set(STD_INCLUDE_DIR ${INCLUDE_DIR}/std)
-set(SCE_INCLUDE_DIR ${INCLUDE_DIR}/sce)
-set(LIB_INCLUDE_DIRS "${STD_INCLUDE_DIR}\;${SCE_INCLUDE_DIR}")
-set(CC_MW ${CMAKE_COMMAND} -E env MWCIncludes=${LIB_INCLUDE_DIRS} wibo ${MW}mwccmips.exe)
-set(LD_MW wibo ${MW}mwldmips.exe)
-set(AS ${MIPS_TOOL_PREFIX}as)
-set(OBJCOPY ${MIPS_TOOL_PREFIX}objcopy)
-set(OBJDUMP ${MIPS_TOOL_PREFIX}objdump)
-find_program(PYTHON NAMES python3 python REQUIRED HINTS $ENV{VIRTUAL_ENV}/bin)
-
-set(PYTHON_CMD ${CMAKE_COMMAND} -E env DCDECOMP_REGION=${REGION} ${PYTHON} -u)
-
+# Each overlay loads at retail's address, which differs between the releases.
 execute_process(
     COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/region.py overlay_origin
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE OVERLAY_ORIGIN
+    OUTPUT_VARIABLE KZ_OVERLAY_ORIGIN
     RESULT_VARIABLE region_rc
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 if(NOT region_rc EQUAL 0)
     message(FATAL_ERROR "scripts/build/region.py overlay_origin failed (${region_rc})")
 endif()
 
-set(LD_TEMPLATE ${CONFIG_DIR}/${BASENAME}.lcf)
-set(OUTPUT ${BUILD_DIR}/${BASENAME})
-set(RETAIL_ISO "${ROM_DIR}/Dark Cloud (${REGION}).iso")
-set(BUILT_ISO "${BUILD_DIR}/Dark Cloud (${REGION} Build).iso")
-set(CTX ${BUILD_DIR}/ctx.c)
-set(CTX_CPP ${BUILD_DIR}/ctx.cpp)
-
-set(AS_FLAGS -EL -march=r5900 -mabi=eabi -g -mno-pdr -non_shared -G0 -I ps2/include)
-set(CC_MW_FLAGS -O2 -c -Cpp_exceptions off -RTTI off -strings readonly
-    -pragma "divbyzerocheck on" -i ps2/include)
-if(REGION STREQUAL "PAL")
-    list(APPEND AS_FLAGS --defsym PAL=1)
-    list(APPEND CC_MW_FLAGS -DPAL -DPAL_TIMING)
-endif()
-set(LD_MW_FLAGS -map -nostdlib -m _start -nodead -g)
-set(LD_MW_ISO_FLAGS -nostdlib -m _start -nodead -sym on,noelf)
-set(BIN_FLAGS -B mips:5900 -I binary -O elf32-littlemips)
-
-# Decompiled globals replace these retail section dumps.
-set(REPLACED_SECTIONS main.bss main.data main.rdata main.sbss main.sdata
-                      main.vutext main.vudata
-                      title.data title.bss dun.data dun.sinit dun.bss)
-
-set(ASM_SOURCES "")
+set(REF_CONFIGS "")
 foreach(section IN LISTS SECTIONS)
-    read_index_sources(${section} section_srcs "${REPLACED_SECTIONS}")
-    list(APPEND ASM_SOURCES ${section_srcs})
+    list(APPEND REF_CONFIGS ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${section}.symbols.txt)
+    list(APPEND REF_CONFIGS ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${section}.yaml)
 endforeach()
 
-# scripts/build/globs.sh rewrites globbed.txt when a globbed file is added or
-# removed; CONFIGURE_DEPENDS would re-check the globs on every build instead.
-if(EXISTS ${CMAKE_BINARY_DIR}/globbed.txt)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        ${CMAKE_BINARY_DIR}/globbed.txt)
-endif()
-file(GLOB_RECURSE ALL_CPP_SOURCES
+# ps2/asm/<region> is never committed. It is split from the three binaries
+# under rom/<region>/extracted/iso, which are extracted from the disc, and checked
+# against rom/<region>/extracted.sha256 before the split.
+kz_disc_setup(
+    ISO ${RETAIL_ISO}
+    ISO_CHECKSUM ${ROM_REGION_DIR}/checksum.sha256
+    EXTRACT_DIR ${ROM_REGION_DIR}/extracted
+    INPUTS ${ROM_REGION_DIR}/extracted/iso/${BASENAME}
+           ${ROM_REGION_DIR}/extracted/iso/TITLE.BIN
+           ${ROM_REGION_DIR}/extracted/iso/DUN.BIN
+    INPUTS_CHECKSUM ${ROM_REGION_DIR}/extracted.sha256
+    INPUTS_CHECKSUM_DIR ${ROM_DIR}
+    SPLIT_DIR ${ASM_DIR}
+    SPLIT_STAMP ps2/asm/${REGION_DIR}.split-stamp
+    SPLIT_COMMAND COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/disassemble.py --config ${CONFIG_DIR}
+    SPLIT_DEPENDS ${SCRIPTS_DIR}/build/disassemble.py ${LD_TEMPLATE} ${REF_CONFIGS})
+
+# Which objects are which, and the link order, from the split configuration.
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+include(ObjectLists)
+
+file(GLOB_RECURSE ALL_CPP_SOURCES CONFIGURE_DEPENDS
      RELATIVE ${CMAKE_SOURCE_DIR}
      ${CMAKE_SOURCE_DIR}/${SRC_DIR}/*.cpp ${CMAKE_SOURCE_DIR}/${SRC_DIR}/*.c)
-# tools/mwccgap compiles a temporary beside the source it came from, so a glob
-# that runs while another unit is compiling sees a file that is gone by the
-# time anything tries to build it.
-list(FILTER ALL_CPP_SOURCES EXCLUDE REGEX "(^|/)tmp[^/]*$")
 
-# Classify units as compiled or assembly-only.
 derive_config(--list-units unit_rows)
 
 set(CPP_SOURCES "")
-set(UNIT_ASM_SOURCES "")
 set(WHOLE_UNIT_OBJS "")
 set(WHOLE_UNIT_REFS "")
 foreach(row IN LISTS unit_rows)
@@ -141,7 +157,6 @@ foreach(row IN LISTS unit_rows)
     list(GET parts 0 kind)
     list(GET parts 2 source)
     list(GET parts 3 reference)
-    list(APPEND UNIT_ASM_SOURCES ${reference})
     if(kind STREQUAL "asm")
         list(APPEND WHOLE_UNIT_OBJS ${BUILD_DIR}/${source}.o)
         # A hand-written source is assembled in place of the split assembly.
@@ -155,23 +170,10 @@ foreach(row IN LISTS unit_rows)
     endif()
 endforeach()
 
-set(CPP_OBJS "")
-foreach(src IN LISTS CPP_SOURCES)
-    list(APPEND CPP_OBJS ${CMAKE_SOURCE_DIR}/${BUILD_DIR}/${src}.o)
-endforeach()
-
-# Custom commands resolve a relative dependency against this directory, so the
-# sources they depend on are named absolutely.
-set(ABS_CPP_SOURCES "")
-foreach(src IN LISTS CPP_SOURCES)
-    list(APPEND ABS_CPP_SOURCES ${CMAKE_SOURCE_DIR}/${src})
-endforeach()
-
-# Checked-in splat configuration remains an input, not a generated output.
-set(REF_CONFIGS "")
+set(ASM_SOURCES "")
 foreach(section IN LISTS SECTIONS)
-    list(APPEND REF_CONFIGS ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${section}.symbols.txt)
-    list(APPEND REF_CONFIGS ${CMAKE_SOURCE_DIR}/${CONFIG_DIR}/${section}.yaml)
+    read_index_sources(${section} section_srcs "${REPLACED_SECTIONS}")
+    list(APPEND ASM_SOURCES ${section_srcs})
 endforeach()
 
 set(ALL_OBJS "")
@@ -180,12 +182,21 @@ foreach(src IN LISTS ASM_SOURCES CPP_SOURCES)
 endforeach()
 list(APPEND ALL_OBJS ${WHOLE_UNIT_OBJS})
 
+set(ABS_OBJS "")
+foreach(obj IN LISTS ALL_OBJS)
+    list(APPEND ABS_OBJS ${CMAKE_SOURCE_DIR}/${obj})
+endforeach()
+set(ABS_CPP_SOURCES "")
+foreach(src IN LISTS CPP_SOURCES)
+    list(APPEND ABS_CPP_SOURCES ${CMAKE_SOURCE_DIR}/${src})
+endforeach()
+
 set(LINK_ORDER "")
 foreach(section IN LISTS SECTIONS)
     list(APPEND LINK_ORDER ${CMAKE_SOURCE_DIR}/${BUILD_DIR}/${section}_o_files)
 endforeach()
 
-make_object_dirs("${ALL_OBJS}")
+kz_object_dirs(${ALL_OBJS})
 
 foreach(obj IN LISTS ALL_OBJS)
     if(NOT obj IN_LIST WHOLE_UNIT_OBJS)
@@ -208,28 +219,22 @@ endif()
 set(OVERLAY_LCF ${BUILD_DIR}/${BASENAME}.overlays.lcf)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_SOURCE_DIR}/${LD_TEMPLATE})
-expand_overlay_markers(${CMAKE_SOURCE_DIR}/${LD_TEMPLATE}
-                       ${CMAKE_SOURCE_DIR}/${OVERLAY_LCF})
-
+kz_expand_overlay_markers(${CMAKE_SOURCE_DIR}/${LD_TEMPLATE}
+                          ${CMAKE_SOURCE_DIR}/${OVERLAY_LCF})
 set(GEN_LCF ${OVERLAY_LCF})
 
-set(ABS_OBJS "")
-foreach(obj IN LISTS ALL_OBJS)
-    list(APPEND ABS_OBJS ${CMAKE_SOURCE_DIR}/${obj})
-endforeach()
-
-overlay_link_args(OVERLAY_ARGS)
-check_overlay_prefixes()
+kz_overlay_link_args(OVERLAY_ARGS)
+kz_check_overlay_prefixes()
 
 set(OVERLAY_BINS "")
 set(PAD_COMMANDS "")
 set(VERIFY_FILES ${OUTPUT})
-foreach(name IN LISTS OVERLAYS)
+foreach(name IN LISTS KZ_OVERLAYS)
     string(TOUPPER ${name} upper)
     list(APPEND OVERLAY_BINS ${CMAKE_BINARY_DIR}/${upper}.BIN)
     list(APPEND VERIFY_FILES ${BUILD_DIR}/${upper}.BIN)
     list(APPEND PAD_COMMANDS
-        COMMAND truncate -s %${OVERLAY_FILE_ALIGN} ${BUILD_DIR}/${upper}.BIN)
+        COMMAND truncate -s %${KZ_OVERLAY_FILE_ALIGN} ${BUILD_DIR}/${upper}.BIN)
 endforeach()
 
 add_custom_command(
@@ -267,22 +272,13 @@ string(JOIN " " CC_MW_FLAGS_TEXT ${CC_MW_FLAGS})
 file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/compiler_flags.txt
      CONTENT "${CC_MW_FLAGS_TEXT}\n")
 
-# Build a shared m2c context from project headers.
-file(GLOB CTX_HEADERS
+# The m2c declaration context, from the project's headers.
+file(GLOB CTX_HEADERS CONFIGURE_DEPENDS
      ${CMAKE_SOURCE_DIR}/${INCLUDE_DIR}/*.hpp
      ${CMAKE_SOURCE_DIR}/${INCLUDE_DIR}/*.h
      ${CMAKE_SOURCE_DIR}/${STD_INCLUDE_DIR}/*
      ${CMAKE_SOURCE_DIR}/${SCE_INCLUDE_DIR}/*)
-
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/${CTX} ${CMAKE_SOURCE_DIR}/${CTX_CPP}
-    COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/diff/m2ctx.py -o ${CTX}
-    DEPENDS ${CTX_HEADERS} ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/diff/m2ctx.py
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Generating m2c context"
-    VERBATIM)
-
-add_custom_target(ctx DEPENDS ${CMAKE_SOURCE_DIR}/${CTX} ${CMAKE_SOURCE_DIR}/${CTX_CPP})
+kz_ctx(OUTPUT ${CTX} ${CTX_CPP} HEADERS ${CTX_HEADERS})
 
 # Build reference and source objects for objdiff.
 execute_process(
@@ -294,19 +290,19 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 set(OBJDIFF_TARGET_OBJS "")
+set(OBJDIFF_BASE_OBJS "")
 if(objdiff_rc EQUAL 0 AND objdiff_extra_raw)
     string(REGEX REPLACE "[ \t\r\n]+" ";" objdiff_extra "${objdiff_extra_raw}")
     foreach(src IN LISTS objdiff_extra)
         list(APPEND OBJDIFF_TARGET_OBJS ${BUILD_DIR}/${src}.o)
     endforeach()
 
-    set(OBJDIFF_BASE_OBJS "")
     foreach(src IN LISTS CPP_SOURCES)
         list(APPEND OBJDIFF_BASE_OBJS ${BUILD_DIR}/diff/${src}.o)
     endforeach()
 
     set(SYMBOL_ALIASES ${BUILD_DIR}/symbol_aliases.txt)
-    make_object_dirs("${OBJDIFF_TARGET_OBJS};${OBJDIFF_BASE_OBJS}")
+    kz_object_dirs(${OBJDIFF_TARGET_OBJS} ${OBJDIFF_BASE_OBJS})
     set(ASM_OBJECT_EXTRA_DEPENDS ${CMAKE_SOURCE_DIR}/${SYMBOL_ALIASES})
     set(OBJDIFF_TARGET_ONLY 1)
     foreach(obj IN LISTS OBJDIFF_TARGET_OBJS)
@@ -314,6 +310,7 @@ if(objdiff_rc EQUAL 0 AND objdiff_extra_raw)
     endforeach()
     unset(OBJDIFF_TARGET_ONLY)
 
+    # The base is the linked object's compile, copied and post-processed for objdiff.
     list(LENGTH CPP_SOURCES base_count)
     if(base_count GREATER 0)
         math(EXPR base_last "${base_count} - 1")
@@ -392,13 +389,6 @@ add_custom_target(verify_extracted
     USES_TERMINAL
     VERBATIM)
 
-add_custom_target(build ALL
-    COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/verify.py -c
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    USES_TERMINAL
-    VERBATIM)
-add_dependencies(build verify_extracted elf provenance ctx)
-
 # Link a stripped executable for the rebuilt disc.
 set(ISO_ELF ${BUILD_DIR}/nodebug/${BASENAME})
 
@@ -425,76 +415,9 @@ add_custom_command(
     USES_TERMINAL
     VERBATIM)
 
-add_custom_target(iso DEPENDS "${CMAKE_SOURCE_DIR}/${BUILT_ISO}")
-
-add_custom_target(run
-    COMMAND ${SCRIPTS_DIR}/host/pcsx2.sh "${BUILT_ISO}"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    USES_TERMINAL
-    VERBATIM)
-add_dependencies(run iso)
-
-set(STAMP_DIR ${BUILD_DIR}/stamps)
-set(ROM_VERIFIED ${STAMP_DIR}/rom.verified)
-set(DISASSEMBLE_STAMP ${STAMP_DIR}/disassembled)
-set(EXTRACTED_ELF ${ROM_REGION_DIR}/extracted/iso/${BASENAME})
-
-set(SPLIT_COMMANDS
-    COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/disassemble.py --config ${CONFIG_DIR})
-
-# ps2/asm/ is never committed; it is split from the three binaries under
-# rom/<region>/extracted/iso. They come from extracting the disc image, which
-# `iso` and `run` need in full, or, without one, from the private repository.
-# Either way they are checked against rom/<region>/extracted.sha256 before the
-# split.
-if(EXISTS "${CMAKE_SOURCE_DIR}/${RETAIL_ISO}")
-
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/${ROM_VERIFIED}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${STAMP_DIR}
-    COMMAND ${CMAKE_COMMAND} -E chdir ${ROM_DIR} sha256sum -c ${REGION_DIR}/checksum.sha256
-    COMMAND ${CMAKE_COMMAND} -E touch ${ROM_VERIFIED}
-    DEPENDS "${CMAKE_SOURCE_DIR}/${RETAIL_ISO}"
-            ${CMAKE_SOURCE_DIR}/${ROM_REGION_DIR}/checksum.sha256
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Checking the retail disc image"
-    USES_TERMINAL
-    VERBATIM)
-
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/${EXTRACTED_ELF}
-    COMMAND ${PYTHON_CMD} ${SCRIPTS_DIR}/build/extract.py
-    DEPENDS ${CMAKE_SOURCE_DIR}/${ROM_VERIFIED}
-            ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/extract.py
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Extracting the disc"
-    USES_TERMINAL
-    VERBATIM)
-
+# The disc is only mastered from the extracted files, so wait for them.
+set(ISO_DEPENDS "${CMAKE_SOURCE_DIR}/${BUILT_ISO}")
+if(TARGET extract)
+    list(APPEND ISO_DEPENDS ${KZ_EXTRACT_ID})
 endif()
-
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/${DISASSEMBLE_STAMP}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${STAMP_DIR}
-    COMMAND ${CMAKE_COMMAND} -E chdir ${ROM_DIR} sha256sum -c ${REGION_DIR}/extracted.sha256
-    ${SPLIT_COMMANDS}
-    COMMAND ${CMAKE_COMMAND} -E touch ${DISASSEMBLE_STAMP}
-    DEPENDS ${CMAKE_SOURCE_DIR}/${EXTRACTED_ELF}
-            ${CMAKE_SOURCE_DIR}/${SCRIPTS_DIR}/build/disassemble.py
-            ${CMAKE_SOURCE_DIR}/${LD_TEMPLATE}
-            ${CMAKE_SOURCE_DIR}/${ROM_REGION_DIR}/extracted.sha256
-            ${REF_CONFIGS}
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Splitting the disc with splat"
-    USES_TERMINAL
-    VERBATIM)
-
-add_custom_target(setup DEPENDS ${CMAKE_SOURCE_DIR}/${DISASSEMBLE_STAMP})
-
-add_custom_target(disassemble
-    ${SPLIT_COMMANDS}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${STAMP_DIR}
-    COMMAND ${CMAKE_COMMAND} -E touch ${DISASSEMBLE_STAMP}
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    USES_TERMINAL
-    VERBATIM)
+add_custom_target(iso DEPENDS ${ISO_DEPENDS})

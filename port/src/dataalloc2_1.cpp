@@ -1,8 +1,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "arena.hpp"
 #include "dataalloc.hpp"
+#include "platform/arena.hpp"
 
 // Retail's arena methods with its arithmetic and its off-by-one checks kept;
 // only the endless loop on overflow becomes an abort that names the arena.
@@ -52,15 +52,15 @@ void *Place(std::size_t size, u_long128 *block) {
 
 } // namespace
 
-PC_OVERRIDE void *operator new(size_t size, u_long128 *block) {
+PORT_OVERRIDE void *operator new(size_t size, u_long128 *block) {
     return Place(size, block);
 }
 
-PC_OVERRIDE void *operator new[](size_t size, u_long128 *block) {
+PORT_OVERRIDE void *operator new[](size_t size, u_long128 *block) {
     return Place(size, block);
 }
 
-PC_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
+PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
     if (used + quads > limit) {
         ArenaOverflow(this, used + quads, limit);
     }
@@ -70,7 +70,7 @@ PC_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
     return block;
 }
 
-PC_OVERRIDE u_char *CDataAlloc2<1>::Alloc64(int quads) {
+PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc64(int quads) {
     Align64();
     u_char *block = base + used * 16;
     used += quads;
@@ -97,7 +97,7 @@ u_char *CDataAlloc<1, 1690000>::Alloc(int quads) {
     return allocation;
 }
 
-PC_OVERRIDE u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
+PORT_OVERRIDE u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
     Align64();
     u_char *allocation = GlobalBlock() + used * 16;
     used += quads;
@@ -116,7 +116,7 @@ void CDataAlloc<1, 1690000>::Align64() {
 
 // SystemMesBuffer keeps its embedded storage: LoadSystemMessage points
 // SystemMes at block[used] directly.
-PC_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
+PORT_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
     if (used + quads > 6000) {
         ArenaOverflow(this, used + quads, 6000);
     }

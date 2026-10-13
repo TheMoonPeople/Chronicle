@@ -14,7 +14,8 @@
 #include <string>
 #include <utility>
 
-#include "paths.hpp"
+#include "platform/display.hpp"
+#include "platform/paths.hpp"
 
 namespace {
 
@@ -407,6 +408,9 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "game.element_quick_select") {
         return ReadBool(value, config.element_quick_select);
     }
+    if (name == "game.text_wipe") {
+        return ReadBool(value, config.text_wipe);
+    }
     if (name == "game.debug_mode") {
         return ReadBool(value, config.debug_mode);
     }
@@ -561,6 +565,16 @@ const Config &ConfigGet() {
     return g_config;
 }
 
+const HostSettings &SettingsGet() {
+    return ConfigGet();
+}
+
+bool SettingsChange(const HostSettings &settings) {
+    Config config = ConfigGet();
+    static_cast<HostSettings &>(config) = settings;
+    return ConfigChange(config);
+}
+
 float ConfigDetailDistance() {
     float distance = g_config.detail_distance;
     return distance > 0.0f ? distance : std::numeric_limits<float>::infinity();
@@ -607,6 +621,7 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["debug_mode"] = config.debug_mode;
     root["game"]["qte_always_win"] = config.qte_always_win;
     root["game"]["element_quick_select"] = config.element_quick_select;
+    root["game"]["text_wipe"] = config.text_wipe;
     root["game"]["language"] = kLanguageNames[config.language >= 2 && config.language <= 6 ? config.language : 0];
     const ConfigGameOptions &options = config.options;
     root["game"]["save_cursor_position"] = options.save_cursor_position;
@@ -703,6 +718,10 @@ void ConfigAddChangeHook(ConfigChangeHook hook) {
 
 void ConfigRemoveChangeHook(ConfigChangeHook hook) {
     std::erase(g_change_hooks, hook);
+}
+
+void ConfigDisplayChanged(const Config &before, const Config &after) {
+    DisplayChanged(before, after);
 }
 
 bool ConfigChange(const Config &config) {

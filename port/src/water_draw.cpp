@@ -5,6 +5,7 @@
 #include "draw3d.hpp"
 #include "mglib.hpp"
 #include "renderinfo.hpp"
+#include "screen.hpp"
 #include "texture.hpp"
 #include "water.hpp"
 
@@ -67,8 +68,8 @@ bool PrepareRefraction(Refraction &refraction) {
     if (gfx::CurrentRenderTarget() != gfx::kMainTarget || refraction.frame == gfx::kNullTexture) {
         return false;
     }
-    uint32_t width = static_cast<uint32_t>(gfx::kLogicalWidth);
-    uint32_t height = static_cast<uint32_t>(gfx::kLogicalHeight);
+    uint32_t width = static_cast<uint32_t>(kScreenWidth);
+    uint32_t height = static_cast<uint32_t>(kScreenHeight);
     refraction.visible = gfx::NamedRenderTarget("water visible", width, height, true, true);
     refraction.refracted = gfx::NamedRenderTarget("water refracted", width, height, false, true);
     if (refraction.visible == gfx::kNullTexture || refraction.refracted == gfx::kNullTexture) {
@@ -153,7 +154,7 @@ void DrawRefracted(const CWater &water, const Refraction &refraction, const Draw
 
 } // namespace
 
-PC_OVERRIDE int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
+PORT_OVERRIDE int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
     if (output == nullptr || rows < 2 || columns < 2) {
         return kDraw3DBlockQuads;
     }
@@ -229,7 +230,7 @@ PC_OVERRIDE int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
     return kDraw3DBlockQuads;
 }
 
-PC_OVERRIDE extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info,
+PORT_OVERRIDE extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info,
                                                                             sceVif1Packet *draw_packet, void *parent_info) {
     if (water->CheckClip() != 0) {
         return 0;

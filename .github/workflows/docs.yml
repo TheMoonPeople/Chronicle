@@ -29,12 +29,8 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
-
-      - name: Build the toolchain image
-        # Same reasoning as the progress workflow: the Dockerfile is the only
-        # description of this toolchain, doxygen included, so CI uses it rather
-        # than a second copy of the same steps that could drift.
-        run: docker build -t dcdecomp_dev --target dev .
+        with:
+          submodules: true
 
       - name: Check out the Doxygen Awesome theme
         uses: actions/checkout@v7
@@ -45,13 +41,11 @@ jobs:
 
       - name: Generate the documentation
         run: |
-          docker run --rm \
-            -v "$PWD:/dcdecomp" -w /dcdecomp -e HOME=/tmp \
-            dcdecomp_dev sh -c '
-              doxygen 2>/tmp/warnings.txt
-              cat /tmp/warnings.txt
-              test ! -s /tmp/warnings.txt
-            '
+          tools/kazarov/bin/kazarov shell sh -c '
+            doxygen 2>/tmp/warnings.txt
+            cat /tmp/warnings.txt
+            test ! -s /tmp/warnings.txt
+          '
 
       - name: Upload the documentation
         uses: actions/upload-pages-artifact@v5

@@ -8,9 +8,9 @@
 #include <memory>
 
 #include "../first_person_walk.hpp"
-#include "../platform/clock.hpp"
-#include "../platform/config.hpp"
-#include "../platform/input.hpp"
+#include "platform/clock.hpp"
+#include "platform/config.hpp"
+#include "platform/input.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
 #include "character.hpp"

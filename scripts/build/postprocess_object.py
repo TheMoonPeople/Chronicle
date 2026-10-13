@@ -15,9 +15,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tools" / "mwccgap"))
+sys.path.insert(0, str(ROOT / "tools" / "kazarov" / "python"))
 
-from mwccgap.elf import Elf  # noqa: E402
+from kazarov_elf import Elf  # noqa: E402
 from scripts.build import disassemble  # noqa: E402
 from scripts.build import region  # noqa: E402
 from scripts.build import retail  # noqa: E402
@@ -247,9 +247,7 @@ def rodata_alignment(names, retail_names=None):
                 return next(a for a in RODATA_ALIGNMENTS if address % a == 0)
         # MWCC assigns @N independently in every translation unit. A compiled
         # @N can share a spelling with an unrelated retail constant, so its
-        # number cannot be used as an address-stable identity. Transplanted
-        # retail constants are still named .rodata.gap at this point and do
-        # not pass through this fallback.
+        # number cannot be used as an address-stable identity.
         if name.startswith("@"):
             continue
         address = retail_addresses().get(name)
@@ -258,8 +256,8 @@ def rodata_alignment(names, retail_names=None):
     return None
 
 
-# A datum defined for a function an INCLUDE_ASM marker supplies is named for
-# the retail datum it stands for: `pal_` + retail's name, `@` spelled `at` and
+# A datum defined for a function the source writes is named for the retail
+# datum it stands for: `pal_` + retail's name, `@` spelled `at` and
 # a static's `$` spelled `_S`.
 GENERATED_DATUM = re.compile(r"^pal_(.+)$")
 
@@ -385,33 +383,6 @@ def drop_functions(elf, names, parser):
         parser.error("the object defines no %s" % ", ".join(sorted(wanted)))
 
 
-# Where a transplanted function's constants land. mwccgap gives them a section
-# of their own so the second compile can tell them from the ones it wrote; by
-# here they are ordinary constants again. Renaming it through objcopy rebuilds
-# the symbol table and turns MWCC's coalesced globals local, which costs the
-# link a copy of every constructor the compiler wrote itself, so it is done
-# here instead -- and only for the objects that carry one.
-TRANSPLANTED_RODATA = ".rodata.gap"
-
-
-def restore_transplanted_rodata(elf):
-    """Fold mwccgap's constants back into .rodata."""
-    renamed = [index for index, section in enumerate(elf.sections)
-               if section.name == TRANSPLANTED_RODATA]
-    if not renamed:
-        return
-    name_index = elf.add_sh_symbol(".rodata")
-    for index in renamed:
-        elf.sections[index].sh_name = name_index
-        elf.sections[index].name = ".rodata"
-    # The section symbol carries the name a second time, and MWLD reads it
-    # from there when it reports where a constant was meant to go.
-    for symbol in elf.symtab.symbols:
-        if symbol.name == TRANSPLANTED_RODATA and symbol.st_shndx in renamed:
-            symbol.name = ".rodata"
-            symbol.st_name = elf.strtab.add_symbol(".rodata")
-
-
 # A constructor or destructor MWCC writes itself, which every unit that needs
 # its address emits a copy of. Retail's overlay carries none of them: its units
 # reach the one copy main holds.
@@ -500,9 +471,8 @@ def share_constants(elf, exported, imported, parser, source_only=False):
             found[text] = by_name[name]
     missing = [text for text, _name in entries if text not in found]
     if missing:
-        # A named entry reaches a constant an INCLUDE_ASM marker supplies, so a
-        # source-only object -- which has no spliced half -- holds neither the
-        # name nor the text, and there is nothing to share.
+        # A named entry can refer to a constant a source-only object does not
+        # hold; it then has neither the name nor the text, and nothing to share.
         if not source_only:
             parser.error("the object holds no %s"
                          % ", ".join(repr(m) for m in missing))
@@ -581,7 +551,6 @@ def main():
             retail_names[old_name] = new_name
     align_small_data(elf, retail_names)
     align_generated_data(elf)
-    restore_transplanted_rodata(elf)
     drop_functions(elf, fixups.get("drop_functions", []), parser)
     extern_functions(elf, fixups.get("extern_functions", []), parser)
     share_constants(elf, fixups.get("export_constants_shared", []),

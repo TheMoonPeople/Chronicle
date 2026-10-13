@@ -26,7 +26,7 @@ enum SaveMenuMessage {
 // frame after the one that starts them and show nothing; the save after the ending asks "Want to
 // save?" where retail asked to save the cleared data to the card; the alerts only a card raised
 // say the save or the load failed.
-PC_OVERRIDE int GetSaveMenuMsgNo() {
+PORT_OVERRIDE int GetSaveMenuMsgNo() {
     if (McAccess.GetFuncNo() != MC_OPERATION_IDLE) {
         return SAVE_MES_NONE;
     }
@@ -70,7 +70,7 @@ PC_OVERRIDE int GetSaveMenuMsgNo() {
 
 // Retail's looked for a card holding the save directory and its configuration. Data exists once
 // state.json or a save folder does.
-PC_OVERRIDE int InitExistData() {
+PORT_OVERRIDE int InitExistData() {
     if (McAccess.InitForMC() != 0) {
         return 0;
     }

@@ -2,15 +2,15 @@
 
 #include <libvu0.h>
 
-#include "arena.hpp"
 #include "cloth.hpp"
 #include "frame.hpp"
+#include "platform/arena.hpp"
 
 // CCharacter::wind is an s32 holding the address of a CWind, and every writer (title.cpp's
 // InitProc*, op_b, op_c, op_d, rushmovi, editloop's MainEditMode, EdEventNPCStep's copies) stores
 // an image global there. Retail's cast back only survives an image below 4 GiB, so the pointer is
 // recovered from the image instead.
-PC_OVERRIDE void CCharacter::ClothStep(int step) {
+PORT_OVERRIDE void CCharacter::ClothStep(int step) {
     sceVu0FVECTOR world_pos;
     CFrame       *root;
     int           i;

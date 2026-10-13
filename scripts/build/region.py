@@ -4,8 +4,8 @@
     region.py [key]        print one value (default: the region's name), for
                            the shell scripts and CMake
 
-NTSC 1.02 is the default. `DCDECOMP_REGION=PAL` selects the July 12, 2001 PAL
-prototype. Everything the two releases do not share -- the disc, what was
+PAL, the July 12, 2001 prototype, is the default. `DCDECOMP_REGION=NTSC`
+selects NTSC 1.02. Everything the two releases do not share -- the disc, what was
 extracted from it, the split configuration and linker script, the split
 itself, the build tree and the retail section layout -- sits under a directory
 named for the release (`rom/ntsc`, `ps2/config/ntsc`, `ps2/asm/ntsc`, `ps2/build/ntsc`)
@@ -84,7 +84,7 @@ REGIONS = {
     },
 }
 
-NAME = os.environ.get("DCDECOMP_REGION", NTSC).upper()
+NAME = os.environ.get("DCDECOMP_REGION", PAL).upper()
 if NAME not in REGIONS:
     raise SystemExit(f"region: DCDECOMP_REGION={NAME} is not one of {', '.join(REGIONS)}")
 CURRENT = REGIONS[NAME]
@@ -100,7 +100,7 @@ def paths(name):
         # The directory every region-specific tree names the release by.
         "dir": directory,
         # The disc image, and the directory its checksums and extracted files live in.
-        "iso": f"rom/Dark Cloud ({name}).iso",
+        "iso": f"{rom}/Dark Cloud ({name}).iso",
         "rom": rom,
         "extracted": f"{rom}/extracted",
         "extracted_iso": f"{rom}/extracted/iso",
@@ -141,7 +141,7 @@ def evaluate_guard(kind, expression, pal):
     Only a condition that names PAL is decided. Within one, PAL is defined for
     the PAL release and NON_MATCHING is never defined -- the build does not
     define it -- so `#if defined(PAL) && !defined(NON_MATCHING)` is the PAL
-    release's INCLUDE_ASM branch.
+    release's own branch.
     """
     expression = expression.split("//", 1)[0].strip()
     if kind in ("ifdef", "ifndef"):
@@ -167,7 +167,7 @@ def evaluate_guard(kind, expression, pal):
 def active_text(text, pal=None):
     """`text` with the lines a PAL conditional (`#ifdef PAL`, `#ifndef PAL`,
     `#if defined(PAL) && !defined(NON_MATCHING)` and the like) leaves out of
-    this release blanked, so a scan for INCLUDE_ASM markers sees what the
+    this release blanked, so a scan of the source sees what the
     compiler compiles. Every other conditional is left as it is; the line
     count does not change.
     """

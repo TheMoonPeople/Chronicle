@@ -33,14 +33,13 @@ options:
   # A constant belongs to the function that uses it and travels with
   # it; what no function claims keeps a marker of its own.
   migrate_rodata_to_functions: True
-  # Every reference file has to assemble on its own -- objdiff builds
-  # each as the object it compares against, and tools/mwccgap
-  # assembles the ones a marker names. A constant written to a file of
-  # its own takes the preamble rather than the header, so both carry
-  # macro.inc; including it twice is harmless.
+  # Every reference file has to assemble on its own: objdiff builds each as the
+  # object it compares against. A constant written to a file of its own takes
+  # the preamble rather than the header, so both carry macro.inc; including it
+  # twice is harmless.
   generated_s_preamble: ".include \"macro.inc\""
   asm_inc_header: ".include \"macro.inc\"\n\n.set noat\n.set noreorder\n\n"
-  # Every source already exists; splat reads the markers out of them
+  # Every source already exists; splat reads the definitions out of them
   # to decide which functions still need reference assembly.
   create_c_files: False
   # ps2/include/macro.inc is written by hand and load-bearing: its `alabel`
@@ -49,11 +48,10 @@ options:
   # one makes it global, so it must not overwrite this project's.
   generate_asm_macros_files: False
   do_c_func_detection: True
-  # A function still supplied by a marker gets a file of its own, for
-  # tools/mwccgap to splice; a decompiled one gets a file under
-  # ps2/asm/matchings, which is the only thing objdiff can compare it
-  # against on its own. Neither applies to a whole-file asm unit --
-  # those are one file and nothing else.
+  # A function still in assembly gets a file of its own under
+  # ps2/asm/nonmatchings; a decompiled one gets a file under ps2/asm/matchings.
+  # Neither applies to a whole-file asm unit -- those are one file and nothing
+  # else.
   disassemble_all: True
   make_full_disasm_for_code: True
   section_order: [".text", ".data", ".rodata", ".rdata", ".sdata", ".sbss", ".bss"]

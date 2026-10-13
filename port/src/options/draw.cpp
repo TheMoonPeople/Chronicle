@@ -11,6 +11,7 @@
 #include "rect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "textwipe.hpp"
 
 namespace options {
 
@@ -181,6 +182,7 @@ void DrawTitleHelp(int alpha) {
 } // namespace
 
 void Draw() {
+    const textwipe::MessageContext fit(textwipe::Kind::Options);
     setbilinear(0);
 
     if (!g_screen.texture_ready) {

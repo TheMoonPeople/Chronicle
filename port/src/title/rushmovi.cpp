@@ -84,10 +84,10 @@ void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRec
 
 extern CCameraFollow   MainCamera__3;
 static CDispFade      DispFade;
-PC_OVERRIDE CFireOmni  CFire__4;
+PORT_OVERRIDE CFireOmni  CFire__4;
 extern class CScript  CScript;
 extern CWind          Wind__4;
-PC_OVERRIDE CWater     Water__2;
+PORT_OVERRIDE CWater     Water__2;
 extern char           CharaTex[9];
 extern CDataAlloc2<1> CharaDataBuffer;
 static tagFRAME_INF   frame_info_cam[300];
@@ -150,7 +150,7 @@ void DrawProcTitle();
    texture, and a tick copies the current frame of each over the actor's face plate. This scene's
    eye strip is three columns of ten frames rather than one column, so the eye number the script
    holds picks the column as well as the row. */
-PC_OVERRIDE void FaceChangeMovie(int actor_no) {
+PORT_OVERRIDE void FaceChangeMovie(int actor_no) {
     static FACE_INFO face = {"c01d01", "c01d01an_4", 27, 48, 78, 44, 0, 0, 512, 3, 0};
     CTexture        *plate;
     CTexture        *strip;
@@ -201,7 +201,7 @@ PC_OVERRIDE void FaceChangeMovie(int actor_no) {
     MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, mouth, dbp, dbw, SCE_GS_PSMT8, 0, 128 - face.mouth_height - face.mouth_bottom, 0);
 }
 
-PC_OVERRIDE void RushInit() {
+PORT_OVERRIDE void RushInit() {
     wait_now_loading_vsync();
     InitializeDataBuffer();
     SetDataBuffer(&CharaDataBuffer, 490000);
@@ -248,7 +248,7 @@ PC_OVERRIDE void RushInit() {
     StartLightning = 0;
 }
 
-PC_OVERRIDE int RushLoop() {
+PORT_OVERRIDE int RushLoop() {
     ReadBG();
     CScript.Step();
     DataLoad();
@@ -1052,7 +1052,7 @@ static void SoundProcess() {
     }
 }
 
-PC_OVERRIDE void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step) {
+PORT_OVERRIDE void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step) {
     OBJ_ANIME_SEQ &sequence = OP_AnimeSeq[OP_AnimeSeqRot];
     sequence.Initialize();
     sequence.property = OBJ_ANIME_PROPERTY_ROTATION;
@@ -1068,7 +1068,7 @@ PC_OVERRIDE void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *
     OP_AnimeSeqRot++;
 }
 
-PC_OVERRIDE void WaterProcess() {
+PORT_OVERRIDE void WaterProcess() {
     sceGsTex0 frame_tex;
     sceGsTex0 water_tex;
     sceGsZbuf zbuf;

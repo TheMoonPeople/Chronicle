@@ -17,7 +17,7 @@ file is stale.
   (the replacement recovers the pointer, e.g. `PortImagePointer` for image globals).
 
 State of the enclosing function in the linked `darkcloud`: **port** (port/src's own code),
-**replaced** (a ps2/src body a `PC_OVERRIDE` definition in port/src replaces; never compiled),
+**replaced** (a ps2/src body a `PORT_OVERRIDE` definition in port/src replaces; never compiled),
 **retail** (a ps2/src body that is linked and can run), **dead** (dropped by `--gc-sections`; never
 runs).
 
@@ -154,7 +154,7 @@ recovered, as `CCharacter::ClothStep` does with `PortImagePointer`) fixes the ro
 | ps2/src/mglib.cpp:246 | MGInitVif1Packet | replaced | escapes | `(int)buffer0` | parameter | store: packetbuf[0] |
 | ps2/src/mglib.cpp:247 | MGInitVif1Packet | replaced | escapes | `(int)buffer1` | parameter | store: packetbuf[1] |
 | ps2/src/nowload.cpp:94 | init_now_loading | replaced | low-bits | `(int)archive` | stack | store: misalignment |
-| ps2/src/shop.cpp:5787 | FishingExchangeKey | replaced | resolved | `(int)attach` | member array of call (GetDngStatus) | store: entry (read back only in FishingExchangeKey) |
+| ps2/src/shop.cpp:5748 | FishingExchangeKey | replaced | resolved | `(int)attach` | member array of call (GetDngStatus) | store: entry (read back only in FishingExchangeKey) |
 | ps2/src/snd.cpp:413 | SndSetReadBuffer | replaced | low-bits | `(int)buffer` | parameter | store: misalign |
 | ps2/src/snd.cpp:416 | SndSetReadBuffer | replaced | round-trip | `(int)buffer` | parameter | cast back: (unsigned int *)((int)buffer +(64 - misalign)) |
 | ps2/src/sound.cpp:165 | TransHdBd | dead | escapes | `(int)& gBank` | image | argument: ezMidi |
@@ -266,4 +266,4 @@ pointer where it is stored, or resolve the integer where it comes back.
 | ps2/src/editmapscript.cpp:1073 | CommandWATER_SHAKE | replaced | `(EDIT_WATER_WAVE_VIEW *)offset` | offset |
 | ps2/src/main.cpp:757 | main | replaced | `(sceVif1Packet *)vif1_packet` | vif1_packet |
 | ps2/src/menu_draw.cpp:131 | MenuCalcBufAlignment | replaced | `(u_long128 *)offset` | offset |
-| ps2/src/shop.cpp:5789 | FishingExchangeKey | replaced | `(DNG_CONSUMABLE *)entry` | entry |
+| ps2/src/shop.cpp:5750 | FishingExchangeKey | replaced | `(DNG_CONSUMABLE *)entry` | entry |

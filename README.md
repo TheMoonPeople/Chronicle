@@ -15,26 +15,37 @@ This project produces 100% matching text and data sections for the main executab
 
 # Building and running
 
-1. Clone the repository with `git clone --recurse-submodules https://github.com/Adubbz/DCDecomp.git`
-2. Place the NTSC 1.02 disc image or PAL July 12th build, named `Dark Cloud (NTSC).iso` or `Dark Cloud (PAL).iso`, in the `rom` folder at the root of the project.
-3. Run `run.sh`.
+1. Clone the repository with `git clone --recurse-submodules https://github.com/TheMoonPeople/Chronicle.git`.
+   The build system is Kazarov, in `tools/kazarov`; the first build fetches it if it is missing.
+2. Place your disc image in `rom/<region>/`: `rom/pal/Dark Cloud (PAL).iso` for the PAL release, or
+   `rom/ntsc/Dark Cloud (NTSC).iso` for NTSC 1.02. An image at `rom/Dark Cloud (<REGION>).iso` is also accepted.
+3. Run `./build.sh <configuration>`, or `build.bat <configuration>` on Windows.
 
-`run.sh` builds the disc image and boots it in PCSX2.
+`./run.sh <configuration> [arguments]` builds the same way and then launches the result. PS2
+configurations boot the disc image in PCSX2; port configurations start the game, with the arguments
+passed on to it.
 
-`./build.sh` builds only the game for PS2; `./build.sh ps2` is equivalent.
-Use `REGION=PAL ./build.sh ps2` for the PAL prototype.
+| Configuration | Builds |
+|---|---|
+| `ps2-pal` (`ps2`, `pal`) | the PAL PS2 executable and disc image |
+| `ps2-ntsc` (`ntsc`) | the NTSC 1.02 PS2 executable and disc image |
+| `linux-x64-release` (`linux`) | the optimized Linux port, in `port/build/pc-release` |
+| `linux-x64` (`linux-x64-debug`) | the Debug Linux port, in `port/build/pc` |
+| `macos-arm64-release` (`macos`) | the optimized Apple Silicon port, in `port/build/macos-arm64-release` |
+| `macos-arm64` | the Debug Apple Silicon port, in `port/build/macos-arm64` |
+| `windows-x64-release` (`windows`) | the optimized Windows port |
+| `windows-x64` | the Debug Windows port |
+
+With no configuration, the scripts use the port for the host's operating system. PS2 builds must name
+their configuration. The Linux and PS2 configurations build in a container, which needs Docker or Podman;
+the macOS and Windows ports build on the host, with the dependencies in `docs/MACOS.md` and `docs/WINDOWS.md` installed.
+
+`CLEAN=1` discards the configuration's build directory before building, and `JOBS=N` sets the number of
+parallel jobs. The configurations and their settings are listed in `kazarov.conf` and `tools/kazarov/README.md`.
 
 ## The PC port
 
-`./build.sh linux-x64` builds the native Linux port in `port/build/pc`;
-`./build.sh macos` builds the Apple Silicon port in `port/build/macos-arm64`.
-`./run.sh linux-x64` or `./run.sh macos` builds and launches the native game;
-game arguments follow the platform (for example, `./run.sh linux-x64 --data data`).
-Run these on the corresponding host with the dependencies below installed.
-Both use Debug CMake presets. `CLEAN=1` discards the selected build directory,
-and `JOBS=N` controls parallelism on every platform.
-
-`PLATFORM=PC` builds the game's code as a native Linux and macOS program on SDL3 and Vulkan
+`PLATFORM=PC` builds the game's code as a native Linux, macOS and Windows program on SDL3 and Vulkan
 (`docs/PC.md`, `docs/MACOS.md`). On Linux it is packaged as a Flatpak, built by CI as
 `chronicle.flatpak`; `docs/FLATPAK.md` covers installing it. It needs your own PAL disc: the first
 start asks for the disc image and extracts the game's files from it.
@@ -52,40 +63,9 @@ game data; the Dark Cloud community font is bundled. See `docs/LOCALIZATION.md`.
 - `ps2/CMakeLists.txt`, `ps2/cmake`: PS2 build rules.
 - `port/src`, `port/include`: native replacements and platform support.
 - `port/CMakeLists.txt`, `port/flatpak`: native build rules and Linux packaging.
-- `scripts`, `tools`, `rom`, `build`: shared tooling, disc inputs, and build outputs.
-
-## Diffing
-
-`diff.sh <symbol>` compares a function against the retail original with
-[objdiff](https://github.com/encounter/objdiff). Symbols are
-the mangled names the compiler uses.
-
-```
-diff.sh SetDay__9CSaveDataFi          # the main executable
-diff.sh Load__7CScriptFPCc            # an overlay -- found on its own
-diff.sh dun GameInit__Fv              # ...named explicitly
-diff.sh SetDay__9CSaveDataFi -o - --format json    # one-shot, machine-readable
-```
-
-`diff.sh --scratch <symbol>` instead creates a
-[decomp.me](https://decomp.me) scratch for the function and prints its URL.
-
-```
-diff.sh --scratch SetDay__9CSaveDataFi
-diff.sh --scratch title Se__7CSpriteFv
-```
-
-## Decompiling
-
-`decompile.sh <symbol>` runs [m2c](https://github.com/matt-kempster/m2c) over a
-function's reference disassembly and prints C on stdout. It takes the same
-symbol spellings and optional section as `diff.sh`:
-
-```
-decompile.sh SetDay__9CSaveDataFi          # found on its own
-decompile.sh title Se__7CSpriteFv          # ...or name the overlay
-decompile.sh DataLoad__Fv --stack-structs  # extra flags go to m2c
-```
+- `scripts`: build, port and tooling scripts.
+- `tools`: compilers, the Kazarov build system (`tools/kazarov`) and helpers.
+- `rom`: disc images and their checksums.
 
 ## Documentation
 

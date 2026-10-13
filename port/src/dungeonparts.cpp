@@ -18,7 +18,7 @@ extern int  floorNum[7];
    array, every weapon's rate among them, as whatever the stack held. What a box then turns down
    depends on the executable's layout and the floor, and differs between the NTSC and PAL discs.
    The port reads the dungeon's list, as GetPieroItem does for the clown's boxes. */
-PC_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
+PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
     int           candidate[144];
     s16           rate[400];
     ITEM_PUT_SET *list = ItemPutListPtr[map_no + special * 7];

@@ -15,7 +15,7 @@ SECTIONS
 {
     // Overlays, written to their own files by the MEMORY block above. Each
     // @OVERLAY marker expands to that overlay's 64-byte MWo3 header, which
-    // ps2/cmake/Overlays.cmake writes; it also explains why the overlays' objects
+    // tools/kazarov/cmake/KazarovOverlays.cmake writes; it also explains why the overlays' objects
     // carry privately-prefixed section names.
     //
     // These come before .main only because MWLD assigns sections in the order

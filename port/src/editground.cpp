@@ -1,4 +1,5 @@
 #include "editground.hpp"
+#include "editground_port.hpp"
 
 #include <cstdint>
 #include <cstdlib>
@@ -105,7 +106,7 @@ CFrame *PreviewFrame(CMapParts *parts, s32 truncated) {
 
 } // namespace
 
-PC_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float *model_pos, int rot_y, float *rotation, int area_no) {
+PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float *model_pos, int rot_y, float *rotation, int area_no) {
     [[maybe_unused]] static int old_parts = -1;
     CVector3_f_     cell;
     CVector3_i_     grid;
@@ -176,6 +177,11 @@ PC_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float *
     position[2] = cell.z;
     position[3] = 0.0f;
     preview = fits != 0 ? PreviewFrame(source, source->preview_frame) : PreviewFrame(source, source->blocked_preview_frame);
+
+    // The preview is the part's finest level of detail, where retail showed its coarsest.
+    if (preview != NULL && source->frame[0] != NULL) {
+        preview = source->frame[0];
+    }
 
     if (width % 2 == 1) {
         position[0] += 0.5f * area->GetUnitSize();
@@ -267,7 +273,7 @@ PC_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float *
 // Retail's Draw, whose parts step down a level of detail at 50, 300, 500 and 800 from the eye.
 // None of those distances is nearer than video.detail_distance, so a part within it draws the
 // finest level the caller allows.
-PC_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highest, int fixed_lowest, int fixed_highest) {
+PORT_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highest, int fixed_lowest, int fixed_highest) {
     sceVu0FVECTOR lod_distance = {50.0f, 300.0f, 500.0f, 800.0f};
     sceVu0FVECTOR position;
     sceVu0FVECTOR ambient;
@@ -321,40 +327,21 @@ PC_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highest
     }
 }
 
-// Retail's DrawShadow, which casts a part's shadow by its depth from the eye: EditLoop composites
-// the parts nearer than the map's shadow_near (320 by default) at shadow_mode (0x34) and those out
-// to shadow_far (740) at the fainter shadow_mode_2 (0x20), and past that a part casts none. A part
-// deeper than 300 takes the fast volume program, and one with a draw_distance casts nothing past
-// it. A part within video.shadow_distance of the eye belongs to the near band, with the precise
-// program and whatever its draw_distance, so its shadow is as dark and as exact as up close. The
-// overhead view of georama mode (pass 1) keeps its own.
-PC_OVERRIDE void CEditGround::DrawShadow(int pass, float near_distance, float far_distance) {
+namespace {
+
+// The shadows of the parts whose depth from the eye lies between near_distance and far_distance.
+// A part within full of the eye takes the precise volume program whatever its draw_distance; past
+// it, one deeper than 300 takes the fast program and one with a draw_distance casts nothing past it.
+void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float far_distance, float full) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR view;
     sceVu0FVECTOR clip_position;
     int           i;
     CMapParts    *object;
     int           fast;
-    float         full = pass == 0 ? ConfigShadowDistance() : 0.0f;
     float         fast_distance = full > 300.0f ? full : 300.0f;
 
-    if (near_distance < 1.0f) {
-        near_distance = -10000000;
-
-        if (far_distance < full) {
-            far_distance = full;
-        }
-    } else {
-        if (near_distance < full) {
-            near_distance = full;
-        }
-
-        if (far_distance < near_distance) {
-            far_distance = near_distance;
-        }
-    }
-
-    object = parts;
+    object = ground.parts;
 
     for (i = 0; i < 128; i++, object++) {
         if (object->category_no < 0) {
@@ -365,14 +352,14 @@ PC_OVERRIDE void CEditGround::DrawShadow(int pass, float near_distance, float fa
             continue;
         }
 
-        if (object->area >= 0 && area_visible[object->area] == 0) {
+        if (object->area >= 0 && ground.area_visible[object->area] == 0) {
             continue;
         }
 
-        if (!(clip_plane[3] <= 0.0f)) {
+        if (!(ground.clip_plane[3] <= 0.0f)) {
             object->GetPosition(clip_position);
 
-            if (!(DistVector(clip_position, clip_plane) <= clip_plane[3]) && !object->ChangeDigData()) {
+            if (!(DistVector(clip_position, ground.clip_plane) <= ground.clip_plane[3]) && !object->ChangeDigData()) {
                 continue;
             }
         }
@@ -405,7 +392,7 @@ PC_OVERRIDE void CEditGround::DrawShadow(int pass, float near_distance, float fa
     }
 
     for (int j = 0; j < 64; j++) {
-        CMapParts *fixed = &fixed_parts[j];
+        CMapParts *fixed = &ground.fixed_parts[j];
 
         if (fixed->category_no < 0) {
             continue;
@@ -432,5 +419,41 @@ PC_OVERRIDE void CEditGround::DrawShadow(int pass, float near_distance, float fa
                 fixed->DrawShadow(fast);
             }
         }
+    }
+}
+
+} // namespace
+
+// Retail's DrawShadow, which casts a part's shadow by its depth from the eye: EditLoop composites
+// the parts nearer than the map's shadow_near (320 by default) at shadow_mode (0x34) and those out
+// to shadow_far (740) at the fainter shadow_mode_2 (0x20), and past that a part casts none. A part
+// deeper than 300 takes the fast volume program, and one with a draw_distance casts nothing past
+// it. A part within video.shadow_distance of the eye belongs to the near band, with the precise
+// program and whatever its draw_distance, so its shadow is as dark and as exact as up close; those
+// of them deeper than shadow_near are left out of the near band here and cast by
+// EdGroundDrawShadowBeyondNear. The overhead view of georama mode (pass 1) keeps its own.
+PORT_OVERRIDE void CEditGround::DrawShadow(int pass, float near_distance, float far_distance) {
+    float full = pass == 0 ? ConfigShadowDistance() : 0.0f;
+
+    if (near_distance < 1.0f) {
+        near_distance = -10000000;
+    } else {
+        if (near_distance < full) {
+            near_distance = full;
+        }
+
+        if (far_distance < near_distance) {
+            far_distance = near_distance;
+        }
+    }
+
+    DrawShadowBetween(*this, pass, near_distance, far_distance, full);
+}
+
+void EdGroundDrawShadowBeyondNear(CEditGround *ground, float shadow_near) {
+    float full = ConfigShadowDistance();
+
+    if (full > shadow_near) {
+        DrawShadowBetween(*ground, 0, shadow_near, full, full);
     }
 }

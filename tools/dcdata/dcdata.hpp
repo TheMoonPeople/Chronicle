@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace dcdata {
@@ -542,6 +543,24 @@ inline Im2Picture FindIm2Picture(std::span<const unsigned char> bank, std::strin
     return {};
 }
 
+// An IM2 bank of the named TIM2 pictures, in order, as the game's banks lay them out.
+inline std::vector<unsigned char> WriteIm2(
+    const std::vector<std::pair<std::string, std::vector<unsigned char>>> &pictures) {
+    std::vector<unsigned char> bank(16 + pictures.size() * 48, 0);
+    std::memcpy(bank.data(), "IM2", 3);
+    Put32(bank.data() + 4, static_cast<std::uint32_t>(pictures.size()));
+    for (std::size_t i = 0; i < pictures.size(); i++) {
+        const auto &[name, picture] = pictures[i];
+        if (name.size() >= 32) {
+            Fail("IM2 picture name is too long: {}", name);
+        }
+        std::memcpy(bank.data() + 16 + i * 48, name.c_str(), name.size());
+        Put32(bank.data() + 16 + i * 48 + 32, static_cast<std::uint32_t>(bank.size()));
+        bank.insert(bank.end(), picture.begin(), picture.end());
+    }
+    return bank;
+}
+
 // The colours of an 8-bit TIM2 picture's 256-entry CLUT as RGB, or none.
 inline std::vector<std::uint32_t> Tim2Colours(std::span<const unsigned char> tim) {
     if (tim.size() < 48 || tim[16 + 0x13] != 5 || (tim[16 + 0x0E] | tim[16 + 0x0F] << 8) != 256) {
@@ -748,6 +767,68 @@ inline void WriteLanguages(const fs::path &out, const Release &release) {
     WriteFile(out / kLanguagesFile, std::span(reinterpret_cast<const unsigned char *>(text.data()), text.size()));
 }
 
+// PAL split NTSC's town system packs. esys_cmn.pak holds what every language shares, with
+// sys_cmn.img the three pictures of NTSC's system.img that PAL kept; sys_N.img (sys.img for
+// Japanese) holds a language's pause and day-of-adventure pictures, which NTSC packs in esys_N.pak
+// as pause.img and whatsday.img. NTSC's gaiji, fuki256 and syst04 are meswin's, and its
+// skip_bord and second pause PAL dropped. From NTSC 1.02 these are PAL's members and pictures exactly.
+inline void SplitSystemPacks(const fs::path &out, const std::unordered_set<std::string> &paths) {
+    auto picture = [](const std::vector<PackMember> &members, std::string_view image, std::string_view name,
+                      std::string_view pack) {
+        for (const PackMember &member : members) {
+            if (EqualsFolded(member.name, image)) {
+                Im2Picture found = FindIm2Picture(member.data, name);
+                if (found.size == 0) {
+                    break;
+                }
+                return std::vector<unsigned char>(member.data.begin() + found.offset,
+                                                  member.data.begin() + found.offset + found.size);
+            }
+        }
+        Fail("{} has no {} picture in {}", pack, name, image);
+    };
+    auto write = [&](std::string_view name, const std::vector<unsigned char> &data) {
+        fs::path target = out / name;
+        if (paths.contains(std::string(name)) || (fs::is_regular_file(target) && ReadFile(target) == data)) {
+            return;
+        }
+        WriteFile(target, data);
+    };
+    for (int language = 0; language <= 6; language++) {
+        std::string pack = language == 0 ? std::string(kSystemPack)
+                                         : std::format("gedit/system/esys_{}.pak", language);
+        if (!fs::is_regular_file(out / pack)) {
+            continue;
+        }
+        std::vector<PackMember> members = ReadPack(ReadFile(out / pack));
+        write(language == 0 ? "gedit/system/sys.img" : std::format("gedit/system/sys_{}.img", language),
+              WriteIm2({
+                  {"pause",    picture(members, "pause.img",    "pause",    pack)},
+                  {"whatsday", picture(members, "whatsday.img", "whatsday", pack)}
+        }));
+        if (language != 0) {
+            continue;
+        }
+        std::vector<PackMember> common;
+        for (const PackMember &member : members) {
+            bool moved = false;
+            for (std::string_view name : {"gaiji.img", "syst04.img", "fuki256.img", "system.img", "pause.img", "whatsday.img"}) {
+                moved |= EqualsFolded(member.name, name);
+            }
+            if (!moved) {
+                common.push_back(member);
+            }
+        }
+        common.push_back({
+            "sys_cmn.img", WriteIm2({{"syst08", picture(members, "system.img", "syst08", pack)},
+                                     {"pnplate", picture(members, "system.img", "pnplate", pack)},
+                                     {"dayclock", picture(members, "system.img", "dayclock", pack)}}
+             )
+        });
+        write(kPalCommonSystemPack, WritePack(common));
+    }
+}
+
 inline void Normalize(const fs::path &out, const std::vector<Record> &records) {
     NormalizeIconSheets(out, records);
     std::unordered_set<std::string> paths;
@@ -786,6 +867,7 @@ inline void Normalize(const fs::path &out, const std::vector<Record> &records) {
     for (char language : {'e', 'f', 'g', 'i', 's'}) {
         alias(std::format("titledat/title_{}.pak", language), "titledat/title.pak");
     }
+    SplitSystemPacks(out, paths);
     for (int map = 1; map <= 7; map++) {
         fs::path event = out / std::format("dun/script/d{:02}/event.stb", map);
         if (!fs::is_regular_file(event)) {

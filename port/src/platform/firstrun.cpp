@@ -22,9 +22,11 @@
 #include "config.hpp"
 #include "exitcodes.hpp"
 #include "gfx/gfx.hpp"
-#include "overlay.hpp"
-#include "paths.hpp"
-#include "window.hpp"
+#include "platform/overlay.hpp"
+#include "platform/settings.hpp"
+#include "platform/paths.hpp"
+#include "screen.hpp"
+#include "platform/window.hpp"
 
 namespace fs = std::filesystem;
 
@@ -95,7 +97,7 @@ struct Canvas {
     }
 
     void Centered(float y, float scale, std::string_view text, const Color &color) {
-        Text((gfx::kLogicalWidth - TextWidth(text, scale)) * 0.5f, y, scale, text, color);
+        Text((kScreenWidth - TextWidth(text, scale)) * 0.5f, y, scale, text, color);
     }
 
     void Present() const {
@@ -475,8 +477,13 @@ void FirstRunIfNoData(bool headless) {
     SDL_SetWindowTitle(WindowHandle(), "Game data needed");
 
     gfx::RendererConfig renderer;
+    renderer.app_name = "Dark Cloud";
+    renderer.logical_width = kScreenWidth;
+    renderer.logical_height = kScreenHeight;
+    renderer.display_aspect = 4.0f / 3.0f;
     renderer.pipeline_cache = PathsSaveRoot() / "pipeline_cache.bin";
     renderer.offscreen = offscreen;
+    renderer.validation = renderer.validation || SettingsEnv("VULKAN_VALIDATION") != nullptr;
     gfx::RendererInit(WindowHandle(), renderer);
 
     FirstRunOutcome         outcome;

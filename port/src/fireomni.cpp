@@ -34,7 +34,7 @@ void SetLayerRegisters() {
 
 } // namespace
 
-PC_OVERRIDE void CFireOmni::DrawFire(int unused0, int unused1, CCamera *camera, float *colour, float scale, int layers,
+PORT_OVERRIDE void CFireOmni::DrawFire(int unused0, int unused1, CCamera *camera, float *colour, float scale, int layers,
                                      float camera_offset) {
     sceVu0FVECTOR camera_direction;
     sceVu0FVECTOR camera_ref;

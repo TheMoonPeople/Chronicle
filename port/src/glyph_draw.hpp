@@ -11,6 +11,11 @@
 // the game's own art should be used (see glyphs::Find).
 bool GlyphDrawSlot(glyphs::Button button, const CRect_i_ &slot, int alpha, float grow = 0.0f);
 
+/**
+ * Counts the painted controller symbols in a texture.
+ */
+int GlyphBakedCount(const char *texture);
+
 // Button symbols painted into the game's textures (the skip prompt's two buttons, the shoulder
 // button labels of the name entry and the character board), by texture name and the box of the
 // art in the texture's texels. The sprite draws (RectSprite, snd.cpp) call these for every

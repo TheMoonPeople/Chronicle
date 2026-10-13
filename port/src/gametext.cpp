@@ -480,7 +480,7 @@ GameText::GameText() : colour_(FONT_COLOR_WHITE) {
 extern float RandTbl[64];
 extern float RandTbl2[64];
 
-PC_OVERRIDE void MakeRandTbl(float lo, float hi) {
+PORT_OVERRIDE void MakeRandTbl(float lo, float hi) {
     if (g_keep_random > 0) {
         return;
     }
@@ -490,7 +490,7 @@ PC_OVERRIDE void MakeRandTbl(float lo, float hi) {
     }
 }
 
-PC_OVERRIDE void MakeRandTbl2(float lo, float hi) {
+PORT_OVERRIDE void MakeRandTbl2(float lo, float hi) {
     if (g_keep_random > 0) {
         return;
     }

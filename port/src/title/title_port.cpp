@@ -12,6 +12,7 @@
 #include "draw3d.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
+#include "screen.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
 
@@ -120,7 +121,7 @@ void TitlePortFog(std::span<const TitleFogBand> bands) {
 }
 
 float TitlePortBackdropScale() {
-    return std::max(1.0f, Draw3DVisibleExtent().half_width / (gfx::kLogicalWidth * 0.5f));
+    return std::max(1.0f, Draw3DVisibleExtent().half_width / (kScreenWidth * 0.5f));
 }
 
 void TitlePortCard(CTexture *texture, float angle) {

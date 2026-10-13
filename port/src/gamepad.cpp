@@ -1,4 +1,5 @@
 #include "gamepad.hpp"
+#include "gamepad_port.hpp"
 
 #include <libpad.h>
 
@@ -15,7 +16,13 @@ constexpr int kDebugButtonsModifier = PAD_SELECT | PAD_L2;
 
 static bool g_debug_menu_pressed = false;
 
-PC_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
+static int g_held_down = 0;
+
+void PadHoldDown(int mask) {
+    g_held_down = mask;
+}
+
+PORT_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
     unsigned char data[32];
     InputLatchPad(port);
     if (port == 0) {
@@ -39,17 +46,17 @@ PC_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
     return mode;
 }
 
-PC_OVERRIDE int CGamePad::GetLX() {
+PORT_OVERRIDE int CGamePad::GetLX() {
     InputNoteLeftStickRead();
     return AxisCalibration(pad[0].input.status.left_x);
 }
 
-PC_OVERRIDE int CGamePad::GetLY() {
+PORT_OVERRIDE int CGamePad::GetLY() {
     InputNoteLeftStickRead();
     return AxisCalibration(pad[0].input.status.left_y);
 }
 
-PC_OVERRIDE int CGamePad::On(int mask) {
+PORT_OVERRIDE int CGamePad::On(int mask) {
     if (key_lock) {
         return 0;
     }
@@ -62,12 +69,18 @@ PC_OVERRIDE int CGamePad::On(int mask) {
     return (pad[0].input.status.button & mask) != 0;
 }
 
-PC_OVERRIDE int CGamePad::On2(int mask) {
+PORT_OVERRIDE int CGamePad::On2(int mask) {
     return DebugMode && (pad[0].input.status.button & kDebugButtonsModifier) == kDebugButtonsModifier && On(mask);
 }
 
-PC_OVERRIDE int CGamePad::Down(int mask) {
+PORT_OVERRIDE int CGamePad::Down(int mask) {
     if (key_lock) {
+        return 0;
+    }
+
+    mask &= ~g_held_down;
+
+    if (mask == 0) {
         return 0;
     }
 
@@ -99,7 +112,7 @@ PC_OVERRIDE int CGamePad::Down(int mask) {
     return (mask & (pad[0].input.status.button & ~previous_pad[0].input.status.button)) != 0;
 }
 
-PC_OVERRIDE int CGamePad::Down2(int mask) {
+PORT_OVERRIDE int CGamePad::Down2(int mask) {
     if (key_lock || !DebugMode || (pad[0].input.status.button & kDebugButtonsModifier) != kDebugButtonsModifier) {
         return 0;
     }
@@ -107,17 +120,17 @@ PC_OVERRIDE int CGamePad::Down2(int mask) {
     return (mask & (pad[0].input.status.button & ~previous_pad[0].input.status.button)) != 0;
 }
 
-PC_OVERRIDE void CGamePad::KeyLock(int mask) {
+PORT_OVERRIDE void CGamePad::KeyLock(int mask) {
     key_lock = mask;
     InputSetMovementLocked(mask != 0);
 }
 
-PC_OVERRIDE void CGamePad::MenuModeOn(int threshold) {
+PORT_OVERRIDE void CGamePad::MenuModeOn(int threshold) {
     axis_threshold[0] = threshold;
     InputSetMenuNavigation(true);
 }
 
-PC_OVERRIDE void CGamePad::MenuModeOff() {
+PORT_OVERRIDE void CGamePad::MenuModeOff() {
     axis_threshold[0] = 0;
     InputSetMenuNavigation(false);
 }
