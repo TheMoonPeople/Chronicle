@@ -3,12 +3,16 @@
 #include <exception>
 
 #include "dcdata.hpp"
+#include "models.hpp"
 
 namespace {
 
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
-               "       dcdata list <iso-or-directory>\n",
+               "       dcdata list <iso-or-directory>\n"
+               "       dcdata models <iso-or-directory> [reference-pack]\n"
+               "           lists every character model and how its skeleton compares with the\n"
+               "           reference's (dun/mainchara/c01d.chr, Toan, unless named)\n",
                stderr);
     return 2;
 }
@@ -66,6 +70,10 @@ int main(int argc, char **argv) {
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
+        }
+        if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "models") == 0) {
+            return dcdata::ModelReport(dcdata::OpenArchive(argv[2]), stdout,
+                                       argc == 4 ? argv[3] : "dun/mainchara/c01d.chr");
         }
         return Usage();
     } catch (const std::exception &error) {
