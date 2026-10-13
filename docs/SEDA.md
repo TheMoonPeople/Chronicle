@@ -56,6 +56,16 @@ and neither skeleton is Toan's, so Toan's motions cannot move them. Each keeps i
 - The port (`port/src/dataread.cpp`) gives that pack for `dun/mainchara/c01d.chr` while `SedaActive()`.
   That is every load of Toan's dungeon character: the dungeon's start, changing character and the menu.
 
+Toan's attack code (`ToanKey_Play`, `ps2/src/charakey.cpp`) times its hits, its charged attack's
+leap, trails and sounds by frames of Toan's own motion. With the mod those times go through
+`TOAN_TIME` (`ps2/include/sedamod.hpp`): `SedaToanTime` (`port/src/seda.cpp`) turns the time in the
+playing motion into the same share of the way through Toan's motion of that number, so a hit lands as
+far into Seda's swing as it did into Toan's. Without `MOD_SEDA` the macro is the time itself and the
+PS2 build is unchanged.
+
+`dcdata seda <data-directory> [seda|king] --weapon OBJECT --hide-weapon|--show-weapon --item OBJECT`
+chooses the objects anew, to try another place for the weapon without building anything.
+
 Seda has no run of his own (only `dun/mainchara/c07a.chr`, another model with another skeleton,
 has one); his walk, played quicker, stands in for it.
 

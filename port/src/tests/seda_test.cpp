@@ -5,11 +5,15 @@
 #include <vector>
 
 #include "../../../tools/dcdata/models.hpp"
+#include "character.hpp"
 #include "data_fixture.hpp"
 #include "dataread.hpp"
 #include "dataread_port.hpp"
+#include "dun/gameloop.hpp"
+#include "gameutil.hpp"
 #include "platform/paths.hpp"
 #include "seda.hpp"
+#include "sedamod.hpp"
 
 // The Seda mod: dcdata's pack (tools/dcdata/dcdata.hpp, MakeSedaPack) and the port's use of it
 // (port/src/dataread.cpp, port/src/seda.cpp).
@@ -161,4 +165,33 @@ TEST(Seda, ToansDungeonPackIsSedasWhileActive) {
     ASSERT_EQ(LoadFile2(path, buffer, &size, 0), 1);
     EXPECT_EQ(std::string(buffer), "base.cfg");
     SedaSetForced(false);
+}
+
+// Toan's attack code times things by frames of his motion; Seda's time is turned back into those.
+TEST(Seda, TimeStandsForToansFrame) {
+    MOTION_INFO  keys[41] = {};
+    MOTION_INFO *saved_info = CharaMain.motion_type.motion_info;
+    int          saved_motion = CharaMain.motion_no;
+    keys[15] = {269, 280, 0.4f, 0}; // Seda's charged attack start; Toan's is 180-191, the leap at 187
+    keys[16] = {280, 280, 0.0f, 0};
+    keys[36] = {269, 285, 0.4f, 0}; // Seda's first combo swing; Toan's is 820-830, the hit at 825-828
+    CharaMain.motion_type.motion_info = keys;
+
+    SedaSetForced(false);
+    CharaMain.motion_no = 15;
+    EXPECT_FLOAT_EQ(TOAN_TIME(276.0f), 276.0f);
+
+    SedaSetForced(true);
+    EXPECT_FLOAT_EQ(TOAN_TIME(269.0f), 180.0f);
+    EXPECT_FLOAT_EQ(TOAN_TIME(276.0f), 187.0f); // the leap
+    EXPECT_FLOAT_EQ(TOAN_TIME(280.0f), 191.0f);
+    EXPECT_LT(TOAN_TIME(250.0f), 180.0f); // outside the key, outside Toan's
+    CharaMain.motion_no = 36;
+    EXPECT_FLOAT_EQ(TOAN_TIME(277.0f), 825.0f); // the hit
+    CharaMain.motion_no = 16;
+    EXPECT_FLOAT_EQ(TOAN_TIME(280.0f), 191.0f); // a key of no length stands for Toan's start
+
+    SedaSetForced(false);
+    CharaMain.motion_type.motion_info = saved_info;
+    CharaMain.motion_no = saved_motion;
 }

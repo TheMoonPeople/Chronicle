@@ -1316,6 +1316,8 @@ inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant
     if (!fs::is_regular_file(target) || ReadFile(target) != pack) {
         WriteFile(target, pack);
     }
+    Log(log, "seda: weapon at {}{}, items at {}\n", variant.weapon, variant.weapon_drawn ? "" : " (not drawn)",
+        variant.item);
     Log(log, "seda: wrote {} from {} ({} bytes)\n", (fs::path("normalized") / kSedaPack).generic_string(), variant.source,
         pack.size());
     return true;
