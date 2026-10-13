@@ -16,11 +16,13 @@ int Usage() {
                "           only the details of the models whose place contains the text\n"
                "       dcdata seda <data-directory> [seda|king] [--weapon OBJECT] [--hide-weapon]\n"
                "                   [--show-weapon] [--item OBJECT] [--show-equipped] [--hide-equipped]\n"
+               "                   [--hide OBJECT]...\n"
                "           builds the Seda mod's pack into data extracted before, from Seda (c07a, the\n"
                "           default, as extract does) or King Seda (e502p68b); the options choose the\n"
                "           object the equipped weapon hangs from, whether that object is drawn, and the\n"
                "           object that holds items, and whether the equipped weapon is drawn\n"
-               "           (--hide-weapon draws it, in the place of the character's own)\n",
+               "           (--hide-weapon draws it, in the place of the character's own); --hide leaves\n"
+               "           an object of the model undrawn; it lists the model's objects\n",
                stderr);
     return 2;
 }
@@ -88,7 +90,8 @@ int main(int argc, char **argv) {
             if (found == nullptr) {
                 return Usage();
             }
-            dcdata::SedaVariant variant = *found;
+            dcdata::SedaVariant      variant = *found;
+            std::vector<std::string> hidden;
             for (; i < argc; i++) {
                 if (std::strcmp(argv[i], "--weapon") == 0 && i + 1 < argc) {
                     variant.weapon = argv[++i];
@@ -101,13 +104,15 @@ int main(int argc, char **argv) {
                     variant.equipped_drawn = true;
                 } else if (std::strcmp(argv[i], "--hide-equipped") == 0) {
                     variant.equipped_drawn = false;
+                } else if (std::strcmp(argv[i], "--hide") == 0 && i + 1 < argc) {
+                    hidden.push_back(argv[++i]);
                 } else if (std::strcmp(argv[i], "--show-weapon") == 0) {
                     variant.weapon_drawn = true;
                 } else {
                     return Usage();
                 }
             }
-            return dcdata::WriteSedaPack(argv[2], stdout, variant) ? 0 : 1;
+            return dcdata::WriteSedaPack(argv[2], stdout, variant, hidden) ? 0 : 1;
         }
         if (argc >= 3 && std::strcmp(argv[1], "models") == 0) {
             std::string              reference = "dun/mainchara/c01d.chr";

@@ -1318,27 +1318,65 @@ inline std::vector<std::string> Im2PictureNames(std::span<const unsigned char> b
     return names;
 }
 
-// The textures a scene's models draw with, by name (each model's MDT_MATERIAL table, ps2/include/mdt.hpp).
-// The table has no count: it is read up to the first entry whose name is not one, or the model's end.
-inline std::vector<std::string> SceneTextures(std::span<const unsigned char> scene) {
-    std::vector<std::string> names;
+// One object of a scene that has a model: what it hangs from, its size and the textures it draws with.
+struct SceneModel {
+    std::string              name;
+    std::string              parent;
+    std::uint32_t            vertices = 0;
+    float                    extent = 0; // The longest side of its box, in the model's own units.
+    std::vector<std::string> textures;
+};
+
+// The objects of a scene that have models (each model's MDT_HEADER and MDT_MATERIAL table,
+// ps2/include/mdt.hpp). The material table has no count: it is read up to the first entry whose name
+// is not one, or the model's end.
+inline std::vector<SceneModel> SceneModels(std::span<const unsigned char> scene) {
+    std::vector<SceneModel> models;
     if (scene.size() < 16) {
-        return names;
+        return models;
     }
     std::uint32_t count = Le32(scene.data() + 8);
     if (16 + std::uint64_t(count) * 112 > scene.size()) {
-        return names;
+        return models;
     }
+    auto name_of = [&](std::int32_t index) {
+        if (index < 0 || static_cast<std::uint32_t>(index) >= count) {
+            return std::string();
+        }
+        const char *name = reinterpret_cast<const char *>(scene.data() + 16 + index * 112 + 8);
+        return std::string(name, strnlen(name, 32));
+    };
     for (std::uint32_t i = 0; i < count; i++) {
-        std::size_t model = Le32(scene.data() + 16 + i * 112 + 40);
-        if (model == 0 || model + 64 > scene.size()) {
+        const unsigned char *object = scene.data() + 16 + i * 112;
+        std::size_t          at = Le32(object + 40);
+        if (at == 0 || at + 64 > scene.size()) {
             continue;
         }
-        const unsigned char *header = scene.data() + model;
-        std::size_t          size = std::min<std::size_t>(Le32(header + 8), scene.size() - model);
-        std::size_t          materials = Le32(header + 56);
-        for (std::size_t at = materials; materials > 0 && at + 96 <= size && at < materials + 64 * 96; at += 96) {
-            const char *name = reinterpret_cast<const char *>(header + at + 52);
+        SceneModel model;
+        model.name = name_of(static_cast<std::int32_t>(i));
+        model.parent = name_of(static_cast<std::int32_t>(Le32(object + 44)));
+        const unsigned char *header = scene.data() + at;
+        std::size_t          size = std::min<std::size_t>(Le32(header + 8), scene.size() - at);
+        model.vertices = Le32(header + 12);
+        std::size_t vertex_at = Le32(header + 16);
+        if (vertex_at + std::uint64_t(model.vertices) * 16 <= size) {
+            float low[3] = {0, 0, 0};
+            float high[3] = {0, 0, 0};
+            for (std::uint32_t v = 0; v < model.vertices; v++) {
+                for (int axis = 0; axis < 3; axis++) {
+                    float value;
+                    std::memcpy(&value, header + vertex_at + v * 16 + axis * 4, 4);
+                    low[axis] = v == 0 ? value : std::min(low[axis], value);
+                    high[axis] = v == 0 ? value : std::max(high[axis], value);
+                }
+            }
+            for (int axis = 0; axis < 3; axis++) {
+                model.extent = std::max(model.extent, high[axis] - low[axis]);
+            }
+        }
+        std::size_t materials = Le32(header + 56);
+        for (std::size_t m = materials; materials > 0 && m + 96 <= size && m < materials + 64 * 96; m += 96) {
+            const char *name = reinterpret_cast<const char *>(header + m + 52);
             std::size_t length = strnlen(name, 44);
             bool        valid = length > 0 && length < 44;
             for (std::size_t c = 0; valid && c < length; c++) {
@@ -1348,12 +1386,31 @@ inline std::vector<std::string> SceneTextures(std::span<const unsigned char> sce
                 break;
             }
             std::string texture(name, length);
+            if (std::find(model.textures.begin(), model.textures.end(), texture) == model.textures.end()) {
+                model.textures.push_back(texture);
+            }
+        }
+        models.push_back(std::move(model));
+    }
+    return models;
+}
+
+// The textures a scene's models draw with, by name.
+inline std::vector<std::string> SceneTextures(std::span<const unsigned char> scene) {
+    std::vector<std::string> names;
+    for (const SceneModel &model : SceneModels(scene)) {
+        for (const std::string &texture : model.textures) {
             if (std::find(names.begin(), names.end(), texture) == names.end()) {
                 names.push_back(texture);
             }
         }
     }
     return names;
+}
+
+// Leaves an object of a scene without its model, so it is not drawn.
+inline void HideSceneObject(std::vector<unsigned char> &scene, std::string_view name) {
+    RenameSceneObject(scene, name, name, false);
 }
 
 // The images holding the textures a character's model draws with that none of its pack's images
@@ -1506,7 +1563,8 @@ inline std::string SedaConfig(std::string_view config, const SedaVariant &varian
 // configuration loads from elsewhere (MissingImages).
 inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> source, const SedaVariant &variant,
                                                std::vector<PackMember> extra_images = {},
-                                               std::vector<PackMember> texture_images = {}) {
+                                               std::vector<PackMember> texture_images = {},
+                                               std::span<const std::string> hidden = {}) {
     std::vector<PackMember> members = ReadPack(source);
     std::string             config = PackConfig(members);
     if (config.empty()) {
@@ -1533,6 +1591,9 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
         if (EqualsFolded(name, model)) {
             RenameSceneObject(member.data, variant.weapon, "weapon", variant.weapon_drawn);
             RenameSceneObject(member.data, variant.item, "item", true);
+            for (const std::string &name : hidden) {
+                HideSceneObject(member.data, name);
+            }
             found = true;
         }
         pack.push_back(std::move(member));
@@ -1554,7 +1615,8 @@ inline std::vector<unsigned char> MakeSedaPack(std::span<const unsigned char> so
 
 // Writes the variant's pack into the extracted data, where the port finds it by its name. A disc
 // without the character leaves nothing; the result says which.
-inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant &variant = kSedaVariants[0]) {
+inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant &variant = kSedaVariants[0],
+                          std::span<const std::string> hidden = {}) {
     fs::path source = out / variant.source;
     if (!fs::is_regular_file(source)) {
         Log(log, "seda: no {}; the Seda mod has no pack\n", variant.source);
@@ -1566,7 +1628,23 @@ inline bool WriteSedaPack(const fs::path &out, std::FILE *log, const SedaVariant
         MissingImages(source.parent_path(), source_members, PackConfig(source_members), log);
     std::vector<PackMember> texture_images = MissingTextureImages(source.parent_path(), source_members, images,
                                                                   ConfigModel(PackConfig(source_members)), log);
-    std::vector<unsigned char> pack = MakeSedaPack(source_pack, variant, std::move(images), std::move(texture_images));
+    std::string model_name = ConfigModel(PackConfig(source_members));
+    for (const PackMember &member : source_members) {
+        if (EqualsFolded(member.name, model_name)) {
+            for (const SceneModel &model : SceneModels(member.data)) {
+                std::string textures;
+                for (const std::string &texture : model.textures) {
+                    textures += (textures.empty() ? "" : " ") + texture;
+                }
+                bool is_hidden = std::find(hidden.begin(), hidden.end(), model.name) != hidden.end();
+                Log(log, "seda:   {:<12} on {:<12} {:5} vertices, {:7.1f} long, {}{}\n", model.name, model.parent,
+                    model.vertices, model.extent, textures.empty() ? "no texture" : textures,
+                    is_hidden ? " (hidden)" : "");
+            }
+        }
+    }
+    std::vector<unsigned char> pack =
+        MakeSedaPack(source_pack, variant, std::move(images), std::move(texture_images), hidden);
     fs::path                   target = out / "normalized" / kSedaPack;
     if (!fs::is_regular_file(target) || ReadFile(target) != pack) {
         WriteFile(target, pack);

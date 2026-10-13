@@ -225,6 +225,24 @@ TEST(Seda, PackFindsTexturesBesideIt) {
     EXPECT_TRUE(carried);
 }
 
+// The model's objects are listed, and one can be left undrawn.
+TEST(Seda, ListsAndHidesObjects) {
+    std::vector<dcdata::SceneModel> models = dcdata::SceneModels(SceneWithTextures({"c07a04"}));
+    ASSERT_EQ(models.size(), 1u);
+    EXPECT_EQ(models[0].name, "obj10");
+    EXPECT_EQ(models[0].parent, "r_hand4");
+    EXPECT_EQ(models[0].textures, (std::vector<std::string>{"c07a04"}));
+
+    Bytes                           source = MakePack({
+        {"c07a.cfg", Text("MODEL \"c07a.mds\"\nKEY_START 0\nMOTION_END\n")},
+        {"c07a.mds", SceneWithTextures({"c07a04"})                        },
+    });
+    std::vector<std::string>        hidden = {"obj10"};
+    std::vector<dcdata::PackMember> pack = dcdata::ReadPack(dcdata::MakeSedaPack(source, Seda(), {}, {}, hidden));
+    EXPECT_EQ(ObjectName(pack[1].data, 2), "obj10");
+    EXPECT_EQ(ObjectData(pack[1].data, 2), 0u);
+}
+
 TEST(Seda, EveryVariantHasToansKeys) {
     for (const dcdata::SedaVariant &variant : dcdata::kSedaVariants) {
         EXPECT_EQ(variant.keys.size(), 41u) << variant.name;
