@@ -594,7 +594,7 @@ const Row kGameRows[] = {
                                             "\"Element Quick Select\"\nD-pad Up in a dungeon\npicks the element."),
     OnOffRow<&Config::swap_keeps_lock_on>("game.swap_keeps_lock_on", "Swap Keeps Lock-On",
                                           "\"Swap Keeps Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on."),
-    Row{.key = "quit_game", .label = "Quit Game", .help = "Exit the game and return to the desktop.",
+    Row{.key = "quit_game", .label = "Quit Game", .help = "Exit the game and\nreturn to the desktop.",
         .activate = QuitGame},
 };
 

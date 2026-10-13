@@ -21,6 +21,7 @@
 #include "renderinfo.hpp"
 #include "screen.hpp"
 #include "texture.hpp"
+#include "textwipe.hpp"
 
 // Retail defines the window rectangle as mgWindowRectStore and renames it at link time; the port
 // defines the name its callers use.
@@ -616,6 +617,7 @@ PORT_OVERRIDE void MGEndFrame() {
     gfx::SetRenderTarget(gfx::kMainTarget);
     gfx::DisplayListRef list;
     if (gfx::Recording()) {
+        textwipe::DrawDivider();
         list = gfx::EndRecording();
         GameRenderTick(list);
         sceVu0CopyMatrix(g_tick_view, mgRenderInfo.view_scaled);

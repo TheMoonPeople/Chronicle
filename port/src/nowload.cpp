@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include "area_card.hpp"
 #include "dataread.hpp"
 #include "gameloop.hpp"
 #include "gfx/gfx.hpp"
@@ -17,6 +18,7 @@
 #include "platform/clock.hpp"
 #include "rect.hpp"
 #include "texture_port.hpp"
+#include "textwipe.hpp"
 #include "tim2.hpp"
 
 namespace {
@@ -40,6 +42,9 @@ LoadingSprite sprite;
 // The area name card's file name without its extension (mt01...), which is what the localization's picture is called:
 // the card is one texture called "maptitle" whatever the area.
 std::string card_name;
+// Original card texture for comparison with the runtime lettering.
+unsigned painted_tbp = 0;
+unsigned painted_cbp = 0;
 
 u_char *Archive() {
     static std::unique_ptr<u_char[]> buffer(new u_char[kArchiveBytes + 64]);
@@ -65,7 +70,17 @@ void Upload(CTexture *texture) {
         if (PortDecodeTexture(texture->bpp, texture->width, texture->height, levels, 1, (u_char *) texture->clut, 0,
                               false, decoded)) {
             if (texture == &nl_tex && !card_name.empty()) {
-                LocalizeTexture(card_name.c_str(), decoded);
+                painted_tbp = painted_cbp = 0;
+                PortDecodedTexture painted = decoded;
+                if (!areacard::Prepare(card_name, decoded)) {
+                    LocalizeTexture(card_name.c_str(), decoded);
+                    painted.levels.clear();
+                } else {
+                    LocalizeTexture(card_name.c_str(), painted);
+                }
+                if (!painted.levels.empty()) {
+                    painted_tbp = PortCreateTexture(painted, PortTextureOwner::Loading, &painted_cbp);
+                }
             }
             tbp = PortCreateTexture(decoded, PortTextureOwner::Loading, &cbp);
         }
@@ -77,11 +92,7 @@ void Upload(CTexture *texture) {
 
 // set2DSprite's alpha form: a GS sprite in 12.4 coordinates, MODULATE with 0x80 grey and the fade
 // in alpha, blended (Cs - Cd) * As + Cd over the cleared frame.
-void DrawSprite() {
-    PortTextureRef ref = PortTextureFromCTexture(sprite.texture);
-    if (!ref.valid) {
-        return;
-    }
+void DrawCardSprite(PortTextureRef ref, bool with_lettering) {
     // TEX1 MMAG is setbilinear's switch, which is on unless a mode turns it off.
     ref.binding.filter = gfx::Filter::Linear;
     const CRect_i_ &screen = sprite.screen;
@@ -103,7 +114,27 @@ void DrawSprite() {
     gfx::DrawState state;
     state.blend = true;
     state.alpha = gfx::GsBlend{0, 1, 0, 1, 0};
-    gfx::Draw2D(gfx::Primitive::Quads, quad, ref.binding, state);
+    textwipe::Draw2D(gfx::Primitive::Quads, quad, ref.binding, state);
+    if (with_lettering && sprite.texture == &nl_tex && texel.x == 0 && texel.y == 0 &&
+        texel.width == static_cast<int>(sprite.texture->width) && texel.height == static_cast<int>(sprite.texture->height)) {
+        areacard::Draw(x0, y0, x1, y1, static_cast<float>(sprite.alpha) / 128.0f);
+    }
+}
+
+void DrawSprite() {
+    PortTextureRef ref = PortTextureFromCTexture(sprite.texture);
+    if (!ref.valid) {
+        return;
+    }
+    const bool full_card = sprite.texture == &nl_tex && sprite.texel.x == 0 && sprite.texel.y == 0 &&
+                           sprite.texel.width == static_cast<int>(sprite.texture->width) &&
+                           sprite.texel.height == static_cast<int>(sprite.texture->height);
+    if (textwipe::Active() && full_card && areacard::Prepared() && painted_tbp != 0 && PortKeyLive(painted_tbp)) {
+        const PortTextureRef painted = PortTextureFromTex0(static_cast<u_long>(painted_tbp) | (static_cast<u_long>(painted_cbp) << 37), 0x20);
+        textwipe::Both([&](bool runtime) { DrawCardSprite(runtime || !painted.valid ? ref : painted, runtime); });
+        return;
+    }
+    DrawCardSprite(ref, true);
 }
 
 // Retail draws from the VSync interrupt into its own double buffer, whatever the game is doing.
@@ -113,12 +144,14 @@ void PresentLoadingFrame() {
     if (end_flag != 0 || gfx::InFrame()) {
         return;
     }
+    textwipe::Update();
     if (gfx::BeginFrame()) {
         const uint8_t black[4] = {0, 0, 0, 0x80};
         gfx::Clear(true, black, true, 0.0f);
         if (sprite.visible) {
             DrawSprite();
         }
+        textwipe::DrawDivider();
     }
     gfx::EndFrame();
 }
@@ -155,6 +188,8 @@ PORT_OVERRIDE void init_now_loading(int title_number) {
     }
 
     PortReleaseOwner(PortTextureOwner::Loading);
+    painted_tbp = painted_cbp = 0;
+    areacard::Clear();
     nl_tex.Initialize();
     nl_tex2.Initialize();
     sprite = LoadingSprite{};

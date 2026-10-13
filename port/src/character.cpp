@@ -2,9 +2,9 @@
 
 #include <libvu0.h>
 
-#include "arena.hpp"
 #include "cloth.hpp"
 #include "frame.hpp"
+#include "platform/arena.hpp"
 
 // CCharacter::wind is an s32 holding the address of a CWind, and every writer (title.cpp's
 // InitProc*, op_b, op_c, op_d, rushmovi, editloop's MainEditMode, EdEventNPCStep's copies) stores

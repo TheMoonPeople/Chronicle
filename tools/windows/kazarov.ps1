@@ -92,8 +92,8 @@ if ($stale -or -not (Test-Path -LiteralPath (Join-Path $build 'build.ninja'))) {
 }
 
 # build.ps1 runs ninja, which builds only what changed.
-$jobs = @()
-if ($env:JOBS) { $jobs = @('-Jobs', $env:JOBS) }
+$jobs = @{}
+if ($env:JOBS) { $jobs = @{ Jobs = [int]$env:JOBS } }
 & "$PSScriptRoot/build.ps1" -Root $root -BuildDirectory $build @jobs
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 

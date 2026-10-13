@@ -8,6 +8,7 @@
 #include "draw2d_port.hpp"
 #include "platform/config.hpp"
 #include "text_shadow.hpp"
+#include "textwipe.hpp"
 
 namespace {
 
@@ -20,20 +21,28 @@ struct Baked {
 // Boxes found by dumping the textures (DC_TEXTURE_DUMP) and tracing the draws (DC_SPRITE_TRACE).
 constexpr Baked kBaked[] = {
     // name entry: the L1/R1 hints beside the name (the strip also holds L2 and R2)
-    {"nametemp", 0, 472, 24, 24, glyphs::Button::L2},
-    {"nametemp", 24, 472, 24, 24, glyphs::Button::L1},
-    {"nametemp", 49, 472, 24, 24, glyphs::Button::R1},
-    {"nametemp", 73, 472, 24, 24, glyphs::Button::R2},
+    {"nametemp",  0,   472, 24, 24, glyphs::Button::L2    },
+    {"nametemp",  24,  472, 24, 24, glyphs::Button::L1    },
+    {"nametemp",  49,  472, 24, 24, glyphs::Button::R1    },
+    {"nametemp",  73,  472, 24, 24, glyphs::Button::R2    },
     // the character board's tab hints
-    {"perbrd", 72, 20, 24, 20, glyphs::Button::L2},
-    {"perbrd", 98, 20, 24, 20, glyphs::Button::L1},
-    {"perbrd", 124, 20, 24, 20, glyphs::Button::R1},
-    {"perbrd", 150, 20, 26, 20, glyphs::Button::R2},
+    {"perbrd",    72,  20,  24, 20, glyphs::Button::L2    },
+    {"perbrd",    98,  20,  24, 20, glyphs::Button::L1    },
+    {"perbrd",    124, 20,  24, 20, glyphs::Button::R1    },
+    {"perbrd",    150, 20,  26, 20, glyphs::Button::R2    },
     // the cutscene skip prompt: PAL (YES cross, NO circle) and the other layout
-    {"pause_e", 46, 35, 16, 16, glyphs::Button::Cross},
-    {"pause_e", 80, 52, 16, 16, glyphs::Button::Circle},
-    {"skip_bord", 62, 77, 16, 16, glyphs::Button::Circle},
-    {"skip_bord", 86, 94, 16, 16, glyphs::Button::Cross},
+    {"pause_e",   46,  35,  16, 16, glyphs::Button::Cross },
+    {"pause_e",   80,  52,  16, 16, glyphs::Button::Circle},
+    {"pause_g",   46,  35,  16, 16, glyphs::Button::Cross },
+    {"pause_g",   80,  52,  16, 16, glyphs::Button::Circle},
+    {"pause_s",   46,  35,  16, 16, glyphs::Button::Cross },
+    {"pause_s",   80,  52,  16, 16, glyphs::Button::Circle},
+    {"pause_f",   38,  38,  16, 16, glyphs::Button::Cross },
+    {"pause_f",   89,  49,  16, 16, glyphs::Button::Circle},
+    {"pause_i",   38,  38,  16, 16, glyphs::Button::Cross },
+    {"pause_i",   89,  48,  16, 16, glyphs::Button::Circle},
+    {"skip_bord", 62,  77,  16, 16, glyphs::Button::Circle},
+    {"skip_bord", 86,  94,  16, 16, glyphs::Button::Cross },
 };
 
 int Overlap(const Baked &b, const CRect_i_ &texel) {
@@ -87,9 +96,17 @@ bool GlyphDrawSlot(glyphs::Button button, const CRect_i_ &slot, int alpha, float
         });
     }
     add(0.0f, 0.0f, 0x80, 0x80, 0x80, a);
-    gfx::Draw2D(gfx::Primitive::Quads, quad, image.binding, draw2d::SpriteState());
+    textwipe::Draw2D(gfx::Primitive::Quads, quad, image.binding, draw2d::SpriteState());
     draw2d::RestoreTestZbuf();
     return true;
+}
+
+int GlyphBakedCount(const char *texture) {
+    int n = 0;
+    for (const Baked &b : kBaked) {
+        n += std::strcmp(b.texture, texture) == 0;
+    }
+    return n;
 }
 
 bool GlyphReplaceSprite(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {

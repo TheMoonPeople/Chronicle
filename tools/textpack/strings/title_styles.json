@@ -76,6 +76,6 @@
   "plate": "black"
  },
  "mt301": {
-  "plate": "black"
+  "plate": "black","fill":[238,226,253],"edge":[22,6,44],"glow":[100,62,160]
  }
 }

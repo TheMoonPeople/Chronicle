@@ -175,6 +175,15 @@ bool IsMessageName(std::string_view path) {
            });
 }
 
+// The opening storybook stores message data as opmes.bin.
+bool IsMessageEntry(std::string_view name) {
+    constexpr std::string_view kBook = "opmes.bin";
+    return IsMessageName(name) || (name.size() == kBook.size() &&
+                                   std::equal(name.begin(), name.end(), kBook.begin(), [](char a, char b) {
+                                       return dcdata::FoldChar(a) == b;
+                                   }));
+}
+
 std::string FileKey(std::string_view path) {
     if (size_t colon = path.find(':'); colon != std::string_view::npos) {
         path = path.substr(colon + 1);
@@ -241,6 +250,9 @@ std::string LocalizeMessageKey(std::string_view path) {
         } else if (size_t at = key.find("/" + folder); at != std::string::npos) {
             key.erase(at + 1, folder.size());
         }
+    }
+    if (key.size() >= 9 && key.compare(key.size() - 9, 9, "opmes.bin") == 0) {
+        key.erase(key.size() - 4);
     }
     if (key.size() >= 4 && key.compare(key.size() - 4, 4, ".mes") == 0) {
         key.erase(key.size() - 4);
@@ -567,7 +579,7 @@ bool LocalizeFile(std::string_view path, void *buffer, size_t capacity, int *siz
 
 const u_int *LocalizePack(const u_int *pack, std::string_view name, const u_int *data, int *size) {
     State &state = Get();
-    if (data == nullptr || size == nullptr || !IsMessageName(name)) {
+    if (data == nullptr || size == nullptr || !IsMessageEntry(name)) {
         return data;
     }
     auto from = state.packs.find(pack);
@@ -854,7 +866,7 @@ int LocalizeExport(const fs::path &out, bool verify) {
             if (offset < 0 || size < 0 || next <= 0 || at + static_cast<size_t>(offset) + size > bytes.size()) {
                 break;
             }
-            if (IsMessageName(name)) {
+            if (IsMessageEntry(name)) {
                 std::vector<s16> words(static_cast<size_t>(size) / 2);
                 std::memcpy(words.data(), bytes.data() + at + offset, words.size() * 2);
                 add(key + "/" + dcdata::FoldPath(name), words.data(), words.size());

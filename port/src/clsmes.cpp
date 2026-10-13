@@ -1,6 +1,7 @@
 #include "clsmes.hpp"
 #include "mathconst.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
@@ -11,10 +12,10 @@
 #include "draw2d_port.hpp"
 #include "gametext.hpp"
 #include "gameutil.hpp"
+#include "glyph_draw.hpp"
 #include "localize.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
-#include "glyph_draw.hpp"
 #include "platform/config.hpp"
 #include "platform/glyphs.hpp"
 #include "platform/ttffont.hpp"
@@ -23,11 +24,23 @@
 #include "snd.hpp"
 #include "text_shadow.hpp"
 #include "texture.hpp"
+#include "textwipe.hpp"
 
 extern float     RandTbl[64];
 extern float     RandTbl2[64];
 
 namespace {
+
+enum {
+    GAIJI_CODE,
+    GAIJI_U,
+    GAIJI_V,
+    GAIJI_WIDTH,
+    GAIJI_HEIGHT,
+    GAIJI_X_OFF,
+    GAIJI_Y_OFF,
+    GAIJI_CELLS,
+};
 
 // ---- Message text from a TrueType font ----
 // With font.ttf in a lang folder (the save's or the executable's), a character the font has is drawn
@@ -138,8 +151,13 @@ void TtfQuad(std::vector<gfx::Vertex2D> &out, const ttffont::Glyph &glyph, float
 
 // The em the font is drawn at: its line fits 82% of the cell's height and its widest glyph the cell's
 // width, so a glyph never leaves the cell the game sized the window for.
-float TtfEm(const ClsMes &mes, const ttffont::Metrics &metrics) {
-    return std::min(mes.char_height * 0.82f, mes.char_width * 0.95f / metrics.advance);
+// Height and baseline follow the bitmap font's proportions.
+constexpr float kTextHeight = 1.28f;
+constexpr float kMinSqueeze = 0.78f;
+constexpr float kBaselineShift = 0.6f;
+
+float TtfEm(const ClsMes &mes, const ttffont::Metrics &) {
+    return mes.char_height * 0.82f * kTextHeight * textwipe::Get(textwipe::MessageKind()).size;
 }
 
 // Where each laid-out character of a window starts, in the window's own coordinates. A word (a run of
@@ -147,9 +165,10 @@ float TtfEm(const ClsMes &mes, const ttffont::Metrics &metrics) {
 // their own widths and the word is centred on the cells the game gave it, so rows, indents, centring and
 // the icons between words stay where the game put them. A glyph is never given more than its cell, so
 // a word is never wider than the game's.
-void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs) {
+void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs, std::vector<float> &squeeze) {
     const int count = mes.win_line_num;
     xs.assign(static_cast<size_t>(count), 0.0f);
+    squeeze.assign(static_cast<size_t>(count), 1.0f);
     for (int i = 0; i < count; i++) {
         xs[static_cast<size_t>(i)] = static_cast<float>(mes.win_line[i].x);
     }
@@ -160,7 +179,8 @@ void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs) {
     const ttffont::Metrics    metrics = ttffont::GetMetrics();
     const float               em = TtfEm(mes, metrics);
     const int                 em_px = static_cast<int>(em * mapping.scale_x + 0.5f);
-    const float               gap = em * 0.1f;
+    const textwipe::Tuning   &tune = textwipe::Get(textwipe::MessageKind());
+    const float               gap = em * 0.1f + tune.letter;
 
     auto glyph_of = [&](int i, ttffont::Glyph &glyph) {
         const int      code = mes.win_line[i].code;
@@ -173,23 +193,59 @@ void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs) {
     };
 
     int i = 0;
+    int word = 0;
+    int word_y = -1;
     while (i < count) {
         ttffont::Glyph glyph;
         if (!glyph_of(i, glyph)) {
             i++;
             continue;
         }
+        if (mes.win_line[i].y != word_y) {
+            word_y = mes.win_line[i].y;
+            word = 0;
+        }
         int                last = i;
         float              natural = 0.0f;
         std::vector<float> pen;
         for (; last < count && mes.win_line[last].y == mes.win_line[i].y && glyph_of(last, glyph); last++) {
             pen.push_back(natural);
-            natural += std::min(glyph.width / mapping.scale_x + gap, cell_of(last));
+            natural += glyph.width / mapping.scale_x * tune.xscale + gap;
         }
         const float span = static_cast<float>(mes.win_line[last - 1].x - mes.win_line[i].x) + cell_of(last - 1);
-        const float start = static_cast<float>(mes.win_line[i].x) + (span - (natural - gap)) / 2;
+        const float width = natural - gap;
+        const bool  fit = tune.fit >= 0.5f;
+        float       sx = fit ? std::clamp(span / std::max(width, 1.0f), kMinSqueeze, 1.0f) : 1.0f;
+        float       extra = 0.0f;
+        if (fit && width * sx < span && last - i > 1) {
+            extra = std::min((span - width * sx) / static_cast<float>(last - i - 1), em * 0.25f);
+        }
+        const float used = width * sx + extra * static_cast<float>(last - i - 1);
+        const float start = static_cast<float>(mes.win_line[i].x) + (fit ? (span - used) / 2 : (span - used) * tune.align) +
+                            tune.word * static_cast<float>(word);
+        word++;
         for (int k = i; k < last; k++) {
-            xs[static_cast<size_t>(k)] = start + pen[static_cast<size_t>(k - i)];
+            xs[static_cast<size_t>(k)] = start + pen[static_cast<size_t>(k - i)] * sx + extra * static_cast<float>(k - i);
+            squeeze[static_cast<size_t>(k)] = sx * tune.xscale;
+        }
+        if (tune.lock > 0.0f) {
+            // Sprite centering preserves retail's narrow-character offsets and integer rounding.
+            for (int k = i; k < last; k++) {
+                ttffont::Glyph letter;
+                if (!glyph_of(k, letter)) {
+                    continue;
+                }
+                const float ink = letter.width / mapping.scale_x * squeeze[static_cast<size_t>(k)];
+                const auto &data = GaijiDataTbl[mes.win_line[k].code + 0x300];
+                int         dx = (mes.char_width * data[GAIJI_CELLS] - data[GAIJI_WIDTH]) / 2 + data[GAIJI_X_OFF];
+                if (mes.narrow_gaiji && (data[GAIJI_CODE] == -0x2BD || data[GAIJI_CODE] == -0x2BA)) {
+                    dx -= 3;
+                }
+                const float centred = static_cast<float>(mes.win_line[k].x + dx) +
+                                      (static_cast<float>(data[GAIJI_WIDTH]) - ink) / 2;
+                float      &place = xs[static_cast<size_t>(k)];
+                place += (centred - place) * std::min(1.0f, tune.lock);
+            }
         }
         i = last;
     }
@@ -198,6 +254,7 @@ void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs) {
 // Queues the font's glyph for win_line[index]: an edge pass per outline and one fill. False where
 // the font has none, and the bitmap character is drawn.
 bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y, const std::vector<float> &xs,
+                   const std::vector<float>   &squeeze,
                    std::vector<gfx::Vertex2D> &edges, std::vector<gfx::Vertex2D> &fills) {
     const MES_WIN_LINE &line = mes.win_line[index];
     const char32_t      ch = GameTextChar(line.code);
@@ -222,16 +279,18 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
         cell_y = static_cast<float>(offset_y + line.y + mes.text_y);
     } else {
         origin_x = static_cast<float>(mes.line_pos[row].x);
-        cell_y = static_cast<float>(line.y + mes.line_pos[row].y - row * mes.char_height);
+        // Explicit row positions omit the default bitmap path's three-pixel upward offset.
+        cell_y = static_cast<float>(line.y + mes.line_pos[row].y - row * mes.char_height + 3);
     }
 
     // The font's line is centred in the cell's height. The bitmap's pixels are screen pixels, so a quad
     // is as many logical units as they come to.
-    const float width = glyph.width / mapping.scale_x;
-    const float height = glyph.height / mapping.scale_y * rows;
-    const float base = cell_y + (mes.char_height - em * (metrics.ascent + metrics.descent)) / 2 + em * metrics.ascent;
-    float       x = origin_x + xs[static_cast<size_t>(index)];
-    float       y = (base * rows) + glyph.y_offset / mapping.scale_y;
+    const textwipe::Tuning &tune = textwipe::Get(textwipe::MessageKind());
+    const float             width = glyph.width / mapping.scale_x * squeeze[static_cast<size_t>(index)];
+    const float             height = glyph.height / mapping.scale_y * rows * tune.yscale;
+    const float             base = cell_y + (mes.char_height - em * (metrics.ascent + metrics.descent)) / 2 + em * metrics.ascent + kBaselineShift;
+    float                   x = origin_x + xs[static_cast<size_t>(index)] + tune.dx;
+    float                   y = ((base + tune.dy) * rows) + glyph.y_offset / mapping.scale_y * tune.yscale;
 
     // On whole pixels, so the edges of the strokes are not smeared across two.
     auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
@@ -247,7 +306,7 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
 
     // The outline and the drop shadow sit at the offsets the bitmaps' use: the shadow is part of the
     // look (it lifts the text off the picture), and at a fraction of the offset it vanishes under the glyph.
-    const int cap = mes.edge_alpha;
+    const int cap = static_cast<int>(static_cast<float>(mes.edge_alpha) * tune.opacity);
     // A thin stroke's outline covers little of a pixel, so it is laid down nine times to read as dark as the bitmaps'.
     constexpr int passes = 9;
     auto          edge = [&](float dx, float dy, int er, int eg, int eb, int ea) {
@@ -260,7 +319,7 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
         // offsets reads as a hard outline instead, so it is laid in as taps the texture filter blends.
         TextShadowEach(ConfigGet().text_shadow, [&](const TextShadowTap &tap) {
             TtfQuad(edges, glyph, x + tap.dx, y + tap.dy * rows, width, height, tap.grey, tap.grey, tap.grey,
-                    std::min(cap, tap.alpha));
+                    std::min(cap, static_cast<int>(static_cast<float>(tap.alpha) * tune.shadow)));
         });
     };
     switch (mes.style) {
@@ -277,20 +336,21 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
             cast();
             break;
     }
+    if (tune.weight > 0.0f) {
+        const float half = tune.weight / 2;
+        const float shifts[4][2] = {
+            {-half, 0.0f },
+            {half,  0.0f },
+            {0.0f,  -half},
+            {0.0f,  half }
+        };
+        for (const auto &shift : shifts) {
+            TtfQuad(fills, glyph, x + shift[0], y + shift[1] * rows, width, height, r, g, b, std::min(cap, alpha));
+        }
+    }
     TtfQuad(fills, glyph, x, y, width, height, r, g, b, std::min(cap, alpha));
     return true;
 }
-
-enum {
-    GAIJI_CODE,
-    GAIJI_U,
-    GAIJI_V,
-    GAIJI_WIDTH,
-    GAIJI_HEIGHT,
-    GAIJI_X_OFF,
-    GAIJI_Y_OFF,
-    GAIJI_CELLS,
-};
 
 struct Shape {
     gfx::Primitive             primitive;
@@ -681,13 +741,13 @@ PORT_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
             draw2d::Vertex(kScreenWidth, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
             draw2d::Vertex(0.0f, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
         };
-        gfx::Draw2D(gfx::Primitive::Quads, fill, {}, state);
+        textwipe::Draw2D(gfx::Primitive::Quads, fill, {}, state);
 
         gfx::DrawState fans = state;
         fans.depth_write = true;
         for (const Shape &shape : g_shapes) {
             if (shape.vertices.size() >= 3) {
-                gfx::Draw2D(shape.primitive, shape.vertices, {}, fans);
+                textwipe::Draw2D(shape.primitive, shape.vertices, {}, fans);
             }
         }
 
@@ -1086,139 +1146,146 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
 
     texture = draw2d::Get().find_texture("gaiji");
     setbilinear(0);
-    set2DSprite_Start(Vif1Packet, texture);
-    const bool                 ttf = TtfReady();
-    std::vector<gfx::Vertex2D> ttf_edges;
-    std::vector<gfx::Vertex2D> ttf_fills;
-    std::vector<float>         ttf_xs;
-    if (ttf) {
-        TtfLayoutRows(*this, ttf_xs);
-    }
-
-    for (index = this->text_from; index < this->text_no; index++) {
-        if (MesAbsDrawOff != 0) {
-            continue;
+    auto text_pass = [&](bool ttf) {
+        set2DSprite_Start(Vif1Packet, texture);
+        std::vector<gfx::Vertex2D> ttf_edges;
+        std::vector<gfx::Vertex2D> ttf_fills;
+        std::vector<float>         ttf_xs;
+        std::vector<float>         ttf_squeeze;
+        if (ttf) {
+            TtfLayoutRows(*this, ttf_xs, ttf_squeeze);
         }
 
-        int code = this->win_line[index].code;
+        for (index = this->text_from; index < this->text_no; index++) {
+            if (MesAbsDrawOff != 0) {
+                continue;
+            }
 
-        if (code < -0x300 || code >= -0x251) {
-            continue;
-        }
+            int code = this->win_line[index].code;
 
-        if (ttf && code >= -0x2DF && QueueTtfGlyph(*this, index, dark, offset_x, offset_y, ttf_xs, ttf_edges, ttf_fills)) {
-            continue;
-        }
+            if (code < -0x300 || code >= -0x251) {
+                continue;
+            }
 
-        int gaiji_index = code + 0x300;
-        int u = GaijiDataTbl[gaiji_index][GAIJI_U];
+            if (ttf && code >= -0x2DF && QueueTtfGlyph(*this, index, dark, offset_x, offset_y, ttf_xs, ttf_squeeze, ttf_edges, ttf_fills)) {
+                continue;
+            }
 
-        if (code >= -0x2DF && code < -0x251) {
-            if (this->narrow_gaiji_set != 1) {
-                if (this->narrow_gaiji_set == 2) {
-                    u += 0x80;
-                } else if (this->char_width < 0xB) {
-                    u += 0x80;
+            int gaiji_index = code + 0x300;
+            int u = GaijiDataTbl[gaiji_index][GAIJI_U];
+
+            if (code >= -0x2DF && code < -0x251) {
+                if (this->narrow_gaiji_set != 1) {
+                    if (this->narrow_gaiji_set == 2) {
+                        u += 0x80;
+                    } else if (this->char_width < 0xB) {
+                        u += 0x80;
+                    }
                 }
             }
-        }
 
-        int v = GaijiDataTbl[gaiji_index][GAIJI_V];
-        int glyph_width = GaijiDataTbl[gaiji_index][GAIJI_WIDTH];
-        int glyph_height = GaijiDataTbl[gaiji_index][GAIJI_HEIGHT];
-        int dx = (this->char_width * GaijiDataTbl[gaiji_index][GAIJI_CELLS] - glyph_width) / 2;
-        int dy = (this->char_height - glyph_height) / 2;
+            int v = GaijiDataTbl[gaiji_index][GAIJI_V];
+            int glyph_width = GaijiDataTbl[gaiji_index][GAIJI_WIDTH];
+            int glyph_height = GaijiDataTbl[gaiji_index][GAIJI_HEIGHT];
+            int dx = (this->char_width * GaijiDataTbl[gaiji_index][GAIJI_CELLS] - glyph_width) / 2;
+            int dy = (this->char_height - glyph_height) / 2;
 
-        dx += GaijiDataTbl[gaiji_index][GAIJI_X_OFF];
+            dx += GaijiDataTbl[gaiji_index][GAIJI_X_OFF];
 
-        if (this->narrow_gaiji != 0) {
-            if (GaijiDataTbl[gaiji_index][GAIJI_CODE] == -0x2BD ||
-                GaijiDataTbl[gaiji_index][GAIJI_CODE] == -0x2BA) {
-                dx -= 3;
-            }
-        }
-
-        dy += GaijiDataTbl[gaiji_index][GAIJI_Y_OFF];
-
-        if (this->char_height == 0x14) {
-            dy += 1;
-        }
-
-        int row = this->win_line[index].y / this->char_height;
-
-        if (row >= static_cast<int>(std::size(this->line_pos)) || this->line_pos[row].x < 0 ||
-            this->line_pos[row].y < 0) {
-            int      line_x = this->win_line[index].x + this->text_x;
-            int      line_y = this->win_line[index].y + this->text_y;
-            int      screen_x = offset_x + (line_x + dx);
-            CRect_i_ screen;
-            screen.x = screen_x;
-            int screen_y = offset_y + (line_y + dy) - 3;
-            screen.y = screen_y;
-            screen.width = glyph_width;
-            screen.height = glyph_height;
-            CRect_i_ texel(u, v, glyph_width, glyph_height);
-
-            if (this->win_line[index].code >= -0x2DF) {
-                this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x, screen_y, glyph_width, glyph_height,
-                                          u, v, glyph_width, glyph_height);
+            if (this->narrow_gaiji != 0) {
+                if (GaijiDataTbl[gaiji_index][GAIJI_CODE] == -0x2BD ||
+                    GaijiDataTbl[gaiji_index][GAIJI_CODE] == -0x2BA) {
+                    dx -= 3;
+                }
             }
 
-            if (this->cursor_row < 0) {
-                this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-            } else if (this->cursor_lit == 1) {
-                if (row == this->cursor_row) {
-                    this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                } else {
+            dy += GaijiDataTbl[gaiji_index][GAIJI_Y_OFF];
+
+            if (this->char_height == 0x14) {
+                dy += 1;
+            }
+
+            int row = this->win_line[index].y / this->char_height;
+
+            if (row >= static_cast<int>(std::size(this->line_pos)) || this->line_pos[row].x < 0 ||
+                this->line_pos[row].y < 0) {
+                int      line_x = this->win_line[index].x + this->text_x;
+                int      line_y = this->win_line[index].y + this->text_y;
+                int      screen_x = offset_x + (line_x + dx);
+                CRect_i_ screen;
+                screen.x = screen_x;
+                int screen_y = offset_y + (line_y + dy) - 3;
+                screen.y = screen_y;
+                screen.width = glyph_width;
+                screen.height = glyph_height;
+                CRect_i_ texel(u, v, glyph_width, glyph_height);
+
+                if (this->win_line[index].code >= -0x2DF) {
+                    this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x, screen_y, glyph_width, glyph_height,
+                                              u, v, glyph_width, glyph_height);
+                }
+
+                if (this->cursor_row < 0) {
                     this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                } else if (this->cursor_lit == 1) {
+                    if (row == this->cursor_row) {
+                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
+                    } else {
+                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                    }
+                } else {
+                    if (row == this->cursor_row) {
+                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                    } else {
+                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
+                    }
                 }
             } else {
-                if (row == this->cursor_row) {
-                    this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                } else {
-                    this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                }
-            }
-        } else {
-            int screen_x = this->win_line[index].x + this->line_pos[row].x;
-            int screen_y = this->win_line[index].y + this->line_pos[row].y;
-            screen_y += dy;
-            CRect_i_ screen(screen_x + dx, screen_y - row * this->char_height, glyph_width, glyph_height);
-            CRect_i_ texel(u, v, glyph_width, glyph_height);
+                int screen_x = this->win_line[index].x + this->line_pos[row].x;
+                int screen_y = this->win_line[index].y + this->line_pos[row].y;
+                screen_y += dy;
+                CRect_i_ screen(screen_x + dx, screen_y - row * this->char_height, glyph_width, glyph_height);
+                CRect_i_ texel(u, v, glyph_width, glyph_height);
 
-            if (this->win_line[index].code >= -0x2DF) {
-                this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x + dx,
-                                          screen_y - row * this->char_height, glyph_width, glyph_height, u, v,
-                                          glyph_width, glyph_height);
-            }
-
-            if (this->cursor_row < 0) {
-                this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-            } else if (this->cursor_lit == 1) {
-                if (row == this->cursor_row) {
-                    this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                } else {
-                    this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                if (this->win_line[index].code >= -0x2DF) {
+                    this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x + dx,
+                                              screen_y - row * this->char_height, glyph_width, glyph_height, u, v,
+                                              glyph_width, glyph_height);
                 }
-            } else {
-                if (row == this->cursor_row) {
+
+                if (this->cursor_row < 0) {
                     this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                } else if (this->cursor_lit == 1) {
+                    if (row == this->cursor_row) {
+                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
+                    } else {
+                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                    }
                 } else {
-                    this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
+                    if (row == this->cursor_row) {
+                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
+                    } else {
+                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
+                    }
                 }
             }
         }
-    }
 
-    set2DSprite_End(Vif1Packet, texture);
+        set2DSprite_End(Vif1Packet, texture);
 
-    if (!ttf_fills.empty()) {
-        const gfx::TextureBinding binding = ttffont::Binding();
-        if (!ttf_edges.empty()) {
-            gfx::Draw2D(gfx::Primitive::Quads, ttf_edges, binding, draw2d::SpriteState());
+        if (!ttf_fills.empty()) {
+            const gfx::TextureBinding binding = ttffont::Binding();
+            if (!ttf_edges.empty()) {
+                textwipe::Draw2D(gfx::Primitive::Quads, ttf_edges, binding, draw2d::SpriteState());
+            }
+            textwipe::Draw2D(gfx::Primitive::Quads, ttf_fills, binding, draw2d::SpriteState());
+            draw2d::RestoreTestZbuf();
         }
-        gfx::Draw2D(gfx::Primitive::Quads, ttf_fills, binding, draw2d::SpriteState());
-        draw2d::RestoreTestZbuf();
+    };
+    if (textwipe::Active() && TtfReady()) {
+        textwipe::Both(text_pass);
+    } else {
+        text_pass(TtfReady());
     }
 
     if (this->page_arrow != 0) {

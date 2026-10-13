@@ -1,19 +1,22 @@
 #include "menu_draw.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
-#include "gfx/gfx.hpp"
-#include "menu_inventory.hpp"
-#include "menuetc.hpp"
+#include "caption_text.hpp"
 #include "gameutil.hpp"
-#include "mglib.hpp"
-#include "snd.hpp"
-#include "name_mouse.hpp"
+#include "gfx/gfx.hpp"
 #include "memcard.hpp"
 #include "menu_dungeon.hpp"
+#include "menu_inventory.hpp"
 #include "menu_pointer.hpp"
+#include "menuetc.hpp"
+#include "mglib.hpp"
+#include "name_mouse.hpp"
 #include "rect.hpp"
+#include "snd.hpp"
+#include "textwipe.hpp"
 
 // Retail rounds up to 64 bytes through int, which only holds an address below 2 GiB.
 PORT_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
@@ -55,6 +58,56 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
                                   unsigned char b, int alpha) {
     NameMouseHand(texture, screen, texel, r == 0 && g == 0 && b == 0);
     set2DSprite(GetVif1Packet(), texture, screen, texel, r, g, b, alpha);
+}
+
+PORT_OVERRIDE void DrawMainMenuIcon(int x, int y, int icon, int selected, int bright, int alpha) {
+    if (StayTex == NULL) {
+        StayTex = TexManager.GetTexture("stayframe", -1);
+        if (StayTex == NULL) {
+            return;
+        }
+    }
+    MENU_ICON_INFO *info = GetMenuIconInfo(icon);
+    if (info == NULL) {
+        return;
+    }
+
+    int u = info->u;
+    int v = info->v;
+    s16 frame_size[2][2] = {
+        {0x30, 0x20},
+        {0x3A, 0x28}
+    };
+    int width = frame_size[selected][0];
+    int height = frame_size[selected][1];
+    if (selected) {
+        u = info->selected_u;
+        v = info->selected_v;
+        if (icon == info->id) {
+            width = 0x38;
+        }
+    }
+    set2DSprite(GetVif1Packet(), StayTex, CRect_i_(x, y, width, height - 1), CRect_i_(u, v, width, height), bright, bright, bright, alpha);
+
+    if (selected) {
+        x += 0x44;
+        y += 1;
+    } else {
+        x += 0x40;
+        y -= 1;
+    }
+    auto painted = [&](CTexture *texture) {
+        set2DSprite(GetVif1Packet(), texture, CRect_i_(x, y, info->label_width, info->label_height - 1), CRect_i_(info->label_u, info->label_v, info->label_width, info->label_height), bright, bright, bright, alpha);
+    };
+    if (caption::Ready()) {
+        textwipe::Both([&](bool runtime) {
+            if (!runtime || !caption::Draw(icon, x, y, info->label_width, alpha, bright)) {
+                painted(StayTex);
+            }
+        });
+        return;
+    }
+    painted(StayTex);
 }
 
 extern PERSONAL_BOARD *PerBoardPt;

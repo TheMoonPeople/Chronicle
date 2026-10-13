@@ -642,6 +642,14 @@ TEST(PlatformConfig, QteAlwaysWin) {
     ASSERT_TRUE(!ConfigParse(R"({"game": {"qte_always_win": "yes"}})").qte_always_win);
 }
 
+TEST(PlatformConfig, TextWipe) {
+    ASSERT_TRUE(!ConfigParse("").text_wipe);
+    Config config = ConfigParse(R"({"game": {"text_wipe": true}})");
+    ASSERT_TRUE(config.text_wipe);
+    ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).text_wipe);
+    ASSERT_TRUE(!ConfigParse(R"({"game": {"text_wipe": "yes"}})").text_wipe);
+}
+
 TEST(PlatformConfig, Anisotropy) {
     ASSERT_TRUE(ConfigParse("").anisotropy == 0);
     ASSERT_TRUE(ConfigParse(R"({"video": {"anisotropy": 16}})").anisotropy == 16);

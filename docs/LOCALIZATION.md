@@ -257,9 +257,15 @@ letters and marks. The port logs `font: message text from <file>` when it loads 
 
 - It works for every message the game draws through its message windows, whatever its source: the disc's
   text, the JSON's, item and monster names.
-- It does not touch text that is a picture: the large menu words (ITEM, WEAPON...), the title screen's and
-  the like are textures, and stay as they are. A few of those pictures can be replaced per language, see
-  "Pictures of text" below.
+- The menu captions beside the icons (ITEM, WEAPON, GO TO DUNGEON, SAVE, OPTION...) are drawn from the font
+  too, as text: the quoted name the help window gives the icon ("Article", "Oggetti"...), in capitals, a cream
+  fill over a blue outline stroked round each letter, the colours of the painted English captions in every
+  language. So they follow the language's help messages, JSON edits to them included, and a new language
+  needs no picture. A `menu.caption.<name>` string in the language's JSON (see `caption_text.cpp`) overrides one
+  caption. English keeps the painted labels, including OPTION and GEORAMA PARTS. Runtime captions fit the
+  painted labels' bounds; `stayframe` stays intact for Original font mode, missing fonts and the text wipe.
+- It does not touch other text that is a picture: the title screen's and the like are textures, and stay
+  as they are. A few of those pictures can be replaced per language, see "Pictures of text" below.
 - A word keeps the cells the game gave it: its letters are spaced by the font inside the word and the word
   is centred on its cells, so rows, indents and the icons between words stay where the game put them.
 - The bundled font is the community font above (credited in `CREDITS`, see `tools/font/README.md`); a font you add
@@ -290,6 +296,16 @@ the floor labels are the same face embossed). The bosses' names are a serif that
 (`tools/font/`, SIL Open Font License) stands in for it. `--originals` is a folder of the disc's textures as PNG
 files named `<game file with / as __>/<name>.png`. Change a word in the strings file and run it again; add a
 language by adding its words. The Japanese pictures are not made.
+
+**Area name cards as text.** The loading screen's name card can be a plate and text instead of a picture per language:
+`python tools/textpack/build.py --originals <extracted textures> --out <save folder>/lang/textures --only plates`
+writes, for each card, `textures/plates/<card>.png` (the backdrop without its lettering, the same in every
+language) and `textures/plates/<card>.json` (where the name goes, as fractions of the card, and its colours, outline,
+glow and underline, sampled from the disc's card). With a plate for the card and the font loaded, the port shows
+the plate and draws the name over it from the font at the screen's own resolution (`area_card.cpp`), so the
+lettering is sharp at any window size and a better plate (a hand-redrawn or upscaled one) improves every language
+at once. The names are `area.<card>` in the language's JSON (`area.mt01`...), shipped for every language. Without a
+plate or the font the card is the language's picture as above, or the disc's.
 
 **Shadows.** The pictures carry no shadow of their own; the port casts it when it loads one, so it can be set
 per kind of text. In Options, Display page: Text Shadow (the message text), Symbol Shadow (the button symbols),

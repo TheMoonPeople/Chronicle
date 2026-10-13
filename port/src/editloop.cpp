@@ -28,6 +28,7 @@
 #include "edit_in.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
+#include "editground_port.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
@@ -991,6 +992,8 @@ PORT_OVERRIDE int EditLoop() {
         }
     }
 
+    // An event starting clears the time-of-day text left from walking, so it is not drawn over a
+    // cutscene (#72); the text an event starts itself (the time-change event's _DRAW_DAY) is drawn.
     if (EdDebugEventEnable != 0 && (start_event_no > 0 || start_system_event > 0)) {
         sceVu0FVECTOR camera_pos;
         sceVu0FVECTOR camera_ref;
@@ -1005,11 +1008,13 @@ PORT_OVERRIDE int EditLoop() {
         if (start_system_event > 0) {
             if (EdEventInit(start_system_event, &EdWorkBuffer, (char *) EdSystemEventData) != 0) {
                 EdInitMesParam();
+                EdInitDrawDay();
                 GameMode = ED_MODE_EVENT;
             }
         } else {
             if (EdEventInit(start_event_no, &EdWorkBuffer, (char *) EdEventData) != 0) {
                 EdInitMesParam();
+                EdInitDrawDay();
                 GameMode = ED_MODE_EVENT;
                 ItemVolumeStep.CheckItemVolume();
             }
@@ -1103,6 +1108,75 @@ PORT_OVERRIDE int EditLoop() {
     return 0;
 }
 
+// How far from the player retail draws a villager (KeepNearVillagers, editloop3.cpp); the port
+// keeps those within video.detail_distance too.
+constexpr float kRetailVillagerReach = 150.0f;
+
+/**
+ * Draws, before the depth of field, what the port draws past retail's distances, so that the
+ * softening takes it in with the scenery: the villagers further than retail's reach from the player,
+ * with their shadows, and the town parts' shadows that video.shadow_distance moves into the near
+ * band. Retail draws the characters and the shadows after the depth of field, and they keep that
+ * place. far_marks receives the draw marks of the villagers drawn here, which the characters' own
+ * pass then leaves out; returns whether it marked any.
+ */
+static bool EdDrawBeyondRetailReach(int *far_marks) {
+    bool drawn = false;
+
+    for (int i = 0; i < 10; i++) {
+        far_marks[i] = 0;
+    }
+
+    switch (GameMode) {
+        case ED_MODE_RETURN_MENU_WALK:
+        case ED_MODE_MENU_INIT:
+        case ED_MODE_WALK:
+        case ED_MODE_FISHING:
+        case ED_MODE_TALK:
+        case ED_MODE_TIME_CHANGE: {
+            sceVu0FVECTOR player_position;
+            sceVu0FVECTOR villager_position;
+
+            Chara->GetPosition(player_position);
+
+            for (int i = 0; i < 10; i++) {
+                EdVillager[i].GetPosition(villager_position);
+
+                if (EdVillager[i].initialized != 0 && DistVector(player_position, villager_position) >= kRetailVillagerReach) {
+                    far_marks[i] = 3;
+                    drawn = true;
+                }
+            }
+
+            if (drawn) {
+                int shadow_on = GameMode != ED_MODE_TALK && EdSystemMesCheck() == 0;
+                EdDrawCharacter(Chara, 0, 10, EdVillager, far_marks, shadow_on, NULL);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+
+    if (EdDrawOffMapShadow == 0 && edit_mode_draw == 0 && EditMapInfo->shadow_level > 0) {
+        float saved_light[4][4];
+        float shadow_light[4][4];
+        float light_colour[4][4];
+
+        MGGetPLight(saved_light, light_colour);
+        sceVu0CopyMatrix(shadow_light, saved_light);
+        EdLimitShadowLight(shadow_light, 3.0f);
+        MGSetPLight(shadow_light, light_colour);
+        TexManager.ReloadTexture(Vif1Packet, 0x16);
+        MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+        EdGroundDrawShadowBeyondNear(pEditGround, EditMapInfo->shadow_near);
+        MGEndDrawShadow(EditMapInfo->shadow_mode);
+        MGSetPLight(saved_light, light_colour);
+    }
+
+    return drawn;
+}
+
 /**
  * Draws the editor's world for one frame.
  *
@@ -1116,6 +1190,8 @@ static void EditMainDraw() {
     int            detail;
     int           *marks;
     int            i;
+    int            far_marks[10];
+    bool           far_drawn = false;
 
     if (EdDrawOffFlag == 0) {
         if (EdPauseFlag != 0 || (unsigned int) (GameMode - 9) < 2U) {
@@ -1140,16 +1216,12 @@ static void EditMainDraw() {
             TexAnime.TexAnime(1);
             pEditGround->DrawBaseGround();
 
+            // Georama mode draws the parts at walking's levels of detail, where retail drew them all at
+            // their coarsest.
             float far_lod;
             float near_lod = 2.0f;
             far_lod = 0.0f;
             float mid_lod = 0.0f;
-
-            if (edit_mode_draw != 0) {
-                near_lod = 3.0f;
-                far_lod = 3.0f;
-                mid_lod = 3.0f;
-            }
 
             pEditGround->Draw(NowTime, 1, (int) far_lod, (int) near_lod, (int) mid_lod, (int) near_lod);
 
@@ -1223,9 +1295,10 @@ static void EditMainDraw() {
 
             pEditGround->DrawRipple(0x15);
 
-
             if (depth_of_field != 0) {
                 int dof_level = 2;
+
+                far_drawn = EdDrawBeyondRetailReach(far_marks);
 
                 if (((int *) SaveData->GetConfigData())[6] != 0) {
                     dof_level = 1;
@@ -1303,7 +1376,7 @@ static void EditMainDraw() {
                     marks = NULL;
                 } else {
                     for (i = 0; i < 10; i++) {
-                        marks_store[i] = 3;
+                        marks_store[i] = far_drawn && far_marks[i] != 0 ? 0 : 3;
                     }
                 }
 
@@ -1573,9 +1646,8 @@ PORT_OVERRIDE void MoveCamera(CCameraFollow *camera) {
 }
 
 // Retail's EdDrawClock, kept in the window's top right corner.
-// DrawSysGra with two corrections: the day-transition text is a cutscene of its own and is not
-// drawn over an event (#72), and the pause sprite is not drawn from a null handle when an event
-// left the texture block without "pause" loaded (#113).
+// DrawSysGra with the pause sprite not drawn from a null handle when an event left the texture
+// block without "pause" loaded (#113).
 PORT_OVERRIDE void DrawSysGra() {
     if (EdDebugParamDrawOff == 0) {
         TexManager.ReloadTexture(Vif1Packet, 20);
@@ -1585,9 +1657,7 @@ PORT_OVERRIDE void DrawSysGra() {
             EdDrawClock(0, 0);
         }
 
-        if (GameMode != ED_MODE_EVENT) {
-            DrawDay();
-        }
+        DrawDay();
 
         char      pause_texture[] = "pause";
         CTexture *pause = TexManager.GetTexture(pause_texture, -1);

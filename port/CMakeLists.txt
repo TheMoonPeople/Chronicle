@@ -176,6 +176,13 @@ kz_port_sce_sources(DC_SCE_SOURCES LIBS libvu0 libpad libmc sifdev sifrpc eekern
 add_library(dc_port OBJECT ${PORT_LIB_SOURCES} ${DC_SCE_SOURCES})
 target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json kz_port_headers)
 target_include_directories(dc_port PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
+# captionfont.cpp rasterizes with stb_truetype, which Kazarov stages (or fetches) for dc_host.
+get_target_property(dc_host_includes dc_host INCLUDE_DIRECTORIES)
+foreach(include_dir IN LISTS dc_host_includes)
+    if(EXISTS ${include_dir}/stb_truetype.h)
+        target_include_directories(dc_port PRIVATE ${include_dir})
+    endif()
+endforeach()
 # The game's headers trip a few warnings that only describe how MWCC's source
 # was written, not a problem in the port.
 target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
@@ -230,10 +237,13 @@ add_custom_target(dc_lang
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lang $<TARGET_FILE_DIR:darkcloud>/lang
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf
             $<TARGET_FILE_DIR:darkcloud>/lang/font.ttf
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf
+            $<TARGET_FILE_DIR:darkcloud>/lang/font_thin.ttf
     COMMENT "Copying the port's translated strings and message font")
 add_dependencies(darkcloud dc_lang)
 install(DIRECTORY lang/ DESTINATION ${CMAKE_INSTALL_BINDIR}/lang)
 install(FILES ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf DESTINATION ${CMAKE_INSTALL_BINDIR}/lang RENAME font.ttf)
+install(FILES ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf DESTINATION ${CMAKE_INSTALL_BINDIR}/lang RENAME font_thin.ttf)
 
 # The button symbols (docs/GLYPHS.md): glyphs/ beside the executable. Rebuilt from art by tools/glyphs/build_glyphs.py.
 add_custom_target(dc_glyphs
