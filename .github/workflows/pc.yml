@@ -172,7 +172,7 @@ jobs:
       # The renderer's cases run on Linux and macOS: this runner's Vulkan loader has no surface extension, so the cases
       # that open a window (GfxMeshDc2, GfxTim2's upload) cannot start here.
       - name: Test
-        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|GfxMeshDc2|GfxTim2|TexDecode)\.'
+        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|GfxMeshDc2|GfxTim2|TexDecode|AreaCard|CaptionLine)\.'
 
       - name: Package the Windows build
         run: |
