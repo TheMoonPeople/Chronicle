@@ -33,9 +33,22 @@ Module ModuleOf(DWORD64 address) {
     }
     lstrcpynA(module.name, name, MAX_PATH);
     module.base = reinterpret_cast<ULONG_PTR>(handle);
-    auto *dos = reinterpret_cast<const IMAGE_DOS_HEADER *>(handle);
-    auto *nt = reinterpret_cast<const IMAGE_NT_HEADERS *>(reinterpret_cast<const char *>(handle) + dos->e_lfanew);
-    module.preferred = static_cast<ULONG_PTR>(nt->OptionalHeader.ImageBase);
+    // The loader writes where it put the module into the header in memory, so the base the file asks
+    // for, which its own addresses count from, is read from the file.
+    module.preferred = module.base;
+    if (HANDLE file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
+                                  nullptr);
+        file != INVALID_HANDLE_VALUE) {
+        IMAGE_DOS_HEADER dos;
+        IMAGE_NT_HEADERS nt;
+        DWORD            read = 0;
+        if (ReadFile(file, &dos, sizeof dos, &read, nullptr) && read == sizeof dos &&
+            SetFilePointer(file, dos.e_lfanew, nullptr, FILE_BEGIN) != INVALID_SET_FILE_POINTER &&
+            ReadFile(file, &nt, sizeof nt, &read, nullptr) && read == sizeof nt) {
+            module.preferred = static_cast<ULONG_PTR>(nt.OptionalHeader.ImageBase);
+        }
+        CloseHandle(file);
+    }
     return module;
 }
 
