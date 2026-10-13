@@ -30,9 +30,9 @@ Bytes Text(std::string_view text) {
 }
 
 std::string Report(const fs::path &iso) {
-    fs::path    path = iso.parent_path() / "report.txt";
-    std::FILE  *out = std::fopen(path.string().c_str(), "wb");
-    int         result = dcdata::ModelReport(dcdata::OpenArchive(iso), out, "dun/mainchara/c01d.chr");
+    fs::path   path = iso.parent_path() / "report.txt";
+    std::FILE *out = std::fopen(path.string().c_str(), "wb");
+    int        result = dcdata::ModelReport(dcdata::OpenArchive(iso), out, "dun/mainchara/c01d.chr");
     std::fclose(out);
     EXPECT_EQ(result, 0);
     Bytes bytes = ReadBytes(path);
@@ -60,21 +60,21 @@ TEST(DataModels, ReportRanksBySharedBones) {
     fs::path dir = TempDir("models");
     Bytes    toan = MakePack({
         {"c01d.cfg", Text("MODEL \"c01d.mds\"\nKEY 0 10 1.0\nKEY 11 20 1.0\n")},
-        {"c01d.mds", MakeMds({"c01d", "kosi", "mune", "atama", "r_te"})        },
+        {"c01d.mds", MakeMds({"c01d", "kosi", "mune", "atama", "r_te"})       },
     });
     Bytes    seda = MakePack({
-        {"c03c.cfg", Text("MODEL \"c03c.mds\"\nKEY 0 5 1.0\n")},
+        {"c03c.cfg", Text("MODEL \"c03c.mds\"\nKEY 0 5 1.0\n") },
         {"c03c.mds", MakeMds({"c03c", "kosi", "mune", "atama"})},
     });
     Bytes    event = MakePack({
         {"script.stb", Pattern(64, 2)},
-        {"c03c.chr",   seda          },
+        {"c03c.chr", seda},
     });
     Disc     disc = MakeDisc({
-        {"DUN\\MAINCHARA\\C01D.CHR", toan             },
-        {"event\\ev01.pak",          event            },
-        {"map\\m01.mds",             MakeMds({"floor"})},
-        {"noise.bin",                Pattern(500, 3)  },
+        {"DUN\\MAINCHARA\\C01D.CHR", toan},
+        {"event\\ev01.pak", event},
+        {"map\\m01.mds", MakeMds({"floor"})},
+        {"noise.bin", Pattern(500, 3)},
     });
     fs::path iso = dir / "disc.iso";
     WriteBytes(iso, MakeIso("DATA.DAT;1", disc.dat, "DATA.HD2;1", disc.hd2));

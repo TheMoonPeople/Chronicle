@@ -29,9 +29,9 @@ struct Bone {
 };
 
 struct Model {
-    std::string       where;   // The file on the disc, then each pack member down to the scene.
+    std::string       where; // The file on the disc, then each pack member down to the scene.
     std::vector<Bone> bones;
-    std::string       config;  // The configuration of the pack holding the scene, or empty.
+    std::string       config;      // The configuration of the pack holding the scene, or empty.
     int               motions = 0; // KEY lines of that configuration.
 };
 
@@ -216,6 +216,7 @@ inline int ModelReport(const Archive &archive, std::FILE *out, std::string_view 
         const Model *model;
         int          shared;
     };
+
     std::vector<Row> rows;
     for (const Model &model : models) {
         rows.push_back({&model, SharedBones(model, ref)});
@@ -249,7 +250,7 @@ inline int ModelReport(const Archive &archive, std::FILE *out, std::string_view 
         // The story characters' packs are named c<number><letter>, as dun/mainchara/c01d.chr.
         std::string_view file = std::string_view(model.where).substr(0, model.where.find(" :: "));
         std::string_view base = file.substr(file.rfind('/') + 1);
-        bool character = base.size() > 2 && (base[0] == 'c' || base[0] == 'C') && base[1] >= '0' && base[1] <= '9';
+        bool             character = base.size() > 2 && (base[0] == 'c' || base[0] == 'C') && base[1] >= '0' && base[1] <= '9';
         if (written >= detailed && !character) {
             continue;
         }
