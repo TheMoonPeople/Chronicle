@@ -81,6 +81,12 @@ MenuPointerTake MenuPointer::Take(float start_x, float start_y) {
         return take;
     }
     InputMenuMouse mouse = InputTakeMenuMouse();
+#if defined(__ANDROID__)
+    if (InputTouchOverlayVisible()) {
+        // Ignore synthetic touch motion while the virtual pad is visible.
+        mouse.dx = mouse.dy = mouse.wheel = 0.0f;
+    }
+#endif
     take.clicked = mouse.buttons & ~buttons_;
     take.released = buttons_ & ~mouse.buttons;
     take.held = mouse.buttons;

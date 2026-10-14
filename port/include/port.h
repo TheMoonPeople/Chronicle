@@ -2,12 +2,21 @@
 
 #include <strings.h>
 
+#if defined(__ANDROID__) && !defined(__ANDROID_ASSERT_RENAME)
+#define __ANDROID_ASSERT_RENAME
+#define __assert __android_libc_assert
+#endif
 #include <cassert>
 #include <cstddef>
 #include <new>
-
+#ifdef __ANDROID__
+#undef __assert
+#undef __ANDROID_ASSERT_RENAME
+#endif
 #ifdef __APPLE__
 #undef __assert
+#endif
+#ifdef __APPLE__
 #define section(name)
 #endif
 
@@ -20,7 +29,11 @@
 /**
  * The Metrowerks runtime's assertion failure.
  */
+#if defined(__ANDROID__)
+extern "C" [[noreturn]] void __assert(const char *file, int line, const char *expression);
+#else
 [[noreturn]] void __assert(const char *file, int line, const char *expression);
+#endif
 
 /**
  * The Metrowerks runtime's exit.

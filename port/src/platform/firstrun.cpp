@@ -1,6 +1,11 @@
 #include "firstrun.hpp"
 
 #include <SDL3/SDL.h>
+#if defined(__ANDROID__)
+#include <SDL3/SDL_system.h>
+#include <android/log.h>
+#include <jni.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -48,6 +53,111 @@ constexpr int                       kIdleMilliseconds = 50;
 constexpr std::chrono::milliseconds kIdle{kIdleMilliseconds};
 
 FirstRunChooser chooser;
+
+#if defined(__ANDROID__)
+std::mutex              android_picker_mutex;
+std::condition_variable android_picker_changed;
+bool                    android_picker_answered = false;
+std::optional<fs::path> android_picker_path;
+
+void AndroidCallActivity(const char *method_name, const char *signature, jstring argument) {
+    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+    if (env == nullptr || activity == nullptr) {
+        return;
+    }
+    jclass    cls = env->GetObjectClass(activity);
+    jmethodID method = cls == nullptr ? nullptr : env->GetMethodID(cls, method_name, signature);
+    if (method != nullptr) {
+        env->CallVoidMethod(activity, method, argument);
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+}
+
+void AndroidShowStatus(std::string_view message) {
+    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+    if (env == nullptr) {
+        return;
+    }
+    jstring text = env->NewStringUTF(std::string(message).c_str());
+    AndroidCallActivity("showImportStatus", "(Ljava/lang/String;)V", text);
+    if (text != nullptr) {
+        env->DeleteLocalRef(text);
+    }
+}
+
+void AndroidShowError(std::string_view message) {
+    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+    if (env == nullptr) {
+        return;
+    }
+    jstring text = env->NewStringUTF(std::string(message).c_str());
+    AndroidCallActivity("showImportError", "(Ljava/lang/String;)V", text);
+    if (text != nullptr) {
+        env->DeleteLocalRef(text);
+    }
+}
+
+void AndroidHideStatus() {
+    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+    if (env == nullptr || activity == nullptr) {
+        return;
+    }
+    jclass    cls = env->GetObjectClass(activity);
+    jmethodID method = cls == nullptr ? nullptr : env->GetMethodID(cls, "hideImportStatus", "()V");
+    if (method != nullptr) {
+        env->CallVoidMethod(activity, method);
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+}
+
+std::optional<fs::path> ChooseAndroidDiscImage() {
+    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+    if (env == nullptr || activity == nullptr) {
+        std::fprintf(stderr, "Android file picker is unavailable\n");
+        return std::nullopt;
+    }
+    jclass    activity_class = env->GetObjectClass(activity);
+    jmethodID request = activity_class == nullptr ? nullptr : env->GetMethodID(activity_class, "requestDiscImage", "()V");
+    if (request == nullptr) {
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        std::fprintf(stderr, "Android file picker method is unavailable\n");
+        return std::nullopt;
+    }
+    {
+        std::lock_guard lock(android_picker_mutex);
+        android_picker_answered = false;
+        android_picker_path.reset();
+    }
+    env->CallVoidMethod(activity, request);
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        return std::nullopt;
+    }
+    std::unique_lock lock(android_picker_mutex);
+    android_picker_changed.wait(lock, [] { return android_picker_answered; });
+    return android_picker_path;
+}
+
+std::optional<fs::path> WaitForAndroidRetry() {
+    std::unique_lock lock(android_picker_mutex);
+    android_picker_changed.wait(lock, [] { return android_picker_answered; });
+    std::optional<fs::path> selected = std::move(android_picker_path);
+    android_picker_path.reset();
+    android_picker_answered = false;
+    return selected;
+}
+
+#endif
 
 constexpr float kAdvance = kOverlayAdvance;
 
@@ -357,6 +467,27 @@ void PrintFlatpakHint(const fs::path &root) {
 
 } // namespace
 
+#if defined(__ANDROID__)
+extern "C" JNIEXPORT void JNICALL
+Java_org_themoonpeople_chronicle_ChronicleActivity_nativeDiscImageResult(JNIEnv *env, jobject, jstring path) {
+    __android_log_write(ANDROID_LOG_INFO, "Chronicle", "native document result received");
+    std::optional<fs::path> chosen;
+    if (path != nullptr) {
+        const char *utf8 = env->GetStringUTFChars(path, nullptr);
+        if (utf8 != nullptr) {
+            chosen = PathsFromUtf8(utf8);
+            env->ReleaseStringUTFChars(path, utf8);
+        }
+    }
+    {
+        std::lock_guard lock(android_picker_mutex);
+        android_picker_path = std::move(chosen);
+        android_picker_answered = true;
+    }
+    android_picker_changed.notify_all();
+}
+#endif
+
 bool FirstRunDataMissing(const fs::path &root) {
     std::error_code error;
     if (!fs::is_directory(root, error)) {
@@ -454,6 +585,52 @@ void FirstRunIfNoData(bool headless) {
     if (!FirstRunDataMissing(root) || (headless && !chooser)) {
         return;
     }
+#if defined(__ANDROID__)
+    // SDL's desktop file dialog is not supported by Android. Ask through SAF,
+    // copy the selected document into app cache, and run the same extractor.
+    if (!headless) {
+        std::optional<fs::path> retry_source;
+        while (FirstRunDataMissing(root)) {
+            std::optional<fs::path> source = retry_source ? std::exchange(retry_source, std::nullopt)
+                                                          : ChooseAndroidDiscImage();
+            if (!source) {
+                AndroidHideStatus();
+                AndroidShowError("No disc image was selected. Choose your Dark Cloud image to continue.");
+                retry_source = WaitForAndroidRetry();
+                continue;
+            }
+            AndroidShowStatus("Extracting game data…");
+            __android_log_write(ANDROID_LOG_INFO, "Chronicle", "Android extraction started");
+            FirstRunOutcome outcome = FirstRunExtract(*source, root, [](const dcdata::Progress &progress) {
+                static std::size_t last_files = static_cast<std::size_t>(-1);
+                static auto        last_update = std::chrono::steady_clock::time_point{};
+                const auto         now = std::chrono::steady_clock::now();
+                if (progress.files != last_files && now - last_update >= std::chrono::milliseconds(500)) {
+                    last_files = progress.files;
+                    last_update = now;
+                    AndroidShowStatus(std::format("Extracting game data… {}/{} files", progress.files,
+                                                  progress.total_files));
+                }
+                return true;
+            });
+            if (!outcome.ok && !outcome.cancelled) {
+                __android_log_print(ANDROID_LOG_ERROR, "Chronicle", "Android extraction failed: %s", outcome.error.c_str());
+                std::fprintf(stderr, "extracting %s into %s failed: %s\n", PathsDisplay(*source).c_str(),
+                             PathsDisplay(root).c_str(), outcome.error.c_str());
+                AndroidHideStatus();
+                AndroidShowError(outcome.error);
+                retry_source = WaitForAndroidRetry();
+            } else {
+                AndroidHideStatus();
+                std::error_code cleanup_error;
+                fs::remove(*source, cleanup_error);
+                __android_log_print(ANDROID_LOG_INFO, "Chronicle", "Android extraction completed; cached ISO cleanup %s",
+                                    cleanup_error ? cleanup_error.message().c_str() : "complete");
+            }
+        }
+        return;
+    }
+#endif
     // No display at all: leave it to main's data check, which says what to run instead.
     if (!headless && !SDL_InitSubSystem(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "no display for the first-run screen: %s\n", SDL_GetError());

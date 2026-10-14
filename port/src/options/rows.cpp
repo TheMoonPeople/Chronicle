@@ -284,6 +284,20 @@ int UiScaleCount(const Config &) {
     return 16;
 }
 
+#if defined(__ANDROID__)
+int RenderScaleChoice(const Config &config) {
+    return std::clamp(static_cast<int>(std::lround(config.render_scale * 10.0f)) - 5, 0, 15);
+}
+
+int RenderScaleCount(const Config &) { return 16; }
+
+void SetRenderScale(Config &config, int choice) { config.render_scale = (choice + 5) / 10.0f; }
+
+std::string RenderScaleText(const Config &config) {
+    return std::format("{}%", static_cast<int>(std::lround(config.render_scale * 100.0f)));
+}
+#endif
+
 int UiScaleChoice(const Config &config) {
     return std::clamp(static_cast<int>(std::lround(config.ui_scale * 10.0f)) - 5, 0, 15);
 }
@@ -295,6 +309,16 @@ void SetUiScale(Config &config, int choice) {
 std::string UiScaleText(const Config &config) {
     return std::format("{:.0f}%", config.ui_scale * 100.0f);
 }
+
+#if defined(__ANDROID__)
+int TouchOpacityCount(const Config &) { return 10; }
+
+int TouchOpacityChoice(const Config &config) { return config.touch_overlay_opacity / 10 - 1; }
+
+void SetTouchOpacity(Config &config, int choice) { config.touch_overlay_opacity = (choice + 1) * 10; }
+
+std::string TouchOpacityText(const Config &config) { return std::format("{}%", config.touch_overlay_opacity); }
+#endif
 
 // 0% to 100% in fives.
 int VolumeCount(const Config &) {
@@ -614,6 +638,11 @@ const Row kDisplayRows[] = {
     SettingRow("video.ui_scale", "Interface Size",
                "\"Interface Size\"\nThe size of the HUD\nand menus, from when\nOptions closes.", UiScaleCount,
                UiScaleChoice, SetUiScale, UiScaleText),
+#if defined(__ANDROID__)
+    SettingRow("video.touch_overlay_opacity", "Touch Opacity",
+               "\"Touch Opacity\"\nHow visible the on-screen\nbuttons are.", TouchOpacityCount,
+               TouchOpacityChoice, SetTouchOpacity, TouchOpacityText),
+#endif
     OnOffRow<&Config::interpolation>("video.interpolation", "Smooth Motion",
                                      "\"Smooth Motion\"\nDraws frames between\nthe game's steps."),
     OnOffRow<&Config::show_fps>("video.show_fps", "FPS Counter", "\"FPS Counter\"\nShows the frame rate\nin the corner."),
@@ -624,6 +653,32 @@ const Row kDisplayRows[] = {
                AnisotropyChoice, SetAnisotropy, nullptr, "Off|2x|4x|8x|16x"),
     GameRow<&ConfigGameOptions::soft_focus, true>("video.soft_focus", "Soft Focus", "On|Off", 0x169),
 };
+
+#if defined(__ANDROID__)
+const Row kAndroidDisplayRows[] = {
+    SettingRow("video.render_scale", "Render Resolution",
+               "\"Render Resolution\"\nThe game's internal image\nsize. Lower values improve\nspeed and battery life.",
+               RenderScaleCount, RenderScaleChoice, SetRenderScale, RenderScaleText),
+    kDisplayRows[2],
+    kDisplayRows[3],
+    kDisplayRows[4],
+    kDisplayRows[5],
+    kDisplayRows[6],
+    kDisplayRows[7],
+    kDisplayRows[8],
+    kDisplayRows[9],
+    kDisplayRows[10],
+    kDisplayRows[11],
+};
+#endif
+
+std::span<const Row> DisplayRows() {
+#if defined(__ANDROID__)
+    return kAndroidDisplayRows;
+#else
+    return kDisplayRows;
+#endif
+}
 
 const Row kAudioRows[] = {
     SettingRow("audio.master_volume", "Volume", "\"Volume\"\nHow loud the game is.", VolumeCount, VolumeChoice,
@@ -805,12 +860,12 @@ std::span<const Row> BindingRows() {
 std::span<const Page> Pages() {
     static const std::vector<Page> pages = {
         {"Game",          "\"Game\"\nHow the game plays.",                           kGameRows         },
-        {"Display",       "\"Display\"\nThe window and picture.",                    kDisplayRows      },
+        {"Display",       "\"Display\"\nThe window and picture.",                    DisplayRows()     },
         {"Audio",         "\"Audio\"\nSound and music.",                             kAudioRows        },
         {"Controls",      "\"Controls\"\nMouse, gamepad and gyro.",                  kControlRows      },
         {"Text",          "\"Text\"\nLanguage, lettering and\nsymbols.",             kTextRows         },
         {"Accessibility", "\"Accessibility\"\nHelp with harder parts\nof the game.", kAccessibilityRows},
-        {"Bindings",      "\"Bindings\"\nWhat each key and\nmouse button does.",       BindingRows()     },
+        {"Bindings",      "\"Bindings\"\nWhat each key and\nmouse button does.",     BindingRows()     },
     };
     return pages;
 }

@@ -7,6 +7,17 @@
 #include <system_error>
 #include <vector>
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#define DC_ANDROID_TRACE(message) __android_log_write(ANDROID_LOG_INFO, "Chronicle", message)
+#else
+#define DC_ANDROID_TRACE(message) ((void) 0)
+#endif
+
+#if defined(__ANDROID__)
+void TouchOverlaySetOpacity(float opacity);
+#endif
+
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
@@ -321,6 +332,16 @@ void ApplyConfigChange(const Config &before, const Config &after) {
     }
     gfx::SetPresentMode(PresentMode(after.present_mode));
     gfx::SetAnisotropy(after.anisotropy);
+#if defined(__ANDROID__)
+    if (after.render_scale != before.render_scale) {
+        gfx::SetRenderScale(after.render_scale);
+    }
+#endif
+#if defined(__ANDROID__)
+    if (after.touch_overlay_opacity != before.touch_overlay_opacity) {
+        TouchOverlaySetOpacity(after.touch_overlay_opacity / 100.0f);
+    }
+#endif
     if (after.discord_rich_presence != before.discord_rich_presence) {
         ApplyDiscord(after);
     }
@@ -365,11 +386,14 @@ int Screenshot(const char *path) {
 }
 
 int Run(int argc, const char **argv) {
+    DC_ANDROID_TRACE("Run: enter");
     GameSetIdentity();
+    DC_ANDROID_TRACE("Run: identity set");
     argc = PathsConsumeArgs(argc, argv);
     g_options = ParseOptions(argc, argv);
     Options &options = g_options;
     FirstRunIfNoData(options.headless);
+    DC_ANDROID_TRACE("Run: first-run check passed");
     if (options.jump == nullptr) {
         options.jump = std::getenv("DC_JUMP");
     }
@@ -388,9 +412,11 @@ int Run(int argc, const char **argv) {
     const char *fast_load = std::getenv("DC_FAST_LOAD");
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
     RequireData();
+    DC_ANDROID_TRACE("Run: data available");
     if (options.font != nullptr) {
         LocalizeSetFontPath(PathsFromUtf8(options.font));
     }
+#if !defined(__ANDROID__)
     if (options.export_text == nullptr) {
         // Once per save folder: the extracted data's text as JSON for translators (docs/LOCALIZATION.md).
         std::filesystem::path seed = PathsSaveRoot() / "lang-export";
@@ -402,6 +428,7 @@ int Run(int argc, const char **argv) {
             }
         }
     }
+#endif
     if (options.export_text != nullptr) {
         // The game's message files as language JSON for translators; no window, no game.
         return LocalizeExport(options.export_text, true) >= 0 ? kExitOk : kExitUsage;
@@ -414,13 +441,20 @@ int Run(int argc, const char **argv) {
 
     DisplaySetOverrides(options.width, options.height, options.headless);
     WindowConfig window = DisplayWindowConfig(config);
+#if defined(__ANDROID__)
+    window.fixed_display = true;
+#endif
     bool         offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
     window.vulkan = !offscreen;
     WindowInit(window);
+    DC_ANDROID_TRACE("Run: window initialized");
     InputInit();
+#if defined(__ANDROID__)
+    TouchOverlaySetOpacity(config.touch_overlay_opacity / 100.0f);
+#endif
 
     gfx::RendererConfig renderer;
-    renderer.app_name = "Dark Cloud";
+    renderer.app_name = "Chronicle: Dark Cloud";
     renderer.logical_width = kScreenWidth;
     renderer.logical_height = kScreenHeight;
     renderer.display_aspect = 4.0f / 3.0f;
@@ -429,9 +463,16 @@ int Run(int argc, const char **argv) {
     renderer.progress = ReportShaderProgress;
     renderer.offscreen = offscreen;
     renderer.layout = Layout(config);
+#if defined(__ANDROID__)
+    renderer.render_scale = config.render_scale;
+#endif
     renderer.validation = renderer.validation || SettingsEnv("VULKAN_VALIDATION") != nullptr;
     gfx::RendererInit(WindowHandle(), renderer);
+    DC_ANDROID_TRACE("Run: renderer initialized");
     gfx::SetAnisotropy(config.anisotropy);
+#if defined(__ANDROID__)
+    gfx::SetRenderScale(config.render_scale);
+#endif
 
     audio::DefaultMixer().SetMasterGain(config.master_volume);
     AudioSetSurround(config.surround);
@@ -472,6 +513,14 @@ int Run(int argc, const char **argv) {
 PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
     return Run(argc, argv);
 }
+
+#if defined(__ANDROID__)
+// SDLActivity resolves SDL_main from the native application library.
+extern "C" int SDL_main(int argc, char **argv) {
+    DC_ANDROID_TRACE("SDL_main: entry");
+    return Run(argc, const_cast<const char **>(argv));
+}
+#endif
 
 extern "C" {
 void init_all__Fv() {

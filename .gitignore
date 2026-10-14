@@ -5,6 +5,18 @@
 !/ps2/build/.gitkeep
 !/port/build/.gitkeep
 
+# Android/Gradle local caches, downloaded build tools, and generated packages.
+/android/.gradle/
+/android/.gradle-home/
+/android/.cxx/
+/android/app/.cxx/
+/android/build/
+/android/app/build/
+/android/app/libs/*.aar
+/android/host-tools/glslang.exe
+/android/app/src/main/jniLibs/*/libSDL3.so
+/android/*.log
+
 # Reference assembly, split from the disc by splat and never committed: one
 # tree per release, ps2/asm/ntsc and ps2/asm/pal.
 /ps2/asm/

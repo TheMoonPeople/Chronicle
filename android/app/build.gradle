@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.themoonpeople.chronicle'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'org.themoonpeople.chronicle'
+        minSdk 29
+        targetSdk 35
+        versionCode 11
+        versionName '0.11'
+
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DPLATFORM=ANDROID', '-DANDROID_STL=c++_shared', '-DDC_BUILD_TESTS=OFF',
+                    "-DGLSLANG_VALIDATOR=${projectDir.parentFile}/host-tools/glslang.exe"
+                cppFlags '-std=c++26'
+            }
+        }
+    }
+
+    buildFeatures {
+        prefab true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../../CMakeLists.txt'
+            version '3.31.6'
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets']
+        }
+    }
+}
+
+dependencies {
+    implementation files('libs/SDL3-3.4.16.aar')
+}
