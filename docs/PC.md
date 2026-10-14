@@ -124,6 +124,7 @@ key is optional; these are the defaults:
         "qte_always_win": false,    // button-prompt events (event battles) still play, but always end in a perfect
         "element_quick_select": false, // D-pad Up in a dungeon opens the quick-change menu as an element picker
         "swap_keeps_lock_on": false, // switching characters with SELECT keeps the lock-on
+        "autosave": true,           // write the autosave on arriving in a town or on a dungeon floor
         "text_wipe": false,         // developer tool: F9 splits the screen between picture text and runtime text (docs/TEXTWIPE.md)
         "save_cursor_position": true, // the game's own options, for every save (see "The Options screen")
         "message_speed": "normal",  // normal or fast
@@ -1153,10 +1154,15 @@ state write explicitly record the current game's clear flag.
 
 The autosave is `<save>/saves/autosave/save.dat`, the same image as a
 numbered save. It is written over whenever a town starts without an event,
-the only place retail lets the game be saved, and never by the save screen.
-The load screen lists it first, its board reading "Auto"; loading it leaves
-`last_save` on the last numbered save. Headless and `--jump` runs do not
-write it.
+and once on each dungeon floor as the floor starts (`BT_REQUEST_GO_DUNGEON`),
+never by the save screen. A floor's autosave records map 200 plus the
+dungeon; loading it enters that dungeon as from town but keeps the party's
+life, ailments and the dungeon's event flags, and answers the entrance's floor
+list with the saved floor through `InitDunEnterMenu`'s otherwise unused direct
+mode. Its board names the dungeon's town. The load screen lists it first, its
+board reading "Auto"; loading it leaves `last_save` on the last numbered save.
+`game.autosave` (Options, Game page) turns it off; headless and `--jump` runs
+never write it.
 
 `port/src/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
@@ -1338,7 +1344,7 @@ help. Retail's screen-position row is gone: `MGAdjustScreen` moves nothing on PC
 
 | Page | Rows |
 |---|---|
-| Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select, swap keeps lock-on |
+| Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select, swap keeps lock-on, autosave |
 | Display | window mode, resolution (the monitor's own and the sizes that fit it), V-Sync (`fifo`, `mailbox`, `immediate`), frame limit, aspect ratio, interface size (`ui_scale`), smooth motion (`interpolation`), FPS counter, FPS info (`fps_detail`), anisotropic filter (`anisotropy`), soft focus |
 | Audio | volume, sound (mono, stereo or surround), soundtrack (PS2 or custom) |
 | Controls | vibration, mouse sensitivity (in hundredths below 1 and tenths above, whatever its unit), invert mouse Y, vertical return, mouse wheel zoom, reset zoom (its binding), stick sensitivity, invert stick X and Y, gyro, gyro sensitivity, invert gyro X and Y |

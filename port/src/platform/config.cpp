@@ -411,6 +411,9 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "game.swap_keeps_lock_on") {
         return ReadBool(value, config.swap_keeps_lock_on);
     }
+    if (name == "game.autosave") {
+        return ReadBool(value, config.autosave);
+    }
     if (name == "game.text_wipe") {
         return ReadBool(value, config.text_wipe);
     }
@@ -625,6 +628,7 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["qte_always_win"] = config.qte_always_win;
     root["game"]["element_quick_select"] = config.element_quick_select;
     root["game"]["swap_keeps_lock_on"] = config.swap_keeps_lock_on;
+    root["game"]["autosave"] = config.autosave;
     root["game"]["text_wipe"] = config.text_wipe;
     root["game"]["language"] = kLanguageNames[config.language >= 2 && config.language <= 6 ? config.language : 0];
     const ConfigGameOptions &options = config.options;

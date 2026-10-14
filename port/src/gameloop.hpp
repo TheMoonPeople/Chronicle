@@ -40,8 +40,15 @@ void GameSetFastLoad(bool fast);
 // that is not a list of numbers from 1 to ITEM_WEAPON_END.
 bool GameSetGive(const char *list);
 
-// Whether a town that starts without an event overwrites the autosave; off for headless and --jump runs.
+// Whether the autosave may be written, with game.autosave on; off for headless and --jump runs. A town
+// that starts without an event writes it, and so does a dungeon floor, once, as it starts.
 void GameSetAutosave(bool on);
+void GameAutosaveFloor();
+
+// The title calls it with a save just loaded. One written on a dungeon floor reopens that dungeon
+// keeping the party as it was, and GameTakeResumeFloor, -1 otherwise, gives its entrance the floor.
+void GameResumeLoaded();
+int  GameTakeResumeFloor();
 bool GameFastLoad();
 
 // DebugMode starts as the config file's game.debug_mode. GameCheckDebugToggle runs after every frame

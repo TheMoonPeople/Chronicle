@@ -8,6 +8,7 @@
 #include <format>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "battle_globals.hpp"
@@ -205,6 +206,9 @@ struct Jump {
 Jump g_jump;
 bool g_fast_load;
 bool g_autosave;
+int  g_autosaved_floor = -1;
+int  g_resume_floor = -1;
+s8   g_resume_event_flags[sizeof(CUserStatus::event_flags)];
 int g_developer_return_mode = GAME_MODE_TITLE;
 int g_developer_return_map = 800;
 int g_developer_return_local_map = 0;
@@ -659,6 +663,44 @@ void GameSetAutosave(bool on) {
     g_autosave = on;
 }
 
+namespace {
+
+s32 &SaveMapNo() {
+    return *reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset);
+}
+
+void WriteAutosave() {
+    if (g_autosave && ConfigGet().autosave && !SaveSlotWriteAutosave()) {
+        std::fprintf(stderr, "autosave: could not write %s\n", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)).c_str());
+    }
+}
+
+} // namespace
+
+void GameAutosaveFloor() {
+    const CUserStatus *status = UserStatus;
+    int                floor = status->cur_georama * 100 + status->cur_floor;
+    if (floor == g_autosaved_floor) {
+        return;
+    }
+    g_autosaved_floor = floor;
+    SaveMapNo() = 200 + status->cur_georama;
+    WriteAutosave();
+}
+
+void GameResumeLoaded() {
+    const CUserStatus *status = SaveData->GetDngStatus();
+    g_resume_floor = -1;
+    if (SaveMapNo() >= 200 && SaveMapNo() < 300 && status->cur_floor >= 0) {
+        g_resume_floor = status->cur_floor;
+        std::memcpy(g_resume_event_flags, status->event_flags, sizeof(g_resume_event_flags));
+    }
+}
+
+int GameTakeResumeFloor() {
+    return std::exchange(g_resume_floor, -1);
+}
+
 void GameSetFastLoad(bool fast) {
     g_fast_load = fast;
 }
@@ -907,7 +949,18 @@ int RunGame(int argc, char **argv) {
         // A save loaded since the last mode brought its own options.
         GameOptionsApply(ConfigGet().options);
         bool event_start = StartEventNo >= 0;
+        // GameInit would heal the party and clear the dungeon's event flags, as on entering from town.
+        bool resume = mode == GAME_MODE_DUNGEON && g_resume_floor >= 0;
+        if (resume) {
+            BtEventInfo.no_status_recover = 1;
+        } else {
+            g_resume_floor = -1;
+        }
         ModeInit(title_ran, exist_data, skip_title);
+        if (resume) {
+            std::memcpy(UserStatus->event_flags, g_resume_event_flags, sizeof(g_resume_event_flags));
+        }
+        g_autosaved_floor = -1;
 
         NextMapNo = -1;
         // check_now_loading pumps the clock while the loading screen runs.
@@ -918,9 +971,9 @@ int RunGame(int argc, char **argv) {
         LoadDrawEnv();
         ClockSyncV();
         MGPortCutInterpolation();
-        *reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset) = MapNo;
-        if (g_autosave && mode == GAME_MODE_EDIT && !event_start && !SaveSlotWriteAutosave()) {
-            std::fprintf(stderr, "autosave: could not write %s\n", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)).c_str());
+        SaveMapNo() = MapNo;
+        if (mode == GAME_MODE_EDIT && !event_start) {
+            WriteAutosave();
         }
 
         int result;

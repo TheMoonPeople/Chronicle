@@ -38,6 +38,7 @@
 #include "frame.hpp"
 #include "frameattr.hpp"
 #include "gamemode.hpp"
+#include "gameloop.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "healeffect.hpp"
@@ -1817,7 +1818,7 @@ PORT_OVERRIDE void DunMoveChara() {
                     break;
                 case BT_REQUEST_ENTRANCE_WINDOW:
                     BtEventInfo.request = BT_REQUEST_NONE;
-                    InitDunEnterMenu(0x17, selectMapNo, -1);
+                    InitDunEnterMenu(0x17, selectMapNo, GameTakeResumeFloor());
                     BtGameModeFlag = BT_GAME_MODE_ENTRANCE_MENU;
                     break;
                 case BT_REQUEST_ESCAPE_WINDOW:
@@ -1861,6 +1862,7 @@ PORT_OVERRIDE void DunMoveChara() {
                     startCnt2 = 0;
                     gameTask = GAME_TASK_PLAY;
                     printf("go dungeon\n");
+                    GameAutosaveFloor();
                     break;
                 case BT_REQUEST_RUN_SCRIPT:
                     BtEventInfo.request = BT_REQUEST_NONE;

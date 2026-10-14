@@ -10,6 +10,7 @@
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "frame.hpp"
+#include "gameloop.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
 #include "main.hpp"
@@ -286,6 +287,7 @@ PORT_OVERRIDE int TitleLoop() {
                        translation unit, so this is the offset main.cpp uses rather than
                        a getter the class does not have. */
                     MapJump(*(s32 *) ((char *) SaveData + 0x1C8), -1);
+                    GameResumeLoaded();
                     CProcess.no = TITLE_STEP_EXIT;
                     break;
                 case MENU_SAVE_CLOSED:

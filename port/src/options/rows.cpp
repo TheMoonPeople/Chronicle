@@ -594,6 +594,8 @@ const Row kGameRows[] = {
                                             "\"Element Quick Select\"\nD-pad Up in a dungeon\npicks the element."),
     OnOffRow<&Config::swap_keeps_lock_on>("game.swap_keeps_lock_on", "Swap Keeps Lock-On",
                                           "\"Swap Keeps Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on."),
+    OnOffRow<&Config::autosave>("game.autosave", "Autosave",
+                                "\"Autosave\"\nSaves on arriving in a\ntown or dungeon floor."),
     Row{.key = "quit_game", .label = "Quit Game", .help = "Exit the game and\nreturn to the desktop.",
         .activate = QuitGame},
 };
@@ -886,6 +888,9 @@ std::string RowValue(const Row &row, const Config &config) {
 }
 
 bool StepRow(const Row &row, Config &config, int direction, bool wrap) {
+    if (row.activate != nullptr) {
+        return false;
+    }
     int count = row.count(config);
     int choice = row.get(config);
     int next = wrap ? (choice + direction + count) % count : std::clamp(choice + direction, 0, count - 1);
@@ -899,6 +904,9 @@ bool StepRow(const Row &row, Config &config, int direction, bool wrap) {
 void ResetPage(const Page &page, Config &config) {
     const Config defaults;
     for (const Row &row : page.rows) {
+        if (row.activate != nullptr) {
+            continue;
+        }
         if (row.action != nullptr) {
             RemoveBinding(config, row.action);
         } else if (row.restore != nullptr) {

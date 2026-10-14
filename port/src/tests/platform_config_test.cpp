@@ -673,6 +673,14 @@ TEST(PlatformConfig, SwapKeepsLockOn) {
     ASSERT_TRUE(!ConfigParse(R"({"game": {"swap_keeps_lock_on": "yes"}})").swap_keeps_lock_on);
 }
 
+TEST(PlatformConfig, Autosave) {
+    ASSERT_TRUE(ConfigParse("").autosave);
+    Config config = ConfigParse(R"({"game": {"autosave": false}})");
+    ASSERT_TRUE(!config.autosave);
+    ASSERT_TRUE(!ConfigParse(ConfigSerialize(config)).autosave);
+    ASSERT_TRUE(ConfigParse(R"({"game": {"autosave": "no"}})").autosave);
+}
+
 TEST(PlatformConfig, TextFont) {
     ASSERT_TRUE(ConfigParse("").font_sharp);
     Config config = ConfigParse(R"({"video": {"text_font": "original"}})");

@@ -228,6 +228,25 @@ TEST(MenuOption, BindingRowsSetAndReset) {
     ASSERT_TRUE(config.key_bindings.empty());
 }
 
+TEST(MenuOption, ActionRowsNeitherStepNorReset) {
+    const options::Page *game = nullptr;
+    for (const options::Page &page : options::Pages()) {
+        if (std::ranges::any_of(page.rows, [](const options::Row &row) { return std::string_view(row.key) == "quit_game"; })) {
+            game = &page;
+        }
+    }
+    ASSERT_TRUE(game != nullptr);
+    const options::Row &quit = *std::ranges::find_if(game->rows, [](const options::Row &row) {
+        return std::string_view(row.key) == "quit_game";
+    });
+    Config config;
+    config.autosave = false;
+    ASSERT_TRUE(!options::StepRow(quit, config, -1, false));
+    ASSERT_TRUE(!options::StepRow(quit, config, 1, true));
+    options::ResetPage(*game, config);
+    ASSERT_TRUE(config.autosave);
+}
+
 TEST(MenuOption, StepAndResetRows) {
     std::span<const options::Row> controls = options::Pages()[3].rows;
     auto                          found = std::ranges::find_if(controls, [](const options::Row &row) { return std::string_view(row.key) == "input.gyro"; });

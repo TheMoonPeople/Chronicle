@@ -199,7 +199,10 @@ PORT_OVERRIDE int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
     info.play_time = save->GetPlayTime();
     info.party_size = save->GetDngStatus()->GetPartySize();
 
-    // DrawSaveBoard names the map from a table of 62.
+    // DrawSaveBoard names the map from a table of 62; a dungeon autosave shows its town.
+    if (info.map_no >= 200 && info.map_no < 206) {
+        info.map_no -= 200;
+    }
     if (info.map_no < 0 || info.map_no >= 62) {
         info.map_no = 0;
     }
