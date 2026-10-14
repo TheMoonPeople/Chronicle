@@ -269,6 +269,38 @@ TEST(SaveSlots, SaveListAndLoad) {
     fs::remove_all(root);
 }
 
+TEST(SaveSlots, AutosaveIsOneFileTheLoadScreenListsFirst) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    fs::path autosave = root / "saves" / "autosave" / "save.dat";
+
+    ASSERT_TRUE(SaveSlotWriteAutosave());
+    ASSERT_TRUE(ReadFile(autosave).size() == static_cast<std::size_t>(kImageSize));
+    ASSERT_TRUE(std::memcmp(ReadFile(autosave).data(), g_mc.save_buffer, kImageSize) == 0);
+    g_save.AddPlayTime(60);
+    ASSERT_TRUE(SaveSlotWriteAutosave());
+    ASSERT_TRUE(std::memcmp(ReadFile(autosave).data(), g_mc.save_buffer, kImageSize) != 0);
+    ASSERT_TRUE(SaveSlotFiles().empty());
+
+    ASSERT_TRUE(SaveNew(0) == 1);
+    SaveMenu.mode = SAVE_MENU_MODE_LOAD;
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_GET_ALL_SAVE_FILE_INFO) == 1);
+    ASSERT_TRUE(SaveSlots.saves.size() == 2 && SaveSlots.saves[0].file_no == kSaveSlotAutosave + 1);
+    ASSERT_TRUE(SaveSlotFileAt(SaveSlots, 0) == kSaveSlotAutosave && SaveSlotFileAt(SaveSlots, 1) == 0);
+    SaveMenu.mode = SAVE_MENU_MODE_SAVE;
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_GET_ALL_SAVE_FILE_INFO) == 1);
+    ASSERT_TRUE(SaveSlots.saves.size() == 1 && SaveSlots.saves[0].file_no == 1);
+    SaveMenu.mode = SAVE_MENU_MODE_LOAD;
+
+    g_mc.file_no = kSaveSlotAutosave;
+    ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_LOAD) == 1);
+    ASSERT_TRUE(ConfigWord(kLastFile) == 0);
+    SaveState state;
+    ASSERT_TRUE(SaveStateRead(root / "saves" / "state.json", state) && state.last_save == 1);
+
+    fs::remove_all(root);
+}
+
 TEST(SaveSlots, StateKeepsTheLastSaveAndTheClearFlag) {
     fs::path root = UseTempSaveRoot();
     PrepareSave();

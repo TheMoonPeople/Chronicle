@@ -384,6 +384,7 @@ int Run(int argc, const char **argv) {
         std::fprintf(stderr, "bad --jump: %s\n", options.jump);
         std::exit(kExitUsage);
     }
+    GameSetAutosave(!options.headless && (options.jump == nullptr || *options.jump == '\0'));
     const char *fast_load = std::getenv("DC_FAST_LOAD");
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
     RequireData();

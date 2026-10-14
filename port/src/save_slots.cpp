@@ -24,6 +24,9 @@ fs::path SaveSlotsRoot() {
 }
 
 fs::path SaveSlotDirectory(int file_no) {
+    if (file_no == kSaveSlotAutosave) {
+        return SaveSlotsRoot() / "autosave";
+    }
     return SaveSlotsRoot() / std::to_string(file_no + 1);
 }
 

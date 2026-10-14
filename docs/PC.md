@@ -1150,6 +1150,13 @@ flag when state cannot supply one. If that state write fails, it reports the
 failure to stderr and still loads the valid save. Saving and the ending's
 state write explicitly record the current game's clear flag.
 
+The autosave is `<save>/saves/autosave/save.dat`, the same image as a
+numbered save. It is written over whenever a town starts without an event,
+the only place retail lets the game be saved, and never by the save screen.
+The load screen lists it first, its board reading "Auto"; loading it leaves
+`last_save` on the last numbered save. Headless and `--jump` runs do not
+write it.
+
 `port/src/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
 (`port/src/save_slots.cpp` names and lists them, `port/src/platform/save_state.cpp`

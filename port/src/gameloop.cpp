@@ -37,7 +37,9 @@
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 #include "platform/overlay.hpp"
+#include "platform/paths.hpp"
 #include "presence.hpp"
+#include "save_slots.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
@@ -202,6 +204,7 @@ struct Jump {
 
 Jump g_jump;
 bool g_fast_load;
+bool g_autosave;
 int g_developer_return_mode = GAME_MODE_TITLE;
 int g_developer_return_map = 800;
 int g_developer_return_local_map = 0;
@@ -652,6 +655,10 @@ void GameEnterDeveloperMenu() {
     std::fprintf(stderr, "debug mode: start + select, the developer menu\n");
 }
 
+void GameSetAutosave(bool on) {
+    g_autosave = on;
+}
+
 void GameSetFastLoad(bool fast) {
     g_fast_load = fast;
 }
@@ -899,6 +906,7 @@ int RunGame(int argc, char **argv) {
 
         // A save loaded since the last mode brought its own options.
         GameOptionsApply(ConfigGet().options);
+        bool event_start = StartEventNo >= 0;
         ModeInit(title_ran, exist_data, skip_title);
 
         NextMapNo = -1;
@@ -911,6 +919,9 @@ int RunGame(int argc, char **argv) {
         ClockSyncV();
         MGPortCutInterpolation();
         *reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset) = MapNo;
+        if (g_autosave && mode == GAME_MODE_EDIT && !event_start && !SaveSlotWriteAutosave()) {
+            std::fprintf(stderr, "autosave: could not write %s\n", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)).c_str());
+        }
 
         int result;
         do {

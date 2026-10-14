@@ -39,6 +39,9 @@ void GameSetFastLoad(bool fast);
 // those it lacks, whenever a town or dungeon starts. Takes them comma-separated; false for anything
 // that is not a list of numbers from 1 to ITEM_WEAPON_END.
 bool GameSetGive(const char *list);
+
+// Whether a town that starts without an event overwrites the autosave; off for headless and --jump runs.
+void GameSetAutosave(bool on);
 bool GameFastLoad();
 
 // DebugMode starts as the config file's game.debug_mode. GameCheckDebugToggle runs after every frame

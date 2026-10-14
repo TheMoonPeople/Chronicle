@@ -10,6 +10,7 @@
 
 #include "dngstatusdata.hpp"
 #include "menu_option.hpp"
+#include "menu_save.hpp"
 #include "platform/files.hpp"
 #include "platform/save_state.hpp"
 #include "save_slots.hpp"
@@ -29,6 +30,8 @@ constexpr int kVersionSize = 0x20;
 
 // The whole save, read before any of it reaches SaveData.
 alignas(64) char g_image[kImageSize];
+
+constexpr char kVersion[] = "darkcloudVer1.9";
 
 // Retail's ((int)p >> 6) + 1) << 6 on the whole pointer: the next 64-byte boundary strictly after p.
 char *PastNext64(char *pointer) {
@@ -50,6 +53,29 @@ SaveState CurrentState() {
     state.last_save = file_no >= 0 && file_no < 999999999 ? file_no + 1 : 0;
     state.game_clear = ConfigWord(kConfigGameClear) != 0;
     return state;
+}
+
+void BuildImage(char *image, const char *version) {
+    CSaveData *save = reinterpret_cast<CSaveData *>(image);
+    memcpy(save, SaveData, sizeof(CSaveData));
+    GameOptionsClear(*save);
+    save->ConvertConfig(&sys_config);
+    char *version_field = image + sizeof(CSaveData);
+    memset(version_field, 0, kVersionSize);
+    strcpy(version_field, version);
+    char *sum = version_field + kVersionSize;
+    memset(sum, 0, kImageSize - sizeof(CSaveData) - kVersionSize);
+    const char *data = image;
+    char        total = 0;
+
+    for (u32 i = 0; i < sizeof(CSaveData); i++) {
+        total += *data++;
+
+        if (i % 64 == 63) {
+            *sum++ = total;
+            total = 0;
+        }
+    }
 }
 
 // Reads file_no's whole save into g_image: this version's, and every checksum right.
@@ -87,34 +113,11 @@ PORT_OVERRIDE int CMemoryCardAccess::InitForMC() {
 }
 
 PORT_OVERRIDE void CMemoryCardAccess::SetBuff(char *buffer) {
-    char *data;
-    char *sum;
-    u32   i;
-    char  total;
-
     buffer = PastNext64(buffer);
     this->save_buffer = (CSaveData *) buffer;
-    memcpy(this->save_buffer, SaveData, 0x131C0);
-    GameOptionsClear(*this->save_buffer);
-    this->save_buffer->ConvertConfig(&sys_config);
-    char *version = (char *) this->save_buffer + 0x131C0;
-    strcpy(version, this->version);
-    this->check_sum = version + 0x20;
-    data = (char *) this->save_buffer;
-    sum = this->check_sum;
-    memset(sum, 0, 0x4C7);
-    total = 0;
-
-    for (i = 0; i < 0x131C0; i++) {
-        total += *data++;
-
-        if ((int) i % 64 == 63) {
-            *sum++ = total;
-            total = 0;
-        }
-    }
-
-    this->read_buffer = PastNext64(sum);
+    BuildImage(buffer, this->version);
+    this->check_sum = buffer + sizeof(CSaveData) + kVersionSize;
+    this->read_buffer = PastNext64(buffer + kImageSize);
     this->load_buffer = this->read_buffer;
 }
 
@@ -213,10 +216,15 @@ PORT_OVERRIDE int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
     return 1;
 }
 
+// The load screen lists the autosave first; the save screen cannot write it.
 PORT_OVERRIDE int CMemoryCardAccess::GetAllSaveFileInfo() {
     memset(this->file_info, 0, sizeof(this->file_info));
     SaveSlots.files = SaveSlotFiles();
     SaveSlots.saves.clear();
+
+    if (SaveMenu.mode == SAVE_MENU_MODE_LOAD) {
+        this->GetSaveFileInfoFromMc(kSaveSlotAutosave);
+    }
 
     for (int file_no : SaveSlots.files) {
         this->GetSaveFileInfoFromMc(file_no);
@@ -282,6 +290,13 @@ PORT_OVERRIDE int CMemoryCardAccess::LoadFromMc(int file_no) {
     SaveState state = CurrentState();
     SaveStateRead(SaveStatePath(), state);
     memcpy(SaveData, g_image, sizeof(CSaveData));
+
+    // The save screen keeps starting at the last numbered save.
+    if (file_no == kSaveSlotAutosave) {
+        ConfigWord(kConfigLastFile) = state.last_save - 1;
+        return 1;
+    }
+
     ConfigWord(kConfigLastFile) = file_no;
     state.last_save = file_no + 1;
     // Cursor memory is useful across restarts, but its failure must not reject a valid save.
@@ -313,4 +328,13 @@ PORT_OVERRIDE void CMemoryCardAccess::DmySync() {}
 
 PORT_OVERRIDE int CMemoryCardAccess::McUnFormatForDebug() {
     return 1;
+}
+
+bool SaveSlotWriteAutosave() {
+    if (FilesCreateDirectory(SaveSlotsRoot()) == FilesResult::kFailed ||
+        FilesCreateDirectory(SaveSlotDirectory(kSaveSlotAutosave)) == FilesResult::kFailed) {
+        return false;
+    }
+    BuildImage(g_image, kVersion);
+    return FilesWrite(SaveSlotPath(kSaveSlotAutosave), g_image, kImageSize, true) == FilesResult::kWritten;
 }
