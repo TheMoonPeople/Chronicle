@@ -388,6 +388,9 @@ int Run(int argc, const char **argv) {
     const char *fast_load = std::getenv("DC_FAST_LOAD");
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
     RequireData();
+    if (!options.headless) {
+        GameSetDataIcon();
+    }
     if (options.font != nullptr) {
         LocalizeSetFontPath(PathsFromUtf8(options.font));
     }
