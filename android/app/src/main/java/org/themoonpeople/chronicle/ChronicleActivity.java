@@ -37,6 +37,12 @@ public final class ChronicleActivity extends SDLActivity {
         });
     }
 
+    public void setTouchControlsOpacity(float opacity) {
+        runOnUiThread(() -> {
+            if (touchOverlay != null) touchOverlay.setAlpha(Math.max(0.0f, Math.min(1.0f, opacity)));
+        });
+    }
+
     @Override
     protected String[] getArguments() {
         // SDL calls this before SDL_main. Keep the title test hook available through the launcher
@@ -75,7 +81,10 @@ public final class ChronicleActivity extends SDLActivity {
                 .setTitle("Disc image could not be imported")
                 .setMessage(message)
                 .setPositiveButton("Choose another image", (dialog, which) -> requestDiscImage())
-                .setNegativeButton("Close", (dialog, which) -> finish())
+                .setNegativeButton("Close", (dialog, which) -> {
+                    nativeCancelFirstRun();
+                    finish();
+                })
                 .setOnCancelListener(dialog -> requestDiscImage())
                 .show());
     }
@@ -141,4 +150,5 @@ public final class ChronicleActivity extends SDLActivity {
     }
 
     private native void nativeDiscImageResult(String path);
+    private native void nativeCancelFirstRun();
 }

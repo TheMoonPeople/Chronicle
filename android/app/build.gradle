@@ -2,6 +2,18 @@ plugins {
     id 'com.android.application'
 }
 
+def sdlNativeLibs = layout.buildDirectory.dir('generated/sdlJniLibs')
+def extractSdlNativeLibs = tasks.register('extractSdlNativeLibs', Sync) {
+    from(zipTree(file('libs/SDL3-3.4.16.aar'))) {
+        include 'prefab/modules/SDL3-shared/libs/android.*/libSDL3.so'
+        eachFile {
+            path = path.replaceFirst('prefab/modules/SDL3-shared/libs/android\\.', '')
+        }
+        includeEmptyDirs = false
+    }
+    into sdlNativeLibs
+}
+
 android {
     namespace 'org.themoonpeople.chronicle'
     compileSdk 35
@@ -30,6 +42,18 @@ android {
         prefab true
     }
 
+    buildTypes {
+        profile {
+            initWith debug
+            matchingFallbacks = ['debug']
+            externalNativeBuild {
+                cmake {
+                    arguments '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                }
+            }
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path '../../CMakeLists.txt'
@@ -40,8 +64,13 @@ android {
     sourceSets {
         main {
             assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDir sdlNativeLibs
         }
     }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn extractSdlNativeLibs
 }
 
 dependencies {

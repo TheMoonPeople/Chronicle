@@ -49,6 +49,30 @@ The output is `app\build\outputs\apk\debug\app-debug.apk`. The APK contains both
 `x86_64` native libraries. No game image is needed to compile; the player selects their own PAL disc when
 setting up the app.
 
+## Optimized profiling APK
+
+Use the `profile` variant for performance measurements:
+
+```powershell
+.\gradlew.bat assembleProfile
+```
+
+The output is `app\build\outputs\apk\profile\app-profile.apk`. This variant uses
+CMake `RelWithDebInfo` (`-O2` with native debug symbols), retains Android debugging,
+and uses the local debug signing key. It is a development build, not a signed release.
+The ordinary `debug` variant remains unoptimized for debugging.
+
+Compare builds using the same device, dungeon, camera, render scale, interpolation,
+and frame cap. Emulator measurements do not predict ARM64 phone performance.
+The SDL native libraries are extracted from the pinned AAR during the build and
+packaged with the APK; no manual copying is needed.
+
+To package an optimized test ZIP on the configured Games share:
+
+```powershell
+.\publish-test-apk.ps1 -BuildType profile
+```
+
 ## Releases
 
 Prebuilt app-only packages are published on the [GitHub Releases page](https://github.com/anxiousintrovert/Chronicle-Android/releases).

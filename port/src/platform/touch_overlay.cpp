@@ -60,6 +60,9 @@ void TouchOverlaySetVisible(bool visible) {
     if (method) {
         env->CallVoidMethod(activity, method, static_cast<jboolean>(visible));
     }
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
     if (cls) {
         env->DeleteLocalRef(cls);
     }
@@ -81,6 +84,9 @@ void TouchOverlaySetOpacity(float opacity) {
     jmethodID method = cls ? env->GetMethodID(cls, "setTouchControlsOpacity", "(F)V") : nullptr;
     if (method) {
         env->CallVoidMethod(activity, method, static_cast<jfloat>(opacity));
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
     }
     if (cls) {
         env->DeleteLocalRef(cls);

@@ -1,12 +1,16 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$DestinationRoot = 'Z:\'
+    [string]$DestinationRoot = 'Z:\',
+    [Parameter()]
+    [ValidateSet('debug', 'profile')]
+    [string]$BuildType = 'debug'
 )
 
 $ErrorActionPreference = 'Stop'
 $androidRoot = $PSScriptRoot
-$apkPath = Join-Path $androidRoot 'app/build/outputs/apk/debug/app-debug.apk'
+$apkPath = Join-Path $androidRoot "app/build/outputs/apk/$BuildType/app-$BuildType.apk"
+$buildTask = 'assemble' + (Get-Culture).TextInfo.ToTitleCase($BuildType)
 $gradlePath = Join-Path $androidRoot 'gradlew.bat'
 $buildFile = Join-Path $androidRoot 'app/build.gradle'
 
@@ -22,9 +26,9 @@ $version = $Matches[1] -replace '[^A-Za-z0-9.-]', '_'
 
 Push-Location -LiteralPath $androidRoot
 try {
-    & $gradlePath --no-daemon assembleDebug
+    & $gradlePath --no-daemon $buildTask
     if ($LASTEXITCODE -ne 0) {
-        throw "assembleDebug failed with exit code $LASTEXITCODE"
+        throw "$buildTask failed with exit code $LASTEXITCODE"
     }
 } finally {
     Pop-Location
@@ -35,7 +39,7 @@ if (-not (Test-Path -LiteralPath $apkPath -PathType Leaf)) {
 }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$fileStem = "Chronicle_DarkCloud_Android_ARM64-x86_64_v$($version)_debug-test_$stamp"
+$fileStem = "Chronicle_DarkCloud_Android_ARM64-x86_64_v$($version)_$BuildType-test_$stamp"
 $archiveRoot = Join-Path $DestinationRoot 'DARKCLOUDBUILDS'
 $apkDestination = Join-Path $archiveRoot "$fileStem.apk"
 $zipDestination = Join-Path $DestinationRoot "$fileStem.zip"
@@ -53,7 +57,8 @@ try {
     $oldBuilds = Get-ChildItem -LiteralPath $DestinationRoot -File |
         Where-Object {
             $_.Extension -in '.apk', '.zip' -and
-            ($_.Name -like 'Chronicle_DarkCloud_Android_*' -or $_.Name -like 'DarkCloud-Android-*')
+            ($_.Name -like 'Chronicle_DarkCloud_Android_*' -or
+             $_.Name -like 'Chronicle-Dark-Cloud-*' -or $_.Name -like 'DarkCloud-Android-*')
         }
     foreach ($oldBuild in $oldBuilds) {
         Move-Item -LiteralPath $oldBuild.FullName -Destination $archiveRoot

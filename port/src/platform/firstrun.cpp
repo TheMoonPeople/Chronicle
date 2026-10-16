@@ -28,10 +28,10 @@
 #include "exitcodes.hpp"
 #include "gfx/gfx.hpp"
 #include "platform/overlay.hpp"
-#include "platform/settings.hpp"
 #include "platform/paths.hpp"
-#include "screen.hpp"
+#include "platform/settings.hpp"
 #include "platform/window.hpp"
+#include "screen.hpp"
 
 namespace fs = std::filesystem;
 
@@ -58,31 +58,73 @@ FirstRunChooser chooser;
 std::mutex              android_picker_mutex;
 std::condition_variable android_picker_changed;
 bool                    android_picker_answered = false;
+bool                    android_first_run_cancelled = false;
 std::optional<fs::path> android_picker_path;
 
-void AndroidCallActivity(const char *method_name, const char *signature, jstring argument) {
-    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
-    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
-    if (env == nullptr || activity == nullptr) {
-        return;
+class AndroidActivityCall {
+public:
+    AndroidActivityCall(const char *method_name, const char *signature)
+        : env_(static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv())),
+          activity_(static_cast<jobject>(SDL_GetAndroidActivity())) {
+        if (env_ == nullptr || activity_ == nullptr) {
+            return;
+        }
+        ClearException();
+        activity_class_ = env_->GetObjectClass(activity_);
+        ClearException();
+        if (activity_class_ != nullptr) {
+            method_ = env_->GetMethodID(activity_class_, method_name, signature);
+        }
+        ClearException();
     }
-    jclass    cls = env->GetObjectClass(activity);
-    jmethodID method = cls == nullptr ? nullptr : env->GetMethodID(cls, method_name, signature);
-    if (method != nullptr) {
-        env->CallVoidMethod(activity, method, argument);
+
+    ~AndroidActivityCall() {
+        ClearException();
+        if (env_ != nullptr && activity_class_ != nullptr) {
+            env_->DeleteLocalRef(activity_class_);
+        }
+        if (env_ != nullptr && activity_ != nullptr) {
+            env_->DeleteLocalRef(activity_);
+        }
     }
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+
+    explicit operator bool() const { return env_ != nullptr && activity_ != nullptr && method_ != nullptr; }
+
+    void Call() {
+        if (*this) {
+            env_->CallVoidMethod(activity_, method_);
+            ClearException();
+        }
     }
-}
+
+    void Call(jstring argument) {
+        if (*this) {
+            env_->CallVoidMethod(activity_, method_, argument);
+            ClearException();
+        }
+    }
+
+private:
+    void ClearException() const {
+        if (env_ != nullptr && env_->ExceptionCheck()) {
+            env_->ExceptionClear();
+        }
+    }
+
+    JNIEnv   *env_ = nullptr;
+    jobject   activity_ = nullptr;
+    jclass    activity_class_ = nullptr;
+    jmethodID method_ = nullptr;
+};
 
 void AndroidShowStatus(std::string_view message) {
     JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
     if (env == nullptr) {
         return;
     }
-    jstring text = env->NewStringUTF(std::string(message).c_str());
-    AndroidCallActivity("showImportStatus", "(Ljava/lang/String;)V", text);
+    jstring             text = env->NewStringUTF(std::string(message).c_str());
+    AndroidActivityCall call("showImportStatus", "(Ljava/lang/String;)V");
+    call.Call(text);
     if (text != nullptr) {
         env->DeleteLocalRef(text);
     }
@@ -93,64 +135,55 @@ void AndroidShowError(std::string_view message) {
     if (env == nullptr) {
         return;
     }
-    jstring text = env->NewStringUTF(std::string(message).c_str());
-    AndroidCallActivity("showImportError", "(Ljava/lang/String;)V", text);
+    jstring             text = env->NewStringUTF(std::string(message).c_str());
+    AndroidActivityCall call("showImportError", "(Ljava/lang/String;)V");
+    call.Call(text);
     if (text != nullptr) {
         env->DeleteLocalRef(text);
     }
 }
 
 void AndroidHideStatus() {
-    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
-    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
-    if (env == nullptr || activity == nullptr) {
-        return;
-    }
-    jclass    cls = env->GetObjectClass(activity);
-    jmethodID method = cls == nullptr ? nullptr : env->GetMethodID(cls, "hideImportStatus", "()V");
-    if (method != nullptr) {
-        env->CallVoidMethod(activity, method);
-    }
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-    }
+    AndroidActivityCall call("hideImportStatus", "()V");
+    call.Call();
 }
 
 std::optional<fs::path> ChooseAndroidDiscImage() {
-    JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
-    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
-    if (env == nullptr || activity == nullptr) {
-        std::fprintf(stderr, "Android file picker is unavailable\n");
-        return std::nullopt;
-    }
-    jclass    activity_class = env->GetObjectClass(activity);
-    jmethodID request = activity_class == nullptr ? nullptr : env->GetMethodID(activity_class, "requestDiscImage", "()V");
-    if (request == nullptr) {
-        if (env->ExceptionCheck()) {
-            env->ExceptionClear();
-        }
-        std::fprintf(stderr, "Android file picker method is unavailable\n");
-        return std::nullopt;
-    }
     {
-        std::lock_guard lock(android_picker_mutex);
-        android_picker_answered = false;
-        android_picker_path.reset();
-    }
-    env->CallVoidMethod(activity, request);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-        return std::nullopt;
+        AndroidActivityCall call("requestDiscImage", "()V");
+        if (!call) {
+            std::fprintf(stderr, "Android file picker is unavailable\n");
+            return std::nullopt;
+        }
+        {
+            std::lock_guard lock(android_picker_mutex);
+            android_picker_answered = false;
+            android_picker_path.reset();
+        }
+        call.Call();
     }
     std::unique_lock lock(android_picker_mutex);
-    android_picker_changed.wait(lock, [] { return android_picker_answered; });
-    return android_picker_path;
+    android_picker_changed.wait(lock, [] { return android_picker_answered || android_first_run_cancelled; });
+    if (android_first_run_cancelled) {
+        return std::nullopt;
+    }
+    std::optional<fs::path> selected = std::move(android_picker_path);
+    android_picker_path.reset();
+    android_picker_answered = false;
+    return selected;
+}
+
+bool AndroidFirstRunCancelled() {
+    std::lock_guard lock(android_picker_mutex);
+    return android_first_run_cancelled;
 }
 
 std::optional<fs::path> WaitForAndroidRetry() {
     std::unique_lock lock(android_picker_mutex);
-    android_picker_changed.wait(lock, [] { return android_picker_answered; });
+    android_picker_changed.wait(lock, [] { return android_picker_answered || android_first_run_cancelled; });
+    if (android_first_run_cancelled) {
+        return std::nullopt;
+    }
     std::optional<fs::path> selected = std::move(android_picker_path);
     android_picker_path.reset();
     android_picker_answered = false;
@@ -486,6 +519,17 @@ Java_org_themoonpeople_chronicle_ChronicleActivity_nativeDiscImageResult(JNIEnv 
     }
     android_picker_changed.notify_all();
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_themoonpeople_chronicle_ChronicleActivity_nativeCancelFirstRun(JNIEnv *, jobject) {
+    {
+        std::lock_guard lock(android_picker_mutex);
+        android_first_run_cancelled = true;
+        android_picker_path.reset();
+        android_picker_answered = false;
+    }
+    android_picker_changed.notify_all();
+}
 #endif
 
 bool FirstRunDataMissing(const fs::path &root) {
@@ -590,7 +634,7 @@ void FirstRunIfNoData(bool headless) {
     // copy the selected document into app cache, and run the same extractor.
     if (!headless) {
         std::optional<fs::path> retry_source;
-        while (FirstRunDataMissing(root)) {
+        while (FirstRunDataMissing(root) && !AndroidFirstRunCancelled()) {
             std::optional<fs::path> source = retry_source ? std::exchange(retry_source, std::nullopt)
                                                           : ChooseAndroidDiscImage();
             if (!source) {
