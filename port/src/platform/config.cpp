@@ -402,6 +402,12 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
         config.tick_rate = rate;
         return true;
     }
+    if (name == "qol.feather_toggle") {
+        return ReadBool(value, config.feather_toggle);
+    }
+    if (name == "qol.inventory_auto_repair") {
+        return ReadBool(value, config.inventory_auto_repair);
+    }
     if (name == "game.qte_always_win") {
         return ReadBool(value, config.qte_always_win);
     }
@@ -669,6 +675,8 @@ std::string ConfigSerialize(const Config &config) {
     Json root;
     root["game"]["tick_rate"] = config.tick_rate;
     root["game"]["debug_mode"] = config.debug_mode;
+    root["qol"]["feather_toggle"] = config.feather_toggle;
+    root["qol"]["inventory_auto_repair"] = config.inventory_auto_repair;
     root["game"]["qte_always_win"] = config.qte_always_win;
     root["game"]["element_quick_select"] = config.element_quick_select;
     root["game"]["swap_keeps_lock_on"] = config.swap_keeps_lock_on;

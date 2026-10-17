@@ -369,5 +369,15 @@
     "quest.carls_slingshot.gina.excuse": "¿La honda de Carlos?{page}Esto... ¡un, un pájaro enorme se la llevó! ¡Era *ASÍ* de grande!{page}¡Hizo fiuuu y se fue volando con ella!",
     "quest.carls_slingshot.gina.bird": "¡Se la llevó el pájaro! ¡De verdad!",
     "quest.carls_slingshot.gina.confess": "...¿Carlos no se cree lo del pájaro?{page}...Vale. Estaba disparando a botellas, y hizo CRAC.{page}¡No fue a propósito! ¡Así que le hice una nueva!{page}¿Se la puedes dar? Me da miedo que se enfade..",
-    "quest.carls_slingshot.gina.waiting": "¿Le diste la honda nueva a Carlos? ¿Está enfadado?"
+    "quest.carls_slingshot.gina.waiting": "¿Le diste la honda nueva a Carlos? ¿Está enfadado?",
+    "options.page.qol": "QOL",
+    "options.page.qol.help": "\"QOL\"\nOpciones de comodidad.",
+    "options.qol.inventory_auto_repair.choice.0": "No",
+    "options.qol.inventory_auto_repair.choice.1": "Sí",
+    "options.qol.inventory_auto_repair.help": "\"Autorreparar desde bolsa\"\nEl polvo autorreparador\nfunciona desde la bolsa.\nPrimero accesos rápidos.",
+    "options.qol.inventory_auto_repair.label": "Autorreparar desde bolsa",
+    "options.qol.feather_toggle.choice.0": "No",
+    "options.qol.feather_toggle.choice.1": "Sí",
+    "options.qol.feather_toggle.help": "\"Alternar pluma de Dran\"\nCuadrado: activar/apagar.\nMenú u otra ranura: apagar.\nConsume duración.",
+    "options.qol.feather_toggle.label": "Alternar pluma de Dran"
 }

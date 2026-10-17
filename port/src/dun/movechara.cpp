@@ -11,6 +11,7 @@
 #include "battlemenu.hpp"
 #include "btactstatus.hpp"
 #include "btitem.hpp"
+#include "feather_toggle.hpp"
 #include "btmisc.hpp"
 #include "btsysscript.hpp"
 #include "camera.hpp"
@@ -227,6 +228,7 @@ void DeleteItemModel(int slot) {
 } // namespace
 
 PORT_OVERRIDE void DunMoveChara() {
+    FeatherToggleSync();
     /* Where the camera looks relative to what it follows, before the floor's
        own offset is added. */
     static sceVu0FVECTOR reference = {0.0f, 7.5f, 0.0f, 0.0f};
@@ -1003,7 +1005,10 @@ PORT_OVERRIDE void DunMoveChara() {
                                             }
                                             BtBySpeedFlag = 0;
 
-                                            if (GamePad.On(PAD_SQUARE) != 0 && BtActStatus.movement_locked == 0 && lockOnTargetFlag == 0) {
+                                            if (FeatherUseRequested(GamePad.On(PAD_SQUARE) != 0, GamePad.Down(PAD_SQUARE) != 0,
+                                                    BtActStatus.action_on == 0 && BtActStatus.can_act != 0 &&
+                                                    BtActStatus.movement_locked == 0 && lockOnTargetFlag == 0, stickVector > 0.01f) &&
+                                                BtActStatus.movement_locked == 0 && lockOnTargetFlag == 0) {
                                                 if (DebugStatus[5] == 0) {
                                                     BtBySpeedFlag = 1;
                                                 }
@@ -1012,10 +1017,7 @@ PORT_OVERRIDE void DunMoveChara() {
                                                     s16 *slots = UserStatus->active_item;
 
                                                     if (activeItem.CheckStatusType() == ACTIVE_ITEM_FEATHER && slots[itemNowSel + 3] > 0) {
-                                                        // A running item that
-                                                        // boosts is spent by the
-                                                        // frame while the button
-                                                        // is held.
+                                                        // Spend the same duration per frame for held or toggled use.
                                                         BtBySpeedFlag = 1;
                                                         int slot = itemNowSel - 1;
                                                         int left = UserStatus->active_item_vol[slot] - 1;

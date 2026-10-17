@@ -135,6 +135,10 @@ key is optional; these are the defaults:
         "enemy_hp": true,           // enemies' health gauges
         "names": true               // people's and monsters' names
     },
+    "qol": {
+        "inventory_auto_repair": false, // Auto Repair Powder also works from the carried bag; quick slots first
+        "feather_toggle": false // press Square to toggle the selected quick-slot feather
+    },
     "video": {
         "present_mode": "fifo",     // fifo, mailbox or immediate (each falls back to the next safer one)
         "interpolation": true,      // false: present each tick's image once, as rendered
@@ -1407,6 +1411,12 @@ mode starts (`RunGame`, before `ModeInit`), after a new game, and whenever they
 change. `CMemoryCardAccess::SetBuff` zeroes them in the copy it writes, so
 `save.dat` carries no options; its layout is retail's, so their bytes remain,
 as zeros.
+
+### QOL options
+
+Options > QOL > Inventory Auto Repair is off by default. When enabled, Auto Repair Powder in the carried bag can prevent a weapon break at zero WHP. Quick-slot powder is consumed first; otherwise one bag powder is consumed. Normal Repair Powder and items in storage are not used. The setting takes effect immediately and is stored in config.json, without changing the save format.
+
+Options > QOL > Dran's Feather Toggle is off by default. When enabled, press the use-item button (Square on PlayStation) to turn the selected quick-slot feather on or off. An ON badge appears on that slot. Each equipped feather also has a remaining-duration bar beneath its icon while this option is enabled, including when toggled off. The bar uses a fixed six-minute scale because the save stores remaining time rather than the original random lifetime; the ON badge and bar use the gold and red quick-slot selector palette at all durations. While toggled on, feather use pauses when movement input returns to idle, preserving duration and the ON indicator; it resumes automatically when movement input resumes. Active movement spends duration at the normal held-button rate. Attacks, lock-on and movement restrictions suspend use under the existing gameplay checks. Opening a menu, changing slots or characters, leaving normal dungeon play, disabling the option, or exhausting/removing the feather clears the toggle. Other quick-slot items retain their normal controls. The active toggle is not saved.
 
 ## The Register Name screen
 

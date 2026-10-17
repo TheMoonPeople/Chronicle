@@ -369,5 +369,15 @@
     "quest.carls_slingshot.gina.excuse": "La fionda di Carl?{page}Ehm... un, un grosso uccello l'ha presa! Era grande *COSÌ*!{page}Ha fatto fiuuu, ed è volato via con lei!",
     "quest.carls_slingshot.gina.bird": "L'ha presa l'uccello! Davvero!",
     "quest.carls_slingshot.gina.confess": "...Carl non crede all'uccello?{page}...Va bene. Tiravo alle bottiglie, e ha fatto CRAC.{page}Non l'ho fatto apposta! Così gliene ho fatta una nuova!{page}Puoi dargliela tu? Ho paura che si arrabbi..",
-    "quest.carls_slingshot.gina.waiting": "Hai dato a Carl la fionda nuova? È arrabbiato?"
+    "quest.carls_slingshot.gina.waiting": "Hai dato a Carl la fionda nuova? È arrabbiato?",
+    "options.page.qol": "QOL",
+    "options.page.qol.help": "\"QOL\"\nOpzioni di comodità.",
+    "options.qol.inventory_auto_repair.choice.0": "No",
+    "options.qol.inventory_auto_repair.choice.1": "Sì",
+    "options.qol.inventory_auto_repair.help": "\"Autoripara dalla borsa\"\nLa polvere autoriparante\nfunziona dalla borsa.\nPrima gli slot rapidi.",
+    "options.qol.inventory_auto_repair.label": "Autoripara dalla borsa",
+    "options.qol.feather_toggle.choice.0": "No",
+    "options.qol.feather_toggle.choice.1": "Sì",
+    "options.qol.feather_toggle.help": "\"Piuma di Dran: interr.\"\nQuadrato: attiva/disattiva.\nMenu o altro slot: stop.\nConsuma la durata.",
+    "options.qol.feather_toggle.label": "Piuma di Dran: interr."
 }
