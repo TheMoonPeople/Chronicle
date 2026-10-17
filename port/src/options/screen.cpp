@@ -8,8 +8,10 @@
 #include "area_card.hpp"
 #include "clsmes.hpp"
 #include "dataread.hpp"
+#include "gameloop.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
+#include "gfx/gfx.hpp"
 #include "localize.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
@@ -284,6 +286,11 @@ bool Inside(float x, float y, int left, int top, int right, int bottom) {
 
 void RunMouse() {
     InputMenuMouse mouse = InputTakeMenuMouse();
+#if defined(__ANDROID__)
+    if (InputTouchOverlayVisible()) {
+        mouse.dx = mouse.dy = mouse.wheel = 0.0f;
+    }
+#endif
     std::uint32_t  clicked = mouse.buttons & ~g_screen.mouse_buttons;
     bool           moved = mouse.dx != 0.0f || mouse.dy != 0.0f;
     g_screen.mouse_buttons = mouse.buttons;

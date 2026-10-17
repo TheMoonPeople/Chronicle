@@ -10,7 +10,11 @@
 // Retail halted on a failed assertion. The game prints its own context on stdout first (LoadFile
 // names the file), so stdout is flushed ahead of the message. _Exit, not exit: static destructors
 // would tear down the renderer under a frame the game may have open.
+#if defined(__ANDROID__)
+extern "C" [[noreturn]] void __assert(const char *file, int line, const char *expression) {
+#else
 [[noreturn]] void __assert(const char *file, int line, const char *expression) {
+#endif
     std::fflush(stdout);
     std::fprintf(stderr, "%s:%d: assertion failed: %s\n", file, line, expression);
     std::fflush(nullptr);
@@ -26,7 +30,7 @@ unsigned int g_rand_state = 1;
 }
 
 // glibc declares these noexcept; Apple's libc and the Windows CRT do not.
-#if defined(__APPLE__) || defined(_WIN32)
+#if defined(__APPLE__) || defined(_WIN32) || defined(__ANDROID__)
 #define LIBC_NOEXCEPT
 #else
 #define LIBC_NOEXCEPT noexcept

@@ -487,6 +487,29 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
         config.ui_scale = scale;
         return true;
     }
+#if defined(__ANDROID__)
+    if (name == "video.render_scale") {
+        float scale = 0.0f;
+        if (!ReadNumber(value, scale) || !(scale >= 0.5f && scale <= 2.0f)) {
+            return false;
+        }
+        config.render_scale = scale;
+        return true;
+    }
+#endif
+#if defined(__ANDROID__)
+    if (name == "video.touch_overlay_opacity") {
+        if (!value.is_number_integer()) {
+            return false;
+        }
+        const int opacity = value.get<int>();
+        if (opacity < 10 || opacity > 100 || opacity % 10 != 0) {
+            return false;
+        }
+        config.touch_overlay_opacity = opacity;
+        return true;
+    }
+#endif
     if (name == "video.show_fps") {
         return ReadBool(value, config.show_fps);
     }
@@ -651,6 +674,10 @@ std::string ConfigSerialize(const Config &config) {
     root["video"]["fullscreen"] = config.fullscreen;
     root["video"]["aspect"] = config.aspect == ConfigAspect::FourThree ? "4:3" : "auto";
     root["video"]["ui_scale"] = Shortest(config.ui_scale);
+#if defined(__ANDROID__)
+    root["video"]["render_scale"] = Shortest(config.render_scale);
+    root["video"]["touch_overlay_opacity"] = config.touch_overlay_opacity;
+#endif
     root["video"]["show_fps"] = config.show_fps;
     root["video"]["fps_detail"] = FpsDetailName(config.fps_detail);
     root["video"]["detail_distance"] = Shortest(config.detail_distance);
