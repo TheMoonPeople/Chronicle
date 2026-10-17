@@ -708,3 +708,4 @@ bool TakeBattleMenuLoadRequest() {
     ingame_load_pending = false;
     return true;
 }
+void BattleMenuIconPosition(int index, float &x, float &y) { GetSafeIconPos(index, x, y); }

@@ -13,6 +13,9 @@ void Open();
 /// Handles gamepad input while the Chest Tracker is active. Returns true if the user exited back to the Journal menu.
 bool HandleKey();
 
+// Select a settlement or toggle the filter at the displayed pointer position.
+void HandlePointer(float x, float y);
+
 /// Renders the Chest Tracker dashboard using the UI framework.
 void Draw();
 
