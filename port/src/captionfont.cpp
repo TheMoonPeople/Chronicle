@@ -36,7 +36,7 @@ struct Atlas {
     std::map<std::pair<char32_t, int>, bool>  missing;
 };
 
-Font     g_fonts[2];
+Font     g_fonts[3];
 int      g_variant = 0;
 Atlas    g_atlas;
 unsigned g_generation = 0;
@@ -229,10 +229,8 @@ bool Compose(char32_t ch, float scale, int em_px, Bitmap &out) {
         const int dx = (base.x0 + base.w / 2) - (mark.x0 + mark.w / 2);
         int       dy;
         if (accented.mark == Mark::Cedilla) {
-
             dy = (base.y0 + base.h - 2) - mark.y0;
         } else {
-
             dy = base.y0 - gap - (mark.y0 + mark.h);
         }
         out = Combine({
@@ -392,6 +390,38 @@ float AdvanceOf(char32_t ch, float scale) {
     return static_cast<float>(advance) * scale;
 }
 
+bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
+    if (slot < 0 || slot >= 3 || bytes.empty()) {
+        return false;
+    }
+    Font      font;
+    font.data        = std::move(bytes);
+    const int offset = stbtt_GetFontOffsetForIndex(font.data.data(), 0);
+    if (offset < 0 || !stbtt_InitFont(&font.info, font.data.data(), offset)) {
+        return false;
+    }
+    font.loaded   = true;
+    g_fonts[slot] = std::move(font);
+    stbtt_InitFont(&g_fonts[slot].info, g_fonts[slot].data.data(),
+                   stbtt_GetFontOffsetForIndex(g_fonts[slot].data.data(), 0));
+    return true;
+}
+
+bool LoadFontSlot(int slot, const std::filesystem::path &file) {
+    if (slot < 0 || slot >= 3) return false;
+    std::ifstream stream(file, std::ios::binary);
+    if (!stream) {
+        return false;
+    }
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)),
+                                      std::istreambuf_iterator<char>());
+    if (!InitFontSlotFromBytes(slot, std::move(bytes))) {
+        std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 bool Load(const std::filesystem::path &file) {
@@ -401,18 +431,12 @@ bool Load(const std::filesystem::path &file) {
         std::fprintf(stderr, "font: cannot read %s\n", PathsDisplay(file).c_str());
         return false;
     }
-    Font font;
-    font.data.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
-    const unsigned char *bytes = font.data.data();
-    int                  offset = stbtt_GetFontOffsetForIndex(bytes, 0);
-    if (offset < 0 || !stbtt_InitFont(&font.info, bytes, offset)) {
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)),
+                                      std::istreambuf_iterator<char>());
+    if (!InitFontSlotFromBytes(0, std::move(bytes))) {
         std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
         return false;
     }
-    font.loaded = true;
-    // stbtt_fontinfo stores pointers into the final font-data allocation.
-    g_fonts[0] = std::move(font);
-    stbtt_InitFont(&g_fonts[0].info, g_fonts[0].data.data(), stbtt_GetFontOffsetForIndex(g_fonts[0].data.data(), 0));
     ResetAtlas();
     return true;
 }
@@ -422,29 +446,41 @@ bool Loaded() {
 }
 
 bool LoadVariant(const std::filesystem::path &file) {
-    std::ifstream stream(file, std::ios::binary);
-    if (!stream) {
-        return false;
-    }
-    Font font;
-    font.data.assign(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
-    const int offset = stbtt_GetFontOffsetForIndex(font.data.data(), 0);
-    if (offset < 0 || !stbtt_InitFont(&font.info, font.data.data(), offset)) {
-        std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
-        return false;
-    }
-    font.loaded = true;
-    g_fonts[1] = std::move(font);
-    stbtt_InitFont(&g_fonts[1].info, g_fonts[1].data.data(), stbtt_GetFontOffsetForIndex(g_fonts[1].data.data(), 0));
-    return true;
+    return LoadFontSlot(1, file);
 }
 
 bool VariantLoaded() {
     return g_fonts[1].loaded;
 }
 
+bool LoadStatusFont(const std::filesystem::path &file) {
+    return LoadFontSlot(2, file);
+}
+
+bool LoadStatusFontMemory(const unsigned char *data, std::size_t size) {
+    if (data == nullptr || size == 0) {
+        return false;
+    }
+    std::vector<unsigned char> bytes(data, data + size);
+    return InitFontSlotFromBytes(2, std::move(bytes));
+}
+
+bool StatusFontLoaded() {
+    return g_fonts[2].loaded;
+}
+
+void UseFontSlot(int slot) {
+    if (slot == 2 && g_fonts[2].loaded) {
+        g_variant = 2;
+    } else if (slot == 1 && g_fonts[1].loaded) {
+        g_variant = 1;
+    } else {
+        g_variant = 0;
+    }
+}
+
 void UseVariant(bool variant) {
-    g_variant = variant && g_fonts[1].loaded ? 1 : 0;
+    UseFontSlot(variant ? 1 : 0);
 }
 
 bool GetGlyph(char32_t ch, int em_px, Glyph &out) {
@@ -509,7 +545,6 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
     glyph.advance = advance;
 
     if (width > 0 && height > 0) {
-
         const int                  w = width + 2 * kPad;
         const int                  h = height + 2 * kPad;
         std::vector<unsigned char> pixels(static_cast<size_t>(w) * h * 4, 0);

@@ -17,6 +17,16 @@ constexpr unsigned char kOutline[3] = {1, 0, 201};
 constexpr int kIcons = 14;
 
 /**
+ * Overrides the localization key and English fallback used by the next Draw() call.
+ */
+void SetNextCaption(const char *key, const char *english);
+
+/**
+ * Overrides the text drawn by the next Draw() call.
+ */
+void SetNextCaptionText(std::string_view text);
+
+/**
  * Caption translation keys and painted English defaults.
  */
 std::vector<std::pair<std::string, std::string>> Strings();
@@ -24,6 +34,8 @@ std::vector<std::pair<std::string, std::string>> Strings();
 bool Ready();
 
 bool ThinReady();
+
+bool StatusReady();
 
 /**
  * Painted caption bounds in logical pixels relative to its label sprite.
@@ -72,6 +84,7 @@ struct LineStyle {
 
     bool ink_fit = false;
     bool thin = false;
+    bool status_font = false;
 
     const FillField *field = nullptr;
     float            field_x = 0.0f, field_y = 0.0f, field_w = 1.0f, field_h = 1.0f;

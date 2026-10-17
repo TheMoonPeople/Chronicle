@@ -27,6 +27,9 @@
 // the pointer is over becomes the game's own cursor, a click a pad press the game reads, so the
 // game's code does the rest. A screen with no handler leaves the mouse to the pad as before.
 
+extern bool BattleMenuQuitConfirmActive();
+extern int* BattleMenuQuitConfirmChoicePtr();
+
 namespace {
 
 struct Rect {
@@ -45,29 +48,78 @@ bool g_save_open = false;
 
 MenuPointer g_battle;
 
-// How many icons the ring shows, as the game's GetMenuModeMax counts them.
+// Matches port/src/battlemenu.cpp GetMenuModeMax(): 8 in Dungeon, 9 in Town (includes Journal & Quit).
 int RingIconCount() {
-    int count = BtlMenuMode == BATTLE_MENU_MODE_DUNGEON ? 7 : 8;
-    if (GetGameFlagForManualMenu() == 0) {
-        count--;
+    return BtlMenuMode == BATTLE_MENU_MODE_DUNGEON ? 8 : 9;
+}
+
+// Matches port/src/battlemenu.cpp GetSafeIconPos() so icons >= orig_max have valid hitboxes.
+void GetRingIconPos(int index, float &out_x, float &out_y) {
+    const int orig_max = (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON) ? 7 : 8;
+    if (index < orig_max) {
+        out_x = NorMenuIcon[index].x;
+        out_y = NorMenuIcon[index].y;
+    } else {
+        const int diff = index - (orig_max - 1);
+        out_x = NorMenuIcon[orig_max - 1].x - (16.0f * diff);
+        out_y = NorMenuIcon[orig_max - 1].y + (40.0f * diff);
     }
-    return count;
 }
 
 // The row of one ring icon: its icon and the label beside it, where the brackets stand.
 Rect RingRow(int icon) {
-    int left = static_cast<int>(NorMenuIcon[icon].x) - 18;
-    int top = static_cast<int>(NorMenuIcon[icon].y) - 8;
+    float ix = 0.0f, iy = 0.0f;
+    GetRingIconPos(icon, ix, iy);
+    int left = static_cast<int>(ix) - 18;
+    int top  = static_cast<int>(iy) - 8;
     return Rect{left, top, left + 250, top + 34};
 }
 
-// The bar of icons that opens the pause menu.
+// Hit-test for UI::ConfirmModal's centered YES / NO BevelButtons (btn_x = 270, w = 100, h = 26).
+int ConfirmModalHit(float px, float py, int btn_y0 = 232) {
+    constexpr int kBtnX = (640 - 100) / 2; // 270
+    constexpr int kBtnW = 100;
+    constexpr int kBtnH = 26;
+    const int     btn_y1 = btn_y0 + kBtnH + 6;
+
+    if (px < kBtnX - 14 || px >= kBtnX + kBtnW + 14) {
+        return -1;
+    }
+    if (py >= btn_y0 - 4 && py < btn_y0 + kBtnH + 2) {
+        return 0; // YES
+    }
+    if (py >= btn_y1 - 2 && py < btn_y1 + kBtnH + 4) {
+        return 1; // NO
+    }
+    return -1;
+}
+
+template <typename T>
+void ConfirmModalMouse(const MenuPointerTake &take, T *answer, int btn_y0 = 232) {
+    int hit = take.pointing ? ConfirmModalHit(g_battle.x, g_battle.y, btn_y0) : -1;
+    if (hit >= 0 && hit != *answer && take.moved) {
+        *answer = static_cast<T>(hit);
+        ComMenuSePlay(MENU_SOUND_CURSOR);
+    }
+    if ((take.clicked & 1) != 0 && hit >= 0) {
+        *answer = static_cast<T>(hit);
+        MenuPointerPress(kInputCross);
+    } else if ((take.clicked & 2) != 0) {
+        MenuPointerPress(kInputCircle);
+    }
+}
+
+// The bar of icons that opens the pause menu (and the Quit Game confirmation modal when active).
 void RingMouse(const MenuPointerTake &take) {
     if (MenuWarningMsgFlag != 0) {
         // A warning is up: any click dismisses it, as Cross and Circle do.
         if (take.clicked != 0) {
             MenuPointerPress(kInputCross);
         }
+        return;
+    }
+    if (BattleMenuQuitConfirmActive()) {
+        ConfirmModalMouse(take, BattleMenuQuitConfirmChoicePtr());
         return;
     }
     if (!take.pointing) {
@@ -241,7 +293,7 @@ void DiscardMouse(const MenuPointerTake &take) {
     }
 }
 
-// Leave Dungeon and the other two-answer pages of the travel menu.
+// Leave Dungeon, Enter Divine Beast Cave, and Go Outside confirmation modals.
 void MoveMouse(const MenuPointerTake &take) {
     if (MenuMove.state != MENU_MOVE_STATE_SELECT) {
         return;
@@ -249,11 +301,9 @@ void MoveMouse(const MenuPointerTake &take) {
     switch (MenuMove.mode) {
         case MENU_MOVE_DUNGEON_ESCAPE:
         case MENU_MOVE_FIRST_DUNGEON:
-        case MENU_MOVE_INTERIOR_OUT: {
-            int y = MenuMove.mode == MENU_MOVE_DUNGEON_ESCAPE ? 0xDC : 0xD8;
-            YesNoMouse(take, 0x118, y, &MenuMove.cursor);
+        case MENU_MOVE_INTERIOR_OUT:
+            ConfirmModalMouse(take, &MenuMove.cursor);
             break;
-        }
         default:
             // The world map is a pad affair for now.
             if ((take.clicked & 2) != 0) {

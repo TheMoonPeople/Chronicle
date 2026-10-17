@@ -1200,7 +1200,10 @@ conversion of NTSC 1.0 saves do nothing.
 The save screens (`port/src/memcard.cpp`, `port/src/menu_save.cpp`) keep
 retail's steps, less the card:
 
-- The card choice is gone: the screen opens on its list.
+- The card choice is gone: the screen opens on its list. In town, the pause
+  menu's Save entry (`SAVE/LOAD`) asks whether to save or load before opening
+  the screen; loading a save from town reloads the saved area, inventory, and
+  Georama state just as loading from the title screen does.
 - The boards are every readable save in file order, then, on the save
   screen only, one "New file" board, which saves to the lowest free N. File
   order keeps each board where it was from one visit to the next and matches

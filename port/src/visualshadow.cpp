@@ -3,8 +3,10 @@
 #include <libvu0.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
+#include <numeric>
 #include <span>
 #include <vector>
 
@@ -105,11 +107,14 @@ void Emit(std::vector<gfx::Vertex3D> &out, std::span<const Vec3> polygon) {
 }
 
 // A face of a prism, wound outwards when as_given (else reversed).
-void AddFace(Volume &volume, std::vector<Vec3> polygon, bool as_given, Count count) {
+void AddFace(Volume &volume, std::initializer_list<Vec3> points, bool as_given, Count count) {
+    std::array<Vec3, 4> polygon{};
+    std::copy(points.begin(), points.end(), polygon.begin());
     if (!as_given) {
-        std::reverse(polygon.begin(), polygon.end());
+        std::reverse(polygon.begin(), polygon.begin() + points.size());
     }
-    Emit(count == Count::Both ? volume.both : volume.away, polygon);
+    Emit(count == Count::Both ? volume.both : volume.away,
+         std::span<const Vec3>(polygon.data(), points.size()));
 }
 
 // The triangle's prism down to its drop on the plane. A prism the light grazes has no inside and
@@ -170,7 +175,8 @@ void AddNearCap(Volume &volume, const Vec3 top[3], const Vec3 drop[3], float dep
         {1, 4},
         {2, 5}
     };
-    std::vector<Vec3> section;
+    std::array<Vec3, 9> section{};
+    size_t              section_count = 0;
     for (const auto &edge : kEdges) {
         Vec3  a = *corners[edge[0]];
         Vec3  b = *corners[edge[1]];
@@ -182,24 +188,24 @@ void AddNearCap(Volume &volume, const Vec3 top[3], const Vec3 drop[3], float dep
             if (!Finite(point)) {
                 return;
             }
-            section.push_back(point);
+            section[section_count++] = point;
         }
     }
-    if (section.size() < 3) {
+    if (section_count < 3) {
         return;
     }
     Vec3 mean = {0.0f, 0.0f, 0.0f};
-    for (Vec3 point : section) {
-        mean = mean + point;
+    for (size_t i = 0; i < section_count; ++i) {
+        mean = mean + section[i];
     }
-    mean = mean * (1.0f / static_cast<float>(section.size()));
+    mean = mean * (1.0f / static_cast<float>(section_count));
     if (!Finite(mean)) {
         return;
     }
-    std::sort(section.begin(), section.end(), [mean](Vec3 a, Vec3 b) {
+    std::sort(section.begin(), section.begin() + section_count, [mean](Vec3 a, Vec3 b) {
         return std::atan2(a.y - mean.y, a.x - mean.x) > std::atan2(b.y - mean.y, b.x - mean.x);
     });
-    Emit(volume.cap, section);
+    Emit(volume.cap, std::span<const Vec3>(section.data(), section_count));
 }
 
 struct Projection {
@@ -216,15 +222,15 @@ struct Projection {
 
 Projection Project(const RenderInfo &info, float (*matrix)[4]) {
     Projection projection = {};
-    Vec3 normal = {info.shadow_normal[0], info.shadow_normal[1], info.shadow_normal[2]};
-    Vec3 light = {info.light_direction[0][0], info.light_direction[1][0], info.light_direction[2][0]};
-    float normal_length = Length(normal);
-    float light_length = Length(light);
+    Vec3       normal = {info.shadow_normal[0], info.shadow_normal[1], info.shadow_normal[2]};
+    Vec3       light = {info.light_direction[0][0], info.light_direction[1][0], info.light_direction[2][0]};
+    float      normal_length = Length(normal);
+    float      light_length = Length(light);
     if (!std::isfinite(normal_length) || !std::isfinite(light_length) || normal_length == 0.0f ||
         light_length == 0.0f || std::fabs(Dot(normal, light)) <= 1e-3f * normal_length * light_length) {
         return projection;
     }
-    float      drop[4][4];
+    float drop[4][4];
     Draw3DMul(projection.model_to_eye, info.view_scaled, matrix);
     Draw3DMul(drop, info.shadow, matrix);
     Draw3DMul(projection.drop_to_eye, info.view_scaled, drop);
@@ -265,7 +271,12 @@ float NearPlane(const Projection &projection) {
 
 void DrawCount(const std::vector<gfx::Vertex3D> &shared, const std::vector<gfx::Vertex3D> &own,
                const Projection &projection, const RenderInfo &info, bool add) {
-    std::vector<gfx::Vertex3D> faces = shared;
+    // DrawMeshImmediate copies recorded vertices and indices, so these buffers can be reused.
+    static thread_local std::vector<gfx::Vertex3D> faces;
+    static thread_local std::vector<uint32_t>      indices;
+    faces.clear();
+    faces.reserve(shared.size() + own.size());
+    faces.insert(faces.end(), shared.begin(), shared.end());
     faces.insert(faces.end(), own.begin(), own.end());
     if (faces.empty()) {
         return;
@@ -280,10 +291,8 @@ void DrawCount(const std::vector<gfx::Vertex3D> &shared, const std::vector<gfx::
     gfx::DrawState state = Draw3DState(info, false);
     state.cull = add ? gfx::CullMode::Back : gfx::CullMode::Front;
     state.alpha = add ? gfx::GsBlend{0, 2, 2, 1, 0x80} : gfx::GsBlend{2, 0, 2, 1, 0x80};
-    std::vector<uint32_t> indices(faces.size());
-    for (uint32_t i = 0; i < indices.size(); i++) {
-        indices[i] = i;
-    }
+    indices.resize(faces.size());
+    std::iota(indices.begin(), indices.end(), uint32_t{0});
     gfx::DrawMeshImmediate(faces, indices, constants, {}, state,
                            projection.has_transform ? &projection.transform : nullptr);
 }
@@ -367,8 +376,8 @@ PORT_OVERRIDE int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *mod
     std::vector<ShadowClipTriangle> triangles(static_cast<size_t>(count));
     ShadowClipBuild(triangles.data(), count, model_data, info, matrix, 0);
 
-    float      near_cap = NearPlane(projection) * 1.001f;
-    Volume     volume;
+    float  near_cap = NearPlane(projection) * 1.001f;
+    Volume volume;
     for (const ShadowClipTriangle &triangle : triangles) {
         Vec3 local[3];
         for (int i = 0; i < 3; i++) {
@@ -398,7 +407,7 @@ PORT_OVERRIDE int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *mod
 }
 
 PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                       u_long128 *draw_state, int unknown1, int unknown2) {
+                                         u_long128 *draw_state, int unknown1, int unknown2) {
     if (info->shadow_pass != 1 && info->shadow_pass != 2) {
         return CVisualMDTVu1::DrawVu1(packet, matrix, info, program, draw_state, unknown1, unknown2);
     }
@@ -439,6 +448,7 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
     bool   away_only = Draw3DCurrentShadowProgram() == Draw3DShadowProgram::AwayFromLight;
     bool   sides[3] = {true, true, true};
     Volume volume;
+    volume.both.reserve((visual->vertices.size() / 3) * 24);
     for (size_t first = 0; first + 3 <= visual->vertices.size(); first += 3) {
         Vec3 local[3];
         for (int i = 0; i < 3; i++) {
@@ -458,6 +468,6 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
 }
 
 PORT_OVERRIDE int CVisualShadow::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                       u_long128 *draw_state, int unknown1, int unknown2) {
+                                         u_long128 *draw_state, int unknown1, int unknown2) {
     return CVisualShadow::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }

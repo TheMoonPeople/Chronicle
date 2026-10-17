@@ -23,6 +23,20 @@ namespace caption {
 
 namespace {
 
+#if defined(__has_embed)
+#  if __has_embed("../../tools/font/SourceSansProSemibold.ttf")
+#    define CHRONICLE_HAS_EMBEDDED_STATUS_FONT 1
+alignas(16) constexpr unsigned char kEmbeddedStatusFont[] = {
+#    embed "../../tools/font/SourceSansProSemibold.ttf"
+};
+#  elif __has_embed("../tools/font/SourceSansProSemibold.ttf")
+#    define CHRONICLE_HAS_EMBEDDED_STATUS_FONT 1
+alignas(16) constexpr unsigned char kEmbeddedStatusFont[] = {
+#    embed "../tools/font/SourceSansProSemibold.ttf"
+};
+#  endif
+#endif
+
 struct Entry {
     const char *key;
     const char *english;
@@ -45,6 +59,10 @@ constexpr Entry kEntries[kIcons] = {
     {"menu.caption.config_assembly",  "CONFIG/ASSEMBLY" },
 };
 
+const char *s_next_caption_key = nullptr;
+const char *s_next_caption_english = nullptr;
+std::string s_next_caption_text;
+
 // Painted capitals occupy about 21 logical pixels of each 30-pixel label cell.
 constexpr float kEm = 25.0f;
 
@@ -52,6 +70,26 @@ constexpr float kOutlineWidth = 1.6f;
 constexpr float kLeastShrink = 0.62f;
 
 std::array<std::optional<CaptionBounds>, kIcons> g_bounds;
+
+std::filesystem::path FindStatusFontPath() {
+    std::filesystem::path p = LocalizeFindFile("SourceSansProSemibold.ttf");
+    if (!p.empty()) return p;
+
+    static const char* kCandidates[] = {
+        "tools/font/SourceSansProSemibold.ttf",
+        "../tools/font/SourceSansProSemibold.ttf",
+        "../../tools/font/SourceSansProSemibold.ttf",
+        "/run/build/chronicle/tools/font/SourceSansProSemibold.ttf",
+        "lang/SourceSansProSemibold.ttf"
+    };
+    for (const char* rel : kCandidates) {
+        std::error_code ec;
+        if (std::filesystem::exists(rel, ec)) {
+            return std::filesystem::path(rel);
+        }
+    }
+    return {};
+}
 
 bool FontReady() {
     if (!ConfigGet().font_sharp) {
@@ -65,6 +103,24 @@ bool FontReady() {
             if (!file.empty()) {
                 capfont::Load(file);
             }
+        }
+    }
+    if (capfont::Loaded() && !capfont::StatusFontLoaded()) {
+        static bool tried_status = false;
+        if (!tried_status) {
+            tried_status = true;
+            const std::filesystem::path status_path = FindStatusFontPath();
+            if (!status_path.empty() && capfont::LoadStatusFont(status_path)) {
+                std::fprintf(stderr, "font: status font from %s\n", status_path.string().c_str());
+            }
+#if defined(CHRONICLE_HAS_EMBEDDED_STATUS_FONT)
+            if (!capfont::StatusFontLoaded()) {
+                if (capfont::LoadStatusFontMemory(kEmbeddedStatusFont, sizeof(kEmbeddedStatusFont))) {
+                    std::fprintf(stderr, "font: status font loaded from embedded SourceSansProSemibold.ttf (%zu bytes)\n",
+                                 sizeof(kEmbeddedStatusFont));
+                }
+            }
+#endif
         }
     }
     if (capfont::Loaded() && !capfont::VariantLoaded()) {
@@ -192,6 +248,15 @@ void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x,
 
 } // namespace
 
+void SetNextCaption(const char *key, const char *english) {
+    s_next_caption_key = key;
+    s_next_caption_english = english;
+}
+
+void SetNextCaptionText(std::string_view text) {
+    s_next_caption_text = text;
+}
+
 std::vector<std::pair<std::string, std::string>> Strings() {
     std::vector<std::pair<std::string, std::string>> out;
     for (const Entry &entry : kEntries) {
@@ -206,6 +271,10 @@ bool Ready() {
 
 bool ThinReady() {
     return FontReady() && capfont::VariantLoaded();
+}
+
+bool StatusReady() {
+    return FontReady() && capfont::StatusFontLoaded();
 }
 
 void PreparePainted(const char *name, const PortDecodedTexture &texture) {
@@ -258,15 +327,43 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
     if (icon < 0 || icon >= kIcons || !FontReady()) {
         return false;
     }
-    // English help titles differ from the painted labels, including OPTION and GEORAMA PARTS.
-    std::string text = LocalizeText(kEntries[icon].key, "");
-    if (text.empty()) {
-        text = LanguageCode == LANG_ENGLISH_US || LanguageCode == LANG_ENGLISH_UK ? kEntries[icon].english : HelpTitle(icon);
+
+    bool custom_caption = false;
+    std::string text;
+    if (!s_next_caption_text.empty()) {
+        custom_caption = true;
+        text = std::move(s_next_caption_text);
+        s_next_caption_text.clear();
+    } else if (s_next_caption_key != nullptr) {
+        custom_caption = true;
+        text = LocalizeText(s_next_caption_key, "");
+        if (text.empty()) {
+            text = (LanguageCode == LANG_ENGLISH_US || LanguageCode == LANG_ENGLISH_UK)
+                       ? s_next_caption_english
+                       : HelpTitle(icon);
+        }
+        if (text.empty()) {
+            text = s_next_caption_english;
+        }
+        s_next_caption_key = nullptr;
+        s_next_caption_english = nullptr;
+    } else {
+        // English help titles differ from the painted labels, including OPTION and GEORAMA PARTS.
+        text = LocalizeText(kEntries[icon].key, "");
+        if (text.empty()) {
+            text = LanguageCode == LANG_ENGLISH_US || LanguageCode == LANG_ENGLISH_UK ? kEntries[icon].english : HelpTitle(icon);
+        }
+        if (text.empty()) {
+            text = kEntries[icon].english;
+        }
     }
-    if (text.empty()) {
-        text = kEntries[icon].english;
-    }
-    const Layout            layout = Lay(text, static_cast<float>(box_width));
+
+    // Only expand the box width when the Save slot (icon 5, whose vanilla box_width is 56px for "SAVE")
+    // is given a combined "SAVE/LOAD" caption; all other icons keep their exact vanilla box_width.
+    const bool  is_saveload_combined = custom_caption && icon == 5 && text.find('/') != std::string::npos;
+    const float effective_box_w      = is_saveload_combined ? 124.0f : static_cast<float>(box_width);
+
+    const Layout            layout = Lay(text, effective_box_w);
     const textwipe::Tuning &tune = textwipe::Get(textwipe::Kind::Caption);
     alpha = static_cast<int>(static_cast<float>(alpha) * tune.opacity);
 
@@ -302,7 +399,7 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
             }
             const float width = glyph.width / mapping.scale_x * layout.squeeze * tune.xscale;
             const float height = glyph.height / mapping.scale_y * rows * tune.yscale;
-            float       gx = pen + glyph.x_offset / mapping.scale_x * layout.squeeze;
+            float       gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * layout.squeeze;
             float       gy = base * rows + glyph.y_offset / mapping.scale_y * tune.yscale;
             gx = snap(gx, mapping.scale_x, mapping.offset_x);
             gy = snap(gy, mapping.scale_y, mapping.offset_y);
@@ -322,23 +419,25 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
         pen += (fill.width / mapping.scale_x * tune.xscale + layout.em * 0.1f + tune.letter) * layout.squeeze;
     }
     if (!fills.empty()) {
-        if (const auto bounds = PaintedBounds(icon); bounds && !edges.empty() && tune.fit >= 0.5f) {
-            float left = edges.front().x, right = left;
-            float top = edges.front().y, bottom = top;
-            for (const gfx::Vertex2D &vertex : edges) {
-                left = std::min(left, vertex.x);
-                right = std::max(right, vertex.x);
-                top = std::min(top, vertex.y);
-                bottom = std::max(bottom, vertex.y);
-            }
-            const float width = bounds->width * tune.size * tune.xscale;
-            const float height = bounds->height * tune.size * tune.yscale;
-            const float sx = width / (right - left);
-            const float sy = height * rows / (bottom - top);
-            for (auto *layer : {&edges, &fills}) {
-                for (gfx::Vertex2D &vertex : *layer) {
-                    vertex.x = x + bounds->left + (bounds->width - width) / 2 + tune.dx + (vertex.x - left) * sx;
-                    vertex.y = (y + bounds->top + tune.dy) * rows + (vertex.y - top) * sy;
+        if (!custom_caption) {
+            if (const auto bounds = PaintedBounds(icon); bounds && !edges.empty() && tune.fit >= 0.5f) {
+                float left = edges.front().x, right = left;
+                float top = edges.front().y, bottom = top;
+                for (const gfx::Vertex2D &vertex : edges) {
+                    left = std::min(left, vertex.x);
+                    right = std::max(right, vertex.x);
+                    top = std::min(top, vertex.y);
+                    bottom = std::max(bottom, vertex.y);
+                }
+                const float width = bounds->width * tune.size * tune.xscale;
+                const float height = bounds->height * tune.size * tune.yscale;
+                const float sx = width / (right - left);
+                const float sy = height * rows / (bottom - top);
+                for (auto *layer : {&edges, &fills}) {
+                    for (gfx::Vertex2D &vertex : *layer) {
+                        vertex.x = x + bounds->left + (bounds->width - width) / 2 + tune.dx + (vertex.x - left) * sx;
+                        vertex.y = (y + bounds->top + tune.dy) * rows + (vertex.y - top) * sy;
+                    }
                 }
             }
         }
@@ -383,10 +482,10 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
     }
 
     struct Variant {
-        explicit Variant(bool on) { capfont::UseVariant(on); }
+        explicit Variant(int slot) { capfont::UseFontSlot(slot); }
 
-        ~Variant() { capfont::UseVariant(false); }
-    } variant(style.thin);
+        ~Variant() { capfont::UseFontSlot(0); }
+    } variant(style.status_font ? 2 : (style.thin ? 1 : 0));
 
     const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
     const capfont::Metrics    metrics = capfont::GetMetrics();
@@ -561,7 +660,6 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
             continue;
         }
         if (use_slots) {
-
             const std::array<float, 2> &place = style.slots[slot++];
             const float                 ink = letter.fill.width / mapping.scale_x * style.xscale;
             const float                 slot_width = place[1] - place[0];
@@ -579,7 +677,7 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
             const float half = style.weight / 2;
             quad(fills, letter.fill, letter.fill, pen, style.fill, 0x80, -half, 0.0f);
             quad(fills, letter.fill, letter.fill, pen, style.fill, 0x80, half, 0.0f);
-            quad(fills, letter.fill, letter.fill, pen, style.fill, 0x80, 0.0f, -half);
+            quad(fills, letter.fill, letter.fill, pen, style.fill, 0.0f, -half);
             quad(fills, letter.fill, letter.fill, pen, style.fill, 0x80, 0.0f, half);
         }
         {

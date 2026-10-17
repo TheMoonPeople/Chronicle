@@ -5,15 +5,14 @@
 #include <string>
 #include <vector>
 
-#include "gametext.hpp"
 #include "options/rows.hpp"
 #include "platform/config.hpp"
+#include "ui_framework.hpp"
 
 class CTexture;
 
 namespace options {
 
-// Where the screen draws on the game's 640x480 2D screen.
 constexpr int kTabY = 96;
 constexpr int kTabGap = 24;
 constexpr int kTabsRight = 532;
@@ -31,7 +30,6 @@ constexpr int kExitWidth = 60;
 constexpr int kExitHeight = 32;
 constexpr int kHelpY = kExitY + 44;
 
-// The cursor on the page names, a row, or EXIT (the page's row count).
 constexpr int kOnTabs = -1;
 
 enum class Glyph {
@@ -53,6 +51,8 @@ struct Screen {
     int         page = 0;
     int         row = 0;
     int         first_tab = 0;
+    int         last_tab_dir = 1; // -1 = Left (<), +1 = Right (>)
+    int         last_row_dir = 1; // -1 = Left (<), +1 = Right (>)
     std::vector<int> first_row;
     float       cursor_x = 0.0f;
     float       cursor_y = 0.0f;
@@ -67,24 +67,22 @@ struct Screen {
     float       pointer_y = 0.0f;
     std::uint32_t mouse_buttons = 0;
     Glyph       glyph = Glyph::None;
-    // The binding row listening for a new key, or -1, and what its value shows meanwhile.
     int         binding_row = -1;
     std::string binding_prompt;
-    // The source just bound, held until it is let go so its press does not act on the new binding.
     std::string binding_wait;
 };
 
 extern Screen g_screen;
 
 struct Texts {
-    std::deque<GameText>              tabs;
-    std::deque<std::deque<GameText>> labels;
-    std::deque<std::deque<GameText>> values;
-    GameText                           left;
-    GameText                           right;
-    GameText                           l1;
-    GameText                           r1;
-    GameText                           shortcuts;
+    std::deque<UI::Label>              tabs;
+    std::deque<std::deque<UI::Label>> labels;
+    std::deque<std::deque<UI::Label>> values;
+    UI::Label                          left;
+    UI::Label                          right;
+    UI::Label                          l1;
+    UI::Label                          r1;
+    UI::Label                          shortcuts;
     GameTextFile                       help;
 
     Texts();

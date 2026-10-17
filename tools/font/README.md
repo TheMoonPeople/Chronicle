@@ -23,3 +23,8 @@ uses `font.ttf`. Its digit 5 is the original, not the redrawn one, and no card d
 
 Cinzel (Copyright 2020 The Cinzel Project Authors, https://github.com/NDISCOVER/Cinzel), SIL Open Font License 1.1. It is
 used only by `tools/textpack/build.py`, to letter the bosses' names (a Trajan-style serif) on the pictures that tool draws.
+
+## SourceSansProSemibold.ttf
+Copyright 2010, 2012 Adobe Systems Incorporated﻿
+﻿license: SIL Open Font License (OFL)
+link: https://www.fontspace.com/source-sans-pro-font-f15035

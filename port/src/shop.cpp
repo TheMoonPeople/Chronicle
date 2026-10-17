@@ -59,7 +59,6 @@ struct FishMenuWork {
 extern FishMenuWork FishMenu;
 extern CTexture    *FishMenuTex;
 
-
 extern ShopMenuWork ShopMenu;
 extern CTexture    *ShopBoard;
 extern CStockItem  *ShopStockPt;

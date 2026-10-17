@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "battle_globals.hpp"
+#include "battlemenu.hpp"
 #include "btsysscript.hpp"
 #include "caption_text.hpp"
 #include "dataread.hpp"
@@ -51,6 +52,7 @@
 int  EditInit(void *param);
 int  EditLoop();
 void SndInit();
+bool TakeBattleMenuLoadRequest();
 
 extern s32 mode;
 extern s32 gameTask;
@@ -947,7 +949,19 @@ int RunGame(int argc, char **argv) {
                 StartEventNo = -1;
                 result = 1;
             }
-
+            
+            if (result == 0 && TakeBattleMenuLoadRequest()) {
+                const s32 loaded_map = *reinterpret_cast<const s32 *>(
+                    reinterpret_cast<const char *>(SaveData) + kSaveMapNoOffset);
+                MapNo        = (loaded_map >= 0 && loaded_map < 200) ? loaded_map : 0;
+                LocalMapNo   = MapNo;
+                OldMapNo     = -1;
+                NextMapNo    = -1;
+                StartEventNo = -1;
+                GameApplyLoopResult(GAME_MODE_TITLE, 2);
+                break;
+            }
+            
             GiveOnArrival();
             InputSetLookOnLeftStick((mode == GAME_MODE_DUNGEON && gameTask == GAME_TASK_EYE_CAMERA) ||
                                     (mode == GAME_MODE_EDIT && viewMode != 0 && EdInteriorFlag == 0));

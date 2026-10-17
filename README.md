@@ -1,60 +1,98 @@
-# Chronicle
+<div align="center">
 
-[![NTSC Progress]](https://decomp.dev/TheMoonPeople/Chronicle/ntsc)
-[![PAL Progress]](https://decomp.dev/TheMoonPeople/Chronicle/pal)
+<img src="https://i.imgur.com/pCMkgRM.png" alt="Chronicle" width="700">
 
-[NTSC Progress]: https://decomp.dev/TheMoonPeople/Chronicle/ntsc.svg?mode=shield&label=NTSC&measure=matched_code_percent
-[PAL Progress]: https://decomp.dev/TheMoonPeople/Chronicle/pal.svg?mode=shield&label=PAL&measure=matched_code_percent
-[progress_link]: https://decomp.dev/TheMoonPeople/Chronicle/
+**A decompilation project and modern port of Dark Cloud for the PlayStation 2.**
 
-[<img src="https://decomp.dev/TheMoonPeople/Chronicle/ntsc.svg?w=512&h=256" width="512" height="256" alt="A visual">][progress_link]
+[![Documentation](https://img.shields.io/badge/Documentation-2563EB?style=for-the-badge&logo=readthedocs&logoColor=white)](https://themoonpeople.github.io/Chronicle/)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/RGuE998sDY)
 
-Chronicle is a decompilation project and port of Dark Cloud for the PlayStation 2.
+[![NTSC Progress](https://decomp.dev/TheMoonPeople/Chronicle/ntsc.svg?mode=shield&label=NTSC&measure=matched_code_percent)](https://decomp.dev/TheMoonPeople/Chronicle/ntsc)
+[![PAL Progress](https://decomp.dev/TheMoonPeople/Chronicle/pal.svg?mode=shield&label=PAL&measure=matched_code_percent)](https://decomp.dev/TheMoonPeople/Chronicle/pal)
 
-This project produces 100% matching text and data sections for the main executable for the NTSC 1.02 and PAL review versions, and 100% matching `TITLE.BIN` and `DUN.BIN` overlays. Matching the main executable's debug symbols may be explored in the future.
+[<img src="https://decomp.dev/TheMoonPeople/Chronicle/ntsc.svg?w=512&h=256" width="512" alt="Decompilation progress">](https://decomp.dev/TheMoonPeople/Chronicle/)
 
-# Building and running
+</div>
 
-1. Clone the repository with `git clone --recurse-submodules https://github.com/TheMoonPeople/Chronicle.git`.
-   The build system is Kazarov, in `tools/kazarov`; the first build fetches it if it is missing.
-2. Place your disc image in `rom/<region>/`: `rom/pal/Dark Cloud (PAL).iso` for the PAL release, or
-   `rom/ntsc/Dark Cloud (NTSC).iso` for NTSC 1.02. An image at `rom/Dark Cloud (<REGION>).iso` is also accepted.
-3. Run `./build.sh <configuration>`, or `build.bat <configuration>` on Windows.
+## Overview
 
-`./run.sh <configuration> [arguments]` builds the same way and then launches the result. PS2
-configurations boot the disc image in PCSX2; port configurations start the game, with the arguments
-passed on to it.
+**Chronicle** is a decompilation project and port of _Dark Cloud_ for the PlayStation 2.
 
-| Configuration | Builds |
-|---|---|
-| `ps2-pal` (`ps2`, `pal`) | the PAL PS2 executable and disc image |
-| `ps2-ntsc` (`ntsc`) | the NTSC 1.02 PS2 executable and disc image |
-| `linux-x64-release` (`linux`) | the optimized Linux port, in `port/build/pc-release` |
-| `linux-x64` (`linux-x64-debug`) | the Debug Linux port, in `port/build/pc` |
-| `macos-arm64-release` (`macos`) | the optimized Apple Silicon port, in `port/build/macos-arm64-release` |
-| `macos-arm64` | the Debug Apple Silicon port, in `port/build/macos-arm64` |
-| `windows-x64-release` (`windows`) | the optimized Windows port |
-| `windows-x64` | the Debug Windows port |
+The project aims to produce **100% matching text and data sections** for:
 
-With no configuration, the scripts use the port for the host's operating system. PS2 builds must name
-their configuration. The Linux and PS2 configurations build in a container, which needs Docker or Podman;
-the macOS and Windows ports build on the host, with the dependencies in `docs/MACOS.md` and `docs/WINDOWS.md` installed.
+- The main executable of the **NTSC 1.02** release.
+- The main executable of the **PAL review** version.
+- The `TITLE.BIN` and `DUN.BIN` overlays.
 
-`CLEAN=1` discards the configuration's build directory before building, and `JOBS=N` sets the number of
-parallel jobs. The configurations and their settings are listed in `kazarov.conf` and `tools/kazarov/README.md`.
+## Building and Running
 
-## The PC port
+### Prerequisites
 
-`PLATFORM=PC` builds the game's code as a native Linux, macOS and Windows program on SDL3 and Vulkan
-(`docs/PC.md`, `docs/MACOS.md`). On Linux it is packaged as a Flatpak, built by CI as
-`chronicle.flatpak`; `docs/FLATPAK.md` covers installing it. It needs your own PAL disc: the first
-start asks for the disc image and extracts the game's files from it.
+- A copy of _Dark Cloud_ (ideally the PAL version).
 
-### Translations and the message font
+### 1. Clone the repository
 
-Game text can come from JSON language files (one per language, laid out as Minecraft's are) and be drawn from a
-TrueType font so it stays sharp at any window size. The first start writes the language files from your own
-game data; the Dark Cloud community font is bundled. See `docs/LOCALIZATION.md`.
+```bash
+git clone --recurse-submodules https://github.com/TheMoonPeople/Chronicle.git
+cd Chronicle
+```
+
+### 2. Provide a disc image
+
+Place your disc image in the corresponding region directory:
+
+| Region    | Path                             |
+| :-------- | :------------------------------- |
+| PAL       | `rom/pal/Dark Cloud (PAL).iso`   |
+| NTSC 1.02 | `rom/ntsc/Dark Cloud (NTSC).iso` |
+
+### 3. Build the project
+
+**Linux / macOS**
+
+```bash
+./build.sh <configuration>
+```
+
+**Windows**
+
+```batch
+build.bat <configuration>
+```
+
+### 4. Run the project
+
+```bash
+./run.sh <configuration> [arguments]
+```
+
+### Build Configurations
+
+| Configuration         | Platform      | Build                               |
+| :-------------------- | :------------ | :---------------------------------- |
+| `ps2-pal`             | PlayStation 2 | PAL executable and disc image       |
+| `ps2-ntsc`            | PlayStation 2 | NTSC 1.02 executable and disc image |
+| `linux-x64-release`   | Linux x64     | Release                             |
+| `linux-x64`           | Linux x64     | Debug                               |
+| `macos-arm64-release` | macOS ARM64   | Release                             |
+| `macos-arm64`         | macOS ARM64   | Debug                               |
+| `windows-x64-release` | Windows x64   | Release                             |
+| `windows-x64`         | Windows x64   | Debug                               |
+
+### Build Options
+
+The following environment variables can be used to customise the build:
+
+| Variable  | Description                                                           |
+| :-------- | :-------------------------------------------------------------------- |
+| `CLEAN=1` | Removes the selected configuration's build directory before building. |
+| `JOBS=N`  | Sets the number of parallel build jobs.                               |
+
+For example:
+
+```bash
+CLEAN=1 JOBS=8 ./build.sh linux-x64-release
+```
 
 ## Android build
 
@@ -93,18 +131,3 @@ destination root. Its default destination is the maintainer's mapped `Z:\` Games
 See [`android/README.md`](android/README.md) for prerequisites, setup, and build details. Prebuilt test
 packages, when available, are published on the [GitHub Releases page](https://github.com/anxiousintrovert/Chronicle-Android/releases).
 They contain the app only; users must supply their own compatible PAL disc image.
-
-## Repository layout
-
-- `ps2/src`, `ps2/include`: matching game sources and headers.
-- `ps2/config`, `ps2/asm`: per-region split configuration and generated reference assembly.
-- `ps2/CMakeLists.txt`, `ps2/cmake`: PS2 build rules.
-- `port/src`, `port/include`: native replacements and platform support.
-- `port/CMakeLists.txt`, `port/flatpak`: native build rules and Linux packaging.
-- `scripts`: build, port and tooling scripts.
-- `tools`: compilers, the Kazarov build system (`tools/kazarov`) and helpers.
-- `rom`: disc images and their checksums.
-
-## Documentation
-
-Source documentation is available on [GitHub Pages](https://themoonpeople.github.io/Chronicle/).
