@@ -208,7 +208,7 @@ TEST(MenuOption, PagesInOrder) {
         names.push_back(page.name);
     }
     ASSERT_TRUE((names == std::vector<std::string_view>{"Game", "Display", "Audio", "Controls", "Text", "Accessibility",
-                                                        "Bindings"}));
+                                                        "Bindings", "QOL"}));
     ASSERT_TRUE(std::string_view(pages[5].rows[0].key) == "game.qte_always_win");
 }
 

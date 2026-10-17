@@ -708,6 +708,13 @@ const Row kTextRows[] = {
                PictureShadowText<&Config::boss_shadow>),
 };
 
+const Row kQolRows[] = {
+    NamedRow<&Config::feather_toggle>("qol.feather_toggle", "Dran's Feather Toggle",
+        "\"Dran's Feather Toggle\"\nPress Square for on/off.\nMenus or slot changes\nturn it off. Uses duration.", "Off|On"),
+    NamedRow<&Config::inventory_auto_repair>("qol.inventory_auto_repair", "Inventory Auto Repair",
+        "\"Inventory Auto Repair\"\nAuto Repair Powder also\nworks from your bag.\nQuick slots are used first.", "Off|On"),
+};
+
 // Strings the binding rows point at. A deque never moves what it holds, so the c_str pointers the
 // rows keep stay valid as more are added.
 const char *Keep(std::string text) {
@@ -808,7 +815,8 @@ std::span<const Page> Pages() {
         {"Controls",      "\"Controls\"\nMouse, gamepad and gyro.",                  kControlRows      },
         {"Text",          "\"Text\"\nLanguage, lettering and\nsymbols.",             kTextRows         },
         {"Accessibility", "\"Accessibility\"\nHelp with harder parts\nof the game.", kAccessibilityRows},
-        {"Bindings",      "\"Bindings\"\nWhat each key and\nmouse button does.",       BindingRows()     },
+        {"Bindings",      "\"Bindings\"\nWhat each key and\nmouse button does.",     BindingRows()     },
+        {"QOL", "\"QOL\"\nQuality of life options.", kQolRows},
     };
     return pages;
 }
