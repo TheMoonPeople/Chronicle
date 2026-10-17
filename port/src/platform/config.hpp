@@ -36,6 +36,10 @@ struct ConfigGameOptions {
 struct Config : HostSettings {
     bool              debug_mode = false;
     bool              qte_always_win = false;
+    bool              inventory_auto_repair = false;
+    bool              feather_toggle = false;
+    bool              skip_atla_cutscene = false;
+    bool              skip_small_chest_cutscene = false;
     bool              element_quick_select = false;
     bool              swap_keeps_lock_on = false;
     bool              text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
@@ -82,7 +86,7 @@ float ConfigDetailDistance();
 float ConfigShadowDistance();
 
 // Parses a JSON text (comments allowed) over the defaults: an object of the sections game, video,
-// audio, input and discord. Unknown keys and bad values are reported on stderr and leave the default in
+// audio, input, qol and discord. Unknown keys and bad values are reported on stderr and leave the default in
 // place, as does a text that is not JSON; an empty text is the defaults.
 Config ConfigParse(std::string_view text);
 
