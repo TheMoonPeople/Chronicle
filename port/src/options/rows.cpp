@@ -709,6 +709,10 @@ const Row kTextRows[] = {
 };
 
 const Row kQolRows[] = {
+    NamedRow<&Config::skip_atla_cutscene>("qol.skip_atla_cutscene", "Skip Atla Cutscene",
+        "\"Skip Atla Cutscene\"\nCollect Atla immediately.\nKeep the reward and\npickup message.", "Off|On"),
+    NamedRow<&Config::skip_small_chest_cutscene>("qol.skip_small_chest_cutscene", "Skip Small Chest Scene",
+        "\"Skip Small Chest\"\nOpen small chests quickly.\nKeep items and messages.\nLarge chests unchanged.", "Off|On"),
     NamedRow<&Config::feather_toggle>("qol.feather_toggle", "Dran's Feather Toggle",
         "\"Dran's Feather Toggle\"\nPress Square for on/off.\nMenus or slot changes\nturn it off. Uses duration.", "Off|On"),
     NamedRow<&Config::inventory_auto_repair>("qol.inventory_auto_repair", "Inventory Auto Repair",

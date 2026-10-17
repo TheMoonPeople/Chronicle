@@ -38,6 +38,8 @@ struct Config : HostSettings {
     bool              qte_always_win = false;
     bool              inventory_auto_repair = false;
     bool              feather_toggle = false;
+    bool              skip_atla_cutscene = false;
+    bool              skip_small_chest_cutscene = false;
     bool              element_quick_select = false;
     bool              swap_keeps_lock_on = false;
     bool              text_wipe = false; /**< Enables the developer text comparison and tuning tool. */

@@ -350,5 +350,13 @@
     "options.qol.feather_toggle.choice.0": "Non",
     "options.qol.feather_toggle.choice.1": "Oui",
     "options.qol.feather_toggle.help": "\"Plume de Dran : bascule\"\nCarré : activer/arrêter.\nMenu ou autre case : arrêt.\nConsomme la durée.",
-    "options.qol.feather_toggle.label": "Plume de Dran : bascule"
+    "options.qol.feather_toggle.label": "Plume de Dran : bascule",
+    "options.qol.skip_atla_cutscene.label": "Passer la scène Atla",
+    "options.qol.skip_atla_cutscene.help": "\"Passer la scène Atla\"\nCollecter Atla aussitôt.\nConserver la récompense\net le message.",
+    "options.qol.skip_atla_cutscene.choice.0": "Non",
+    "options.qol.skip_atla_cutscene.choice.1": "Oui",
+    "options.qol.skip_small_chest_cutscene.label": "Passer le petit coffre",
+    "options.qol.skip_small_chest_cutscene.help": "\"Passer le petit coffre\"\nOuvrir les petits coffres.\nObjets et messages gardés.\nGrands coffres inchangés.",
+    "options.qol.skip_small_chest_cutscene.choice.0": "Non",
+    "options.qol.skip_small_chest_cutscene.choice.1": "Oui"
 }

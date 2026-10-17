@@ -350,5 +350,13 @@
     "options.qol.feather_toggle.choice.0": "No",
     "options.qol.feather_toggle.choice.1": "Sí",
     "options.qol.feather_toggle.help": "\"Alternar pluma de Dran\"\nCuadrado: activar/apagar.\nMenú u otra ranura: apagar.\nConsume duración.",
-    "options.qol.feather_toggle.label": "Alternar pluma de Dran"
+    "options.qol.feather_toggle.label": "Alternar pluma de Dran",
+    "options.qol.skip_atla_cutscene.label": "Omitir escena de Atla",
+    "options.qol.skip_atla_cutscene.help": "\"Omitir escena de Atla\"\nRecoge Atla al instante.\nConserva la recompensa\ny el mensaje.",
+    "options.qol.skip_atla_cutscene.choice.0": "No",
+    "options.qol.skip_atla_cutscene.choice.1": "Sí",
+    "options.qol.skip_small_chest_cutscene.label": "Omitir escena de cofre",
+    "options.qol.skip_small_chest_cutscene.help": "\"Omitir escena de cofre\"\nAbre los cofres pequeños.\nConserva objetos y avisos.\nCofres grandes sin cambios.",
+    "options.qol.skip_small_chest_cutscene.choice.0": "No",
+    "options.qol.skip_small_chest_cutscene.choice.1": "Sí"
 }

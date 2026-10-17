@@ -12,6 +12,7 @@
 #include "btactstatus.hpp"
 #include "btitem.hpp"
 #include "feather_toggle.hpp"
+#include "pickup_qol.hpp"
 #include "btmisc.hpp"
 #include "btsysscript.hpp"
 #include "camera.hpp"
@@ -2724,6 +2725,10 @@ PORT_OVERRIDE void DunMoveChara() {
 
             break;
         case GAME_TASK_BOX_SMALL_INIT:
+            if (QolSkipSmallChest(selectMapNo)) {
+                gameTask = GAME_TASK_PLAY;
+                break;
+            }
             BtGetTreasureboxSmall_Init(selectMapNo);
             gameTask++;
             break;
@@ -2734,6 +2739,10 @@ PORT_OVERRIDE void DunMoveChara() {
 
             break;
         case GAME_TASK_ATRA_GET_INIT:
+            if (QolSkipAtla(selectMapNo, UserStatus->cur_floor)) {
+                gameTask = GAME_TASK_PLAY;
+                break;
+            }
             BtAtraGetShort_Init();
             iventMarker = 0;
             gameTask++;
