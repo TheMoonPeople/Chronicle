@@ -3,12 +3,14 @@
 #include <exception>
 
 #include "dcdata.hpp"
+#include "textures.hpp"
 
 namespace {
 
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
-               "       dcdata list <iso-or-directory>\n",
+               "       dcdata list <iso-or-directory>\n"
+               "       dcdata textures <data-directory> <assets-directory> [--overwrite]\n",
                stderr);
     return 2;
 }
@@ -59,10 +61,22 @@ int Extract(const std::filesystem::path &source, const std::filesystem::path &ou
 
 } // namespace
 
+int Textures(const std::filesystem::path &data, const std::filesystem::path &assets, bool overwrite) {
+    if (!std::filesystem::is_directory(data)) {
+        dcdata::Fail("{} is not a folder: extract the disc first", data.string());
+    }
+    dcdata::ConvertTextures(data, assets, stdout, overwrite);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     try {
         if (argc == 4 && std::strcmp(argv[1], "extract") == 0) {
             return Extract(argv[2], argv[3]);
+        }
+        if ((argc == 4 || (argc == 5 && std::strcmp(argv[4], "--overwrite") == 0)) &&
+            std::strcmp(argv[1], "textures") == 0) {
+            return Textures(argv[2], argv[3], argc == 5);
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);

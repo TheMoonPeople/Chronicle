@@ -59,6 +59,10 @@ bool MGPortFrameTarget(std::string_view name);
 // there the main target holds only MGBeginFrame's clear.
 void MGPortMovePreviousFrameImage(sceGsTex0 *dst);
 
+// MGSetViewMatrix for a view drawn into another target within the tick (the aerial map), which is
+// not a camera cut of the frame's own view.
+void MGPortSetViewMatrixNoCut(float view[4][4], float *position);
+
 // ---- Display lists ---------------------------------------------------------------------------
 
 // The next tick MGBeginFrame records is not interpolated from the one before (a mode's first).

@@ -24,6 +24,7 @@
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
 #include "dungeoneventman.hpp"
+#include "dungeon_aerial.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
 #include "editloop3.hpp"
@@ -582,7 +583,11 @@ PORT_OVERRIDE void DunMainDraw() {
             sceVu0CopyVector(map_pos, CharaFrame->position);
             CharaFrame->GetRotation(map_rot);
             NowDngMap->DrawMiniMap(map_pos, map_rot[1]);
-            NowMonstorUnit->DrawMapSymbol(map_pos);
+
+            // The aerial map shows the monsters as their models.
+            if (!DungeonAerialMapDrawn()) {
+                NowMonstorUnit->DrawMapSymbol(map_pos);
+            }
             RandomItem->MapSymbolDraw();
         }
 

@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -12,6 +13,7 @@
 #include "draw3d.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
+#include "normal_smoothing.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
 #include "visual.hpp"
@@ -19,6 +21,73 @@
 namespace {
 
 constexpr uint32_t kBlockTag = 0x44334443; // "CD3D"
+
+float g_smooth_degrees = -1.0f; // -1: not read from the environment yet
+
+float SmoothingAngle() {
+    if (g_smooth_degrees < 0.0f) {
+        const char *text = std::getenv("DC_SMOOTH_NORMALS");
+        g_smooth_degrees = text != nullptr ? static_cast<float>(std::atof(text)) : 0.0f;
+        if (g_smooth_degrees < 0.0f) {
+            g_smooth_degrees = 0.0f;
+        }
+    }
+    return g_smooth_degrees;
+}
+
+// Averages each vertex's normal with those of the vertices at the same point whose normals are within the crease
+// angle of its own. Vertices are found by position, so it works across strips and across texture seams.
+void SmoothNormals(std::vector<gfx::Vertex3D> &vertices, float crease_degrees) {
+    const float threshold = std::cos(crease_degrees * 0.017453292f);
+    struct Key {
+        int32_t x, y, z;
+        bool    operator==(const Key &o) const { return x == o.x && y == o.y && z == o.z; }
+    };
+    struct KeyHash {
+        size_t operator()(const Key &k) const {
+            return (static_cast<size_t>(k.x) * 73856093u) ^ (static_cast<size_t>(k.y) * 19349663u) ^
+                   (static_cast<size_t>(k.z) * 83492791u);
+        }
+    };
+    std::unordered_map<Key, std::vector<uint32_t>, KeyHash> groups;
+    groups.reserve(vertices.size());
+    for (uint32_t i = 0; i < vertices.size(); i++) {
+        const float *p = vertices[i].position;
+        groups[{static_cast<int32_t>(std::lround(p[0] * 256.0f)), static_cast<int32_t>(std::lround(p[1] * 256.0f)),
+                static_cast<int32_t>(std::lround(p[2] * 256.0f))}].push_back(i);
+    }
+    std::vector<std::array<float, 3>> original(vertices.size());
+    for (uint32_t i = 0; i < vertices.size(); i++) {
+        const float *n = vertices[i].normal;
+        const float  length = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        const float  scale = length > 1e-6f ? 1.0f / length : 0.0f;
+        original[i] = {n[0] * scale, n[1] * scale, n[2] * scale};
+    }
+    for (auto &entry : groups) {
+        const std::vector<uint32_t> &members = entry.second;
+        if (members.size() < 2) {
+            continue;
+        }
+        for (uint32_t i : members) {
+            float sum[3] = {0, 0, 0};
+            for (uint32_t j : members) {
+                const float dot = original[i][0] * original[j][0] + original[i][1] * original[j][1] +
+                                  original[i][2] * original[j][2];
+                if (dot >= threshold) {
+                    sum[0] += original[j][0];
+                    sum[1] += original[j][1];
+                    sum[2] += original[j][2];
+                }
+            }
+            const float length = std::sqrt(sum[0] * sum[0] + sum[1] * sum[1] + sum[2] * sum[2]);
+            if (length > 1e-6f) {
+                vertices[i].normal[0] = sum[0] / length;
+                vertices[i].normal[1] = sum[1] / length;
+                vertices[i].normal[2] = sum[2] / length;
+            }
+        }
+    }
+}
 
 std::unordered_map<const void *, std::unique_ptr<Draw3DVisual>> g_visuals;
 std::unordered_map<const void *, std::unique_ptr<Draw3DVisual>> g_transient;
@@ -652,6 +721,9 @@ PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int
         visual.strips.push_back(strip);
     }
 
+    if (SmoothingAngle() > 0.0f) {
+        SmoothNormals(visual.vertices, SmoothingAngle());
+    }
     SpanWholeTexture(visual, runs);
     AddForestGroundTransitions(visual);
     AddForestGroundBorders(visual);
@@ -734,4 +806,10 @@ PORT_OVERRIDE int CVisualMDTVu1::RemakeData(u_int *block) {
         return 0;
     }
     return CreateVUdataFromMDTRemake(vu_data_buffer[DBuffID], data, 1);
+}
+
+float PortSetNormalSmoothing(float crease_degrees) {
+    const float previous = SmoothingAngle();
+    g_smooth_degrees = crease_degrees < 0.0f ? 0.0f : crease_degrees;
+    return previous;
 }
