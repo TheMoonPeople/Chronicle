@@ -2690,8 +2690,8 @@ static int menu_mode_status;
 /** Item-list string supplied to the editor's use-item menu. */
 static char *p_use_item;
 
-/** Map requested by the world-map event command. */
-static int p_jump_map_no;
+/** Script result slot for the world-map event command. */
+static RS_STACKDATA *p_jump_map_no;
 
 /** Whether execution of the current event has stopped. */
 static int event_stop;
@@ -3578,7 +3578,7 @@ static int _WORLD_MAP(RS_STACKDATA *stack, int argument_count) {
         return 0;
     }
 
-    p_jump_map_no = stack->i;
+    p_jump_map_no = stack->p;
     menu_mode = ED_MENU_WORLD_MAP;
     return 1;
 }
@@ -8937,11 +8937,11 @@ int EdEventMode(CCameraFollow *camera, int kind) {
                         case ED_MENU_NAME_REGISTRY:
                             break;
                         case ED_MENU_WORLD_MAP:
-                            if (p_jump_map_no != 0) {
-                                ((RS_STACKDATA *) p_jump_map_no)->i = MenuMapJumpMode + 1;
+                            if (p_jump_map_no != NULL) {
+                                p_jump_map_no->i = MenuMapJumpMode + 1;
                             }
 
-                            p_jump_map_no = 0;
+                            p_jump_map_no = NULL;
                             break;
                     }
 
