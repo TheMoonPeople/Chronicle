@@ -15,6 +15,7 @@
 #include "main.hpp"
 #include "memcard.hpp"
 #include "menu_save.hpp"
+#include "menu_pointer.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
 #include "savedata.hpp"
@@ -42,6 +43,57 @@ int  OpeningBookKey();
 void OpeningBookDraw();
 void TiPlayVolSE(int group, int no, int voice, float volume);
 
+namespace {
+MenuPointer title_pointer;
+
+struct TitlePointerAction {
+    bool start = false;
+    bool confirm = false;
+    bool back = false;
+    bool moved = false;
+};
+
+TitlePointerAction TakeTitlePointer() {
+    TitlePointerAction action;
+    if (CProcess.no == TITLE_STEP_OPTION_INIT || CProcess.no == TITLE_STEP_OPTION ||
+        CProcess.no == TITLE_STEP_SAVE_INIT || CProcess.no == TITLE_STEP_SAVE) {
+        // The child screen owns pointer capture, including a button held through the fade.
+        title_pointer.Abandon();
+        return action;
+    }
+    if (CProcess.no != TITLE_STEP_LOGO && CProcess.no != TITLE_STEP_MENU) {
+        title_pointer.Close();
+        return action;
+    }
+    if (!title_pointer.IsOpen()) {
+        title_pointer.Open();
+    }
+    auto take = title_pointer.Take(225.0f, CProcess.no == TITLE_STEP_MENU ? CCursol.GetPos() : 312.0f);
+    MenuPointerShow(&title_pointer);
+    if (!take.pointing || !take.moved) {
+        return action;
+    }
+    const float x = title_pointer.x;
+    const float y = title_pointer.y - (SCREEN_HEIGHT - 448) / 2;
+    if (CProcess.no == TITLE_STEP_LOGO) {
+        action.start = (take.clicked & 1) && x >= 64 && x < 576 && y >= 296 && y < 360;
+    } else {
+        action.back = (take.clicked & 2) != 0;
+        if (x >= 193 && x < 449 && y >= 280 && y < 376) {
+            int row = static_cast<int>((y - 280) / 32);
+            if (CCursol.select != row) {
+                CCursol.select = row;
+                TiPlayVolSE(MIDI_PORT_UNK_D, 122, 24, 1.0f);
+            }
+            action.moved = true;
+            action.confirm = (take.clicked & 1) != 0;
+            opcnt = 0;
+        }
+    }
+    return action;
+}
+} // namespace
+
 PORT_OVERRIDE int TitleLoop() {
     sceVu0FVECTOR pos;
     sceVu0FMATRIX matrix;
@@ -52,6 +104,7 @@ PORT_OVERRIDE int TitleLoop() {
     FCamera.GetCameraMatrix(matrix);
     MGSetViewMatrix(matrix, pos);
     Cloud__2.Step();
+    const auto pointer = TakeTitlePointer();
 
     switch (CProcess.no) {
         case TITLE_STEP_FADE_IN:
@@ -84,7 +137,7 @@ PORT_OVERRIDE int TitleLoop() {
                 CProcess.no = TITLE_STEP_LOGO;
             }
 
-            if (GamePad.Down(PAD_START)) {
+            if (GamePad.Down(PAD_START) || pointer.start) {
                 CProcess.no = TITLE_STEP_LOGO;
             }
 
@@ -97,7 +150,7 @@ PORT_OVERRIDE int TitleLoop() {
 
             CSprite.Move();
 
-            if (GamePad.Down(PAD_START)) {
+            if (GamePad.Down(PAD_START) || pointer.start) {
                 Logo.motion_type.state.time = 116.0f;
                 Fade1 = 128;
                 CSprite.x[0] = 700.0f;
@@ -126,7 +179,7 @@ PORT_OVERRIDE int TitleLoop() {
                     CLogo.Move();
                 }
 
-                if (Fade1 > 127 && GamePad.Down(PAD_START)) {
+                if (Fade1 > 127 && (GamePad.Down(PAD_START) || pointer.start)) {
                     TiPlayVolSE(MIDI_PORT_UNK_D, 122, 25, 1.0f);
                     CProcess.no = TITLE_STEP_MENU;
                     opcnt = 0;
@@ -147,7 +200,7 @@ PORT_OVERRIDE int TitleLoop() {
         case TITLE_STEP_MENU:
             CLogo.Move();
 
-            if (CCursol.Move()) {
+            if (CCursol.Move() || pointer.moved || pointer.back) {
                 if (GamePad.Down(PAD_UP)) {
                     CCursol.select--;
                     opcnt = 0;
@@ -180,13 +233,13 @@ PORT_OVERRIDE int TitleLoop() {
                         break;
                 }
 
-                if (GamePad.Down(PAD_START) || GamePad.Down(PAD_CROSS)) {
+                if (GamePad.Down(PAD_START) || GamePad.Down(PAD_CROSS) || pointer.confirm) {
                     TiPlayVolSE(MIDI_PORT_SE_DEFAULT, 38, 20, 1.0f);
                     CProcess.no = TITLE_STEP_MENU_BLINK;
                     opcnt = 0;
                 }
 
-                if (GamePad.Down(PAD_CIRCLE)) {
+                if (GamePad.Down(PAD_CIRCLE) || pointer.back) {
                     Fade1 = Fade2 = Fade3 = Fade4 = 0;
                     CSprite.Init();
                     CLogo.Init();
@@ -497,7 +550,10 @@ PORT_OVERRIDE void TitleDraw() {
 
                     RECT rect = {0, 0, 32, 32};
 
-                    DrawObjectVibe(225, CCursol.GetPos(), TexManager.GetTexture("icon01", -1), rect, 128, CFade.Get(128));
+                    float hand_x = 225;
+                    float hand_y = CCursol.GetPos();
+                    MenuPointerHand(hand_x, hand_y);
+                    DrawObjectVibe(hand_x, hand_y, TexManager.GetTexture("icon01", -1), rect, 128, CFade.Get(128));
                     setbilinear(1);
                 }
             }
@@ -520,5 +576,14 @@ PORT_OVERRIDE void TitleDraw() {
             break;
     }
 
+    if (CProcess.no == TITLE_STEP_LOGO && title_pointer.pointing) {
+        float hand_x = 0, hand_y = 0;
+        if (MenuPointerHand(hand_x, hand_y)) {
+            RECT rect = {0, 0, 32, 32};
+            setbilinear(0);
+            DrawObjectVibe(hand_x, hand_y, TexManager.GetTexture("icon01", -1), rect, 128, 128);
+            setbilinear(1);
+        }
+    }
     TitlePortFeedback(35);
 }

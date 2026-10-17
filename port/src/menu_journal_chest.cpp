@@ -131,6 +131,20 @@ void Open() {
     s_cursor.SnapTo(48.0f, static_cast<float>(kLeftStartY - 2));
 }
 
+void HandlePointer(float x, float y) {
+    if (x >= 84 && x < 248 && y >= kLeftStartY - 4 &&
+        y < kLeftStartY - 4 + TRACKER_TOWN_COUNT * kRowSpacing) {
+        const int town = static_cast<int>((y - (kLeftStartY - 4)) / kRowSpacing);
+        if (town != s_selected_town) {
+            s_selected_town = town;
+            ComMenuSePlay(MENU_SOUND_CURSOR);
+        }
+    } else if (x >= 180 && x < 460 && y >= 100 && y < 128) {
+        s_filter_miracle_only = !s_filter_miracle_only;
+        ComMenuSePlay(MENU_SOUND_CONFIRM);
+    }
+}
+
 bool HandleKey() {
     if (GamePad.Down(PAD_CIRCLE)) {
         ComMenuSePlay(MENU_SOUND_REFUSE);
