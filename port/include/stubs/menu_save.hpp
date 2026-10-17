@@ -1,5 +1,8 @@
 #pragma once
 
+// Keep the item picker's game logic available to the port's pointer wrapper.
+#define EventItemSelectLoop PortEventItemSelectLoop
+
 // memcard.cpp's SaveMenuFunc table names the save menu's steps, which this unit defines static:
 // the PS2 link makes them global (object_fixups.json, globalize_symbols). Each gets a global
 // symbol under the name the table references, which also keeps clang from dropping the static

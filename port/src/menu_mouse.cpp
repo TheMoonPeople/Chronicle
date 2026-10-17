@@ -1,4 +1,5 @@
 #include "menu_pointer.hpp"
+#include "menu_event_pointer.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1096,6 +1097,13 @@ void MenuMouseUpdate() {
     MenuPointerShow(nullptr);
     bool battle = g_battle_drawn;
     g_battle_drawn = false;
+
+    if (EventItemPointerUpdate()) {
+        g_battle.Abandon();
+        g_save.Abandon();
+        g_save_open = false;
+        return;
+    }
 
     bool save = SaveMenu.texture_ready != 0 && SaveMenu.key_no != SAVE_KEY_FADE_OUT;
     if (save) {
