@@ -34,6 +34,8 @@ void Prompt(int left) {
     mes.text_y = 220;
     mes.text_width = 200;
     mes.char_height = 24;
+    mes.fukidashi = 0;
+    mes.centre_rows = 0;
     mes.win_line_num = 2;
     mes.win_line[0] = {-0x2F8, 0, 24, 0, 0};
     mes.win_line[1] = {-0x2FA, 80, 24, 0, 0};
@@ -65,4 +67,20 @@ TEST(MenuSavePointer, BackDoesNotRequireHoveringAChoice) {
     Prompt(0);
     Open(SAVE_KEY_LOAD_DECIDE);
     EXPECT_EQ(Click(2), kInputCircle);
+}
+
+TEST(MenuSavePointer, LoadYesIncludesRenderedRowCentring) {
+    Prompt(300);
+    CommonMenuMes2.text_y = 200;
+    CommonMenuMes2.char_height = 20;
+    CommonMenuMes2.rows = 4;
+    CommonMenuMes2.text_rows = 2;
+    CommonMenuMes2.centre_rows = 1;
+    Open(SAVE_KEY_LOAD_DECIDE);
+    EXPECT_EQ(Click(1), kInputCross);
+}
+
+TEST(MenuSavePointer, EndingCompletionBackAcknowledgesWithCross) {
+    Open(SAVE_KEY_END_SAVE_ENDING);
+    EXPECT_EQ(Click(2), kInputCross);
 }

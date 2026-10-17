@@ -319,7 +319,7 @@ void SaveMouse() {
     MenuPointerTake take = g_save.Take(320.0f, 240.0f);
     MenuPointerShow(&g_save);
     if ((take.clicked & 2) != 0) {
-        MenuPointerPress(kInputCircle);
+        MenuPointerPress(SaveMenu.key_no == SAVE_KEY_END_SAVE_ENDING ? kInputCross : kInputCircle);
         return;
     }
     bool slots = SaveMenu.key_no == SAVE_KEY_FILE_SELECT;
@@ -351,7 +351,10 @@ void SaveMouse() {
                 const auto &line = mes.win_line[i];
                 if (line.code != -0x2F8 && line.code != -0x2FA) continue;
                 float left = mes.text_x + line.x;
-                float top = mes.text_y + line.y;
+                const int row_offset = mes.fukidashi == 0 && mes.centre_rows != 0
+                                           ? (mes.char_height * (mes.rows - mes.text_rows)) >> 1
+                                           : 0;
+                float top = mes.text_y + row_offset + line.y;
                 float right = mes.text_x + mes.text_width;
                 for (int j = i + 1; j < mes.win_line_num && mes.win_line[j].y == line.y; ++j) {
                     if (mes.win_line[j].code == -0x2F8 || mes.win_line[j].code == -0x2FA) {
