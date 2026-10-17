@@ -379,5 +379,13 @@
     "options.qol.feather_toggle.choice.0": "No",
     "options.qol.feather_toggle.choice.1": "Sì",
     "options.qol.feather_toggle.help": "\"Piuma di Dran: interr.\"\nQuadrato: attiva/disattiva.\nMenu o altro slot: stop.\nConsuma la durata.",
-    "options.qol.feather_toggle.label": "Piuma di Dran: interr."
+    "options.qol.feather_toggle.label": "Piuma di Dran: interr.",
+    "options.qol.skip_atla_cutscene.label": "Salta scena Atla",
+    "options.qol.skip_atla_cutscene.help": "\"Salta scena Atla\"\nRaccogli subito Atla.\nMantieni ricompensa\ne messaggio.",
+    "options.qol.skip_atla_cutscene.choice.0": "No",
+    "options.qol.skip_atla_cutscene.choice.1": "Sì",
+    "options.qol.skip_small_chest_cutscene.label": "Salta scena scrigno",
+    "options.qol.skip_small_chest_cutscene.help": "\"Salta scena scrigno\"\nApri i piccoli scrigni.\nMantieni oggetti e avvisi.\nGrandi scrigni invariati.",
+    "options.qol.skip_small_chest_cutscene.choice.0": "No",
+    "options.qol.skip_small_chest_cutscene.choice.1": "Sì"
 }

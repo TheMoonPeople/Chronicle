@@ -210,18 +210,26 @@ TEST(QolDefaults, NewAndExistingConfigsKeepEveryModDisabledUnlessOptedIn) {
         const Config config = ConfigParse(json);
         EXPECT_FALSE(config.feather_toggle);
         EXPECT_FALSE(config.inventory_auto_repair);
+        EXPECT_FALSE(config.skip_atla_cutscene);
+        EXPECT_FALSE(config.skip_small_chest_cutscene);
     }
     Config config;
     config.feather_toggle = true;
     config.inventory_auto_repair = true;
+    config.skip_atla_cutscene = true;
+    config.skip_small_chest_cutscene = true;
     const auto pages = options::Pages();
     const auto page = std::find_if(pages.begin(), pages.end(),
         [](const options::Page &p) { return std::string_view(p.name) == "QOL"; });
     ASSERT_NE(page, pages.end());
     options::ResetPage(*page, config);
+    EXPECT_FALSE(config.skip_atla_cutscene);
+    EXPECT_FALSE(config.skip_small_chest_cutscene);
     EXPECT_FALSE(config.feather_toggle);
     EXPECT_FALSE(config.inventory_auto_repair);
     config = ConfigParse(ConfigSerialize(config));
+    EXPECT_FALSE(config.skip_atla_cutscene);
+    EXPECT_FALSE(config.skip_small_chest_cutscene);
     EXPECT_FALSE(config.feather_toggle);
     EXPECT_FALSE(config.inventory_auto_repair);
 }

@@ -379,5 +379,13 @@
     "options.qol.feather_toggle.choice.0": "Aus",
     "options.qol.feather_toggle.choice.1": "Ein",
     "options.qol.feather_toggle.help": "\"Drans Feder umschalten\"\nQuadrat: ein/aus.\nMenü oder Slotwechsel: aus.\nVerbraucht Nutzungszeit.",
-    "options.qol.feather_toggle.label": "Drans Feder umschalten"
+    "options.qol.feather_toggle.label": "Drans Feder umschalten",
+    "options.qol.skip_atla_cutscene.label": "Atla-Szene überspringen",
+    "options.qol.skip_atla_cutscene.help": "\"Atla-Szene überspringen\"\nAtla sofort einsammeln.\nBelohnung und Meldung\nbleiben erhalten.",
+    "options.qol.skip_atla_cutscene.choice.0": "Aus",
+    "options.qol.skip_atla_cutscene.choice.1": "Ein",
+    "options.qol.skip_small_chest_cutscene.label": "Kleine Truhenszene aus",
+    "options.qol.skip_small_chest_cutscene.help": "\"Kleine Truhenszene aus\"\nKleine Truhen sofort.\nInhalt und Meldung bleiben.\nGroße Truhen unverändert.",
+    "options.qol.skip_small_chest_cutscene.choice.0": "Aus",
+    "options.qol.skip_small_chest_cutscene.choice.1": "Ein"
 }
