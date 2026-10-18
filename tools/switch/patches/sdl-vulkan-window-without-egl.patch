@@ -1,0 +1,14 @@
+diff --git a/src/video/switch/SDL_switchvideo.c b/src/video/switch/SDL_switchvideo.c
+index 0d812b0..2fc5935 100644
+--- a/src/video/switch/SDL_switchvideo.c
++++ b/src/video/switch/SDL_switchvideo.c
+@@ -318,7 +318,8 @@ static bool SWITCH_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_
+         return SDL_SetError("Switch only supports one window");
+     }
+ 
+-    if (!_this->egl_data) {
++    // A Vulkan window puts nothing through EGL, which SDL only loads for OpenGL windows.
++    if (!(window->flags & SDL_WINDOW_VULKAN) && !_this->egl_data) {
+         return SDL_SetError("EGL not initialized");
+     }
+ 

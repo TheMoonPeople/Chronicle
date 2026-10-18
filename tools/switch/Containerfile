@@ -100,8 +100,13 @@ RUN ln -sf "$CARGO_HOME/bin/bindgen" /usr/bin/bindgen \
 
 # SDL3 with its Vulkan support on. It builds against its own copy of the Vulkan headers and only
 # records vulkan_nouveau for the application's link.
+# patches/sdl-vulkan-window-without-egl.patch: the fork refuses every window until EGL is loaded,
+# which SDL does only for OpenGL windows, so a Vulkan window could not be made at all.
+COPY patches/sdl-vulkan-window-without-egl.patch /tmp/sdl-vulkan-window-without-egl.patch
 RUN git clone https://github.com/etonedemid/SDL.git /tmp/sdl \
     && git -C /tmp/sdl checkout --detach ${SDL_REV} \
+    && git -C /tmp/sdl apply --check /tmp/sdl-vulkan-window-without-egl.patch \
+    && git -C /tmp/sdl apply /tmp/sdl-vulkan-window-without-egl.patch \
     && cmake -S /tmp/sdl -B /tmp/sdl/build -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE=${DEVKITPRO}/cmake/Switch.cmake -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=${SWITCH_PREFIX} -DCMAKE_PREFIX_PATH=${SWITCH_PREFIX} \
