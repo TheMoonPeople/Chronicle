@@ -83,42 +83,45 @@ enum class Count {
     AwayOnly,
 };
 
-// Triangles wound outwards (counter-clockwise on the target when turned towards the eye).
+// Triangles wound outwards (counter-clockwise on the target when turned towards the eye), as
+// indices into one list of corners: a prism's six are shared by its eight triangles, so the volume
+// is built, recorded and uploaded at under a third of the size of a vertex per triangle corner.
 struct Volume {
+    // Each prism's six corners and each near-plane section's own, every one a face uses.
+    std::vector<gfx::Vertex3D> vertices;
     // Count::Both faces, drawn by both passes.
-    std::vector<gfx::Vertex3D> both;
+    std::vector<uint32_t> both;
     // Count::AwayOnly faces, drawn by the subtracting pass.
-    std::vector<gfx::Vertex3D> away;
+    std::vector<uint32_t> away;
     // Near-plane sections, turned towards the eye and drawn by the adding pass.
-    std::vector<gfx::Vertex3D> cap;
-    // Each prism's six corners once, every vertex the faces above emit, for the composite's bounds
-    // (Draw3DShadowCover) at a quarter of the projections. Empty for a volume read back from its
-    // record, whose faces are projected instead.
-    std::vector<gfx::Vertex3D> corners;
+    std::vector<uint32_t> cap;
 };
 
-void Emit(std::vector<gfx::Vertex3D> &out, std::span<const Vec3> polygon) {
+uint32_t AddCorner(Volume &volume, Vec3 corner) {
+    gfx::Vertex3D vertex = {};
+    vertex.position[0] = corner.x;
+    vertex.position[1] = corner.y;
+    vertex.position[2] = corner.z;
+    vertex.color[0] = vertex.color[1] = vertex.color[2] = vertex.color[3] = 0x80;
+    volume.vertices.push_back(vertex);
+    return static_cast<uint32_t>(volume.vertices.size() - 1);
+}
+
+// A convex polygon of corners as a fan of triangles.
+void Emit(std::vector<uint32_t> &out, std::span<const uint32_t> polygon) {
     for (size_t i = 1; i + 1 < polygon.size(); i++) {
-        for (Vec3 corner : {polygon[0], polygon[i], polygon[i + 1]}) {
-            gfx::Vertex3D vertex = {};
-            vertex.position[0] = corner.x;
-            vertex.position[1] = corner.y;
-            vertex.position[2] = corner.z;
-            vertex.color[0] = vertex.color[1] = vertex.color[2] = vertex.color[3] = 0x80;
-            out.push_back(vertex);
-        }
+        out.insert(out.end(), {polygon[0], polygon[i], polygon[i + 1]});
     }
 }
 
 // A face of a prism, wound outwards when as_given (else reversed).
-void AddFace(Volume &volume, std::initializer_list<Vec3> points, bool as_given, Count count) {
-    std::array<Vec3, 4> polygon{};
-    std::copy(points.begin(), points.end(), polygon.begin());
+void AddFace(Volume &volume, std::initializer_list<uint32_t> corners, bool as_given, Count count) {
+    std::array<uint32_t, 4> polygon{};
+    std::copy(corners.begin(), corners.end(), polygon.begin());
     if (!as_given) {
-        std::reverse(polygon.begin(), polygon.begin() + points.size());
+        std::reverse(polygon.begin(), polygon.begin() + corners.size());
     }
-    Emit(count == Count::Both ? volume.both : volume.away,
-         std::span<const Vec3>(polygon.data(), points.size()));
+    Emit(count == Count::Both ? volume.both : volume.away, std::span<const uint32_t>(polygon.data(), corners.size()));
 }
 
 // The triangle's prism down to its drop on the plane. A prism the light grazes has no inside and
@@ -145,22 +148,21 @@ void AddPrism(Volume &volume, const Vec3 top[3], const Vec3 drop[3], const bool 
     // A test per face, of the side the prism's centre lies on, is not used: for a prism the light
     // nearly grazes the centre lies almost on the long sides, float error turns one inwards, and it
     // counts with the wrong sign, a streak from the triangle to the ground (#87).
-    for (const Vec3 *corners : {top, drop}) {
-        for (int i = 0; i < 3; i++) {
-            gfx::Vertex3D vertex = {};
-            vertex.position[0] = corners[i].x;
-            vertex.position[1] = corners[i].y;
-            vertex.position[2] = corners[i].z;
-            volume.corners.push_back(vertex);
-        }
+    uint32_t t[3];
+    uint32_t d[3];
+    for (int i = 0; i < 3; i++) {
+        t[i] = AddCorner(volume, top[i]);
+    }
+    for (int i = 0; i < 3; i++) {
+        d[i] = AddCorner(volume, drop[i]);
     }
     bool down = thickness < 0.0f;
-    AddFace(volume, {top[0], top[1], top[2]}, down, Count::Both);
-    AddFace(volume, {drop[0], drop[1], drop[2]}, !down, far_cap);
+    AddFace(volume, {t[0], t[1], t[2]}, down, Count::Both);
+    AddFace(volume, {d[0], d[1], d[2]}, !down, far_cap);
     for (int edge = 0; edge < 3; edge++) {
         int next = (edge + 1) % 3;
         if (sides[edge]) {
-            AddFace(volume, {top[edge], drop[edge], drop[next], top[next]}, down, Count::Both);
+            AddFace(volume, {t[edge], d[edge], d[next], t[next]}, down, Count::Both);
         }
     }
 }
@@ -218,7 +220,11 @@ void AddNearCap(Volume &volume, const Vec3 top[3], const Vec3 drop[3], float dep
     std::sort(section.begin(), section.begin() + section_count, [mean](Vec3 a, Vec3 b) {
         return std::atan2(a.y - mean.y, a.x - mean.x) > std::atan2(b.y - mean.y, b.x - mean.x);
     });
-    Emit(volume.cap, std::span<const Vec3>(section.data(), section_count));
+    std::array<uint32_t, 9> polygon{};
+    for (size_t i = 0; i < section_count; ++i) {
+        polygon[i] = AddCorner(volume, section[i]);
+    }
+    Emit(volume.cap, std::span<const uint32_t>(polygon.data(), section_count));
 }
 
 struct Projection {
@@ -282,22 +288,16 @@ float NearPlane(const Projection &projection) {
     return a < 1.0f ? b / (1.0f - a) : 0.0f;
 }
 
-// shared and own as two draws in one state, in that order: the counting is what one draw of both
-// would leave.
-void DrawCount(std::span<const gfx::Vertex3D> shared, std::span<const gfx::Vertex3D> own,
-               const Projection &projection, const RenderInfo &info, bool add) {
+// The faces of shared and then own, in one draw.
+void DrawCount(std::span<const gfx::Vertex3D> vertices, std::span<const uint32_t> shared,
+               std::span<const uint32_t> own, const Projection &projection, const RenderInfo &info, bool add) {
     if (shared.empty() && own.empty()) {
         return;
     }
-    // Every face is its own three vertices, so the indices count up from 0. DrawMeshImmediate
-    // copies what it records, so one run serves every draw.
+    // DrawMeshImmediate copies what it records, so this buffer can be reused.
     static thread_local std::vector<uint32_t> indices;
-    size_t                                    longest = std::max(shared.size(), own.size());
-    if (indices.size() < longest) {
-        size_t first = indices.size();
-        indices.resize(longest);
-        std::iota(indices.begin() + static_cast<std::ptrdiff_t>(first), indices.end(), static_cast<uint32_t>(first));
-    }
+    indices.assign(shared.begin(), shared.end());
+    indices.insert(indices.end(), own.begin(), own.end());
     gfx::MeshConstants constants = {};
     std::memcpy(constants.mvp, projection.eye_to_clip, sizeof(constants.mvp));
     constants.flags = gfx::kMeshShadow;
@@ -308,28 +308,22 @@ void DrawCount(std::span<const gfx::Vertex3D> shared, std::span<const gfx::Verte
     gfx::DrawState state = Draw3DState(info, false);
     state.cull = add ? gfx::CullMode::Back : gfx::CullMode::Front;
     state.alpha = add ? gfx::GsBlend{0, 2, 2, 1, 0x80} : gfx::GsBlend{2, 0, 2, 1, 0x80};
-    for (std::span<const gfx::Vertex3D> faces : {shared, own}) {
-        if (!faces.empty()) {
-            gfx::DrawMeshImmediate(faces, std::span(indices).first(faces.size()), constants, {}, state,
-                                   projection.has_transform ? &projection.transform : nullptr);
-        }
-    }
+    gfx::DrawMeshImmediate(vertices, indices, constants, {}, state,
+                           projection.has_transform ? &projection.transform : nullptr);
 }
 
-// The faces both passes draw, those only the subtracting one draws, the near-plane sections the
-// adding one draws, and corners as Volume has them.
-void DrawVolume(std::span<const gfx::Vertex3D> both, std::span<const gfx::Vertex3D> away,
-                std::span<const gfx::Vertex3D> cap, std::span<const gfx::Vertex3D> corners,
-                const Projection &projection, const RenderInfo &info) {
-    if (!corners.empty()) {
-        Draw3DShadowCover(projection.eye_to_clip, corners);
-    } else {
-        Draw3DShadowCover(projection.eye_to_clip, both);
-        Draw3DShadowCover(projection.eye_to_clip, away);
-        Draw3DShadowCover(projection.eye_to_clip, cap);
+// The volume's corners and its faces: those both passes draw, those only the subtracting one
+// draws and the near-plane sections the adding one draws.
+void DrawVolume(std::span<const gfx::Vertex3D> vertices, std::span<const uint32_t> both,
+                std::span<const uint32_t> away, std::span<const uint32_t> cap, const Projection &projection,
+                const RenderInfo &info) {
+    if (both.empty() && away.empty() && cap.empty()) {
+        return;
     }
-    DrawCount(both, cap, projection, info, true);
-    DrawCount(both, away, projection, info, false);
+    // Every corner is one some face uses.
+    Draw3DShadowCover(projection.eye_to_clip, vertices);
+    DrawCount(vertices, both, cap, projection, info, true);
+    DrawCount(vertices, both, away, projection, info, false);
     // The GS is left with the subtracting pass's ALPHA.
     MGPortRegisters &current = MGPortCurrent();
     current.alpha.bits.a = 2;
@@ -430,9 +424,10 @@ PORT_OVERRIDE int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *mod
     cap.first_index = away.first_index + away.index_count;
     cap.index_count = static_cast<uint32_t>(volume.cap.size());
     visual.strips = {both, away, cap};
-    visual.vertices = std::move(volume.both);
-    visual.vertices.insert(visual.vertices.end(), volume.away.begin(), volume.away.end());
-    visual.vertices.insert(visual.vertices.end(), volume.cap.begin(), volume.cap.end());
+    visual.vertices = std::move(volume.vertices);
+    visual.indices = std::move(volume.both);
+    visual.indices.insert(visual.indices.end(), volume.away.begin(), volume.away.end());
+    visual.indices.insert(visual.indices.end(), volume.cap.begin(), volume.cap.end());
     return vu_size;
 }
 
@@ -457,10 +452,11 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
         ActiveData->Alloc(CreateVUdataShadowCLIP(reinterpret_cast<u_int *>(ActiveData->base + ActiveData->used * 16), data,
                                                  info, matrix));
         if (const Draw3DVisual *visual = Draw3DFindVisual(vu_data); visual && visual->strips.size() == 3) {
-            std::span<const gfx::Vertex3D> all = visual->vertices;
-            uint32_t                       away = visual->strips[1].first_index;
-            uint32_t                       cap = visual->strips[2].first_index;
-            DrawVolume(all.subspan(0, away), all.subspan(away, cap - away), all.subspan(cap), {}, projection, *info);
+            std::span<const uint32_t> all = visual->indices;
+            uint32_t                  away = visual->strips[1].first_index;
+            uint32_t                  cap = visual->strips[2].first_index;
+            DrawVolume(visual->vertices, all.subspan(0, away), all.subspan(away, cap - away), all.subspan(cap),
+                       projection, *info);
         }
         vu_data_buffer[0] = saved_primary;
         vu_data_buffer[1] = saved_secondary;
@@ -476,8 +472,8 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
     bool   away_only = Draw3DCurrentShadowProgram() == Draw3DShadowProgram::AwayFromLight;
     bool   sides[3] = {true, true, true};
     Volume volume;
+    volume.vertices.reserve((visual->vertices.size() / 3) * 6);
     volume.both.reserve((visual->vertices.size() / 3) * 24);
-    volume.corners.reserve((visual->vertices.size() / 3) * 6);
     for (size_t first = 0; first + 3 <= visual->vertices.size(); first += 3) {
         Vec3 local[3];
         for (int i = 0; i < 3; i++) {
@@ -492,7 +488,7 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
         Corners(projection, local, top, drop);
         AddPrism(volume, top, drop, sides, Count::Both);
     }
-    DrawVolume(volume.both, volume.away, volume.cap, volume.corners, projection, *info);
+    DrawVolume(volume.vertices, volume.both, volume.away, volume.cap, projection, *info);
     return 0;
 }
 
