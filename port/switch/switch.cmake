@@ -18,6 +18,9 @@ endif()
 # What newlib and libnx lack of POSIX (switch_compat.h, ucontext.h), ahead of every unit.
 include_directories(BEFORE SYSTEM ${DC_SWITCH_DIR}/include)
 add_compile_options("SHELL:-include \"${DC_SWITCH_DIR}/include/switch_compat.h\"")
+# Plain char is signed on the PS2 (and x64) and unsigned on AArch64; ps2/include/types.h makes s8
+# a char. Unsigned, a sound table's -128 terminator reads as 128 and SndInitSeTable writes past it.
+add_compile_options(-fsigned-char)
 
 # vulkan: Kazarov's renderer on NVK. gl: port/switch/gl, the OpenGL backend kept in reserve should
 # NVK fail on a console; it implements gfx.hpp over Kazarov's display lists and TIM2 decoding.
