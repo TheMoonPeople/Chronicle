@@ -44,17 +44,18 @@ final class ChronicleTouchOverlay extends View {
     private void layoutControls() {
         float w = getWidth(), h = getHeight(), s = Math.min(w, h);
         if (w <= 0 || h <= 0) return;
-        float r = clamp(s * .039f, 46, 77), shoulder = clamp(s * .035f, 46, 70);
-        float small = clamp(s * .030f, 44, 60), step = 2 * r + 12;
+        float scale = Math.min(w / 1280.0f, h / 720.0f);
+        float r = 46 * scale, shoulder = 46 * scale;
+        float small = 44 * scale, step = 104 * scale;
         float side = clamp(.08f + .08f * s / w, .10f, .16f);
-        float left = side * w, right = (1 - side) * w, row = h * .58f;
-        for (int i = 0; i < 16; ++i) radius[i] = i < 8 ? r : i < 12 ? shoulder : i < 14 ? small : clamp(s * .075f, 80, 140);
+        float left = side * w, right = (1 - side) * w, row = h * .52f;
+        for (int i = 0; i < 16; ++i) radius[i] = i < 8 ? r : i < 12 ? shoulder : i < 14 ? small : 80 * scale;
         cx[0] = cx[1] = left; cy[0] = row - step; cy[1] = row + step;
         cx[2] = left - step; cx[3] = left + step; cy[2] = cy[3] = row;
         cx[4] = cx[7] = right; cy[4] = row + step; cy[7] = row - step;
         cx[5] = right + step; cx[6] = right - step; cy[5] = cy[6] = row;
         cx[8] = cx[10] = left; cx[9] = cx[11] = right;
-        cy[8] = cy[9] = h * .215f; cy[10] = cy[11] = h * .10f;
+        cy[8] = cy[9] = h * .22f; cy[10] = cy[11] = h * .08f;
         cx[12] = w * .43f; cx[13] = w * .57f; cy[12] = cy[13] = h * .92f;
         cx[14] = (side + .025f) * w; cx[15] = (1 - side - .025f) * w;
         cy[14] = cy[15] = h * .86f;

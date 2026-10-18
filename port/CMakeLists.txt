@@ -263,8 +263,8 @@ if(ANDROID)
     set(ANDROID_ASSETS ${CMAKE_SOURCE_DIR}/android/app/src/main/assets)
     file(MAKE_DIRECTORY ${ANDROID_ASSETS}/lang ${ANDROID_ASSETS}/glyphs)
     file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/lang/ DESTINATION ${ANDROID_ASSETS}/lang)
-    file(COPY ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf DESTINATION ${ANDROID_ASSETS}/lang)
-    file(COPY ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf DESTINATION ${ANDROID_ASSETS}/lang)
+    configure_file(${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf ${ANDROID_ASSETS}/lang/font.ttf COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf ${ANDROID_ASSETS}/lang/font_thin.ttf COPYONLY)
 else()
     add_custom_target(dc_lang
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lang $<TARGET_FILE_DIR:darkcloud>/lang
