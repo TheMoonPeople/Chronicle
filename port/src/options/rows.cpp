@@ -374,7 +374,7 @@ constexpr const char *kZoomResetNames[] = {"Middle Mouse", "Mouse4", "Mouse5", "
 
 const std::vector<std::string> &ZoomResetBindings(const Config &config) {
     static const std::vector<std::string> defaults = {"Mouse3"};
-    auto                                  binding = std::ranges::find(config.key_bindings, "zoom_reset", &ConfigKeyBinding::action);
+    auto                                  binding = std::ranges::find(config.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
     return binding == config.key_bindings.end() ? defaults : binding->keys;
 }
 
@@ -399,7 +399,7 @@ void SetZoomReset(Config &config, int choice) {
     if (choice < 0 || choice >= 5) {
         return;
     }
-    auto                     binding = std::ranges::find(config.key_bindings, "zoom_reset", &ConfigKeyBinding::action);
+    auto                     binding = std::ranges::find(config.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
     std::vector<std::string> keys;
     if (choice < 4) {
         keys.push_back(kZoomResetBindings[choice]);
@@ -427,11 +427,11 @@ std::string ZoomResetText(const Config &config) {
 }
 
 void RestoreZoomReset(Config &config, const Config &defaults) {
-    auto binding = std::ranges::find(config.key_bindings, "zoom_reset", &ConfigKeyBinding::action);
+    auto binding = std::ranges::find(config.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
     if (binding != config.key_bindings.end()) {
         config.key_bindings.erase(binding);
     }
-    auto default_binding = std::ranges::find(defaults.key_bindings, "zoom_reset", &ConfigKeyBinding::action);
+    auto default_binding = std::ranges::find(defaults.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
     if (default_binding != defaults.key_bindings.end()) {
         config.key_bindings.push_back(*default_binding);
     }

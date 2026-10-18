@@ -42,8 +42,8 @@ PORT_LINK_NAME char       HealEffectTextureName[] = "basefx00";
 PORT_LINK_NAME char       gamemode_empty_string[] = "";
 PORT_LINK_NAME char       manual_frame_image[] = "#frame_image#640#480#4";
 PORT_LINK_NAME char       allmenu_mes[] = "allmenu.mes";
-PORT_LINK_NAME const char CharaFileExtension[5] = ".chr";
-PORT_LINK_NAME const char FrameImageTexture[] = "#frame_image#640#480#4";
+PORT_LINK_NAME extern const char CharaFileExtension[5] = ".chr";
+PORT_LINK_NAME extern const char FrameImageTexture[] = "#frame_image#640#480#4";
 
 // The title overlay's units declare their own rectangle template rather than rect.hpp's CRect_i_
 // (x, y, width, height in the same four words), and MWCC mangled both to the one name.

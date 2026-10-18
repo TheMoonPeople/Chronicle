@@ -17,6 +17,17 @@
     std::_Exit(kExitGameAssert);
 }
 
+#ifdef __SWITCH__
+// newlib's assert() calls __assert_func, and its libc defines __assert in the same object, so the
+// libraries' assertions (SDL, Mesa) would link a second __assert. Defining it here keeps that out.
+extern "C" [[noreturn]] void __assert_func(const char *file, int line, const char *function, const char *expression) {
+    std::fflush(stdout);
+    std::fprintf(stderr, "%s:%d: %s: assertion failed: %s\n", file, line, function, expression);
+    std::fflush(nullptr);
+    std::abort();
+}
+#endif
+
 // Retail's libc generator, in place of the host's. The game leans on its exact sequence: a fire
 // reseeds it every tick from a seed it drew the tick before (CFireOmni), so what follows in the
 // tick -- the title's lightning, the light a fire throws on a character -- repeats in a pattern

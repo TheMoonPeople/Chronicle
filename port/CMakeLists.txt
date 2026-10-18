@@ -16,7 +16,12 @@ enable_language(CXX)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+if(NINTENDO_SWITCH)
+    # newlib declares strnlen and the other POSIX additions only outside strict ISO mode.
+    set(CMAKE_CXX_EXTENSIONS ON)
+else()
+    set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # darkcloud is position-independent (DC_LINK_OPTIONS below).
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -28,11 +33,18 @@ endif()
 
 include(${KZ_ROOT}/cmake/KazarovPort.cmake)
 
+if(NINTENDO_SWITCH)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/switch/switch.cmake)
+endif()
+
 # Python runs ${KZ_ROOT}/scripts/port_override.py.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # Flatpak builds have no network: their single-file libraries are staged in audio_decoders/ and stb_truetype/; others fetch them.
 set(KZ_PORT_VENDOR_DIRS ${CMAKE_SOURCE_DIR}/audio_decoders ${CMAKE_SOURCE_DIR}/stb_truetype)
 kz_port_host_library(dc_host)
+if(NINTENDO_SWITCH)
+    dc_switch_host(dc_host)
+endif()
 
 set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
 set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -66,8 +78,19 @@ add_custom_command(OUTPUT ${PORT_OVERRIDES}
 # port/include/stubs/<unit>.hpp, if it exists, is included ahead of that unit
 # of ps2/src: it declares what the port defines in place of code PORT leaves
 # out, and supplies or renames what the unit takes from MWCC alone.
+# GCC has no -fno-strict-return: the copies of the units with functions that fall off their end get
+# a return there (port/switch/fall_off_returns.txt).
+set(FALL_OFF_COMMAND "")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(FALL_OFF_LIST ${CMAKE_SOURCE_DIR}/port/switch/fall_off_returns.txt)
+    set(FALL_OFF_SCRIPT ${CMAKE_SOURCE_DIR}/port/switch/fall_off_returns.py)
+endif()
 foreach(unit IN LISTS PS2_SOURCES)
     set(copy ${CMAKE_BINARY_DIR}/ps2_src/${unit})
+    if(FALL_OFF_LIST)
+        string(REGEX REPLACE "\\.cpp$" "" unit_name ${unit})
+        set(FALL_OFF_COMMAND COMMAND ${Python3_EXECUTABLE} ${FALL_OFF_SCRIPT} ${FALL_OFF_LIST} ${unit_name} ${copy})
+    endif()
     string(REGEX REPLACE "\\.cpp$" ".hpp" header ${CMAKE_SOURCE_DIR}/port/include/stubs/${unit})
     if(EXISTS ${header})
         set(stubs --stubs ${header})
@@ -78,7 +101,9 @@ foreach(unit IN LISTS PS2_SOURCES)
     add_custom_command(OUTPUT ${copy}
         COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} strip --overrides ${PORT_OVERRIDES} ${stubs}
             ${port_override_defines} ${PS2_DIR}/${unit} ${copy}
+        ${FALL_OFF_COMMAND}
         DEPENDS ${PS2_DIR}/${unit} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT} ${header}
+            ${FALL_OFF_LIST} ${FALL_OFF_SCRIPT}
         COMMENT "Removing overridden definitions from ps2/src/${unit}"
         VERBATIM)
     list(APPEND PS2_UNITS ${copy})
@@ -110,6 +135,11 @@ target_compile_options(dc_options INTERFACE
     "SHELL:-include \"${CMAKE_SOURCE_DIR}/port/include/port.h\""
     -fms-extensions -ffunction-sections -fdata-sections
     -Wno-register -Wno-c++11-narrowing -Wno-return-mismatch)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC (devkitA64) makes errors of what clang only warns about in MWCC-era source: pointers
+    # converted to and from integers, and narrowing in braced initialisers.
+    target_compile_options(dc_options INTERFACE -fpermissive -Wno-narrowing)
+endif()
 # arm64 clang fuses a*b+c into one rounding by default; x86-64 has no FMA in its
 # baseline. Off everywhere so the game's arithmetic rounds the same on both.
 target_compile_options(dc_options INTERFACE -ffp-contract=off)
@@ -124,8 +154,15 @@ target_link_libraries(dc_ps2 PRIVATE dc_options)
 # that return a value, and ps2/src keeps both because the match depends on
 # them. MWCC gave each a defined if arbitrary result; these flags give the port
 # a defined one too, along with the type punning and wraparound the code assumes.
-target_compile_options(dc_ps2 PRIVATE -ftrivial-auto-var-init=zero -fno-strict-return
+target_compile_options(dc_ps2 PRIVATE -ftrivial-auto-var-init=zero
     -fno-strict-aliasing -fwrapv)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC has no -fno-strict-return, and miscompiles a function that falls off its end; the listed
+    # ones are given a return (above), and a new one stops the build.
+    target_compile_options(dc_ps2 PRIVATE -Werror=return-type)
+else()
+    target_compile_options(dc_ps2 PRIVATE -fno-strict-return)
+endif()
 # What is left on warns about behaviour the port may still need to answer for:
 # uninitialised reads, missing returns, format strings, overlapping copies and
 # the like. What is turned off describes how MWCC-era source is spelled -- string
@@ -199,7 +236,9 @@ target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-la
 # the names that are not aliases, EditGaijiTbl among them. ItemPutListTbl12_bytes
 # is not one: port/include/stubs/dngstatusdata.hpp turns GetItem's read through
 # it into a WeaponList lookup.
-if(WIN32)
+if(NINTENDO_SWITCH)
+    set(DC_LINK_OPTIONS -Wl,--gc-sections -Wl,--defsym=draw_rect=draw_rect_store -Wl,--defsym=WorkBuffer__2=WorkBuffer)
+elseif(WIN32)
     # The two aliases are /alternatename directives in port/src/linknames.cpp.
     set(DC_LINK_OPTIONS -fuse-ld=lld -Wl,--gc-sections -Wl,--error-limit=0)
 elseif(APPLE)
@@ -226,6 +265,10 @@ if(WIN32)
     target_link_options(darkcloud PRIVATE -municode)
     enable_language(RC)
     target_sources(darkcloud PRIVATE ${CMAKE_SOURCE_DIR}/port/icon/chronicle.rc)
+endif()
+
+if(NINTENDO_SWITCH)
+    dc_switch_nro(darkcloud)
 endif()
 
 include(GNUInstallDirs)
@@ -258,4 +301,7 @@ if(DC_BUILD_TESTS)
     enable_testing()
     add_subdirectory(src/tests)
 endif()
-add_subdirectory(${CMAKE_SOURCE_DIR}/tools/dcdata ${CMAKE_BINARY_DIR}/tools/dcdata)
+if(NOT NINTENDO_SWITCH)
+    # dcdata runs on the computer that holds the disc image, not on the console.
+    add_subdirectory(${CMAKE_SOURCE_DIR}/tools/dcdata ${CMAKE_BINARY_DIR}/tools/dcdata)
+endif()
