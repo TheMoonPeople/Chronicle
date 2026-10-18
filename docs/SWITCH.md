@@ -74,6 +74,14 @@ are found as they are beside the PC executable. Start it with a game's title ove
 while launching a game) rather than from the album applet: an applet gets a fraction of the
 memory.
 
+## Logs
+
+Sent with `nxlink -s darkcloud.nro` (from devkitPro's switch-tools; the Homebrew Menu waits for it
+on Y), the game prints its log, stdout and stderr, on the computer that sent it. Started from the
+Homebrew Menu it prints nothing. Send `data/` and the other folders to the SD card first; nxlink
+sends only the `.nro`, which then runs from `sdmc:/switch/`, so put them beside it there (or pass
+`--data`, e.g. `nxlink -s darkcloud.nro -- --data sdmc:/switch/chronicle/data`).
+
 ## Status
 
 - `darkcloud.nro` builds and links (the PC build and its tests are unchanged).

@@ -28,7 +28,7 @@ set_property(CACHE DC_SWITCH_RENDERER PROPERTY STRINGS vulkan gl)
 # Switch ones, and with the GL renderer in place of the Vulkan one when it is picked.
 function(dc_switch_host target)
     set_source_files_properties(${KZ_ROOT}/port/platform/memory.cpp PROPERTIES HEADER_FILE_ONLY ON)
-    target_sources(${target} PRIVATE ${DC_SWITCH_DIR}/memory.cpp ${DC_SWITCH_DIR}/ucontext.cpp)
+    target_sources(${target} PRIVATE ${DC_SWITCH_DIR}/memory.cpp ${DC_SWITCH_DIR}/ucontext.cpp ${DC_SWITCH_DIR}/nxlink.cpp)
     if(DC_SWITCH_RENDERER STREQUAL "gl")
         file(GLOB vulkan_units ${KZ_ROOT}/port/gfx/*.cpp)
         list(FILTER vulkan_units EXCLUDE REGEX "/(displaylist|tim2)\\.cpp$")
