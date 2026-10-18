@@ -139,6 +139,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC (devkitA64) makes errors of what clang only warns about in MWCC-era source: pointers
     # converted to and from integers, and narrowing in braced initialisers.
     target_compile_options(dc_options INTERFACE -fpermissive -Wno-narrowing)
+    # Retail reads past its arrays in loops (the title's sparkles index alpha[11] of 11), and GCC
+    # bounds such a loop by the read instead of its condition: the loop never ends and walks off the
+    # stack. MWCC and clang leave the loop as written.
+    target_compile_options(dc_options INTERFACE -fno-aggressive-loop-optimizations)
 endif()
 # arm64 clang fuses a*b+c into one rounding by default; x86-64 has no FMA in its
 # baseline. Off everywhere so the game's arithmetic rounds the same on both.
