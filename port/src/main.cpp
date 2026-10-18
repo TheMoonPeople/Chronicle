@@ -394,7 +394,14 @@ int Run(int argc, const char **argv) {
     if (options.font != nullptr) {
         LocalizeSetFontPath(PathsFromUtf8(options.font));
     }
-    if (options.export_text == nullptr) {
+#ifdef __SWITCH__
+    // Not on a console: 13 MB of JSON for translators to edit on a computer, which the Switch's CPU
+    // and SD card took so long over that the first start showed nothing but a black screen.
+    constexpr bool kSeedExport = false;
+#else
+    constexpr bool kSeedExport = true;
+#endif
+    if (kSeedExport && options.export_text == nullptr) {
         // Once per save folder: the extracted data's text as JSON for translators (docs/LOCALIZATION.md).
         std::filesystem::path seed = PathsSaveRoot() / "lang-export";
         std::error_code       error;
