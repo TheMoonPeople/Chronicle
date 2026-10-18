@@ -56,6 +56,16 @@ gfx::TextureHandle  g_last_frame_copy = gfx::kNullTexture;
 unsigned            g_frame_copies = 0;
 gfx::TextureHandle  g_frame_picture = gfx::kNullTexture;
 gfx::TextureHandle  g_shadow_previous = gfx::kMainTarget;
+// The logical rect the shadow target's volumes can reach since MGBeginDrawShadow cleared it; past
+// it the target is black, which the composite leaves the frame alone for. Unbounded where a vertex
+// lay on or behind the eye plane.
+struct ShadowCover {
+    float x0 = INFINITY;
+    float y0 = INFINITY;
+    float x1 = -INFINITY;
+    float y1 = -INFINITY;
+    bool  unbounded = false;
+} g_shadow_cover;
 Draw3DShadowProgram g_shadow_program = Draw3DShadowProgram::Every;
 
 // Retail retargets FRAME_1 to the game's shadow_buf and keeps ZBUF, so the volumes count against
@@ -304,6 +314,33 @@ gfx::TextureHandle Draw3DFramePicture() {
 
 bool Draw3DShadowTargetActive() {
     return g_shadow_target != gfx::kNullTexture;
+}
+
+void Draw3DShadowCover(const float eye_to_clip[4][4], std::span<const gfx::Vertex3D> vertices) {
+    if (g_shadow_cover.unbounded) {
+        return;
+    }
+    // Meshes cover the whole target (gfx README, "Spaces"), which is laid out like the main one.
+    gfx::LogicalMapping mapping = gfx::GetLogicalMapping(gfx::kMainTarget);
+    for (const gfx::Vertex3D &vertex : vertices) {
+        const float *p = vertex.position;
+        float        clip[4];
+        for (int j = 0; j < 4; j++) {
+            clip[j] = eye_to_clip[0][j] * p[0] + eye_to_clip[1][j] * p[1] + eye_to_clip[2][j] * p[2] + eye_to_clip[3][j];
+        }
+        if (!(clip[3] > 1e-4f) || !std::isfinite(clip[0]) || !std::isfinite(clip[1])) {
+            g_shadow_cover.unbounded = true;
+            return;
+        }
+        float x = ((clip[0] / clip[3] + 1.0f) * 0.5f * static_cast<float>(mapping.pixel_width) - mapping.offset_x) /
+                  mapping.scale_x;
+        float y = ((clip[1] / clip[3] + 1.0f) * 0.5f * static_cast<float>(mapping.pixel_height) - mapping.offset_y) /
+                  mapping.scale_y;
+        g_shadow_cover.x0 = std::min(g_shadow_cover.x0, x);
+        g_shadow_cover.y0 = std::min(g_shadow_cover.y0, y);
+        g_shadow_cover.x1 = std::max(g_shadow_cover.x1, x);
+        g_shadow_cover.y1 = std::max(g_shadow_cover.y1, y);
+    }
 }
 
 Draw3DShadowProgram Draw3DCurrentShadowProgram() {
@@ -1223,6 +1260,7 @@ PORT_OVERRIDE void MGBeginDrawShadow(sceGsTex0 tex0) {
         g_shadow_previous = gfx::CurrentRenderTarget();
     }
     g_shadow_target = target;
+    g_shadow_cover = {};
     gfx::SetRenderTarget(target);
     uint8_t black[4] = {0, 0, 0, 0x80};
     gfx::Clear(true, black, false, 0.0f);
@@ -1252,6 +1290,22 @@ PORT_OVERRIDE void MGEndDrawShadow(u_char alpha) {
         state.texa_ta0 = alpha;
         state.scissor = true;
         state.scissor_rect = current.window;
+        // Only where the volumes can be: the rest of the target is black, which the composite leaves
+        // as it is. The margin covers rasterisation's reach past the vertices and an interpolated
+        // display frame's drift. A side at the frame's edge goes on past it, as the window's would.
+        if (!g_shadow_cover.unbounded) {
+            constexpr float kMargin = 8.0f;
+            gfx::LogicalRect &rect = state.scissor_rect;
+            float x0 = std::max(rect.x, g_shadow_cover.x0 - kMargin);
+            float y0 = std::max(rect.y, g_shadow_cover.y0 - kMargin);
+            float x1 = std::min(rect.x + rect.w, g_shadow_cover.x1 + kMargin);
+            float y1 = std::min(rect.y + rect.h, g_shadow_cover.y1 + kMargin);
+            if (x1 <= x0 || y1 <= y0) {
+                MGPortRestoreRegisters();
+                return; // nothing drawn into the target reaches the window
+            }
+            rect = {x0, y0, x1 - x0, y1 - y0};
+        }
         float         xs[4] = {0.0f, kScreenWidth, kScreenWidth, 0.0f};
         float         ys[4] = {0.0f, 0.0f, kScreenHeight, kScreenHeight};
         gfx::Vertex2D quad[4] = {};

@@ -91,6 +91,10 @@ struct Volume {
     std::vector<gfx::Vertex3D> away;
     // Near-plane sections, turned towards the eye and drawn by the adding pass.
     std::vector<gfx::Vertex3D> cap;
+    // Each prism's six corners once, every vertex the faces above emit, for the composite's bounds
+    // (Draw3DShadowCover) at a quarter of the projections. Empty for a volume read back from its
+    // record, whose faces are projected instead.
+    std::vector<gfx::Vertex3D> corners;
 };
 
 void Emit(std::vector<gfx::Vertex3D> &out, std::span<const Vec3> polygon) {
@@ -141,6 +145,15 @@ void AddPrism(Volume &volume, const Vec3 top[3], const Vec3 drop[3], const bool 
     // A test per face, of the side the prism's centre lies on, is not used: for a prism the light
     // nearly grazes the centre lies almost on the long sides, float error turns one inwards, and it
     // counts with the wrong sign, a streak from the triangle to the ground (#87).
+    for (const Vec3 *corners : {top, drop}) {
+        for (int i = 0; i < 3; i++) {
+            gfx::Vertex3D vertex = {};
+            vertex.position[0] = corners[i].x;
+            vertex.position[1] = corners[i].y;
+            vertex.position[2] = corners[i].z;
+            volume.corners.push_back(vertex);
+        }
+    }
     bool down = thickness < 0.0f;
     AddFace(volume, {top[0], top[1], top[2]}, down, Count::Both);
     AddFace(volume, {drop[0], drop[1], drop[2]}, !down, far_cap);
@@ -298,6 +311,13 @@ void DrawCount(const std::vector<gfx::Vertex3D> &shared, const std::vector<gfx::
 }
 
 void DrawVolume(const Volume &volume, const Projection &projection, const RenderInfo &info) {
+    if (!volume.corners.empty()) {
+        Draw3DShadowCover(projection.eye_to_clip, volume.corners);
+    } else {
+        Draw3DShadowCover(projection.eye_to_clip, volume.both);
+        Draw3DShadowCover(projection.eye_to_clip, volume.away);
+        Draw3DShadowCover(projection.eye_to_clip, volume.cap);
+    }
     DrawCount(volume.both, volume.cap, projection, info, true);
     DrawCount(volume.both, volume.away, projection, info, false);
     // The GS is left with the subtracting pass's ALPHA.
@@ -449,6 +469,7 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
     bool   sides[3] = {true, true, true};
     Volume volume;
     volume.both.reserve((visual->vertices.size() / 3) * 24);
+    volume.corners.reserve((visual->vertices.size() / 3) * 6);
     for (size_t first = 0; first + 3 <= visual->vertices.size(); first += 3) {
         Vec3 local[3];
         for (int i = 0; i < 3; i++) {
