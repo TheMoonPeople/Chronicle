@@ -706,7 +706,12 @@ static void SoundProcess() {
 
     static int bat = 0;
 
-    if (CScript.scene == RUSH_SCENE_A && Cam[SceneNp].motion_type.state.time > 10.0f) {
+    // SceneNp is -1 until the script's first camera motion, and the fade-in plays before it: retail
+    // read Cam[-1], the memory before Cam, whose "time" is over 10 in some layouts (the Switch's),
+    // and then searched its "frame". Without a camera there is nothing to search.
+    bool camera = SceneNp >= 0;
+
+    if (camera && CScript.scene == RUSH_SCENE_A && Cam[SceneNp].motion_type.state.time > 10.0f) {
         if (!bat) {
             CFrame *frame = Cam[SceneNp].frame->SearchFrame("e04a5");
 
@@ -733,7 +738,8 @@ static void SoundProcess() {
         bat = 0;
     }
 
-    if ((CScript.scene == RUSH_SCENE_A && Cam[SceneNp].motion_type.state.time > 10.0f) || (CScript.scene == RUSH_SCENE_H && Cam[SceneNp].motion_type.state.time > 10.0f)) {
+    if (camera && ((CScript.scene == RUSH_SCENE_A && Cam[SceneNp].motion_type.state.time > 10.0f) ||
+                   (CScript.scene == RUSH_SCENE_H && Cam[SceneNp].motion_type.state.time > 10.0f))) {
         static int wait = 0;
 
         if (CScript.scene == RUSH_SCENE_A) {
