@@ -181,8 +181,10 @@ void Blit(const ResolvedRect &src, const ResolvedRect &dst, gfx::Filter filter) 
 }
 
 // The view against the last one the previous tick drew with.
+bool g_view_no_cut = false;
+
 void CheckCameraCut(sceVu0FMATRIX view) {
-    if (!gfx::Recording() || !g_have_tick_view) {
+    if (g_view_no_cut || !gfx::Recording() || !g_have_tick_view) {
         return;
     }
     float before[16];
@@ -344,6 +346,13 @@ void Draw3DMul(float out[4][4], const float a[4][4], const float b[4][4]) {
 // point MGRotTransPers2D gives, and that lands on the target through its logical mapping (with
 // the field-height targets taking half the rows). Depth is a + b / z with the GS Z of
 // MGSetRenderInfo, offset[2] + scale[2] / z, read through MGPortDepth.
+namespace { float g_orthographic_depth = 0.0f; }
+float MGPortOrthographicDepth() { return g_orthographic_depth; }
+MGPortOrthographicScope::MGPortOrthographicScope(float depth) : previous_(g_orthographic_depth) {
+    g_orthographic_depth = depth;
+}
+MGPortOrthographicScope::~MGPortOrthographicScope() { g_orthographic_depth = previous_; }
+
 void Draw3DEyeToClip(const RenderInfo &info, float clip[4][4]) {
     gfx::TextureHandle  target = gfx::CurrentRenderTarget();
     gfx::LogicalMapping mapping = gfx::GetLogicalMapping(target);
@@ -358,6 +367,18 @@ void Draw3DEyeToClip(const RenderInfo &info, float clip[4][4]) {
     float               centre_y = info.offset[1] - (kGsCentre - kScreenHeight * 0.5f);
 
     std::memset(clip, 0, sizeof(float) * 16);
+    if (g_orthographic_depth > 0.0f) {
+        clip[0][0] = kx * info.scale[0] / g_orthographic_depth;
+        clip[1][1] = ky * info.scale[1] / g_orthographic_depth;
+        clip[3][0] = kx * centre_x + ox;
+        clip[3][1] = ky * centre_y + oy;
+        const float range = info.far[2] - info.near[2];
+        clip[2][2] = -1.0f / range;
+        clip[3][2] = info.far[2] / range;
+        clip[3][3] = 1.0f;
+        return;
+    }
+
     clip[0][0] = kx * info.scale[0];
     clip[2][0] = kx * centre_x + ox;
     clip[1][1] = ky * info.scale[1];
@@ -784,6 +805,12 @@ PORT_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     mgRenderInfo.position[1] = position[1];
     mgRenderInfo.position[2] = position[2];
     mgRenderInfo.position[3] = 0.0f;
+}
+
+void MGPortSetViewMatrixNoCut(float view[4][4], float *position) {
+    g_view_no_cut = true;
+    MGSetViewMatrix(view, position);
+    g_view_no_cut = false;
 }
 
 PORT_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {

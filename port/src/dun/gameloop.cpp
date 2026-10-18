@@ -24,6 +24,8 @@
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
 #include "dungeoneventman.hpp"
+#include "dungeon_aerial.hpp"
+#include "dungeon_grid.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
 #include "editloop3.hpp"
@@ -119,6 +121,44 @@ extern s32             rogoY3;
 // Draws the floor's monsters. CMonstorUnit::DrawMonstor draws the ones taking part; a dormant one
 // within video.detail_distance of the player is passed off as taking part for the length of the
 // call, so that its model draws and animates without the monster waking.
+// With video.detail_distance 0 (no limit) every dormant monster on the floor is drawn and
+// animated, wherever it is. For the length of the shadow and model draws, a monster that stands in a
+// cell DrawMap did not show (off screen or behind walls) and is more than four cells from the player
+// is marked unrevealed, so neither it nor its shadow is drawn.
+constexpr int kMonsterSlots = std::extent_v<decltype(CMonstorUnit::monster)>;
+static s16    g_monster_revealed[kMonsterSlots];
+static bool   g_monster_culled[kMonsterSlots];
+
+static void CullHiddenMonsters() {
+    CMonstorUnit *unit = NowMonstorUnit;
+    for (bool &culled : g_monster_culled) culled = false;
+    if (unit == nullptr || NowDngMap == nullptr || NowDngMap->map_type != 1) return;
+    for (int i = 0; i < kMonsterSlots; i++) {
+        MONSTOR *monster = &unit->monster[i];
+        CFrame  *frame = unit->chara[i][0].frame;
+        if (monster->state == -1 || monster->revealed == 0 || frame == nullptr || monster->player_distance < 640.0f) {
+            continue;
+        }
+        const int col = static_cast<int>((frame->position[0] + 80.0f) / 160.0f);
+        const int row = static_cast<int>((frame->position[2] + 80.0f) / 160.0f);
+        if (col >= 0 && row >= 0 && col < dungeon_grid::side && row < dungeon_grid::side &&
+            NowDngMap->cells[col + row * dungeon_grid::side].visible) {
+            continue;
+        }
+        g_monster_revealed[i] = monster->revealed;
+        monster->revealed = 0;
+        g_monster_culled[i] = true;
+    }
+}
+
+static void RestoreHiddenMonsters() {
+    if (NowMonstorUnit == nullptr) return;
+    for (int i = 0; i < kMonsterSlots; i++) {
+        if (g_monster_culled[i]) NowMonstorUnit->monster[i].revealed = g_monster_revealed[i];
+        g_monster_culled[i] = false;
+    }
+}
+
 static void DrawMonstorDetail() {
     CMonstorUnit *unit = NowMonstorUnit;
     float         detail = ConfigDetailDistance();
@@ -255,6 +295,7 @@ PORT_OVERRIDE void DunMainDraw() {
         NowDngMap->DrawAtraBoll(atra_pos);
     }
 
+    CullHiddenMonsters();
     Draw_MainUnitShadow();
 
     if (BtActStatus.player_visible != 0 && EdEventInfo.player_draw != 0) {
@@ -264,6 +305,7 @@ PORT_OVERRIDE void DunMainDraw() {
     if (CMonUnitHyde == 0 && BtEventMode == 0) {
         DrawMonstorDetail();
     }
+    RestoreHiddenMonsters();
 
     if (CharaMainHandViewFlag != 0) {
         TexManager.ReloadTexture(Vif1Packet, 0x11);
@@ -576,13 +618,17 @@ PORT_OVERRIDE void DunMainDraw() {
             sceVu0FVECTOR map_pos;
             sceVu0FVECTOR map_rot;
 
-            gfx::UiAnchorScope map_anchor(kMiniMapAnchor);
+            gfx::UiAnchorScope map_anchor(ConfigGet().aerial_map ? gfx::UiAnchor{} : kMiniMapAnchor);
 
             TexManager.ReloadTexture(Vif1Packet, 0x1F);
             sceVu0CopyVector(map_pos, CharaFrame->position);
             CharaFrame->GetRotation(map_rot);
             NowDngMap->DrawMiniMap(map_pos, map_rot[1]);
-            NowMonstorUnit->DrawMapSymbol(map_pos);
+
+            // The aerial map shows the monsters as their models.
+            if (!DungeonAerialMapDrawn()) {
+                NowMonstorUnit->DrawMapSymbol(map_pos);
+            }
             RandomItem->MapSymbolDraw();
         }
 

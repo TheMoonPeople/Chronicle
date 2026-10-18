@@ -97,7 +97,8 @@ unsigned int g_cursor[64];
 
 Draw3DIdentityScope::Draw3DIdentityScope(const void *object, float teleport_distance, bool blend_vertices)
     : key_(gfx::CurrentInterpKey()), no_interpolation_(gfx::CurrentNoInterpolation()) {
-    gfx::SetInterpKey(reinterpret_cast<uintptr_t>(object), false, teleport_distance, blend_vertices);
+    gfx::SetInterpKey(reinterpret_cast<uintptr_t>(object), MGPortOrthographicDepth() > 0.0f,
+                      teleport_distance, blend_vertices);
 }
 
 Draw3DIdentityScope::~Draw3DIdentityScope() {
@@ -194,7 +195,7 @@ PORT_OVERRIDE int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
         ShadowMatrix(info->shadow, info->light_direction, info->shadow_point, info->shadow_normal);
     }
 
-    if (visual && attr.draw_on && attr.cull_enable) {
+    if (visual && attr.draw_on && attr.cull_enable && MGPortOrthographicDepth() == 0.0f) {
         MulFrameMatrix(screen_matrix, info->view_scaled, matrix);
         float inv_scale = 1.0f / info->scale[0];
 

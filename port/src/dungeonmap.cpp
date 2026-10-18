@@ -1,3 +1,5 @@
+#include "dungeon_grid.hpp"
+#include "dungeon_visibility.hpp"
 #include "dungeonmap.hpp"
 #include <libvu0.h>
 #include <cmath>
@@ -374,6 +376,9 @@ PORT_OVERRIDE void CDungeonMap::DrawMap(CCameraFollow *camera, CFrameVu1 *player
 
     this->ClearNPC_Cash();
     nearest = 10000.0f;
+    auto visible_cells = dungeon_visibility::Build<dungeon_grid::side>(this->cells, cam_pos[0], cam_pos[2]);
+    if (selectMapNo == DUNGEON_MOON_SEA || UserStatus->cur_georama == 5) visible_cells.fill(true);
+
 
     for (row = 0; row < 20; row++) {
         for (col = 0; col < 20; col++) {
@@ -450,6 +455,7 @@ PORT_OVERRIDE void CDungeonMap::DrawMap(CCameraFollow *camera, CFrameVu1 *player
                     }
                 }
             }
+            if (!visible_cells[cell_no] && dist >= 320.0f) draw = false;
             this->cells[cell_no].visible = draw;
             if (!draw) {
                 continue;

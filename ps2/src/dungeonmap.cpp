@@ -977,6 +977,14 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
                 if (this->cells[cell_no].parts_no != MAP_PARTS_NONE && this->cells[cell_no].camera_dist <= 160.0f * (3.0f + this->draw_dist_scale)) {
                     CDungeonParts *part;
 
+#ifdef PORT
+                    // DrawMap already decided which cells are on screen and not behind walls;
+                    // their torches are the only ones worth drawing.
+                    if (!this->cells[cell_no].visible) {
+                        continue;
+                    }
+#endif
+
                     for (j = 0; j < (part = &this->parts[this->cells[cell_no].parts_no])->fire_num; j++) {
                         float turn;
                         float rot_x;
