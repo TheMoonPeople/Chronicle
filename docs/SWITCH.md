@@ -46,7 +46,13 @@ Mesa, Rust's standard library for the Switch, SPIRV-Tools, glslang, SDL3). podma
 tools/switch/build.sh            # builds the image if needed, then port/build/switch/darkcloud.nro
 tools/switch/build.sh -v         # arguments go to the build
 tools/switch/build.sh shell      # a shell in the image
+SWITCH_PRESET=switch-gl tools/switch/build.sh   # port/build/switch-gl: the GL renderer instead
 ```
+
+The GL renderer (`port/switch/gl`, `DC_SWITCH_RENDERER=gl`) is kept in reserve should NVK fail on
+a console. It is a null backend for now: it answers every `gfx.hpp` call over Kazarov's display
+lists and TIM2 decoding but draws nothing, which still runs the game without its picture, so
+input, audio and saving can be told apart from the renderer.
 
 The image is tagged by a hash of the Containerfile, so editing it builds a new one. VS Code can open
 the checkout in the same image: `.devcontainer/switch/devcontainer.json` (with podman, set

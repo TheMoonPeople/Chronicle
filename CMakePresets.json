@@ -92,6 +92,15 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "DC_BUILD_TESTS": "OFF"
             }
+        },
+        {
+            "name": "switch-gl",
+            "displayName": "Nintendo Switch homebrew with the GL renderer (in reserve; draws nothing yet)",
+            "inherits": "switch",
+            "binaryDir": "${sourceDir}/port/build/switch-gl",
+            "cacheVariables": {
+                "DC_SWITCH_RENDERER": "gl"
+            }
         }
     ],
     "buildPresets": [
@@ -114,6 +123,10 @@
         {
             "name": "switch",
             "configurePreset": "switch"
+        },
+        {
+            "name": "switch-gl",
+            "configurePreset": "switch-gl"
         }
     ],
     "testPresets": [

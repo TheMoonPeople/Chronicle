@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds the Nintendo Switch homebrew port (docs/SWITCH.md) in the image tools/switch/Containerfile
 # describes, building that image first when this checkout's Containerfile has no image yet.
-# podman by default, docker with BUILDER=docker. The arguments go to the build (targets, -v);
+# podman by default, docker with BUILDER=docker. SWITCH_PRESET=switch-gl builds the GL renderer kept
+# in reserve instead of the Vulkan one. The arguments go to the build (targets, -v);
 # `tools/switch/build.sh shell` opens a shell in the image instead.
 set -euo pipefail
 
@@ -28,10 +29,11 @@ else
 fi
 interactive=()
 [ -t 0 ] && interactive=(-it)
-run=("$builder" run --rm "${interactive[@]}" "${user[@]}" -e HOME=/tmp -v "$root:$root:z" -w "$root" "$image")
+preset=${SWITCH_PRESET:-switch}
+run=("$builder" run --rm "${interactive[@]}" "${user[@]}" -e HOME=/tmp -e "PRESET=$preset" -v "$root:$root:z" -w "$root" "$image")
 
 if [ "${1:-}" = shell ]; then
     shift
     exec "${run[@]}" bash "$@"
 fi
-exec "${run[@]}" bash -c 'cmake --preset switch > /dev/null && cmake --build --preset switch "$@"' build "$@"
+exec "${run[@]}" bash -c 'cmake --preset "$PRESET" > /dev/null && cmake --build --preset "$PRESET" "$@"' build "$@"
