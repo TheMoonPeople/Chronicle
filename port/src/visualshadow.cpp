@@ -282,17 +282,21 @@ float NearPlane(const Projection &projection) {
     return a < 1.0f ? b / (1.0f - a) : 0.0f;
 }
 
-void DrawCount(const std::vector<gfx::Vertex3D> &shared, const std::vector<gfx::Vertex3D> &own,
+// shared and own as two draws in one state, in that order: the counting is what one draw of both
+// would leave.
+void DrawCount(std::span<const gfx::Vertex3D> shared, std::span<const gfx::Vertex3D> own,
                const Projection &projection, const RenderInfo &info, bool add) {
-    // DrawMeshImmediate copies recorded vertices and indices, so these buffers can be reused.
-    static thread_local std::vector<gfx::Vertex3D> faces;
-    static thread_local std::vector<uint32_t>      indices;
-    faces.clear();
-    faces.reserve(shared.size() + own.size());
-    faces.insert(faces.end(), shared.begin(), shared.end());
-    faces.insert(faces.end(), own.begin(), own.end());
-    if (faces.empty()) {
+    if (shared.empty() && own.empty()) {
         return;
+    }
+    // Every face is its own three vertices, so the indices count up from 0. DrawMeshImmediate
+    // copies what it records, so one run serves every draw.
+    static thread_local std::vector<uint32_t> indices;
+    size_t                                    longest = std::max(shared.size(), own.size());
+    if (indices.size() < longest) {
+        size_t first = indices.size();
+        indices.resize(longest);
+        std::iota(indices.begin() + static_cast<std::ptrdiff_t>(first), indices.end(), static_cast<uint32_t>(first));
     }
     gfx::MeshConstants constants = {};
     std::memcpy(constants.mvp, projection.eye_to_clip, sizeof(constants.mvp));
@@ -304,22 +308,28 @@ void DrawCount(const std::vector<gfx::Vertex3D> &shared, const std::vector<gfx::
     gfx::DrawState state = Draw3DState(info, false);
     state.cull = add ? gfx::CullMode::Back : gfx::CullMode::Front;
     state.alpha = add ? gfx::GsBlend{0, 2, 2, 1, 0x80} : gfx::GsBlend{2, 0, 2, 1, 0x80};
-    indices.resize(faces.size());
-    std::iota(indices.begin(), indices.end(), uint32_t{0});
-    gfx::DrawMeshImmediate(faces, indices, constants, {}, state,
-                           projection.has_transform ? &projection.transform : nullptr);
+    for (std::span<const gfx::Vertex3D> faces : {shared, own}) {
+        if (!faces.empty()) {
+            gfx::DrawMeshImmediate(faces, std::span(indices).first(faces.size()), constants, {}, state,
+                                   projection.has_transform ? &projection.transform : nullptr);
+        }
+    }
 }
 
-void DrawVolume(const Volume &volume, const Projection &projection, const RenderInfo &info) {
-    if (!volume.corners.empty()) {
-        Draw3DShadowCover(projection.eye_to_clip, volume.corners);
+// The faces both passes draw, those only the subtracting one draws, the near-plane sections the
+// adding one draws, and corners as Volume has them.
+void DrawVolume(std::span<const gfx::Vertex3D> both, std::span<const gfx::Vertex3D> away,
+                std::span<const gfx::Vertex3D> cap, std::span<const gfx::Vertex3D> corners,
+                const Projection &projection, const RenderInfo &info) {
+    if (!corners.empty()) {
+        Draw3DShadowCover(projection.eye_to_clip, corners);
     } else {
-        Draw3DShadowCover(projection.eye_to_clip, volume.both);
-        Draw3DShadowCover(projection.eye_to_clip, volume.away);
-        Draw3DShadowCover(projection.eye_to_clip, volume.cap);
+        Draw3DShadowCover(projection.eye_to_clip, both);
+        Draw3DShadowCover(projection.eye_to_clip, away);
+        Draw3DShadowCover(projection.eye_to_clip, cap);
     }
-    DrawCount(volume.both, volume.cap, projection, info, true);
-    DrawCount(volume.both, volume.away, projection, info, false);
+    DrawCount(both, cap, projection, info, true);
+    DrawCount(both, away, projection, info, false);
     // The GS is left with the subtracting pass's ALPHA.
     MGPortRegisters &current = MGPortCurrent();
     current.alpha.bits.a = 2;
@@ -447,12 +457,10 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
         ActiveData->Alloc(CreateVUdataShadowCLIP(reinterpret_cast<u_int *>(ActiveData->base + ActiveData->used * 16), data,
                                                  info, matrix));
         if (const Draw3DVisual *visual = Draw3DFindVisual(vu_data); visual && visual->strips.size() == 3) {
-            Volume volume;
-            auto   begin = visual->vertices.begin();
-            volume.both.assign(begin, begin + visual->strips[1].first_index);
-            volume.away.assign(begin + visual->strips[1].first_index, begin + visual->strips[2].first_index);
-            volume.cap.assign(begin + visual->strips[2].first_index, visual->vertices.end());
-            DrawVolume(volume, projection, *info);
+            std::span<const gfx::Vertex3D> all = visual->vertices;
+            uint32_t                       away = visual->strips[1].first_index;
+            uint32_t                       cap = visual->strips[2].first_index;
+            DrawVolume(all.subspan(0, away), all.subspan(away, cap - away), all.subspan(cap), {}, projection, *info);
         }
         vu_data_buffer[0] = saved_primary;
         vu_data_buffer[1] = saved_secondary;
@@ -484,7 +492,7 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
         Corners(projection, local, top, drop);
         AddPrism(volume, top, drop, sides, Count::Both);
     }
-    DrawVolume(volume, projection, *info);
+    DrawVolume(volume.both, volume.away, volume.cap, volume.corners, projection, *info);
     return 0;
 }
 
