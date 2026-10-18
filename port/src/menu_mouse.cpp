@@ -1140,6 +1140,10 @@ void MenuMouseUpdate() {
 }
 
 void MenuMouseDrawOverlay() {
+    if ((BattleMenuFlag == BTLMENU_STATE_MANUAL || BattleMenuFlag == BTLMENU_STATE_MANUAL_OPEN) &&
+        ManualMenu.mode == MANUAL_MODE_READING && g_battle.IsOpen() && g_battle.pointing) {
+        DrawMenuObjectVibe(0, 0, 1, 0x40);
+    }
     if (!g_discard.active) {
         return;
     }
