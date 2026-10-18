@@ -74,15 +74,48 @@ are found as they are beside the PC executable. Start it with a game's title ove
 while launching a game) rather than from the album applet: an applet gets a fraction of the
 memory.
 
+## Arguments
+
+The Homebrew Menu passes no arguments, so `args.txt` beside the `.nro` supplies them: words
+separated by whitespace, after any the launcher gave (`--jump edit:0`, say).
+
 ## Logs
 
 Sent with `nxlink -s darkcloud.nro` (from devkitPro's switch-tools; the Homebrew Menu waits for it
-on Y), the game prints its log, stdout and stderr, on the computer that sent it. Started from the
-Homebrew Menu it prints nothing. Send `data/` and the other folders to the SD card first; nxlink
-sends only the `.nro`, which then runs from `sdmc:/switch/`, so put them beside it there (or pass
-`--data`, e.g. `nxlink -s darkcloud.nro -- --data sdmc:/switch/chronicle/data`).
+on Y), the game prints its log, stdout and stderr, on the computer that sent it. Started any other
+way it writes them to `darkcloud.log` beside the `.nro`, unbuffered, so a run that stops short
+leaves its last lines there. nxlink sends only the `.nro`, which then runs from `sdmc:/switch/`, so
+put `data/` and the other folders beside it there (or pass `--data`, e.g.
+`nxlink -s darkcloud.nro -- --data sdmc:/switch/chronicle/data`).
+
+## Performance
+
+Handheld, at the screen's 1280x720, Norune runs at 50 to 60 frames a second. What gets it there:
+
+- **GPU clock.** A homebrew title starts with the handheld GPU at 307.2 MHz; retail games get 384
+  and some ask for 460.8 MHz. `port/switch/clocks.cpp` asks for the 460.8 MHz configuration (an
+  official one: CPU 1020 MHz, memory 1600 MHz) unless `"switch_gpu_boost": false` is set under
+  `video` in `save/config.json`. Docked is left alone, and the setting ends with the game.
+- **Render targets at the screen's scale.** The render scale is the screen's height over 480
+  (1.5 handheld) rather than rounded up to 2.
+- **Two ticks in flight** (Kazarov's `kFramesInFlight`), so the CPU records a tick while the GPU
+  draws the last.
+- **No per-draw branches in `draw.frag`.** NAK compiles a uniform branch into a sync and nops, and on
+  the Tegra X1 a fragment costs about its instruction count; the push constants carry each draw's
+  choices as values to select between.
+- **Palette textures expanded** to RGBA (Kazarov's `RendererConfig::expand_palettes`), filtered by
+  the sampler instead of looked up four times a pixel. At a distance they use their mip levels,
+  which the shader lookup did not.
+- **Shadow composites scissored** to the screen bounds of their volumes (`Draw3DShadowCover`),
+  which also helps the PC build.
+- **Smooth motion off** by default: a display frame between ticks costs the GPU about what a tick
+  does.
+
+What remains is the CPU, at about 13 ms a tick (the game's own work and recording the draws).
 
 ## Status
 
-- `darkcloud.nro` builds and links (the PC build and its tests are unchanged).
-- Not yet run on a console: nothing past the link is known to work.
+- Runs on a Switch OLED (Atmosphère, from the Homebrew Menu with a title overridden): the intro,
+  the title, new and loaded games, Norune.
+- Ryujinx runs the `.nro` (its OpenGL backend; its Vulkan backend crashes on NVK's images) but
+  shows a black screen, which is still useful for crashes before the first frame.

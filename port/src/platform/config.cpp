@@ -449,6 +449,11 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "video.interpolation") {
         return ReadBool(value, config.interpolation);
     }
+#ifdef __SWITCH__
+    if (name == "video.switch_gpu_boost") {
+        return ReadBool(value, config.switch_gpu_boost);
+    }
+#endif
     if (name == "video.max_fps") {
         double fps = 0.0;
         if (!ReadNumber(value, fps) || !(fps >= 0.0) || !std::isfinite(fps)) {
@@ -645,6 +650,9 @@ std::string ConfigSerialize(const Config &config) {
     root["video"]["boss_shadow"] = config.boss_shadow;
     root["video"]["present_mode"] = PresentModeName(config.present_mode);
     root["video"]["interpolation"] = config.interpolation;
+#ifdef __SWITCH__
+    root["video"]["switch_gpu_boost"] = config.switch_gpu_boost;
+#endif
     root["video"]["max_fps"] = config.max_fps;
     root["video"]["width"] = config.window_width;
     root["video"]["height"] = config.window_height;

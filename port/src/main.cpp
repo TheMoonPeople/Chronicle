@@ -7,6 +7,10 @@
 #include <system_error>
 #include <vector>
 
+#ifdef __SWITCH__
+#include <SDL3/SDL.h>
+#endif
+
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
@@ -45,6 +49,10 @@ int  EditLoop();
 void SndInit();
 
 namespace fs = std::filesystem;
+
+#ifdef __SWITCH__
+void SwitchApplyGpuBoost(bool on); // port/switch/clocks.cpp
+#endif
 
 namespace {
 
@@ -421,6 +429,9 @@ int Run(int argc, const char **argv) {
     ConfigLoad();
     audio::SoundtrackEnsure();
     const Config &config = ConfigGet();
+#ifdef __SWITCH__
+    SwitchApplyGpuBoost(config.switch_gpu_boost);
+#endif
 
     DisplaySetOverrides(options.width, options.height, options.headless);
     WindowConfig window = DisplayWindowConfig(config);
@@ -440,6 +451,19 @@ int Run(int argc, const char **argv) {
     renderer.offscreen = offscreen;
     renderer.layout = Layout(config);
     renderer.validation = renderer.validation || SettingsEnv("VULKAN_VALIDATION") != nullptr;
+#ifdef __SWITCH__
+    // Render targets at the screen's own scale: rounding 720 / 480 up to 2 drew the effects' images
+    // at 1280x960 for a frame shown at 960x720, which on the Switch's GPU cost more than they showed.
+    {
+        int width = 0;
+        int height = 0;
+        SDL_GetWindowSizeInPixels(WindowHandle(), &width, &height);
+        if (height > 0) {
+            renderer.render_scale = static_cast<float>(height) / static_cast<float>(kScreenHeight);
+        }
+    }
+    renderer.expand_palettes = true;
+#endif
     gfx::RendererInit(WindowHandle(), renderer);
     gfx::SetAnisotropy(config.anisotropy);
 
@@ -480,6 +504,30 @@ int Run(int argc, const char **argv) {
 } // namespace
 
 PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+#ifdef __SWITCH__
+    // The Homebrew Menu passes no arguments, so on the Switch args.txt beside the .nro (the working
+    // directory) supplies them: whitespace-separated, after any the launcher gave.
+    static std::vector<std::string>  words;
+    static std::vector<const char *> args;
+    if (std::FILE *file = std::fopen("args.txt", "r")) {
+        char word[512];
+        while (std::fscanf(file, "%511s", word) == 1) {
+            words.emplace_back(word);
+        }
+        std::fclose(file);
+    }
+    if (!words.empty()) {
+        args.assign(argv, argv + argc);
+        if (args.empty()) {
+            args.push_back("darkcloud"); // Ryujinx starts a homebrew .nro without even argv[0]
+        }
+        for (const std::string &word : words) {
+            args.push_back(word.c_str());
+        }
+        args.push_back(nullptr);
+        return Run(static_cast<int>(args.size()) - 1, args.data());
+    }
+#endif
     return Run(argc, argv);
 }
 
