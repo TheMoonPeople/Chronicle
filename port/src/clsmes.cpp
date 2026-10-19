@@ -145,12 +145,12 @@ void SoftFuchi(const ClsMes &mes, int x, int y, int width, int height, int u, in
             break;
         case MES_EDGE_TABLE:
             // The outline the table makes (a weapon's name), two pixels out each way in the game: the game's soft letters
-            // fade it over more than a pixel and never quite to black, so it is spread wider and a little lighter, and
-            // the sharp letters' copies sit a pixel and a half out so the black reaches as far as it seems to there.
-            spread = 1.5f;
-            weaken = 0.92f;
+            // fade it and keep it short of black, so the sharp letters' copies sit 1.6 pixels out, spread a little wider
+            // and a little lighter.
+            spread = 1.2f;
+            weaken = 0.85f;
             for (int i = 0; FuchiTbl_E[i].alpha > 0; i++) {
-                constexpr float kReach = 0.75f;
+                constexpr float kReach = 0.8f;
                 pass(static_cast<float>(FuchiTbl_E[i].x) * kReach, static_cast<float>(FuchiTbl_E[i].y) * kReach, FuchiTbl_E[i].r,
                      FuchiTbl_E[i].g, FuchiTbl_E[i].b, std::min(cap, FuchiTbl_E[i].alpha));
             }
