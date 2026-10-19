@@ -173,7 +173,7 @@ memory behind when the game exits that the next program in the same process trip
 
 ## How it runs
 
-**The renderer.** Kazarov's Vulkan renderer (`tools/kazarov/port/gfx`) runs unchanged on
+**The renderer.** Kazarov's Vulkan renderer (`tools/kazarov/src/cpp/gfx`) runs unchanged on
 [etonedemid/mesa-switch](https://github.com/etonedemid/mesa-switch), Mesa 26.2 with NVK (Vulkan 1.3)
 on the Tegra X1, linked statically (there is no loader). SDL3 is devkitPro's `switch-sdl-3.4` branch
 with [etonedemid/SDL](https://github.com/etonedemid/SDL)'s Vulkan surfaces (`VK_NN_vi_surface`),

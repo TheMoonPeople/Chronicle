@@ -1,6 +1,6 @@
 # gl
 
-Kazarov's renderer (`tools/kazarov/port/gfx`, its README tells the API and its conventions) redone over
+Kazarov's renderer (`tools/kazarov/src/cpp/gfx`, its README tells the API and its conventions) redone over
 OpenGL 4.3 core, for the Switch's Mesa: devkitPro's `switch-mesa` (nouveau GL on the Tegra X1),
 through SDL3's EGL. `DC_RENDERER=gl` builds it in place of Kazarov's Vulkan units on any platform:
 the `switch-gl` preset for the console, `linux-x64-gl-release` on a PC, where it runs against the
