@@ -17,19 +17,6 @@ enum class WeaponActionBit : int {
 };
 
 /**
- * Label text and RGB color palette for a primary weapon stat row.
- */
-struct StatLabelSpec {
-    const char *name;  /**< Two-letter stat abbreviation. */
-    u8          r;     /**< Base fill red channel. */
-    u8          g;     /**< Base fill green channel. */
-    u8          b;     /**< Base fill blue channel. */
-    u8          out_r; /**< Outline red channel. */
-    u8          out_g; /**< Outline green channel. */
-    u8          out_b; /**< Outline blue channel. */
-};
-
-/**
  * Returns a pointer to the weapon currently highlighted in the Weapon Menu.
  */
 WEAPON_HAVE *GetNowSelectWeaponPort() {
@@ -284,115 +271,6 @@ void DrawWeaponCenteredWarningModal(int alpha) {
 }
 
 } // namespace
-
-PORT_OVERRIDE void DrawWepDamageDraw(RECT rect, WEAPON_HAVE *weapon, int alpha) {
-    if (weapon == nullptr || alpha <= 0) {
-        return;
-    }
-
-    const int x          = rect.x;
-    int       y          = rect.y;
-    const int durability = std::max(1, static_cast<int>(weapon->durability));
-    const int now        = std::clamp(GetDispVolumeForFloat(weapon->durability_f), 0, durability);
-    int       max_exp    = GetWeaponMaxExp(weapon);
-    int       exp        = weapon->experience;
-
-    if (max_exp < exp) {
-        exp = max_exp;
-    }
-    if (exp < 0) {
-        exp = 0;
-    }
-    if (max_exp <= 0) {
-        max_exp = 99;
-    }
-
-    const int exp_len = (exp * 99) / max_exp;
-
-    setbilinear(0);
-
-    DrawMenu2DSprite(WepStatus, CRect_i_(rect.x, y, durability, 8), CRect_i_(0x100, 0x70, 8, 8), alpha);
-    MGFillBox(CRect_i_(rect.x * 16, ((y - 1) >> 1) * 16, (durability + 1) * 16, 0x50), 0x4F, 0x4F, 0x4F, alpha);
-
-    GRADATION_COLOR_INFO2 colours;
-    std::memcpy(&colours, GetGradationColorInfo2(25), sizeof(colours));
-    colours.colors[0].a = static_cast<u8>(alpha);
-    colours.colors[1].a = static_cast<u8>(alpha);
-    colours.colors[2].a = static_cast<u8>(alpha);
-    colours.colors[3].a = static_cast<u8>(alpha);
-    CRect_i_ whp_fill(rect.x, y, now, 8);
-    DrawMenuColorGradation(whp_fill,
-                           &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
-
-    const int whp_text_y = y + rect.height - 5;
-
-    rect.y += 0x14;
-    y       = rect.y;
-    DrawMenu2DSprite(WepStatus, CRect_i_(rect.x, y, exp_len, 8), CRect_i_(0x100, 0x78, 8, 8), alpha);
-    const int abs_text_y = y + rect.height - 5;
-
-    const int slash_x = x + rect.width - 0x20;
-    UI::DrawStatusSlashPair(now, durability, slash_x, whp_text_y, 0.64f, alpha);
-    UI::DrawStatusSlashPair(exp, max_exp, slash_x, abs_text_y, 0.64f, alpha);
-
-    setbilinear(0);
-}
-
-PORT_OVERRIDE void DrawWepVolumeDisplay(int x, int y, WEAPON_HAVE *weapon, int alpha) {
-    if (weapon == nullptr || alpha <= 0) {
-        return;
-    }
-    WEAPON_DATA *data = GetWeaponData(weapon->item_no);
-    if (data == nullptr) {
-        return;
-    }
-
-    WEAPON_HAVE total{};
-    WeaponAllValueSet(weapon, &total, 0);
-
-    if (weapon->best_elem >= 0 && weapon->best_elem < 5) {
-        setbilinear(0);
-        MenuTextureReload(BtlMenuReadBlock);
-        DrawMenu2DSprite(MenuCharaFace,
-                         CRect_i_(x, y - 0x10, 15, 16),
-                         CRect_i_(0xE0, weapon->best_elem * 16, 15, 16),
-                         alpha);
-
-        static constexpr const char *elem_names[5] = {"Fl", "Ch", "Th", "Wi", "Ho"};
-        UI::DrawStatusText(elem_names[static_cast<int>(weapon->best_elem)], x + 16, y - 0x12, UI::Alignment::Left,
-                           240, 200, 55, 0.64f, alpha, 18, 34, 88);
-    }
-
-    int         values[4] = {total.attack, total.endurance, total.speed, total.magic};
-    const float rate      = GetNowWeaponRate(&total);
-    const int   limit[4]  = {
-        static_cast<int>(static_cast<float>(data->attack_max) * rate),
-        99,
-        99,
-        static_cast<int>(static_cast<float>(data->magic_max) * rate)
-    };
-
-    static constexpr StatLabelSpec stat_specs[4] = {
-        {"At",  65, 235, 145,  8, 38, 36},
-        {"Ed", 235, 190,  35, 38, 32, 10},
-        {"Sp",  75, 210, 215,  8, 36, 46},
-        {"Mp", 225, 145, 215, 36, 18, 44}
-    };
-
-    for (int i = 0; i < 4; i++) {
-        if (values[i] > limit[i]) {
-            values[i] = limit[i];
-        }
-        const int row_y = y + i * 16 - 2;
-        UI::DrawStatusText(stat_specs[i].name, x, row_y, UI::Alignment::Left,
-                           stat_specs[i].r, stat_specs[i].g, stat_specs[i].b,
-                           0.66f, alpha,
-                           stat_specs[i].out_r, stat_specs[i].out_g, stat_specs[i].out_b);
-        UI::DrawStatusNumber(values[i], x + 48, row_y, 0.64f, alpha, false);
-    }
-
-    setbilinear(0);
-}
 
 PORT_OVERRIDE void DrawWeaponSelectDialog(int x, int y, int alpha) {
     const s8     shift  = (BtlMenuNowLang > LANG_JAPANESE) ? 2 : 0;
