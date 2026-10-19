@@ -311,6 +311,34 @@ void CreatePrograms() {
             glDeleteShader(shader);
         }
     }
+    // Copies as draws: a quad over the destination rect, each pixel fetching its texel of the source
+    // rect. The Maxwell 2D engine glCopyImageSubData goes through on nouveau moves about a pixel a
+    // clock, several times the 3D pipeline's time for a full-screen image.
+    const char *copy_vertex = R"glsl(#version 430 core
+layout(location = 0) uniform vec4 u_destination; // NDC x0, y0, x1, y1
+layout(location = 1) uniform vec4 u_source;      // texels x0, y0, x1, y1
+out vec2 v_texel;
+void main() {
+    vec2 corner = vec2(gl_VertexID & 1, gl_VertexID >> 1);
+    gl_Position = vec4(mix(u_destination.xy, u_destination.zw, corner), 0.0, 1.0);
+    v_texel     = mix(u_source.xy, u_source.zw, corner);
+}
+)glsl";
+    const char *copy_fragment = R"glsl(#version 430 core
+layout(binding = 0) uniform sampler2D u_image;
+in vec2 v_texel;
+out vec4 o_color;
+void main() {
+    o_color = texelFetch(u_image, ivec2(floor(v_texel)), 0);
+}
+)glsl";
+    GLuint copy_vs = Compile(GL_VERTEX_SHADER, "copy.vert", copy_vertex);
+    GLuint copy_fs = Compile(GL_FRAGMENT_SHADER, "copy.frag", copy_fragment);
+    gl.copy_program = Link(copy_vs, copy_fs, "copy");
+    glDeleteShader(copy_vs);
+    glDeleteShader(copy_fs);
+    glGenVertexArrays(1, &gl.copy_vertex_array);
+
     gl.program_count = done;
     gl.program_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 }
@@ -322,6 +350,14 @@ void DestroyPrograms() {
         }
     }
     gl.programs.clear();
+    if (gl.copy_program != 0) {
+        glDeleteProgram(gl.copy_program);
+        glDeleteVertexArrays(1, &gl.copy_vertex_array);
+    }
+    gl.copy_program = 0;
+    gl.copy_vertex_array = 0;
+    DestroyGlImage(gl.scratch_rgba);
+    DestroyGlImage(gl.scratch_index);
 }
 
 } // namespace gfx::detail

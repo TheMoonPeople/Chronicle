@@ -102,11 +102,22 @@ namespace gfx::detail {
     X(PFNGLGETPROGRAMINFOLOGPROC, glGetProgramInfoLog)                                                                 \
     X(PFNGLDELETEPROGRAMPROC, glDeleteProgram)                                                                         \
     X(PFNGLUSEPROGRAMPROC, glUseProgram)                                                                               \
+    X(PFNGLUNIFORM4FPROC, glUniform4f)                                                                                 \
+    X(PFNGLUNIFORM4IVPROC, glUniform4iv)                                                                               \
+    X(PFNGLUNIFORM1IPROC, glUniform1i)                                                                                 \
+    X(PFNGLBINDBUFFERBASEPROC, glBindBufferBase)                                                                       \
+    X(PFNGLDISPATCHCOMPUTEPROC, glDispatchCompute)                                                                     \
+    X(PFNGLMEMORYBARRIERPROC, glMemoryBarrier)                                                                         \
     X(PFNGLFENCESYNCPROC, glFenceSync)                                                                                 \
     X(PFNGLCLIENTWAITSYNCPROC, glClientWaitSync)                                                                       \
     X(PFNGLDELETESYNCPROC, glDeleteSync)                                                                               \
     X(PFNGLFLUSHPROC, glFlush)                                                                                         \
-    X(PFNGLFINISHPROC, glFinish)
+    X(PFNGLFINISHPROC, glFinish)                                                                                       \
+    X(PFNGLGENQUERIESPROC, glGenQueries)                                                                               \
+    X(PFNGLDELETEQUERIESPROC, glDeleteQueries)                                                                         \
+    X(PFNGLQUERYCOUNTERPROC, glQueryCounter)                                                                           \
+    X(PFNGLGETQUERYOBJECTIVPROC, glGetQueryObjectiv)                                                                   \
+    X(PFNGLGETQUERYOBJECTUI64VPROC, glGetQueryObjectui64v)
 
 // Optional: null where the context lacks them.
 #define KZ_GL_OPTIONAL_FUNCTIONS(X)                                                                                    \
@@ -256,6 +267,12 @@ struct State {
     GLuint vertex_arrays[kLayoutCount] = {};
     // Indexed by ProgramIndex.
     std::vector<GLuint> programs;
+    // Copies drawn through the 3D pipeline (CopyByDraw): the program, an empty vertex array, and
+    // scratch images, one per format, for copies within one image.
+    GLuint  copy_program = 0;
+    GLuint  copy_vertex_array = 0;
+    GlImage scratch_rgba;
+    GlImage scratch_index;
     uint32_t            program_count = 0;
     double              program_seconds = 0.0;
 
@@ -272,9 +289,18 @@ struct State {
     std::vector<uint8_t> staging;
     GLsizeiptr           staged_from = 0;
 
-    // Depth queries read back through a pixel pack buffer, harvested a frame later.
-    GLuint depth_pack = 0;
-    GLsync depth_fence = nullptr;
+    // Depth queries: a compute program reduces each query's rect to its farthest depth into a slot of
+    // a persistently mapped buffer, read once the slot's fence has passed (renderer.cpp).
+    GLuint      depth_program = 0;
+    GLuint      depth_results = 0;
+    const float *depth_results_data = nullptr;
+    struct DepthSlot {
+        GLsync   fence = nullptr;
+        uint32_t queries = 0; // bit per query
+        uint64_t serial = 0;
+    } depth_slots[3];
+    uint32_t depth_slot = 0;
+    uint64_t depth_serial = 0;
 
     GlBound bound;
     bool    vsync = true;

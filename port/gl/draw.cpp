@@ -767,15 +767,54 @@ void MarkUsed(GlTexture *texture) {
     }
 }
 
+// A same-size copy of src's x0, y0, x1, y1 to dst's, as a draw.
+void CopyByDraw(const GlImage &src, const int32_t from[4], const GlImage &dst, const int32_t to[4]) {
+    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferOf(dst.texture, 0));
+    glViewport(0, 0, static_cast<GLsizei>(dst.width), static_cast<GLsizei>(dst.height));
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    for (int i = 0; i < 6; i++) {
+        glDisable(GL_CLIP_DISTANCE0 + i);
+    }
+    glUseProgram(gl.copy_program);
+    float w = static_cast<float>(dst.width);
+    float h = static_cast<float>(dst.height);
+    glUniform4f(0, 2.0f * static_cast<float>(to[0]) / w - 1.0f, 2.0f * static_cast<float>(to[1]) / h - 1.0f,
+                2.0f * static_cast<float>(to[2]) / w - 1.0f, 2.0f * static_cast<float>(to[3]) / h - 1.0f);
+    glUniform4f(1, static_cast<float>(from[0]), static_cast<float>(from[1]), static_cast<float>(from[2]),
+                static_cast<float>(from[3]));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, src.texture);
+    glBindSampler(0, gl.samplers[0]);
+    glBindVertexArray(gl.copy_vertex_array);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    ResetGlBound();
+}
+
+// A scratch image of src's format at least width by height, kept for the next copy within an image.
+GlImage &Scratch(const GlImage &src, uint32_t width, uint32_t height) {
+    GlImage &scratch = src.format == GL_R8 ? gl.scratch_index : gl.scratch_rgba;
+    if (scratch.width < width || scratch.height < height) {
+        uint32_t w = std::max(width, scratch.width);
+        uint32_t h = std::max(height, scratch.height);
+        DestroyGlImage(scratch);
+        scratch = CreateGlImage(w, h, 1, src.format);
+    }
+    return scratch;
+}
+
 // A copy or blit of src's x0, y0, x1, y1 to dst's, through a scratch image when both are one image.
 void Transfer(GlImage &src, const int32_t from[4], GlImage &dst, const int32_t to[4], GLenum filter) {
     auto width = [](const int32_t o[4]) { return std::abs(o[2] - o[0]); };
     auto height = [](const int32_t o[4]) { return std::abs(o[3] - o[1]); };
 
     if (&src == &dst) {
-        GlImage scratch = CreateGlImage(static_cast<uint32_t>(width(from)), static_cast<uint32_t>(height(from)), 1,
-                                        src.format);
-        int32_t whole[4] = {0, 0, static_cast<int32_t>(scratch.width), static_cast<int32_t>(scratch.height)};
+        GlImage &scratch = Scratch(src, static_cast<uint32_t>(width(from)), static_cast<uint32_t>(height(from)));
+        int32_t  whole[4] = {0, 0, width(from), height(from)};
         int32_t ordered[4] = {std::min(from[0], from[2]), std::min(from[1], from[3]), std::max(from[0], from[2]),
                               std::max(from[1], from[3])};
         Transfer(src, ordered, scratch, whole, GL_NEAREST);
@@ -788,15 +827,13 @@ void Transfer(GlImage &src, const int32_t from[4], GlImage &dst, const int32_t t
             std::swap(back[1], back[3]);
         }
         Transfer(scratch, back, dst, to, filter);
-        DestroyGlImage(scratch);
         return;
     }
 
     bool same_size = width(from) == width(to) && height(from) == height(to) && from[2] > from[0] &&
                      from[3] > from[1] && to[2] > to[0] && to[3] > to[1];
     if (same_size) {
-        glCopyImageSubData(src.texture, GL_TEXTURE_2D, 0, from[0], from[1], 0, dst.texture, GL_TEXTURE_2D, 0, to[0],
-                           to[1], 0, width(from), height(from), 1);
+        CopyByDraw(src, from, dst, to);
         return;
     }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, FramebufferOf(src.texture, 0));

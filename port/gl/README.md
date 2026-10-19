@@ -39,9 +39,14 @@ one for one:
   quad indices) goes into one persistently mapped buffer of three segments, a frame's each, fenced
   when the frame ends. Without `ARB_buffer_storage` a segment is staged and uploaded with
   `glBufferSubData`.
-- **Depth queries** are read into a pixel pack buffer as a frame closes. On a PC the frame waits for
-  them, as the Vulkan renderer does; on the Switch they are harvested as the next frame closes, so
-  the CPU does not wait for the GPU, and `DepthResult` answers a tick later.
+- **Depth queries** are reduced on the GPU, by a compute program, to each rect's farthest depth in a
+  persistently mapped buffer, and read once the frame's fence has passed, so no GL call waits: with
+  `glReadPixels` of the depth buffer into a pixel pack buffer the Switch's CPU stood idle in the GL
+  calls while its GPU did too, as if Mesa 20.1 read the depth format on the CPU after the frame. On a PC the frame waits for its answers, as the Vulkan renderer does; on the
+  Switch they are taken whenever they are ready, a tick or two later, as there (Kazarov's
+  `kAsyncDepthQueries`).
+- **Copies** of one size are draws: `glCopyImageSubData` goes through Maxwell's 2D engine on nouveau,
+  about a pixel a clock, 1.6 ms for a 1280x720 image on the Switch where a draw takes under 0.1 ms.
 - **Present modes**: FIFO and Mailbox are swap interval 1, Immediate 0.
 
 ## Not done here

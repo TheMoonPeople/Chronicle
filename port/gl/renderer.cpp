@@ -55,7 +55,6 @@ namespace {
 
 // A query reads at most this many pixels on a side, as in the Vulkan renderer.
 constexpr uint32_t   kMaxQuerySide = 64;
-constexpr GLsizeiptr kQueryBytes = kMaxQuerySide * kMaxQuerySide * sizeof(float);
 
 constexpr float kOpaqueBlack[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 constexpr float kZero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -236,51 +235,136 @@ void Present(const GlImage &source) {
     SDL_GL_SwapWindow(g.window);
 }
 
-void HarvestDepthQueriesGl() {
-    if (gl.depth_fence == nullptr) {
-        return;
-    }
-    glClientWaitSync(gl.depth_fence, GL_SYNC_FLUSH_COMMANDS_BIT, GL_TIMEOUT_IGNORED);
-    glDeleteSync(gl.depth_fence);
-    gl.depth_fence = nullptr;
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, gl.depth_pack);
-    const auto *data = static_cast<const uint8_t *>(
-        glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, kDepthQueryCount * kQueryBytes, GL_MAP_READ_BIT));
-    for (DepthQuery &query : g.depth_queries) {
-        if (!query.recorded) {
-            continue;
+constexpr uint32_t kDepthSlots = 3;
+
+// One workgroup per query: each of its 64 invocations takes the farthest of a column of the rect,
+// then the group the farthest of those. The rects come in as x, y, width, height.
+const char *kDepthQuerySource = R"glsl(#version 430 core
+layout(local_size_x = 64) in;
+layout(binding = 0) uniform sampler2D u_depth;
+layout(location = 0) uniform ivec4 u_rects[16];
+layout(location = 16) uniform int u_slot;
+layout(std430, binding = 0) buffer Results { float results[]; };
+shared float s_far[64];
+void main() {
+    ivec4 rect = u_rects[gl_WorkGroupID.x];
+    int   column = int(gl_LocalInvocationID.x);
+    float far = 1.0;
+    if (column < rect.z) {
+        for (int row = 0; row < rect.w; row++) {
+            far = min(far, texelFetch(u_depth, rect.xy + ivec2(column, row), 0).r);
         }
-        float farthest = 1.0f;
-        if (data != nullptr) {
-            for (uint32_t i = 0; i < query.texels; i++) {
-                float value;
-                std::memcpy(&value, data + query.offset + i * sizeof(float), sizeof(float));
-                farthest = std::min(farthest, value);
-            }
+    }
+    s_far[column] = far;
+    barrier();
+    for (int step = 32; step > 0; step >>= 1) {
+        if (column < step) {
+            s_far[column] = min(s_far[column], s_far[column + step]);
         }
-        query.result = farthest;
-        query.valid = data != nullptr;
-        query.recorded = false;
+        barrier();
     }
-    if (data != nullptr) {
-        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+    if (column == 0) {
+        results[u_slot * 16 + int(gl_WorkGroupID.x)] = s_far[0];
     }
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-    g.depth_queries_recorded = false;
+}
+)glsl";
+
+void CreateDepthQueries() {
+    GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
+    glShaderSource(shader, 1, &kDepthQuerySource, nullptr);
+    glCompileShader(shader);
+    GLint ok = GL_FALSE;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+    if (ok != GL_TRUE) {
+        char log[4096] = {};
+        glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
+        Fatal("GL: the depth query shader does not compile:\n%s", log);
+    }
+    gl.depth_program = glCreateProgram();
+    glAttachShader(gl.depth_program, shader);
+    glLinkProgram(gl.depth_program);
+    glDeleteShader(shader);
+    glGetProgramiv(gl.depth_program, GL_LINK_STATUS, &ok);
+    if (ok != GL_TRUE) {
+        Fatal("GL: the depth query shader does not link");
+    }
+    GLsizeiptr size = kDepthSlots * kDepthQueryCount * sizeof(float);
+    glGenBuffers(1, &gl.depth_results);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, gl.depth_results);
+    GLbitfield flags = GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, size, nullptr, flags);
+    gl.depth_results_data = static_cast<const float *>(glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, size, flags));
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    if (gl.depth_results_data == nullptr) {
+        Fatal("GL: the depth query buffer cannot be mapped");
+    }
 }
 
-// The queued queries read the main depth buffer into the pack buffer.
+void DestroyDepthQueries() {
+    for (State::DepthSlot &slot : gl.depth_slots) {
+        if (slot.fence != nullptr) {
+            glDeleteSync(slot.fence);
+        }
+        slot = {};
+    }
+    if (gl.depth_results != 0) {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gl.depth_results);
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        glDeleteBuffers(1, &gl.depth_results);
+    }
+    if (gl.depth_program != 0) {
+        glDeleteProgram(gl.depth_program);
+    }
+    gl.depth_results = 0;
+    gl.depth_program = 0;
+    gl.depth_results_data = nullptr;
+}
+
+// Takes the answers of every slot whose fence has passed, oldest first, so a query holds its newest
+// answer; wait blocks for all of them.
+void HarvestDepthQueriesGl(bool wait) {
+    for (uint32_t i = 1; i <= kDepthSlots; i++) {
+        State::DepthSlot &slot = gl.depth_slots[(gl.depth_slot + i) % kDepthSlots];
+        if (slot.fence == nullptr) {
+            continue;
+        }
+        GLenum status = glClientWaitSync(slot.fence, wait ? GL_SYNC_FLUSH_COMMANDS_BIT : 0,
+                                         wait ? GL_TIMEOUT_IGNORED : 0);
+        if (status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED) {
+            continue;
+        }
+        glDeleteSync(slot.fence);
+        slot.fence = nullptr;
+        uint32_t index = static_cast<uint32_t>(&slot - gl.depth_slots);
+        for (uint32_t query = 0; query < kDepthQueryCount; query++) {
+            if (slot.queries & (1u << query)) {
+                g.depth_queries[query].result = gl.depth_results_data[index * kDepthQueryCount + query];
+                g.depth_queries[query].valid = true;
+            }
+        }
+        slot.queries = 0;
+    }
+}
+
+// The queued queries are reduced into the next slot.
 void RecordDepthQueriesGl() {
-    GlImage       &depth = gl.main_depth;
-    LogicalMapping mapping = MainMapping(depth.width, depth.height);
-    bool           any = false;
-    for (DepthQuery &query : g.depth_queries) {
+    GlImage         &depth = gl.main_depth;
+    LogicalMapping   mapping = MainMapping(depth.width, depth.height);
+    State::DepthSlot &slot = gl.depth_slots[gl.depth_slot];
+    if (slot.fence != nullptr) {
+        // Three frames old and still running: its answers are taken now.
+        HarvestDepthQueriesGl(true);
+    }
+    GLint    rects[kDepthQueryCount][4] = {};
+    uint32_t count = 0;
+    uint32_t recorded = 0;
+    for (uint32_t index = 0; index < kDepthQueryCount; index++) {
+        DepthQuery &query = g.depth_queries[index];
         if (!query.queued) {
             continue;
         }
         query.queued = false;
-        query.recorded = false;
-        query.valid = false;
         float x0 = std::floor(query.rect.x * mapping.scale_x + mapping.offset_x);
         float y0 = std::floor(query.rect.y * mapping.scale_y + mapping.offset_y);
         float x1 = std::ceil((query.rect.x + query.rect.w) * mapping.scale_x + mapping.offset_x);
@@ -290,6 +374,8 @@ void RecordDepthQueriesGl() {
         x1 = std::min(x1, static_cast<float>(depth.width));
         y1 = std::min(y1, static_cast<float>(depth.height));
         if (x1 <= x0 || y1 <= y0) {
+            // Off the target: no answer, as in the Vulkan renderer.
+            query.valid = false;
             continue;
         }
         uint32_t width = std::min(static_cast<uint32_t>(x1 - x0), kMaxQuerySide);
@@ -298,48 +384,42 @@ void RecordDepthQueriesGl() {
         int32_t  y = static_cast<int32_t>((y0 + y1) * 0.5f) - static_cast<int32_t>(height / 2);
         x = std::clamp(x, 0, static_cast<int32_t>(depth.width - width));
         y = std::clamp(y, 0, static_cast<int32_t>(depth.height - height));
-        if (!any) {
-            if (gl.depth_pack == 0) {
-                glGenBuffers(1, &gl.depth_pack);
-                glBindBuffer(GL_PIXEL_PACK_BUFFER, gl.depth_pack);
-                glBufferData(GL_PIXEL_PACK_BUFFER, kDepthQueryCount * kQueryBytes, nullptr, GL_STREAM_READ);
-            }
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, gl.depth_pack);
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, FramebufferOf(gl.main_color[g.main_current].texture, depth.texture));
-            glPixelStorei(GL_PACK_ALIGNMENT, 4);
-            any = true;
-        }
-        query.offset = static_cast<VkDeviceSize>(&query - g.depth_queries.data()) * kQueryBytes;
-        glReadPixels(x, y, static_cast<GLsizei>(width), static_cast<GLsizei>(height), GL_DEPTH_COMPONENT, GL_FLOAT,
-                     reinterpret_cast<void *>(static_cast<uintptr_t>(query.offset)));
-        query.texels = width * height;
-        query.recorded = true;
+        // Workgroup i answers query i: a query not asked this frame gets an empty rect.
+        rects[index][0] = x;
+        rects[index][1] = y;
+        rects[index][2] = static_cast<GLint>(width);
+        rects[index][3] = static_cast<GLint>(height);
+        count = index + 1;
+        recorded |= 1u << index;
     }
-    if (any) {
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-        gl.bound.framebuffer = UINT32_MAX;
-        gl.depth_fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        g.depth_queries_recorded = true;
+    if (recorded == 0) {
+        return;
     }
+    glUseProgram(gl.depth_program);
+    glUniform4iv(0, static_cast<GLsizei>(count), &rects[0][0]);
+    glUniform1i(16, static_cast<GLint>(gl.depth_slot));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, depth.texture);
+    glBindSampler(0, gl.samplers[0]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, gl.depth_results);
+    glDispatchCompute(count, 1, 1);
+    glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+    slot.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    slot.queries = recorded;
+    gl.depth_slot = (gl.depth_slot + 1) % kDepthSlots;
+    ResetGlBound();
 }
 
-// The answers are read as the frame closes, as the Vulkan renderer reads them, except on the Switch,
-// whose GPU is a frame behind: there a frame's answers are taken as the next frame closes, so the
-// CPU never waits for the GPU to finish the frame it has just been given.
+// On a PC a frame's answers are read as it closes, as the Vulkan renderer reads them. On the Switch
+// they are taken whenever they are ready, a tick or two later, so the CPU never waits for the GPU
+// to finish the frame it has just been given.
 void CloseDepthQueries() {
+    RecordDepthQueriesGl();
 #ifdef __SWITCH__
-    bool harvest_after = true;
+    HarvestDepthQueriesGl(false);
 #else
-    bool harvest_after = false;
+    HarvestDepthQueriesGl(true);
 #endif
-    if (harvest_after) {
-        HarvestDepthQueriesGl();
-        RecordDepthQueriesGl();
-    } else {
-        RecordDepthQueriesGl();
-        HarvestDepthQueriesGl();
-    }
 }
 
 // A frame that drew the game's state ends: kPreviousFrame becomes it.
@@ -489,6 +569,7 @@ void RendererInit(SDL_Window *window, const RendererConfig &config) {
                          ? config.render_scale
                          : std::max(1.0f, std::round(static_cast<float>(gl.height) / g.config.logical_height));
     CreatePrograms();
+    CreateDepthQueries();
     ApplySwapInterval();
     ResetDrawState();
 }
@@ -499,7 +580,8 @@ void RendererShutdown() {
     }
     g.list.reset();
     glFinish();
-    HarvestDepthQueriesGl();
+    HarvestDepthQueriesGl(true);
+    DestroyDepthQueries();
     DestroyPrograms();
     ShutdownGlResources();
     DestroyMainTargetsGl();
@@ -508,9 +590,6 @@ void RendererShutdown() {
     }
     gl.framebuffers.clear();
     ShutdownStream();
-    if (gl.depth_pack != 0) {
-        glDeleteBuffers(1, &gl.depth_pack);
-    }
     glDeleteSamplers(kSamplerCount, gl.samplers);
     glDeleteSamplers(1, &gl.palette_sampler);
     glDeleteVertexArrays(kLayoutCount, gl.vertex_arrays);
