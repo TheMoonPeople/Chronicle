@@ -311,36 +311,41 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
         }
         capfont::Glyph edge;
         const bool     has_edge = capfont::GetOutlinedGlyph(ch, em_px, outline_px, edge);
-        auto           place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], LabelCopy at) {
+        // A glyph at the letter's place on whole screen pixels, moved a whole number of screen pixels more: the letter
+        // is put on the pixel grid once and every copy of it moved the same pixels, so no letter's shadow lands a pixel
+        // nearer or further than another's.
+        auto place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], int px_x,
+                         int px_y) {
             if (glyph.width <= 0 || glyph.height <= 0) {
                 return;
             }
             const float width = glyph.width / mapping.scale_x * squeeze;
             const float height = glyph.height / mapping.scale_y * rows;
-            float       gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze + at.dx;
-            float       gy = (base + at.dy) * rows + glyph.y_offset / mapping.scale_y;
-            gx = snap(gx, mapping.scale_x, mapping.offset_x);
-            gy = snap(gy, mapping.scale_y, mapping.offset_y);
+            float       gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze;
+            float       gy = base * rows + glyph.y_offset / mapping.scale_y;
+            gx = snap(gx, mapping.scale_x, mapping.offset_x) + static_cast<float>(px_x) / mapping.scale_x;
+            gy = snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
             Quad(out, glyph, gx, gy, width, height, rgb, alpha);
         };
-        // Each shadow is the letter swept from its own place to the shadow's, stamped every half screen pixel on the
-        // way, so it is one solid shape joined to the letter; the outline goes round the whole of it.
+        // Each shadow is the letter swept from its own place to the shadow's, stamped on every pixel of the way, so it is
+        // one solid shape joined to the letter; the outline goes round the whole of it.
         auto sweep = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], LabelCopy to) {
-            const float length = std::hypot(to.dx * mapping.scale_x, to.dy * mapping.scale_y);
-            const int   steps = std::max(1, static_cast<int>(std::ceil(length * 2.0f)));
+            const int px_x = static_cast<int>(std::lround(to.dx * mapping.scale_x));
+            const int px_y = static_cast<int>(std::lround(to.dy * rows * mapping.scale_y));
+            const int steps = std::max({1, std::abs(px_x), std::abs(px_y)});
             for (int step = 1; step <= steps; step++) {
-                const float t = static_cast<float>(step) / static_cast<float>(steps);
-                place(glyph, out, rgb, {to.dx * t, to.dy * t});
+                place(glyph, out, rgb, static_cast<int>(std::lround(static_cast<float>(px_x * step) / steps)),
+                      static_cast<int>(std::lround(static_cast<float>(px_y * step) / steps)));
             }
         };
         if (has_edge) {
-            place(edge, edges, kOutline, {0.0f, 0.0f});
+            place(edge, edges, kOutline, 0, 0);
             sweep(edge, edges, kOutline, kLabelLightAt);
             sweep(edge, edges, kOutline, kLabelDarkAt);
         }
         sweep(fill, lights, kLabelLight, kLabelLightAt);
         sweep(fill, darks, kLabelDark, kLabelDarkAt);
-        place(fill, fills, kFill, {0.0f, 0.0f});
+        place(fill, fills, kFill, 0, 0);
         pen += (fill.width / mapping.scale_x + em * kLabelGap + tune.letter) * squeeze;
     }
     if (fills.empty()) {
