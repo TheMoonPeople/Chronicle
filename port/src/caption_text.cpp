@@ -249,7 +249,7 @@ void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x,
 }
 
 // The painted labels' own look, measured on them: capitals 17 pixels tall level with the picture's ink, a light
-// copy of the letters a little up and left over a dark one a little down and right, both under them, and the blue
+// shadow of the letters a little up and left over a dark one a little down and right, both under them, and the blue
 // outline round all three. Every label at the one size; one too wide for its box is narrowed, never shrunk.
 constexpr float         kLabelCap = 17.0f;
 constexpr float         kLabelOutline = 1.2f;
@@ -261,7 +261,7 @@ constexpr unsigned char kLabelDark[3] = {63, 63, 81};
 struct LabelCopy {
     float dx, dy;
 };
-constexpr LabelCopy kLabelLightAt = {-0.7f, -0.7f};
+constexpr LabelCopy kLabelLightAt = {-0.9f, -0.4f};
 constexpr LabelCopy kLabelDarkAt = {0.8f, 1.0f};
 
 void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright) {
@@ -323,13 +323,23 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
             gy = snap(gy, mapping.scale_y, mapping.offset_y);
             Quad(out, glyph, gx, gy, width, height, rgb, alpha);
         };
-        if (has_edge) {
-            for (LabelCopy at : {LabelCopy{0.0f, 0.0f}, kLabelLightAt, kLabelDarkAt}) {
-                place(edge, edges, kOutline, at);
+        // Each shadow is the letter swept from its own place to the shadow's, stamped every half screen pixel on the
+        // way, so it is one solid shape joined to the letter; the outline goes round the whole of it.
+        auto sweep = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], LabelCopy to) {
+            const float length = std::hypot(to.dx * mapping.scale_x, to.dy * mapping.scale_y);
+            const int   steps = std::max(1, static_cast<int>(std::ceil(length * 2.0f)));
+            for (int step = 1; step <= steps; step++) {
+                const float t = static_cast<float>(step) / static_cast<float>(steps);
+                place(glyph, out, rgb, {to.dx * t, to.dy * t});
             }
+        };
+        if (has_edge) {
+            place(edge, edges, kOutline, {0.0f, 0.0f});
+            sweep(edge, edges, kOutline, kLabelLightAt);
+            sweep(edge, edges, kOutline, kLabelDarkAt);
         }
-        place(fill, lights, kLabelLight, kLabelLightAt);
-        place(fill, darks, kLabelDark, kLabelDarkAt);
+        sweep(fill, lights, kLabelLight, kLabelLightAt);
+        sweep(fill, darks, kLabelDark, kLabelDarkAt);
         place(fill, fills, kFill, {0.0f, 0.0f});
         pen += (fill.width / mapping.scale_x + em * kLabelGap + tune.letter) * squeeze;
     }
