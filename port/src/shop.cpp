@@ -9,6 +9,7 @@
 #include "camera.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
+#include "custom_shop.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "editloop.hpp"
@@ -668,6 +669,11 @@ PORT_OVERRIDE int CommonShopLoop() {
             PadHoldDown(0);
             break;
         }
+    }
+
+    // A custom shop's prices were laid over retail's for this visit (custom_shop.cpp).
+    if (done != 0) {
+        CustomShopEnd();
     }
 
     return done;

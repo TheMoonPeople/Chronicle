@@ -46,8 +46,13 @@ enum class PortTextureOwner : uint8_t {
 // A TIM2 picture decoded into what the renderer takes. RGBA levels are r,g,b,a bytes with alpha
 // already in renderer units; the palette is in index order (the CSM1 order the GS reads applied).
 struct PortDecodedTexture {
-    unsigned                          width = 0;
-    unsigned                          height = 0;
+    unsigned width = 0;
+    unsigned height = 0;
+    // The size the game knows the texture by, in texels, when the picture has more pixels than that (a replacement
+    // from assets/: texture_assets.hpp). 0 where it is width x height. The game addresses the texture, and PortTextureRef
+    // reports it, at this size.
+    unsigned                          logical_width = 0;
+    unsigned                          logical_height = 0;
     gfx::TextureFormat                format = gfx::TextureFormat::Rgba8;
     bool                              has_alpha = true;
     std::vector<std::vector<uint8_t>> levels;

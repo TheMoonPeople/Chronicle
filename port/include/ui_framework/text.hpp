@@ -134,6 +134,12 @@ public:
     void SetStyle(const TextStyle &style);
 
     /**
+     * Lays the text out without drawing on the game's random numbers (GameText::KeepGameRandom),
+     * for a label laid out where the retail game lays nothing out. Set it before the text.
+     */
+    void KeepGameRandom(bool keep) { m_text.KeepGameRandom(keep); }
+
+    /**
      * Returns the raw UTF-8 text string.
      */
     const std::string &GetText() const { return m_raw_text; }

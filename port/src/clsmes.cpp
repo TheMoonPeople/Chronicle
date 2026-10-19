@@ -1,4 +1,5 @@
 #include "clsmes.hpp"
+#include "clsmes_port.hpp"
 #include "mathconst.h"
 
 #include <algorithm>
@@ -14,6 +15,7 @@
 #include "gameutil.hpp"
 #include "glyph_draw.hpp"
 #include "localize.hpp"
+#include "menu_pointer.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
 #include "platform/config.hpp"
@@ -41,6 +43,47 @@ enum {
     GAIJI_Y_OFF,
     GAIJI_CELLS,
 };
+
+// The window ClsMesSetChoiceRows names, its first choice row, and whether its choices run on past it.
+const ClsMes *g_choice_mes = nullptr;
+int           g_choice_first_row = 0;
+bool          g_choice_more_above = false;
+bool          g_choice_more_below = false;
+
+// The window ClsMesSetMessageOverlay names, and the messages laid over its own.
+const ClsMes *g_overlay_mes = nullptr;
+short        *g_overlay_file = nullptr;
+
+// Message line's text in a message file, laid out as SetBuff reads one; null where it has none.
+short *FindMessage(short *file, int line) {
+    int    count = file[0];
+    short *body = &file[1];
+
+    for (int i = 0; i < count; i++) {
+        if (line == body[i * 2 + 1]) {
+            return &body[count] + body[i * 2 + 2];
+        }
+    }
+
+    return NULL;
+}
+
+// The wide argument DrawGaijiFont takes for a character of palette entry clut on row. 1 dims it, as retail
+// does, by doubling its colour: dark text on the paper bubble pales. 2, the port's, halves its opacity
+// instead: a coloured choice in a ClsMesSetChoiceRows window, which doubling would brighten rather than
+// pale. With a cursor, every row but the cursor's dims (only the cursor's, with cursor_lit), save the text
+// rows above a window's choices.
+int ChoiceRowDim(const ClsMes &mes, int row, int clut) {
+    const bool ours = &mes == g_choice_mes;
+    if (mes.cursor_row < 0 || (ours && row < g_choice_first_row)) {
+        return 0;
+    }
+    const bool dim = mes.cursor_lit == 1 ? row == mes.cursor_row : row != mes.cursor_row;
+    if (!dim) {
+        return 0;
+    }
+    return ours && clut != mes.clut_default ? 2 : 1;
+}
 
 // ---- Message text from a TrueType font ----
 // With font.ttf in a lang folder (the save's or the executable's), a character the font has is drawn
@@ -135,6 +178,9 @@ void GlyphTint(int clut, int dark, int wide, int &r, int &g, int &b, int &alpha)
         r *= 2;
         g *= 2;
         b *= 2;
+    }
+    if (wide == 2) {
+        alpha /= 2;
     }
 }
 
@@ -297,10 +343,7 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
     x = snap(x, mapping.scale_x, mapping.offset_x);
     y = snap(y, mapping.scale_y, mapping.offset_y);
 
-    int wide = 0;
-    if (mes.cursor_row >= 0) {
-        wide = mes.cursor_lit == 1 ? (row == mes.cursor_row ? 1 : 0) : (row == mes.cursor_row ? 0 : 1);
-    }
+    const int wide = ChoiceRowDim(mes, row, line.clut);
     int r, g, b, alpha;
     GlyphTint(line.clut, dark, wide, r, g, b, alpha);
 
@@ -971,6 +1014,10 @@ PORT_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRe
         b = b * 2;
     }
 
+    if (wide == 2) {
+        alpha /= 2;
+    }
+
     set2DSprite_Core(Vif1Packet, texture, screen, texel, r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
 
     switch (this->win_line[index].code) {
@@ -1225,21 +1272,7 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
                                               u, v, glyph_width, glyph_height);
                 }
 
-                if (this->cursor_row < 0) {
-                    this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                } else if (this->cursor_lit == 1) {
-                    if (row == this->cursor_row) {
-                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                    } else {
-                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                    }
-                } else {
-                    if (row == this->cursor_row) {
-                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                    } else {
-                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                    }
-                }
+                this->DrawGaijiFont(texture, index, texel, screen, ChoiceRowDim(*this, row, this->win_line[index].clut), dark);
             } else {
                 int screen_x = this->win_line[index].x + this->line_pos[row].x;
                 int screen_y = this->win_line[index].y + this->line_pos[row].y;
@@ -1253,21 +1286,7 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
                                               glyph_width, glyph_height);
                 }
 
-                if (this->cursor_row < 0) {
-                    this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                } else if (this->cursor_lit == 1) {
-                    if (row == this->cursor_row) {
-                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                    } else {
-                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                    }
-                } else {
-                    if (row == this->cursor_row) {
-                        this->DrawGaijiFont(texture, index, texel, screen, 0, dark);
-                    } else {
-                        this->DrawGaijiFont(texture, index, texel, screen, 1, dark);
-                    }
-                }
+                this->DrawGaijiFont(texture, index, texel, screen, ChoiceRowDim(*this, row, this->win_line[index].clut), dark);
             }
         }
 
@@ -1322,6 +1341,29 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
         }
     }
 
+    // The dialog framework's choice window, its choices running on past it: the page arrow, blinking as
+    // it does, where the page arrow goes for more below, and turned over above the first choice for
+    // more above (ClsMesSetChoiceScroll).
+    if (this == g_choice_mes && this->cursor_row >= 0 && (g_choice_more_above || g_choice_more_below) &&
+        (this->blink >> 4) % 2 != 0 && MesAbsDrawOff == 0) {
+        texture = draw2d::Get().find_texture("syst04");
+
+        int       screen_x = this->text_x + (this->char_width * this->text_columns >> 1) - 8 + offset_x;
+        const int alpha = this->edge_alpha < 0x80 ? this->edge_alpha : 0x80;
+
+        if (g_choice_more_above) {
+            int screen_y = this->text_y + this->char_height * g_choice_first_row - 0x10;
+            set2DSprite(Vif1Packet, texture, CRect_i_(screen_x, screen_y + offset_y, 0x10, 0x10),
+                        CRect_i_(0, 0x10, 0x10, -0x10), alpha);
+        }
+
+        if (g_choice_more_below) {
+            int screen_y = this->text_y + this->char_height * this->text_rows;
+            set2DSprite(Vif1Packet, texture, CRect_i_(screen_x, screen_y + offset_y, 0x10, 0x10),
+                        CRect_i_(0, 0, 0x10, 0x10), alpha);
+        }
+    }
+
     if (this->cursor_row >= 0) {
         texture = draw2d::Get().find_texture("gaiji");
 
@@ -1337,6 +1379,13 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
         CRect_i_ screen(screen_x + offset_x, screen_y - 4 + offset_y, 0x20, 0x20);
         CRect_i_ texel(0x60, 0x60, 0x20, 0x20);
 
+        // The dialog framework's window: the hand is at the mouse pointer while one is in use.
+        float pointer_x = 0.0f;
+        float pointer_y = 0.0f;
+        if (this == g_choice_mes && MenuPointerHand(pointer_x, pointer_y)) {
+            screen = CRect_i_(static_cast<int>(pointer_x), static_cast<int>(pointer_y), 0x20, 0x20);
+        }
+
         if (MesAbsDrawOff == 0) {
             set2DSprite(Vif1Packet, texture, screen, texel,
                         this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
@@ -1344,4 +1393,33 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
     } else {
         this->cursor_y = 0;
     }
+}
+
+void ClsMesSetChoiceRows(const ClsMes *mes, int first_row) {
+    g_choice_mes = mes;
+    g_choice_first_row = mes != nullptr && first_row > 0 ? first_row : 0;
+    if (mes == nullptr) {
+        g_choice_more_above = false;
+        g_choice_more_below = false;
+    }
+}
+
+void ClsMesSetChoiceScroll(bool more_above, bool more_below) {
+    g_choice_more_above = more_above;
+    g_choice_more_below = more_below;
+}
+
+void ClsMesSetMessageOverlay(const ClsMes *mes, short *file) {
+    g_overlay_mes = mes != nullptr && file != nullptr ? mes : nullptr;
+    g_overlay_file = g_overlay_mes != nullptr ? file : nullptr;
+}
+
+PORT_OVERRIDE short *ClsMes::GetTextLineDataTop(int line) {
+    if (this == g_overlay_mes) {
+        if (short *text = FindMessage(g_overlay_file, line)) {
+            return text;
+        }
+    }
+
+    return FindMessage(this->buff, line);
 }

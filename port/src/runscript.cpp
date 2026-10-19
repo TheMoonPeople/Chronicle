@@ -6,9 +6,12 @@
 #include <cstring>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include "battle_globals.hpp"
 #include "dataalloc.hpp"
+#include "runscript_port.hpp"
 
 // The script VM on the host. A compiled script (.stb) is read where it was loaded, as retail
 // does: the header, the program table and the instructions are 32-bit integers on disc and on
@@ -20,6 +23,10 @@
 // The stacks are the other half. EdSetEventScript and BtSetEventScript carve 128 operand slots
 // and 512 call records out of an arena at the PS2's 8 and 12 bytes; the host records are 16 and
 // 24. load keeps the counts and gives each interpreter host-sized storage of its own.
+
+// editloop3.cpp's static event interpreter, under the global name
+// port/include/stubs/editloop3.hpp gives it.
+extern CRunScript EdEventScript asm("EditLoop3_EdEventScript");
 
 namespace {
 
@@ -80,7 +87,76 @@ vmcode_t *CodeAt(char *code, int offset) {
     return reinterpret_cast<vmcode_t *>(code + offset);
 }
 
+// The item the next kEventItemGet shows, or -1.
+int g_item_get_item = -1;
+
+// The town script's item-get routine, as the scripts call it: ItemGet(slot, item, fade, camera), slot 5
+// being the character it puts the glow (/chara/iget.chr) in, fade the frames it fades out over when
+// done (0: none) and camera its angle (-1: its own). The scripts carry no names, so it is found by
+// what it does: of the functions the programs reach, the one of four arguments that pushes
+// "/chara/iget.chr". Kept for the program it was found in.
+const char *ItemGetRecord(CRunScript &script) {
+    static const RS_PROG_HEADER *found_in = nullptr;
+    static const char           *found = nullptr;
+    if (script.prog == nullptr) {
+        return nullptr;
+    }
+    if (found_in == script.prog) {
+        return found;
+    }
+    found_in = script.prog;
+    found = nullptr;
+
+    char                           *base = reinterpret_cast<char *>(script.prog);
+    char                           *code = script.code;
+    std::vector<const char *>       pending;
+    std::unordered_set<const char *> seen;
+    const RS_PROGDATA              *entry = reinterpret_cast<const RS_PROGDATA *>(base + script.prog->prog);
+    for (int i = 0; i < script.prog->prog_num; i++) {
+        pending.push_back(base + entry[i].func);
+    }
+
+    // Each function's instructions run from its address to the first word that is no opcode (its
+    // end, a record or a string); a script function is far shorter than the limit.
+    constexpr int kMostInstructions = 20000;
+    constexpr int kFirstOpcode = 1;
+    constexpr int kLastOpcode = 30;
+    while (!pending.empty()) {
+        const char *record = pending.back();
+        pending.pop_back();
+        if (!seen.insert(record).second) {
+            continue;
+        }
+        DiscFuncData disc;
+        std::memcpy(&disc, record, sizeof(disc));
+        if (disc.addr < 0) {
+            continue;
+        }
+        const vmcode_t *pc = reinterpret_cast<const vmcode_t *>(code + disc.addr);
+        for (int n = 0; n < kMostInstructions; n++, pc++) {
+            if (pc->op < kFirstOpcode || pc->op > kLastOpcode) {
+                break;
+            }
+            if (pc->op == RS_OP_CALL) {
+                pending.push_back(code + pc->arg2);
+            } else if (pc->op == RS_OP_PUSH_CONST && pc->arg1 == 3 && disc.arg == 4 &&
+                       std::strcmp(code + pc->arg2, "/chara/iget.chr") == 0) {
+                return found = record;
+            }
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
+
+bool EventScriptHasItemGet() {
+    return ItemGetRecord(EdEventScript) != nullptr;
+}
+
+void EventScriptSetItemGet(int item) {
+    g_item_get_item = item;
+}
 
 PORT_OVERRIDE int chk_int(RS_STACKDATA data, funcdata *function) {
     if (data.type == RS_INT) {
@@ -114,10 +190,6 @@ PORT_OVERRIDE void CRunScript::load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, i
     this->code = reinterpret_cast<char *>(prog) + prog->code;
 }
 
-// editloop3.cpp's static event interpreter, under the global name
-// port/include/stubs/editloop3.hpp gives it.
-extern CRunScript EdEventScript asm("EditLoop3_EdEventScript");
-
 void RunEvent(CRunScript *script, int program, CDataAlloc2<1> *arena);
 
 // Retail's body, with the return it leaves to v0: 1 for an event still running, 0 for one that
@@ -138,6 +210,34 @@ PORT_OVERRIDE int CRunScript::run(int no) {
     func = 0;
 
     char *base = reinterpret_cast<char *>(prog);
+
+    // The port's item-get event: the town's own routine, given the item (runscript_port.hpp).
+    if (no == kEventItemGet && this == &EdEventScript) {
+        const char *record = ItemGetRecord(*this);
+        const int   item = g_item_get_item;
+        g_item_get_item = -1;
+        if (record == nullptr || item < 0) {
+            printf("no item-get routine for item %d\n", item);
+            return g_run_result = -1;
+        }
+        func = HostFunc(code, record);
+        frame = stack;
+        frame[0].type = RS_INT;
+        frame[0].i = 5;
+        frame[1].type = RS_INT;
+        frame[1].i = item;
+        frame[2].type = RS_INT;
+        frame[2].i = 0;
+        frame[3].type = RS_FLOAT;
+        frame[3].f = -1.0f;
+        sp = frame + func->local;
+        check_stack();
+        memset(frame + func->arg, 0, (func->local - func->arg) * sizeof(RS_STACKDATA));
+        end = 0;
+        skip_wait = 0;
+        exe(CodeAt(code, func->addr));
+        return g_run_result = end != 0 ? 0 : 1;
+    }
 
     if (no < 0) {
         func = HostFunc(code, base + prog->main);

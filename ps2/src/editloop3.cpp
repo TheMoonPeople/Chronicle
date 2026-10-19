@@ -7966,7 +7966,12 @@ static int _SET_FISHING_ESA(RS_STACKDATA *stack, int argument_count) {
 
 #ifdef PAL
 static int _GET_TV_MODE(RS_STACKDATA *stack, int argument_count) {
+    // 1 is PAL's 50 Hz, which makes the scripts shorten their frame counts by 5/6.
+#ifdef PAL_TIMING
     SetStack(stack, 1);
+#else
+    SetStack(stack, 0);
+#endif
     return 1;
 }
 

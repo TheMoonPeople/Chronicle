@@ -201,7 +201,9 @@ small value such as `1` is retail's behaviour. A town part within that
 distance of the eye draws its finest level of detail (retail steps down from
 300, 500 and 800 plus a share of the part's size). A villager within it of
 the player steps and draws (retail: the two nearest in front of the camera,
-within 150). A dungeon monster within it of the player draws and animates
+within 150), but only the ones retail draws play their footsteps: every
+footstep on a ground is the same effect, and a new one cuts off the one still
+sounding, the player's too. A dungeon monster within it of the player draws and animates
 while still dormant: it wakes, acts, and shows on the map only at its own
 clip distance (300 unless its script sets one) and under retail's limit of
 four awake at once. The 1200 cull of far town parts is unchanged.

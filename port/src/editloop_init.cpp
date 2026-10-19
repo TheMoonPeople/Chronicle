@@ -21,6 +21,7 @@
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "debugfont.hpp"
+#include "dialog_npc.hpp"
 #include "dngstatusdata.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
@@ -454,12 +455,15 @@ PORT_OVERRIDE int EditInit(void *param) {
     strcat(mes_path, ".mes");
     strcat(sys_path, "fconv.bin");
 
-    if (LoadFile2(mes_path, talk_mes, &mes_size, 0) == 0 && LoadFile2(sys_path, talk_mes, &mes_size, 0) == 0) {
+    const bool talk_loaded = LoadFile2(mes_path, talk_mes, &mes_size, 0) != 0;
+
+    if (!talk_loaded && LoadFile2(sys_path, talk_mes, &mes_size, 0) == 0) {
         LoadFile("gedit/e01/fconv.bin", talk_mes, &mes_size);
     }
 
     EdMesBuffer.Alloc((mes_size >> 4) + 1);
     EditMes1.SetBuff(talk_mes);
+    DialogNpcSetMessageFile(talk_loaded ? mes_path : "");
     EdMesBuffer.Align64();
     short *system_mes = (short *) (EdMesBuffer.base + EdMesBuffer.used * 16);
 #ifdef PAL

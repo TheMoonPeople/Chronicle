@@ -83,6 +83,13 @@ void GetLocalizedSaveLoadStrings(std::string &out_title, std::string &out_desc,
     if (out_save_btn.size() >= 2 && out_save_btn.front() == '"' && out_save_btn.back() == '"') {
         out_save_btn = out_save_btn.substr(1, out_save_btn.size() - 2);
     }
+    // In capitals, as the load button's are; the menu title it comes from is not. Only the ASCII letters:
+    // the bytes of a UTF-8 character stay as they are.
+    for (char &c : out_save_btn) {
+        if (c >= 'a' && c <= 'z') {
+            c = static_cast<char>(c - 'a' + 'A');
+        }
+    }
 
     switch (GetMenuLangFlag()) {
         case LANG_FRENCH:

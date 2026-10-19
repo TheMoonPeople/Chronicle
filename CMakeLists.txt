@@ -3,9 +3,10 @@ project(dcdecomp NONE)
 
 # PLATFORM picks what is built: PS2 builds and verifies the retail images
 # (ps2/CMakeLists.txt), PC builds the x64 port (port/CMakeLists.txt), SWITCH builds
-# the port as a Nintendo Switch homebrew .nro with devkitPro (docs/SWITCH.md).
-set(PLATFORM PS2 CACHE STRING "Platform to build: PS2, PC or SWITCH")
-set_property(CACHE PLATFORM PROPERTY STRINGS PS2 PC SWITCH)
+# the port as a Nintendo Switch homebrew .nro with devkitPro (docs/SWITCH.md), ANDROID the Android app
+# (android/README.md).
+set(PLATFORM PS2 CACHE STRING "Platform to build: PS2, PC, SWITCH or ANDROID")
+set_property(CACHE PLATFORM PROPERTY STRINGS PS2 PC SWITCH ANDROID)
 if(PLATFORM STREQUAL "PS2")
     add_subdirectory(ps2)
 elseif(PLATFORM STREQUAL "PC")
@@ -17,6 +18,8 @@ elseif(PLATFORM STREQUAL "SWITCH")
         message(FATAL_ERROR "PLATFORM SWITCH needs devkitPro's Switch.cmake toolchain file (the switch preset)")
     endif()
     add_subdirectory(port)
+elseif(PLATFORM STREQUAL "ANDROID")
+    add_subdirectory(port)
 else()
-    message(FATAL_ERROR "PLATFORM must be PS2, PC or SWITCH, not ${PLATFORM}")
+    message(FATAL_ERROR "PLATFORM must be PS2, PC, SWITCH or ANDROID, not ${PLATFORM}")
 endif()

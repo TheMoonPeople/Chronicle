@@ -179,6 +179,13 @@ PORT_OVERRIDE int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
 
 // languages.json is {"release": "...", "languages": [n, ...]}; the numbers in the brackets after
 // "languages" are the languages.
+std::uintmax_t DataFileSize(std::string_view path) {
+    const fs::path *file = Lookup(path);
+    std::error_code error;
+    const std::uintmax_t size = file != nullptr ? fs::file_size(*file, error) : 0;
+    return error ? 0 : size;
+}
+
 std::vector<s32> DataLanguages() {
     std::vector<s32> languages;
     const fs::path  *file = Lookup(dcdata::kLanguagesFile);

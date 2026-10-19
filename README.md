@@ -116,3 +116,41 @@ overridden (hold R while starting a game). Saves from PCSX2 or a PS2 memory card
 
 [`docs/SWITCH.md`](docs/SWITCH.md) covers building, installing, playing, saves, logs and crash
 reports, testing from a computer, how the port runs on the console and what it changes for it.
+
+## Android build
+
+This fork builds Chronicle as a native Android app for `arm64-v8a` and `x86_64`, named Chronicle. It
+includes a multi-touch PS2 control overlay with separate movement and camera sticks; unused L3/R3 buttons
+are omitted, touches outside the controls do not send game input, and the overlay hides when a hardware
+controller, keyboard, or mouse is connected. Android settings, controller bindings, Foldable display
+changes, 16 KB page-size compatibility, and renderer/performance work are included. The renderer requires
+Vulkan 1.3 and a compatible GPU. Android support remains experimental and device compatibility varies.
+
+The app does not include Dark Cloud game data. On first launch, select your own PAL disc image; the app
+imports it into private storage. Keep disc images and extracted `DATA.DAT`/`DATA.HD2` files out of this
+repository and APK.
+
+### Build on Windows
+
+Install JDK 17 and Android Studio's SDK platform 35, build tools 35.0.0, NDK 27.0.12077973, and CMake
+3.31.6. Clone this fork with its Kazarov submodule:
+
+```powershell
+git clone --recurse-submodules https://github.com/anxiousintrovert/Chronicle-Android.git
+cd Chronicle-Android\android
+.\fetch-deps.ps1
+.\gradlew.bat assembleDebug
+```
+
+The Gradle wrapper pins Gradle 8.13. `fetch-deps.ps1` downloads SDL 3.4.16 and glslang 16.6.0, checking
+their archive SHA-256 values before extraction. The debug APK is written to
+`android/app/build/outputs/apk/debug/app-debug.apk`.
+
+For local device testing, `android/publish-test-apk.ps1` builds and zips a timestamp-labeled package,
+archives previous Chronicle test packages in `DARKCLOUDBUILDS`, and leaves the current ZIP in the chosen
+destination root. Its default destination is the maintainer's mapped `Z:\` Games share; pass
+`-DestinationRoot` to use another folder.
+
+See [`android/README.md`](android/README.md) for prerequisites, setup, and build details. Prebuilt test
+packages, when available, are published on the [GitHub Releases page](https://github.com/anxiousintrovert/Chronicle-Android/releases).
+They contain the app only; users must supply their own compatible PAL disc image.

@@ -33,7 +33,7 @@ add_compile_options(-fsigned-char)
 # Kazarov's host library with the units that need an operating system's virtual memory replaced by
 # Switch ones.
 function(dc_switch_host target)
-    set_source_files_properties(${KZ_ROOT}/port/platform/memory.cpp PROPERTIES HEADER_FILE_ONLY ON)
+    set_source_files_properties(${KZ_PORT_ROOT}/platform/memory.cpp PROPERTIES HEADER_FILE_ONLY ON)
     target_sources(${target} PRIVATE ${DC_SWITCH_DIR}/memory.cpp ${DC_SWITCH_DIR}/ucontext.cpp ${DC_SWITCH_DIR}/nxlink.cpp
         ${DC_SWITCH_DIR}/clocks.cpp)
 endfunction()

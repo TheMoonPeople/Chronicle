@@ -1,3 +1,4 @@
+#include "item_icon3d.hpp"
 #include "gameloop.hpp"
 
 #include <algorithm>
@@ -42,6 +43,7 @@
 #include "platform/overlay.hpp"
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
+#include "quest_host.hpp"
 #include "presence.hpp"
 #include "save_slots.hpp"
 #include "savedata.hpp"
@@ -427,6 +429,7 @@ void StartNewGame() {
     for (int i = 0; i < 6; ++i) {
         std::memcpy(g_save_data.GetCharaName(i), names[i], sizeof(names[i]));
     }
+    QuestHostNewGame();
     TrialStart();
 }
 
@@ -942,6 +945,7 @@ std::string GameFpsText() {
 // screen's frame after it. ReadbackFrame would read a display frame, overlay and all.
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {
     GameRenderDrain();
+    ItemIcons3DDumpDebug();
     return gfx::ReadbackTexture(gfx::kPreviousFrame, rgba, width, height);
 }
 

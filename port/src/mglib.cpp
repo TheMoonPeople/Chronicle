@@ -202,8 +202,10 @@ void Blit(const ResolvedRect &src, const ResolvedRect &dst, gfx::Filter filter) 
 }
 
 // The view against the last one the previous tick drew with.
+bool g_view_no_cut = false;
+
 void CheckCameraCut(sceVu0FMATRIX view) {
-    if (!gfx::Recording() || !g_have_tick_view) {
+    if (g_view_no_cut || !gfx::Recording() || !g_have_tick_view) {
         return;
     }
     float before[16];
@@ -833,6 +835,12 @@ PORT_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     mgRenderInfo.position[1] = position[1];
     mgRenderInfo.position[2] = position[2];
     mgRenderInfo.position[3] = 0.0f;
+}
+
+void MGPortSetViewMatrixNoCut(float view[4][4], float *position) {
+    g_view_no_cut = true;
+    MGSetViewMatrix(view, position);
+    g_view_no_cut = false;
 }
 
 PORT_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {

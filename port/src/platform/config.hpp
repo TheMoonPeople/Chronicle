@@ -39,6 +39,18 @@ struct Config : HostSettings {
     bool              element_quick_select = false;
     bool              swap_keeps_lock_on = false;
     bool              text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
+    // game.aerial_map: the dungeon map is the live floor seen from above instead of retail's tiles.
+    bool              aerial_map = true;
+    // World units above the player's feet where the aerial map cuts the ceiling away.
+    float             aerial_map_ceiling = 40.0f;
+    // Aerial map magnification over retail's 16 pixels per cell; 1 shows the whole floor as retail does.
+    float             aerial_map_zoom = 1.0f;
+    // Size of monsters, chests and the player on the aerial map relative to the floor.
+    float             aerial_map_model_scale = 8.0f;
+    // Size of the aerial map over retail's 320 pixel square, grown from its top-right corner.
+    float             aerial_map_size = 1.4f;
+    // Coloured rings around monsters (red), chests (gold), atla (blue) and the player (green).
+    bool              aerial_map_markers = false;
 #ifdef __SWITCH__
     // Off on the Switch: a display frame between ticks costs its GPU as much as a tick's own.
     bool interpolation = false;
@@ -49,6 +61,12 @@ struct Config : HostSettings {
 #endif
     ConfigAspect      aspect = ConfigAspect::Auto;
     float             ui_scale = 1.0f;
+#if defined(__ANDROID__)
+    float             render_scale = 0.5f;
+    int               touch_overlay_opacity = 100;
+#else
+    float             render_scale = 1.0f;
+#endif
     float             detail_distance = 0.0f;
     float             shadow_distance = 0.0f;
     int               anisotropy = 0;

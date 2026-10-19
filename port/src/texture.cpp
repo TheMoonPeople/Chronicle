@@ -11,6 +11,7 @@
 #include "dataalloc.hpp"
 #include "localize_texture.hpp"
 #include "mglib.hpp"
+#include "texture_assets.hpp"
 #include "texture_port.hpp"
 #include "tim2.hpp"
 
@@ -350,7 +351,9 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
                                indexed && swizzled != 0, decoded)) {
             return;
         }
-        LocalizeTexture(name, decoded);
+        if (!LocalizeTexture(name, decoded)) {
+            TextureAssetApply(name, decoded);
+        }
         caption::PreparePainted(name, decoded);
         MakeGroundPeriodic(name, decoded);
         DumpTexture(name, decoded);
