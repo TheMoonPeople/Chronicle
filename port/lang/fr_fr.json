@@ -311,8 +311,6 @@
     "weaponmenu.action.synthesize": "SYNTHÉTISER",
     "weaponmenu.action.buildup": "AMÉLIORER",
     "weaponmenu.action.discard": "JETER",
-    "weaponmenu.repair_powder": "Poudre de réparation",
-    "weaponmenu.powerup_powder": "Poudre d'évolution",
     "weaponmenu.upgrade.confirm": "Faire évoluer ?",
     "weaponmenu.buildup.confirm": "Améliorer l'arme ?",
     "weaponmenu.synthesize.confirm": "Synthétiser cette arme ?\nL'arme disparaîtra.",

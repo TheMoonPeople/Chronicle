@@ -476,9 +476,29 @@ PORT_OVERRIDE void BattleMenuDraw() {
 
     CursorVibeCnt = (CursorVibeCnt + 1 >= 0x405F7E00) ? 0 : (CursorVibeCnt + 1);
 
+    // The character, weapon, item and Atla menus keep the game's own help window: the description the menu chose
+    // (a weapon's, a character's), in the game's text.
+    bool game_help = false;
+    switch (BattleMenuFlag) {
+        case BTLMENU_STATE_CHARA:
+        case BTLMENU_STATE_CHARA_OPEN:
+        case BTLMENU_STATE_CHARA_CLOSE:
+        case BTLMENU_STATE_WEAPON:
+        case BTLMENU_STATE_WEAPON_OPEN:
+        case BTLMENU_STATE_WEAPON_CLOSE:
+        case BTLMENU_STATE_ITEM:
+        case BTLMENU_STATE_ITEM_OPEN:
+        case BTLMENU_STATE_ITEM_CLOSE:
+        case BTLMENU_STATE_ATLA:
+        case BTLMENU_STATE_ATLA_OPEN:
+        case BTLMENU_STATE_ATLA_CLOSE:
+            game_help = true;
+            break;
+    }
+
     const int draw_help = BtlMenuDrawSpecialFlag(BtlWakuMake2);
     if (BtlMenuReadEndFlag != 0) {
-        if (BattleMenuFlag == BTLMENU_STATE_MAIN || BattleMenuFlag == BTLMENU_STATE_APPEAR) {
+        if (BattleMenuFlag == BTLMENU_STATE_MAIN || BattleMenuFlag == BTLMENU_STATE_APPEAR || game_help) {
             BtlHelpWinAlpha = std::min(0x80, BtlHelpWinAlpha + 9);
         } else {
             BtlHelpWinAlpha = std::max(0, BtlHelpWinAlpha - 8);
@@ -489,8 +509,20 @@ PORT_OVERRIDE void BattleMenuDraw() {
     int text_y = 0;
     GetMainMenuRightHelpMsgLangOffset(text_x, text_y);
 
-    if (BtlMenuReadEndFlag != 0 && draw_help != 0 &&
-        BtlHelpWinAlpha > 0 && !quit_confirm_active && !saveload_modal_active) {
+    if (game_help) {
+        if (BtlMenuReadEndFlag != 0 && draw_help != 0) {
+            MenuHelpWinDraw(static_cast<int>(HelpWinHead[0]), static_cast<int>(HelpWinHead[1]), BtlHelpWinW, BtlHelpWinH,
+                            BtlHelpWinAlpha);
+            MenuTextureReload(CommonMenuMes2.tex_block);
+            CommonMenuMes2.text_x = static_cast<int>(HelpWinHead[0] + static_cast<float>(text_x));
+            CommonMenuMes2.text_y = static_cast<int>(HelpWinHead[1] + static_cast<float>(text_y));
+            CommonMenuMes2.stay_frame = false;
+            CommonMenuMes2.edge_alpha = BtlHelpWinAlpha;
+            CommonMenuMes2.Step();
+            CommonMenuMes2.DrawMesWin();
+        }
+    } else if (BtlMenuReadEndFlag != 0 && draw_help != 0 &&
+               BtlHelpWinAlpha > 0 && !quit_confirm_active && !saveload_modal_active) {
         std::string title;
         std::string desc;
         UI::GetBattleMenuHelpData(MenuSelect[1], BtlMenuMode, title, desc);

@@ -68,20 +68,101 @@ int NowWeaponStatusValuePort(WEAPON_HAVE *weapon) {
 }
 
 /**
- * Formats a weapon's localized name and enhancement level suffix.
+ * The game's WeaponNameDraw (static in ps2/src/battlemenu.cpp): the names of the weapons either side of the cursor,
+ * in the game's message window and letters, laid out again whenever a name or level changed, and the name frame
+ * under them while the page is at its top level.
  */
-std::string FormatWeaponTitlePort(const WEAPON_HAVE *weapon) {
-    if (weapon == nullptr || weapon->item_no < ITEM_WEAPON_START) {
-        return {};
+void WeaponNameDrawPort(int y, int selected_only, int alpha) {
+    int previous_mes[4];
+    int previous_level[4];
+
+    MenuTextureReload(AtoraNameMes.tex_block);
+    int slot = WepMenu.weapon_slot - 1;
+
+    for (int i = 0; i < 4; i++) {
+        previous_mes[i] = AtoraNameMes.mes_no[i];
+        previous_level[i] = AtoraNameMes.values[i];
     }
-    std::string name = DecodeItemNamePort(weapon->item_no);
-    if (name.empty()) {
-        return {};
+
+    int x = static_cast<int>(22.0f + WeaponPos + static_cast<float>(slot * 0xD6));
+    AtoraNameMes.value_signed = true;
+
+    for (int i = 0; i < 3; i++) {
+        int mes_no;
+        int level = 0;
+
+        if (x < -140 || x > 630 || (selected_only == 1 && slot != WepMenu.weapon_slot) || slot < 0 || slot > 9 ||
+            ((WepMenu.state == WEP_STATE_STATUS_BREAK_EFFECT || WepMenu.state == WEP_STATE_BUILDUP_EFFECT) && slot == WepMenu.weapon_slot) ||
+            (WepMenu.mode > WEP_MENU_LIST && slot != WepMenu.weapon_slot) ||
+            (WepMenu.state != WEP_STATE_REPAIR_EFFECT && WepMenu.state >= WEP_STATE_STATUS_BREAK_EFFECT && WepMenu.state < WEP_STATE_WARNING) ||
+            (WepMenu.state == WEP_STATE_LEVELUP_EFFECT && slot != WepMenu.weapon_slot)) {
+            mes_no = 999;
+        } else {
+            mes_no = GetWeaponMsgNo(&DngWepHavePt[slot]);
+
+            if (mes_no < 0 || slot < 0) {
+                mes_no = 999;
+            }
+
+            if (mes_no > 100) {
+                AtoraNameMes.GetMesWidth_system(mes_no);
+                level = DngWepHavePt[slot].level;
+            }
+        }
+
+        int width = AtoraNameMes.GetMesWidth_system(mes_no);
+        AtoraNameMes.mes_no[i] = mes_no;
+        AtoraNameMes.values[i] = level;
+        int name_x = GetWeaponNamePutX(x + 0x42, width);
+
+        if (level > 0) {
+            name_x -= 8;
+
+            if (level / 10 > 0) {
+                name_x -= 8;
+            }
+        }
+
+        AtoraNameMes.line_pos[i].x = name_x;
+        AtoraNameMes.line_pos[i].y = y;
+        x += 0xD6;
+        slot++;
     }
-    if (weapon->level > 0) {
-        name += "+" + std::to_string(weapon->level);
+
+    for (int i = 0; i < 4; i++) {
+        if (AtoraNameMes.line_pos[i].y > 180) {
+            AtoraNameMes.line_pos[i].y = y;
+            AtoraNameMes.mes_no[i] = 999;
+        }
     }
-    return name;
+
+    for (int i = 0; i < 4; i++) {
+        if (AtoraNameMes.mes_no[i] != previous_mes[i] || AtoraNameMes.values[i] != previous_level[i]) {
+            AtoraNameMes.mes_made = -1;
+            AtoraNameMes.MakeMesWin(150);
+            break;
+        }
+    }
+
+    AtoraNameMes.edge_alpha = alpha;
+    AtoraNameMes.Step();
+    AtoraNameMes.DrawMesWin();
+
+    if (WepMenu.mode == WEP_MENU_LIST && WepMenu.state == WEP_STATE_IDLE) {
+        CTexture *frame = TexManager.GetTexture(const_cast<char *>("frame_image"), -1);
+
+        if (frame != nullptr) {
+            TexManager.ReloadTexture(GetVif1Packet(), frame->block);
+            reinterpret_cast<sceGsTex0 *>(&frame->tex0)->bits.tcc = 0;
+            sceGsTexa texa = mgTexa;
+            texa.AEM = 1;
+            texa.TA0 = 0x80;
+            MGSetGsTEXA(&texa);
+            CRect_i_ rect(0, 0x14A, 0x104, 0x76);
+            set2DSprite(GetVif1Packet(), frame, rect, rect, 0x40, 0x40, 0x40, alpha);
+            MGSetGsTEXA(nullptr);
+        }
+    }
 }
 
 /**
@@ -418,51 +499,6 @@ PORT_OVERRIDE void DrawWeaponSelectDialog(int x, int y, int alpha) {
     }
 }
 
-PORT_OVERRIDE void RepairAndLevelUpDraw(int x, int y, int alpha) {
-    if (alpha <= 0) {
-        return;
-    }
-
-    setbilinear(0);
-    MenuTextureReload(BtlMenuReadBlock);
-
-    constexpr int box_w = 248;
-    constexpr int box_h = 82;
-    UI::HelpBox::Draw(x - 10, y, box_w, box_h, alpha);
-
-    constexpr int         items[2] = {ITEM_REPAIR_POWDER, ITEM_POWERUP_POWDER};
-    constexpr const char *keys[2]  = {"weaponmenu.repair_powder", "weaponmenu.powerup_powder"};
-    constexpr const char *defs[2]  = {"Repair Powder", "Powerup Powder"};
-
-    for (int i = 0; i < 2; i++) {
-        const int item_no = items[i];
-        const int count   = GetNowItemNum(item_no, MenuItemPackPt);
-        const int row_y   = y + 11 + i * 32;
-
-        UI::ItemIcon::Draw(item_no, x + 6, row_y, 26, alpha, true, false);
-
-        std::string item_name = DecodeItemNamePort(item_no, LocalizeText(keys[i], defs[i]));
-        for (char &ch : item_name) {
-            if (ch == '\n' || ch == '\r') {
-                ch = ' ';
-            }
-        }
-
-        UI::Label name_lbl(item_name, UI::ColorWhite, UI::Alignment::Left, true, 0.80f);
-        if (name_lbl.GetWidth() > 130) {
-            name_lbl.SetXScale(130.0f / static_cast<float>(name_lbl.GetWidth()));
-        }
-        name_lbl.Draw(x + 38, row_y + 2, alpha);
-
-        const u32 count_col = (count > 0) ? UI::ColorGold : UI::ColorWhite;
-        UI::Label("x", UI::ColorWhite, UI::Alignment::Center, true, 0.80f).Draw(x + 182, row_y + 2, alpha);
-        UI::Label(std::to_string(count), count_col, UI::Alignment::Right, true, 0.86f).Draw(x + 216, row_y + 2, alpha);
-    }
-
-    setbilinear(0);
-    MenuTextureReload(BtlMenuReadBlock);
-}
-
 PORT_OVERRIDE void DrawBuildUpWeaponSelect(int x, int y, int cursor) {
     WEAPON_HAVE *weapon = GetNowSelectWeaponPort();
     if (weapon == nullptr) {
@@ -589,29 +625,8 @@ PORT_OVERRIDE void DrawAallWeapon(int x, int y, float depth, CCharacter *model,
             break;
     }
 
-    const bool hide_title =
-        ((WepMenu.state == WEP_STATE_STATUS_BREAK_EFFECT || WepMenu.state == WEP_STATE_BUILDUP_EFFECT) && selected != 0) ||
-        (WepMenu.mode > WEP_MENU_LIST && selected == 0) ||
-        (WepMenu.state != WEP_STATE_REPAIR_EFFECT && WepMenu.state >= WEP_STATE_STATUS_BREAK_EFFECT && WepMenu.state < WEP_STATE_WARNING) ||
-        (WepMenu.state == WEP_STATE_LEVELUP_EFFECT && selected == 0);
-
-    const std::string weapon_title = hide_title ? std::string{} : FormatWeaponTitlePort(weapon);
-
-    const UI::TextStyle title_style{
-        .color       = UI::ColorGold,
-        .drop_shadow = true,
-        .align       = UI::Alignment::Center,
-        .scale       = 1.14f,
-        .text_dy     = 1,
-    };
-
-    UI::TrackerWindow::DrawStoneBanner(
-        UI::Rect(x - 0x11, y - 0x31, 0xCC, 0x1F),
-        alpha,
-        0x80,
-        weapon_title,
-        title_style
-    );
+    // The plate; the weapon's name goes on it in the game's letters (WeaponNameDrawPort, once the weapons are drawn).
+    UI::TrackerWindow::DrawStoneBanner(UI::Rect(x - 0x11, y - 0x31, 0xCC, 0x1F), alpha, 0x80, std::string{}, UI::TextStyle{});
 
     setbilinear(0);
 
@@ -763,6 +778,12 @@ PORT_OVERRIDE void BtlWeaponDraw(int x, float depth, int chara, int alpha) {
 
     MGSetPLight(light_dir, light_col);
     MGSetAmbient(ambient);
+
+    if (MenuExTextureReadFlag == MENU_EX_TEX_READY) {
+        const bool tags = WepMenu.mode == WEP_MENU_ATTACH_TAGS || WepMenu.mode == WEP_MENU_ATTACH_WEAPON ||
+                          WepMenu.mode == WEP_MENU_ATTACH_SOCKETS || WepMenu.mode == WEP_MENU_ATTACH_BOARD;
+        WeaponNameDrawPort(0x72, tags ? 1 : 0, alpha);
+    }
 
     switch (WepMenu.mode) {
         case WEP_MENU_ATTACH_TAGS:

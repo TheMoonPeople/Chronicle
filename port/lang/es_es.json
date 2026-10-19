@@ -311,8 +311,6 @@
     "weaponmenu.action.synthesize": "SINTETIZAR",
     "weaponmenu.action.buildup": "EVOLUCIONAR",
     "weaponmenu.action.discard": "TIRAR",
-    "weaponmenu.repair_powder": "Polvo reparador",
-    "weaponmenu.powerup_powder": "Polvo potenciador",
     "weaponmenu.upgrade.confirm": "¿Mejorar arma?",
     "weaponmenu.buildup.confirm": "¿Evolucionar arma?",
     "weaponmenu.synthesize.confirm": "¿Sintetizar esta arma?\nEl arma desaparecerá.",

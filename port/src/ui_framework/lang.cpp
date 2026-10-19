@@ -61,8 +61,6 @@ std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
         {"weaponmenu.action.synthesize",  "SYNTHESIZE"                                     },
         {"weaponmenu.action.buildup",     "BUILD-UP"                                       },
         {"weaponmenu.action.discard",     "DISCARD"                                        },
-        {"weaponmenu.repair_powder",      "Repair Powder"                                  },
-        {"weaponmenu.powerup_powder",     "Powerup Powder"                                 },
         {"weaponmenu.upgrade.confirm",    "Upgrade. Confirm?"                              },
         {"weaponmenu.buildup.confirm",    "Build-up. Confirm?"                             },
         {"weaponmenu.synthesize.confirm", "Status break this weapon?\nWeapon disappears."  },

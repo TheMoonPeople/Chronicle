@@ -116,17 +116,19 @@ bool TtfReady() {
 
 // Myset2DSprite_Fuchi's outline and shadow passes, from the Sharp glyph sheet. Retail's pass is the 14x20 letter
 // again, a whole pixel off: its soft one-texel edges make the shadow a soft one. The sheet's letter is sharp, so each
-// pass is spread over that pixel instead, as a grid of fainter copies that together come to the pass's strength.
+// pass is spread over that pixel instead (wider for the outline table), as a grid of fainter copies that together come
+// to the pass's strength.
 void SoftFuchi(const ClsMes &mes, int x, int y, int width, int height, int u, int v) {
     constexpr int kSteps = 4;
+    float         spread = 1.0f, weaken = 1.0f;
     auto          pass = [&](int dx, int dy, int r, int g, int b, int alpha) {
-        const float strength = static_cast<float>(std::min(alpha, 0x80)) / 128.0f;
+        const float strength = weaken * static_cast<float>(std::min(alpha, 0x80)) / 128.0f;
         const float each = 1.0f - std::pow(1.0f - std::min(strength, 0.999f), 1.0f / (kSteps * kSteps));
         const auto  tap_alpha = static_cast<u_char>(std::lround(each * 128.0f));
         for (int i = 0; i < kSteps; i++) {
             for (int j = 0; j < kSteps; j++) {
-                const float sx = (static_cast<float>(i) + 0.5f) / kSteps - 0.5f;
-                const float sy = (static_cast<float>(j) + 0.5f) / kSteps - 0.5f;
+                const float sx = ((static_cast<float>(i) + 0.5f) / kSteps - 0.5f) * spread;
+                const float sy = ((static_cast<float>(j) + 0.5f) / kSteps - 0.5f) * spread;
                 draw2d::SpriteBatchAdd(static_cast<float>(x + dx) + sx, static_cast<float>(y + dy) + sy,
                                        static_cast<float>(width), static_cast<float>(height), CRect_i_(u, v, width, height),
                                        static_cast<u_char>(r), static_cast<u_char>(g), static_cast<u_char>(b), tap_alpha);
@@ -142,6 +144,10 @@ void SoftFuchi(const ClsMes &mes, int x, int y, int width, int height, int u, in
             pass(1, 1, 0, 0, 0, std::min(cap, 0x40));
             break;
         case MES_EDGE_TABLE:
+            // The outline the table makes (a weapon's name) is two pixels out each way: the game's soft letters fade
+            // it over more than a pixel and never quite to black, so it is spread wider and a little lighter.
+            spread = 1.5f;
+            weaken = 0.92f;
             for (int i = 0; FuchiTbl_E[i].alpha > 0; i++) {
                 pass(FuchiTbl_E[i].x, FuchiTbl_E[i].y, FuchiTbl_E[i].r, FuchiTbl_E[i].g, FuchiTbl_E[i].b,
                      std::min(cap, FuchiTbl_E[i].alpha));

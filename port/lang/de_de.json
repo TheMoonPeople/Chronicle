@@ -311,8 +311,6 @@
     "weaponmenu.action.synthesize": "SYNTHESE",
     "weaponmenu.action.buildup": "UMBAUEN",
     "weaponmenu.action.discard": "WEGWERFEN",
-    "weaponmenu.repair_powder": "Reparaturpulver",
-    "weaponmenu.powerup_powder": "Aufrüstpulver",
     "weaponmenu.upgrade.confirm": "Aufrüsten. Bestätigen?",
     "weaponmenu.buildup.confirm": "Umbauen. Bestätigen?",
     "weaponmenu.synthesize.confirm": "Status-Bruch durchführen?\nWaffe verschwindet.",
