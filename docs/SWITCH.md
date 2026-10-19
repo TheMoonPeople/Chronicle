@@ -31,7 +31,7 @@ at 60 frames a second. Like the PC port it needs your own disc's data.
 ## Quick start
 
 ```sh
-git clone --recurse-submodules <this repository> Chronicle && cd Chronicle
+git clone --recurse-submodules -b switch-port https://github.com/columna1/Chronicle-nintendo-switch.git Chronicle && cd Chronicle
 ./build.sh linux-x64-release                                     # the PC build, for dcdata
 port/build/pc-release/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
 tools/switch/build.sh                                            # port/build/switch/darkcloud.nro

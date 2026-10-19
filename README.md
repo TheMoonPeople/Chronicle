@@ -16,7 +16,9 @@
 
 > **This fork adds a Nintendo Switch build.** The PC port runs as homebrew on a Switch with custom
 > firmware, handheld at 1280x720 and at 60 frames a second in towns, with saves imported from PS2
-> memory cards. See [Nintendo Switch](#nintendo-switch) below and [`docs/SWITCH.md`](docs/SWITCH.md).
+> memory cards. See [Nintendo Switch](#nintendo-switch) below and [`docs/SWITCH.md`](docs/SWITCH.md). Its
+> engine changes are on the `switch-port` branch of
+> [columna1/Kazarov-switch](https://github.com/columna1/Kazarov-switch), the `tools/kazarov` submodule.
 
 ## Overview
 
