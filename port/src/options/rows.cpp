@@ -741,7 +741,7 @@ const Row kTextRows[] = {
                "\"Symbols Shown\"\nAuto: the device you\nuse. Or always show one\nof the others.", GlyphDeviceCount,
                GlyphDeviceChoice, SetGlyphDevice, nullptr, "Auto|PS3|PS4|PS5|PS5 Colored|Xbox|Switch|Steam Deck|Steam Controller|Keyboard"),
     NamedRow<&Config::font_sharp>("video.text_font", "Text Font",
-                                  "\"Text Font\"\nSharp: a clear font at\nthe screen's size.\nOriginal: the game's.",
+                                  "\"Text Font\"\nSharp: the game's own\nletters, drawn smooth.\nOriginal: the game's.",
                                   "Original|Sharp"),
     SettingRow("video.text_shadow", "Text Shadow",
                "\"Text Shadow\"\nHow dark the shadow\nunder the letters is.\n50% is the soft one.", ShadowCount,

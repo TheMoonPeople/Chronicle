@@ -26,6 +26,7 @@
 #include "snd.hpp"
 #include "text_shadow.hpp"
 #include "texture.hpp"
+#include "texture_assets.hpp"
 #include "textwipe.hpp"
 
 extern float     RandTbl[64];
@@ -91,8 +92,9 @@ int ChoiceRowDim(const ClsMes &mes, int row, int clut) {
 // instead of from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
 
 bool TtfReady() {
-    // video.text_font set to the game's own letters: the bitmaps, whatever font there is.
-    if (!ConfigGet().font_sharp) {
+    // video.text_font set to the game's own letters: the bitmaps, whatever font there is. With the Sharp glyph sheet
+    // made from those letters, the game draws them itself, from it.
+    if (!ConfigGet().font_sharp || TextureAssetsSharpGaiji()) {
         return false;
     }
     static bool tried = false;
@@ -1192,7 +1194,8 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
     this->blink++;
 
     texture = draw2d::Get().find_texture("gaiji");
-    setbilinear(0);
+    // The Sharp glyph sheet has several texels to a screen pixel's worth of the game's: filtered, not picked.
+    setbilinear(TextureAssetsSharpGaiji() ? 1 : 0);
     auto text_pass = [&](bool ttf) {
         set2DSprite_Start(Vif1Packet, texture);
         std::vector<gfx::Vertex2D> ttf_edges;

@@ -19,6 +19,17 @@ text work, confirmed on 2026-10-10 that he has Dayuppy's permission to use it). 
 draws the area name cards from it when it is there (the cards' painted lettering has a lighter stroke than the regular font's); everything else
 uses `font.ttf`. Its digit 5 is the original, not the redrawn one, and no card draws a digit.
 
+## The Sharp text font
+
+When the disc is extracted (`dcdata extract`, the first-run extraction, or `dcdata sharp <data>` for data extracted
+before), `tools/dcdata/sharpfont.hpp` reshapes these two fonts letter by letter until, drawn at 14x20, each matches the
+game's own letter in `meswin/gaiji.img`: the regular font to the game's bold dialogue letters, the thin one to its
+narrower set. It writes `sharp/` in the data folder: the two fonts (`font.ttf`, `font_regular.ttf`) and, per language,
+the glyph sheet redrawn from them at six times its size. With Text Font set to Sharp the game draws its message text
+from that sheet exactly where and as it draws its own letters, and text the port draws from a font uses `sharp/font.ttf`.
+It is made from the disc, so it is never part of the repository or a release; without it Sharp uses these fonts as
+they are.
+
 ## Cinzel-Regular.ttf
 
 Cinzel (Copyright 2020 The Cinzel Project Authors, https://github.com/NDISCOVER/Cinzel), SIL Open Font License 1.1. It is

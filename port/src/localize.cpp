@@ -20,6 +20,7 @@
 #include "menu_option.hpp"
 #include "platform/config.hpp"
 #include "platform/paths.hpp"
+#include "texture_assets.hpp"
 
 namespace fs = std::filesystem;
 
@@ -677,6 +678,12 @@ std::filesystem::path LocalizeFindFile(std::string_view name) {
     }
     std::vector<fs::path> directories = Directories();
     for (auto directory = directories.rbegin(); directory != directories.rend(); ++directory) {
+        // Before the font that comes with the game: the Sharp text font, made from the game's own letters.
+        if (name == "font.ttf" && directories.size() > 1 && directory + 1 == directories.rend()) {
+            if (fs::path sharp = SharpTextFile("font.ttf"); !sharp.empty()) {
+                return sharp;
+            }
+        }
         fs::path        file = *directory / std::string(name);
         std::error_code error;
         if (fs::is_regular_file(file, error)) {

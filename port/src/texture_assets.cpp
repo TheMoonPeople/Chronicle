@@ -6,10 +6,12 @@
 #include <map>
 #include <string>
 
+#include "../../tools/dcdata/sharpfont.hpp"
 #include "editloop.hpp"
 #include "mainselect.hpp"
 #include "localize_texture.hpp"
 #include "main.hpp"
+#include "platform/config.hpp"
 #include "platform/imagefile.hpp"
 #include "platform/paths.hpp"
 #include "texture_port.hpp"
@@ -22,6 +24,7 @@ namespace {
 
 std::vector<fs::path> g_roots;
 bool                  g_roots_set;
+bool                  g_sharp_gaiji; // the glyph sheet in use is the Sharp text font's
 
 // Pictures already complained about, so a wrong-shaped one says so once.
 std::map<std::string, bool> &Reported() {
@@ -49,6 +52,23 @@ fs::path Find(const fs::path &directory, std::string_view name, unsigned width, 
 }
 
 } // namespace
+
+fs::path SharpTextFile(std::string_view name) {
+    const fs::path &root = PathsDataRoot();
+    if (!dcdata::sharp::IsBuilt(root)) {
+        return {};
+    }
+    std::error_code error;
+    fs::path        file = root / "sharp" / std::string(name);
+    return fs::is_regular_file(file, error) ? file : fs::path{};
+}
+
+fs::path SharpGaijiPath(std::string_view language) {
+    if (language.empty() || language.find_first_of("/\\.") != std::string_view::npos) {
+        return {};
+    }
+    return SharpTextFile(std::string(language) + "/gaiji.png");
+}
 
 std::string TextureAssetsArea() {
     switch (mode) {
@@ -113,15 +133,29 @@ fs::path TextureAssetPath(std::string_view area, std::string_view language, std:
     return {};
 }
 
+bool TextureAssetsSharpGaiji() {
+    return g_sharp_gaiji;
+}
+
 bool TextureAssetApply(const char *name, PortDecodedTexture &texture) {
     if (name == nullptr || texture.width == 0 || texture.height == 0 || texture.levels.empty()) {
         return false;
+    }
+    const bool gaiji = std::string_view(name) == "gaiji";
+    if (gaiji) {
+        g_sharp_gaiji = false;
     }
     // A picture is looked for by the texture's own size, so a texture this function already replaced is left alone.
     if (texture.logical_width != 0) {
         return false;
     }
     fs::path path = TextureAssetPath(TextureAssetsArea(), TextureAssetsLanguage(), name, texture.width, texture.height);
+    bool     sharp = false;
+    if (path.empty() && gaiji && ConfigGet().font_sharp) {
+        // The Sharp text font: the glyph sheet drawn from the game's letters when the data was extracted.
+        path = SharpGaijiPath(TextureAssetsLanguage());
+        sharp = !path.empty();
+    }
     if (path.empty()) {
         return false;
     }
@@ -179,5 +213,6 @@ bool TextureAssetApply(const char *name, PortDecodedTexture &texture) {
     texture.format = gfx::TextureFormat::Rgba8;
     texture.has_alpha = translucent || texture.has_alpha;
     texture.four_bit = false;
+    g_sharp_gaiji = sharp;
     return true;
 }

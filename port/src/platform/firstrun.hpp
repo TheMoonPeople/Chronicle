@@ -6,6 +6,7 @@
 #include <string>
 
 #include "../../../tools/dcdata/dcdata.hpp"
+#include "../../../tools/dcdata/sharpfont.hpp"
 
 // The first start of an installed copy: the data directory is missing or holds no file, so the
 // game asks for the disc in the system's file selector (the file-chooser portal inside Flatpak,
@@ -44,3 +45,7 @@ void FirstRunSetChooser(FirstRunChooser chooser);
 // (main's data check then exits with the no-data status and the manual dcdata command). A failed
 // extraction shows the error and exits with status 1.
 void FirstRunIfNoData(bool headless);
+
+// Data extracted before the Sharp text font existed (or for an older recipe of it) gets it made on a worker thread;
+// text drawn before it is ready uses the community font.
+void FirstRunSharpFont();

@@ -413,6 +413,7 @@ int Run(int argc, const char **argv) {
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
     RequireData();
     DC_ANDROID_TRACE("Run: data available");
+    FirstRunSharpFont();
     if (!options.headless) {
         GameSetDataIcon();
     }
