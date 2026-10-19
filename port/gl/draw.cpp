@@ -1213,9 +1213,8 @@ void DrawImmediateMesh(std::span<const Vertex3D> vertices, std::span<const uint3
         if (!vertices.empty() && !indices.empty()) {
             MeshEntry entry{kNullMesh, 0, 0, {}, {}, constants, binding, state, 0};
             entry.index_count = static_cast<uint32_t>(indices.size());
-            entry.vertices.assign(vertices.begin(), vertices.end());
             entry.indices.assign(indices.begin(), indices.end());
-            RecordMesh(std::move(entry), transform, prog0);
+            RecordImmediateMesh(std::move(entry), vertices, transform, prog0);
         }
         return;
     }
