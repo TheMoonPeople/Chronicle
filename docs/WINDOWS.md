@@ -9,7 +9,7 @@ macOS.
 Install PowerShell 7, Python 3 (with `py` or `python` on PATH) and 7-Zip. CMake
 3.28 or later is needed too; the scripts find `cmake` and `7z` on PATH, then try
 their standard installations under `C:/Program Files`. A Vulkan driver with the
-features listed in `tools/kazarov/port/gfx/README.md`, "Device", is required.
+features listed in `tools/kazarov/src/cpp/gfx/README.md`, "Device", is required.
 
 The build system is Kazarov, a submodule at `tools/kazarov`. A clone needs it:
 

@@ -1,4 +1,5 @@
 #include "identity.hpp"
+#include "icon_retail.hpp"
 
 #if defined(__ANDROID__)
 #include <SDL3/SDL_system.h>
@@ -33,12 +34,6 @@ void GameSetIdentity() {
 void GameSetDataIcon() {
     // The save menu's pack in each language folder (menu_draw.cpp's ComMenuContryName) carries the memory
     // card icon; a disc holds only its own languages, so every folder is tried, English first.
-    GameIconSource source;
-    for (const char *language : {"a_usa", "a_eng", "a_jpn", "a_fre", "a_ger", "a_ita", "a_spa"}) {
-        source.packs.push_back(std::filesystem::path("commenu") / language / "savetex.pak");
-    }
-    source.member = "dkicon.ico";
-    source.ico_file = L"darkcloud.ico";
-    source.shortcut = L"Dark Cloud";
+    const auto source = RetailIconSource(PathsDataRoot());
     GameIconInstall(PathsDataRoot(), source);
 }

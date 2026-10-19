@@ -1,4 +1,4 @@
-#include "platform/touch_overlay.hpp"
+#include "platform/input.hpp"
 
 #if defined(__ANDROID__)
 #include <SDL3/SDL_system.h>
@@ -37,11 +37,6 @@ Java_org_themoonpeople_chronicle_ChronicleTouchOverlay_nativeSetTouchState(
     g_state = next;
 }
 
-bool TouchOverlayHandleEvent(const TouchOverlayEvent &, bool) {
-    // The Android View consumes touch events before they reach SDL.
-    return false;
-}
-
 void TouchOverlaySetVisible(bool visible) {
     if (g_visible.exchange(visible) == visible) {
         return;
@@ -72,6 +67,13 @@ void TouchOverlaySetVisible(bool visible) {
 InputTouchOverlayState TouchOverlayState() {
     std::lock_guard lock(g_state_mutex);
     return g_visible.load() ? g_state : InputTouchOverlayState{};
+}
+
+// Keep JNI writes in the protected mailbox. Official Kazarov's input API is
+// updated only on the game thread, after InputPoll decides device visibility.
+void TouchOverlayPoll() {
+    TouchOverlaySetVisible(InputTouchOverlayVisible());
+    InputSetTouchOverlay(TouchOverlayState());
 }
 
 void TouchOverlaySetOpacity(float opacity) {

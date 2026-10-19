@@ -12,7 +12,7 @@
 
 #include "gfx/gfx.hpp"
 #include "localize.hpp"
-#include "platform/imagefile.hpp"
+#include "platform/png_image.hpp"
 #include "texture_port.hpp"
 
 namespace UI {
@@ -272,7 +272,7 @@ const BaseSurfaceData &GetBaseSurface(WindowPreset preset) {
     int                   png_w      = 0;
     int                   png_h      = 0;
     std::vector<uint8_t>  loaded;
-    if (!custom_png.empty() && imagefile::LoadPng(custom_png, png_w, png_h, loaded) &&
+    if (!custom_png.empty() && PngLoadRgba(custom_png, png_w, png_h, loaded) &&
         png_w == png_h && (png_w == 256 || png_w == 512)) {
         out.size_mask = png_w - 1;
         out.rgba      = std::move(loaded);

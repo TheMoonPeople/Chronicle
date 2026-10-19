@@ -91,7 +91,7 @@ jobs:
       # The runner's Apple Paravirtual GPU draws black for two of Kazarov's prog0 cases that pass on
       # Apple silicon.
       - name: Test
-        run: ctest --preset macos-arm64 -E '^GfxMeshDc2\.(RefSphere|Prog0CullModeFollowsFlagAndMirror)$'
+        run: ctest --preset macos-arm64 -E '^GfxGpuMeshDc2\.(RefSphere|Prog0CullModeFollowsFlagAndMirror)$'
 
       # No game data: one stand-in file gets darkcloud through renderer start-up and pipeline compilation to the
       # game's first asset load, which fails with status 4 naming the file.
@@ -170,9 +170,9 @@ jobs:
           Copy-Item $env:VULKAN_RUNTIME/vulkan-1.dll port/build/windows
 
       # The renderer's cases run on Linux and macOS: this runner's Vulkan loader has no surface extension, so the cases
-      # that open a window (GfxMeshDc2, GfxTim2's upload) cannot start here.
+      # that open a window (GfxGpu*, GfxTim2's upload) cannot start here.
       - name: Test
-        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|GfxMeshDc2|GfxTim2|TexDecode|AreaCard|CaptionLine)\.'
+        run: ctest --test-dir port/build/windows --output-on-failure -j4 -E '^(GfxMisc|GfxGpu[^.]*|GfxTim2|TexDecode|AreaCard|CaptionLine)\.|^[^/]+/GfxGpu'
 
       - name: Package the Windows build
         run: |

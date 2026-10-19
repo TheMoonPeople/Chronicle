@@ -13,6 +13,7 @@
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "audio/trace.hpp"
+#include "audio_retail.hpp"
 #include "dataread.hpp"
 #include "platform/audio.hpp"
 #include "platform/config.hpp"
@@ -125,7 +126,7 @@ int TransHdBdData(const std::uint8_t *hd, int hd_size, const std::uint8_t *bd, i
         g_bank.bank.reset();
         return -1;
     }
-    g_bank.bank = audio::Bank::Create({hd, static_cast<std::size_t>(hd_size)}, {bd, static_cast<std::size_t>(bd_size)});
+    g_bank.bank = chronicle_audio::CreateBank({hd, static_cast<std::size_t>(hd_size)}, {bd, static_cast<std::size_t>(bd_size)});
     g_bank.bd_size = bd_size;
     if (g_bank.bank == nullptr) {
         std::printf("sound: unreadable HD bank (%d bytes)\n", hd_size);
@@ -252,7 +253,7 @@ int LoadSequence(int slot, const std::uint8_t *data, int size) {
         std::printf("sound: more than %d sequences on slot %d\n", kSequencesPerSlot, slot);
         return -1;
     }
-    auto sequence = data != nullptr && size > 0 ? audio::SqFile::Create({data, static_cast<std::size_t>(size)}) : nullptr;
+    auto sequence = data != nullptr && size > 0 ? chronicle_audio::CreateSequence({data, static_cast<std::size_t>(size)}) : nullptr;
     if (sequence == nullptr) {
         std::printf("sound: unreadable SQ sequence (%d bytes)\n", size);
     } else {

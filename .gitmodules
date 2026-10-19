@@ -1,4 +1,4 @@
 [submodule "tools/kazarov"]
 	path = tools/kazarov
-	url = https://github.com/anxiousintrovert/Kazarov-Android.git
-	branch = codex/chronicle-android-compatible
+	url = https://github.com/TheMoonPeople/Kazarov.git
+	branch = main

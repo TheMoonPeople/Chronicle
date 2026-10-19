@@ -17,7 +17,7 @@
 #include "gfx/gfx.hpp"
 #include "localize.hpp"
 #include "localize_texture.hpp"
-#include "platform/imagefile.hpp"
+#include "platform/png_image.hpp"
 #include "texture_port.hpp"
 #include "textwipe.hpp"
 
@@ -507,7 +507,7 @@ bool Prepare(const std::string &name, PortDecodedTexture &texture) {
     int                  width = 0;
     int                  height = 0;
     std::vector<uint8_t> rgba;
-    if (!imagefile::LoadPng(plate, width, height, rgba)) {
+    if (!PngLoadRgba(plate, width, height, rgba)) {
         std::fprintf(stderr, "areacard: cannot read picture %s\n", plate.string().c_str());
         return false;
     }
