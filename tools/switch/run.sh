@@ -25,6 +25,10 @@ address=()
 user=(--user "$(id -u):$(id -g)")
 [ "$builder" = podman ] && user=(--userns=keep-id)
 dir=$(dirname "$nro")
+# No --args without arguments: nxlink would pass one empty one, which the game takes for a bad option.
+args=()
+[ $# -gt 0 ] && args=(--args "$*")
 # The host's network, for nxlink's broadcast and for the game's connection back to its log server.
+# stdbuf: nxlink's output is the game's log, line by line even into a file.
 exec "$builder" run --rm --network host "${user[@]}" -v "$dir:$dir:z" chronicle-switch:latest \
-    nxlink "${address[@]}" -r 5 -p "$path" -s "$nro" --args "$*"
+    stdbuf -oL -eL nxlink "${address[@]}" -r 5 -p "$path" -s "$nro" "${args[@]}"
