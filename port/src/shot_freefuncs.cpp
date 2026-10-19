@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "btactstatus.hpp"
+#include "feather_toggle.hpp"
 #include "cloth.hpp"
 #include "clothread.hpp"
 #include "dun/gameloop.hpp"
@@ -231,6 +232,12 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
                 set2DSprite(Vif1Packet, frame, CRect_i_(i * 40 + 0x13B, y + 0x17, 0xC, 0xC), CRect_i_(pack->quick_item_qty[i] % 10 * 12, 0xD4, 0xC, 0xC));
             }
         }
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        if (FeatherToggleOn(i + 1)) DrawFeatherToggleIndicator(i * 40 + 0x126 + 14, y + 2);
+        int duration = FeatherQuickSlotDuration(i + 1);
+        if (duration >= 0) DrawFeatherDurationBar(i * 40 + 0x126, y + 39, duration);
     }
 
     set2DSprite(Vif1Packet, icons, CRect_i_(0x1FC, y, 0x66, 0x29), CRect_i_(0x9A, 1, 0x66, 0x29));
