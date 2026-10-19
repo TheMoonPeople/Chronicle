@@ -2,6 +2,10 @@
 // heap blocks, each followed by a page svcSetMemoryPermission makes inaccessible, so a run past the end
 // still faults at once. Horizon commits the whole heap up front, so zeroing is a memset and returns
 // nothing to the system.
+//
+// The heap outlives the game: the Homebrew Menu's loader starts the next program in the same process
+// on the same heap, so a guard page left inaccessible faults whatever lands on it next. Every guard
+// page still standing is made accessible again when the game exits.
 
 #include "platform/memory.hpp"
 
@@ -10,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unordered_set>
 
 namespace {
 
@@ -25,6 +30,32 @@ void SetPermission(unsigned char *page, u32 permission) {
     }
 }
 
+// The guard pages standing; made accessible again at exit.
+std::unordered_set<unsigned char *> &Guards() {
+    static auto *guards = new std::unordered_set<unsigned char *>;
+    return *guards;
+}
+
+void AddGuard(unsigned char *page) {
+    static bool registered = false;
+    if (!registered) {
+        registered = true;
+        std::atexit([] {
+            for (unsigned char *guard : Guards()) {
+                svcSetMemoryPermission(guard, kPage, Perm_Rw);
+            }
+            Guards().clear();
+        });
+    }
+    SetPermission(page, Perm_None);
+    Guards().insert(page);
+}
+
+void RemoveGuard(unsigned char *page) {
+    SetPermission(page, Perm_Rw);
+    Guards().erase(page);
+}
+
 } // namespace
 
 std::size_t ArenaMemoryPageSize() { return kPage; }
@@ -38,7 +69,7 @@ ArenaMemory ArenaMemoryMap(std::size_t bytes, std::size_t lead) {
         std::abort();
     }
     std::memset(map, 0, map_size - kPage);
-    SetPermission(map + map_size - kPage, Perm_None);
+    AddGuard(map + map_size - kPage);
     return {map, map_size, map + map_size - kPage - capacity, capacity, lead};
 }
 
@@ -50,7 +81,7 @@ const unsigned char *ArenaMemoryGuard(const ArenaMemory &memory) { return memory
 
 void ArenaMemoryUnmap(ArenaMemory &memory) {
     if (memory.map != nullptr) {
-        SetPermission(memory.map + memory.map_size - kPage, Perm_Rw);
+        RemoveGuard(memory.map + memory.map_size - kPage);
         std::free(memory.map);
     }
     memory = {};

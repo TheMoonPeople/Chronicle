@@ -95,17 +95,10 @@ arguments after `--` go to the game, which reads `--input` scripts on the consol
 PC (absolute `sdmc:/` paths). `SWITCH_ADDRESS` names the Switch when nxlink's broadcast does not
 reach it (a computer with several networks).
 
-The Homebrew Menu's netloader (Y) takes one build and returns to the menu. The test runner
-(`tools/switch/runner`, built with `cmake -S tools/switch/runner -B port/build/runner -G Ninja
--DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/Switch.cmake` in the image) stays: started once from the
-Homebrew Menu (title overridden, as for the game), it receives builds as the netloader does and
-starts each with `--then <runner>`, so the game comes back to it when it exits (`port/switch/chain.cpp`)
-and the next build can be sent without touching the console. + returns to the menu. It draws
-nothing; it sets the GPU up through deko3d before it starts the game, as the Homebrew Menu does,
-without which NVK lost its device at its first submission.
+The Homebrew Menu's netloader (Y) takes one build, which runs from `sdmc:/switch/chronicle/` and
+returns to the menu when it exits.
 
 ```sh
-SWITCH_ADDRESS=192.168.1.99 tools/switch/run.sh --nro port/build/runner/runner.nro --path chronicle/runner.nro
 SWITCH_ADDRESS=192.168.1.99 tools/switch/run.sh -- --fast-load --frames 3000 \
     --input sdmc:/switch/chronicle/test/norune.input --save sdmc:/switch/chronicle/save-test
 ```

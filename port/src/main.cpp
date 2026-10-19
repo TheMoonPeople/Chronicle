@@ -52,7 +52,6 @@ namespace fs = std::filesystem;
 
 #ifdef __SWITCH__
 void SwitchApplyGpuBoost(bool on); // port/switch/clocks.cpp
-void SwitchThen(const char *path); // port/switch/chain.cpp
 #endif
 
 namespace {
@@ -526,14 +525,6 @@ PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
     }
     for (const std::string &word : words) {
         args.push_back(word.c_str());
-    }
-    // --then PATH: the program the loader starts when the game exits (port/switch/chain.cpp).
-    for (size_t i = 1; i + 1 < args.size(); i++) {
-        if (std::string_view(args[i]) == "--then") {
-            SwitchThen(args[i + 1]);
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i), args.begin() + static_cast<std::ptrdiff_t>(i) + 2);
-            break;
-        }
     }
     args.push_back(nullptr);
     return Run(static_cast<int>(args.size()) - 1, args.data());

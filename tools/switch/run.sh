@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Sends a build to the Switch and prints what the game logs until it exits (docs/SWITCH.md, "Testing
-# from a computer"): to the test runner (tools/switch/runner), which starts it and comes back when
-# it exits, or to the Homebrew Menu's netloader (Y). SWITCH_ADDRESS is the Switch's IPv4 address
+# Sends a build to the Homebrew Menu's netloader (Y) and prints what the game logs until it exits
+# (docs/SWITCH.md, "Testing from a computer"). SWITCH_ADDRESS is the Switch's IPv4 address
 # (nxlink broadcasts for it without one); the image is tools/switch/build.sh's.
 #   tools/switch/run.sh [--nro FILE] [--path PATH] [-- game arguments...]
 set -euo pipefail
