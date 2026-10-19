@@ -14,6 +14,10 @@
 
 </div>
 
+> **This fork adds a Nintendo Switch build.** The PC port runs as homebrew on a Switch with custom
+> firmware, handheld at 1280x720 and at 60 frames a second in towns, with saves imported from PS2
+> memory cards. See [Nintendo Switch](#nintendo-switch) below and [`docs/SWITCH.md`](docs/SWITCH.md).
+
 ## Overview
 
 **Chronicle** is a decompilation project and port of _Dark Cloud_ for the PlayStation 2.
@@ -93,3 +97,22 @@ For example:
 ```bash
 CLEAN=1 JOBS=8 ./build.sh linux-x64-release
 ```
+
+## Nintendo Switch
+
+The port also builds as a homebrew `.nro` for a Switch running Atmosphère, in a container image
+(podman or docker) with devkitPro's toolchain, Mesa's NVK Vulkan driver and SDL3.
+
+```bash
+./build.sh linux-x64-release                                       # the PC build, for dcdata
+port/build/pc-release/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
+tools/switch/build.sh                                              # port/build/switch/darkcloud.nro
+```
+
+Copy `darkcloud.nro`, `lang/` and `glyphs/` from `port/build/switch/`, and the extracted `data/`, to
+`sdmc:/switch/chronicle/`, then start **Chronicle** from the Homebrew Menu with a game's title
+overridden (hold R while starting a game). Saves from PCSX2 or a PS2 memory card dump import with
+`tools/ps2card/ps2card.py`.
+
+[`docs/SWITCH.md`](docs/SWITCH.md) covers building, installing, playing, saves, logs and crash
+reports, testing from a computer, how the port runs on the console and what it changes for it.
