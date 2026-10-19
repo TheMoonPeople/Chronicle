@@ -764,14 +764,16 @@ const Row kTextRows[] = {
 };
 
 const Row kQolRows[] = {
+    NamedRow<&Config::party_pool_healing>("qol.party_pool_healing", "Party Pool Healing",
+                                          "\"Party Pool Healing\"\nWater pools restore HP\nand thirst for all living\nparty members.", "Off|On"),
     NamedRow<&Config::skip_atla_cutscene>("qol.skip_atla_cutscene", "Skip Atla Cutscene",
-        "\"Skip Atla Cutscene\"\nCollect Atla immediately.\nKeep the reward and\npickup message.", "Off|On"),
+                                          "\"Skip Atla Cutscene\"\nCollect Atla immediately.\nKeep the reward and\npickup message.", "Off|On"),
     NamedRow<&Config::skip_small_chest_cutscene>("qol.skip_small_chest_cutscene", "Skip Small Chest Scene",
-        "\"Skip Small Chest\"\nOpen small chests quickly.\nKeep items and messages.\nLarge chests unchanged.", "Off|On"),
+                                                 "\"Skip Small Chest\"\nOpen small chests quickly.\nKeep items and messages.\nLarge chests unchanged.", "Off|On"),
     NamedRow<&Config::feather_toggle>("qol.feather_toggle", "Dran's Feather Toggle",
-        "\"Dran's Feather Toggle\"\nPress Square for on/off.\nMenus or slot changes\nturn it off. Uses duration.", "Off|On"),
+                                      "\"Dran's Feather Toggle\"\nPress Square for on/off.\nMenus or slot changes\nturn it off. Uses duration.", "Off|On"),
     NamedRow<&Config::inventory_auto_repair>("qol.inventory_auto_repair", "Inventory Auto Repair",
-        "\"Inventory Auto Repair\"\nAuto Repair Powder also\nworks from your bag.\nQuick slots are used first.", "Off|On"),
+                                             "\"Inventory Auto Repair\"\nAuto Repair Powder also\nworks from your bag.\nQuick slots are used first.", "Off|On"),
 };
 
 // Strings the binding rows point at. A deque never moves what it holds, so the c_str pointers the

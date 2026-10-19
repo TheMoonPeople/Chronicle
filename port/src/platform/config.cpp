@@ -414,6 +414,9 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "qol.inventory_auto_repair") {
         return ReadBool(value, config.inventory_auto_repair);
     }
+    if (name == "qol.party_pool_healing") {
+        return ReadBool(value, config.party_pool_healing);
+    }
     if (name == "game.qte_always_win") {
         return ReadBool(value, config.qte_always_win);
     }
@@ -685,6 +688,7 @@ std::string ConfigSerialize(const Config &config) {
     root["qol"]["skip_small_chest_cutscene"] = config.skip_small_chest_cutscene;
     root["qol"]["feather_toggle"] = config.feather_toggle;
     root["qol"]["inventory_auto_repair"] = config.inventory_auto_repair;
+    root["qol"]["party_pool_healing"] = config.party_pool_healing;
     root["game"]["qte_always_win"] = config.qte_always_win;
     root["game"]["element_quick_select"] = config.element_quick_select;
     root["game"]["swap_keeps_lock_on"] = config.swap_keeps_lock_on;

@@ -37,6 +37,7 @@ struct Config : HostSettings {
     bool              debug_mode = false;
     bool              qte_always_win = false;
     bool              inventory_auto_repair = false;
+    bool              party_pool_healing = false; /**< Water pools also restore living companions. */
     bool              feather_toggle = false;
     bool              skip_atla_cutscene = false;
     bool              skip_small_chest_cutscene = false;

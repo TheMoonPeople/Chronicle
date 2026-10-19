@@ -136,6 +136,7 @@ key is optional; these are the defaults:
         "names": true               // people's and monsters' names
     },
     "qol": {
+        "party_pool_healing": false, // water pools restore living companions too
         "skip_atla_cutscene": false, // Collect Atla without the pickup cutscene
         "skip_small_chest_cutscene": false, // Open small chests without the pickup cutscene
         "inventory_auto_repair": false, // Auto Repair Powder also works from the carried bag; quick slots first
@@ -1415,6 +1416,8 @@ change. `CMemoryCardAccess::SetBuff` zeroes them in the copy it writes, so
 as zeros.
 
 ### QOL options
+
+Options > QOL > Party Pool Healing is off by default. When enabled, a dungeon water pool restores HP and thirst for all recruited, living companions on the next healing pulse. It does not revive defeated characters or heal unrecruited slots. The active character retains the original healing behavior, and healing zones outside water pools are unchanged. The setting takes effect immediately and is saved in config.json. This implements SirFancyBacon's request in #202.
 
 Options > QOL > Skip Atla Cutscene and Skip Small Chest Scene are independent and off by default. Each skips its pickup animation and camera sequence, awards the normal reward once, and shows a brief pickup message without requiring confirmation. Atla still requires Toan and updates Georama and floor progress. Small chests retain inventory-capacity checks; full inventories use the original refusal sequence. Large chests, traps and mimics retain their original behavior. Both settings take effect immediately and are saved separately.
 
