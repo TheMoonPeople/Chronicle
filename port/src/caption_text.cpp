@@ -16,6 +16,7 @@
 #include "menu_draw.hpp"
 #include "menuetc.hpp"
 #include "platform/config.hpp"
+#include "texture_assets.hpp"
 #include "texture_port.hpp"
 #include "textwipe.hpp"
 
@@ -95,15 +96,16 @@ bool FontReady() {
     if (!ConfigGet().font_sharp) {
         return false;
     }
-    static bool tried = false;
-    if (!tried) {
-        tried = true;
-        if (!capfont::Loaded()) {
-            std::filesystem::path file = LocalizeFindFile("font.ttf");
-            if (!file.empty()) {
-                capfont::Load(file);
-            }
-        }
+    // Sharp draws captions from the game's letters redrawn smooth, where they are made; Community, and Sharp
+    // without them, from the community font (or the one put in its place). Changing the setting changes the font.
+    std::filesystem::path file = ConfigGet().font_community ? std::filesystem::path{} : SharpTextFile("font.ttf");
+    if (file.empty()) {
+        file = LocalizeFindFile("font.ttf");
+    }
+    static std::filesystem::path loaded;
+    if (!file.empty() && file != loaded) {
+        loaded = file;
+        capfont::Load(file);
     }
     if (capfont::Loaded() && !capfont::StatusFontLoaded()) {
         static bool tried_status = false;

@@ -494,6 +494,20 @@ void SetGyro(Config &config, int choice) {
     config.gyro = static_cast<ConfigGyro>(choice);
 }
 
+// Text Font: the game's bitmaps, its letters redrawn smooth, or the community font.
+int TextFontCount(const Config &) {
+    return 3;
+}
+
+int TextFontChoice(const Config &config) {
+    return !config.font_sharp ? 0 : config.font_community ? 2 : 1;
+}
+
+void SetTextFont(Config &config, int choice) {
+    config.font_sharp = choice != 0;
+    config.font_community = choice == 2;
+}
+
 int GlyphDeviceCount(const Config &) {
     return 10;
 }
@@ -740,9 +754,9 @@ const Row kTextRows[] = {
     SettingRow("input.glyph_device", "Symbols Shown",
                "\"Symbols Shown\"\nAuto: the device you\nuse. Or always show one\nof the others.", GlyphDeviceCount,
                GlyphDeviceChoice, SetGlyphDevice, nullptr, "Auto|PS3|PS4|PS5|PS5 Colored|Xbox|Switch|Steam Deck|Steam Controller|Keyboard"),
-    NamedRow<&Config::font_sharp>("video.text_font", "Text Font",
-                                  "\"Text Font\"\nSharp: the game's own\nletters, drawn smooth.\nOriginal: the game's.",
-                                  "Original|Sharp"),
+    SettingRow("video.text_font", "Text Font",
+               "\"Text Font\"\nSharp: the game's own\nletters, drawn smooth.\nCommunity: a fan font.", TextFontCount,
+               TextFontChoice, SetTextFont, nullptr, "Original|Sharp|Community"),
     SettingRow("video.text_shadow", "Text Shadow",
                "\"Text Shadow\"\nHow dark the shadow\nunder the letters is.\n50% is the soft one.", ShadowCount,
                TextShadowChoice, SetTextShadow, TextShadowText),

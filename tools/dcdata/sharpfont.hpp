@@ -50,7 +50,7 @@ namespace dcdata::sharp {
 namespace fs = std::filesystem;
 
 /// Bumped whenever what Build makes changes, so it is made again.
-inline constexpr int kVersion = 1;
+inline constexpr int kVersion = 2;
 
 /// How many times the cells' resolution the glyph sheet is drawn at.
 inline constexpr int kSheetScale = 6;
@@ -1354,6 +1354,56 @@ inline std::vector<std::uint8_t> SetFont(const Ttf &font, const std::vector<Shap
     return WriteTtf(font, replaced, rest, 650, static_cast<int>(kBase * kUnits), static_cast<int>((kCellH - kBase) * kUnits));
 }
 
+/// The drop shadow the game's narrower letters carry in their own texels (the bold ones have none): the letter's
+/// coverage moved down and right, blurred a little and thickened, at most half dark. Its shape was measured on the
+/// game's 88 cells; `scale` is texels per game pixel.
+inline std::vector<double> BakedShadow(const std::vector<double> &cov, int w, int h, int scale) {
+    constexpr double kShiftX = 0.866, kShiftY = 0.841, kBlur = 0.741, kGain = 9.21, kMost = 0.512;
+    const double     sigma = kBlur * scale;
+    const int        reach = static_cast<int>(std::ceil(3 * sigma + std::max(kShiftX, kShiftY) * scale)) + 1;
+    auto             kernel = [&](double shift) {
+        std::vector<double> k(static_cast<std::size_t>(2 * reach + 1));
+        double              sum = 0;
+        for (int t = -reach; t <= reach; t++) {
+            double v = std::exp(-(t - shift) * (t - shift) / (2 * sigma * sigma));
+            k[static_cast<std::size_t>(t + reach)] = v;
+            sum += v;
+        }
+        for (double &v : k) {
+            v /= sum;
+        }
+        return k;
+    };
+    // A texel's shadow comes from the letter up and to the left of it: the kernels are centred that far back.
+    const std::vector<double> kx = kernel(kShiftX * scale), ky = kernel(kShiftY * scale);
+    std::vector<double>       across(cov.size(), 0.0), out(cov.size(), 0.0);
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            double s = 0;
+            for (int t = -reach; t <= reach; t++) {
+                int sx = x - t;
+                if (sx >= 0 && sx < w) {
+                    s += kx[static_cast<std::size_t>(t + reach)] * cov[static_cast<std::size_t>(y) * w + sx];
+                }
+            }
+            across[static_cast<std::size_t>(y) * w + x] = s;
+        }
+    }
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            double s = 0;
+            for (int t = -reach; t <= reach; t++) {
+                int sy = y - t;
+                if (sy >= 0 && sy < h) {
+                    s += ky[static_cast<std::size_t>(t + reach)] * across[static_cast<std::size_t>(sy) * w + x];
+                }
+            }
+            out[static_cast<std::size_t>(y) * w + x] = kMost * std::min(1.0, kGain * s);
+        }
+    }
+    return out;
+}
+
 /// The glyph sheet at kSheetScale times: the letters of both sets drawn from their outlines, every other cell's
 /// pixels scaled up as they are.
 inline std::vector<std::uint8_t> SharpSheet(const Picture &sheet, const std::vector<Shaped> &bold,
@@ -1393,13 +1443,17 @@ inline std::vector<std::uint8_t> SharpSheet(const Picture &sheet, const std::vec
                 polys.push_back(Flatten(c, 24));
             }
             std::vector<double> cov = Coverage(polys, kCellH * S, kCellW * S, 1.0 / S);
+            std::vector<double> shadow = set == 1 ? BakedShadow(cov, kCellW * S, kCellH * S, S) : std::vector<double>(cov.size(), 0.0);
             for (int y = 0; y < kCellH * S; y++) {
                 for (int x = 0; x < kCellW * S; x++) {
                     std::uint8_t *c = &rgba[(static_cast<std::size_t>(v * S + y) * W + u * S + x) * 4];
-                    double        a = std::min(1.0, cov[static_cast<std::size_t>(y) * kCellW * S + x] / lum);
-                    c[0] = ink[0];
-                    c[1] = ink[1];
-                    c[2] = ink[2];
+                    const std::size_t k = static_cast<std::size_t>(y) * kCellW * S + x;
+                    // The letter over its shadow: the letter's ink colour, the shadow black.
+                    const double letter = std::min(1.0, cov[k] / lum);
+                    const double a = letter + (1 - letter) * shadow[k];
+                    for (int ch = 0; ch < 3; ch++) {
+                        c[ch] = static_cast<std::uint8_t>(a > 0 ? std::lround(ink[static_cast<std::size_t>(ch)] * letter / a) : ink[static_cast<std::size_t>(ch)]);
+                    }
                     c[3] = static_cast<std::uint8_t>(std::lround(a * 255));
                 }
             }

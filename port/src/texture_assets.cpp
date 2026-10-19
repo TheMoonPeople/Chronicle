@@ -54,9 +54,20 @@ fs::path Find(const fs::path &directory, std::string_view name, unsigned width, 
 } // namespace
 
 fs::path SharpTextFile(std::string_view name) {
+    // Asked for every frame text is drawn: once made, the files stay; until then, looked for now and again (a worker
+    // may be making them).
+    static bool built = false;
+    static int  until_next_look = 0;
     const fs::path &root = PathsDataRoot();
-    if (!dcdata::sharp::IsBuilt(root)) {
-        return {};
+    if (!built) {
+        if (until_next_look-- > 0) {
+            return {};
+        }
+        until_next_look = 300;
+        built = dcdata::sharp::IsBuilt(root);
+        if (!built) {
+            return {};
+        }
     }
     std::error_code error;
     fs::path        file = root / "sharp" / std::string(name);
@@ -151,7 +162,7 @@ bool TextureAssetApply(const char *name, PortDecodedTexture &texture) {
     }
     fs::path path = TextureAssetPath(TextureAssetsArea(), TextureAssetsLanguage(), name, texture.width, texture.height);
     bool     sharp = false;
-    if (path.empty() && gaiji && ConfigGet().font_sharp) {
+    if (path.empty() && gaiji && ConfigGet().font_sharp && !ConfigGet().font_community) {
         // The Sharp text font: the glyph sheet drawn from the game's letters when the data was extracted.
         path = SharpGaijiPath(TextureAssetsLanguage());
         sharp = !path.empty();

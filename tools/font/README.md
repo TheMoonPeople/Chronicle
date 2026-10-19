@@ -25,10 +25,11 @@ When the disc is extracted (`dcdata extract`, the first-run extraction, or `dcda
 before), `tools/dcdata/sharpfont.hpp` reshapes these two fonts letter by letter until, drawn at 14x20, each matches the
 game's own letter in `meswin/gaiji.img`: the regular font to the game's bold dialogue letters, the thin one to its
 narrower set. It writes `sharp/` in the data folder: the two fonts (`font.ttf`, `font_regular.ttf`) and, per language,
-the glyph sheet redrawn from them at six times its size. With Text Font set to Sharp the game draws its message text
-from that sheet exactly where and as it draws its own letters, and text the port draws from a font uses `sharp/font.ttf`.
-It is made from the disc, so it is never part of the repository or a release; without it Sharp uses these fonts as
-they are.
+the glyph sheet redrawn from them at six times its size (the narrower set with the soft shadow the game's own letters
+carry in their texels). With Text Font set to Sharp the game draws its message text from that sheet exactly where and as
+it draws its own letters, and text the port draws from a font uses `sharp/font.ttf`. It is made from the disc, so it is
+never part of the repository or a release; until it is made, Sharp draws as Community does. Text Font: Community draws
+with these fonts as they are.
 
 ## Cinzel-Regular.ttf
 

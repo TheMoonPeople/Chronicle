@@ -31,6 +31,7 @@
 
 extern float     RandTbl[64];
 extern float     RandTbl2[64];
+extern MES_FUCHI FuchiTbl_E[];
 
 namespace {
 
@@ -94,7 +95,7 @@ int ChoiceRowDim(const ClsMes &mes, int row, int clut) {
 bool TtfReady() {
     // video.text_font set to the game's own letters: the bitmaps, whatever font there is. With the Sharp glyph sheet
     // made from those letters, the game draws them itself, from it.
-    if (!ConfigGet().font_sharp || TextureAssetsSharpGaiji()) {
+    if (!ConfigGet().font_sharp || (!ConfigGet().font_community && TextureAssetsSharpGaiji())) {
         return false;
     }
     static bool tried = false;
@@ -111,6 +112,46 @@ bool TtfReady() {
         }
     }
     return ttffont::Loaded();
+}
+
+// Myset2DSprite_Fuchi's outline and shadow passes, from the Sharp glyph sheet. Retail's pass is the 14x20 letter
+// again, a whole pixel off: its soft one-texel edges make the shadow a soft one. The sheet's letter is sharp, so each
+// pass is spread over that pixel instead, as a grid of fainter copies that together come to the pass's strength.
+void SoftFuchi(const ClsMes &mes, int x, int y, int width, int height, int u, int v) {
+    constexpr int kSteps = 4;
+    auto          pass = [&](int dx, int dy, int r, int g, int b, int alpha) {
+        const float strength = static_cast<float>(std::min(alpha, 0x80)) / 128.0f;
+        const float each = 1.0f - std::pow(1.0f - std::min(strength, 0.999f), 1.0f / (kSteps * kSteps));
+        const auto  tap_alpha = static_cast<u_char>(std::lround(each * 128.0f));
+        for (int i = 0; i < kSteps; i++) {
+            for (int j = 0; j < kSteps; j++) {
+                const float sx = (static_cast<float>(i) + 0.5f) / kSteps - 0.5f;
+                const float sy = (static_cast<float>(j) + 0.5f) / kSteps - 0.5f;
+                draw2d::SpriteBatchAdd(static_cast<float>(x + dx) + sx, static_cast<float>(y + dy) + sy,
+                                       static_cast<float>(width), static_cast<float>(height), CRect_i_(u, v, width, height),
+                                       static_cast<u_char>(r), static_cast<u_char>(g), static_cast<u_char>(b), tap_alpha);
+            }
+        }
+    };
+    const int cap = mes.edge_alpha;
+    switch (mes.style) {
+        case MES_EDGE_WHITE:
+            pass(1, 1, 0xFF, 0xFF, 0xFF, std::min(cap, 0x40));
+            break;
+        case MES_EDGE_BLACK:
+            pass(1, 1, 0, 0, 0, std::min(cap, 0x40));
+            break;
+        case MES_EDGE_TABLE:
+            for (int i = 0; FuchiTbl_E[i].alpha > 0; i++) {
+                pass(FuchiTbl_E[i].x, FuchiTbl_E[i].y, FuchiTbl_E[i].r, FuchiTbl_E[i].g, FuchiTbl_E[i].b,
+                     std::min(cap, FuchiTbl_E[i].alpha));
+            }
+            break;
+        case MES_EDGE_DOUBLE:
+            pass(1, 1, 0x40, 0x40, 0x40, std::min(cap, 0x80));
+            pass(2, 2, 0, 0, 0, std::min(cap, 0x80));
+            break;
+    }
 }
 
 // What DrawGaijiFont tints a character with: the colour table's entry, the flashing cursor row's,
@@ -1194,9 +1235,12 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
     this->blink++;
 
     texture = draw2d::Get().find_texture("gaiji");
-    // The Sharp glyph sheet has several texels to a screen pixel's worth of the game's: filtered, not picked.
-    setbilinear(TextureAssetsSharpGaiji() ? 1 : 0);
-    auto text_pass = [&](bool ttf) {
+    setbilinear(0);
+    // The Sharp glyph sheet has several texels to each of the game's pixels: filtered, not picked, and its letters'
+    // shadows softened as the game's soft letters cast them.
+    const bool sharp = TextureAssetsSharpGaiji();
+    auto       text_pass = [&](bool ttf) {
+        draw2d::SpriteBatchLinear(sharp);
         set2DSprite_Start(Vif1Packet, texture);
         std::vector<gfx::Vertex2D> ttf_edges;
         std::vector<gfx::Vertex2D> ttf_fills;
@@ -1271,8 +1315,12 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
                 CRect_i_ texel(u, v, glyph_width, glyph_height);
 
                 if (this->win_line[index].code >= -0x2DF) {
-                    this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x, screen_y, glyph_width, glyph_height,
-                                              u, v, glyph_width, glyph_height);
+                    if (sharp) {
+                        SoftFuchi(*this, screen_x, screen_y, glyph_width, glyph_height, u, v);
+                    } else {
+                        this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x, screen_y, glyph_width, glyph_height,
+                                                  u, v, glyph_width, glyph_height);
+                    }
                 }
 
                 this->DrawGaijiFont(texture, index, texel, screen, ChoiceRowDim(*this, row, this->win_line[index].clut), dark);
@@ -1284,9 +1332,13 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
                 CRect_i_ texel(u, v, glyph_width, glyph_height);
 
                 if (this->win_line[index].code >= -0x2DF) {
-                    this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x + dx,
-                                              screen_y - row * this->char_height, glyph_width, glyph_height, u, v,
-                                              glyph_width, glyph_height);
+                    if (sharp) {
+                        SoftFuchi(*this, screen_x + dx, screen_y - row * this->char_height, glyph_width, glyph_height, u, v);
+                    } else {
+                        this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x + dx,
+                                                  screen_y - row * this->char_height, glyph_width, glyph_height, u, v,
+                                                  glyph_width, glyph_height);
+                    }
                 }
 
                 this->DrawGaijiFont(texture, index, texel, screen, ChoiceRowDim(*this, row, this->win_line[index].clut), dark);
@@ -1294,6 +1346,7 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
         }
 
         set2DSprite_End(Vif1Packet, texture);
+        draw2d::SpriteBatchLinear(false);
 
         if (!ttf_fills.empty()) {
             const gfx::TextureBinding binding = ttffont::Binding();
