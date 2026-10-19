@@ -85,11 +85,11 @@ modules:
       # chronicle-source-end
       # flatpak-builder downloads these before entering its network-restricted build sandbox.
       - type: archive
-        url: https://codeload.github.com/simdjson/simdjson/tar.gz/refs/tags/v4.6.11
+        url: https://github.com/simdjson/simdjson/archive/refs/tags/v4.6.11.tar.gz
         sha256: 61d948fc24f0d793829ad658058e7597d064988a89b4607ea02e401a82df98ff
         dest: flatpak-deps/simdjson
       - type: archive
-        url: https://codeload.github.com/spnda/fastgltf/tar.gz/refs/tags/v0.9.1
+        url: https://github.com/spnda/fastgltf/archive/refs/tags/v0.9.1.tar.gz
         sha256: d8705a496deb2831775baeef5009be36d24bf3d10f8d29ab016e977d0119c872
         dest: flatpak-deps/fastgltf
       - type: file

@@ -128,6 +128,6 @@ archives previous Chronicle test packages in `DARKCLOUDBUILDS`, and leaves the c
 destination root. Its default destination is the maintainer's mapped `Z:\` Games share; pass
 `-DestinationRoot` to use another folder.
 
-See [`android/README.md`](android/README.md) for prerequisites, setup, and build details. Prebuilt test
+See [`android/README.md`](https://github.com/TheMoonPeople/Chronicle/blob/master/android/README.md) for prerequisites, setup, and build details. Prebuilt test
 packages, when available, are published on the [GitHub Releases page](https://github.com/anxiousintrovert/Chronicle-Android/releases).
 They contain the app only; users must supply their own compatible PAL disc image.
