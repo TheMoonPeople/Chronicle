@@ -106,7 +106,8 @@ run.
 - **Controls** are the PC port's gamepad layout (`docs/PC.md`), handheld or with a Pro Controller.
 - **Settings** are the PC port's `save/config.json` and in-game Options. The Switch's own
   defaults: `video.interpolation` (smooth motion) off, since a display frame between ticks costs its
-  GPU as much as a tick does, and `video.switch_gpu_boost` on ([What the port changes for the
+  GPU as much as a tick does; `game.aerial_map` (the dungeon map as the floor seen from above) off,
+  for retail's tiles and dots; and `video.switch_gpu_boost` on ([What the port changes for the
   Switch](#what-the-port-changes-for-the-switch)). `video.present_mode` is `fifo` (vsync);
   `immediate` presents without waiting and shows no tearing handheld.
 - **Arguments.** The Homebrew Menu passes none, so `args.txt` beside the `.nro` supplies them: words
@@ -225,12 +226,13 @@ What a console needed that a PC did not, roughly in the order it came up:
 - **No per-draw branches in `draw.frag`.** NAK compiles a uniform branch into a sync and padding,
   and on the Tegra X1 a fragment costs about its instruction count; the per-draw constants carry
   each draw's choices as values to select between.
+  For the same reason the draw shader leaves out the smooth-motion debugging tint
+  (`KZ_PORT_INTERPOLATION_TINT`, on for PC builds), which made Norune's frames 3 ms slower.
 - **Palette textures expanded** to RGBA on the CPU (Kazarov's `RendererConfig::expand_palettes`),
   filtered by the sampler instead of looked up four times a pixel.
 - **Cheaper effects**, which help the PC build too: the shadow composites scissored to their
   volumes' screen bounds, a frame's later shadow groups clearing only what the earlier ones drew,
-  the shadow volumes drawn as indexed corners with both counting passes sharing one vertex array,
-  and each depth-of-field band in one premultiplied draw where the GS needed two.
+  the shadow volumes drawn as indexed corners, and each depth-of-field band in one premultiplied draw where the GS needed two.
 - **Depth queries answered when their frame is done** (Kazarov's `kAsyncDepthQueries`). The game
   reads the depth buffer every tick (the sun's lens flare, pick-Z), and the renderer used to wait for
   the whole frame on the GPU before the CPU could go on; the answer now comes a tick or two later.

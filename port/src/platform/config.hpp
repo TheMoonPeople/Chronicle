@@ -40,7 +40,13 @@ struct Config : HostSettings {
     bool              swap_keeps_lock_on = false;
     bool              text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
     // game.aerial_map: the dungeon map is the live floor seen from above instead of retail's tiles.
+#ifdef __SWITCH__
+    // Off on the Switch: retail's tiles and dots read better on the handheld's screen, and the
+    // floor drawn a second time from above costs its GPU up to a millisecond a frame.
+    bool              aerial_map = false;
+#else
     bool              aerial_map = true;
+#endif
     // World units above the player's feet where the aerial map cuts the ceiling away.
     float             aerial_map_ceiling = 40.0f;
     // Aerial map magnification over retail's 16 pixels per cell; 1 shows the whole floor as retail does.
