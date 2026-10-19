@@ -262,7 +262,7 @@ struct LabelCopy {
     float dx, dy;
 };
 constexpr LabelCopy kLabelLightAt = {-0.9f, -0.4f};
-constexpr LabelCopy kLabelDarkAt = {1.1f, 1.0f};
+constexpr LabelCopy kLabelDarkAt = {1.0f, 0.9f};
 
 void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright) {
     std::u32string text = Decode(utf8);
