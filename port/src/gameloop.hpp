@@ -100,6 +100,11 @@ struct GamePresentSettings {
 void GameSetPresentSettings(const GamePresentSettings &settings);
 
 void GameRenderTick(gfx::DisplayListRef list);
+// Waits until the render thread has rendered and presented the tick before (GameRenderTick), so a
+// frame drawn now follows it. Every render outside GameRenderTick waits by itself.
+void GameRenderDrain();
+// Ends the render thread, before the renderer shuts down.
+void GameRenderStop();
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick);
 void GamePresentTickEnd();
 

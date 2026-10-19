@@ -105,7 +105,8 @@ SWITCH_ADDRESS=192.168.1.99 tools/switch/run.sh -- --fast-load --frames 3000 \
 
 ## Performance
 
-Handheld, at the screen's 1280x720, Norune runs at 50 to 60 frames a second. What gets it there:
+Handheld, at the screen's 1280x720, Norune runs at 60 frames a second (laps of the village from a
+save: under 1% of ticks over 16.7 ms). What gets it there:
 
 - **GPU clock.** A homebrew title starts with the handheld GPU at 307.2 MHz; retail games get 384
   and some ask for 460.8 MHz. `port/switch/clocks.cpp` asks for the 460.8 MHz configuration (an
@@ -125,8 +126,16 @@ Handheld, at the screen's 1280x720, Norune runs at 50 to 60 frames a second. Wha
   which also helps the PC build.
 - **Smooth motion off** by default: a display frame between ticks costs the GPU about what a tick
   does.
+- **A render thread** on the second CPU core (`gameloop.cpp`, Kazarov's gfx README "Threads"): a
+  tick's render and present run while the game runs the next tick. One after the other they took
+  about 17 ms of CPU a tick in Norune, the game's own work about 10 of it.
+- **Depth queries answered when their frame is done** (Kazarov's `kAsyncDepthQueries`), a tick or
+  two late, instead of the CPU waiting for the frame whenever the game reads depth (the sun's lens
+  flare, every tick in Norune).
 
-What remains is the CPU, at about 13 ms a tick (the game's own work and recording the draws).
+GPU timestamps on the Switch count 19.2 MHz ticks (nanoseconds times 384 / 625) on both NVK and
+devkitPro's Mesa: a profile must scale them by 625 / 384. Norune's GPU now takes about 15 ms of a
+tick; busy dungeon scenes (the first floor's tutorial, with its shadows) take more and run near 40.
 
 ## Status
 

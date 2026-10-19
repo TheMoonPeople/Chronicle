@@ -30,3 +30,12 @@ void SwitchApplyGpuBoost(bool on) {
     rc = apmSetPerformanceConfiguration(ApmPerformanceMode_Normal, wanted);
     std::printf("apm: handheld configuration %#x -> %#x (rc %#x)\n", current, wanted, rc);
 }
+
+// The calling thread runs on core alone (the game's render thread on core 1; the main thread is on
+// core 0).
+void SwitchRunOnCore(int core) {
+    Result rc = svcSetThreadCoreMask(CUR_THREAD_HANDLE, core, 1u << core);
+    if (R_FAILED(rc)) {
+        std::fprintf(stderr, "thread: cannot move to core %d (0x%x)\n", core, rc);
+    }
+}

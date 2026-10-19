@@ -145,6 +145,8 @@ void PresentLoadingFrame() {
         return;
     }
     textwipe::Update();
+    // After the tick the render thread may still be presenting.
+    GameRenderDrain();
     if (gfx::BeginFrame()) {
         const uint8_t black[4] = {0, 0, 0, 0x80};
         gfx::Clear(true, black, true, 0.0f);

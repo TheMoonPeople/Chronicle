@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <charconv>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <format>
+#include <mutex>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -39,6 +41,7 @@
 #include "platform/input.hpp"
 #include "platform/overlay.hpp"
 #include "platform/paths.hpp"
+#include "platform/settings.hpp"
 #include "presence.hpp"
 #include "save_slots.hpp"
 #include "savedata.hpp"
@@ -48,6 +51,10 @@
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
+
+#ifdef __SWITCH__
+void SwitchRunOnCore(int core); // port/switch/clocks.cpp
+#endif
 
 int  EditInit(void *param);
 int  EditLoop();
@@ -171,7 +178,10 @@ void NotePresented() {
     g_fps.frames.Count(PresentClock::now());
 }
 
+void GameRenderDrainInternal();
+
 bool DisplayFrame(float alpha, bool present) {
+    GameRenderDrainInternal();
     PresentClock::time_point start = PresentClock::now();
     gfx::RenderOptions       options = {.previous = g_previous_list.get(),
                                         .present = present,
@@ -188,7 +198,9 @@ bool DisplayFrame(float alpha, bool present) {
 }
 
 // The canonical image as it is, or a display render of the overlay alone, which starts from it.
+
 bool PresentCanonicalFrame() {
+    GameRenderDrainInternal();
     const gfx::DisplayList *overlay = FpsOverlayList();
     bool                    shown = overlay != nullptr ? gfx::RenderList(*overlay, 1.0f, {.present = true, .host = true})
                                                        : gfx::PresentCanonical();
@@ -196,6 +208,120 @@ bool PresentCanonicalFrame() {
         NotePresented();
     }
     return shown;
+}
+
+// The render thread. With smooth motion off, a tick's canonical render and its present run on a
+// thread of their own (on the Switch, on the second CPU core) while the game runs the next tick:
+// on the Switch the two took about as long as the game's own work, one after the other. Kazarov
+// takes its lock around them; the game's recording takes none (tools/kazarov/port/gfx/README.md,
+// "Threads"). Every other render, present, immediate frame or readback first waits for the thread
+// (GameRenderDrain), so frames still reach the window in the order the game made them.
+class RenderThread {
+public:
+    struct Job {
+        gfx::DisplayListRef list;
+        gfx::DisplayListRef overlay; // the FPS counter, drawn over the list when presenting
+        bool                present = false;
+    };
+
+    ~RenderThread() { Stop(); }
+
+    // Waits for the job before, then hands this one over.
+    void Submit(Job job) {
+        Wait();
+        std::unique_lock lock(mutex_);
+        if (!thread_.joinable()) {
+            std::fprintf(stderr, "gameloop: ticks render and present on a thread of their own\n");
+            thread_ = std::thread([this] { Main(); });
+        }
+        job_ = std::move(job);
+        busy_ = true;
+        wake_.notify_all();
+    }
+
+    void Wait() {
+        std::unique_lock lock(mutex_);
+        done_.wait(lock, [this] { return !busy_; });
+        if (presented_) {
+            presented_ = false;
+            g_fps.frames.Count(presented_at_);
+        }
+    }
+
+    void Stop() {
+        {
+            std::unique_lock lock(mutex_);
+            if (!thread_.joinable()) {
+                return;
+            }
+            done_.wait(lock, [this] { return !busy_; });
+            stop_ = true;
+            wake_.notify_all();
+        }
+        thread_.join();
+        stop_ = false;
+    }
+
+private:
+    void Main() {
+#ifdef __SWITCH__
+        SwitchRunOnCore(1);
+#endif
+        for (;;) {
+            Job job;
+            {
+                std::unique_lock lock(mutex_);
+                wake_.wait(lock, [this] { return busy_ || stop_; });
+                if (stop_) {
+                    return;
+                }
+                job = std::move(job_);
+            }
+            gfx::RenderList(*job.list, 1.0f, {.canonical = true});
+            bool shown = false;
+            if (job.present) {
+                shown = job.overlay ? gfx::RenderList(*job.overlay, 1.0f, {.present = true, .host = true})
+                                    : gfx::PresentCanonical();
+            }
+            // The lists are released here, before the game thread may need the lock again.
+            job = {};
+            std::unique_lock lock(mutex_);
+            presented_ = shown;
+            presented_at_ = PresentClock::now();
+            busy_ = false;
+            done_.notify_all();
+        }
+    }
+
+    std::thread              thread_;
+    std::mutex               mutex_;
+    std::condition_variable  wake_;
+    std::condition_variable  done_;
+    Job                      job_;
+    bool                     busy_ = false;
+    bool                     stop_ = false;
+    bool                     presented_ = false;
+    PresentClock::time_point presented_at_;
+};
+
+RenderThread g_render_thread;
+
+void GameRenderDrainInternal() { g_render_thread.Wait(); }
+
+// On the Switch by default; elsewhere with DC_RENDER_THREAD=1, to test it. Not the GL renderer,
+// which takes no lock.
+bool RenderThreadWanted() {
+#ifdef DC_GL_RENDERER
+    return false;
+#elif defined(__SWITCH__)
+    return true;
+#else
+    static const bool wanted = [] {
+        const char *value = SettingsEnv("RENDER_THREAD");
+        return value != nullptr && std::string_view(value) == "1";
+    }();
+    return wanted;
+#endif
 }
 
 struct Jump {
@@ -700,7 +826,34 @@ void GameSetPresentSettings(const GamePresentSettings &settings) {
     g_fps.on = settings.show_fps;
 }
 
+void GameRenderDrain() { g_render_thread.Wait(); }
+
+void GameRenderStop() { g_render_thread.Stop(); }
+
 void GameRenderTick(gfx::DisplayListRef list) {
+    g_render_thread.Wait();
+    if (RenderThreadWanted() && !g_present.interpolation) {
+        RenderThread::Job job{list, nullptr, true};
+        if (FpsOverlayList() != nullptr) {
+            job.overlay = g_fps.list;
+        }
+        g_render_thread.Submit(std::move(job));
+        g_stats.ticks++;
+        gfx::DisplayListStats counts = gfx::ListStats(*list);
+        g_stats.mesh_draws += counts.mesh_draws;
+        g_stats.keyed_mesh_draws += counts.keyed_mesh_draws;
+        g_stats.draws_2d += counts.draws_2d;
+        g_stats.stateful += counts.stateful;
+        g_stats.max_draws = std::max<std::uint64_t>(g_stats.max_draws, counts.mesh_draws + counts.draws_2d);
+        g_stats.last_draws = counts.mesh_draws + counts.draws_2d;
+        g_fps.ticks.Count(PresentClock::now());
+        g_previous_list = std::move(g_list);
+        g_list = std::move(list);
+        // The thread presents it.
+        g_tick_shown = true;
+        g_last_present = PresentClock::now();
+        return;
+    }
     PresentClock::time_point start = PresentClock::now();
     gfx::RenderList(*list, 1.0f, {.canonical = true});
     g_stats.canonical_seconds += SecondsSince(start);
@@ -788,10 +941,12 @@ std::string GameFpsText() {
 // kPreviousFrame outside a frame is the newest main image: the canonical render, or the loading
 // screen's frame after it. ReadbackFrame would read a display frame, overlay and all.
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {
+    GameRenderDrain();
     return gfx::ReadbackTexture(gfx::kPreviousFrame, rgba, width, height);
 }
 
 bool GameScreenshotWithFps(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {
+    GameRenderDrain();
     const gfx::DisplayList *overlay = FpsOverlayList();
     return overlay != nullptr && gfx::RenderList(*overlay, 1.0f, {.present = false, .host = true}) &&
            gfx::ReadbackFrame(rgba, width, height);

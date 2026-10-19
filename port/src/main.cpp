@@ -499,6 +499,7 @@ int Run(int argc, const char **argv) {
     DiscordStop();
     AudioOutputStop();
     InputShutdown();
+    GameRenderStop();
     gfx::RendererShutdown();
     WindowShutdown();
     return status;
