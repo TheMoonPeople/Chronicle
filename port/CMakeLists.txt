@@ -3,7 +3,7 @@
 # ps2/src holds only the game's code as the PS2 build compiles it. A definition
 # port/src tags PORT_OVERRIDE replaces the one ps2/src gives the same name: the
 # port compiles a copy of each unit without those definitions
-# (tools/kazarov/scripts/port_override.py) and links it with port/src. That is how the
+# (tools/kazarov/scripts/build/port_override.py) and links it with port/src. That is how the
 # PS2-only parts are replaced: the SDK, the Metrowerks runtime, the functions
 # that touch the hardware directly and those written in assembly.
 #

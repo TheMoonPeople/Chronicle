@@ -41,7 +41,7 @@ jobs:
 
       - name: Generate the documentation
         run: |
-          tools/kazarov/bin/kazarov shell sh -c '
+          tools/kazarov/scripts/kazarov shell sh -c '
             doxygen 2>/tmp/warnings.txt
             cat /tmp/warnings.txt
             test ! -s /tmp/warnings.txt

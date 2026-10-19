@@ -2,7 +2,7 @@
 
 This project packages Chronicle's native game port as an Android app for `arm64-v8a` and `x86_64`. The
 app is named Chronicle and uses SDL3 with the Kazarov Vulkan renderer. The renderer requires Vulkan 1.3
-and the device features documented in [`../tools/kazarov/port/gfx/README.md`](../tools/kazarov/port/gfx/README.md).
+and the device features documented in [`../tools/kazarov/src/cpp/gfx/README.md`](../tools/kazarov/src/cpp/gfx/README.md).
 
 The app includes a multi-touch PS2-style controller overlay with separate movement and camera sticks.
 Analog input is clamped radially to match the circular stick pads. It omits unused L3/R3 buttons, leaves
