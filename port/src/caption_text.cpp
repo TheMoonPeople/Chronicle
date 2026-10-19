@@ -249,7 +249,7 @@ void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x,
 }
 
 // The painted labels' own look, measured on them: capitals 17 pixels tall level with the picture's ink, a light
-// copy of the letters a little up and left and a dark one a little down and right under them, and the blue
+// copy of the letters a little up and left over a dark one a little down and right, both under them, and the blue
 // outline round all three. Every label at the one size; one too wide for its box is narrowed, never shrunk.
 constexpr float         kLabelCap = 17.0f;
 constexpr float         kLabelOutline = 1.2f;
@@ -262,7 +262,7 @@ struct LabelCopy {
     float dx, dy;
 };
 constexpr LabelCopy kLabelLightAt = {-0.7f, -0.7f};
-constexpr LabelCopy kLabelDarkAt = {0.8f, 1.2f};
+constexpr LabelCopy kLabelDarkAt = {0.8f, 1.0f};
 
 void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright) {
     std::u32string text = Decode(utf8);
@@ -337,7 +337,7 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
         return;
     }
     const gfx::TextureBinding binding = capfont::Binding();
-    for (auto *layer : {&edges, &lights, &darks, &fills}) {
+    for (auto *layer : {&edges, &darks, &lights, &fills}) {
         for (gfx::Vertex2D &vertex : *layer) {
             for (int channel = 0; channel < 3; channel++) {
                 vertex.color[channel] = static_cast<uint8_t>(std::clamp(vertex.color[channel] * bright / 0x80, 0, 255));
