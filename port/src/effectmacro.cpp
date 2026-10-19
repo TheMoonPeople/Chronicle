@@ -109,9 +109,10 @@ void Resize(gfx::TextureHandle src, float u0, float v0, float u1, float v1, gfx:
     gfx::Draw2D(gfx::Primitive::Quads, quad, binding, gfx::DrawState{});
 }
 
-// The bands over the frame from a premultiplied image at the vertices' alpha: the frame is first
-// scaled down by the image's coverage, then the image added, so where the image is transparent
-// (beside something nearer than the plane) the frame keeps its own colour.
+// The bands over the frame from a premultiplied image at the vertices' alpha: the frame scaled down
+// by the image's coverage and the image added, so where the image is transparent (beside something
+// nearer than the plane) the frame keeps its own colour. One premultiplied draw, which the GS
+// would take two for: the colour is the image's at the vertices' alpha and so is its coverage.
 void DrawBands(std::vector<gfx::Vertex2D> &triangles, gfx::TextureHandle image, gfx::DrawState state) {
     if (triangles.empty()) {
         return;
@@ -120,15 +121,12 @@ void DrawBands(std::vector<gfx::Vertex2D> &triangles, gfx::TextureHandle image, 
     binding.texture = image;
     binding.filter = gfx::Filter::Linear;
     state.blend = true;
+    state.premultiplied = true;
     state.fog = false;
     state.cull = gfx::CullMode::None;
-    state.alpha = {2, 1, 0, 1, 0x80};
-    gfx::Draw2D(gfx::Primitive::Triangles, triangles, binding, state);
     for (gfx::Vertex2D &vertex : triangles) {
         vertex.color[0] = vertex.color[1] = vertex.color[2] = vertex.color[3];
-        vertex.color[3] = 0x80;
     }
-    state.alpha = {0, 2, 2, 1, 0x80};
     gfx::Draw2D(gfx::Primitive::Triangles, triangles, binding, state);
 }
 
