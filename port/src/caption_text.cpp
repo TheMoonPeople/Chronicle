@@ -248,6 +248,108 @@ void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x,
     out.push_back(draw2d::Vertex(x, y + height, 0.0f, glyph.u0, glyph.v1, r, g, b, a));
 }
 
+// The painted labels' own look, measured on them: capitals 17 pixels tall level with the picture's ink, a light
+// copy of the letters a little up and left and a dark one a little down and right under them, and the blue
+// outline round all three. Every label at the one size; one too wide for its box is narrowed, never shrunk.
+constexpr float         kLabelCap = 17.0f;
+constexpr float         kLabelOutline = 1.2f;
+constexpr float         kLabelRaise = 2.8f;   // the painted ink's top sits this far above the measured bounds' top
+constexpr float         kLabelGap = 0.05f;    // between letters, in ems: the painted letters nearly touch
+constexpr float         kLabelSpace = 0.28f;  // a space, in ems
+constexpr unsigned char kLabelLight[3] = {173, 171, 167};
+constexpr unsigned char kLabelDark[3] = {63, 63, 81};
+struct LabelCopy {
+    float dx, dy;
+};
+constexpr LabelCopy kLabelLightAt = {-0.7f, -0.7f};
+constexpr LabelCopy kLabelDarkAt = {0.8f, 1.2f};
+
+void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright) {
+    std::u32string text = Decode(utf8);
+    for (char32_t &ch : text) {
+        ch = Upper(ch);
+    }
+    const textwipe::Tuning   &tune = textwipe::Get(textwipe::Kind::Caption);
+    alpha = static_cast<int>(static_cast<float>(alpha) * tune.opacity);
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float               rows = draw2d::RowScale();
+    const capfont::Metrics    metrics = capfont::GetMetrics();
+    const float               em = kLabelCap / std::max(metrics.cap, 0.1f);
+    const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
+    const int                 outline_px = std::max(1, static_cast<int>(kLabelOutline * mapping.scale_x + 0.5f));
+
+    // The letters' own width, then narrowed to the box less the outline and the two copies either side.
+    const float room = box_width - 2 * kLabelOutline - (kLabelDarkAt.dx - kLabelLightAt.dx);
+    float natural = 0.0f;
+    for (char32_t ch : text) {
+        capfont::Glyph glyph;
+        if (ch == U' ') {
+            natural += em * kLabelSpace + tune.word;
+        } else if (capfont::GetGlyph(ch, em_px, glyph)) {
+            natural += glyph.width / mapping.scale_x + em * kLabelGap + tune.letter;
+        } else {
+            natural += em * 0.5f;
+        }
+    }
+    const float squeeze = natural > room && room > 0 ? room / natural : 1.0f;
+
+    const float left = static_cast<float>(x) + bounds.left + kLabelOutline - kLabelLightAt.dx + tune.dx;
+    const float base = static_cast<float>(y) + bounds.top + kLabelOutline + kLabelCap - kLabelRaise + tune.dy;
+    auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+
+    std::vector<gfx::Vertex2D> edges, lights, darks, fills;
+    float                      pen = left;
+    for (char32_t ch : text) {
+        capfont::Glyph fill;
+        if (ch == U' ') {
+            pen += (em * kLabelSpace + tune.word) * squeeze;
+            continue;
+        }
+        if (!capfont::GetGlyph(ch, em_px, fill)) {
+            pen += em * 0.5f * squeeze;
+            continue;
+        }
+        capfont::Glyph edge;
+        const bool     has_edge = capfont::GetOutlinedGlyph(ch, em_px, outline_px, edge);
+        auto           place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], LabelCopy at) {
+            if (glyph.width <= 0 || glyph.height <= 0) {
+                return;
+            }
+            const float width = glyph.width / mapping.scale_x * squeeze;
+            const float height = glyph.height / mapping.scale_y * rows;
+            float       gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze + at.dx;
+            float       gy = (base + at.dy) * rows + glyph.y_offset / mapping.scale_y;
+            gx = snap(gx, mapping.scale_x, mapping.offset_x);
+            gy = snap(gy, mapping.scale_y, mapping.offset_y);
+            Quad(out, glyph, gx, gy, width, height, rgb, alpha);
+        };
+        if (has_edge) {
+            for (LabelCopy at : {LabelCopy{0.0f, 0.0f}, kLabelLightAt, kLabelDarkAt}) {
+                place(edge, edges, kOutline, at);
+            }
+        }
+        place(fill, lights, kLabelLight, kLabelLightAt);
+        place(fill, darks, kLabelDark, kLabelDarkAt);
+        place(fill, fills, kFill, {0.0f, 0.0f});
+        pen += (fill.width / mapping.scale_x + em * kLabelGap + tune.letter) * squeeze;
+    }
+    if (fills.empty()) {
+        return;
+    }
+    const gfx::TextureBinding binding = capfont::Binding();
+    for (auto *layer : {&edges, &lights, &darks, &fills}) {
+        for (gfx::Vertex2D &vertex : *layer) {
+            for (int channel = 0; channel < 3; channel++) {
+                vertex.color[channel] = static_cast<uint8_t>(std::clamp(vertex.color[channel] * bright / 0x80, 0, 255));
+            }
+        }
+        if (!layer->empty()) {
+            textwipe::Draw2D(gfx::Primitive::Quads, *layer, binding, draw2d::SpriteState());
+        }
+    }
+    draw2d::RestoreTestZbuf();
+}
+
 } // namespace
 
 void SetNextCaption(const char *key, const char *english) {
@@ -364,6 +466,10 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
     // is given a combined "SAVE/LOAD" caption; all other icons keep their exact vanilla box_width.
     const bool  is_saveload_combined = custom_caption && icon == 5 && text.find('/') != std::string::npos;
     const float effective_box_w      = is_saveload_combined ? 124.0f : static_cast<float>(box_width);
+    if (const auto bounds = PaintedBounds(icon)) {
+        DrawLabel(text, x, y, effective_box_w, *bounds, alpha, bright);
+        return true;
+    }
 
     const Layout            layout = Lay(text, effective_box_w);
     const textwipe::Tuning &tune = textwipe::Get(textwipe::Kind::Caption);

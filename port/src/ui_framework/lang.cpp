@@ -21,11 +21,6 @@ struct HelpSpec {
     const char *desc_def;  /**< Default English help description string. */
 };
 
-/**
- * Escape flag value indicating the player can freely escape the current dungeon.
- */
-constexpr int kDungeonEscapeAllowed = 2;
-
 } // namespace
 
 std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
@@ -44,7 +39,7 @@ std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
         {"battlemenu.world_map.help",     "Move to another\narea on world map."            },
         {"battlemenu.go_outside.title",   "\"Go Outside\""                                 },
         {"battlemenu.go_outside.help",    "Go outside of\nthe building."                   },
-        {"battlemenu.escape.title",       "\"Escape\""                                     },
+        {"battlemenu.leave_dungeon.title", "\"Leave Dungeon\""                             },
         {"battlemenu.escape.help",        "Escape from the\ncurrent dungeon."              },
         {"battlemenu.save.title",         "\"Save\""                                       },
         {"battlemenu.save.help",          "Record current\ngame progress."                 },
@@ -52,9 +47,9 @@ std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
         {"battlemenu.option.help",        "Change game\nconfigurations."                   },
         {"battlemenu.journal.title",      "\"Journal\""                                    },
         {"battlemenu.journal.help",       "Check manuals and\nchest tracker."              },
-        {"battlemenu.quit.title",         "\"Quit Game\""                                  },
+        {"battlemenu.quit.title",         "\"Quit\""                                       },
         {"battlemenu.quit.help",          "Exit the game and\nreturn to desktop."          },
-        {"battlemenu.quit.confirm_title", "\"Quit Game\""                                  },
+        {"battlemenu.quit.confirm_title", "\"Quit\""                                       },
         {"battlemenu.quit.confirm_desc",  "Return to desktop?"                             },
         {"battlemenu.quit.yes",           "YES"                                            },
         {"battlemenu.quit.no",            "NO"                                             },
@@ -137,7 +132,7 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
     };
     static constexpr HelpSpec option_spec  = {"battlemenu.option.title",  "\"Options\"",   "battlemenu.option.help",  "Change game\nconfigurations."         };
     static constexpr HelpSpec journal_spec = {"battlemenu.journal.title", "\"Journal\"",   "battlemenu.journal.help", "Check manuals and\nchest tracker."     };
-    static constexpr HelpSpec quit_spec    = {"battlemenu.quit.title",    "\"Quit Game\"", "battlemenu.quit.help",    "Exit the game and\nreturn to desktop."};
+    static constexpr HelpSpec quit_spec    = {"battlemenu.quit.title",    "\"Quit\"", "battlemenu.quit.help",    "Exit the game and\nreturn to desktop."};
 
     const HelpSpec *spec = nullptr;
 
@@ -145,13 +140,9 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
         spec = &common_top[index];
     } else if (index == 4) {
         if (menu_mode == BATTLE_MENU_MODE_DUNGEON) {
-            if (GetEscapeDngFlag() == kDungeonEscapeAllowed) {
-                out_title = LocalizeText("battlemenu.escape.title", "\"Escape\"");
-                out_desc  = LocalizeText("battlemenu.escape.help", "Escape from the\ncurrent dungeon.");
-            } else {
-                out_title = LocalizeText("battlemenu.go_outside.title", "\"Go Outside\"");
-                out_desc  = LocalizeText("battlemenu.go_outside.help", "Go outside of\nthe building.");
-            }
+            // Leaving always works, by half the money, an Escape Powder or for nothing once the floor is clear.
+            out_title = LocalizeText("battlemenu.leave_dungeon.title", "\"Leave Dungeon\"");
+            out_desc  = LocalizeText("battlemenu.escape.help", "Escape from the\ncurrent dungeon.");
         } else {
             switch (NowGetGameFlagForBtlMenu(BtlMenuMode)) {
                 case MENU_MOVE_WORLD_MAP:
