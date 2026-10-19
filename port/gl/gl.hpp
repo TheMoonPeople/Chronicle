@@ -159,8 +159,9 @@ struct GlTexture {
     uint32_t    logical_height = 0;
     // The frame serial in which a draw last sampled or drew into it.
     uint64_t last_draw_use = 0;
-    // Destroyed while a list that may draw it was recorded: dead to the API, alive to replays.
-    bool doomed = false;
+    // Destroyed while a list that may draw it was recorded: dead to the API, alive to replays and to
+    // the recording that destroyed it.
+    const DisplayList *doomed = nullptr;
     // RendererConfig::expand_palettes, for index textures and palettes: the texels last uploaded,
     // mip by mip, and a count of the uploads. Empty once the image is written any other way.
     std::vector<std::vector<uint8_t>> contents;
@@ -173,7 +174,7 @@ struct GlMesh {
     GLuint   buffer = 0; // vertices, then indices
     uint32_t vertex_count = 0;
     uint32_t index_count = 0;
-    bool     doomed = false;
+    const DisplayList *doomed = nullptr;
 };
 
 // A span of the streaming buffer, written once by the CPU and read by the GPU in the frame it is

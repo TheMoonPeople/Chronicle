@@ -267,7 +267,7 @@ GlTexture *LookupGlTexture(TextureHandle handle) {
         return nullptr;
     }
     GlTexture &texture = gl.textures[slot];
-    if (!texture.live || texture.generation != handle >> kSlotBits || (texture.doomed && !g.replaying)) {
+    if (!texture.live || texture.generation != handle >> kSlotBits || (texture.doomed && !ReplayingHere() && texture.doomed != RecordingList())) {
         return nullptr;
     }
     return &texture;
@@ -279,7 +279,7 @@ GlMesh *LookupGlMesh(MeshHandle handle) {
         return nullptr;
     }
     GlMesh &mesh = gl.meshes[slot];
-    if (!mesh.live || mesh.generation != handle >> kSlotBits || (mesh.doomed && !g.replaying)) {
+    if (!mesh.live || mesh.generation != handle >> kSlotBits || (mesh.doomed && !ReplayingHere() && mesh.doomed != RecordingList())) {
         return nullptr;
     }
     return &mesh;
@@ -372,7 +372,7 @@ void DestroyDoomedTexture(TextureHandle handle) {
     DestroyGlImage(texture.depth);
     texture.contents = {};
     texture.live = false;
-    texture.doomed = false;
+    texture.doomed = nullptr;
     g.free_texture_slots.push_back(slot);
     ForgetExpansions(handle);
 }
@@ -397,7 +397,7 @@ void DestroyDoomedMesh(MeshHandle handle) {
     }
     mesh.buffer = 0;
     mesh.live = false;
-    mesh.doomed = false;
+    mesh.doomed = nullptr;
     g.free_mesh_slots.push_back(slot);
 }
 
@@ -496,6 +496,13 @@ TextureHandle CreateRenderTarget(uint32_t logical_width, uint32_t logical_height
     return MakeHandle(texture.generation, slot);
 }
 
+// A grab twin of a target sharing the main depth. Kazarov sizes it to the display image, which
+// differs from the main target's only under a render scale; GL draws at the window's size, so it is
+// an ordinary shared target.
+TextureHandle detail::CreateDisplaySharedTarget(uint32_t logical_width, uint32_t logical_height, bool has_alpha) {
+    return CreateRenderTarget(logical_width, logical_height, has_alpha, true, false);
+}
+
 TextureHandle NamedRenderTarget(std::string_view name, uint32_t logical_width, uint32_t logical_height, bool has_alpha,
                                 bool share_main_depth, bool frame_target) {
     TextureHandle existing = FindNamedRenderTarget(name);
@@ -532,7 +539,7 @@ void DestroyTexture(TextureHandle handle) {
         if (g.record_target == handle) {
             SetRenderTarget(kMainTarget);
         }
-        texture->doomed = true;
+        texture->doomed = g.list.get();
         RecordDoomedTexture(handle);
         return;
     }
@@ -782,7 +789,7 @@ void DestroyMesh(MeshHandle handle) {
         return;
     }
     if (RecordingCalls()) {
-        mesh->doomed = true;
+        mesh->doomed = g.list.get();
         RecordDoomedMesh(handle);
         return;
     }

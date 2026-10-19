@@ -74,7 +74,7 @@ with its title, author and icon (`port/switch/icon.jpg`).
 VS Code can open the checkout in the same image: `.devcontainer/switch/devcontainer.json` (with
 podman, set `dev.containers.dockerPath` to `podman`).
 
-The GL renderer also builds for a PC (`cmake --preset linux-x64-gl-release`), where its pictures
+The GL renderer also builds for a PC (`./build.sh linux-x64-gl-release`), where its pictures
 match the Vulkan renderer's, so it can be checked without a console.
 
 ## Installing

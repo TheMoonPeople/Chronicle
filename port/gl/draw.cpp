@@ -1041,20 +1041,24 @@ void SetUiAnchor(const UiAnchor &anchor) { g.ui_anchor = anchor; }
 UiAnchor CurrentUiAnchor() { return g.ui_anchor; }
 
 void Draw2D(Primitive primitive, std::span<const Vertex2D> vertices, const TextureBinding &binding,
-            const DrawState &state) {
+            const DrawState &state, const Presentation2D *presentation) {
     if (vertices.empty()) {
         return;
     }
-    Draw2DSided(primitive, vertices, binding, state, AnchoredSide(vertices));
+    Draw2DSided(primitive, vertices, binding, state, AnchoredSide(vertices), presentation);
 }
 
 namespace detail {
 
 void Draw2DSided(Primitive primitive, std::span<const Vertex2D> vertices, const TextureBinding &binding,
-                 const DrawState &state, UiSide side) {
+                 const DrawState &state, UiSide side, const Presentation2D *presentation) {
     if (RecordingCalls()) {
-        RecordEntry(
-            Draw2DEntry{primitive, std::vector<Vertex2D>(vertices.begin(), vertices.end()), binding, state, side});
+        Draw2DEntry entry{primitive, std::vector<Vertex2D>(vertices.begin(), vertices.end()), binding, state, side};
+        if (presentation != nullptr) {
+            entry.presentation_vertices.assign(presentation->vertices.begin(), presentation->vertices.end());
+            entry.presentation_state = presentation->state;
+        }
+        RecordEntry(std::move(entry));
         return;
     }
     // Depth places a draw among the meshes, and an image of the frame lies where the frame does.
@@ -1249,7 +1253,8 @@ void DrawMeshImmediateProg0(std::span<const Vertex3D> vertices, std::span<const 
     DrawImmediateMesh(vertices, indices, constants, &prog0, binding, state, transform);
 }
 
-void Clear(bool clear_color, const uint8_t color[4], bool clear_depth, float depth, const LogicalRect *rect) {
+void Clear(bool clear_color, const uint8_t color[4], bool clear_depth, float depth, const LogicalRect *rect,
+           const LogicalRect *presentation_rect) {
     if (RecordingCalls() && (clear_color || clear_depth)) {
         ClearEntry entry;
         entry.color = clear_color;
@@ -1258,6 +1263,8 @@ void Clear(bool clear_color, const uint8_t color[4], bool clear_depth, float dep
             std::memcpy(entry.rgba, color, sizeof(entry.rgba));
         }
         entry.z = depth;
+        entry.has_presentation_rect = presentation_rect != nullptr;
+        entry.presentation_rect = presentation_rect ? *presentation_rect : LogicalRect{};
         entry.has_rect = rect != nullptr;
         entry.rect = rect ? *rect : LogicalRect{};
         RecordClear(entry);
