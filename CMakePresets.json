@@ -46,6 +46,17 @@
             }
         },
         {
+            "name": "linux-x64-gl-release",
+            "displayName": "Linux x86-64 with the GL renderer, Release (clang++-20)",
+            "inherits": "linux",
+            "binaryDir": "${sourceDir}/port/build/pc-gl-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "DC_RENDERER": "gl",
+                "DC_BUILD_TESTS": "OFF"
+            }
+        },
+        {
             "name": "macos",
             "hidden": true,
             "inherits": "pc",
@@ -95,11 +106,11 @@
         },
         {
             "name": "switch-gl",
-            "displayName": "Nintendo Switch homebrew with the GL renderer (in reserve; draws nothing yet)",
+            "displayName": "Nintendo Switch homebrew with the GL renderer (devkitPro's Mesa)",
             "inherits": "switch",
             "binaryDir": "${sourceDir}/port/build/switch-gl",
             "cacheVariables": {
-                "DC_SWITCH_RENDERER": "gl"
+                "DC_RENDERER": "gl"
             }
         }
     ],
@@ -111,6 +122,10 @@
         {
             "name": "linux-x64-release",
             "configurePreset": "linux-x64-release"
+        },
+        {
+            "name": "linux-x64-gl-release",
+            "configurePreset": "linux-x64-gl-release"
         },
         {
             "name": "macos-arm64",

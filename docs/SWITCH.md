@@ -6,17 +6,18 @@ does.
 
 ## How it runs
 
-Kazarov's shared host code runs unchanged:
+Two renderers, picked at build time (`DC_RENDERER`):
 
-- **Vulkan** comes from [etonedemid/mesa-switch](https://github.com/etonedemid/mesa-switch), Mesa
-  26.2 with NVK (Vulkan 1.3) on the Tegra X1, linked statically (there is no loader). The renderer's
-  requirements (`tools/kazarov/port/gfx/README.md`, "Device") are all features Maxwell has.
-- **SDL3** is devkitPro's libnx port (its `switch-sdl-3.4` branch) with
-  [etonedemid/SDL](https://github.com/etonedemid/SDL)'s Vulkan surfaces (`VK_NN_vi_surface`).
-
-Neither is packaged by devkitPro yet; `tools/switch/Containerfile` builds both at pinned commits.
-Both are young: NVK on the Switch passes 79 of 84 of Sascha Willems' Vulkan samples, but its author
-reports a console hang with SDL_GPU (which the port does not use) and unprofiled performance.
+- **GL** (`port/gl`, the `switch-gl` preset): Kazarov's renderer redone over OpenGL 4.3 on
+  devkitPro's own packaged Mesa (`switch-mesa`, nouveau GL), with SDL3 from devkitPro's
+  `switch-sdl-3.4` branch, which devkitPro does not package yet and `tools/switch/Containerfile.gl`
+  builds at a pinned commit. `port/gl/README.md` tells how it maps Vulkan's conventions onto GL.
+- **Vulkan** (the `switch` preset): Kazarov's shared renderer unchanged, on
+  [etonedemid/mesa-switch](https://github.com/etonedemid/mesa-switch), Mesa 26.2 with NVK (Vulkan
+  1.3) on the Tegra X1, linked statically (there is no loader), and
+  [etonedemid/SDL](https://github.com/etonedemid/SDL)'s Vulkan surfaces (`VK_NN_vi_surface`) on
+  devkitPro's SDL3. `tools/switch/Containerfile` builds both. NVK on the Switch is young: it runs
+  the game, but parts of Norune stay at 30 frames a second with the GPU half idle, waiting on fences.
 
 `port/switch/` holds what libnx lacks underneath Kazarov:
 
@@ -38,21 +39,20 @@ Discord Rich Presence is off: there is no client to talk to.
 
 ## Building
 
-The toolchain is a container image, built once from `tools/switch/Containerfile` (about an hour:
-Mesa, Rust's standard library for the Switch, SPIRV-Tools, glslang, SDL3). podman by default;
-`BUILDER=docker` uses docker.
+The toolchain is a container image per renderer, built once: `tools/switch/Containerfile.gl` (a
+few minutes: glslang, the Vulkan headers and SDL3 over devkitPro's image) and
+`tools/switch/Containerfile` (about an hour: Mesa, Rust's standard library for the Switch,
+SPIRV-Tools, glslang, SDL3). podman by default; `BUILDER=docker` uses docker.
 
 ```sh
-tools/switch/build.sh            # builds the image if needed, then port/build/switch/darkcloud.nro
+SWITCH_PRESET=switch-gl tools/switch/build.sh   # port/build/switch-gl/darkcloud.nro: the GL renderer
+tools/switch/build.sh            # builds the image if needed, then port/build/switch/darkcloud.nro (Vulkan)
 tools/switch/build.sh -v         # arguments go to the build
 tools/switch/build.sh shell      # a shell in the image
-SWITCH_PRESET=switch-gl tools/switch/build.sh   # port/build/switch-gl: the GL renderer instead
 ```
 
-The GL renderer (`port/switch/gl`, `DC_SWITCH_RENDERER=gl`) is kept in reserve should NVK fail on
-a console. It is a null backend for now: it answers every `gfx.hpp` call over Kazarov's display
-lists and TIM2 decoding but draws nothing, which still runs the game without its picture, so
-input, audio and saving can be told apart from the renderer.
+The GL renderer also builds for a PC (`cmake --preset linux-x64-gl-release`), where it draws the
+same pictures as the Vulkan renderer, so it can be checked against it without a console.
 
 The image is tagged by a hash of the Containerfile, so editing it builds a new one. VS Code can open
 the checkout in the same image: `.devcontainer/switch/devcontainer.json` (with podman, set
@@ -117,5 +117,6 @@ What remains is the CPU, at about 13 ms a tick (the game's own work and recordin
 
 - Runs on a Switch OLED (Atmosphère, from the Homebrew Menu with a title overridden): the intro,
   the title, new and loaded games, Norune.
-- Ryujinx runs the `.nro` (its OpenGL backend; its Vulkan backend crashes on NVK's images) but
-  shows a black screen, which is still useful for crashes before the first frame.
+- Ryujinx runs the GL `.nro` with its picture (at 60 frames a second on a desktop GPU, which says
+  nothing of the console's speed); `--screenshot` there is wrong (`port/gl/README.md`). It runs the
+  Vulkan `.nro` only with its OpenGL backend, and shows a black screen.

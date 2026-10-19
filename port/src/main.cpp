@@ -437,6 +437,9 @@ int Run(int argc, const char **argv) {
     WindowConfig window = DisplayWindowConfig(config);
     bool         offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
     window.vulkan = !offscreen;
+#ifdef DC_GL_RENDERER
+    window.opengl = true;
+#endif
     WindowInit(window);
     InputInit();
 

@@ -469,6 +469,9 @@ void FirstRunIfNoData(bool headless) {
     window.headless = headless;
     bool offscreen = headless && !gfx::HeadlessSurfaceAvailable();
     window.vulkan = !offscreen;
+#ifdef DC_GL_RENDERER
+    window.opengl = true;
+#endif
     WindowInit(window);
     if (!headless) {
         SDL_QuitSubSystem(SDL_INIT_VIDEO);

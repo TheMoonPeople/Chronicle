@@ -33,6 +33,18 @@ endif()
 
 include(${KZ_ROOT}/cmake/KazarovPort.cmake)
 
+# vulkan: Kazarov's renderer. gl: port/gl, Kazarov's renderer redone over OpenGL 4.3 for the Switch's
+# Mesa (port/gl/README.md), which any platform can build.
+set(DC_RENDERER vulkan CACHE STRING "The renderer: vulkan or gl")
+set_property(CACHE DC_RENDERER PROPERTY STRINGS vulkan gl)
+if(NOT DC_RENDERER MATCHES "^(vulkan|gl)$")
+    message(FATAL_ERROR "DC_RENDERER is vulkan or gl, not ${DC_RENDERER}")
+endif()
+if(DC_RENDERER STREQUAL "gl")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/gl/gl.cmake)
+    add_compile_definitions(DC_GL_RENDERER)
+endif()
+
 if(NINTENDO_SWITCH)
     include(${CMAKE_CURRENT_SOURCE_DIR}/switch/switch.cmake)
 endif()
@@ -44,6 +56,9 @@ set(KZ_PORT_VENDOR_DIRS ${CMAKE_SOURCE_DIR}/audio_decoders ${CMAKE_SOURCE_DIR}/s
 kz_port_host_library(dc_host)
 if(NINTENDO_SWITCH)
     dc_switch_host(dc_host)
+endif()
+if(DC_RENDERER STREQUAL "gl")
+    dc_gl_host(dc_host)
 endif()
 
 set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
