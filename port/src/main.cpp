@@ -494,7 +494,7 @@ int Run(int argc, const char **argv) {
         int height = 0;
         SDL_GetWindowSizeInPixels(WindowHandle(), &width, &height);
         if (height > 0) {
-            renderer.render_scale = static_cast<float>(height) / static_cast<float>(kScreenHeight);
+            renderer.target_scale = static_cast<float>(height) / static_cast<float>(kScreenHeight);
         }
     }
     renderer.expand_palettes = true;

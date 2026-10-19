@@ -565,8 +565,8 @@ void RendererInit(SDL_Window *window, const RendererConfig &config) {
     WindowPixels(width, height);
     // A window that starts minimised still needs main targets for render-to-texture work.
     CreateMainTargetsGl(std::max(width, 1u), std::max(height, 1u));
-    g.render_scale = config.render_scale > 0.0f
-                         ? config.render_scale
+    g.render_scale = config.target_scale > 0.0f
+                         ? config.target_scale
                          : std::max(1.0f, std::round(static_cast<float>(gl.height) / g.config.logical_height));
     CreatePrograms();
     CreateDepthQueries();
