@@ -32,6 +32,13 @@ include(${KZ_ROOT}/cmake/KazarovPort.cmake)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # Flatpak builds have no network: their single-file libraries are staged in audio_decoders/ and stb_truetype/; others fetch them.
 set(KZ_PORT_VENDOR_DIRS ${CMAKE_SOURCE_DIR}/audio_decoders ${CMAKE_SOURCE_DIR}/stb_truetype)
+# Flatpak stages these archives before entering its network-disabled build.
+foreach(dependency fastgltf simdjson)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/flatpak-deps/${dependency}/CMakeLists.txt")
+        string(TOUPPER "${dependency}" dependency_upper)
+        set(FETCHCONTENT_SOURCE_DIR_${dependency_upper} "${CMAKE_SOURCE_DIR}/flatpak-deps/${dependency}")
+    endif()
+endforeach()
 kz_port_host_library(dc_host)
 
 set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
@@ -190,7 +197,7 @@ target_include_directories(dc_port PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
 # captionfont.cpp rasterizes with stb_truetype, which Kazarov stages (or fetches) for dc_host.
 get_target_property(dc_host_includes dc_host INCLUDE_DIRECTORIES)
 foreach(include_dir IN LISTS dc_host_includes)
-    if(EXISTS ${include_dir}/stb_truetype.h)
+    if(EXISTS ${include_dir}/stb_truetype.h OR EXISTS ${include_dir}/stb_image.h)
         target_include_directories(dc_port PRIVATE ${include_dir})
     endif()
 endforeach()
@@ -227,7 +234,9 @@ else()
 endif()
 
 function(dc_link_game target)
-    target_sources(${target} PRIVATE $<TARGET_OBJECTS:dc_port> $<TARGET_OBJECTS:dc_host> $<TARGET_OBJECTS:dc_ps2>)
+    target_sources(${target} PRIVATE $<TARGET_OBJECTS:dc_port> $<TARGET_OBJECTS:dc_ps2>)
+    # Preserve the host library's transitive dependencies, including fastgltf.
+    target_link_libraries(${target} PRIVATE dc_host)
     target_link_libraries(${target} PRIVATE dc_options kz_port_headers SDL3::SDL3 Vulkan::Vulkan)
     target_include_directories(${target} PRIVATE ${PORT_DIR})
     target_compile_options(${target} PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label

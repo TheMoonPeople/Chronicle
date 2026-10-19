@@ -16,6 +16,7 @@
 
 #if defined(__ANDROID__)
 void TouchOverlaySetOpacity(float opacity);
+void TouchOverlayPoll();
 #endif
 
 #include "audio/mixer.hpp"
@@ -245,6 +246,9 @@ void PumpHost() {
         }
     }
     InputPoll();
+#if defined(__ANDROID__)
+    TouchOverlayPoll();
+#endif
     InputScriptApply(GameFrameCount());
 }
 
@@ -444,9 +448,6 @@ int Run(int argc, const char **argv) {
 
     DisplaySetOverrides(options.width, options.height, options.headless);
     WindowConfig window = DisplayWindowConfig(config);
-#if defined(__ANDROID__)
-    window.fixed_display = true;
-#endif
     bool         offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
     window.vulkan = !offscreen;
     WindowInit(window);

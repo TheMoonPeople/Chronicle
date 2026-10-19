@@ -10,7 +10,7 @@
 #include "mainselect.hpp"
 #include "localize_texture.hpp"
 #include "main.hpp"
-#include "platform/imagefile.hpp"
+#include "platform/png_image.hpp"
 #include "platform/paths.hpp"
 #include "texture_port.hpp"
 
@@ -128,7 +128,7 @@ bool TextureAssetApply(const char *name, PortDecodedTexture &texture) {
     int                  width = 0;
     int                  height = 0;
     std::vector<uint8_t> rgba;
-    if (!imagefile::LoadPng(path, width, height, rgba)) {
+    if (!PngLoadRgba(path, width, height, rgba)) {
         if (!Reported()[path.string()]) {
             Reported()[path.string()] = true;
             std::fprintf(stderr, "assets: cannot read picture %s\n", PathsDisplay(path).c_str());
