@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -68,10 +67,11 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
 
 /**
  * Draws a name as the floor-select board's painted names look (the boss floors'): pale yellow letters of the narrower
- * set in a thin navy outline, drawn wide and close (the stretch made before they are outlined) to fill span pixels
- * from left_x, the caps from cap_top. False when there is no font to draw it with.
+ * set in a thin navy outline, each as wide as the painting has that letter and spaced as it spaces them (the stretch
+ * made before it is outlined), the whole squeezed by squeeze as the painting squeezes a long name, from left_x, the
+ * caps from cap_top. False when there is no font to draw it with.
  */
-bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float span, int alpha);
+bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, int alpha);
 
 /**
  * RGB ink colors extended across a width-by-height field for glyph sampling.

@@ -25,21 +25,22 @@ extern CTexture       *DunLogBoard;
 namespace {
 
 // The boss floors' names on the floor-select board, a row each of a 220x24 strip of the board's sheet, drawn in the
-// text font (English only: the port has no other language's names for them). How far right each painted name's
-// lettering reaches, from the strip's left.
+// text font (English only: the port has no other language's names for them): where each painted name starts, from
+// the strip's left, and how much the painting squeezed it.
 struct BoardName {
     const char *english;
-    float       right;
+    float       left;
+    float       squeeze;
 };
 
 constexpr BoardName kBoardNames[] = {
-    {"DIVINE BEAST DRAN'S CHAMBER", 216},
-    {"DWELLING OF FOREST GUARD",    216},
-    {"CHURCH OF MEMORY",            201},
-    {"COFFIN'S CHAMBER",            196},
-    {"COLISEUM",                    99 },
-    {"NIGHT OF INCIDENT",           196},
-    {"TOP FLOOR",                   110},
+    {"DIVINE BEAST DRAN'S CHAMBER", 5.02f, 0.636f},
+    {"DWELLING OF FOREST GUARD", 4.10f, 0.714f},
+    {"CHURCH OF MEMORY", 3.57f, 0.954f},
+    {"COFFIN'S CHAMBER", 3.00f, 0.978f},
+    {"COLISEUM", 3.70f, 0.944f},
+    {"NIGHT OF INCIDENT", 3.26f, 1.000f},
+    {"TOP FLOOR", 4.46f, 0.956f},
 };
 
 bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
@@ -53,8 +54,8 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
         return false;
     }
     const BoardName &name = kBoardNames[row];
-    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + 4, static_cast<float>(screen.y) + 4.5f,
-                                  name.right - 4, alpha);
+    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, static_cast<float>(screen.y) + 2.3f,
+                                  name.squeeze, alpha);
 }
 
 } // namespace
