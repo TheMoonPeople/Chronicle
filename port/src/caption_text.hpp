@@ -77,7 +77,7 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
 struct BoardAdjust {
     char32_t ch;
     float    left, right; // added to how far every ch in the name reaches past its place either side
-    float    advance = 0; // added to where the rest of its word goes
+    float    advance = 0; // added to where the rest of its word goes (a space's: the rest of the name)
 };
 bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
                    int alpha);

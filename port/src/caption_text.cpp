@@ -626,8 +626,14 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
     float                      shifted = 0.0f; // how far the word's adjustments have moved its letters so far
     for (std::size_t i = 0; i < text.size(); i++) {
         if (text[i] == U' ') {
-            // A word's adjustments move the rest of it, not the words after it.
-            pen += kBoardSpace - shifted;
+            // A word's adjustments move the rest of it, not the words after it; a space's move the rest of the name.
+            float widen = 0.0f;
+            for (const BoardAdjust &change : adjust) {
+                if (change.ch == U' ') {
+                    widen += change.advance;
+                }
+            }
+            pen += kBoardSpace - shifted + widen;
             shifted = 0.0f;
             continue;
         }
