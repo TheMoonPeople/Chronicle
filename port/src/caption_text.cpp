@@ -366,13 +366,13 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
 }
 
 // The painted name alphabet's look, measured on it: the letters drawn wide, as tall as the alphabet's, lit from the
-// upper left (the near-white letter over a copy of it in bright blue moved a little down and right, so a band of the
-// blue shows along its lower and right edges, inside the outline), in a navy outline swept a little down and right to
-// give them depth, and a near-black drop shadow down and right.
+// upper left (the near-white letter over copies of it in bright blue swept down and right, so a band of the blue shows
+// along its lower and right edges over the outline), in a navy outline swept a little down and right to give them
+// depth, and a near-black drop shadow.
 constexpr float         kNameCap = 12.5f;
 constexpr float         kNameTop = -0.4f; // where the painted letters' ink starts against the cell the game gives
 constexpr float         kNameOutline = 1.0f;
-constexpr LabelCopy     kNameDepth = {0.7f, 0.5f};
+constexpr LabelCopy     kNameDepth = {0.7f, 0.8f};
 constexpr LabelCopy     kNameShadow = {2.5f, 2.1f};
 constexpr float         kNameGap = 0.06f;
 constexpr float         kNameInset = 4.0f; // the alphabet's letters' ink falls this far inside the span the game gives
@@ -380,7 +380,7 @@ constexpr unsigned char kNameFill[3] = {232, 230, 216};
 constexpr unsigned char kNameShade[3] = {10, 10, 10};
 constexpr unsigned char kNameRing[3] = {0, 17, 121};
 constexpr unsigned char kNameBody[3] = {50, 55, 190};
-constexpr LabelCopy     kNameBodyAt = {0.57f, 0.57f};
+constexpr LabelCopy     kNameBodyAt = {0.9f, 0.9f};
 
 } // namespace
 
@@ -435,16 +435,20 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
             gy = snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
             Quad(out, glyph, gx, gy, glyph.width / mapping.scale_x, glyph.height / mapping.scale_y * rows, rgb, alpha);
         };
-        if (has_ring) {
-            // The shadow, one copy of the outlined letter; the outline stamped on every pixel to the depth's place.
-            place(ring, shades, kNameShade, shade_x, shade_y);
-            const int steps = std::max({1, std::abs(depth_x), std::abs(depth_y)});
+        // A copy stamped on every pixel from the letter's place to (to_x, to_y).
+        auto sweep = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], int to_x,
+                         int to_y) {
+            const int steps = std::max({1, std::abs(to_x), std::abs(to_y)});
             for (int step = 0; step <= steps; step++) {
-                place(ring, rings, kNameRing, static_cast<int>(std::lround(static_cast<float>(depth_x * step) / steps)),
-                      static_cast<int>(std::lround(static_cast<float>(depth_y * step) / steps)));
+                place(glyph, out, rgb, static_cast<int>(std::lround(static_cast<float>(to_x * step) / steps)),
+                      static_cast<int>(std::lround(static_cast<float>(to_y * step) / steps)));
             }
+        };
+        if (has_ring) {
+            place(ring, shades, kNameShade, shade_x, shade_y);
+            sweep(ring, rings, kNameRing, depth_x, depth_y);
         }
-        place(fill, bodies, kNameBody, body_x, body_y);
+        sweep(fill, bodies, kNameBody, body_x, body_y);
         place(fill, fills, kNameFill, 0, 0);
         pen += fill.width / mapping.scale_x + em * kNameGap * stretch;
     }
