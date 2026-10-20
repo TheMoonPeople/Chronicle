@@ -268,6 +268,7 @@ struct State {
     GLuint vertex_arrays[kLayoutCount] = {};
     // Indexed by ProgramIndex.
     std::vector<GLuint> programs;
+    GLuint              coverage_program = 0;
     // Copies drawn through the 3D pipeline (CopyByDraw): the program, an empty vertex array, and
     // scratch images, one per format, for copies within one image.
     GLuint  copy_program = 0;

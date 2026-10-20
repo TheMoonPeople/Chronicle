@@ -661,7 +661,7 @@ bool InFrame() { return g.in_frame || g.list != nullptr; }
 
 RendererFeatures ActiveRendererFeatures() {
     uint32_t version = static_cast<uint32_t>(gl.gl_major) << 22 | static_cast<uint32_t>(gl.gl_minor) << 12;
-    return {version, g.offscreen, true, true, true, false};
+    return {version, g.offscreen, true, true, true, false, true};
 }
 
 // The GL renderer needs no surface: a headless run draws into its own targets in a window that is

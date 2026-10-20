@@ -251,6 +251,12 @@ Busy dungeon scenes are the GPU's limit: the first floor's tutorial, two lit cha
 torches, takes about 23 ms of GPU a tick (the shadow counting and the main scene about 7.5 ms each,
 full-screen copies about 4), so it runs near 40.
 
+Muska Lacka's heat haze accumulates the frame beyond eight depth planes into two full-screen images.
+Drawn as eight blended passes each, those took 13 ms of GPU a tick and the town ran near 40; drawn as
+one pass each that reads the depth buffer (Kazarov's `DrawState::depth_coverage`,
+`port/src/effectmacro.cpp`) they take about 3, and the town holds 60 with the GPU at 7 ms a
+submission.
+
 Profiling on the console: GPU timestamps count 19.2 MHz ticks (nanoseconds times 384 / 625) on both
 NVK, which reports a `timestampPeriod` of 1, and devkitPro's Mesa. A profile must scale them by
 625 / 384, or the GPU looks idle a third of the time it is busy.

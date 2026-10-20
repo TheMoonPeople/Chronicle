@@ -55,6 +55,8 @@ std::string Translate(const char *name, const char *vulkan,
                 "layout(binding = 1) uniform sampler2D u_palette;");
         Replace(source, name, std::regex(R"(#define TEXTURE [^\n]*)"), "#define TEXTURE u_texture");
         Replace(source, name, std::regex(R"(#define PALETTE [^\n]*)"), "#define PALETTE u_palette");
+        // A depth_coverage draw's depth texture takes the palette's unit; it has no palette.
+        Replace(source, name, std::regex(R"(#define DEPTH [^\n]*)"), "#define DEPTH u_palette");
     }
     if (std::regex_search(source, std::regex(R"(\bset = )"))) {
         Fatal("GL: shader %s has a descriptor set the GL renderer does not bind", name);
@@ -284,9 +286,15 @@ void CreatePrograms() {
             fragment[mode][test] = Compile(
                 GL_FRAGMENT_SHADER, "draw.frag",
                 Translate("draw.frag", kGlslDrawFrag,
-                          {{"kTextureMode", std::to_string(mode)}, {"kAlphaTest", test != 0 ? "true" : "false"}}));
+                          {{"kTextureMode", std::to_string(mode)}, {"kAlphaTest", test != 0 ? "true" : "false"},
+                           {"kDepthCoverage", "false"}}));
         }
     }
+    GLuint coverage = Compile(GL_FRAGMENT_SHADER, "draw.frag",
+                              Translate("draw.frag", kGlslDrawFrag,
+                                        {{"kTextureMode", std::to_string(kTextureRgba)},
+                                         {"kAlphaTest", "false"},
+                                         {"kDepthCoverage", "true"}}));
 
     gl.programs.assign(static_cast<size_t>(kVertexKindCount) * kTextureModeCount * 2, 0);
     for (uint32_t kind = 0; kind < kinds; kind++) {
@@ -301,6 +309,9 @@ void CreatePrograms() {
             }
         }
     }
+    // DrawState::depth_coverage's program: 2D from an RGBA texture, the depth at unit 1.
+    gl.coverage_program = Link(vertex[kVertex2D], coverage, "draw");
+    glDeleteShader(coverage);
     for (GLuint shader : vertex) {
         if (shader != 0) {
             glDeleteShader(shader);
@@ -350,6 +361,10 @@ void DestroyPrograms() {
         }
     }
     gl.programs.clear();
+    if (gl.coverage_program != 0) {
+        glDeleteProgram(gl.coverage_program);
+        gl.coverage_program = 0;
+    }
     if (gl.copy_program != 0) {
         glDeleteProgram(gl.copy_program);
         glDeleteVertexArrays(1, &gl.copy_vertex_array);

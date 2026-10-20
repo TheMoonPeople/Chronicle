@@ -55,7 +55,9 @@ Target ResolveTarget(TextureHandle handle) {
     return target;
 }
 
-void EnsureRendering(Target &target) {
+// With sample_depth the framebuffer leaves the depth texture unattached, for a depth_coverage draw
+// to read.
+void EnsureRendering(Target &target, bool sample_depth = false) {
     target = ResolveTarget(g.target);
     if (target.color == nullptr) {
         g.target = kMainTarget;
@@ -64,8 +66,8 @@ void EnsureRendering(Target &target) {
     if (target.texture != nullptr) {
         target.texture->last_draw_use = g.frame_serial;
     }
-    BindDrawFramebuffer(FramebufferOf(target.color->texture, target.depth->texture), target.color->width,
-                        target.color->height);
+    BindDrawFramebuffer(FramebufferOf(target.color->texture, sample_depth ? 0 : target.depth->texture),
+                        target.color->width, target.color->height);
     g.rendering = true;
 }
 
@@ -260,11 +262,36 @@ VertexKind KindOf(PipelineFamily family) {
 // Resolves the binding and the state into the per-draw block and sets GL's state. ui places the draw
 // by the target's UI mapping, moved to the edges side names; the scissor stays where the frame has it
 // unless the side follows it. False when the draw must be dropped.
-bool Prepare(PipelineFamily family, const TextureBinding &binding, const DrawState &state, bool ui = false,
+// A depth_coverage draw as the program takes it: none of the state it does without.
+DrawState CoverageState(const DrawState &state) {
+    DrawState plain = state;
+    plain.blend = false;
+    plain.premultiplied = false;
+    plain.depth_test = DepthTest::Always;
+    plain.depth_write = false;
+    plain.alpha_test = false;
+    plain.fog = false;
+    plain.stencil_test = false;
+    return plain;
+}
+
+bool Prepare(PipelineFamily family, const TextureBinding &binding, const DrawState &given, bool ui = false,
              UiSide side = {}) {
     if (!g.in_frame) {
         return false;
     }
+    const bool coverage = given.depth_coverage != 0;
+    if (coverage) {
+        Target resolved = ResolveTarget(g.target);
+        bool   shares = resolved.color == nullptr || resolved.texture == nullptr || resolved.texture->shares_main_depth;
+        if (family != kFamily2DTriangles || given.depth_coverage > kCoveragePlanes || !shares) {
+            Error("a depth_coverage draw needs 2D triangles, at most %u planes and the main target or one sharing "
+                  "its depth",
+                  kCoveragePlanes);
+            return false;
+        }
+    }
+    const DrawState state = coverage ? CoverageState(given) : given;
     PushConstants push;
     std::memset(&push, 0, sizeof(push));
     push.uv_xform[0] = 1.0f;
@@ -337,13 +364,18 @@ bool Prepare(PipelineFamily family, const TextureBinding &binding, const DrawSta
         }
     }
 
+    if (coverage && mode != kTextureRgba) {
+        Error("a depth_coverage draw needs an RGBA texture");
+        return false;
+    }
+
     Target target;
-    EnsureRendering(target);
+    EnsureRendering(target, coverage);
 
     // The shader writes As as the factor when C is not FIX, which premultiplied takes as its own.
     BlendMapping blend = state.blend && state.premultiplied ? BlendMapping{g.premultiplied_slot, kSourceColor, false}
                                                             : MapBlend(state.alpha, state.blend);
-    GLuint program = gl.programs[ProgramIndex(KindOf(family), mode, state.alpha_test)];
+    GLuint program = coverage ? gl.coverage_program : gl.programs[ProgramIndex(KindOf(family), mode, state.alpha_test)];
     if (gl.bound.program != program) {
         gl.bound.program = program;
         glUseProgram(program);
@@ -381,6 +413,12 @@ bool Prepare(PipelineFamily family, const TextureBinding &binding, const DrawSta
     if (mode == kTexturePalette) {
         BindTexture(1, palette_name, gl.palette_sampler);
     }
+    if (coverage) {
+        BindTexture(1, target.depth->texture, gl.palette_sampler);
+    } else if (mode != kTexturePalette && gl.bound.textures[1] == target.depth->texture) {
+        // A depth texture left bound beside a framebuffer it is attached to is a feedback loop to Mesa.
+        BindTexture(1, 0, gl.palette_sampler);
+    }
     push.flags = static_cast<uint32_t>(blend.transform) << kPushTransformShift;
     if (state.fog) {
         push.flags |= kPushFog;
@@ -413,6 +451,13 @@ bool Prepare(PipelineFamily family, const TextureBinding &binding, const DrawSta
     // AlphaFunc's order: never, always, less, lequal, equal, gequal, greater, notequal.
     constexpr uint32_t kAlphaPass[8] = {0b000, 0b111, 0b001, 0b011, 0b010, 0b110, 0b100, 0b101};
     push.alpha_pass = kAlphaPass[static_cast<uint32_t>(state.alpha_func) & 7];
+    if (coverage) {
+        push.pad = given.depth_coverage;
+        for (uint32_t i = 0; i < 4; i++) {
+            push.fog[i] = i < given.depth_coverage ? given.coverage_depths[i] : -1.0f;
+            push.blend[i] = i + 4 < given.depth_coverage ? given.coverage_depths[i + 4] : -1.0f;
+        }
+    }
     StreamSpan block = StreamAllocate(sizeof(push), static_cast<size_t>(gl.uniform_alignment));
     std::memcpy(block.data, &push, sizeof(push));
     glBindBufferRange(GL_UNIFORM_BUFFER, 0, StreamBuffer(), block.offset, sizeof(push));
