@@ -78,6 +78,8 @@ struct BoardAdjust {
     char32_t ch;
     float    left, right; // added to how far every ch in the name reaches past its place either side
     float    advance = 0; // added to where the rest of its word goes (a space's: the rest of the name)
+    float    move = 0;    // how far it is drawn right of its place, the letters after it staying put
+    int      nth = -1;    // which ch (from 0) advance and move are for, or every one; left and right are every one's
 };
 bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
                    int alpha);

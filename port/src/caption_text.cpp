@@ -587,15 +587,24 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
     const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
     const float               base = cap_top + kBoardCap;
     auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
-    // How far letter i reaches past its place either side, and how far it moves the letters after it, in this name.
-    auto changes_of = [&](std::size_t i, Spread &spread, float &advance) {
+    // Which of the name's letters ch letter i is.
+    auto nth_of = [&](std::size_t i) {
+        return static_cast<int>(std::count(text.begin(), text.begin() + static_cast<std::ptrdiff_t>(i), text[i]));
+    };
+    // How far letter i reaches past its place either side (the same for every one of that letter), and how far it is
+    // moved and moves the letters after it, in this name.
+    auto changes_of = [&](std::size_t i, Spread &spread, float &advance, float &move) {
         spread = BoardSpread(text[i]);
         advance = 0.0f;
+        move = 0.0f;
         for (const BoardAdjust &change : adjust) {
             if (change.ch == text[i]) {
                 spread.left += change.left;
                 spread.right += change.right;
-                advance += change.advance;
+                if (change.nth < 0 || change.nth == nth_of(i)) {
+                    advance += change.advance;
+                    move += change.move;
+                }
             }
         }
     };
@@ -607,8 +616,8 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
             return 0.0f;
         }
         Spread spread;
-        float  advance;
-        changes_of(i, spread, advance);
+        float  advance, move;
+        changes_of(i, spread, advance, move);
         return std::clamp(((BoardWidth(ch) + spread.left + spread.right) * squeeze - 2 * kBoardWeight) * mapping.scale_x /
                               natural.width,
                           0.2f, 4.0f);
@@ -639,12 +648,12 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
         }
         const float    stretch = stretch_of(i);
         Spread         spread;
-        float          advance;
-        changes_of(i, spread, advance);
+        float          advance, move;
+        changes_of(i, spread, advance, move);
         capfont::Glyph core, fill, ring;
         if (stretch > 0 && capfont::GetStretchedGlyph(text[i], em_px, 0, stretch, true, core) &&
             capfont::GetStretchedGlyph(text[i], em_px, kBoardWeight * mapping.scale_x, stretch, true, fill)) {
-            const float core_x = left_x + (pen - spread.left) * squeeze + kBoardWeight;
+            const float core_x = left_x + (pen + move - spread.left) * squeeze + kBoardWeight;
             // An apostrophe goes up or down so its top is level with the next letter's, and a screen pixel more: the
             // next letter's top is a curve whose topmost row is faint.
             float lift = 0.0f;

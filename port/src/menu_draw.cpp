@@ -41,7 +41,7 @@ const BoardName kBoardNames[] = {
     {"CHURCH OF MEMORY", 3.57f, 0.954f, {{U'R', 0.0f, -2.0f, -2.0f}, {U'H', 0.0f, 0.5f}, {U'U', 0.0f, 0.0f, 0.8f}}},
     {"COFFIN'S CHAMBER", 3.00f, 0.978f, {{U'N', 0.8f, -0.8f}, {U'S', -0.8f, 0.8f}, {U' ', 0.0f, 0.0f, 2.0f}, {U'R', 0.0f, -2.2f}, {U'E', 0.0f, -0.8f}}},
     {"COLISEUM", 3.70f, 0.944f, {{U'C', 0.8f, -0.8f}, {U'S', 0.8f, -0.8f}, {U'U', -0.8f, 0.8f}}},
-    {"NIGHT OF INCIDENT", 3.26f, 1.000f},
+    {"NIGHT OF INCIDENT", 3.26f, 1.000f, {{U'I', 0.0f, 0.0f, 0.0f, -0.8f}, {U'I', 0.0f, 0.0f, 0.0f, 0.8f, 1}, {U'G', -0.8f, 0.8f}, {U'C', 0.0f, 0.0f, 0.0f, -1.2f}, {U'D', -0.6f, 0.0f, 0.0f, 0.6f}, {U'E', 0.0f, -1.4f}, {U'N', 0.0f, 0.0f, 0.0f, -1.4f, 2}}},
     {"TOP FLOOR", 4.46f, 0.956f},
 };
 
