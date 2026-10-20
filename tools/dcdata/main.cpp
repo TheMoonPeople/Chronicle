@@ -17,8 +17,8 @@ int Usage() {
     return 2;
 }
 
-// Where the community fonts the Sharp text font is made from are: the lang folder beside dcdata (as the port's
-// build and install put them), else the source tree's tools/font.
+// Where Chronicle Sharp, which the Sharp glyph sheets are drawn in, is: the lang folder beside dcdata (as the port's
+// build and install put it), else the source tree's tools/font.
 std::filesystem::path FontsDirectory(const char *argv0) {
     std::error_code       error;
     std::filesystem::path beside = std::filesystem::absolute(argv0, error).parent_path() / "lang";

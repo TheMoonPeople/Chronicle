@@ -71,11 +71,10 @@ struct Config : HostSettings {
     // (LanguageCode: English, Francais, Deutsch, Italiano, Espanol) and skips the language screen.
     int                           language = 0;
     // video.text_font: "original" draws the message text from the game's own 14x20 bitmaps; "sharp" from
-    // the game's letters redrawn smooth when the data was extracted (tools/dcdata/sharpfont.hpp), the
-    // community font where they are not made; "community" from the TrueType font (lang/font.ttf, --font).
-    // font_sharp is either of the last two, font_community the last.
+    // Chronicle Sharp (lang/font.ttf): the game's glyph sheet redrawn in it when the data was extracted
+    // (tools/dcdata/sharpfont.hpp), the font itself until that is made. "community", the setting's old third
+    // choice, reads as "sharp".
     bool                          font_sharp = true;
-    bool                          font_community = false;
     // video.text_shadow and video.glyph_shadow: how strong the shadow under the TrueType message text and
     // under the button symbols in it is, in percent in steps of 5. 0 casts none, 50 is the soft shadow
     // (the letters' default), 100 the deep one. The symbols' is lighter, because a solid shape stacks

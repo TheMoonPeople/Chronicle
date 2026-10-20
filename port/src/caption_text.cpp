@@ -96,12 +96,8 @@ bool FontReady() {
     if (!ConfigGet().font_sharp) {
         return false;
     }
-    // Sharp draws captions from the game's letters redrawn smooth, where they are made; Community, and Sharp
-    // without them, from the community font (or the one put in its place). Changing the setting changes the font.
-    std::filesystem::path file = ConfigGet().font_community ? std::filesystem::path{} : SharpTextFile("font.ttf");
-    if (file.empty()) {
-        file = LocalizeFindFile("font.ttf");
-    }
+    // Captions in Chronicle Sharp (or the font put in its place).
+    const std::filesystem::path  file = LocalizeFindFile("font.ttf");
     static std::filesystem::path loaded;
     if (!file.empty() && file != loaded) {
         loaded = file;

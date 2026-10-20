@@ -580,7 +580,7 @@ FirstRunOutcome FirstRunExtract(const fs::path &source, const fs::path &root,
                 dcdata::Fail("{} files are missing or the wrong size after extraction, {} among them",
                              bad.size(), bad.front()->path);
             }
-            // The Sharp text font is made from the disc's letters; without it Sharp draws the community font.
+            // The Sharp glyph sheets are the disc's redrawn in Chronicle Sharp; until they are, Sharp draws the font itself.
             try {
                 dcdata::sharp::Build(target, PathsExecutable().parent_path() / "lang", stderr);
             } catch (const std::exception &failure) {

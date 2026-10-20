@@ -162,7 +162,7 @@ bool TextureAssetApply(const char *name, PortDecodedTexture &texture) {
     }
     fs::path path = TextureAssetPath(TextureAssetsArea(), TextureAssetsLanguage(), name, texture.width, texture.height);
     bool     sharp = false;
-    if (path.empty() && gaiji && ConfigGet().font_sharp && !ConfigGet().font_community) {
+    if (path.empty() && gaiji && ConfigGet().font_sharp) {
         // The Sharp text font: the glyph sheet drawn from the game's letters when the data was extracted.
         path = SharpGaijiPath(TextureAssetsLanguage());
         sharp = !path.empty();

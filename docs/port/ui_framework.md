@@ -59,8 +59,8 @@ port/
 
 |**Slot**|**Font Asset (tools/font/ -> lang/)**|**UI::FontWeight**|**Primary Usage**|
 |---|---|---|---|
-|**Slot 0**|`DarkCloudCompendium.ttf` (`lang/font.ttf`)|`FontWeight::Normal`, `FontWeight::Thin`, `FontWeight::Bold`|Standard game messages, window titles, `YES`/`NO` confirmation buttons, and Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, etc.).|
-|**Slot 1**|`DarkCloudCompendiumThin.ttf` (`lang/font_thin.ttf`)|_(Optional thin variant)_|Loaded via `capfont::LoadVariant` when explicitly requested.|
+|**Slot 0**|`ChronicleSharp-Bold.ttf` (`lang/font.ttf`)|`FontWeight::Normal`, `FontWeight::Thin`, `FontWeight::Bold`|Standard game messages, window titles, `YES`/`NO` confirmation buttons, and Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, etc.).|
+|**Slot 1**|`ChronicleSharp-Regular.ttf` (`lang/font_thin.ttf`)|_(Optional thin variant)_|Loaded via `capfont::LoadVariant` when explicitly requested.|
 |**Slot 2**|`SourceSansProSemibold.ttf` (`lang/SourceSansProSemibold.ttf`)|`FontWeight::Status`|Weapon Status UI (`At`, `Ed`, `Sp`, `Mp`, element tags `Fl`/`Ch`/`Th`/`Wi`/`Ho`, and status/bar numbers `12/28`, `67/98`, `22`, `34`, `72`, `13`).|
 
 - **Flatpak & Sandbox Resilience**: `port/CMakeLists.txt` copies and installs `tools/font/SourceSansProSemibold.ttf` into `lang/SourceSansProSemibold.ttf`. In addition, `port/src/caption_text.cpp` embeds `SourceSansProSemibold.ttf` at compile time via C++26 `#embed` (`capfont::LoadStatusFontMemory`) as an automatic fallback.

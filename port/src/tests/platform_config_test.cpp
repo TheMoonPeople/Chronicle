@@ -706,4 +706,5 @@ TEST(PlatformConfig, TextFont) {
     ASSERT_TRUE(!config.font_sharp);
     ASSERT_TRUE(!ConfigParse(ConfigSerialize(config)).font_sharp);
     ASSERT_TRUE(ConfigParse(R"({"video": {"text_font": "blurry"}})").font_sharp);
+    ASSERT_TRUE(ConfigParse(R"({"video": {"text_font": "community"}})").font_sharp);
 }

@@ -366,7 +366,6 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
             return false;
         }
         config.font_sharp = font != "original";
-        config.font_community = font == "community";
         return true;
     }
     if (name == "input.glyphs") {
@@ -692,7 +691,7 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["player_damage"] = options.player_damage;
     root["game"]["enemy_hp"] = options.enemy_hp;
     root["game"]["names"] = options.names;
-    root["video"]["text_font"] = !config.font_sharp ? "original" : config.font_community ? "community" : "sharp";
+    root["video"]["text_font"] = config.font_sharp ? "sharp" : "original";
     root["video"]["text_shadow"] = config.text_shadow;
     root["video"]["glyph_shadow"] = config.glyph_shadow;
     root["video"]["name_shadow"] = config.name_shadow;

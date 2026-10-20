@@ -23,7 +23,7 @@ bool LoadTestFont() {
         return capfont::Load(path);
     }
     return capfont::Load(std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() / "tools" / "font" /
-                         "DarkCloudCompendium.ttf");
+                         "ChronicleSharp-Bold.ttf");
 }
 
 Rendered Render(char32_t ch, int em_px = 40) {

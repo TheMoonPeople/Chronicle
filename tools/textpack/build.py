@@ -6,8 +6,8 @@
 The game draws these words as textures, one set per language. The port takes them from
 `textures/<language>/<name>.png` in its language folders (docs/LOCALIZATION.md, "Pictures of text"), so they
 follow game.language. This tool makes those pictures from the words in `strings/*.json`: it erases the old
-lettering from the disc's own textures and draws the language's words in the Dark Cloud Compendium font (the
-message font), which is the face the cards are lettered in. The boss names are a serif; Cinzel stands in for it.
+lettering from the disc's own textures and draws the language's words in Chronicle Sharp (the port's
+text font). The boss names are a serif; Cinzel stands in for it.
 
 --originals is a folder of the disc's textures as PNG files, laid out `<game file with / as __>/<name>.png`
 (`img_3__mt01.tm2/mt01.png`, `dun__img__us__dname00.img/floor00.png`, `gedit__s34__chara__boss_3_f.pak/boss_3.png`),
@@ -33,7 +33,7 @@ import slots  # noqa: E402
 import textpack  # noqa: E402
 
 S = 4  # everything is drawn at 4x and brought back to the texture's size at the end
-COMPENDIUM = os.path.join(HERE, '..', 'font', 'DarkCloudCompendium.ttf')
+SHARP = os.path.join(HERE, '..', 'font', 'ChronicleSharp-Bold.ttf')
 CINZEL = os.path.join(HERE, '..', 'font', 'Cinzel-Regular.ttf')
 # language key in the strings files -> the language files' stems (UK and US English share the floor and boss pictures)
 CODES = {'uk': ['en_gb'], 'us': ['en_us'], 'fr': ['fr_fr'], 'de': ['de_de'], 'it': ['it_it'], 'es': ['es_es']}
@@ -91,7 +91,7 @@ def titles(orig, out, scale):
     words, styles = strings('titles.json'), strings('title_styles.json')
     dirs = {k: v for k, v in words['_lang_dirs'].items()}
     n = 0
-    textpack.use_font_file(COMPENDIUM)
+    textpack.use_font_file(SHARP)
     for area in [k for k in words if re.match(r'mt\d+$', k)]:
         cards = {}
         for d in ['img'] + list(dirs.values()):
@@ -213,7 +213,7 @@ def floor_sheet(a, rows):
 def floors(orig, out, scale):
     words = strings('floors.json')
     n = 0
-    textpack.use_font_file(COMPENDIUM)
+    textpack.use_font_file(SHARP)
     for sheet in range(7):
         for lang, folder in words['_lang_dirs'].items():
             row1 = words['row1'][lang]

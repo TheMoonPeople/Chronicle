@@ -88,14 +88,14 @@ int ChoiceRowDim(const ClsMes &mes, int row, int clut) {
 }
 
 // ---- Message text from a TrueType font ----
-// With font.ttf in a lang folder (the save's or the executable's), a character the font has is drawn
-// from it at the screen's own resolution, in the cell the game laid the bitmap character out in,
-// instead of from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
+// Until the Sharp glyph sheet is made, a character font.ttf (Chronicle Sharp, or the font --font names) has is
+// drawn from it at the screen's own resolution, in the cell the game laid the bitmap character out in, instead of
+// from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
 
 bool TtfReady() {
     // video.text_font set to the game's own letters: the bitmaps, whatever font there is. With the Sharp glyph sheet
-    // made from those letters, the game draws them itself, from it.
-    if (!ConfigGet().font_sharp || (!ConfigGet().font_community && TextureAssetsSharpGaiji())) {
+    // made, the game draws its letters itself, from it.
+    if (!ConfigGet().font_sharp || TextureAssetsSharpGaiji()) {
         return false;
     }
     static bool tried = false;
@@ -105,7 +105,7 @@ bool TtfReady() {
         if (!file.empty() && ttffont::Load(file)) {
             std::fprintf(stderr, "font: message text from %s\n", file.string().c_str());
         } else if (file.empty()) {
-            // The community font ships in lang/; this is someone who removed it, so say where one goes.
+            // Chronicle Sharp ships in lang/; this is someone who removed it, so say where one goes.
             std::fprintf(stderr,
                          "font: no font.ttf in lang/ beside the executable or in the save folder, and no --font; message "
                          "text uses the game's bitmaps (docs/LOCALIZATION.md)\n");

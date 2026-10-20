@@ -263,20 +263,20 @@ if(ANDROID)
     set(ANDROID_ASSETS ${CMAKE_SOURCE_DIR}/android/app/src/main/assets)
     file(MAKE_DIRECTORY ${ANDROID_ASSETS}/lang ${ANDROID_ASSETS}/glyphs)
     file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/lang/ DESTINATION ${ANDROID_ASSETS}/lang)
-    configure_file(${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf ${ANDROID_ASSETS}/lang/font.ttf COPYONLY)
-    configure_file(${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf ${ANDROID_ASSETS}/lang/font_thin.ttf COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Bold.ttf ${ANDROID_ASSETS}/lang/font.ttf COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Regular.ttf ${ANDROID_ASSETS}/lang/font_thin.ttf COPYONLY)
 else()
     add_custom_target(dc_lang
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lang $<TARGET_FILE_DIR:darkcloud>/lang
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Bold.ttf
                 $<TARGET_FILE_DIR:darkcloud>/lang/font.ttf
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Regular.ttf
                 $<TARGET_FILE_DIR:darkcloud>/lang/font_thin.ttf
-        COMMENT "Copying the port's translated strings and message font")
+        COMMENT "Copying the port's translated strings and text fonts")
     add_dependencies(${darkcloud_target} dc_lang)
     install(DIRECTORY lang/ DESTINATION ${CMAKE_INSTALL_BINDIR}/lang)
-    install(FILES ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf DESTINATION ${CMAKE_INSTALL_BINDIR}/lang RENAME font.ttf)
-    install(FILES ${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendiumThin.ttf DESTINATION ${CMAKE_INSTALL_BINDIR}/lang RENAME font_thin.ttf)
+    install(FILES ${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Bold.ttf DESTINATION ${CMAKE_INSTALL_BINDIR}/lang RENAME font.ttf)
+    install(FILES ${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Regular.ttf DESTINATION ${CMAKE_INSTALL_BINDIR}/lang RENAME font_thin.ttf)
 endif()
 
 # The button symbols (docs/GLYPHS.md): glyphs/ beside the executable. Rebuilt from art by tools/glyphs/build_glyphs.py.

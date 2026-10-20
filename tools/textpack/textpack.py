@@ -1,4 +1,4 @@
-"""Text pack renderer: draws the Dark Cloud Compendium font (the localization font) into texture-sized images.
+"""Text pack renderer: draws Chronicle Sharp (the port's text font) into texture-sized images.
 
 The font's accented letters and the marks acute/diaeresis/cedilla are blank in the file, so they are built here:
 base letter + a mark drawn from the font's own grave/circumflex/tilde (acute = mirrored grave) or simple strokes.
@@ -10,23 +10,23 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VARIANTS = ('REGULAR', 'BOLD', 'ITALIC', 'THIN')  # the four files of the Compendium Community Font
-FONT_PATH = os.path.join(HERE, '..', 'font', 'DarkCloudCompendium.ttf')
+VARIANTS = {'BOLD': 'ChronicleSharp-Bold.ttf', 'THIN': 'ChronicleSharp-Regular.ttf'}  # Chronicle Sharp's two weights
+FONT_PATH = os.path.join(HERE, '..', 'font', 'ChronicleSharp-Bold.ttf')
 _fonts = {}
 
 
 def use_font_file(path):
-    """Draw with any TTF instead of the Compendium (used for the boss captions' serif, Cinzel, SIL OFL)."""
+    """Draw with any TTF instead of Chronicle Sharp (used for the boss captions' serif, Cinzel, SIL OFL)."""
     global FONT_PATH
     FONT_PATH = path
     _fonts.clear()
 
 
 def use_variant(name):
-    """Select REGULAR / BOLD / ITALIC / THIN for everything drawn after this call."""
+    """Select BOLD / THIN for everything drawn after this call."""
     global FONT_PATH
     assert name in VARIANTS, name
-    FONT_PATH = os.path.join(HERE, '..', 'font', 'DarkCloudCompendium.ttf')
+    FONT_PATH = os.path.join(HERE, '..', 'font', VARIANTS[name])
     _fonts.clear()
 
 

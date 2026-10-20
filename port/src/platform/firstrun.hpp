@@ -46,6 +46,6 @@ void FirstRunSetChooser(FirstRunChooser chooser);
 // extraction shows the error and exits with status 1.
 void FirstRunIfNoData(bool headless);
 
-// Data extracted before the Sharp text font existed (or for an older recipe of it) gets it made on a worker thread;
-// text drawn before it is ready uses the community font.
+// Data extracted before the Sharp glyph sheets existed (or for an older recipe of them) gets them made on a worker
+// thread; message text drawn before they are ready is drawn from Chronicle Sharp itself.
 void FirstRunSharpFont();

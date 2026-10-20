@@ -16,12 +16,12 @@ The files are laid out as Minecraft's language files are: one flat JSON file per
    does not hold them. To write them again, or anywhere else:
    `darkcloud --data <data folder> --export-text <folder>`. Copy the file you want to change to
    `<save folder>/lang/` and edit it.
-2. **Sharp text.** The port draws message text from a TrueType font instead of the game's blurry bitmaps. The
-   Dark Cloud Compendium Community Font (by Dayuppy and Moonbunny, used with their permission) is in
-   `tools/font/`, and the build copies it to `lang/font.ttf` beside the executable, so it works as built. To use another font, put it at `<save folder>/lang/font.ttf` (that wins), or start with
-   `--font <file>`. To go back to the game's bitmaps, set Options, Text page, Text Font to Original
-   (`video.text_font` in `config.json`), or delete `lang/font.ttf`. The port says
-   `font: message text from ...` when it found one, and `font: no font.ttf ...` when it did not.
+2. **Sharp text.** The port draws text in Chronicle Sharp, the game's own letters redrawn as a TrueType font
+   (`tools/font/`, see its README), instead of the game's blurry bitmaps. The build copies it to `lang/font.ttf`
+   and `lang/font_thin.ttf` beside the executable. Message text is drawn from the game's glyph sheet redrawn in
+   it when the data is extracted, and from the font itself until then. To use another font for the text the port
+   draws from a font, put it at `<save folder>/lang/font.ttf` (that wins), or start with `--font <file>`. To go back
+   to the game's bitmaps, set Options, Text page, Text Font to Original (`video.text_font` in `config.json`).
 3. **The language.** Options, Text page, Language row (or `game.language` in `config.json`).
 
 ## Where the files go
@@ -268,8 +268,8 @@ letters and marks. The port logs `font: message text from <file>` when it loads 
   as they are. A few of those pictures can be replaced per language, see "Pictures of text" below.
 - A word keeps the cells the game gave it: its letters are spaced by the font inside the word and the word
   is centred on its cells, so rows, indents and the icons between words stay where the game put them.
-- The bundled font is the community font above (credited in `CREDITS`, see `tools/font/README.md`); a font you add
-  is yours to license.
+- The bundled font is Chronicle Sharp (credited in `CREDITS`, see `tools/font/README.md`); a font you add is yours to
+  license.
 
 ## Pictures of text
 
@@ -290,9 +290,8 @@ player's own machine from the words in `tools/textpack/strings/*.json`:
 
     python tools/textpack/build.py --originals <extracted textures> --out <save folder>/lang/textures
 
-It erases the old lettering from the disc's own textures and draws the language's words in the message font
-(the Dark Cloud Compendium font: the cards are lettered in it, squeezed, with an outline, glow and underline;
-the floor labels are the same face embossed). The bosses' names are a serif that is not in that font; Cinzel
+It erases the old lettering from the disc's own textures and draws the language's words in Chronicle Sharp
+(the cards squeezed, with an outline, glow and underline; the floor labels embossed). The bosses' names are a serif that is not in that font; Cinzel
 (`tools/font/`, SIL Open Font License) stands in for it. `--originals` is a folder of the disc's textures as PNG
 files named `<game file with / as __>/<name>.png`. Change a word in the strings file and run it again; add a
 language by adding its words. The Japanese pictures are not made.

@@ -5,7 +5,7 @@ Draws the localization's pictures of text (area name cards, dungeon floor labels
 
     python tools/textpack/build.py --originals <extracted textures> --out <save folder>/lang/textures [--scale 1|4]
 
-- `build.py` the command. `textpack.py` draws text with the Compendium font (it builds the accented letters the font
+- `build.py` the command. `textpack.py` draws text with Chronicle Sharp (it builds the accented letters the font
   leaves blank). `plates.py` rebuilds a card's backdrop without its lettering by combining the languages' cards.
   `slots.py` finds the word boxes of an existing sheet. `shadow_preview.py` shows the shadow the port casts.
 - `build.py --only plates` writes the cards' text-free backdrops and layouts for the port's runtime lettering (`area_card.cpp`).
