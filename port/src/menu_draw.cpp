@@ -38,7 +38,7 @@ struct BoardName {
 const BoardName kBoardNames[] = {
     {"DIVINE BEAST DRAN'S CHAMBER", 5.02f, 0.636f},
     {"DWELLING OF FOREST GUARD", 4.10f, 0.714f, {{U'R', 0.0f, -1.2f}, {U'D', -1.4f, 0.0f}, {U'N', 1.6f, -1.6f}, {U'A', 0.9f, 0.0f}}},
-    {"CHURCH OF MEMORY", 3.57f, 0.954f},
+    {"CHURCH OF MEMORY", 3.57f, 0.954f, {{U'R', 0.0f, -2.0f, -2.0f}, {U'H', 0.0f, 0.5f}, {U'U', 0.0f, 0.0f, 0.8f}}},
     {"COFFIN'S CHAMBER", 3.00f, 0.978f},
     {"COLISEUM", 3.70f, 0.944f},
     {"NIGHT OF INCIDENT", 3.26f, 1.000f},

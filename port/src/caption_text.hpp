@@ -70,12 +70,14 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
  * Draws a name as the floor-select board's painted names look (the boss floors'): pale yellow letters of the narrower
  * set in a thin navy outline, each as wide as the painting has that letter and spaced as it spaces them (the stretch
  * made before it is outlined), the whole squeezed by squeeze as the painting squeezes a long name, from left_x, the
- * caps from cap_top; adjust changes how far a letter reaches either side in this name alone. False when there is no
+ * caps from cap_top; adjust changes how far a letter reaches either side, and where the rest of its word goes, in
+ * this name alone. False when there is no
  * font to draw it with.
  */
 struct BoardAdjust {
     char32_t ch;
-    float    left, right; // added to how far the letter reaches past its place either side
+    float    left, right; // added to how far every ch in the name reaches past its place either side
+    float    advance = 0; // added to where the rest of its word goes
 };
 bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
                    int alpha);
