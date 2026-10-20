@@ -487,11 +487,15 @@ bool GetGlyph(char32_t ch, int em_px, Glyph &out) {
     return GetOutlinedGlyph(ch, em_px, 0, out);
 }
 
-bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
-    if (!g_fonts[g_variant].loaded || em_px < 4 || em_px > 512 || outline_px < 0 || outline_px > 64) {
+namespace {
+
+// A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined: the outline the same all round.
+bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, Glyph &out) {
+    if (!g_fonts[g_variant].loaded || em_px < 4 || em_px > 512 || outline_px < 0 || outline_px > 63 || stretch < 16 ||
+        stretch > 255) {
         return false;
     }
-    const auto key = std::make_pair(ch, em_px + outline_px * 1024 + g_variant * (1 << 20));
+    const auto key = std::make_pair(ch, em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22));
     if (auto found = g_atlas.glyphs.find(key); found != g_atlas.glyphs.end()) {
         out = found->second;
         return true;
@@ -507,12 +511,12 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
     const float scale = stbtt_ScaleForMappingEmToPixels(&g_fonts[g_variant].info, static_cast<float>(em_px));
     Bitmap      bitmap;
     if (const int index = DrawnGlyph(ch); index != 0) {
-        bitmap = Raster(index, scale, scale);
-    } else if (!Compose(ch, scale, em_px, bitmap)) {
+        bitmap = Raster(index, scale * static_cast<float>(stretch) / 64.0f, scale);
+    } else if (stretch != 64 || !Compose(ch, scale, em_px, bitmap)) {
         g_atlas.missing[key] = true;
         return false;
     }
-    const float advance = AdvanceOf(ch, scale);
+    const float advance = AdvanceOf(ch, scale) * static_cast<float>(stretch) / 64.0f;
     if (outline_px > 0) {
         bitmap = Dilate(bitmap, outline_px);
     }
@@ -568,6 +572,16 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
     g_atlas.glyphs[key] = glyph;
     out = glyph;
     return true;
+}
+
+} // namespace
+
+bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
+    return GetShapedGlyph(ch, em_px, outline_px, 64, out);
+}
+
+bool GetStretchedGlyph(char32_t ch, int em_px, int outline_px, float stretch, Glyph &out) {
+    return GetShapedGlyph(ch, em_px, outline_px, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), out);
 }
 
 bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) {
