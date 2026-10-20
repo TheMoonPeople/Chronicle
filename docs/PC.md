@@ -1534,6 +1534,7 @@ else changed:
 | `BtGetTreasureboxBig_Init`/`_Loop`, `BtGetTreasureboxSmall_Init`/`_Loop`, `BtGetGateKey_Init`/`_Loop`, `BtEscape_Init`/`_Loop` | `btitem.cpp` | the files read between the two halves kept as pointers, not in `itemOpenItemMds`, `itemOpenItemImg` and `escape_chr` |
 | `_ITEM_USE_WINDOW`, `BtMiniItemSelect_Loop` | `btsysscript.cpp`, `btitem.cpp` | the script slot the choice goes to kept as a pointer (`btitem_port.hpp`) and written through the host's `RS_STACKDATA`, whose value is at byte 8 |
 | `BtSystemScriptLoad`, `BtSystemScriptRun` | `btsysscript.cpp` | the event script kept as a pointer, not in `BtEventData` |
+| `EdEventMode`'s `EdMenuMode` | `editloop3.cpp` | the chosen map written through the script slot whose address has the low 32 bits `_WORLD_MAP` kept in `p_jump_map_no`, an `int` read from the stack's union, which is then cleared so retail's write is skipped; `_WORLD_MAP` and `p_jump_map_no` are `static`, so the stub header gives the call and the statics names the port reaches, and `truncations.py`, which follows casts, does not see a pointer read as `stack->i` |
 | `EditInit`, `InitWorkBuffer` | `editloop_init.cpp` | arena starts rounded on the whole pointer |
 | `CommandWATER_SHAKE` | `editmapscript.cpp` | the wave slot on a `uintptr_t` |
 | `CEditGround::DrawPartsCursor` | `editground.cpp` | the preview frame `LoadObjectParts` keeps in an `s32` matched against the part's own frames |

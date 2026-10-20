@@ -3,6 +3,7 @@
 #include <libvu0.h>
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -11,6 +12,7 @@
 #include "editloop3.hpp"
 #include "editloop.hpp"
 #include "editpartsinfo.hpp"
+#include "battlemenu.hpp"
 #include "boxvu0.hpp"
 #include "camera.hpp"
 #include "character.hpp"
@@ -29,11 +31,18 @@
 #include "main.hpp"
 #include "mglib.hpp"
 #include "quest_host.hpp"
+#include "runscript.hpp"
 #include "savedata.hpp"
 
 #include "platform/config.hpp"
 
 void PortEdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground);
+int  PortEdEventMenuMode();
+
+// editloop3.cpp's statics, under the global names port/include/stubs/editloop3.hpp gives them.
+extern CRunScript EdEventScript asm("EditLoop3_EdEventScript");
+extern int        EdEventMenu asm("EditLoop3_menu_mode");
+extern int        EdEventJumpMapNo asm("EditLoop3_p_jump_map_no");
 
 namespace {
 
@@ -814,4 +823,28 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
     }
 
     return 0;
+}
+
+// EdEventMode's EdMenuMode (port/include/stubs/editloop3.hpp). As the world map an event opened
+// closes, retail writes MenuMapJumpMode + 1 through the int _WORLD_MAP kept of the slot's address.
+// A reference only ever points into its interpreter's operand stack, so the slot is the one there
+// whose address has those low 32 bits; the choice goes through it, and the int is cleared so that
+// EdEventMode's own write is skipped.
+int PortEdEventMenuMode() {
+    const int finished = EdMenuMode();
+
+    if (finished != 0 && EdEventMenu == ED_MENU_WORLD_MAP && EdEventJumpMapNo != 0) {
+        const uintptr_t low = static_cast<uint32_t>(EdEventJumpMapNo);
+
+        for (RS_STACKDATA *slot = EdEventScript.stack; slot < EdEventScript.stack_end; slot++) {
+            if ((reinterpret_cast<uintptr_t>(slot) & 0xFFFFFFFFu) == low) {
+                slot->i = MenuMapJumpMode + 1;
+                break;
+            }
+        }
+
+        EdEventJumpMapNo = 0;
+    }
+
+    return finished;
 }
