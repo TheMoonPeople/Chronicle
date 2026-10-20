@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include "caption_text.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "localize.hpp"
 #include "memcard.hpp"
 #include "menu_dungeon.hpp"
 #include "menu_inventory.hpp"
@@ -17,7 +19,7 @@
 #include "name_mouse.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
-#include "localize.hpp"
+#include "texture.hpp"
 #include "textwipe.hpp"
 
 extern PERSONAL_BOARD *PerBoardPt;
@@ -62,6 +64,14 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
                                   alpha);
 }
 
+// The name alphabet's cells (the keyboard, the name being entered, the save slots, the ally card) drawn from the font.
+bool DrawAlphabetCell(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int r, int g, int b, int alpha) {
+    return texture != nullptr && std::string_view(texture->name) == "alphabet" &&
+           caption::DrawAlphabetCell(texel.x, texel.y, texel.width, texel.height, static_cast<float>(screen.x),
+                                     static_cast<float>(screen.y), static_cast<float>(screen.width),
+                                     static_cast<float>(screen.height), r, g, b, alpha);
+}
+
 } // namespace
 
 PORT_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
@@ -92,7 +102,7 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
 }
 
 PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
-    if (DrawBoardName(texture, screen, texel, alpha)) {
+    if (DrawAlphabetCell(texture, screen, texel, 0x80, 0x80, 0x80, alpha) || DrawBoardName(texture, screen, texel, alpha)) {
         return;
     }
     set2DSprite(GetVif1Packet(), texture, screen, texel, alpha);
@@ -112,7 +122,7 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
     }
 
     NameMouseHand(texture, screen, texel, r == 0 && g == 0 && b == 0);
-    if (DrawBoardName(texture, screen, texel, alpha)) {
+    if (DrawAlphabetCell(texture, screen, texel, r, g, b, alpha) || DrawBoardName(texture, screen, texel, alpha)) {
         return;
     }
     set2DSprite(GetVif1Packet(), texture, screen, texel, r, g, b, alpha);

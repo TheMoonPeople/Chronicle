@@ -27,6 +27,22 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out);
 bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out, float erode_px = 0.0f);
 bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int &w, int &h, int &x0, int &y0);
 
+// How a painted glyph looks, in screen pixels: the letter swept depth_x, depth_y down and right in body (its depth),
+// its face in fill with `strokes` strokes `stroke` wide inside its edge stepping from body to fill, and an outline
+// `outline` wide round the whole in ring.
+struct Paint {
+    float         depth_x, depth_y;
+    float         stroke;
+    int           strokes;
+    float         outline;
+    unsigned char fill[3], body[3], ring[3];
+};
+
+// The main font's ch (with part >= 0 only that piece of it, its pieces counted left to right) with its outline's
+// bounds stretched to box_w x box_h pixels, painted; its offsets are from the box's top left. Every layer is an offset
+// of the outline itself, so each edge is anti-aliased as finely as the letter's.
+bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out);
+
 // Slot 1: Optional thin variant font
 bool LoadVariant(const std::filesystem::path &file);
 bool VariantLoaded();

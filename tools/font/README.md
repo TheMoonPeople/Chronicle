@@ -13,7 +13,9 @@ letters, the cedilla, `¡`, `¿`, `œ` and `Œ` are blank; the port builds them 
 when it draws.
 
 The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. Text the port
-draws from a font uses Bold; the area cards and the floor select's boss names use Regular. When the disc is extracted
+draws from a font uses Bold, as do the name
+alphabet's characters (the name entry keyboard, the names on it, the save slots and the ally card), drawn in the
+painted alphabet's look; the area cards and the floor select's boss names use Regular. When the disc is extracted
 (`dcdata extract`, the first-run extraction, or `dcdata sharp <data>` for data extracted before),
 `tools/dcdata/sharpfont.hpp` redraws the game's glyph sheet in the two at six times its size (the narrower set with the
 soft shadow the game's own letters carry in their texels) into `sharp/` in the data folder. With Text Font set to

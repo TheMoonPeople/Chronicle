@@ -361,99 +361,177 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
     draw2d::RestoreTestZbuf();
 }
 
-// The painted name alphabet's look, measured on it: the letters drawn wide, as tall as the alphabet's, lit from the
-// upper left (the near-white letter over copies of it in bright blue swept down and right, so a band of the blue shows
-// along its lower and right edges over the outline), in a navy outline swept a little down and right to give them
-// depth, and a near-black drop shadow.
-constexpr float         kNameCap = 12.5f;
-constexpr float         kNameTop = -0.4f; // where the painted letters' ink starts against the cell the game gives
-constexpr float         kNameOutline = 1.0f;
-constexpr LabelCopy     kNameDepth = {0.7f, 0.8f};
-constexpr LabelCopy     kNameShadow = {2.5f, 2.1f};
-constexpr float         kNameGap = 0.06f;
-constexpr float         kNameInset = 4.0f; // the alphabet's letters' ink falls this far inside the span the game gives
-constexpr unsigned char kNameFill[3] = {232, 230, 216};
-constexpr unsigned char kNameShade[3] = {10, 10, 10};
-constexpr unsigned char kNameRing[3] = {0, 17, 121};
-constexpr unsigned char kNameBody[3] = {50, 55, 190};
-constexpr LabelCopy     kNameBodyAt = {0.9f, 0.9f};
+// The name alphabet's look, in its sheet's pixels: each character swept half a pixel right and three quarters down in
+// bright blue, its cream face stepping in from the blue in three strokes a fifth of a pixel wide, and a pixel of navy
+// round the whole.
+constexpr int           kAlphaCell = 22;
+constexpr float         kAlphaDepthX = 0.5f;
+constexpr float         kAlphaDepthY = 0.75f;
+constexpr float         kAlphaStroke = 0.2f;
+constexpr int           kAlphaStrokes = 3;
+constexpr float         kAlphaOutline = 1.0f;
+constexpr unsigned char kAlphaFill[3] = {232, 230, 216};
+constexpr unsigned char kAlphaBody[3] = {52, 56, 192};
+constexpr unsigned char kAlphaRing[3] = {0, 17, 121};
+
+// Where each of the sheet's characters sits in its cell (row, column), fitted to the painting: the box its outline's
+// bounds (with a piece, that piece's) are stretched to, in cell pixels. The letters and digits are at one scale, centred
+// on the painted ones; the symbols each fitted to their own, mirrored pairs one size, the dots the font's roundness,
+// the colon both its dots the one.
+struct AlphaPlace {
+    int      row, col;
+    char32_t ch;
+    int      part;
+    float    x, y, w, h;
+};
+
+constexpr AlphaPlace kAlphabet[] = {
+    {0, 0, U'A',  -1, 2.167f, 3.000f,  17.167f, 15.167f},
+    {0, 1, U'B',  -1, 2.833f, 3.167f,  16.833f, 14.833f},
+    {0, 2, U'C',  -1, 3.000f, 3.167f,  17.500f, 14.833f},
+    {0, 3, U'D',  -1, 2.333f, 3.000f,  16.833f, 15.167f},
+    {0, 4, U'E',  -1, 2.500f, 3.167f,  17.500f, 15.000f},
+    {0, 5, U'F',  -1, 3.000f, 3.000f,  16.500f, 15.167f},
+    {0, 6, U'G',  -1, 2.333f, 3.000f,  18.000f, 15.167f},
+    {0, 7, U'H',  -1, 2.167f, 3.000f,  17.167f, 15.167f},
+    {0, 8, U'I',  -1, 7.333f, 3.000f,  7.000f,  15.333f},
+    {0, 9, U'J',  -1, 1.167f, 3.000f,  17.167f, 15.167f},
+    {1, 0, U'K',  -1, 1.667f, 3.500f,  18.000f, 15.167f},
+    {1, 1, U'L',  -1, 2.667f, 3.500f,  17.000f, 15.167f},
+    {1, 2, U'M',  -1, 2.000f, 3.833f,  17.667f, 14.667f},
+    {1, 3, U'N',  -1, 2.000f, 3.667f,  17.667f, 15.000f},
+    {1, 4, U'O',  -1, 3.000f, 3.667f,  16.667f, 14.833f},
+    {1, 5, U'P',  -1, 4.000f, 3.000f,  16.500f, 15.333f},
+    {1, 6, U'Q',  -1, 2.000f, 3.500f,  17.333f, 15.167f},
+    {1, 7, U'R',  -1, 2.000f, 3.000f,  16.500f, 15.333f},
+    {1, 8, U'S',  -1, 2.000f, 3.667f,  16.500f, 15.000f},
+    {1, 9, U'T',  -1, 2.333f, 3.667f,  16.667f, 14.833f},
+    {2, 0, U'U',  -1, 3.000f, 3.667f,  17.500f, 14.833f},
+    {2, 1, U'V',  -1, 3.000f, 3.667f,  16.667f, 15.000f},
+    {2, 2, U'W',  -1, 3.000f, 3.167f,  17.500f, 15.000f},
+    {2, 3, U'X',  -1, 3.333f, 3.167f,  16.833f, 14.833f},
+    {2, 4, U'Y',  -1, 3.333f, 3.167f,  15.667f, 15.000f},
+    {2, 5, U'Z',  -1, 2.667f, 3.000f,  17.333f, 15.167f},
+    {2, 6, U'a',  -1, 3.000f, 7.167f,  16.333f, 11.000f},
+    {2, 7, U'b',  -1, 2.667f, 3.167f,  16.000f, 15.000f},
+    {2, 8, U'c',  -1, 2.000f, 7.000f,  16.333f, 11.333f},
+    {2, 9, U'd',  -1, 3.000f, 3.167f,  16.500f, 15.000f},
+    {3, 0, U'e',  -1, 3.000f, 7.167f,  16.667f, 11.000f},
+    {3, 1, U'f',  -1, 3.333f, 3.167f,  16.667f, 15.000f},
+    {3, 2, U'g',  -1, 2.333f, 6.333f,  16.833f, 12.667f},
+    {3, 3, U'h',  -1, 3.167f, 3.667f,  17.167f, 14.833f},
+    {3, 4, U'i',  -1, 8.000f, 3.667f,  6.667f,  15.000f},
+    {3, 5, U'j',  -1, 4.333f, 4.000f,  16.000f, 16.333f},
+    {3, 6, U'k',  -1, 3.000f, 3.000f,  16.667f, 15.167f},
+    {3, 7, U'l',  -1, 8.333f, 3.333f,  5.833f,  14.667f},
+    {3, 8, U'm',  -1, 2.000f, 7.000f,  17.333f, 11.167f},
+    {3, 9, U'n',  -1, 2.000f, 7.167f,  17.333f, 10.833f},
+    {4, 0, U'o',  -1, 2.833f, 7.000f,  16.833f, 11.167f},
+    {4, 1, U'p',  -1, 3.000f, 7.000f,  16.500f, 12.167f},
+    {4, 2, U'q',  -1, 1.667f, 7.000f,  18.000f, 12.167f},
+    {4, 3, U'r',  -1, 2.000f, 7.833f,  16.333f, 10.500f},
+    {4, 4, U's',  -1, 2.167f, 7.000f,  17.167f, 11.333f},
+    {4, 5, U't',  -1, 3.000f, 3.500f,  16.667f, 14.333f},
+    {4, 6, U'u',  -1, 2.500f, 7.333f,  16.500f, 10.667f},
+    {4, 7, U'v',  -1, 2.500f, 6.833f,  16.500f, 11.500f},
+    {4, 8, U'w',  -1, 2.333f, 7.167f,  17.000f, 11.000f},
+    {4, 9, U'x',  -1, 2.833f, 7.333f,  16.833f, 10.667f},
+    {5, 0, U'y',  -1, 2.667f, 7.667f,  17.333f, 12.000f},
+    {5, 1, U'z',  -1, 2.500f, 7.000f,  17.500f, 11.333f},
+    {5, 2, U'\'', -1, 2.076f, 1.908f,  8.241f,  6.594f },
+    {5, 3, U'=',  0,  2.886f, 7.325f,  17.257f, 3.440f },
+    {5, 3, U'=',  1,  3.062f, 13.476f, 17.201f, 3.158f },
+    {5, 4, U'"',  -1, 2.754f, 1.000f,  10.142f, 7.356f },
+    {5, 5, U'!',  -1, 6.667f, 3.333f,  10.000f, 14.500f},
+    {5, 6, U'?',  -1, 3.000f, 2.333f,  16.333f, 15.500f},
+    {5, 7, U'#',  -1, 1.000f, 2.797f,  18.500f, 16.453f},
+    {5, 8, U'&',  -1, 1.000f, 2.874f,  18.500f, 15.591f},
+    {5, 9, U'+',  -1, 2.026f, 1.000f,  15.999f, 18.250f},
+    {6, 0, U'-',  -1, 2.532f, 9.231f,  16.968f, 2.584f },
+    {6, 1, U'*',  -1, 2.801f, 1.921f,  16.693f, 17.329f},
+    {6, 2, U'/',  -1, 2.140f, 2.945f,  17.360f, 16.305f},
+    {6, 3, U'%',  -1, 1.000f, 2.153f,  18.500f, 17.097f},
+    {6, 4, U'~',  -1, 1.000f, 9.173f,  19.500f, 4.904f },
+    {6, 5, U'(',  -1, 7.685f, 1.000f,  11.815f, 18.250f},
+    {6, 6, U')',  -1, 1.035f, 1.000f,  11.815f, 18.250f},
+    {6, 7, U'@',  -1, 1.000f, 1.000f,  18.500f, 17.314f},
+    {6, 9, U'|',  -1, 8.112f, 2.023f,  4.908f,  17.045f},
+    {7, 0, U'<',  -1, 1.000f, 3.417f,  18.500f, 15.833f},
+    {7, 1, U'>',  -1, 1.000f, 3.417f,  18.500f, 15.833f},
+    {7, 2, U'{',  -1, 4.667f, 3.167f,  9.333f,  15.833f},
+    {7, 3, U'}',  -1, 6.167f, 3.167f,  9.167f,  15.833f},
+    {7, 4, U'「', -1, 7.091f, 1.000f,  9.749f,  18.250f},
+    {7, 5, U'」', -1, 5.730f, 1.000f,  9.749f,  18.250f},
+    {7, 6, U'『', -1, 7.058f, 1.000f,  9.984f,  18.250f},
+    {7, 7, U'』', -1, 5.021f, 1.000f,  9.984f,  18.250f},
+    {7, 8, U'[',  -1, 5.458f, 1.000f,  11.123f, 18.250f},
+    {7, 9, U']',  -1, 4.018f, 1.000f,  11.123f, 18.250f},
+    {8, 0, U'0',  -1, 1.667f, 4.167f,  17.167f, 15.000f},
+    {8, 1, U'1',  -1, 6.333f, 3.667f,  9.667f,  14.833f},
+    {8, 2, U'2',  -1, 1.667f, 3.333f,  17.167f, 14.667f},
+    {8, 3, U'3',  -1, 2.333f, 3.000f,  16.833f, 15.167f},
+    {8, 4, U'4',  -1, 2.667f, 3.167f,  17.000f, 15.000f},
+    {8, 5, U'5',  -1, 1.833f, 3.500f,  16.833f, 15.167f},
+    {8, 6, U'6',  -1, 2.667f, 3.000f,  17.000f, 15.167f},
+    {8, 7, U'7',  -1, 2.333f, 3.167f,  16.833f, 14.833f},
+    {8, 8, U'8',  -1, 2.667f, 3.000f,  16.000f, 15.167f},
+    {8, 9, U'9',  -1, 1.667f, 3.167f,  17.000f, 15.000f},
+    {9, 0, U'・', -1, 8.237f, 8.039f,  4.709f,  4.546f },
+    {9, 1, U'.',  -1, 5.959f, 14.704f, 4.709f,  4.546f },
+    {9, 2, U'。', -1, 4.868f, 13.596f, 5.805f,  5.654f },
+    {9, 3, U':',  0,  8.274f, 4.502f,  6.187f,  5.241f },
+    {9, 3, U':',  0,  8.310f, 13.053f, 6.187f,  5.241f },
+    {9, 4, U',',  -1, 4.799f, 14.704f, 5.500f,  5.546f },
+    {9, 5, U'.',  -1, 4.865f, 14.704f, 4.709f,  4.546f },
+    {9, 6, U'$',  -1, 1.345f, 1.614f,  18.155f, 17.636f},
+};
 
 } // namespace
 
-bool DrawName(const std::u32string &text, float center_x, float top_y, float max_width, int alpha) {
-    if (!FontReady() || text.empty()) {
+bool DrawAlphabetCell(int u, int v, int texel_width, int texel_height, float x, float y, float width, float height, int r,
+                      int g, int b, int alpha) {
+    if (u % kAlphaCell != 0 || v % kAlphaCell != 0 || texel_width != kAlphaCell || texel_height < kAlphaCell - 1 ||
+        texel_height > kAlphaCell + 1 || width <= 0 || height <= 0 || !FontReady()) {
+        return false;
+    }
+    const int row = v / kAlphaCell, col = u / kAlphaCell;
+    auto      cell = std::find_if(std::begin(kAlphabet), std::end(kAlphabet), [&](const AlphaPlace &place) {
+        return place.row == row && place.col == col;
+    });
+    if (cell == std::end(kAlphabet)) {
         return false;
     }
     const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
     const float               rows = draw2d::RowScale();
-    const capfont::Metrics    metrics = capfont::GetMetrics();
-    const float               em = kNameCap / std::max(metrics.cap, 0.1f);
-    const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
-    const float               outline_px = kNameOutline * mapping.scale_x;
+    // Screen pixels to a cell pixel, across and down.
+    const float    kx = mapping.scale_x * width / static_cast<float>(texel_width);
+    const float    ky = mapping.scale_y * rows * height / static_cast<float>(texel_height);
+    const float    k = std::sqrt(kx * ky);
+    capfont::Paint paint = {kAlphaDepthX * kx, kAlphaDepthY * ky, kAlphaStroke * k, kAlphaStrokes, kAlphaOutline * k, {}, {}, {}};
+    std::copy_n(kAlphaFill, 3, paint.fill);
+    std::copy_n(kAlphaBody, 3, paint.body);
+    std::copy_n(kAlphaRing, 3, paint.ring);
 
-    // The stretch that fills the span, from the letters' own widths; the letters are then drawn that wide.
-    float natural = 0.0f;
-    for (char32_t ch : text) {
+    auto                       snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    const u_char               red = static_cast<u_char>(std::clamp(r, 0, 255)), green = static_cast<u_char>(std::clamp(g, 0, 255));
+    const u_char               blue = static_cast<u_char>(std::clamp(b, 0, 255)), a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
+    std::vector<gfx::Vertex2D> quads;
+    for (auto place = cell; place != std::end(kAlphabet) && place->row == row && place->col == col; ++place) {
         capfont::Glyph glyph;
-        natural += capfont::GetGlyph(ch, em_px, glyph) ? glyph.width / mapping.scale_x + em * kNameGap : em * 0.32f;
-    }
-    natural -= em * kNameGap;
-    const float fill_width = max_width - kNameInset;
-    const float stretch = fill_width > 0 && natural > 0 ? std::clamp(fill_width / natural, 0.6f, 2.4f) : 1.0f;
-
-    const float base = top_y + kNameTop + kNameOutline + kNameCap;
-    auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
-    auto        pixels = [&](LabelCopy at) {
-        return std::make_pair(static_cast<int>(std::lround(at.dx * mapping.scale_x)),
-                              static_cast<int>(std::lround(at.dy * rows * mapping.scale_y)));
-    };
-    const auto [depth_x, depth_y] = pixels(kNameDepth);
-    const auto [shade_x, shade_y] = pixels(kNameShadow);
-
-    std::vector<gfx::Vertex2D> shades, rings, bodies, fills;
-    const auto [body_x, body_y] = pixels(kNameBodyAt);
-    float                      pen = center_x - natural * stretch / 2;
-    for (char32_t ch : text) {
-        capfont::Glyph fill, ring;
-        if (!capfont::GetStretchedGlyph(ch, em_px, 0, stretch, true, fill)) {
-            pen += em * 0.32f * stretch;
-            continue;
+        if (!capfont::GetPaintedGlyph(place->ch, place->part, place->w * kx, place->h * ky, paint, glyph)) {
+            return false;
         }
-        const bool has_ring = capfont::GetStretchedGlyph(ch, em_px, outline_px, stretch, true, ring);
-        auto       place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], int px_x,
-                         int px_y) {
-            if (glyph.width <= 0 || glyph.height <= 0) {
-                return;
-            }
-            float gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x;
-            float gy = base * rows + glyph.y_offset / mapping.scale_y;
-            gx = snap(gx, mapping.scale_x, mapping.offset_x) + static_cast<float>(px_x) / mapping.scale_x;
-            gy = snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
-            Quad(out, glyph, gx, gy, glyph.width / mapping.scale_x, glyph.height / mapping.scale_y * rows, rgb, alpha);
-        };
-        // A copy stamped on every pixel from the letter's place to (to_x, to_y).
-        auto sweep = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], int to_x,
-                         int to_y) {
-            const int steps = std::max({1, std::abs(to_x), std::abs(to_y)});
-            for (int step = 0; step <= steps; step++) {
-                place(glyph, out, rgb, static_cast<int>(std::lround(static_cast<float>(to_x * step) / steps)),
-                      static_cast<int>(std::lround(static_cast<float>(to_y * step) / steps)));
-            }
-        };
-        if (has_ring) {
-            place(ring, shades, kNameShade, shade_x, shade_y);
-            sweep(ring, rings, kNameRing, depth_x, depth_y);
-        }
-        sweep(fill, bodies, kNameBody, body_x, body_y);
-        place(fill, fills, kNameFill, 0, 0);
-        pen += fill.width / mapping.scale_x + em * kNameGap * stretch;
+        const float left = snap(x + place->x * width / static_cast<float>(texel_width), mapping.scale_x, mapping.offset_x) +
+                           glyph.x_offset / mapping.scale_x;
+        const float top = snap((y + place->y * height / static_cast<float>(texel_height)) * rows, mapping.scale_y, mapping.offset_y) +
+                          glyph.y_offset / mapping.scale_y;
+        const float right = left + glyph.width / mapping.scale_x, bottom = top + glyph.height / mapping.scale_y;
+        quads.push_back(draw2d::Vertex(left, top, 0.0f, glyph.u0, glyph.v0, red, green, blue, a));
+        quads.push_back(draw2d::Vertex(right, top, 0.0f, glyph.u1, glyph.v0, red, green, blue, a));
+        quads.push_back(draw2d::Vertex(right, bottom, 0.0f, glyph.u1, glyph.v1, red, green, blue, a));
+        quads.push_back(draw2d::Vertex(left, bottom, 0.0f, glyph.u0, glyph.v1, red, green, blue, a));
     }
-    const gfx::TextureBinding binding = capfont::Binding();
-    for (auto *layer : {&shades, &rings, &bodies, &fills}) {
-        if (!layer->empty()) {
-            textwipe::Draw2D(gfx::Primitive::Quads, *layer, binding, draw2d::SpriteState());
-        }
-    }
+    textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
     draw2d::RestoreTestZbuf();
     return true;
 }

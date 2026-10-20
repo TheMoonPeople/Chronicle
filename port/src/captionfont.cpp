@@ -1,6 +1,7 @@
 #include "captionfont.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -34,6 +35,7 @@ struct Atlas {
     int                                       row_height = 0;
     std::map<std::pair<char32_t, int>, Glyph> glyphs;
     std::map<std::pair<char32_t, int>, bool>  missing;
+    std::map<std::array<int, 12>, Glyph>      painted;
 };
 
 Font     g_fonts[3];
@@ -712,6 +714,254 @@ bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) 
     out.height = static_cast<float>(h);
     g_atlas.x += pw;
     g_atlas.row_height = std::max(g_atlas.row_height, ph);
+    return true;
+}
+
+namespace {
+
+struct Point {
+    float x, y;
+};
+
+// A glyph's contours in font units, its curves in short straight pieces.
+std::vector<std::vector<Point>> Contours(const stbtt_fontinfo &info, int index) {
+    stbtt_vertex                   *vertices = nullptr;
+    const int                       count = stbtt_GetGlyphShape(&info, index, &vertices);
+    std::vector<std::vector<Point>> out;
+    Point                           at = {};
+    for (int i = 0; i < count; i++) {
+        const stbtt_vertex &v = vertices[i];
+        const Point         to = {static_cast<float>(v.x), static_cast<float>(v.y)};
+        if (v.type == STBTT_vmove) {
+            out.push_back({to});
+        } else if (!out.empty() && v.type == STBTT_vline) {
+            out.back().push_back(to);
+        } else if (!out.empty() && v.type == STBTT_vcurve) {
+            const Point c = {static_cast<float>(v.cx), static_cast<float>(v.cy)};
+            for (int step = 1; step <= 16; step++) {
+                const float t = static_cast<float>(step) / 16, s = 1 - t;
+                out.back().push_back({s * s * at.x + 2 * s * t * c.x + t * t * to.x, s * s * at.y + 2 * s * t * c.y + t * t * to.y});
+            }
+        } else if (!out.empty() && v.type == STBTT_vcubic) {
+            const Point c0 = {static_cast<float>(v.cx), static_cast<float>(v.cy)};
+            const Point c1 = {static_cast<float>(v.cx1), static_cast<float>(v.cy1)};
+            for (int step = 1; step <= 16; step++) {
+                const float t = static_cast<float>(step) / 16, s = 1 - t;
+                out.back().push_back({s * s * s * at.x + 3 * s * s * t * c0.x + 3 * s * t * t * c1.x + t * t * t * to.x,
+                                      s * s * s * at.y + 3 * s * s * t * c0.y + 3 * s * t * t * c1.y + t * t * t * to.y});
+            }
+        }
+        at = to;
+    }
+    stbtt_FreeShape(&info, vertices);
+    std::erase_if(out, [](const std::vector<Point> &c) { return c.size() < 3; });
+    return out;
+}
+
+float Area(const std::vector<Point> &c) {
+    float sum = 0;
+    for (size_t i = 0, j = c.size() - 1; i < c.size(); j = i++) {
+        sum += c[j].x * c[i].y - c[i].x * c[j].y;
+    }
+    return sum / 2;
+}
+
+bool Inside(const std::vector<Point> &c, Point p) {
+    bool in = false;
+    for (size_t i = 0, j = c.size() - 1; i < c.size(); j = i++) {
+        if ((c[i].y > p.y) != (c[j].y > p.y) && p.x < (c[j].x - c[i].x) * (p.y - c[i].y) / (c[j].y - c[i].y) + c[i].x) {
+            in = !in;
+        }
+    }
+    return in;
+}
+
+// One piece of a glyph: an outer contour with the holes inside it. Pieces run left to right, a column top first.
+std::vector<std::vector<Point>> Piece(std::vector<std::vector<Point>> contours, int part) {
+    if (part < 0 || contours.empty()) {
+        return contours;
+    }
+    float largest = 0;
+    for (const auto &c : contours) {
+        largest = std::abs(Area(c)) > std::abs(largest) ? Area(c) : largest;
+    }
+    std::vector<std::vector<std::vector<Point>>> pieces;
+    std::vector<const std::vector<Point> *>      holes;
+    for (const auto &c : contours) {
+        if ((Area(c) > 0) == (largest > 0)) {
+            pieces.push_back({c});
+        } else {
+            holes.push_back(&c);
+        }
+    }
+    for (const auto *hole : holes) {
+        for (auto &piece : pieces) {
+            if (Inside(piece[0], hole->front())) {
+                piece.push_back(*hole);
+                break;
+            }
+        }
+    }
+    auto left_top = [](const std::vector<std::vector<Point>> &piece) {
+        float x = 1e9f, y = -1e9f;
+        for (const Point &p : piece[0]) {
+            x = std::min(x, p.x);
+            y = std::max(y, p.y);
+        }
+        return std::make_pair(x, -y);
+    };
+    std::sort(pieces.begin(), pieces.end(), [&](const auto &a, const auto &b) { return left_top(a) < left_top(b); });
+    return part < static_cast<int>(pieces.size()) ? pieces[static_cast<size_t>(part)] : std::vector<std::vector<Point>>{};
+}
+
+} // namespace
+
+bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out) {
+    const Font &font = g_fonts[0];
+    if (!font.loaded || box_w < 1 || box_h < 1 || box_w > 512 || box_h > 512) {
+        return false;
+    }
+    auto       q = [](float v, float k) { return static_cast<int>(std::lround(v * k)); };
+    const auto key = std::array<int, 12>{static_cast<int>(ch), part, q(box_w, 8), q(box_h, 8), q(paint.depth_x, 16), q(paint.depth_y, 16),
+                                         q(paint.stroke, 64), paint.strokes, q(paint.outline, 16),
+                                         paint.fill[0] << 16 | paint.fill[1] << 8 | paint.fill[2],
+                                         paint.body[0] << 16 | paint.body[1] << 8 | paint.body[2],
+                                         paint.ring[0] << 16 | paint.ring[1] << 8 | paint.ring[2]};
+    if (auto found = g_atlas.painted.find(key); found != g_atlas.painted.end()) {
+        out = found->second;
+        return true;
+    }
+    const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch));
+    std::vector<std::vector<Point>> contours = Piece(index != 0 ? Contours(font.info, index) : std::vector<std::vector<Point>>{}, part);
+    if (contours.empty()) {
+        return false;
+    }
+
+    // The outline in the box's pixels, y down.
+    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    for (const auto &c : contours) {
+        for (const Point &p : c) {
+            x0 = std::min(x0, p.x);
+            x1 = std::max(x1, p.x);
+            y0 = std::min(y0, p.y);
+            y1 = std::max(y1, p.y);
+        }
+    }
+    const float sx = box_w / std::max(x1 - x0, 1.0f), sy = box_h / std::max(y1 - y0, 1.0f);
+    for (auto &c : contours) {
+        for (Point &p : c) {
+            p = {(p.x - x0) * sx, (y1 - p.y) * sy};
+        }
+    }
+
+    // The bitmap: the box, the depth and the outline, and a pixel spare all round.
+    const float reach = paint.outline + 1.5f;
+    const int   left = static_cast<int>(std::floor(-reach)), top = left;
+    const int   w = static_cast<int>(std::ceil(box_w + paint.depth_x + reach)) - left;
+    const int   h = static_cast<int>(std::ceil(box_h + paint.depth_y + reach)) - top;
+
+    // The signed distance from each pixel's centre to the outline (negative inside), as far as any layer looks.
+    const float band = std::max(paint.outline + std::hypot(paint.depth_x, paint.depth_y), paint.stroke * static_cast<float>(paint.strokes)) + 2.0f;
+
+    struct Segment {
+        Point a, b;
+    };
+
+    std::vector<Segment> segments;
+    for (const auto &c : contours) {
+        for (size_t i = 0, j = c.size() - 1; i < c.size(); j = i++) {
+            segments.push_back({c[j], c[i]});
+        }
+    }
+    std::vector<float> distance(static_cast<size_t>(w) * h, band);
+    std::vector<int>   winding(static_cast<size_t>(w) * h, 0);
+    for (const Segment &s : segments) {
+        // Every pixel within the band of the segment learns how near it is.
+        const int   gx0 = std::max(0, static_cast<int>(std::floor(std::min(s.a.x, s.b.x) - band)) - left);
+        const int   gx1 = std::min(w - 1, static_cast<int>(std::ceil(std::max(s.a.x, s.b.x) + band)) - left);
+        const int   gy0 = std::max(0, static_cast<int>(std::floor(std::min(s.a.y, s.b.y) - band)) - top);
+        const int   gy1 = std::min(h - 1, static_cast<int>(std::ceil(std::max(s.a.y, s.b.y) + band)) - top);
+        const float dx = s.b.x - s.a.x, dy = s.b.y - s.a.y, length = dx * dx + dy * dy;
+        for (int gy = gy0; gy <= gy1; gy++) {
+            for (int gx = gx0; gx <= gx1; gx++) {
+                const float px = static_cast<float>(gx + left) + 0.5f, py = static_cast<float>(gy + top) + 0.5f;
+                const float t = length > 0 ? std::clamp(((px - s.a.x) * dx + (py - s.a.y) * dy) / length, 0.0f, 1.0f) : 0.0f;
+                float      &d = distance[static_cast<size_t>(gy) * w + gx];
+                d = std::min(d, std::hypot(px - (s.a.x + t * dx), py - (s.a.y + t * dy)));
+            }
+        }
+        // Which pixels it winds round: a crossing of each row's centre line counts for the pixels right of it.
+        if (s.a.y == s.b.y) {
+            continue;
+        }
+        const int dir = s.b.y > s.a.y ? 1 : -1;
+        for (int gy = 0; gy < h; gy++) {
+            const float py = static_cast<float>(gy + top) + 0.5f;
+            if ((py >= s.a.y) == (py >= s.b.y)) {
+                continue;
+            }
+            const float cross = s.a.x + (py - s.a.y) / dy * dx;
+            const int   from = std::max(0, static_cast<int>(std::ceil(cross - 0.5f)) - left);
+            for (int gx = from; gx < w; gx++) {
+                winding[static_cast<size_t>(gy) * w + gx] += dir;
+            }
+        }
+    }
+    for (size_t i = 0; i < distance.size(); i++) {
+        if (winding[i] != 0) {
+            distance[i] = -distance[i];
+        }
+    }
+    auto at = [&](float px, float py) {
+        // Bilinear between pixel centres; beyond the bitmap, outside.
+        const float fx = px - static_cast<float>(left) - 0.5f, fy = py - static_cast<float>(top) - 0.5f;
+        const int   ix = static_cast<int>(std::floor(fx)), iy = static_cast<int>(std::floor(fy));
+        const float tx = fx - static_cast<float>(ix), ty = fy - static_cast<float>(iy);
+        auto        get = [&](int gx, int gy) {
+            return gx < 0 || gy < 0 || gx >= w || gy >= h ? band : distance[static_cast<size_t>(gy) * w + gx];
+        };
+        return (get(ix, iy) * (1 - tx) + get(ix + 1, iy) * tx) * (1 - ty) + (get(ix, iy + 1) * (1 - tx) + get(ix + 1, iy + 1) * tx) * ty;
+    };
+    auto cover = [](float signed_distance) { return std::clamp(0.5f - signed_distance, 0.0f, 1.0f); };
+
+    const int                  steps = std::max(2, static_cast<int>(std::ceil(std::hypot(paint.depth_x, paint.depth_y) * 4)));
+    std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4);
+    for (int gy = 0; gy < h; gy++) {
+        for (int gx = 0; gx < w; gx++) {
+            const float px = static_cast<float>(gx + left) + 0.5f, py = static_cast<float>(gy + top) + 0.5f;
+            const float d = distance[static_cast<size_t>(gy) * w + gx];
+            // The letter swept along its depth: the nearest of its copies back along the sweep.
+            float wall = d;
+            for (int step = 1; step <= steps; step++) {
+                const float t = static_cast<float>(step) / static_cast<float>(steps);
+                wall = std::min(wall, at(px - t * paint.depth_x, py - t * paint.depth_y));
+            }
+            float rgb[3] = {paint.ring[0], paint.ring[1], paint.ring[2]};
+            auto  over = [&](const unsigned char (&colour)[3], float k, float amount) {
+                for (int c = 0; c < 3; c++) {
+                    rgb[c] += (static_cast<float>(colour[c]) * (1 - k) + static_cast<float>(paint.fill[c]) * k - rgb[c]) * amount;
+                }
+            };
+            over(paint.body, 0, cover(wall));
+            for (int i = 0; i <= paint.strokes; i++) {
+                over(paint.body, paint.strokes > 0 ? static_cast<float>(i) / static_cast<float>(paint.strokes) : 1.0f,
+                     cover(d + static_cast<float>(i) * paint.stroke));
+            }
+            unsigned char *texel = &rgba[(static_cast<size_t>(gy) * w + gx) * 4];
+            for (int c = 0; c < 3; c++) {
+                texel[c] = static_cast<unsigned char>(std::lround(std::clamp(rgb[c], 0.0f, 255.0f)));
+            }
+            texel[3] = static_cast<unsigned char>(std::lround(cover(wall - paint.outline) * 255));
+        }
+    }
+    Glyph glyph;
+    if (!AddImage(rgba, w, h, glyph)) {
+        return false;
+    }
+    glyph.x_offset = static_cast<float>(left);
+    glyph.y_offset = static_cast<float>(top);
+    g_atlas.painted[key] = glyph;
+    out = glyph;
     return true;
 }
 

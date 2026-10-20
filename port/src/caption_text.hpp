@@ -59,12 +59,12 @@ std::optional<CaptionBounds> PaintedBounds(int icon);
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 
 /**
- * Draws a character's name as the painted name alphabet looks (the ally card's): near-white letters drawn wide (the
- * stretch made before they are outlined) in the menus' blue outline swept a pixel down and right for depth, over a
- * near-black copy of it two pixels further; centred on center_x, the letters' cells from top_y, as wide as
- * max_width. False when there is no font to draw it with.
+ * Draws a cell of the name alphabet's sheet (the 22-pixel cell at u, v; the game cuts it 21 to 23 rows tall) stretched
+ * to the screen rectangle as the game draws it, its character drawn from the font in the painted alphabet's look, the
+ * game's colour (0x80 as painted) and alpha over it. False for a cell it has no character for, or no font.
  */
-bool DrawName(const std::u32string &text, float center_x, float top_y, float max_width, int alpha);
+bool DrawAlphabetCell(int u, int v, int texel_width, int texel_height, float x, float y, float width, float height, int r,
+                      int g, int b, int alpha);
 
 /**
  * Draws a name as the floor-select board's painted names look (the boss floors'): pale yellow letters of the narrower
