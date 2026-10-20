@@ -550,7 +550,8 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
     }
     const float advance = AdvanceOf(ch, scale) * static_cast<float>(stretch) / 64.0f;
     if (outline_px > 0) {
-        bitmap = Dilate(bitmap, outline_px * fine);
+        // With `smooth` the outline is given in the finer pixels already (a quarter of a pixel each).
+        bitmap = Dilate(bitmap, smooth ? outline_px : outline_px * fine);
     }
     if (fine > 1) {
         bitmap = Downsample(bitmap, fine);
@@ -615,8 +616,9 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
     return GetShapedGlyph(ch, em_px, outline_px, 64, false, out);
 }
 
-bool GetStretchedGlyph(char32_t ch, int em_px, int outline_px, float stretch, bool smooth, Glyph &out) {
-    return GetShapedGlyph(ch, em_px, outline_px, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, out);
+bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out) {
+    const int outline = static_cast<int>(std::lround(outline_px * (smooth ? 4.0f : 1.0f)));
+    return GetShapedGlyph(ch, em_px, outline, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, out);
 }
 
 bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) {

@@ -370,7 +370,7 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
 // pixels down and right.
 constexpr float         kNameCap = 12.5f;
 constexpr float         kNameTop = -0.4f; // where the painted letters' ink starts against the cell the game gives
-constexpr float         kNameOutline = 1.2f;
+constexpr float         kNameOutline = 1.0f;
 constexpr LabelCopy     kNameDepth = {0.7f, 0.5f};
 constexpr LabelCopy     kNameShadow = {2.5f, 2.1f};
 constexpr float         kNameGap = 0.06f;
@@ -390,7 +390,7 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
     const capfont::Metrics    metrics = capfont::GetMetrics();
     const float               em = kNameCap / std::max(metrics.cap, 0.1f);
     const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
-    const int                 outline_px = std::max(1, static_cast<int>(kNameOutline * mapping.scale_x + 0.5f));
+    const float               outline_px = kNameOutline * mapping.scale_x;
 
     // The stretch that fills the span, from the letters' own widths; the letters are then drawn that wide.
     float natural = 0.0f;
