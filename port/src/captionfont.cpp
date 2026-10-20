@@ -365,32 +365,29 @@ Bitmap Dilate(const Bitmap &in, int radius) {
     return out;
 }
 
-// The bitmap with its edges softened by a pixel more: a [1 2 1] blur each way, the bitmap a pixel bigger all round.
-Bitmap Soften(const Bitmap &in) {
-    if (in.w <= 0 || in.h <= 0) {
-        return in;
-    }
+// A bitmap `factor` times finer brought back to pixels: each pixel the average of the finer ones it covers, the
+// finer bitmap's origin rounded out to whole pixels first.
+Bitmap Downsample(const Bitmap &in, int factor) {
     Bitmap out;
-    out.x0 = in.x0 - 1;
-    out.y0 = in.y0 - 1;
-    out.w = in.w + 2;
-    out.h = in.h + 2;
-    auto at = [&](int row, int col) -> int {
-        row -= 1;
-        col -= 1;
-        return row >= 0 && row < in.h && col >= 0 && col < in.w ? in.alpha[static_cast<size_t>(row) * in.w + col] : 0;
-    };
-    std::vector<int> across(static_cast<size_t>(out.w) * out.h);
+    auto   floor_div = [](int v, int d) { return v >= 0 ? v / d : -((-v + d - 1) / d); };
+    out.x0 = floor_div(in.x0, factor);
+    out.y0 = floor_div(in.y0, factor);
+    const int shift_x = in.x0 - out.x0 * factor, shift_y = in.y0 - out.y0 * factor;
+    out.w = (in.w + shift_x + factor - 1) / factor;
+    out.h = (in.h + shift_y + factor - 1) / factor;
+    out.alpha.assign(static_cast<size_t>(std::max(out.w, 0)) * std::max(out.h, 0), 0);
     for (int row = 0; row < out.h; row++) {
         for (int col = 0; col < out.w; col++) {
-            across[static_cast<size_t>(row) * out.w + col] = at(row, col - 1) + 2 * at(row, col) + at(row, col + 1);
-        }
-    }
-    out.alpha.assign(static_cast<size_t>(out.w) * out.h, 0);
-    for (int row = 0; row < out.h; row++) {
-        for (int col = 0; col < out.w; col++) {
-            auto down = [&](int r) { return r >= 0 && r < out.h ? across[static_cast<size_t>(r) * out.w + col] : 0; };
-            out.alpha[static_cast<size_t>(row) * out.w + col] = static_cast<unsigned char>((down(row - 1) + 2 * down(row) + down(row + 1) + 8) / 16);
+            int sum = 0;
+            for (int dy = 0; dy < factor; dy++) {
+                for (int dx = 0; dx < factor; dx++) {
+                    const int r = row * factor + dy - shift_y, c = col * factor + dx - shift_x;
+                    if (r >= 0 && r < in.h && c >= 0 && c < in.w) {
+                        sum += in.alpha[static_cast<size_t>(r) * in.w + c];
+                    }
+                }
+            }
+            out.alpha[static_cast<size_t>(row) * out.w + col] = static_cast<unsigned char>(sum / (factor * factor));
         }
     }
     return out;
@@ -520,15 +517,16 @@ bool GetGlyph(char32_t ch, int em_px, Glyph &out) {
 
 namespace {
 
-// A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined (the outline the same all round), and
-// with `soft` its edges softened by a pixel more.
-bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool soft, Glyph &out) {
+// A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined (the outline the same all round); with
+// `smooth`, drawn and outlined four times finer and brought back, so the outline's edge is anti-aliased as finely as the
+// letter's own instead of stepping a pixel at a time.
+bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool smooth, Glyph &out) {
     if (!g_fonts[g_variant].loaded || em_px < 4 || em_px > 512 || outline_px < 0 || outline_px > 63 || stretch < 16 ||
         stretch > 255) {
         return false;
     }
     const auto key = std::make_pair(ch, em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22) +
-                                            (soft ? 1 << 30 : 0));
+                                            (smooth ? 1 << 30 : 0));
     if (auto found = g_atlas.glyphs.find(key); found != g_atlas.glyphs.end()) {
         out = found->second;
         return true;
@@ -543,18 +541,19 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool so
 
     const float scale = stbtt_ScaleForMappingEmToPixels(&g_fonts[g_variant].info, static_cast<float>(em_px));
     Bitmap      bitmap;
+    const int   fine = smooth ? 4 : 1;
     if (const int index = DrawnGlyph(ch); index != 0) {
-        bitmap = Raster(index, scale * static_cast<float>(stretch) / 64.0f, scale);
-    } else if (stretch != 64 || !Compose(ch, scale, em_px, bitmap)) {
+        bitmap = Raster(index, scale * static_cast<float>(stretch) / 64.0f * static_cast<float>(fine), scale * static_cast<float>(fine));
+    } else if (stretch != 64 || smooth || !Compose(ch, scale, em_px, bitmap)) {
         g_atlas.missing[key] = true;
         return false;
     }
     const float advance = AdvanceOf(ch, scale) * static_cast<float>(stretch) / 64.0f;
     if (outline_px > 0) {
-        bitmap = Dilate(bitmap, outline_px);
+        bitmap = Dilate(bitmap, outline_px * fine);
     }
-    if (soft) {
-        bitmap = Soften(bitmap);
+    if (fine > 1) {
+        bitmap = Downsample(bitmap, fine);
     }
     const int width = bitmap.w;
     const int height = bitmap.h;
@@ -616,8 +615,8 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
     return GetShapedGlyph(ch, em_px, outline_px, 64, false, out);
 }
 
-bool GetStretchedGlyph(char32_t ch, int em_px, int outline_px, float stretch, bool soft, Glyph &out) {
-    return GetShapedGlyph(ch, em_px, outline_px, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), soft, out);
+bool GetStretchedGlyph(char32_t ch, int em_px, int outline_px, float stretch, bool smooth, Glyph &out) {
+    return GetShapedGlyph(ch, em_px, outline_px, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, out);
 }
 
 bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) {

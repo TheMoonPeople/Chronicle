@@ -366,13 +366,13 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
 }
 
 // The painted name alphabet's look, measured on it: the letters drawn wide, as tall as the alphabet's, near-white in a
-// blue outline swept a little down and right to give the letters depth, a near-black drop shadow two pixels down and
-// right, and all of it soft-edged.
+// blue outline swept a little down and right to give the letters depth, and a near-black drop shadow two and a half
+// pixels down and right.
 constexpr float         kNameCap = 12.5f;
 constexpr float         kNameTop = -0.4f; // where the painted letters' ink starts against the cell the game gives
 constexpr float         kNameOutline = 1.2f;
 constexpr LabelCopy     kNameDepth = {0.7f, 0.7f};
-constexpr LabelCopy     kNameShadow = {2.0f, 2.0f};
+constexpr LabelCopy     kNameShadow = {2.5f, 2.5f};
 constexpr float         kNameGap = 0.06f;
 constexpr float         kNameInset = 4.0f; // the alphabet's letters' ink falls this far inside the span the game gives
 constexpr unsigned char kNameFill[3] = {232, 230, 216};
