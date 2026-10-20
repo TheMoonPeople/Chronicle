@@ -462,6 +462,89 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
     return true;
 }
 
+namespace {
+
+// The floor-select board's painted names, measured on them: caps 17 pixels tall, a pixel of navy round them, the
+// letters wide and close so their outlines overlap.
+constexpr float         kBoardCap = 17.0f;
+constexpr float         kBoardOutline = 1.0f;
+constexpr float         kBoardGap = 0.4f;   // between letters' fills
+constexpr float         kBoardSpace = 0.26f; // a space, in ems, before the stretch
+constexpr unsigned char kBoardFill[3] = {228, 226, 131};
+constexpr unsigned char kBoardRing[3] = {16, 16, 58};
+
+} // namespace
+
+bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float span, int alpha) {
+    if (!FontReady() || !capfont::VariantLoaded() || utf8.empty() || span <= 0) {
+        return false;
+    }
+    struct Variant {
+        Variant() { capfont::UseFontSlot(1); }
+
+        ~Variant() { capfont::UseFontSlot(0); }
+    } variant;
+    const std::u32string      text = Decode(utf8);
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float               rows = draw2d::RowScale();
+    const capfont::Metrics    metrics = capfont::GetMetrics();
+    const float               em = kBoardCap / std::max(metrics.cap, 0.1f);
+    const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
+
+    // The stretch that fills the span, from the letters' own widths.
+    float letters = 0.0f, spaces = 0.0f;
+    int   gaps = -1;
+    for (char32_t ch : text) {
+        capfont::Glyph glyph;
+        if (ch == U' ') {
+            spaces += em * kBoardSpace;
+        } else if (capfont::GetGlyph(ch, em_px, glyph)) {
+            letters += glyph.width / mapping.scale_x;
+            gaps++;
+        }
+    }
+    if (letters <= 0) {
+        return false;
+    }
+    const float stretch = std::clamp((span - kBoardGap * std::max(gaps, 0)) / (letters + spaces), 0.5f, 2.4f);
+
+    const float base = cap_top + kBoardCap;
+    auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    std::vector<gfx::Vertex2D> rings, fills;
+    float                      pen = left_x;
+    for (char32_t ch : text) {
+        if (ch == U' ') {
+            pen += em * kBoardSpace * stretch;
+            continue;
+        }
+        capfont::Glyph fill, ring;
+        if (!capfont::GetStretchedGlyph(ch, em_px, 0, stretch, true, fill)) {
+            continue;
+        }
+        auto place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3]) {
+            if (glyph.width <= 0 || glyph.height <= 0) {
+                return;
+            }
+            const float gx = snap(pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x, mapping.scale_x, mapping.offset_x);
+            const float gy = snap(base * rows + glyph.y_offset / mapping.scale_y, mapping.scale_y, mapping.offset_y);
+            Quad(out, glyph, gx, gy, glyph.width / mapping.scale_x, glyph.height / mapping.scale_y * rows, rgb, alpha);
+        };
+        if (capfont::GetStretchedGlyph(ch, em_px, kBoardOutline * mapping.scale_x, stretch, true, ring)) {
+            place(ring, rings, kBoardRing);
+        }
+        place(fill, fills, kBoardFill);
+        pen += fill.width / mapping.scale_x + kBoardGap;
+    }
+    const gfx::TextureBinding binding = capfont::Binding();
+    for (auto *layer : {&rings, &fills}) {
+        if (!layer->empty()) {
+            textwipe::Draw2D(gfx::Primitive::Quads, *layer, binding, draw2d::SpriteState());
+        }
+    }
+    draw2d::RestoreTestZbuf();
+    return true;
+}
+
 void SetNextCaption(const char *key, const char *english) {
     s_next_caption_key = key;
     s_next_caption_english = english;

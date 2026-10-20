@@ -16,9 +16,48 @@
 #include "name_mouse.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
+#include "localize.hpp"
 #include "textwipe.hpp"
 
 extern PERSONAL_BOARD *PerBoardPt;
+extern CTexture       *DunLogBoard;
+
+namespace {
+
+// The boss floors' names on the floor-select board, a row each of a 220x24 strip of the board's sheet, drawn in the
+// text font (English only: the port has no other language's names for them). How far right each painted name's
+// lettering reaches, from the strip's left.
+struct BoardName {
+    const char *english;
+    float       right;
+};
+
+constexpr BoardName kBoardNames[] = {
+    {"DIVINE BEAST DRAN'S CHAMBER", 216},
+    {"DWELLING OF FOREST GUARD",    216},
+    {"CHURCH OF MEMORY",            201},
+    {"COFFIN'S CHAMBER",            196},
+    {"COLISEUM",                    99 },
+    {"NIGHT OF INCIDENT",           196},
+    {"TOP FLOOR",                   110},
+};
+
+bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
+    // Only a whole row: one the list has clipped at its edge keeps the painting.
+    if (texture == nullptr || texture != DunLogBoard || texel.x != 0xFC || texel.width != 0xDC || texel.height != 0x18 ||
+        (texel.y - 0x20) % 0x18 != 0 || !caption::Ready() || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+        return false;
+    }
+    const int row = (texel.y - 0x20) / 0x18;
+    if (row < 0 || row >= static_cast<int>(std::size(kBoardNames))) {
+        return false;
+    }
+    const BoardName &name = kBoardNames[row];
+    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + 4, static_cast<float>(screen.y) + 4.5f,
+                                  name.right - 4, alpha);
+}
+
+} // namespace
 
 PORT_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
     // Align the buffer address to a 64-byte boundary across the full 64-bit address space.
@@ -47,6 +86,13 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
     DrawMenu2DSprite(texture, CRect_i_(left, top, right - left, bottom - top), MenuDispRc, alpha);
 }
 
+PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
+    if (DrawBoardName(texture, screen, texel, alpha)) {
+        return;
+    }
+    set2DSprite(GetVif1Packet(), texture, screen, texel, alpha);
+}
+
 PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, unsigned char r, unsigned char g,
                                     unsigned char b, int alpha) {
     // Clamp 1:1 sprite source heights so adjacent atlas rows are not sampled when scaled.
@@ -61,6 +107,9 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
     }
 
     NameMouseHand(texture, screen, texel, r == 0 && g == 0 && b == 0);
+    if (DrawBoardName(texture, screen, texel, alpha)) {
+        return;
+    }
     set2DSprite(GetVif1Packet(), texture, screen, texel, r, g, b, alpha);
 }
 
