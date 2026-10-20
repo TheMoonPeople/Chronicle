@@ -365,13 +365,14 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
     draw2d::RestoreTestZbuf();
 }
 
-// The painted name alphabet's look, measured on it: capitals 12.4 pixels tall from 3.6 into the letter's cell,
-// near-white, a dark blue outline and a near-black copy of the outlined letter two pixels down and right.
+// The painted name alphabet's look, measured on it: the letters drawn wide, as tall as the alphabet's, near-white, a
+// dark blue outline and a near-black copy of the outlined letter two pixels down and right.
 constexpr float         kNameCap = 15.9f;
 constexpr float         kNameTop = -2.6f; // where the painted letters' ink starts against the cell the game gives
 constexpr float         kNameOutline = 1.2f;
 constexpr float         kNameShadow = 2.0f;
 constexpr float         kNameGap = 0.06f;
+constexpr float         kNameInset = 4.0f; // the alphabet's letters' ink falls this far inside the span the game gives
 constexpr unsigned char kNameFill[3] = {232, 230, 216};
 constexpr unsigned char kNameRing[3] = {8, 24, 120};
 constexpr unsigned char kNameShade[3] = {10, 10, 10};
@@ -395,7 +396,9 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
         natural += capfont::GetGlyph(ch, em_px, glyph) ? glyph.width / mapping.scale_x + em * kNameGap : em * 0.32f;
     }
     natural -= em * kNameGap;
-    const float squeeze = natural > max_width && max_width > 0 ? max_width / natural : 1.0f;
+    // The alphabet is the letters drawn wide: they fill the span the game lays them over, a little in from its ends.
+    const float fill_width = max_width - kNameInset;
+    const float squeeze = fill_width > 0 && natural > 0 ? std::clamp(fill_width / natural, 0.6f, 2.4f) : 1.0f;
     const float base = top_y + kNameTop + kNameOutline + kNameCap;
     auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     const int   shade_x = static_cast<int>(std::lround(kNameShadow * mapping.scale_x));
