@@ -365,6 +365,37 @@ Bitmap Dilate(const Bitmap &in, int radius) {
     return out;
 }
 
+// The bitmap with its edges softened by a pixel more: a [1 2 1] blur each way, the bitmap a pixel bigger all round.
+Bitmap Soften(const Bitmap &in) {
+    if (in.w <= 0 || in.h <= 0) {
+        return in;
+    }
+    Bitmap out;
+    out.x0 = in.x0 - 1;
+    out.y0 = in.y0 - 1;
+    out.w = in.w + 2;
+    out.h = in.h + 2;
+    auto at = [&](int row, int col) -> int {
+        row -= 1;
+        col -= 1;
+        return row >= 0 && row < in.h && col >= 0 && col < in.w ? in.alpha[static_cast<size_t>(row) * in.w + col] : 0;
+    };
+    std::vector<int> across(static_cast<size_t>(out.w) * out.h);
+    for (int row = 0; row < out.h; row++) {
+        for (int col = 0; col < out.w; col++) {
+            across[static_cast<size_t>(row) * out.w + col] = at(row, col - 1) + 2 * at(row, col) + at(row, col + 1);
+        }
+    }
+    out.alpha.assign(static_cast<size_t>(out.w) * out.h, 0);
+    for (int row = 0; row < out.h; row++) {
+        for (int col = 0; col < out.w; col++) {
+            auto down = [&](int r) { return r >= 0 && r < out.h ? across[static_cast<size_t>(r) * out.w + col] : 0; };
+            out.alpha[static_cast<size_t>(row) * out.w + col] = static_cast<unsigned char>((down(row - 1) + 2 * down(row) + down(row + 1) + 8) / 16);
+        }
+    }
+    return out;
+}
+
 float AdvanceOf(char32_t ch, float scale) {
     char32_t drawn = ch;
     if (DrawnGlyph(ch) == 0) {
@@ -489,13 +520,15 @@ bool GetGlyph(char32_t ch, int em_px, Glyph &out) {
 
 namespace {
 
-// A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined: the outline the same all round.
-bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, Glyph &out) {
+// A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined (the outline the same all round), and
+// with `soft` its edges softened by a pixel more.
+bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool soft, Glyph &out) {
     if (!g_fonts[g_variant].loaded || em_px < 4 || em_px > 512 || outline_px < 0 || outline_px > 63 || stretch < 16 ||
         stretch > 255) {
         return false;
     }
-    const auto key = std::make_pair(ch, em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22));
+    const auto key = std::make_pair(ch, em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22) +
+                                            (soft ? 1 << 30 : 0));
     if (auto found = g_atlas.glyphs.find(key); found != g_atlas.glyphs.end()) {
         out = found->second;
         return true;
@@ -519,6 +552,9 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, Glyph &
     const float advance = AdvanceOf(ch, scale) * static_cast<float>(stretch) / 64.0f;
     if (outline_px > 0) {
         bitmap = Dilate(bitmap, outline_px);
+    }
+    if (soft) {
+        bitmap = Soften(bitmap);
     }
     const int width = bitmap.w;
     const int height = bitmap.h;
@@ -577,11 +613,11 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, Glyph &
 } // namespace
 
 bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
-    return GetShapedGlyph(ch, em_px, outline_px, 64, out);
+    return GetShapedGlyph(ch, em_px, outline_px, 64, false, out);
 }
 
-bool GetStretchedGlyph(char32_t ch, int em_px, int outline_px, float stretch, Glyph &out) {
-    return GetShapedGlyph(ch, em_px, outline_px, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), out);
+bool GetStretchedGlyph(char32_t ch, int em_px, int outline_px, float stretch, bool soft, Glyph &out) {
+    return GetShapedGlyph(ch, em_px, outline_px, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), soft, out);
 }
 
 bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) {
