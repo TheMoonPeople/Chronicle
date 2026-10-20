@@ -366,9 +366,9 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
 }
 
 // The painted name alphabet's look, measured on it: the letters drawn wide, as tall as the alphabet's, lit from the
-// upper left (a near-white face over a bright blue letter, the face thinned and moved up and left so the blue shows
-// inside the lower and right edges), in a navy outline swept a little down and right to give them depth, and a
-// near-black drop shadow down and right.
+// upper left (the near-white letter over a copy of it in bright blue moved a little down and right, so a band of the
+// blue shows along its lower and right edges, inside the outline), in a navy outline swept a little down and right to
+// give them depth, and a near-black drop shadow down and right.
 constexpr float         kNameCap = 12.5f;
 constexpr float         kNameTop = -0.4f; // where the painted letters' ink starts against the cell the game gives
 constexpr float         kNameOutline = 1.0f;
@@ -380,8 +380,7 @@ constexpr unsigned char kNameFill[3] = {232, 230, 216};
 constexpr unsigned char kNameShade[3] = {10, 10, 10};
 constexpr unsigned char kNameRing[3] = {0, 17, 121};
 constexpr unsigned char kNameBody[3] = {50, 55, 190};
-constexpr float         kNameFaceThin = 0.57f;
-constexpr LabelCopy     kNameFaceAt = {-0.4f, -0.4f};
+constexpr LabelCopy     kNameBodyAt = {0.57f, 0.57f};
 
 } // namespace
 
@@ -416,10 +415,10 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
     const auto [shade_x, shade_y] = pixels(kNameShadow);
 
     std::vector<gfx::Vertex2D> shades, rings, bodies, fills;
-    const auto [face_x, face_y] = pixels(kNameFaceAt);
+    const auto [body_x, body_y] = pixels(kNameBodyAt);
     float                      pen = center_x - natural * stretch / 2;
     for (char32_t ch : text) {
-        capfont::Glyph fill, ring, face;
+        capfont::Glyph fill, ring;
         if (!capfont::GetStretchedGlyph(ch, em_px, 0, stretch, true, fill)) {
             pen += em * 0.32f * stretch;
             continue;
@@ -445,12 +444,8 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
                       static_cast<int>(std::lround(static_cast<float>(depth_y * step) / steps)));
             }
         }
-        place(fill, bodies, kNameBody, 0, 0);
-        if (capfont::GetStretchedGlyph(ch, em_px, 0, stretch, true, face, kNameFaceThin * mapping.scale_x)) {
-            place(face, fills, kNameFill, face_x, face_y);
-        } else {
-            place(fill, fills, kNameFill, 0, 0);
-        }
+        place(fill, bodies, kNameBody, body_x, body_y);
+        place(fill, fills, kNameFill, 0, 0);
         pen += fill.width / mapping.scale_x + em * kNameGap * stretch;
     }
     const gfx::TextureBinding binding = capfont::Binding();
