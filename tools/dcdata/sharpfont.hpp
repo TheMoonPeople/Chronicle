@@ -50,7 +50,7 @@ namespace dcdata::sharp {
 namespace fs = std::filesystem;
 
 /// Bumped whenever what Build makes changes, so it is made again.
-inline constexpr int kVersion = 2;
+inline constexpr int kVersion = 3;
 
 /// How many times the cells' resolution the glyph sheet is drawn at.
 inline constexpr int kSheetScale = 6;
@@ -70,7 +70,7 @@ enum class Fit {
 /// The fit each letter uses, the same for both sets: chosen by eye, letter by letter.
 inline Fit PickOf(char ch) {
     constexpr std::string_view grids = "!&*01245789?";
-    constexpr std::string_view as_is = "'=\"#-%|{}[]";
+    constexpr std::string_view as_is = "=#-%|{}[]";
     if (as_is.find(ch) != std::string_view::npos) {
         return Fit::AsIs;
     }
