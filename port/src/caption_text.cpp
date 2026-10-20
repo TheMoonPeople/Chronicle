@@ -532,7 +532,7 @@ float BoardWidth(char32_t ch) {
 
 // How much wider than its place a letter is drawn, into the gaps on its left and right: the painted E and S nearly
 // touch their neighbours, the painted T and D reach back toward the letter before them, the painted R further both
-// ways, and the painted apostrophe sits clear of the letter after it.
+// ways, the painted N on toward the letter after it, and the painted apostrophe sits clear of the letter after it.
 struct Spread {
     float left, right;
 };
@@ -547,6 +547,8 @@ Spread BoardSpread(char32_t ch) {
             return {1.6f, 0.0f};
         case U'R':
             return {1.0f, 1.6f};
+        case U'N':
+            return {0.0f, 1.0f};
         case U'\'':
             return {1.5f, -1.5f};
         default:
