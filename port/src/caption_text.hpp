@@ -71,7 +71,8 @@ bool DrawName(const std::u32string &text, float center_x, float top_y, float max
  * set in a thin navy outline, each as wide as the painting has that letter and spaced as it spaces them (the stretch
  * made before it is outlined), the whole squeezed by squeeze as the painting squeezes a long name, from left_x, the
  * caps from cap_top; adjust changes how far a letter reaches either side, and where the rest of its word goes, in
- * this name alone. False when there is no
+ * this name alone. Only what lies between clip_top and clip_bottom is drawn (a row the board's list has scrolled
+ * part way out). False when there is no
  * font to draw it with.
  */
 struct BoardAdjust {
@@ -82,7 +83,7 @@ struct BoardAdjust {
     int      nth = -1;    // which ch (from 0) advance and move are for, or every one; left and right are every one's
 };
 bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
-                   int alpha);
+                   float clip_top, float clip_bottom, int alpha);
 
 /**
  * RGB ink colors extended across a width-by-height field for glyph sampling.

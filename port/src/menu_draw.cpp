@@ -46,18 +46,20 @@ const BoardName kBoardNames[] = {
 };
 
 bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
-    // Only a whole row: one the list has clipped at its edge keeps the painting.
-    if (texture == nullptr || texture != DunLogBoard || texel.x != 0xFC || texel.width != 0xDC || texel.height != 0x18 ||
-        (texel.y - 0x20) % 0x18 != 0 || !caption::Ready() || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+    if (texture == nullptr || texture != DunLogBoard || texel.x != 0xFC || texel.width != 0xDC || texel.y < 0x20 ||
+        texel.height <= 0 || texel.height > 0x18 || !caption::Ready() || LocalizeLanguageFile().rfind("en_", 0) != 0) {
         return false;
     }
+    // The row the strip is cut from; the list clips a row at its edges by starting the strip lower or ending it sooner.
     const int row = (texel.y - 0x20) / 0x18;
-    if (row < 0 || row >= static_cast<int>(std::size(kBoardNames))) {
+    if (row >= static_cast<int>(std::size(kBoardNames)) || texel.y + texel.height > 0x20 + (row + 1) * 0x18) {
         return false;
     }
+    const float      row_top = static_cast<float>(screen.y - (texel.y - (0x20 + row * 0x18)));
     const BoardName &name = kBoardNames[row];
-    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, static_cast<float>(screen.y) + 2.3f,
-                                  name.squeeze, name.adjust, alpha);
+    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, row_top + 2.3f, name.squeeze,
+                                  name.adjust, static_cast<float>(screen.y), static_cast<float>(screen.y + screen.height),
+                                  alpha);
 }
 
 } // namespace

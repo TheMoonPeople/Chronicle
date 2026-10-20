@@ -570,7 +570,7 @@ Spread BoardSpread(char32_t ch) {
 } // namespace
 
 bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
-                   int alpha) {
+                   float clip_top, float clip_bottom, int alpha) {
     if (!FontReady() || !capfont::VariantLoaded() || utf8.empty()) {
         return false;
     }
@@ -680,6 +680,26 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
         }
         pen += BoardWidth(text[i]) + gap_after(i) + advance;
         shifted += advance;
+    }
+    // Cut each quad (corners top-left, top-right, bottom-right, bottom-left) to the rows that are shown.
+    const float top = clip_top * rows, bottom = clip_bottom * rows;
+    for (auto *layer : {&rings, &fills}) {
+        std::vector<gfx::Vertex2D> kept;
+        for (std::size_t q = 0; q + 3 < layer->size(); q += 4) {
+            gfx::Vertex2D quad[4] = {(*layer)[q], (*layer)[q + 1], (*layer)[q + 2], (*layer)[q + 3]};
+            const float   y0 = quad[0].y, y1 = quad[2].y, v0 = quad[0].v, v1 = quad[2].v;
+            const float   a = std::max(y0, top), b = std::min(y1, bottom);
+            if (b <= a || y1 <= y0) {
+                continue;
+            }
+            const float va = v0 + (v1 - v0) * (a - y0) / (y1 - y0), vb = v0 + (v1 - v0) * (b - y0) / (y1 - y0);
+            quad[0].y = quad[1].y = a;
+            quad[0].v = quad[1].v = va;
+            quad[2].y = quad[3].y = b;
+            quad[2].v = quad[3].v = vb;
+            kept.insert(kept.end(), quad, quad + 4);
+        }
+        layer->swap(kept);
     }
     const gfx::TextureBinding binding = capfont::Binding();
     for (auto *layer : {&rings, &fills}) {
