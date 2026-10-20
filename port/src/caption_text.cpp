@@ -530,9 +530,10 @@ float BoardWidth(char32_t ch) {
     }
 }
 
-// How much wider than its place a letter is drawn, into the gaps on its left and right: the painted E and S nearly
-// touch their neighbours, the painted T and D reach back toward the letter before them, the painted R further both
-// ways, the painted N on toward the letter after it, and the painted apostrophe sits clear of the letter after it.
+// How much wider than its place a letter is drawn, into the gaps on its left and right: the painted E, S and O nearly
+// touch their neighbours, the painted T, D and G reach back toward the letter before them, the painted R further both
+// ways, the painted N and L on toward the letter after them, the painted U and F both ways, and the painted
+// apostrophe sits clear of the letter after it.
 struct Spread {
     float left, right;
 };
@@ -541,14 +542,22 @@ Spread BoardSpread(char32_t ch) {
     switch (ch) {
         case U'E':
         case U'S':
+        case U'O':
             return {0.8f, 0.8f};
         case U'D':
         case U'T':
             return {1.6f, 0.0f};
+        case U'G':
+            return {2.4f, 0.0f};
         case U'R':
             return {1.0f, 1.6f};
         case U'N':
+        case U'L':
             return {0.0f, 1.0f};
+        case U'F':
+            return {0.6f, 0.8f};
+        case U'U':
+            return {0.6f, 1.0f};
         case U'\'':
             return {1.5f, -1.5f};
         default:
@@ -558,7 +567,8 @@ Spread BoardSpread(char32_t ch) {
 
 } // namespace
 
-bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, int alpha) {
+bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
+                   int alpha) {
     if (!FontReady() || !capfont::VariantLoaded() || utf8.empty()) {
         return false;
     }
@@ -575,13 +585,24 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
     const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
     const float               base = cap_top + kBoardCap;
     auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    // How far a letter reaches past its place either side, in this name.
+    auto spread_of = [&](char32_t ch) {
+        Spread spread = BoardSpread(ch);
+        for (const BoardAdjust &change : adjust) {
+            if (change.ch == ch) {
+                spread.left += change.left;
+                spread.right += change.right;
+            }
+        }
+        return spread;
+    };
     // The stretch that makes a letter as wide as its fill is painted.
     auto stretch_of = [&](char32_t ch) {
         capfont::Glyph natural;
         if (!capfont::GetGlyph(ch, em_px, natural) || natural.width <= 0) {
             return 0.0f;
         }
-        const Spread spread = BoardSpread(ch);
+        const Spread spread = spread_of(ch);
         return std::clamp(((BoardWidth(ch) + spread.left + spread.right) * squeeze - 2 * kBoardWeight) * mapping.scale_x /
                               natural.width,
                           0.2f, 4.0f);
@@ -605,7 +626,7 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
         capfont::Glyph core, fill, ring;
         if (stretch > 0 && capfont::GetStretchedGlyph(text[i], em_px, 0, stretch, true, core) &&
             capfont::GetStretchedGlyph(text[i], em_px, kBoardWeight * mapping.scale_x, stretch, true, fill)) {
-            const float core_x = left_x + (pen - BoardSpread(text[i]).left) * squeeze + kBoardWeight;
+            const float core_x = left_x + (pen - spread_of(text[i]).left) * squeeze + kBoardWeight;
             // An apostrophe goes up or down so its top is level with the next letter's, and a screen pixel more: the
             // next letter's top is a curve whose topmost row is faint.
             float lift = 0.0f;

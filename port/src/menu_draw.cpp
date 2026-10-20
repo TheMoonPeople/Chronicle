@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 #include "caption_text.hpp"
 #include "gameutil.hpp"
@@ -28,14 +29,15 @@ namespace {
 // text font (English only: the port has no other language's names for them): where each painted name starts, from
 // the strip's left, and how much the painting squeezed it.
 struct BoardName {
-    const char *english;
-    float       left;
-    float       squeeze;
+    const char                       *english;
+    float                             left;
+    float                             squeeze;
+    std::vector<caption::BoardAdjust> adjust; // where this name's painting departs from the others'
 };
 
-constexpr BoardName kBoardNames[] = {
+const BoardName kBoardNames[] = {
     {"DIVINE BEAST DRAN'S CHAMBER", 5.02f, 0.636f},
-    {"DWELLING OF FOREST GUARD", 4.10f, 0.714f},
+    {"DWELLING OF FOREST GUARD", 4.10f, 0.714f, {{U'R', 0.0f, -1.2f}, {U'D', -1.4f, 0.0f}, {U'N', 1.6f, -1.6f}, {U'A', 0.9f, 0.0f}}},
     {"CHURCH OF MEMORY", 3.57f, 0.954f},
     {"COFFIN'S CHAMBER", 3.00f, 0.978f},
     {"COLISEUM", 3.70f, 0.944f},
@@ -55,7 +57,7 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
     }
     const BoardName &name = kBoardNames[row];
     return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, static_cast<float>(screen.y) + 2.3f,
-                                  name.squeeze, alpha);
+                                  name.squeeze, name.adjust, alpha);
 }
 
 } // namespace
