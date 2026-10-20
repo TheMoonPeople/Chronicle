@@ -365,6 +365,56 @@ Bitmap Dilate(const Bitmap &in, int radius) {
     return out;
 }
 
+// The bitmap shrunk by `radius` pixels: only what lies further than that inside its edge.
+Bitmap Erode(const Bitmap &in, int radius) {
+    if (radius <= 0 || in.w <= 0 || in.h <= 0) {
+        return in;
+    }
+    const int          W = in.w + 2, H = in.h + 2;
+    const float        kFar = 1e12f;
+    std::vector<float> grid(static_cast<size_t>(W) * H, 0.0f);
+    for (int row = 0; row < in.h; row++) {
+        for (int col = 0; col < in.w; col++) {
+            if (in.alpha[static_cast<size_t>(row) * in.w + col] >= 128) {
+                grid[static_cast<size_t>(row + 1) * W + col + 1] = kFar;
+            }
+        }
+    }
+    const int          longest = std::max(W, H);
+    std::vector<float> line(static_cast<size_t>(longest)), result(static_cast<size_t>(longest)), z(static_cast<size_t>(longest) + 1);
+    std::vector<int>   v(static_cast<size_t>(longest));
+    for (int col = 0; col < W; col++) {
+        line.resize(static_cast<size_t>(H));
+        for (int row = 0; row < H; row++) {
+            line[static_cast<size_t>(row)] = grid[static_cast<size_t>(row) * W + col];
+        }
+        DistanceLine(line, v, z, result);
+        for (int row = 0; row < H; row++) {
+            grid[static_cast<size_t>(row) * W + col] = result[static_cast<size_t>(row)];
+        }
+    }
+    for (int row = 0; row < H; row++) {
+        line.resize(static_cast<size_t>(W));
+        for (int col = 0; col < W; col++) {
+            line[static_cast<size_t>(col)] = grid[static_cast<size_t>(row) * W + col];
+        }
+        DistanceLine(line, v, z, result);
+        for (int col = 0; col < W; col++) {
+            grid[static_cast<size_t>(row) * W + col] = result[static_cast<size_t>(col)];
+        }
+    }
+    Bitmap out = in;
+    for (int row = 0; row < in.h; row++) {
+        for (int col = 0; col < in.w; col++) {
+            const float d = std::sqrt(grid[static_cast<size_t>(row + 1) * W + col + 1]);
+            const float cover = std::clamp(d - static_cast<float>(radius) - 0.5f, 0.0f, 1.0f);
+            out.alpha[static_cast<size_t>(row) * in.w + col] =
+                static_cast<unsigned char>(std::lround(cover * static_cast<float>(in.alpha[static_cast<size_t>(row) * in.w + col])));
+        }
+    }
+    return out;
+}
+
 // A bitmap `factor` times finer brought back to pixels: each pixel the average of the finer ones it covers, the
 // finer bitmap's origin rounded out to whole pixels first.
 Bitmap Downsample(const Bitmap &in, int factor) {
@@ -520,13 +570,14 @@ namespace {
 // A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined (the outline the same all round); with
 // `smooth`, drawn and outlined four times finer and brought back, so the outline's edge is anti-aliased as finely as the
 // letter's own instead of stepping a pixel at a time.
-bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool smooth, Glyph &out) {
+bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool smooth, int erode, Glyph &out) {
     if (!g_fonts[g_variant].loaded || em_px < 4 || em_px > 512 || outline_px < 0 || outline_px > 63 || stretch < 16 ||
-        stretch > 255) {
+        stretch > 255 || erode < 0 || erode > 127 || (erode > 0 && !smooth)) {
         return false;
     }
-    const auto key = std::make_pair(ch, em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22) +
-                                            (smooth ? 1 << 30 : 0));
+    const auto key = std::make_pair(ch | (static_cast<char32_t>(erode) << 24),
+                                    em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22) +
+                                        (smooth ? 1 << 30 : 0));
     if (auto found = g_atlas.glyphs.find(key); found != g_atlas.glyphs.end()) {
         out = found->second;
         return true;
@@ -552,6 +603,9 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
     if (outline_px > 0) {
         // With `smooth` the outline is given in the finer pixels already (a quarter of a pixel each).
         bitmap = Dilate(bitmap, smooth ? outline_px : outline_px * fine);
+    }
+    if (erode > 0) {
+        bitmap = Erode(bitmap, erode);
     }
     if (fine > 1) {
         bitmap = Downsample(bitmap, fine);
@@ -613,12 +667,13 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
 } // namespace
 
 bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
-    return GetShapedGlyph(ch, em_px, outline_px, 64, false, out);
+    return GetShapedGlyph(ch, em_px, outline_px, 64, false, 0, out);
 }
 
-bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out) {
+bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out, float erode_px) {
     const int outline = static_cast<int>(std::lround(outline_px * (smooth ? 4.0f : 1.0f)));
-    return GetShapedGlyph(ch, em_px, outline, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, out);
+    const int erode = smooth ? static_cast<int>(std::lround(erode_px * 4.0f)) : 0;
+    return GetShapedGlyph(ch, em_px, outline, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, erode, out);
 }
 
 bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) {
