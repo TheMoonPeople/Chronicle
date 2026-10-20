@@ -659,7 +659,8 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
     const capfont::Metrics    metrics = capfont::GetMetrics();
     const float               em = kBoardCap / std::max(metrics.cap, 0.1f);
     const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
-    const float               base = cap_top + kBoardCap;
+    // The capitals' tops at cap_top, wherever the font puts its baseline.
+    const float               base = cap_top + kBoardCap * (1.0f - metrics.cap_drop / std::max(metrics.cap, 0.1f));
     auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     // Which of the name's letters ch letter i is.
     auto nth_of = [&](std::size_t i) {

@@ -1011,6 +1011,7 @@ Metrics GetMetrics() {
     int x0, y0, x1, y1;
     if (stbtt_GetCodepointBox(&g_fonts[g_variant].info, 'H', &x0, &y0, &x1, &y1) != 0 && y1 > y0) {
         metrics.cap = static_cast<float>(y1 - y0) / em;
+        metrics.cap_drop = static_cast<float>(-y0) / em;
     }
     return metrics;
 }

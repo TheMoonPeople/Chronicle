@@ -65,6 +65,7 @@ struct Metrics {
     float descent;
     float advance;
     float cap;
+    float cap_drop = 0; // how far the H reaches below the baseline
 };
 
 Metrics GetMetrics();

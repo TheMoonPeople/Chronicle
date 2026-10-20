@@ -59,7 +59,7 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
     }
     const float      row_top = static_cast<float>(screen.y - (texel.y - (0x20 + row * 0x18)));
     const BoardName &name = kBoardNames[row];
-    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, row_top + 2.3f, name.squeeze,
+    return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, row_top + 4.17f, name.squeeze,
                                   name.adjust, static_cast<float>(screen.y), static_cast<float>(screen.y + screen.height),
                                   alpha);
 }
