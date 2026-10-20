@@ -59,6 +59,13 @@ std::optional<CaptionBounds> PaintedBounds(int icon);
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 
 /**
+ * Draws a character's name as the painted name alphabet looks (the ally card's): near-white letters in a dark blue
+ * outline over a near-black shadow two pixels down and right, centred on center_x, the letters' tops at top_y,
+ * narrowed to max_width. False when there is no font to draw it with.
+ */
+bool DrawName(const std::u32string &text, float center_x, float top_y, float max_width, int alpha);
+
+/**
  * RGB ink colors extended across a width-by-height field for glyph sampling.
  */
 struct FillField {

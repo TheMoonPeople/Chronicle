@@ -365,7 +365,78 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
     draw2d::RestoreTestZbuf();
 }
 
+// The painted name alphabet's look, measured on it: capitals 12.4 pixels tall from 3.6 into the letter's cell,
+// near-white, a dark blue outline and a near-black copy of the outlined letter two pixels down and right.
+constexpr float         kNameCap = 15.9f;
+constexpr float         kNameTop = -2.6f; // where the painted letters' ink starts against the cell the game gives
+constexpr float         kNameOutline = 1.2f;
+constexpr float         kNameShadow = 2.0f;
+constexpr float         kNameGap = 0.06f;
+constexpr unsigned char kNameFill[3] = {232, 230, 216};
+constexpr unsigned char kNameRing[3] = {8, 24, 120};
+constexpr unsigned char kNameShade[3] = {10, 10, 10};
+
 } // namespace
+
+bool DrawName(const std::u32string &text, float center_x, float top_y, float max_width, int alpha) {
+    if (!FontReady() || text.empty()) {
+        return false;
+    }
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float               rows = draw2d::RowScale();
+    const capfont::Metrics    metrics = capfont::GetMetrics();
+    const float               em = kNameCap / std::max(metrics.cap, 0.1f);
+    const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
+    const int                 outline_px = std::max(1, static_cast<int>(kNameOutline * mapping.scale_x + 0.5f));
+
+    float natural = 0.0f;
+    for (char32_t ch : text) {
+        capfont::Glyph glyph;
+        natural += capfont::GetGlyph(ch, em_px, glyph) ? glyph.width / mapping.scale_x + em * kNameGap : em * 0.32f;
+    }
+    natural -= em * kNameGap;
+    const float squeeze = natural > max_width && max_width > 0 ? max_width / natural : 1.0f;
+    const float base = top_y + kNameTop + kNameOutline + kNameCap;
+    auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    const int   shade_x = static_cast<int>(std::lround(kNameShadow * mapping.scale_x));
+    const int   shade_y = static_cast<int>(std::lround(kNameShadow * rows * mapping.scale_y));
+
+    std::vector<gfx::Vertex2D> shades, rings, fills;
+    float                      pen = center_x - natural * squeeze / 2;
+    for (char32_t ch : text) {
+        capfont::Glyph fill, ring;
+        if (!capfont::GetGlyph(ch, em_px, fill)) {
+            pen += em * 0.32f * squeeze;
+            continue;
+        }
+        const bool has_ring = capfont::GetOutlinedGlyph(ch, em_px, outline_px, ring);
+        auto       place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3], int px_x,
+                         int px_y) {
+            if (glyph.width <= 0 || glyph.height <= 0) {
+                return;
+            }
+            float gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze;
+            float gy = base * rows + glyph.y_offset / mapping.scale_y;
+            gx = snap(gx, mapping.scale_x, mapping.offset_x) + static_cast<float>(px_x) / mapping.scale_x;
+            gy = snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
+            Quad(out, glyph, gx, gy, glyph.width / mapping.scale_x * squeeze, glyph.height / mapping.scale_y * rows, rgb, alpha);
+        };
+        if (has_ring) {
+            place(ring, shades, kNameShade, shade_x, shade_y);
+            place(ring, rings, kNameRing, 0, 0);
+        }
+        place(fill, fills, kNameFill, 0, 0);
+        pen += (fill.width / mapping.scale_x + em * kNameGap) * squeeze;
+    }
+    const gfx::TextureBinding binding = capfont::Binding();
+    for (auto *layer : {&shades, &rings, &fills}) {
+        if (!layer->empty()) {
+            textwipe::Draw2D(gfx::Primitive::Quads, *layer, binding, draw2d::SpriteState());
+        }
+    }
+    draw2d::RestoreTestZbuf();
+    return true;
+}
 
 void SetNextCaption(const char *key, const char *english) {
     s_next_caption_key = key;
