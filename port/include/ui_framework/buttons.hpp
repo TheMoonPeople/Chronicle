@@ -100,6 +100,12 @@ public:
 };
 
 /**
+ * Draws a painted plate the game takes whole from a texture (btstatus2's YES, NO and DUMP) as the weapon menu's buttons
+ * are drawn instead, the plate procedural and its word from the font. False for any other sprite.
+ */
+bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int bright, int alpha);
+
+/**
  * Sprite-backed button renderer with optional TrueType text overlay.
  */
 class TextureButton {

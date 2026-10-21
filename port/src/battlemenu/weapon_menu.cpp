@@ -227,14 +227,13 @@ void DrawWeaponLeftConfirmDialog(int box_x, int box_y, int yes_x, int yes_y,
             .Draw(box_x + box_w / 2, box_y + 10 + static_cast<int>(i) * line_h, alpha);
     }
 
-    UI::ButtonStyle btn_style = UI::ButtonStyle::Thick(UI::ButtonPreset::Terracotta);
-    btn_style.text_scale = 1.0f;
+    const UI::ButtonStyle btn_style = UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta);
 
     const std::string yes_txt = LocalizeText("battlemenu.quit.yes", "YES");
     const std::string no_txt = LocalizeText("battlemenu.quit.no", "NO");
 
-    UI::BevelButton::Draw(UI::Rect(yes_x, yes_y, 0x60, 24), yes_txt, btn_style, alpha);
-    UI::BevelButton::Draw(UI::Rect(yes_x, yes_y + 0x1C, 0x60, 24), no_txt, btn_style, alpha);
+    UI::BevelButton::Draw(UI::Rect(yes_x, yes_y, 0x60, 23), yes_txt, btn_style, alpha);
+    UI::BevelButton::Draw(UI::Rect(yes_x, yes_y + 0x1C, 0x60, 23), no_txt, btn_style, alpha);
 }
 
 /**
@@ -364,7 +363,7 @@ void PortDrawWeaponSelectDialog(int x, int y, int alpha) {
     if (WepMenu.state == WEP_STATE_SCRAP_PROMPT || WepMenu.state == WEP_STATE_SCRAP_CONFIRM) {
         UI::BevelButton::Draw(
             UI::Rect(x + 0x64, y + 0x33, btn_w, btn_h),
-            LocalizeText("weaponmenu.action.discard", "DISCARD"),
+            LocalizeText("weaponmenu.action.discard", "DUMP"),
             UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80),
             0x80);
     }

@@ -60,7 +60,7 @@ std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
         {"weaponmenu.action.upgrade",     "UPGRADE"                                      },
         {"weaponmenu.action.statusbreak", "STATUS BREAK"                                 },
         {"weaponmenu.action.buildup",     "BUILD-UP"                                     },
-        {"weaponmenu.action.discard",     "DISCARD"                                      },
+        {"weaponmenu.action.discard",     "DUMP"                                         },
         {"weaponmenu.upgrade.confirm",    "Upgrade. Confirm?"                            },
         {"weaponmenu.buildup.confirm",    "Build-up. Confirm?"                           },
         {"weaponmenu.break.confirm",      "Status break this weapon?\nWeapon disappears."},

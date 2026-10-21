@@ -698,6 +698,50 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
     }
 }
 
+namespace {
+
+// A plate in a texture: its cell, the word painted on it, and whether it is the lit (pressed) one.
+struct PaintedPlate {
+    const char *texture;
+    int         u, v;
+    const char *key;
+    const char *english;
+    bool        pressed;
+};
+
+constexpr PaintedPlate kPaintedPlates[] = {
+    {"btstatus2", 0, 0x00, "battlemenu.quit.yes",       "YES",  false},
+    {"btstatus2", 0, 0x20, "battlemenu.quit.no",        "NO",   false},
+    {"btstatus2", 0, 0x40, "battlemenu.quit.yes",       "YES",  true },
+    {"btstatus2", 0, 0x60, "battlemenu.quit.no",        "NO",   true },
+    {"btstatus2", 0, 0x80, "weaponmenu.action.discard", "DUMP", false},
+    {"btstatus2", 0, 0xA0, "weaponmenu.action.discard", "DUMP", true },
+};
+
+// A plate's cell is 0x60 x 0x20 texels; the plate fills its top 23 rows, as the weapon menu's do.
+constexpr int kPlateWidth = 0x60;
+constexpr int kPlateCell = 0x20;
+constexpr int kPlateHeight = 23;
+
+} // namespace
+
+bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int bright, int alpha) {
+    if (texture == nullptr || texel.width != kPlateWidth || texel.height <= 0) {
+        return false;
+    }
+    for (const PaintedPlate &plate : kPaintedPlates) {
+        if (texel.x != plate.u || texel.y != plate.v || std::strcmp(texture, plate.texture) != 0) {
+            continue;
+        }
+        ButtonStyle style = ButtonStyle::Thin(ButtonPreset::Terracotta, bright);
+        style.pressed = plate.pressed;
+        const int height = (kPlateHeight * screen.height + kPlateCell / 2) / kPlateCell;
+        BevelButton::Draw(Rect(screen.x, screen.y, screen.width, height), LocalizeText(plate.key, plate.english), style, alpha);
+        return true;
+    }
+    return false;
+}
+
 void BevelButton::Draw(int x, int y, int width, int height, std::string_view text,
                        u32 text_color, int alpha, ButtonPreset preset,
                        Alignment align, bool drop_shadow, FontWeight weight) {

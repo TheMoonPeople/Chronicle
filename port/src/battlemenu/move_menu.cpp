@@ -77,9 +77,9 @@ void PortDrawMenuMove() {
         }
 
         if (last_move_state != MenuMove.state && MenuMove.state == MENU_MOVE_STATE_OPEN) {
-            constexpr int btn_x = (640 - 100) / 2;
+            constexpr int btn_x = (640 - 0x60) / 2;
             constexpr int btn_y0 = 164 + 58 + 10;
-            const int     sel_y = (MenuMove.cursor == 0) ? btn_y0 : (btn_y0 + 26 + 6);
+            const int     sel_y = (MenuMove.cursor == 0) ? btn_y0 : (btn_y0 + 0x1C);
             move_cursor.SnapTo(static_cast<float>(btn_x - 34), static_cast<float>(sel_y + 3));
         }
         last_move_state = MenuMove.state;
@@ -95,7 +95,10 @@ void PortDrawMenuMove() {
             LocalizeText("battlemenu.quit.no", "NO"),
             MenuMove.cursor,
             move_cursor,
-            alpha);
+            alpha,
+            UI::WindowPreset::DarkTranslucent,
+            // Chosen, the answer stays lit while the window closes.
+            MenuMove.state == MENU_MOVE_STATE_CONFIRM || MenuMove.state == MENU_MOVE_STATE_CLOSE ? MenuMove.cursor : -1);
 
         if (MenuMove.state == MENU_MOVE_STATE_INTERIOR_FADE && GetInteriorOutFlag() != 0) {
             AllFadeForMenu(std::min(0x80, static_cast<int>(MenuMove.counter * 3)));

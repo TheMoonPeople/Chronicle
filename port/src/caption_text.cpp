@@ -595,6 +595,16 @@ constexpr ButtonLetter kButtonLetters[] = {
     {"ATTRIBUTE",    U'U', 60.12f, 3.77f,  69.62f, 18.76f},
     {"ATTRIBUTE",    U'T', 71.42f, 3.38f,  79.60f, 18.42f},
     {"ATTRIBUTE",    U'E', 80.32f, 3.57f,  89.10f, 19.00f},
+    // The yes/no and dump plates (btstatus2), measured on them.
+    {"YES",          U'Y', 26.27f, 3.43f,  37.61f, 18.95f},
+    {"YES",          U'E', 40.96f, 3.57f,  53.71f, 19.98f},
+    {"YES",          U'S', 56.27f, 3.07f,  69.16f, 19.35f},
+    {"NO",           U'N', 32.96f, 3.58f,  47.35f, 18.82f},
+    {"NO",           U'O', 49.05f, 3.47f,  62.19f, 19.24f},
+    {"DUMP",         U'D', 16.89f, 2.48f,  30.47f, 18.46f},
+    {"DUMP",         U'U', 32.00f, 3.22f,  45.92f, 18.73f},
+    {"DUMP",         U'M', 46.90f, 3.39f,  60.97f, 18.40f},
+    {"DUMP",         U'P', 64.31f, 2.08f,  77.35f, 18.44f},
 };
 
 } // namespace

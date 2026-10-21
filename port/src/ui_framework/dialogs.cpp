@@ -234,7 +234,7 @@ void DialogBox::Draw(int alpha) {
 void ConfirmModal::Draw(std::string_view title, std::string_view description,
                         std::string_view yes_label, std::string_view no_label,
                         int selected_choice, Cursor &cursor, int alpha,
-                        WindowPreset preset) {
+                        WindowPreset preset, int pressed_choice) {
     if (alpha <= 0) {
         return;
     }
@@ -271,15 +271,22 @@ void ConfirmModal::Draw(std::string_view title, std::string_view description,
         Label(lines[i], ColorWhite).Draw(box_x + 22, box_y + 12 + static_cast<int>(i) * kModalLineSpacing, alpha);
     }
 
-    constexpr int btn_w = Metrics::kButtonWidth;
-    constexpr int btn_h = Metrics::kButtonHeight;
+    // The game's yes/no plates: their size and spacing, lettered as the weapon menu's buttons are.
+    constexpr int btn_w = 0x60;
+    constexpr int btn_h = 23;
     constexpr int btn_x = (Metrics::kScreenWidth - btn_w) / 2;
     const int     btn_y0 = box_y + box_h + 10;
-    const int     btn_y1 = btn_y0 + btn_h + Metrics::kButtonGap;
+    const int     btn_y1 = btn_y0 + 0x1C;
 
-    const ButtonStyle btn_style = ButtonStyle::Thick(ButtonPreset::Terracotta);
-    BevelButton::Draw(Rect(btn_x, btn_y0, btn_w, btn_h), yes_label, btn_style, alpha);
-    BevelButton::Draw(Rect(btn_x, btn_y1, btn_w, btn_h), no_label, btn_style, alpha);
+    ButtonStyle yes_style = ButtonStyle::Thin(ButtonPreset::Terracotta);
+    ButtonStyle no_style = yes_style;
+    yes_style.pressed = pressed_choice == 0;
+    no_style.pressed = pressed_choice == 1;
+    BevelButton::Draw(Rect(btn_x, btn_y0, btn_w, btn_h), yes_label, yes_style, alpha);
+    BevelButton::Draw(Rect(btn_x, btn_y1, btn_w, btn_h), no_label, no_style, alpha);
+    if (pressed_choice >= 0) {
+        return;
+    }
 
     const int sel_y = (selected_choice == 0) ? btn_y0 : btn_y1;
     setbilinear(0);
