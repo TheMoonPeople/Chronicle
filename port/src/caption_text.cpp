@@ -491,7 +491,7 @@ constexpr AlphaPlace kAlphabet[] = {
 // kFloorLabelGap font units, a space kFloorLabelSpace) and the word stretched to the painted one's box.
 constexpr float         kFloorLabelGap = 30.0f;
 constexpr float         kFloorLabelSpace = 140.0f;
-constexpr float         kFloorLabelDepthX = 0.6f;
+constexpr float         kFloorLabelDepthX = 1.0f;
 constexpr float         kFloorLabelDepthY = 0.8f;
 constexpr float         kFloorLabelOutline = 1.0f;
 constexpr unsigned char kFloorLabelFill[3] = {254, 212, 84};
@@ -687,7 +687,7 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
 }
 
 bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, float bottom, float clip_top, float clip_bottom,
-                    int alpha) {
+                    int alpha, std::span<const FloorAdjust> adjust, bool by_capitals, float squeeze) {
     if (utf8.empty() || right <= left || bottom <= top || !FontReady()) {
         return false;
     }
@@ -718,7 +718,21 @@ bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, f
     if (letters.empty()) {
         return false;
     }
-    const float sx = (right - left) / (pen - kFloorLabelGap), sy = (bottom - top) / (high - low);
+    // Across, the letters' ink fills left to right; down, their ink fills top to bottom, or with by_capitals the font's
+    // H stands from top to bottom (the capitals' top to the baseline), a descender hanging below as the font has it.
+    float h_box[4];
+    if (by_capitals) {
+        if (!capfont::GetGlyphBounds(U'H', h_box)) {
+            return false;
+        }
+        high = h_box[3];
+        low = h_box[1];
+    }
+    const float sy = (bottom - top) / (high - low);
+    float       sx = (right - left) / (pen - kFloorLabelGap);
+    if (squeeze > 0.0f) {
+        sx = sy * squeeze;
+    }
 
     const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
     const float               rows = draw2d::RowScale();
@@ -737,14 +751,25 @@ bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, f
     std::vector<gfx::Vertex2D> quads;
     // Every letter outlined, then every face over all the outlines, so the word is outlined as one.
     for (const capfont::Paint *paint : {&outlined, &face}) {
-        for (const Letter &letter : letters) {
+        float shift = 0.0f;
+        for (std::size_t i = 0; i < letters.size(); i++) {
+            const Letter  &letter = letters[i];
+            float          widen = 0.0f, raise = 0.0f;
+            for (const FloorAdjust &fix : adjust) {
+                if (fix.letter == static_cast<int>(i)) {
+                    shift += fix.move;
+                    widen += fix.widen;
+                    raise += fix.raise;
+                }
+            }
             capfont::Glyph glyph;
-            const float    w = (letter.bounds[2] - letter.bounds[0]) * sx, h = (letter.bounds[3] - letter.bounds[1]) * sy;
+            const float    w = (letter.bounds[2] - letter.bounds[0]) * sx + widen, h = (letter.bounds[3] - letter.bounds[1]) * sy;
             if (!capfont::GetPaintedGlyph(letter.ch, -1, w * kx, h * ky, *paint, glyph)) {
                 return false;
             }
-            const float x0 = snap(left + letter.pen * sx, mapping.scale_x, mapping.offset_x) + glyph.x_offset / mapping.scale_x;
-            const float y0 = snap((top + (high - letter.bounds[3]) * sy) * rows, mapping.scale_y, mapping.offset_y) +
+            const float x0 = snap(left + letter.pen * sx + shift, mapping.scale_x, mapping.offset_x) + glyph.x_offset / mapping.scale_x;
+            shift += widen; // the letters after a widened one move along
+            const float y0 = snap((top + (high - letter.bounds[3]) * sy - raise) * rows, mapping.scale_y, mapping.offset_y) +
                              glyph.y_offset / mapping.scale_y;
             const float x1 = x0 + glyph.width / mapping.scale_x;
             float       y1 = y0 + glyph.height / mapping.scale_y;

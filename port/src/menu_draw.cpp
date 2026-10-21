@@ -65,22 +65,29 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
 }
 
 // The dungeon-entry list's floor labels, in the 0x70 by 0x1C rows of the sheet "kaisou" at (u, v) the list cuts each
-// dungeon's from (English: the other languages' painted words stay): each word's painted letters' box in its row.
+// dungeon's from (English: the other languages' painted words stay): each word's painted letters' box in its row (or,
+// by_capitals, from where they run from and to, their capitals' top and baseline).
 struct FloorLabel {
     int         u, v;
     const char *english;
     float       left, top, right, bottom;
+    std::vector<caption::FloorAdjust> adjust;      // where this word's painting departs from the font's spacing
+    bool                              by_capitals{}; // top and bottom are the capitals' top and the baseline
+    float                             squeeze{};     // its letters this much as wide as tall as the font's, from left
 };
 
 const FloorLabel kFloorLabels[] = {
     {0x00, 0x00, "B",         29.0f, 5.0f, 43.4f,  23.2f},
-    {0x80, 0x00, "Floor",     17.0f, 5.0f, 62.4f,  23.2f},
-    {0x00, 0x20, "Territory", 6.0f,  4.0f, 69.4f,  24.2f},
-    {0x00, 0x40, "Layer",     16.0f, 5.0f, 62.4f,  25.2f},
-    {0x00, 0x60, "Level",     16.0f, 5.0f, 60.4f,  22.2f},
-    {0x00, 0x80, "No.",       3.0f,  5.0f, 20.4f,  23.2f},
-    {0x00, 0x80, "Craters",   58.0f, 5.0f, 109.4f, 23.2f},
-    {0x00, 0xA0, "Years ago", 50.0f, 5.0f, 110.4f, 25.2f},
+    {0x80, 0x00, "Floor",     17.0f, 4.75f, 62.4f, 22.7f},
+    {0x00, 0x20, "Territory", 6.0f,  4.0f, 69.4f,  24.2f, {{0, 0.6f}, {1, 0.0f, -2.5f}}},
+    // Layer by its capitals: 18 pixels tall, half a pixel above Territory's baseline.
+    {0x00, 0x40, "Layer",     16.0f, 4.4f, 62.4f,  22.4f, {}, true},
+    // Level as Layer, its letters as wide, its L where the painting's is, the rest a little further on, the v on the line
+    // (the font's dips below it).
+    {0x00, 0x60, "Level",     16.0f, 4.4f, 60.4f,  22.4f, {{1, 0.0f, 0.6f}, {2, 0.0f, 1.0f, 0.5f}, {3, 0.0f, 0.2f}, {4, 0.0f, 0.8f}}, true, 0.852f},
+    {0x00, 0x80, "No.",       3.0f,  5.0f, 20.4f,  22.9f, {{0, 0.25f}, {1, 0.25f, -0.25f}, {2, 0.0f, -0.55f, -3.15f}}}, // its N and o a little wider, its stop down by the o
+    {0x00, 0x80, "Craters",   58.0f, 5.0f, 109.4f, 22.9f},
+    {0x00, 0xA0, "Years ago", 50.0f, 4.75f, 110.4f, 24.2f, {{1, 0.0f, -1.1f}, {3, 0.0f, 0.25f}, {4, 0.0f, -0.5f, 0.25f}, {5, 0.0f, 0.5f}, {6, 0.0f, 0.0f, -1.1f}}}, // its g's top level with the a's
 };
 
 bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
@@ -99,7 +106,8 @@ bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &
         if (label.u == texel.x && label.v == row_v) {
             drew = caption::DrawFloorLabel(label.english, left + label.left, row_top + label.top, left + label.right,
                                            row_top + label.bottom, static_cast<float>(screen.y),
-                                           static_cast<float>(screen.y + screen.height), alpha) ||
+                                           static_cast<float>(screen.y + screen.height), alpha, label.adjust, label.by_capitals,
+                                           label.squeeze) ||
                    drew;
         }
     }

@@ -68,10 +68,20 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
 /**
  * Draws a dungeon-entry floor label ("Floor", "Territory"...) as the game paints them: bold warm yellow letters nearly
  * touching, outlined in navy as one word with the outline swept down and right for depth, the letters' ink stretched
- * to the box (left to right, top to bottom); rows outside clip_top to clip_bottom are left out. False with no font.
+ * to the box (left to right, top to bottom; with by_capitals, the capitals standing from top to the baseline at bottom
+ * instead; with squeeze, its letters that many times as wide as tall as the font has them, from left); rows outside
+ * clip_top to clip_bottom are left out. False with no font.
  */
+// A floor label's letter (counted from 0, spaces not counted) drawn widen pixels wider, the letters after it moved along
+// with it, it and the letters after it moved by move, and it alone raised by raise.
+struct FloorAdjust {
+    int   letter;
+    float widen = 0;
+    float move = 0;
+    float raise = 0;
+};
 bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, float bottom, float clip_top, float clip_bottom,
-                    int alpha);
+                    int alpha, std::span<const FloorAdjust> adjust = {}, bool by_capitals = false, float squeeze = 0.0f);
 
 /**
  * Draws a cell of the name alphabet's sheet (the 22-pixel cell at u, v; the game cuts it 21 to 23 rows tall) stretched
