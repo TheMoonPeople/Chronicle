@@ -59,6 +59,14 @@ std::optional<CaptionBounds> PaintedBounds(int icon);
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 
 /**
+ * Draws a title in the menu captions' painted look (the name entry's REGISTER NAME): its letters stretched to run from
+ * fill_left to fill_right of the box at x, y, its capitals cap_height tall from cap_top, a space space ems, after[i]
+ * pixels more after letter i (spaces not counted). False with no font.
+ */
+bool DrawTitle(std::string_view utf8, int x, int y, float fill_left, float fill_right, float cap_top, float cap_height,
+               float space, std::span<const float> after, int alpha, int bright = 0x80);
+
+/**
  * Draws one of the weapon menu's button words (EQUIP, CUSTOMIZE...) as the painted buttons letter it, each letter where
  * the painting has it in the 96 by 23 button at x, y, tinted by bright (0x80 as painted); pressed, in a light glow
  * instead of the dark one. False for a word it has no painting of (another language's), or no font.

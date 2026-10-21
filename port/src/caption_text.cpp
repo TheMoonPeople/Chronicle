@@ -260,7 +260,11 @@ struct LabelCopy {
 constexpr LabelCopy kLabelLightAt = {-0.9f, -0.4f};
 constexpr LabelCopy kLabelDarkAt = {1.0f, 0.9f};
 
-void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright) {
+// With fill, the letters are stretched or narrowed to fill the box (less the outline and copies), not only narrowed; cap
+// and space are the capitals' height and a space's width in ems, and after[i] is added after letter i (spaces not
+// counted), in pixels before the fit.
+void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright,
+               float cap = kLabelCap, bool fill = false, float space = kLabelSpace, std::span<const float> after = {}) {
     std::u32string text = Decode(utf8);
     for (char32_t &ch : text) {
         ch = Upper(ch);
@@ -270,35 +274,38 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
     const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
     const float               rows = draw2d::RowScale();
     const capfont::Metrics    metrics = capfont::GetMetrics();
-    const float               em = kLabelCap / std::max(metrics.cap, 0.1f);
+    const float               em = cap / std::max(metrics.cap, 0.1f);
     const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
     const int                 outline_px = std::max(1, static_cast<int>(kLabelOutline * mapping.scale_x + 0.5f));
 
     // The letters' own width, then narrowed to the box less the outline and the two copies either side.
     const float room = box_width - 2 * kLabelOutline - (kLabelDarkAt.dx - kLabelLightAt.dx);
+    auto extra = [&](std::size_t letter) { return letter < after.size() ? after[letter] : 0.0f; };
     float natural = 0.0f;
+    std::size_t letter = 0;
     for (char32_t ch : text) {
         capfont::Glyph glyph;
         if (ch == U' ') {
-            natural += em * kLabelSpace + tune.word;
+            natural += em * space + tune.word;
         } else if (capfont::GetGlyph(ch, em_px, glyph)) {
-            natural += glyph.width / mapping.scale_x + em * kLabelGap + tune.letter;
+            natural += glyph.width / mapping.scale_x + em * kLabelGap + tune.letter + extra(letter++);
         } else {
             natural += em * 0.5f;
         }
     }
-    const float squeeze = natural > room && room > 0 ? room / natural : 1.0f;
+    const float squeeze = (fill || natural > room) && room > 0 && natural > 0 ? room / natural : 1.0f;
 
     const float left = static_cast<float>(x) + bounds.left + kLabelOutline - kLabelLightAt.dx + tune.dx;
-    const float base = static_cast<float>(y) + bounds.top + kLabelOutline + kLabelCap - kLabelRaise + tune.dy;
+    const float base = static_cast<float>(y) + bounds.top + kLabelOutline + cap - kLabelRaise + tune.dy;
     auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
 
     std::vector<gfx::Vertex2D> edges, lights, darks, fills;
     float                      pen = left;
+    letter = 0;
     for (char32_t ch : text) {
         capfont::Glyph fill;
         if (ch == U' ') {
-            pen += (em * kLabelSpace + tune.word) * squeeze;
+            pen += (em * space + tune.word) * squeeze;
             continue;
         }
         if (!capfont::GetGlyph(ch, em_px, fill)) {
@@ -342,7 +349,7 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
         sweep(fill, lights, kLabelLight, kLabelLightAt);
         sweep(fill, darks, kLabelDark, kLabelDarkAt);
         place(fill, fills, kFill, 0, 0);
-        pen += (fill.width / mapping.scale_x + em * kLabelGap + tune.letter) * squeeze;
+        pen += (fill.width / mapping.scale_x + em * kLabelGap + tune.letter + extra(letter++)) * squeeze;
     }
     if (fills.empty()) {
         return;
@@ -1171,6 +1178,20 @@ void PreparePainted(const char *name, const PortDecodedTexture &texture) {
 
 std::optional<CaptionBounds> PaintedBounds(int icon) {
     return icon >= 0 && icon < kIcons ? g_bounds[icon] : std::nullopt;
+}
+
+bool DrawTitle(std::string_view utf8, int x, int y, float fill_left, float fill_right, float cap_top, float cap_height,
+               float space, std::span<const float> after, int alpha, int bright) {
+    if (utf8.empty() || !FontReady()) {
+        return false;
+    }
+    // DrawLabel's box, outline and copies round the letters, from the letters' own span and capitals.
+    const float left = fill_left - kLabelOutline + kLabelLightAt.dx;
+    const float width = fill_right - fill_left + 2 * kLabelOutline + (kLabelDarkAt.dx - kLabelLightAt.dx);
+    const float top = cap_top - kLabelOutline + kLabelRaise;
+    DrawLabel(std::string(utf8), x, y, width + left, CaptionBounds{left, top, width, cap_height}, alpha, bright, cap_height, true,
+              space, after);
+    return true;
 }
 
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {

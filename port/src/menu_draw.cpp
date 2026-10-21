@@ -114,6 +114,23 @@ bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &
     return drew;
 }
 
+// The name entry's painted title, REGISTER NAME (0xAE by 0x20 at 0xC0, 0x178 of "nametemp"), in the captions' look.
+bool DrawNameTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
+    if (texture == nullptr || std::string_view(texture->name) != "nametemp" || texel.x != 0xC0 || texel.y != 0x178 ||
+        texel.width != 0xAE || texel.height != 0x20 || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+        return false;
+    }
+    // The painted letters run from 4 to 164 of it, their capitals from row 8 to 27, the words 5 pixels apart.
+    const float rows = static_cast<float>(screen.height) / static_cast<float>(texel.height);
+    // English's RE, EG, GI, IS and ER closer, and ST, TE and NA closer still, as painted, NAME where it was.
+    static constexpr float kClose = -0.8f, kCloser = -1.6f;
+    static constexpr float kEnglish[] = {kClose + 0.4f, kClose, kClose, kClose, kCloser, kCloser, kClose, 0.1f - 2 * kClose, kCloser};
+    const std::string      title = LocalizeText("nameentry.title", "REGISTER NAME");
+    const bool             english = title == "REGISTER NAME"; // its NAME half a pixel further on than the painting's
+    return caption::DrawTitle(title, screen.x, screen.y, 4.0f, english ? 164.5f : 164.0f, 8.0f * rows - 3.3f, 18.2f * rows + 0.5f, 0.1f,
+                              english ? std::span<const float>(kEnglish) : std::span<const float>(), alpha);
+}
+
 // The name alphabet's cells (the keyboard, the name being entered, the save slots, the ally card) drawn from the font.
 bool DrawAlphabetCell(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int r, int g, int b, int alpha) {
     return texture != nullptr && std::string_view(texture->name) == "alphabet" &&
@@ -153,7 +170,7 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
 
 PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
     if (DrawAlphabetCell(texture, screen, texel, 0x80, 0x80, 0x80, alpha) || DrawBoardName(texture, screen, texel, alpha) ||
-        DrawFloorLabels(texture, screen, texel, alpha)) {
+        DrawFloorLabels(texture, screen, texel, alpha) || DrawNameTitle(texture, screen, texel, alpha)) {
         return;
     }
     set2DSprite(GetVif1Packet(), texture, screen, texel, alpha);
