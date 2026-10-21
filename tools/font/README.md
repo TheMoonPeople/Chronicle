@@ -21,9 +21,9 @@ card), the menu captions and the dungeon entry's floor labels; Regular draws the
 names and the weapon menu's buttons. When the disc is extracted (`dcdata extract`, the first-run extraction, or `dcdata
 sharp <data>` for data extracted before), `tools/dcdata/sharpfont.hpp` redraws the game's glyph sheet in the two at six
 times its size (the narrower set with the soft shadow the game's own letters carry in their texels) into `sharp/` in
-the data folder. With Text Font set to Sharp the game draws its message text from that sheet, exactly where and as it
-draws its own letters. The sheet is made from the disc, so it is never part of the repository or a release; until it is
-made, message text is drawn from the font itself.
+the data folder. The game draws its message text from that sheet, exactly where and as it draws its own letters. The
+sheet is made from the disc, so it is never part of the repository or a release; until it is made, message text is
+drawn from the font itself.
 
 To use another font for the text the port draws from a font, put it at `lang/font.ttf` in the save folder (that wins
 over this one) or start the game with `--font <file>`.

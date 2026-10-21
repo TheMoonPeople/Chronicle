@@ -1,6 +1,7 @@
 #include "texture_assets.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -8,10 +9,9 @@
 
 #include "../../tools/dcdata/sharpfont.hpp"
 #include "editloop.hpp"
-#include "mainselect.hpp"
 #include "localize_texture.hpp"
 #include "main.hpp"
-#include "platform/config.hpp"
+#include "mainselect.hpp"
 #include "platform/imagefile.hpp"
 #include "platform/paths.hpp"
 #include "texture_port.hpp"
@@ -54,16 +54,17 @@ fs::path Find(const fs::path &directory, std::string_view name, unsigned width, 
 } // namespace
 
 fs::path SharpTextFile(std::string_view name) {
-    // Asked for every frame text is drawn: once made, the files stay; until then, looked for now and again (a worker
-    // may be making them).
-    static bool built = false;
-    static int  until_next_look = 0;
-    const fs::path &root = PathsDataRoot();
+    // Asked whenever the glyph sheet is decoded: once made, the files stay; until then, looked for at most once a
+    // second (a worker may be making them).
+    static bool                                  built = false;
+    static std::chrono::steady_clock::time_point next_look;
+    const fs::path                              &root = PathsDataRoot();
     if (!built) {
-        if (until_next_look-- > 0) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now < next_look) {
             return {};
         }
-        until_next_look = 300;
+        next_look = now + std::chrono::seconds(1);
         built = dcdata::sharp::IsBuilt(root);
         if (!built) {
             return {};
@@ -148,22 +149,25 @@ bool TextureAssetsSharpGaiji() {
     return g_sharp_gaiji;
 }
 
+void TextureAssetsDecoding(const char *name) {
+    if (name != nullptr && std::string_view(name) == "gaiji") {
+        g_sharp_gaiji = false;
+    }
+}
+
 bool TextureAssetApply(const char *name, PortDecodedTexture &texture) {
     if (name == nullptr || texture.width == 0 || texture.height == 0 || texture.levels.empty()) {
         return false;
     }
     const bool gaiji = std::string_view(name) == "gaiji";
-    if (gaiji) {
-        g_sharp_gaiji = false;
-    }
     // A picture is looked for by the texture's own size, so a texture this function already replaced is left alone.
     if (texture.logical_width != 0) {
         return false;
     }
     fs::path path = TextureAssetPath(TextureAssetsArea(), TextureAssetsLanguage(), name, texture.width, texture.height);
     bool     sharp = false;
-    if (path.empty() && gaiji && ConfigGet().font_sharp) {
-        // The Sharp text font: the glyph sheet drawn from the game's letters when the data was extracted.
+    if (path.empty() && gaiji) {
+        // The glyph sheet redrawn in Chronicle Sharp when the data was extracted.
         path = SharpGaijiPath(TextureAssetsLanguage());
         sharp = !path.empty();
     }

@@ -348,7 +348,7 @@ PORT_OVERRIDE void DrawWeaponSelectDialog(int x, int y, int alpha) {
                 btn_label  = LocalizeText("weaponmenu.action.upgrade", "UPGRADE");
                 btn_preset = UI::ButtonPreset::AmberGold;
             } else if (i == 2) {
-                btn_label = LocalizeText("weaponmenu.action.synthesize", "STATUS BREAK");
+                btn_label = LocalizeText("weaponmenu.action.statusbreak", "STATUS BREAK");
                 btn_preset = UI::ButtonPreset::SlateBlue;
             } else {
                 btn_label  = LocalizeText("weaponmenu.action.buildup", "BUILD-UP");
@@ -795,7 +795,7 @@ PORT_OVERRIDE void WeaponMenuDraw() {
             break;
         case WEP_MENU_STATUS_BREAK_CONFIRM:
             DrawWeaponLeftConfirmDialog(0x46, 0x88, 0x88, 0xF3,
-                                        LocalizeText("weaponmenu.synthesize.confirm", "Status break this weapon?\nWeapon disappears."), 0x80);
+                                        LocalizeText("weaponmenu.break.confirm", "Status break this weapon?\nWeapon disappears."), 0x80);
             break;
         case WEP_MENU_BUILDUP_PREVIEW:
             AllFadeForMenu(0x40);

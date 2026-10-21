@@ -125,10 +125,9 @@ bool DrawNameTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
     // English's RE, EG, GI, IS and ER closer, and ST, TE and NA closer still, as painted, NAME where it was.
     static constexpr float kClose = -0.8f, kCloser = -1.6f;
     static constexpr float kEnglish[] = {kClose + 0.4f, kClose, kClose, kClose, kCloser, kCloser, kClose, 0.1f - 2 * kClose, kCloser};
-    const std::string      title = LocalizeText("nameentry.title", "REGISTER NAME");
-    const bool             english = title == "REGISTER NAME"; // its NAME half a pixel further on than the painting's
-    return caption::DrawTitle(title, screen.x, screen.y, 4.0f, english ? 164.5f : 164.0f, 8.0f * rows - 3.3f, 18.2f * rows + 0.5f, 0.1f,
-                              english ? std::span<const float>(kEnglish) : std::span<const float>(), alpha);
+    // NAME half a pixel further on than the painting's.
+    return caption::DrawTitle("REGISTER NAME", screen.x, screen.y, 4.0f, 164.5f, 8.0f * rows - 3.3f, 18.2f * rows + 0.5f, 0.1f,
+                              kEnglish, alpha);
 }
 
 // The name alphabet's cells (the keyboard, the name being entered, the save slots, the ally card) drawn from the font.

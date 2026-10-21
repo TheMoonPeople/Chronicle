@@ -94,15 +94,13 @@ std::filesystem::path FindStatusFontPath() {
 }
 
 bool FontReady() {
-    if (!ConfigGet().font_sharp) {
-        return false;
-    }
-    // Captions in Chronicle Sharp (or the font put in its place).
-    const std::filesystem::path  file = LocalizeFindFile("font.ttf");
-    static std::filesystem::path loaded;
-    if (!file.empty() && file != loaded) {
-        loaded = file;
-        capfont::Load(file);
+    // Captions in Chronicle Sharp (or the font put in its place), looked for once.
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        if (const std::filesystem::path file = LocalizeFindFile("font.ttf"); !file.empty()) {
+            capfont::Load(file);
+        }
     }
     if (capfont::Loaded() && !capfont::StatusFontLoaded()) {
         static bool tried_status = false;
@@ -234,6 +232,11 @@ Layout Lay(std::string_view utf8, float box_width) {
     return layout;
 }
 
+// A position on the screen's pixel grid, in logical units.
+float Snap(float value, float scale, float offset) {
+    return (std::round(value * scale + offset) - offset) / scale;
+}
+
 void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x, float y, float width, float height,
           const unsigned char (&rgb)[3], int alpha) {
     // GS modulation doubles vertex RGB; halve font colors before drawing.
@@ -261,11 +264,11 @@ struct LabelCopy {
 constexpr LabelCopy kLabelLightAt = {-1.3f, -0.4f};
 constexpr LabelCopy kLabelDarkAt = {1.0f, 0.9f};
 
-// With fill, the letters are stretched or narrowed to fill the box (less the outline and copies), not only narrowed; cap
+// With stretch, the letters are stretched or narrowed to fill the box (less the outline and copies), not only narrowed; cap
 // and space are the capitals' height and a space's width in ems, and after[i] is added after letter i (spaces not
 // counted), in pixels before the fit; each letter is drawn widen times as wide about its own middle, the spacing kept.
 void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright,
-               float cap = kLabelCap, bool fill = false, float space = kLabelSpace, std::span<const float> after = {},
+               float cap = kLabelCap, bool stretch = false, float space = kLabelSpace, std::span<const float> after = {},
                float widen = 1.0f) {
     std::u32string text = Decode(utf8);
     for (char32_t &ch : text) {
@@ -295,11 +298,10 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
             natural += em * 0.5f;
         }
     }
-    const float squeeze = (fill || natural > room) && room > 0 && natural > 0 ? room / natural : 1.0f;
+    const float squeeze = (stretch || natural > room) && room > 0 && natural > 0 ? room / natural : 1.0f;
 
     const float left = static_cast<float>(x) + bounds.left + kLabelOutline - kLabelLightAt.dx + tune.dx;
     const float base = static_cast<float>(y) + bounds.top + kLabelOutline + cap - kLabelRaise + tune.dy;
-    auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
 
     std::vector<gfx::Vertex2D> edges, lights, darks, fills;
     float                      pen = left;
@@ -329,8 +331,8 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
             const float middle = pen + fill.width / mapping.scale_x * squeeze / 2;
             float       gx = middle + (pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze - middle) * widen;
             float       gy = base * rows + glyph.y_offset / mapping.scale_y;
-            gx = snap(gx, mapping.scale_x, mapping.offset_x) + static_cast<float>(px_x) / mapping.scale_x;
-            gy = snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
+            gx = Snap(gx, mapping.scale_x, mapping.offset_x) + static_cast<float>(px_x) / mapping.scale_x;
+            gy = Snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
             Quad(out, glyph, gx, gy, width, height, rgb, alpha);
         };
         // Each shadow is the letter swept from its own place to the shadow's, stamped on every pixel of the way, so it is
@@ -511,7 +513,6 @@ constexpr unsigned char kFloorLabelRing[3] = {44, 44, 106};
 // dark brown glow all round them, a little lower than they are, darkest against them and fading with distance.
 constexpr unsigned char kButtonFill[3] = {255, 244, 222};
 constexpr unsigned char kButtonShade[3] = {58, 30, 18};
-constexpr float         kButtonThin = 0.0f;
 constexpr float         kButtonShadowX = 0.2f;
 constexpr float         kButtonShadowY = 0.7f;
 constexpr float         kButtonShadowGrow = 0.2f;
@@ -545,7 +546,7 @@ constexpr ButtonLetter kButtonLetters[] = {
     {"EQUIP",        U'P', 67.41f, 3.54f,  78.34f, 19.43f},
     {"CUSTOMIZE",    U'C', 7.14f,  4.15f,  15.74f, 20.01f},
     {"CUSTOMIZE",    U'U', 17.63f, 4.20f,  26.60f, 19.94f},
-    {"CUSTOMIZE",    U'S', 27.42f, 3.57f,  35.87f, 19.63f}, // a little nearer the T than fitted
+    {"CUSTOMIZE",    U'S', 27.42f, 3.57f,  35.87f, 19.63f}, // as near the T as painted
     {"CUSTOMIZE",    U'T', 36.84f, 3.94f,  44.55f, 19.73f},
     {"CUSTOMIZE",    U'O', 44.07f, 3.88f,  52.97f, 19.73f},
     {"CUSTOMIZE",    U'M', 53.88f, 4.08f,  63.00f, 19.59f},
@@ -565,7 +566,7 @@ constexpr ButtonLetter kButtonLetters[] = {
     {"UPGRADE",      U'A', 54.48f, 3.22f,  65.40f, 18.77f},
     {"UPGRADE",      U'D', 67.03f, 3.03f,  78.07f, 18.75f},
     {"UPGRADE",      U'E', 78.84f, 3.60f,  89.32f, 19.26f},
-    // STATUS BREAK: its letters drawn a little wider than fitted and its words a little further apart.
+    // STATUS BREAK: its letters drawn a little wide and its words a little apart, as painted.
     {"STATUS BREAK", U'S', 5.38f,  3.53f,  12.41f, 19.80f},
     {"STATUS BREAK", U'T', 13.20f, 3.72f,  19.64f, 19.71f},
     {"STATUS BREAK", U'A', 18.71f, 3.22f,  25.88f, 19.53f},
@@ -615,7 +616,6 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
         std::copy_n(kButtonFill, 3, *colour);
     }
     std::copy_n(kButtonShade, 3, paint.shade);
-    paint.thin = kButtonThin * k;
     paint.shadow_x = kButtonShadowX * kx;
     paint.shadow_y = kButtonShadowY * ky;
     paint.shadow_grow = kButtonShadowGrow * k;
@@ -638,8 +638,6 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
         ++last;
     }
     const float middle = (first->left + first->right + last->left + last->right) / 4;
-
-    auto                       snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     const u_char               tint = static_cast<u_char>(std::clamp(bright, 0, 255)), a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
     std::vector<gfx::Vertex2D> quads;
     auto                       quad = [&](const capfont::Glyph &glyph, float left, float top) {
@@ -658,17 +656,16 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
 
     std::vector<Placed> placed;
     for (auto letter = first; letter != std::end(kButtonLetters) && letter->word == word; ++letter) {
-        // The letter's outline stretched so that, thinned, its ink fills the painted letter's box.
-        const float grow = kButtonThin;
+        // The letter's outline stretched to the painted letter's box.
         const float shift = (middle - (letter->left + letter->right) / 2) * (1.0f - kButtonTighten);
-        placed.push_back({letter->ch, snap(x + letter->left + shift - grow, mapping.scale_x, mapping.offset_x),
-                          snap((y + letter->top - grow) * rows, mapping.scale_y, mapping.offset_y),
-                          (letter->right - letter->left + 2 * grow) * kx, (letter->bottom - letter->top + 2 * grow) * ky});
+        placed.push_back({letter->ch, Snap(x + letter->left + shift, mapping.scale_x, mapping.offset_x),
+                          Snap((y + letter->top) * rows, mapping.scale_y, mapping.offset_y), (letter->right - letter->left) * kx,
+                          (letter->bottom - letter->top) * ky});
     }
     // The word's shadow as one, from all its letters together, so where they meet it does not darken twice; then the
     // letters over it.
-    const float                        origin_x = snap(x, mapping.scale_x, mapping.offset_x);
-    const float                        origin_y = snap(y * rows, mapping.scale_y, mapping.offset_y);
+    const float                        origin_x = Snap(x, mapping.scale_x, mapping.offset_x);
+    const float                        origin_y = Snap(y * rows, mapping.scale_y, mapping.offset_y);
     std::vector<capfont::PlacedLetter> together;
     for (const Placed &letter : placed) {
         together.push_back({letter.ch, (letter.left - origin_x) * mapping.scale_x, (letter.top - origin_y) * mapping.scale_y, letter.w, letter.h});
@@ -679,17 +676,29 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
     }
     capfont::Paint shadow = paint;
     shadow.shadow_only = true;
-    capfont::Glyph glyph;
-    if (!capfont::GetPaintedWord(together, shadow, glyph)) {
-        return false;
-    }
-    quad(glyph, origin_x + glyph.x_offset / mapping.scale_x, origin_y + glyph.y_offset / mapping.scale_y);
-    paint.shadow_alpha = 0.0f;
-    for (const Placed &letter : placed) {
-        if (!capfont::GetPaintedGlyph(letter.ch, -1, letter.w, letter.h, paint, glyph)) {
+    capfont::Paint face = {0.0f, 0.0f, 0.0f, 0, 0.0f, {}, {}, {}};
+    std::copy_n(paint.fill, 3, face.fill);
+    std::copy_n(paint.body, 3, face.body);
+    std::copy_n(paint.ring, 3, face.ring);
+    face.slot = paint.slot;
+    // Made again, once, if the atlas started over while they were fetched (that would leave the first ones stale).
+    for (int attempt = 0; attempt < 2; attempt++) {
+        const unsigned generation = capfont::Generation();
+        quads.clear();
+        capfont::Glyph glyph;
+        if (!capfont::GetPaintedWord(together, shadow, glyph)) {
             return false;
         }
-        quad(glyph, letter.left + glyph.x_offset / mapping.scale_x, letter.top + glyph.y_offset / mapping.scale_y);
+        quad(glyph, origin_x + glyph.x_offset / mapping.scale_x, origin_y + glyph.y_offset / mapping.scale_y);
+        for (const Placed &letter : placed) {
+            if (!capfont::GetPaintedGlyph(letter.ch, -1, letter.w, letter.h, face, glyph)) {
+                return false;
+            }
+            quad(glyph, letter.left + glyph.x_offset / mapping.scale_x, letter.top + glyph.y_offset / mapping.scale_y);
+        }
+        if (generation == capfont::Generation()) {
+            break;
+        }
     }
     textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
     draw2d::RestoreTestZbuf();
@@ -755,52 +764,58 @@ bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, f
     for (unsigned char (*colour)[3] : {&face.fill, &face.body, &face.ring}) {
         std::copy_n(kFloorLabelFill, 3, *colour);
     }
-
-    auto                       snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     const u_char               a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
     std::vector<gfx::Vertex2D> quads;
     // Every letter outlined, then every face over all the outlines, so the word is outlined as one.
-    for (const capfont::Paint *paint : {&outlined, &face}) {
-        float shift = 0.0f;
-        for (std::size_t i = 0; i < letters.size(); i++) {
-            const Letter  &letter = letters[i];
-            float          widen = 0.0f, raise = 0.0f;
-            for (const FloorAdjust &fix : adjust) {
-                if (fix.letter == static_cast<int>(i)) {
-                    shift += fix.move;
-                    widen += fix.widen;
-                    raise += fix.raise;
+    // Made again, once, if the atlas started over while they were fetched (that would leave the first ones stale).
+    for (int attempt = 0; attempt < 2; attempt++) {
+        const unsigned generation = capfont::Generation();
+        quads.clear();
+        for (const capfont::Paint *paint : {&outlined, &face}) {
+            float shift = 0.0f;
+            for (std::size_t i = 0; i < letters.size(); i++) {
+                const Letter &letter = letters[i];
+                float         widen = 0.0f, raise = 0.0f;
+                for (const FloorAdjust &fix : adjust) {
+                    if (fix.letter == static_cast<int>(i)) {
+                        shift += fix.move;
+                        widen += fix.widen;
+                        raise += fix.raise;
+                    }
                 }
+                capfont::Glyph glyph;
+                const float    w = (letter.bounds[2] - letter.bounds[0]) * sx + widen, h = (letter.bounds[3] - letter.bounds[1]) * sy;
+                if (!capfont::GetPaintedGlyph(letter.ch, -1, w * kx, h * ky, *paint, glyph)) {
+                    return false;
+                }
+                const float x0 = Snap(left + letter.pen * sx + shift, mapping.scale_x, mapping.offset_x) + glyph.x_offset / mapping.scale_x;
+                shift += widen; // the letters after a widened one move along
+                const float y0 = Snap((top + (high - letter.bounds[3]) * sy - raise) * rows, mapping.scale_y, mapping.offset_y) +
+                                 glyph.y_offset / mapping.scale_y;
+                const float x1 = x0 + glyph.width / mapping.scale_x;
+                float       y1 = y0 + glyph.height / mapping.scale_y;
+                // Cut to the rows the list shows.
+                float       v0 = glyph.v0, v1 = glyph.v1, from = y0;
+                const float cut_top = clip_top * rows, cut_bottom = clip_bottom * rows;
+                if (y1 <= cut_top || from >= cut_bottom) {
+                    continue;
+                }
+                if (from < cut_top) {
+                    v0 += (glyph.v1 - glyph.v0) * (cut_top - y0) / (y1 - y0);
+                    from = cut_top;
+                }
+                if (y1 > cut_bottom) {
+                    v1 -= (glyph.v1 - glyph.v0) * (y1 - cut_bottom) / (y1 - y0);
+                    y1 = cut_bottom;
+                }
+                quads.push_back(draw2d::Vertex(x0, from, 0.0f, glyph.u0, v0, 0x80, 0x80, 0x80, a));
+                quads.push_back(draw2d::Vertex(x1, from, 0.0f, glyph.u1, v0, 0x80, 0x80, 0x80, a));
+                quads.push_back(draw2d::Vertex(x1, y1, 0.0f, glyph.u1, v1, 0x80, 0x80, 0x80, a));
+                quads.push_back(draw2d::Vertex(x0, y1, 0.0f, glyph.u0, v1, 0x80, 0x80, 0x80, a));
             }
-            capfont::Glyph glyph;
-            const float    w = (letter.bounds[2] - letter.bounds[0]) * sx + widen, h = (letter.bounds[3] - letter.bounds[1]) * sy;
-            if (!capfont::GetPaintedGlyph(letter.ch, -1, w * kx, h * ky, *paint, glyph)) {
-                return false;
-            }
-            const float x0 = snap(left + letter.pen * sx + shift, mapping.scale_x, mapping.offset_x) + glyph.x_offset / mapping.scale_x;
-            shift += widen; // the letters after a widened one move along
-            const float y0 = snap((top + (high - letter.bounds[3]) * sy - raise) * rows, mapping.scale_y, mapping.offset_y) +
-                             glyph.y_offset / mapping.scale_y;
-            const float x1 = x0 + glyph.width / mapping.scale_x;
-            float       y1 = y0 + glyph.height / mapping.scale_y;
-            // Cut to the rows the list shows.
-            float       v0 = glyph.v0, v1 = glyph.v1, from = y0;
-            const float cut_top = clip_top * rows, cut_bottom = clip_bottom * rows;
-            if (y1 <= cut_top || from >= cut_bottom) {
-                continue;
-            }
-            if (from < cut_top) {
-                v0 += (glyph.v1 - glyph.v0) * (cut_top - y0) / (y1 - y0);
-                from = cut_top;
-            }
-            if (y1 > cut_bottom) {
-                v1 -= (glyph.v1 - glyph.v0) * (y1 - cut_bottom) / (y1 - y0);
-                y1 = cut_bottom;
-            }
-            quads.push_back(draw2d::Vertex(x0, from, 0.0f, glyph.u0, v0, 0x80, 0x80, 0x80, a));
-            quads.push_back(draw2d::Vertex(x1, from, 0.0f, glyph.u1, v0, 0x80, 0x80, 0x80, a));
-            quads.push_back(draw2d::Vertex(x1, y1, 0.0f, glyph.u1, v1, 0x80, 0x80, 0x80, a));
-            quads.push_back(draw2d::Vertex(x0, y1, 0.0f, glyph.u0, v1, 0x80, 0x80, 0x80, a));
+        }
+        if (generation == capfont::Generation()) {
+            break;
         }
     }
     if (!quads.empty()) {
@@ -833,25 +848,31 @@ bool DrawAlphabetCell(int u, int v, int texel_width, int texel_height, float x, 
     std::copy_n(kAlphaFill, 3, paint.fill);
     std::copy_n(kAlphaBody, 3, paint.body);
     std::copy_n(kAlphaRing, 3, paint.ring);
-
-    auto                       snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     const u_char               red = static_cast<u_char>(std::clamp(r, 0, 255)), green = static_cast<u_char>(std::clamp(g, 0, 255));
     const u_char               blue = static_cast<u_char>(std::clamp(b, 0, 255)), a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
     std::vector<gfx::Vertex2D> quads;
-    for (auto place = cell; place != std::end(kAlphabet) && place->row == row && place->col == col; ++place) {
-        capfont::Glyph glyph;
-        if (!capfont::GetPaintedGlyph(place->ch, place->part, place->w * kx, place->h * ky, paint, glyph)) {
-            return false;
+    // Made again, once, if the atlas started over while they were fetched (that would leave the first ones stale).
+    for (int attempt = 0; attempt < 2; attempt++) {
+        const unsigned generation = capfont::Generation();
+        quads.clear();
+        for (auto place = cell; place != std::end(kAlphabet) && place->row == row && place->col == col; ++place) {
+            capfont::Glyph glyph;
+            if (!capfont::GetPaintedGlyph(place->ch, place->part, place->w * kx, place->h * ky, paint, glyph)) {
+                return false;
+            }
+            const float left = Snap(x + place->x * width / static_cast<float>(texel_width), mapping.scale_x, mapping.offset_x) +
+                               glyph.x_offset / mapping.scale_x;
+            const float top = Snap((y + place->y * height / static_cast<float>(texel_height)) * rows, mapping.scale_y, mapping.offset_y) +
+                              glyph.y_offset / mapping.scale_y;
+            const float right = left + glyph.width / mapping.scale_x, bottom = top + glyph.height / mapping.scale_y;
+            quads.push_back(draw2d::Vertex(left, top, 0.0f, glyph.u0, glyph.v0, red, green, blue, a));
+            quads.push_back(draw2d::Vertex(right, top, 0.0f, glyph.u1, glyph.v0, red, green, blue, a));
+            quads.push_back(draw2d::Vertex(right, bottom, 0.0f, glyph.u1, glyph.v1, red, green, blue, a));
+            quads.push_back(draw2d::Vertex(left, bottom, 0.0f, glyph.u0, glyph.v1, red, green, blue, a));
         }
-        const float left = snap(x + place->x * width / static_cast<float>(texel_width), mapping.scale_x, mapping.offset_x) +
-                           glyph.x_offset / mapping.scale_x;
-        const float top = snap((y + place->y * height / static_cast<float>(texel_height)) * rows, mapping.scale_y, mapping.offset_y) +
-                          glyph.y_offset / mapping.scale_y;
-        const float right = left + glyph.width / mapping.scale_x, bottom = top + glyph.height / mapping.scale_y;
-        quads.push_back(draw2d::Vertex(left, top, 0.0f, glyph.u0, glyph.v0, red, green, blue, a));
-        quads.push_back(draw2d::Vertex(right, top, 0.0f, glyph.u1, glyph.v0, red, green, blue, a));
-        quads.push_back(draw2d::Vertex(right, bottom, 0.0f, glyph.u1, glyph.v1, red, green, blue, a));
-        quads.push_back(draw2d::Vertex(left, bottom, 0.0f, glyph.u0, glyph.v1, red, green, blue, a));
+        if (generation == capfont::Generation()) {
+            break;
+        }
     }
     textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
     draw2d::RestoreTestZbuf();
@@ -983,7 +1004,6 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
     const int                 em_px = std::max(4, static_cast<int>(em * mapping.scale_x + 0.5f));
     // The capitals' tops at cap_top, wherever the font puts its baseline.
     const float               base = cap_top + kBoardCap * (1.0f - metrics.cap_drop / std::max(metrics.cap, 0.1f));
-    auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     // Which of the name's letters ch letter i is.
     auto nth_of = [&](std::size_t i) {
         return static_cast<int>(std::count(text.begin(), text.begin() + static_cast<std::ptrdiff_t>(i), text[i]));
@@ -1028,55 +1048,64 @@ bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squ
     };
 
     std::vector<gfx::Vertex2D> rings, fills;
-    float                      pen = 0.0f; // unsqueezed, from left_x
-    float                      shifted = 0.0f; // how far the word's adjustments have moved its letters so far
-    for (std::size_t i = 0; i < text.size(); i++) {
-        if (text[i] == U' ') {
-            // A word's adjustments move the rest of it, not the words after it; a space's move the rest of the name.
-            float widen = 0.0f;
-            for (const BoardAdjust &change : adjust) {
-                if (change.ch == U' ') {
-                    widen += change.advance;
+    // Made again, once, if the atlas started over while they were fetched (that would leave the first ones stale).
+    for (int attempt = 0; attempt < 2; attempt++) {
+        const unsigned generation = capfont::Generation();
+        rings.clear();
+        fills.clear();
+        float pen = 0.0f;     // unsqueezed, from left_x
+        float shifted = 0.0f; // how far the word's adjustments have moved its letters so far
+        for (std::size_t i = 0; i < text.size(); i++) {
+            if (text[i] == U' ') {
+                // A word's adjustments move the rest of it, not the words after it; a space's move the rest of the name.
+                float widen = 0.0f;
+                for (const BoardAdjust &change : adjust) {
+                    if (change.ch == U' ') {
+                        widen += change.advance;
+                    }
                 }
+                pen += kBoardSpace - shifted + widen;
+                shifted = 0.0f;
+                continue;
             }
-            pen += kBoardSpace - shifted + widen;
-            shifted = 0.0f;
-            continue;
+            const float stretch = stretch_of(i);
+            Spread      spread;
+            float       advance, move;
+            changes_of(i, spread, advance, move);
+            capfont::Glyph core, fill, ring;
+            if (stretch > 0 && capfont::GetStretchedGlyph(text[i], em_px, 0, stretch, true, core) &&
+                capfont::GetStretchedGlyph(text[i], em_px, kBoardWeight * mapping.scale_x, stretch, true, fill)) {
+                const float core_x = left_x + (pen + move - spread.left) * squeeze + kBoardWeight;
+                // An apostrophe goes up or down so its top is level with the next letter's, and a screen pixel more: the
+                // next letter's top is a curve whose topmost row is faint.
+                float lift = 0.0f;
+                if (text[i] == U'\'' && i + 1 < text.size() && text[i + 1] != U' ') {
+                    capfont::Glyph next;
+                    const float    next_stretch = stretch_of(i + 1);
+                    if (next_stretch > 0 &&
+                        capfont::GetStretchedGlyph(text[i + 1], em_px, kBoardWeight * mapping.scale_x, next_stretch, true, next)) {
+                        lift = (fill.y_offset - next.y_offset + 1.0f) / mapping.scale_y;
+                    }
+                }
+                auto place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3]) {
+                    if (glyph.width <= 0 || glyph.height <= 0) {
+                        return;
+                    }
+                    const float gx = Snap(core_x + (glyph.x_offset - core.x_offset) / mapping.scale_x, mapping.scale_x, mapping.offset_x);
+                    const float gy = Snap(base * rows + (glyph.y_offset / mapping.scale_y - lift) * rows, mapping.scale_y, mapping.offset_y);
+                    Quad(out, glyph, gx, gy, glyph.width / mapping.scale_x, glyph.height / mapping.scale_y * rows, rgb, alpha);
+                };
+                if (capfont::GetStretchedGlyph(text[i], em_px, (kBoardWeight + kBoardOutline) * mapping.scale_x, stretch, true, ring)) {
+                    place(ring, rings, kBoardRing);
+                }
+                place(fill, fills, kBoardFill);
+            }
+            pen += BoardWidth(text[i]) + gap_after(i) + advance;
+            shifted += advance;
         }
-        const float    stretch = stretch_of(i);
-        Spread         spread;
-        float          advance, move;
-        changes_of(i, spread, advance, move);
-        capfont::Glyph core, fill, ring;
-        if (stretch > 0 && capfont::GetStretchedGlyph(text[i], em_px, 0, stretch, true, core) &&
-            capfont::GetStretchedGlyph(text[i], em_px, kBoardWeight * mapping.scale_x, stretch, true, fill)) {
-            const float core_x = left_x + (pen + move - spread.left) * squeeze + kBoardWeight;
-            // An apostrophe goes up or down so its top is level with the next letter's, and a screen pixel more: the
-            // next letter's top is a curve whose topmost row is faint.
-            float lift = 0.0f;
-            if (text[i] == U'\'' && i + 1 < text.size() && text[i + 1] != U' ') {
-                capfont::Glyph next;
-                const float    next_stretch = stretch_of(i + 1);
-                if (next_stretch > 0 &&
-                    capfont::GetStretchedGlyph(text[i + 1], em_px, kBoardWeight * mapping.scale_x, next_stretch, true, next)) {
-                    lift = (fill.y_offset - next.y_offset + 1.0f) / mapping.scale_y;
-                }
-            }
-            auto place = [&](const capfont::Glyph &glyph, std::vector<gfx::Vertex2D> &out, const unsigned char (&rgb)[3]) {
-                if (glyph.width <= 0 || glyph.height <= 0) {
-                    return;
-                }
-                const float gx = snap(core_x + (glyph.x_offset - core.x_offset) / mapping.scale_x, mapping.scale_x, mapping.offset_x);
-                const float gy = snap(base * rows + (glyph.y_offset / mapping.scale_y - lift) * rows, mapping.scale_y, mapping.offset_y);
-                Quad(out, glyph, gx, gy, glyph.width / mapping.scale_x, glyph.height / mapping.scale_y * rows, rgb, alpha);
-            };
-            if (capfont::GetStretchedGlyph(text[i], em_px, (kBoardWeight + kBoardOutline) * mapping.scale_x, stretch, true, ring)) {
-                place(ring, rings, kBoardRing);
-            }
-            place(fill, fills, kBoardFill);
+        if (generation == capfont::Generation()) {
+            break;
         }
-        pen += BoardWidth(text[i]) + gap_after(i) + advance;
-        shifted += advance;
     }
     // Cut each quad (corners top-left, top-right, bottom-right, bottom-left) to the rows that are shown.
     const float top = clip_top * rows, bottom = clip_bottom * rows;
@@ -1289,8 +1318,6 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
     const float     base = static_cast<float>(y) + (kCell - layout.em * (metrics.ascent + metrics.descent)) / 2 +
                            layout.em * metrics.ascent + tune.dy;
 
-    auto snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
-
     std::vector<gfx::Vertex2D> edges, fills;
     float                      pen = static_cast<float>(x) + tune.dx;
     for (char32_t ch : layout.text) {
@@ -1313,8 +1340,8 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
             const float height = glyph.height / mapping.scale_y * rows * tune.yscale;
             float       gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * layout.squeeze;
             float       gy = base * rows + glyph.y_offset / mapping.scale_y * tune.yscale;
-            gx = snap(gx, mapping.scale_x, mapping.offset_x);
-            gy = snap(gy, mapping.scale_y, mapping.offset_y);
+            gx = Snap(gx, mapping.scale_x, mapping.offset_x);
+            gy = Snap(gy, mapping.scale_y, mapping.offset_y);
             Quad(out, glyph, gx + shift_x, gy + shift_y * rows, width, height, rgb, alpha);
         };
         if (has_edge) {
@@ -1469,7 +1496,6 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
     const float baseline = style.ink_fit && ink_height > 0.0f
                                ? (cap_top + style.dy) * rows - ink_top * vertical_scale
                                : (cap_top + cap_height + style.dy) * rows;
-    auto        snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
     const int   edge_px = std::clamp(static_cast<int>(style.edge_width * mapping.scale_x + 0.5f), 0, 60);
     const int   glow_px = style.glow_amount > 0.0f ? std::clamp(static_cast<int>(style.glow_width * mapping.scale_x + 0.5f), 0, 60) : 0;
 
@@ -1478,8 +1504,8 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
         h = glyph.height * vertical_scale;
         x = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze * style.xscale;
         y = baseline + glyph.y_offset * vertical_scale;
-        x = snap(x, mapping.scale_x, mapping.offset_x);
-        y = snap(y, mapping.scale_y, mapping.offset_y);
+        x = Snap(x, mapping.scale_x, mapping.offset_x);
+        y = Snap(y, mapping.scale_y, mapping.offset_y);
     };
     // Colored glyphs depend on their position in the painted fill field and on atlas generation.
     static std::map<std::array<int, 9>, capfont::Glyph> textured;

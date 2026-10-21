@@ -351,6 +351,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
                                indexed && swizzled != 0, decoded)) {
             return;
         }
+        TextureAssetsDecoding(name);
         if (!LocalizeTexture(name, decoded)) {
             TextureAssetApply(name, decoded);
         }

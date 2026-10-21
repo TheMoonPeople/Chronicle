@@ -42,9 +42,12 @@ std::filesystem::path TextureAssetPath(std::string_view area, std::string_view l
                                        unsigned width, unsigned height);
 
 /// Called for each texture the game decodes, after the language's own picture had its chance: swaps in the
-/// area's picture when there is one. True if it did. With the Sharp text font, the glyph sheet "gaiji" that no
-/// picture replaces is swapped for the one redrawn in Chronicle Sharp when the data was extracted.
+/// area's picture when there is one. True if it did. The glyph sheet "gaiji" that no picture replaces is swapped for
+/// the one redrawn in Chronicle Sharp when the data was extracted.
 bool TextureAssetApply(const char *name, PortDecodedTexture &texture);
+
+/// Called for each texture the game decodes, before anything replaces it.
+void TextureAssetsDecoding(const char *name);
 
 /// A file the extraction makes for the Sharp text font (dcdata/sharpfont.hpp: "<language>/gaiji.png"), or an empty
 /// path while it is not made.

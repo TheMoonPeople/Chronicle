@@ -10,7 +10,6 @@
 //
 //     <language>/gaiji.png        the language's glyph sheet
 //     version.txt                 kVersion, so a changed recipe makes them again
-//     version.txt                 kVersion, so a changed recipe makes them again
 
 #include <algorithm>
 #include <array>
@@ -616,10 +615,6 @@ inline bool Build(const fs::path &data, const fs::path &fonts, std::FILE *log) {
     const std::vector<double> coverage = SheetCoverage(*reference);
 
     fs::path out = data / "sharp";
-    // The folder holds no fonts: the port ships its own.
-    std::error_code error;
-    fs::remove(out / "font.ttf", error);
-    fs::remove(out / "font_regular.ttf", error);
     for (const auto &[folder, pack] : kLanguages) {
         std::optional<Picture> sheet = GlyphSheet(data / std::string(pack));
         if (!sheet || sheet->width != reference->width || sheet->height != reference->height) {

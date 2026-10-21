@@ -70,11 +70,6 @@ struct Config : HostSettings {
     // game.language: 0 asks at start-up, as retail does; 2 to 6 is the language to start in
     // (LanguageCode: English, Francais, Deutsch, Italiano, Espanol) and skips the language screen.
     int                           language = 0;
-    // video.text_font: "original" draws the message text from the game's own 14x20 bitmaps; "sharp" from
-    // Chronicle Sharp (lang/font.ttf): the game's glyph sheet redrawn in it when the data was extracted
-    // (tools/dcdata/sharpfont.hpp), the font itself until that is made. "community", the setting's old third
-    // choice, reads as "sharp".
-    bool                          font_sharp = true;
     // video.text_shadow and video.glyph_shadow: how strong the shadow under the TrueType message text and
     // under the button symbols in it is, in percent in steps of 5. 0 casts none, 50 is the soft shadow
     // (the letters' default), 100 the deep one. The symbols' is lighter, because a solid shape stacks

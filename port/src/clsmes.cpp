@@ -93,9 +93,8 @@ int ChoiceRowDim(const ClsMes &mes, int row, int clut) {
 // from the 14x20 bitmaps of gaiji.img. Icons and characters the font lacks draw as before.
 
 bool TtfReady() {
-    // video.text_font set to the game's own letters: the bitmaps, whatever font there is. With the Sharp glyph sheet
-    // made, the game draws its letters itself, from it.
-    if (!ConfigGet().font_sharp || TextureAssetsSharpGaiji()) {
+    // With the Sharp glyph sheet made, the game draws its letters itself, from it.
+    if (TextureAssetsSharpGaiji()) {
         return false;
     }
     static bool tried = false;

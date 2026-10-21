@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -36,8 +37,8 @@ struct Atlas {
     int                                       row_height = 0;
     std::map<std::pair<char32_t, int>, Glyph> glyphs;
     std::map<std::pair<char32_t, int>, bool>  missing;
-    std::map<std::array<int, 20>, Glyph>      painted;
-    std::map<std::string, Glyph>              painted_words;
+    std::map<std::string, Glyph>              painted;         // GetPaintedGlyph's and GetPaintedWord's
+    std::set<std::string>                     painted_missing; // ones that could not be made
 };
 
 Font     g_fonts[3];
@@ -369,56 +370,6 @@ Bitmap Dilate(const Bitmap &in, int radius) {
     return out;
 }
 
-// The bitmap shrunk by `radius` pixels: only what lies further than that inside its edge.
-Bitmap Erode(const Bitmap &in, int radius) {
-    if (radius <= 0 || in.w <= 0 || in.h <= 0) {
-        return in;
-    }
-    const int          W = in.w + 2, H = in.h + 2;
-    const float        kFar = 1e12f;
-    std::vector<float> grid(static_cast<size_t>(W) * H, 0.0f);
-    for (int row = 0; row < in.h; row++) {
-        for (int col = 0; col < in.w; col++) {
-            if (in.alpha[static_cast<size_t>(row) * in.w + col] >= 128) {
-                grid[static_cast<size_t>(row + 1) * W + col + 1] = kFar;
-            }
-        }
-    }
-    const int          longest = std::max(W, H);
-    std::vector<float> line(static_cast<size_t>(longest)), result(static_cast<size_t>(longest)), z(static_cast<size_t>(longest) + 1);
-    std::vector<int>   v(static_cast<size_t>(longest));
-    for (int col = 0; col < W; col++) {
-        line.resize(static_cast<size_t>(H));
-        for (int row = 0; row < H; row++) {
-            line[static_cast<size_t>(row)] = grid[static_cast<size_t>(row) * W + col];
-        }
-        DistanceLine(line, v, z, result);
-        for (int row = 0; row < H; row++) {
-            grid[static_cast<size_t>(row) * W + col] = result[static_cast<size_t>(row)];
-        }
-    }
-    for (int row = 0; row < H; row++) {
-        line.resize(static_cast<size_t>(W));
-        for (int col = 0; col < W; col++) {
-            line[static_cast<size_t>(col)] = grid[static_cast<size_t>(row) * W + col];
-        }
-        DistanceLine(line, v, z, result);
-        for (int col = 0; col < W; col++) {
-            grid[static_cast<size_t>(row) * W + col] = result[static_cast<size_t>(col)];
-        }
-    }
-    Bitmap out = in;
-    for (int row = 0; row < in.h; row++) {
-        for (int col = 0; col < in.w; col++) {
-            const float d = std::sqrt(grid[static_cast<size_t>(row + 1) * W + col + 1]);
-            const float cover = std::clamp(d - static_cast<float>(radius) - 0.5f, 0.0f, 1.0f);
-            out.alpha[static_cast<size_t>(row) * in.w + col] =
-                static_cast<unsigned char>(std::lround(cover * static_cast<float>(in.alpha[static_cast<size_t>(row) * in.w + col])));
-        }
-    }
-    return out;
-}
-
 // A bitmap `factor` times finer brought back to pixels: each pixel the average of the finer ones it covers, the
 // finer bitmap's origin rounded out to whole pixels first.
 Bitmap Downsample(const Bitmap &in, int factor) {
@@ -574,12 +525,12 @@ namespace {
 // A glyph drawn `stretch` sixty-fourths as wide as the font has it, then outlined (the outline the same all round); with
 // `smooth`, drawn and outlined four times finer and brought back, so the outline's edge is anti-aliased as finely as the
 // letter's own instead of stepping a pixel at a time.
-bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool smooth, int erode, Glyph &out) {
+bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool smooth, Glyph &out) {
     if (!g_fonts[g_variant].loaded || em_px < 4 || em_px > 512 || outline_px < 0 || outline_px > 63 || stretch < 16 ||
-        stretch > 255 || erode < 0 || erode > 127 || (erode > 0 && !smooth)) {
+        stretch > 255) {
         return false;
     }
-    const auto key = std::make_pair(ch | (static_cast<char32_t>(erode) << 24),
+    const auto key = std::make_pair(ch,
                                     em_px + outline_px * 1024 + g_variant * (1 << 20) + (stretch == 64 ? 0 : stretch << 22) +
                                         (smooth ? 1 << 30 : 0));
     if (auto found = g_atlas.glyphs.find(key); found != g_atlas.glyphs.end()) {
@@ -607,9 +558,6 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
     if (outline_px > 0) {
         // With `smooth` the outline is given in the finer pixels already (a quarter of a pixel each).
         bitmap = Dilate(bitmap, smooth ? outline_px : outline_px * fine);
-    }
-    if (erode > 0) {
-        bitmap = Erode(bitmap, erode);
     }
     if (fine > 1) {
         bitmap = Downsample(bitmap, fine);
@@ -671,13 +619,12 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
 } // namespace
 
 bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out) {
-    return GetShapedGlyph(ch, em_px, outline_px, 64, false, 0, out);
+    return GetShapedGlyph(ch, em_px, outline_px, 64, false, out);
 }
 
-bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out, float erode_px) {
+bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out) {
     const int outline = static_cast<int>(std::lround(outline_px * (smooth ? 4.0f : 1.0f)));
-    const int erode = smooth ? static_cast<int>(std::lround(erode_px * 4.0f)) : 0;
-    return GetShapedGlyph(ch, em_px, outline, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, erode, out);
+    return GetShapedGlyph(ch, em_px, outline, std::clamp(static_cast<int>(std::lround(stretch * 64.0f)), 16, 255), smooth, out);
 }
 
 bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) {
@@ -820,6 +767,21 @@ std::vector<std::vector<Point>> Piece(std::vector<std::vector<Point>> contours, 
 
 namespace {
 
+// Every field of a Paint, for the painted glyphs' cache keys.
+std::string PaintKey(const Paint &paint) {
+    std::string key;
+    for (float v : {paint.depth_x, paint.depth_y, paint.stroke, static_cast<float>(paint.strokes), paint.outline, paint.shadow_x,
+                    paint.shadow_y, paint.shadow_grow, paint.shadow_soft, paint.shadow_alpha, paint.band_alpha, paint.band_y,
+                    paint.band_core, paint.band_fade, paint.band_left, paint.band_right, static_cast<float>(paint.slot),
+                    paint.shadow_only ? 1.0f : 0.0f}) {
+        key += std::to_string(std::lround(v * 64)) + ",";
+    }
+    for (const unsigned char *colour : {paint.fill, paint.body, paint.ring, paint.shade}) {
+        key += std::to_string(colour[0] << 16 | colour[1] << 8 | colour[2]) + ",";
+    }
+    return key;
+}
+
 // Contours in a box's pixels (y down) painted into the atlas; the glyph's offsets are from the box's top left.
 bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w, float box_h, const Paint &paint, Glyph &out) {
     float span_left = 1e9f, span_right = -1e9f;
@@ -845,7 +807,7 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
     // The signed distance from each pixel's centre to the outline (negative inside), as far as any layer looks.
     const float band = std::max({paint.outline + std::hypot(paint.depth_x, paint.depth_y), paint.stroke * static_cast<float>(paint.strokes),
                                  shadow_reach + std::hypot(paint.shadow_x, paint.shadow_y)}) +
-                       paint.thin + 2.0f;
+                       2.0f;
 
     struct Segment {
         Point a, b;
@@ -895,7 +857,6 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
         if (winding[i] != 0) {
             distance[i] = -distance[i];
         }
-        distance[i] += paint.thin;
     }
     auto sample = [&](const std::vector<float> &field, float far, float px, float py) {
         // Bilinear between pixel centres; beyond the bitmap, outside.
@@ -978,23 +939,20 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
     if (!font.loaded || box_w < 1 || box_h < 1 || box_w > 512 || box_h > 512) {
         return false;
     }
-    auto       q = [](float v, float k) { return static_cast<int>(std::lround(v * k)); };
-    const auto key = std::array<int, 20>{static_cast<int>(ch), part, q(box_w, 8), q(box_h, 8), q(paint.depth_x, 16), q(paint.depth_y, 16),
-                                         q(paint.stroke, 64), paint.strokes, q(paint.outline, 16),
-                                         paint.fill[0] << 16 | paint.fill[1] << 8 | paint.fill[2],
-                                         paint.body[0] << 16 | paint.body[1] << 8 | paint.body[2],
-                                         paint.ring[0] << 16 | paint.ring[1] << 8 | paint.ring[2], q(paint.thin, 64),
-                                         q(paint.shadow_x, 16), q(paint.shadow_y, 16), q(paint.shadow_grow, 16),
-                                         q(paint.shadow_soft, 16), q(paint.shadow_alpha, 256),
-                                         paint.shade[0] << 16 | paint.shade[1] << 8 | paint.shade[2],
-                                         paint.slot * 2 + (paint.shadow_only ? 1 : 0)};
+    const std::string key = "g" + std::to_string(static_cast<unsigned>(ch)) + ":" + std::to_string(part) + ":" +
+                            std::to_string(std::lround(box_w * 8)) + "," + std::to_string(std::lround(box_h * 8)) + ":" +
+                            PaintKey(paint);
     if (auto found = g_atlas.painted.find(key); found != g_atlas.painted.end()) {
         out = found->second;
         return true;
     }
+    if (g_atlas.painted_missing.count(key) != 0) {
+        return false;
+    }
     const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch));
     std::vector<std::vector<Point>> contours = Piece(index != 0 ? Contours(font.info, index) : std::vector<std::vector<Point>>{}, part);
     if (contours.empty()) {
+        g_atlas.painted_missing.insert(key);
         return false;
     }
 
@@ -1017,6 +975,7 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
 
     Glyph glyph;
     if (!PaintContours(contours, box_w, box_h, paint, glyph)) {
+        g_atlas.painted_missing.insert(key);
         return false;
     }
     g_atlas.painted[key] = glyph;
@@ -1030,26 +989,20 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
         return false;
     }
     // The key: every letter and its box, and the look.
-    std::string key;
-    auto        add = [&](float v) { key += std::to_string(std::lround(v * 64)) + ","; };
+    std::string key = "w";
     for (const PlacedLetter &letter : letters) {
         key += std::to_string(static_cast<unsigned>(letter.ch)) + ":";
         for (float v : {letter.x, letter.y, letter.w, letter.h}) {
-            add(v);
+            key += std::to_string(std::lround(v * 64)) + ",";
         }
     }
-    for (float v : {paint.depth_x, paint.depth_y, paint.stroke, static_cast<float>(paint.strokes), paint.outline, paint.thin, paint.shadow_x,
-                    paint.shadow_y, paint.shadow_grow, paint.shadow_soft, paint.shadow_alpha, static_cast<float>(paint.slot),
-                    paint.shadow_only ? 1.0f : 0.0f, paint.band_alpha, paint.band_y, paint.band_core, paint.band_fade,
-                    paint.band_left, paint.band_right}) {
-        add(v);
-    }
-    for (const unsigned char *colour : {paint.fill, paint.body, paint.ring, paint.shade}) {
-        key += std::to_string(colour[0] << 16 | colour[1] << 8 | colour[2]) + ",";
-    }
-    if (auto found = g_atlas.painted_words.find(key); found != g_atlas.painted_words.end()) {
+    key += PaintKey(paint);
+    if (auto found = g_atlas.painted.find(key); found != g_atlas.painted.end()) {
         out = found->second;
         return true;
+    }
+    if (g_atlas.painted_missing.count(key) != 0) {
+        return false;
     }
     // Every letter's outline stretched to its box, together in the word's pixels.
     std::vector<std::vector<Point>> contours;
@@ -1079,14 +1032,12 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
         box_w = std::max(box_w, letter.x + letter.w);
         box_h = std::max(box_h, letter.y + letter.h);
     }
-    if (contours.empty() || box_w > 1024 || box_h > 512) {
-        return false;
-    }
     Glyph glyph;
-    if (!PaintContours(contours, box_w, box_h, paint, glyph)) {
+    if (contours.empty() || box_w > 1024 || box_h > 512 || !PaintContours(contours, box_w, box_h, paint, glyph)) {
+        g_atlas.painted_missing.insert(key);
         return false;
     }
-    g_atlas.painted_words[key] = glyph;
+    g_atlas.painted[key] = glyph;
     out = glyph;
     return true;
 }

@@ -627,7 +627,8 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
             constexpr float kTightest = -1.5f;
             int             gaps = -1;
             for (char ch : text) {
-                gaps += ch != ' ' ? 1 : 0;
+                // A letter's first byte (UTF-8's continuation bytes are 10xxxxxx), spaces not counted.
+                gaps += ch != ' ' && (static_cast<unsigned char>(ch) & 0xC0) != 0x80 ? 1 : 0;
             }
             if (gaps > 0) {
                 letter = std::max(kTightest, -static_cast<float>(natural_w - max_text_w) / static_cast<float>(gaps));

@@ -700,11 +700,8 @@ TEST(PlatformConfig, SwapKeepsLockOn) {
     ASSERT_TRUE(!ConfigParse(R"({"game": {"swap_keeps_lock_on": "yes"}})").swap_keeps_lock_on);
 }
 
-TEST(PlatformConfig, TextFont) {
-    ASSERT_TRUE(ConfigParse("").font_sharp);
-    Config config = ConfigParse(R"({"video": {"text_font": "original"}})");
-    ASSERT_TRUE(!config.font_sharp);
-    ASSERT_TRUE(!ConfigParse(ConfigSerialize(config)).font_sharp);
-    ASSERT_TRUE(ConfigParse(R"({"video": {"text_font": "blurry"}})").font_sharp);
-    ASSERT_TRUE(ConfigParse(R"({"video": {"text_font": "community"}})").font_sharp);
+TEST(PlatformConfig, TextFontIsNoLongerWritten) {
+    // An older config.json's text font setting is read without complaint and not written back.
+    const Config config = ConfigParse(R"({"video": {"text_font": "original"}})");
+    ASSERT_EQ(ConfigSerialize(config).find("text_font"), std::string::npos);
 }
