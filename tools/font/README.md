@@ -16,11 +16,11 @@ letters, the cedilla, `¡`, `¿`, `œ` and `Œ` are blank; the port builds them 
 when it draws.
 
 The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. The message windows'
-88 letters come from a glyph sheet the port draws from both at startup (Bold for the game's bold set, Regular for its
-narrower one, at six times the cells' resolution), so the game lays them out and edges them as it always has. Bold also
-draws the text the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save slots
-and the ally card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the floor
-select's boss names and the weapon menu's buttons.
+88 letters are drawn from both at the screen's own resolution (Bold for the game's bold set, Regular for its narrower
+one), each in the cell the game cuts its letter from, so the game lays them out and edges them as it always has. Bold
+also draws the text the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save
+slots and the ally card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the
+floor select's boss names and the weapon menu's buttons.
 
 To use another font for the text the port draws from a font, put it at `lang/font.ttf` in the save folder (that wins
 over this one) or start the game with `--font <file>`.

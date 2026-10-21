@@ -5,10 +5,11 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
-#include <future>
 #include <iterator>
+#include <map>
 #include <span>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "caption_text.hpp"
@@ -91,7 +92,7 @@ int ChoiceRowDim(const ClsMes &mes, int row, int clut) {
 }
 
 // ---- Message text from a TrueType font ----
-// Without the Sharp glyph sheet (below: it needs font.ttf and font_thin.ttf), a character font.ttf in a lang folder
+// Without Chronicle Sharp's letters (below: they need font.ttf and font_thin.ttf), a character font.ttf in a lang folder
 // (Chronicle Sharp, the save's or the executable's, or the font --font names) has is drawn from it at the screen's own
 // resolution, in the cell the game laid the bitmap character out in, instead of from the 14x20 bitmaps of gaiji.img.
 // Icons and characters the font lacks draw as before.
@@ -113,32 +114,41 @@ bool TtfReady() {
     return ttffont::Loaded();
 }
 
-// ---- Message letters from the Sharp glyph sheet ----
+// ---- Message letters from Chronicle Sharp ----
 // The 88 letters of gaiji.img (nine 14x20 cells a row from u = 128 for the bold set and u = 256 for the narrower one),
-// drawn from Chronicle Sharp at kSheetScale times the cells' resolution: font.ttf's letters for the bold set,
-// font_thin.ttf's for the narrower. The game lays its letters out and edges them as it always has; only their shapes are
-// the font's. The fonts lay each letter out on its cell, 50 units a cell pixel with the baseline at its row 15.
+// drawn from Chronicle Sharp at the screen's own resolution: font.ttf's letters for the bold set, font_thin.ttf's for the
+// narrower. Each letter's cell is drawn once at the size the screen shows it, the narrower letters with the drop shadow
+// they carry in their own texels, into the captions' font atlas, and the game's letters are cut from it as the game cuts
+// them from its bitmaps, so it lays them out and edges them as it always has; only their shapes are the font's. The
+// fonts lay each letter out on its cell, 50 units a cell pixel with the baseline at its row 15.
 
-constexpr std::string_view kSheetOrder =
+constexpr std::string_view kLetterOrder =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'=\"!?#&+-*/%()@|<>{}[]:,.$0123456789";
-constexpr int kSheetScale = 6;
 constexpr int kCellW = 14;
 constexpr int kCellH = 20;
-constexpr int kSheetU = 128; // the sheet's left edge in gaiji.img
-constexpr int kSheetW = 256; // both sets
-constexpr int kSheetH = 200; // ten rows of cells
+constexpr int kLettersU = 128; // the letters' left edge in gaiji.img
+constexpr int kLettersW = 256; // both sets
 
-gfx::TextureHandle                g_sheet = gfx::kNullTexture;
-std::future<std::vector<uint8_t>> g_sheet_pixels;          // the worker drawing the sheet's pixels
-std::vector<gfx::Vertex2D>       *g_sheet_quads = nullptr; // where DrawMesWin's letters go while it draws them
+// A letter DrawMesWin draws: the part of its cell (in gaiji.img's texels), where (logical), and its tint.
+struct PendingLetter {
+    CRect_i_ texel;
+    float    x, y, width, height;
+    u_char   r, g, b, a;
+};
+
+std::vector<PendingLetter> *g_letters = nullptr; // where DrawMesWin's letters go while it draws them
+
+// The cells drawn so far, by set, letter and height in screen pixels, while the atlas they are in lasts.
+std::map<std::tuple<int, int, int>, capfont::Glyph> g_cells;
+unsigned                                            g_cells_generation = 0;
 
 // The drop shadow the game's narrower letters carry in their own texels (the bold ones have none): the letter's
 // coverage moved down and right, blurred a little and thickened, at most half dark. Its shape was measured on the
-// game's 88 cells; `scale` is texels per game pixel.
-std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, int scale) {
+// game's 88 cells; `scale` is pixels per game pixel.
+std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, float scale) {
     constexpr float kShiftX = 0.866f, kShiftY = 0.841f, kBlur = 0.741f, kGain = 9.21f, kMost = 0.512f;
-    const float     sigma = kBlur * static_cast<float>(scale);
-    const int       reach = static_cast<int>(std::ceil(3 * sigma + std::max(kShiftX, kShiftY) * static_cast<float>(scale))) + 1;
+    const float     sigma = kBlur * scale;
+    const int       reach = static_cast<int>(std::ceil(3 * sigma + std::max(kShiftX, kShiftY) * scale)) + 1;
     auto            kernel = [&](float shift) {
         std::vector<float> k(static_cast<size_t>(2 * reach + 1));
         float              sum = 0;
@@ -152,9 +162,9 @@ std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, int 
         }
         return k;
     };
-    // A texel's shadow comes from the letter up and to the left of it: the kernels are centred that far back.
-    const std::vector<float> kx = kernel(kShiftX * static_cast<float>(scale));
-    const std::vector<float> ky = kernel(kShiftY * static_cast<float>(scale));
+    // A pixel's shadow comes from the letter up and to the left of it: the kernels are centred that far back.
+    const std::vector<float> kx = kernel(kShiftX * scale);
+    const std::vector<float> ky = kernel(kShiftY * scale);
     std::vector<float>       across(cov.size(), 0.0f), out(cov.size(), 0.0f);
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
@@ -181,104 +191,129 @@ std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, int 
     return out;
 }
 
-// The sheet's pixels, drawn from the two fonts. Reads the fonts and nothing else, so it runs on a worker.
-std::vector<uint8_t> SheetPixels() {
-    constexpr int        S = kSheetScale;
-    constexpr int        W = kSheetW * S, H = kSheetH * S, CW = kCellW * S, CH = kCellH * S;
-    std::vector<uint8_t> rgba(static_cast<size_t>(W) * H * 4, 0);
-    for (int set = 0; set < 2; set++) {
-        for (size_t i = 0; i < kSheetOrder.size(); i++) {
-            std::vector<unsigned char> alpha;
-            int                        w, h, x0, y0;
-            if (!capfont::RenderGlyphScaled(static_cast<unsigned char>(kSheetOrder[i]), set, S / 50.0f, alpha, w, h, x0,
-                                            y0)) {
-                continue;
-            }
-            std::vector<float> cov(static_cast<size_t>(CW) * CH, 0.0f);
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    const int cx = x0 + x, cy = 15 * S + y0 + y;
-                    if (cx >= 0 && cx < CW && cy >= 0 && cy < CH) {
-                        cov[static_cast<size_t>(cy) * CW + cx] = alpha[static_cast<size_t>(y) * w + x] / 255.0f;
-                    }
-                }
-            }
-            const std::vector<float> shadow = set == 1 ? BakedShadow(cov, CW, CH, S) : std::vector<float>(cov.size(), 0.0f);
-            const int                left = (set * 128 + kCellW * static_cast<int>(i % 9)) * S;
-            const int                top = kCellH * static_cast<int>(i / 9) * S;
-            for (int y = 0; y < CH; y++) {
-                for (int x = 0; x < CW; x++) {
-                    // The white letter over its black shadow.
-                    const size_t k = static_cast<size_t>(y) * CW + x;
-                    const float  a = cov[k] + (1 - cov[k]) * shadow[k];
-                    uint8_t     *c = &rgba[(static_cast<size_t>(top + y) * W + left + x) * 4];
-                    c[0] = c[1] = c[2] = static_cast<uint8_t>(a > 0 ? std::lround(255 * cov[k] / a) : 255);
-                    c[3] = static_cast<uint8_t>(std::lround(a * 255));
-                }
+// Whether the fonts the letters are drawn from are both there.
+bool LettersReady() {
+    static const bool ready = caption::Ready() && caption::ThinReady();
+    return ready;
+}
+
+// Letter `index` of `set` drawn into its cell `size` screen pixels high, in the atlas: the white letter over its black
+// shadow.
+bool CellGlyph(int set, int index, int size, capfont::Glyph &out) {
+    if (g_cells_generation != capfont::Generation()) {
+        g_cells.clear();
+        g_cells_generation = capfont::Generation();
+    }
+    const auto key = std::make_tuple(set, index, size);
+    if (const auto found = g_cells.find(key); found != g_cells.end()) {
+        out = found->second;
+        return true;
+    }
+    const float                scale = static_cast<float>(size) / kCellH;
+    const int                  width = static_cast<int>(std::lround(kCellW * scale)), height = size;
+    const int                  baseline = static_cast<int>(std::lround(15 * scale));
+    std::vector<unsigned char> alpha;
+    int                        w, h, x0, y0;
+    if (!capfont::RenderGlyphScaled(static_cast<unsigned char>(kLetterOrder[static_cast<size_t>(index)]), set, scale / 50.0f,
+                                    alpha, w, h, x0, y0)) {
+        return false;
+    }
+    std::vector<float> cov(static_cast<size_t>(width) * height, 0.0f);
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            const int cx = x0 + x, cy = baseline + y0 + y;
+            if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
+                cov[static_cast<size_t>(cy) * width + cx] = alpha[static_cast<size_t>(y) * w + x] / 255.0f;
             }
         }
     }
-    return rgba;
-}
-
-// The sheet, its pixels from the worker ClsMesPrepareSheet started (waited for if it has not finished); false
-// without both fonts.
-bool SheetReady() {
-    static bool tried = false;
-    if (tried) {
-        return g_sheet != gfx::kNullTexture;
+    const std::vector<float>   shadow = set == 1 ? BakedShadow(cov, width, height, scale) : std::vector<float>(cov.size(), 0.0f);
+    std::vector<unsigned char> rgba(cov.size() * 4);
+    for (size_t k = 0; k < cov.size(); k++) {
+        const float a = cov[k] + (1 - cov[k]) * shadow[k];
+        rgba[k * 4] = rgba[k * 4 + 1] = rgba[k * 4 + 2] = static_cast<unsigned char>(a > 0 ? std::lround(255 * cov[k] / a) : 255);
+        rgba[k * 4 + 3] = static_cast<unsigned char>(std::lround(a * 255));
     }
-    if (!g_sheet_pixels.valid()) {
-        ClsMesPrepareSheet();
-    }
-    tried = true;
-    if (!g_sheet_pixels.valid()) {
+    capfont::Glyph glyph;
+    if (!capfont::AddImage(rgba, width, height, glyph)) {
         return false;
     }
-    const std::vector<uint8_t> rgba = g_sheet_pixels.get();
-    gfx::TextureDesc           desc;
-    desc.width = kSheetW * kSheetScale;
-    desc.height = kSheetH * kSheetScale;
-    desc.format = gfx::TextureFormat::Rgba8;
-    g_sheet = gfx::CreateTexture(desc);
-    if (g_sheet != gfx::kNullTexture) {
-        gfx::UpdateTextureNow(g_sheet, 0, 0, 0, desc.width, desc.height, rgba.data());
+    // Adding it may have started the atlas again.
+    if (g_cells_generation != capfont::Generation()) {
+        g_cells.clear();
+        g_cells_generation = capfont::Generation();
     }
-    return g_sheet != gfx::kNullTexture;
+    g_cells[key] = glyph;
+    out = glyph;
+    return true;
 }
 
-// Whether a texel rect of gaiji.img lies in one of the sheet's letter cells.
-bool SheetLetter(const CRect_i_ &texel) {
-    const int across = texel.x - kSheetU;
-    if (across < 0 || texel.width <= 0 || texel.height <= 0 || across + texel.width > kSheetW || texel.y < 0) {
+// Whether a texel rect of gaiji.img lies in one of the letters' cells.
+bool FontLetter(const CRect_i_ &texel) {
+    const int across = texel.x - kLettersU;
+    if (across < 0 || texel.width <= 0 || texel.height <= 0 || across + texel.width > kLettersW || texel.y < 0) {
         return false;
     }
     const int in_set = across % 128;
     const int column = in_set / kCellW;
     const int row = texel.y / kCellH;
     return column < 9 && (in_set + texel.width - 1) / kCellW == column && (texel.y + texel.height - 1) / kCellH == row &&
-           row * 9 + column < static_cast<int>(kSheetOrder.size());
+           row * 9 + column < static_cast<int>(kLetterOrder.size());
 }
 
-// The letter at texel drawn at x, y (logical) from the sheet, into the quads DrawMesWin draws.
-void SheetQuad(const CRect_i_ &texel, float x, float y, float width, float height, int r, int g, int b, int alpha) {
-    const float  rows = draw2d::RowScale();
-    const float  u0 = static_cast<float>((texel.x - kSheetU) * kSheetScale), u1 = u0 + static_cast<float>(texel.width * kSheetScale);
-    const float  v0 = static_cast<float>(texel.y * kSheetScale), v1 = v0 + static_cast<float>(texel.height * kSheetScale);
-    auto         clamp = [](int v) { return static_cast<u_char>(std::clamp(v, 0, 255)); };
-    const u_char red = clamp(r), green = clamp(g), blue = clamp(b), a = clamp(alpha);
-    g_sheet_quads->push_back(draw2d::Vertex(x, y * rows, 0.0f, u0, v0, red, green, blue, a));
-    g_sheet_quads->push_back(draw2d::Vertex(x + width, y * rows, 0.0f, u1, v0, red, green, blue, a));
-    g_sheet_quads->push_back(draw2d::Vertex(x + width, (y + height) * rows, 0.0f, u1, v1, red, green, blue, a));
-    g_sheet_quads->push_back(draw2d::Vertex(x, (y + height) * rows, 0.0f, u0, v1, red, green, blue, a));
+// The letter at texel, to be drawn at x, y (logical) from the font once DrawMesWin has laid out its window.
+void LetterQuad(const CRect_i_ &texel, float x, float y, float width, float height, int r, int g, int b, int alpha) {
+    auto clamp = [](int v) { return static_cast<u_char>(std::clamp(v, 0, 255)); };
+    g_letters->push_back({texel, x, y, width, height, clamp(r), clamp(g), clamp(b), clamp(alpha)});
 }
 
-// Myset2DSprite_Fuchi's outline and shadow passes for a sheet letter. Retail's pass is the 14x20 letter again, a whole
-// pixel off: its soft one-texel edges make the shadow a soft one. The sheet's letter is sharp, so each pass is spread
+// The window's letters, each from its cell drawn at the screen's height for a cell.
+void DrawLetters(const std::vector<PendingLetter> &letters) {
+    if (letters.empty()) {
+        return;
+    }
+    const gfx::LogicalMapping  mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float                rows = draw2d::RowScale();
+    const int                  size = std::clamp(static_cast<int>(std::lround(kCellH * mapping.scale_y * rows)), kCellH, 512);
+    std::vector<gfx::Vertex2D> quads;
+    // Made again, once, if the atlas started over while the cells were drawn into it (that would leave the first ones
+    // stale).
+    for (int attempt = 0; attempt < 2; attempt++) {
+        const unsigned generation = capfont::Generation();
+        quads.clear();
+        for (const PendingLetter &letter : letters) {
+            const int      across = letter.texel.x - kLettersU;
+            const int      set = across / 128, in_set = across % 128;
+            const int      cell_u = kLettersU + set * 128 + in_set / kCellW * kCellW, cell_v = letter.texel.y / kCellH * kCellH;
+            capfont::Glyph cell;
+            if (!CellGlyph(set, (letter.texel.y / kCellH) * 9 + in_set / kCellW, size, cell)) {
+                continue;
+            }
+            const float du = (cell.u1 - cell.u0) / kCellW, dv = (cell.v1 - cell.v0) / kCellH;
+            const float u0 = cell.u0 + static_cast<float>(letter.texel.x - cell_u) * du, u1 = u0 + static_cast<float>(letter.texel.width) * du;
+            const float v0 = cell.v0 + static_cast<float>(letter.texel.y - cell_v) * dv, v1 = v0 + static_cast<float>(letter.texel.height) * dv;
+            const float x0 = letter.x, x1 = letter.x + letter.width, y0 = letter.y * rows, y1 = (letter.y + letter.height) * rows;
+            quads.push_back(draw2d::Vertex(x0, y0, 0.0f, u0, v0, letter.r, letter.g, letter.b, letter.a));
+            quads.push_back(draw2d::Vertex(x1, y0, 0.0f, u1, v0, letter.r, letter.g, letter.b, letter.a));
+            quads.push_back(draw2d::Vertex(x1, y1, 0.0f, u1, v1, letter.r, letter.g, letter.b, letter.a));
+            quads.push_back(draw2d::Vertex(x0, y1, 0.0f, u0, v1, letter.r, letter.g, letter.b, letter.a));
+        }
+        if (generation == capfont::Generation()) {
+            break;
+        }
+    }
+    if (!quads.empty()) {
+        textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
+        draw2d::RestoreTestZbuf();
+    }
+}
+
+// Myset2DSprite_Fuchi's outline and shadow passes for a font letter. Retail's pass is the 14x20 letter again, a whole
+// pixel off: its soft one-texel edges make the shadow a soft one. The font's letter is sharp, so each pass is spread
 // over that pixel instead (wider for the outline table), as a grid of fainter copies that together come to the pass's
-// strength. False where the letter is not the sheet's.
-bool SheetFuchi(const ClsMes &mes, const CRect_i_ &screen, const CRect_i_ &texel) {
-    if (g_sheet_quads == nullptr || !SheetLetter(texel)) {
+// strength. False where the letter is not the font's.
+bool LetterFuchi(const ClsMes &mes, const CRect_i_ &screen, const CRect_i_ &texel) {
+    if (g_letters == nullptr || !FontLetter(texel)) {
         return false;
     }
     constexpr int kSteps = 4;
@@ -291,8 +326,8 @@ bool SheetFuchi(const ClsMes &mes, const CRect_i_ &screen, const CRect_i_ &texel
             for (int j = 0; j < kSteps; j++) {
                 const float sx = ((static_cast<float>(i) + 0.5f) / kSteps - 0.5f) * spread;
                 const float sy = ((static_cast<float>(j) + 0.5f) / kSteps - 0.5f) * spread;
-                SheetQuad(texel, static_cast<float>(screen.x) + dx + sx, static_cast<float>(screen.y) + dy + sy,
-                          static_cast<float>(screen.width), static_cast<float>(screen.height), r, g, b, tap_alpha);
+                LetterQuad(texel, static_cast<float>(screen.x) + dx + sx, static_cast<float>(screen.y) + dy + sy,
+                           static_cast<float>(screen.width), static_cast<float>(screen.height), r, g, b, tap_alpha);
             }
         }
     };
@@ -1283,9 +1318,9 @@ PORT_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRe
         alpha /= 2;
     }
 
-    if (g_sheet_quads != nullptr && SheetLetter(texel)) {
-        SheetQuad(texel, static_cast<float>(screen.x), static_cast<float>(screen.y), static_cast<float>(screen.width),
-                  static_cast<float>(screen.height), r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
+    if (g_letters != nullptr && FontLetter(texel)) {
+        LetterQuad(texel, static_cast<float>(screen.x), static_cast<float>(screen.y), static_cast<float>(screen.width),
+                   static_cast<float>(screen.height), r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
     } else {
         set2DSprite_Core(Vif1Packet, texture, screen, texel, r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
     }
@@ -1463,11 +1498,12 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
 
     texture = draw2d::Get().find_texture("gaiji");
     setbilinear(0);
-    // The Sharp glyph sheet's letters, where it is made, in place of the font drawn in the TrueType path's cells.
-    const bool sheet = SheetReady();
+    // The letters drawn from Chronicle Sharp, where both its fonts are there, in place of the font drawn in the TrueType
+    // path's cells.
+    const bool letters_ready = LettersReady();
     auto       text_pass = [&](bool ttf) {
-        std::vector<gfx::Vertex2D> sheet_quads;
-        g_sheet_quads = sheet ? &sheet_quads : nullptr;
+        std::vector<PendingLetter> letters;
+        g_letters = letters_ready ? &letters : nullptr;
         set2DSprite_Start(Vif1Packet, texture);
         std::vector<gfx::Vertex2D> ttf_edges;
         std::vector<gfx::Vertex2D> ttf_fills;
@@ -1544,7 +1580,7 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
                 screen.height = glyph_height;
                 CRect_i_ texel(u, v, glyph_width, glyph_height);
 
-                if (this->win_line[index].code >= -0x2DF && !SheetFuchi(*this, screen, texel)) {
+                if (this->win_line[index].code >= -0x2DF && !LetterFuchi(*this, screen, texel)) {
                     this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x, screen_y, glyph_width, glyph_height,
                                               u, v, glyph_width, glyph_height);
                 }
@@ -1557,7 +1593,7 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
                 CRect_i_ screen(screen_x + dx, screen_y - row * this->char_height, glyph_width, glyph_height);
                 CRect_i_ texel(u, v, glyph_width, glyph_height);
 
-                if (this->win_line[index].code >= -0x2DF && !SheetFuchi(*this, screen, texel)) {
+                if (this->win_line[index].code >= -0x2DF && !LetterFuchi(*this, screen, texel)) {
                     this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen_x + dx,
                                               screen_y - row * this->char_height, glyph_width, glyph_height, u, v,
                                               glyph_width, glyph_height);
@@ -1568,15 +1604,8 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
         }
 
         set2DSprite_End(Vif1Packet, texture);
-        g_sheet_quads = nullptr;
-
-        if (!sheet_quads.empty()) {
-            gfx::TextureBinding binding;
-            binding.texture = g_sheet;
-            binding.filter = gfx::Filter::Linear;
-            textwipe::Draw2D(gfx::Primitive::Quads, sheet_quads, binding, draw2d::SpriteState());
-            draw2d::RestoreTestZbuf();
-        }
+        g_letters = nullptr;
+        DrawLetters(letters);
 
         if (!ttf_fills.empty()) {
             const gfx::TextureBinding binding = ttffont::Binding();
@@ -1587,10 +1616,10 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
             draw2d::RestoreTestZbuf();
         }
     };
-    if (textwipe::Active() && !sheet && TtfReady()) {
+    if (textwipe::Active() && !letters_ready && TtfReady()) {
         textwipe::Both(text_pass);
     } else {
-        text_pass(!sheet && TtfReady());
+        text_pass(!letters_ready && TtfReady());
     }
 
     if (this->page_arrow != 0) {
@@ -1679,13 +1708,6 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
     } else {
         this->cursor_y = 0;
     }
-}
-
-void ClsMesPrepareSheet() {
-    if (g_sheet_pixels.valid() || g_sheet != gfx::kNullTexture || !caption::Ready() || !caption::ThinReady()) {
-        return;
-    }
-    g_sheet_pixels = std::async(std::launch::async, SheetPixels);
 }
 
 void ClsMesSetChoiceRows(const ClsMes *mes, int first_row) {
