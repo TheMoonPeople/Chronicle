@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -120,14 +122,65 @@ bool DrawNameTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
         texel.width != 0xAE || texel.height != 0x20 || LocalizeLanguageFile().rfind("en_", 0) != 0) {
         return false;
     }
-    // The painted letters run from 4 to 164 of it, their capitals from row 8 to 27, the words 5 pixels apart.
+    // The painted letters run from about 3 to 164 of it, their capitals from row 8 to 27.6, the words 5 pixels apart.
     const float rows = static_cast<float>(screen.height) / static_cast<float>(texel.height);
     // English's RE, EG, GI, IS and ER closer, and ST, TE and NA closer still, as painted, NAME where it was.
     static constexpr float kClose = -0.8f, kCloser = -1.6f;
     static constexpr float kEnglish[] = {kClose + 0.4f, kClose, kClose, kClose, kCloser, kCloser, kClose, 0.1f - 2 * kClose, kCloser};
     // NAME half a pixel further on than the painting's.
-    return caption::DrawTitle("REGISTER NAME", screen.x, screen.y, 4.0f, 164.5f, 8.0f * rows - 3.3f, 18.2f * rows + 0.5f, 0.1f,
+    return caption::DrawTitle("REGISTER NAME", screen.x, screen.y, 3.2f, 163.7f, 8.0f * rows + 0.2f, 26.2f * rows + 1.4f, 0.1f,
                               kEnglish, alpha);
+}
+
+// A painted title the game draws whole with its icon (a strip of a texture): the icon as painted, the word in the
+// captions' look over the painted word, whose cream letters run from left to right of the strip and whose capitals
+// from top to bottom; the English word's letters (spaces not counted) moved on by after[i] and drawn narrow[i] times as
+// wide. English, or a language with the word; the painted strip otherwise.
+struct PaintedTitle {
+    const char            *texture;
+    int                    u, v, width, height;
+    int                    icon_width;
+    const char            *key;
+    const char            *english;
+    int                    left, right, top, bottom;
+    std::span<const float> after = {}, narrow = {};
+};
+
+// CHECK-INCOUNTER's letters are painted nearly touching, its dash a short one tucked under the K's leg.
+constexpr float kCheckInAfter[] = {-0.6f, -0.6f, -0.6f, -0.6f, -2.2f, -1.0f, -0.6f, -0.6f, -0.6f, -0.6f, -0.6f, -0.6f, -0.6f, -0.6f};
+constexpr float kCheckInNarrow[] = {1, 1, 1, 1, 1, 0.6f};
+
+constexpr PaintedTitle kPaintedTitles[] = {
+    // the shop's title, and the check-in counter's (painted CHECK-INCOUNTER)
+    {"shopbrd", 0x14, 0x50, 0xA2, 0x28, 58, "shop.title.shop", "SHOP", 64, 117, 9, 27},
+    {"shopbrd", 0x14, 0x78, 0xC8, 0x28, 58, "shop.title.check_in", "CHECK-IN COUNTER", 63, 194, 9, 28, kCheckInAfter, kCheckInNarrow},
+};
+
+bool DrawPaintedTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
+    if (texture == nullptr || screen.width != texel.width || screen.height != texel.height) {
+        return false;
+    }
+    for (const PaintedTitle &title : kPaintedTitles) {
+        if (texel.x != title.u || texel.y != title.v || texel.width != title.width || texel.height != title.height ||
+            std::strcmp(texture->name, title.texture) != 0) {
+            continue;
+        }
+        std::string word = LocalizeText(title.key, "");
+        const bool  english = word.empty() && LocalizeLanguageFile().rfind("en_", 0) == 0;
+        if (english) {
+            word = title.english;
+        }
+        if (word.empty() || !caption::Ready()) {
+            return false;
+        }
+        set2DSprite(GetVif1Packet(), texture, CRect_i_(screen.x, screen.y, title.icon_width, screen.height),
+                    CRect_i_(texel.x, texel.y, title.icon_width, texel.height), alpha);
+        return caption::DrawTitle(word, screen.x, screen.y, static_cast<float>(title.left), static_cast<float>(title.right),
+                                  static_cast<float>(title.top), static_cast<float>(title.bottom), 0.1f,
+                                  english ? title.after : std::span<const float>{}, alpha, 0x80,
+                                  english ? title.narrow : std::span<const float>{});
+    }
+    return false;
 }
 
 // The name alphabet's cells (the keyboard, the name being entered, the save slots, the ally card) drawn from the font.
@@ -176,7 +229,8 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
 
 PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
     if (DrawAlphabetCell(texture, screen, texel, 0x80, 0x80, 0x80, alpha) || DrawBoardName(texture, screen, texel, alpha) ||
-        DrawFloorLabels(texture, screen, texel, alpha) || DrawNameTitle(texture, screen, texel, alpha)) {
+        DrawFloorLabels(texture, screen, texel, alpha) || DrawNameTitle(texture, screen, texel, alpha) ||
+        DrawPaintedTitle(texture, screen, texel, alpha)) {
         return;
     }
     set2DSprite(GetVif1Packet(), texture, screen, texel, alpha);

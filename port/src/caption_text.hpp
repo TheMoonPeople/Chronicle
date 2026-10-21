@@ -59,12 +59,13 @@ std::optional<CaptionBounds> PaintedBounds(int icon);
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 
 /**
- * Draws a title in the menu captions' painted look (the name entry's REGISTER NAME): its letters stretched to run from
- * fill_left to fill_right of the box at x, y, its capitals cap_height tall from cap_top, a space space ems, after[i]
- * pixels more after letter i (spaces not counted). False with no font.
+ * Draws a title in the menu captions' painted look over a painted one (the name entry's REGISTER NAME, the load screen's
+ * LOAD): its letters stretched over the painted letters' fill, which runs from left to right of the picture at x, y and
+ * from its capitals' top to bottom, a space space ems, after[i] pixels more after letter i and letter i narrow[i] times
+ * as wide (spaces not counted). False with no font.
  */
-bool DrawTitle(std::string_view utf8, int x, int y, float fill_left, float fill_right, float cap_top, float cap_height,
-               float space, std::span<const float> after, int alpha, int bright = 0x80);
+bool DrawTitle(std::string_view utf8, int x, int y, float left, float right, float top, float bottom, float space,
+               std::span<const float> after, int alpha, int bright = 0x80, std::span<const float> narrow = {});
 
 /**
  * Draws one of the weapon menu's button words (EQUIP, CUSTOMIZE...) as the painted buttons letter it, each letter where
