@@ -43,6 +43,8 @@ struct TextStyle {
     u8         recess_light_r = 250;                /**< Engraved bottom-right catch-light red channel. */
     u8         recess_light_g = 195;                /**< Engraved bottom-right catch-light green channel. */
     u8         recess_light_b = 155;                /**< Engraved bottom-right catch-light blue channel. */
+    bool       painted        = false;              /**< Whether to letter as the painted buttons are: no outline, a soft brown shadow. */
+    float      letter         = 0.0f;               /**< Added to the gap between letters, in logical pixels. */
 };
 
 /**
@@ -210,6 +212,8 @@ private:
     u8          m_recess_light_r{250};             /**< Engraved bottom-right catch-light red channel. */
     u8          m_recess_light_g{195};             /**< Engraved bottom-right catch-light green channel. */
     u8          m_recess_light_b{155};             /**< Engraved bottom-right catch-light blue channel. */
+    bool        m_painted{false};                  /**< Whether the painted buttons' lettering is used. */
+    float       m_letter{0.0f};                    /**< Added to the gap between letters. */
     bool        m_dirty{true};                     /**< Whether the cached width needs recomputation. */
     int         m_cached_width{0};                 /**< Cached horizontal width in logical pixels. */
 };

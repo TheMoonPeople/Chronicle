@@ -59,6 +59,13 @@ std::optional<CaptionBounds> PaintedBounds(int icon);
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 
 /**
+ * Draws one of the weapon menu's button words (EQUIP, CUSTOMIZE...) as the painted buttons letter it, each letter where
+ * the painting has it in the 96 by 23 button at x, y, tinted by bright (0x80 as painted); pressed, in a light glow
+ * instead of the dark one. False for a word it has no painting of (another language's), or no font.
+ */
+bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alpha, bool pressed = false);
+
+/**
  * Draws a cell of the name alphabet's sheet (the 22-pixel cell at u, v; the game cuts it 21 to 23 rows tall) stretched
  * to the screen rectangle as the game draws it, its character drawn from the font in the painted alphabet's look, the
  * game's colour (0x80 as painted) and alpha over it. False for a cell it has no character for, or no font.
@@ -108,6 +115,7 @@ struct LineStyle {
 
     float letter = 0.0f, word = 0.0f, xscale = 1.0f, yscale = 1.0f, dx = 0.0f, dy = 0.0f;
     float weight = 0.0f, opacity = 1.0f;
+    float alpha = 1.0f; // how opaque the line is drawn (opacity darkens it instead)
 
     bool ink_fit = false;
     bool thin = false;

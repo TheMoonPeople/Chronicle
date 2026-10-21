@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "caption_text.hpp"
 #include "gfx/gfx.hpp"
 #include "localize.hpp"
 #include "platform/imagefile.hpp"
@@ -157,6 +158,36 @@ constexpr ButtonSurfaceSpec kStoneGreenBtnSpec{
 };
 
 /**
+ * Surface specification for the slate-blue button preset (the painted STATUS BREAK button's blue).
+ */
+constexpr ButtonSurfaceSpec kSlateBlueBtnSpec{
+    .plate_path      = "textures/plates/ui_btn_slateblue.png",
+    .tex_name        = "ui_btn_blue",
+    .seed_offset     = 5400,
+    .base_r          = 62.0f,
+    .base_g          = 94.0f,
+    .base_b          = 166.0f,
+    .scale_r         = 0.80f,
+    .scale_g         = 0.92f,
+    .scale_b         = 1.08f,
+    .bevel_r         = 0.92f,
+    .bevel_g         = 0.98f,
+    .bevel_b         = 1.06f,
+    .rim_r           = 18.0f,
+    .rim_g           = 32.0f,
+    .rim_b           = 72.0f,
+    .macro_weight    = 25.0f,
+    .med_weight      = 21.0f,
+    .detail_weight   = 22.0f,
+    .ridge_weight    = 18.0f,
+    .pitting_weight  = 13.0f,
+    .tooth_weight    = 0.110f,
+    .bump_strength   = 45.0f,
+    .dither_strength = 3.0f,
+    .bevel_strength  = 58.0f,
+};
+
+/**
  * Returns the surface parameters for a button preset.
  */
 const ButtonSurfaceSpec &GetButtonSpec(ButtonPreset preset) {
@@ -165,6 +196,8 @@ const ButtonSurfaceSpec &GetButtonSpec(ButtonPreset preset) {
             return kAmberGoldBtnSpec;
         case ButtonPreset::StoneGreen:
             return kStoneGreenBtnSpec;
+        case ButtonPreset::SlateBlue:
+            return kSlateBlueBtnSpec;
         case ButtonPreset::Terracotta:
         default:
             return kTerracottaBtnSpec;
@@ -295,9 +328,10 @@ float BtnRoundedSdf(float px, float py, float cx, float cy, float half_w, float 
  * Builds or returns the cached 256x256 base surface for the given button preset.
  */
 const ButtonBaseSurface &GetButtonBaseSurface(ButtonPreset preset) {
-    static ButtonBaseSurface surfaces[3];
+    static ButtonBaseSurface surfaces[4];
     const int                idx = (preset == ButtonPreset::AmberGold)    ? 1
                                  : (preset == ButtonPreset::StoneGreen) ? 2
+                                 : (preset == ButtonPreset::SlateBlue)  ? 3
                                                                         : 0;
     ButtonBaseSurface       &out = surfaces[idx];
 
@@ -411,12 +445,12 @@ const ButtonBaseSurface &GetButtonBaseSurface(ButtonPreset preset) {
  * Generates or retrieves a cached beveled button texture of the requested dimensions.
  */
 CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset preset,
-                                 bool rounded, int seed_variant) {
-    using CacheKey = std::tuple<int, int, int, int, int>;
+                                 bool rounded, int seed_variant, bool pressed = false) {
+    using CacheKey = std::tuple<int, int, int, int, int, int>;
     static std::map<CacheKey, CachedButtonTex> cache;
 
     const int      variant_bucket = seed_variant & 15;
-    const CacheKey key{width_px, height_px, static_cast<int>(preset), rounded ? 1 : 0, variant_bucket};
+    const CacheKey key{width_px, height_px, static_cast<int>(preset), rounded ? 1 : 0, variant_bucket, pressed ? 1 : 0};
     auto           it = cache.find(key);
     if (it != cache.end() && it->second.tbp != 0 && PortKeyLive(it->second.tbp)) {
         return &it->second.tex;
@@ -511,6 +545,14 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
         }
     }
 
+    if (pressed) {
+        // Pressed: the plate turned round, so its light falls from below and right.
+        const size_t count = rgba.size() / 4;
+        for (size_t i = 0; i < count / 2; i++) {
+            std::swap_ranges(rgba.begin() + static_cast<long>(i * 4), rgba.begin() + static_cast<long>(i * 4 + 4),
+                             rgba.begin() + static_cast<long>((count - 1 - i) * 4));
+        }
+    }
     decoded.levels.push_back(std::move(rgba));
     const unsigned tbp = PortCreateTexture(decoded, PortTextureOwner::Other, nullptr);
     if (tbp == 0) {
@@ -547,7 +589,7 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
 
     const int seed_variant = (box.y / 13) + (box.x / 17) * 3;
     CTexture *btn_tex      = (box.w >= 16 && box.h >= 12)
-                                 ? GetProceduralButtonTex(box.w, box.h, style.preset, style.rounded, seed_variant)
+                                 ? GetProceduralButtonTex(box.w, box.h, style.preset, style.rounded, seed_variant, style.pressed)
                                  : nullptr;
 
     if (btn_tex != nullptr) {
@@ -566,12 +608,32 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
                                 scale_c(214), scale_c(114), scale_c(60), alpha, style.rounded);
     }
 
+    // A painted button's English word, letter for letter as painted; another word is fitted below.
+    if (!text.empty() && style.painted_text &&
+        caption::DrawButtonWord(text, static_cast<float>(box.x), static_cast<float>(box.y), style.brightness, alpha, style.pressed)) {
+        return;
+    }
+
     if (!text.empty()) {
         float     fitted_xscale = style.text_xscale;
-        const int max_text_w    = std::max(16, box.w - 16);
+        // The painted buttons' words run to a few pixels from their ends.
+        const int max_text_w    = std::max(16, box.w - (style.painted_text ? 12 : 16));
         Label     measure_lbl(text, style.text_color, style.align, style.drop_shadow,
                               style.text_scale, style.text_weight, style.text_xscale);
-        const int natural_w = measure_lbl.GetWidth();
+        int       natural_w = measure_lbl.GetWidth();
+        float     letter    = 0.0f;
+        if (natural_w > max_text_w && style.painted_text) {
+            // The painted buttons fit a long word by closing its letters up first, until they nearly touch.
+            constexpr float kTightest = -1.5f;
+            int             gaps = -1;
+            for (char ch : text) {
+                gaps += ch != ' ' ? 1 : 0;
+            }
+            if (gaps > 0) {
+                letter = std::max(kTightest, -static_cast<float>(natural_w - max_text_w) / static_cast<float>(gaps));
+                natural_w = static_cast<int>(std::round(static_cast<float>(natural_w) + letter * static_cast<float>(gaps)));
+            }
+        }
         if (natural_w > max_text_w) {
             fitted_xscale = style.text_xscale * (static_cast<float>(max_text_w) / static_cast<float>(natural_w));
         }
@@ -596,6 +658,13 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
             lite_r = 172;
             lite_g = 240;
             lite_b = 216;
+        } else if (style.preset == ButtonPreset::SlateBlue) {
+            dark_r = 16;
+            dark_g = 30;
+            dark_b = 72;
+            lite_r = 172;
+            lite_g = 196;
+            lite_b = 250;
         }
 
         const Rect inner_face(box.x + 2, box.y + 2, std::max(1, box.w - 5), std::max(1, box.h - 4));
@@ -608,10 +677,10 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
             .weight         = style.text_weight,
             .text_dx        = style.text_dx - 1,
             .text_dy        = style.text_dy,
-            .use_custom_rgb = style.recessed_text,
-            .fill_r         = 236,
-            .fill_g         = 230,
-            .fill_b         = 218,
+            .use_custom_rgb = style.recessed_text || style.painted_text,
+            .fill_r         = static_cast<u8>(style.painted_text ? 255 : 236),
+            .fill_g         = static_cast<u8>(style.painted_text ? 244 : 230),
+            .fill_b         = static_cast<u8>(style.painted_text ? 222 : 218),
             .recessed       = style.recessed_text,
             .recess_dark_r  = dark_r,
             .recess_dark_g  = dark_g,
@@ -619,6 +688,8 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
             .recess_light_r = lite_r,
             .recess_light_g = lite_g,
             .recess_light_b = lite_b,
+            .painted        = style.painted_text,
+            .letter         = letter,
         };
         const int text_alpha = (style.brightness < 0x80)
                                    ? ((alpha * std::max(0x48, style.brightness)) >> 7)

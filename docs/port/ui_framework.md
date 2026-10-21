@@ -150,7 +150,7 @@ Used by `UI::DrawStatusText` for Weapon Status abbreviations (`At`, `Ed`, `Sp`, 
     
       
     
-- **`UI::ButtonStyle::Thin(preset, brightness)`**: Uses `FontWeight::Thin`, `text_scale = 1.14f`, `text_xscale = 1.06f`, `recessed_text = true`. Used for Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, `ATTRIBUTE`, `REPAIR`, `UPGRADE`, `SYNTHESIZE`, `BUILD-UP`, `DISCARD`).
+- **`UI::ButtonStyle::Thin(preset, brightness)`**: Lettered as the painted weapon buttons are (`painted_text`): the English words letter by letter where the painting has them (`caption::DrawButtonWord`), others fitted in the narrower font with a soft brown glow. Used for Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, `ATTRIBUTE`, `REPAIR`, `UPGRADE`, `STATUS BREAK`, `BUILD-UP`, `DISCARD`).
     
       
     

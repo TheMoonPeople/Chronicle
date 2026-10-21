@@ -27,21 +27,43 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out);
 bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out, float erode_px = 0.0f);
 bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int &w, int &h, int &x0, int &y0);
 
-// How a painted glyph looks, in screen pixels: the letter swept depth_x, depth_y down and right in body (its depth),
-// its face in fill with `strokes` strokes `stroke` wide inside its edge stepping from body to fill, and an outline
-// `outline` wide round the whole in ring.
+// How a painted glyph looks, in screen pixels: the letter (thinned by `thin` all round) swept depth_x, depth_y down and
+// right in body (its depth), its face in fill with `strokes` strokes `stroke` wide inside its edge stepping from body
+// to fill, and an outline `outline` wide round the whole in ring; under it, a soft shadow in shade: shadow_alpha dark
+// against the letter moved shadow_x, shadow_y and grown by shadow_grow, fading away over shadow_soft beyond. From the
+// font in `slot`.
 struct Paint {
     float         depth_x, depth_y;
     float         stroke;
     int           strokes;
     float         outline;
     unsigned char fill[3], body[3], ring[3];
+    float         thin = 0.0f;
+    float         shadow_x = 0.0f, shadow_y = 0.0f, shadow_grow = 0.0f, shadow_soft = 0.0f, shadow_alpha = 0.0f;
+    unsigned char shade[3] = {0, 0, 0};
+    bool          shadow_only = false; // the shadow alone, the letter left out
+    // A band of the shadow's colour: band_alpha strong within band_core of band_y (from the box's top) and from
+    // band_left to band_right (from its left; the letters' span when band_right is not past band_left), fading over
+    // band_fade beyond.
+    float band_alpha = 0.0f, band_y = 0.0f, band_core = 0.0f, band_fade = 1.0f, band_left = 0.0f, band_right = 0.0f;
+    int   slot = 0;
 };
 
 // The main font's ch (with part >= 0 only that piece of it, its pieces counted left to right) with its outline's
 // bounds stretched to box_w x box_h pixels, painted; its offsets are from the box's top left. Every layer is an offset
 // of the outline itself, so each edge is anti-aliased as finely as the letter's.
 bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out);
+
+// A word's letters painted as one: each letter of the font in paint.slot stretched to its box (x, y from the word's
+// top left, in screen pixels), every layer of the word the letters' union's, so where letters meet their shadows and
+// outlines merge instead of stacking. Its offsets are from the word's top left.
+struct PlacedLetter {
+    char32_t ch;
+    float    x, y, w, h;
+};
+
+bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint, Glyph &out);
+
 
 // Slot 1: Optional thin variant font
 bool LoadVariant(const std::filesystem::path &file);

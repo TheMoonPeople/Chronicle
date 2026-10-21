@@ -486,7 +486,194 @@ constexpr AlphaPlace kAlphabet[] = {
     {9, 6, U'$',  -1, 1.345f, 1.614f,  18.155f, 17.636f},
 };
 
+// The weapon menu's painted button lettering (wepstatus), measured on it: cream letters of the narrower set in a faint
+// dark brown glow all round them, a little lower than they are, darkest against them and fading with distance.
+constexpr unsigned char kButtonFill[3] = {255, 244, 222};
+constexpr unsigned char kButtonShade[3] = {58, 30, 18};
+constexpr float         kButtonThin = 0.0f;
+constexpr float         kButtonShadowX = 0.2f;
+constexpr float         kButtonShadowY = 0.7f;
+constexpr float         kButtonShadowGrow = 0.2f;
+constexpr float         kButtonShadowSoft = 4.0f;
+constexpr float         kButtonShadowAlpha = 0.45f;
+constexpr float         kButtonTighten = 0.92f; // the letters drawn this much closer to their word's middle
+// Pressed (EQUIP while a weapon is being chosen), the glow is light: cream, half strength against the letters, fading over
+// six pixels, with a band of it through the word's middle.
+constexpr unsigned char kButtonGlow[3] = {255, 244, 222};
+constexpr float         kButtonGlowAlpha = 0.5f;
+constexpr float         kButtonGlowSoft = 6.0f;
+constexpr float         kButtonBandAlpha = 0.5f;
+constexpr float         kButtonBandY = 13.0f;
+constexpr float         kButtonBandCore = 2.25f; // full strength this far above and below its line, from the first letter's
+                                                 // middle to the last's
+constexpr float         kButtonBandFade = 12.0f; // then fading over this
+
+// Where the painted buttons have each letter of their English words, fitted to the painting with the font's letters:
+// its box in the 96 by 23 button, each letter the one width wherever it is but for its word's squeeze.
+struct ButtonLetter {
+    std::string_view word;
+    char32_t         ch;
+    float            left, top, right, bottom;
+};
+
+constexpr ButtonLetter kButtonLetters[] = {
+    {"EQUIP",        U'E', 19.45f, 4.27f,  30.32f, 19.82f},
+    {"EQUIP",        U'Q', 32.00f, 3.72f,  43.67f, 19.42f},
+    {"EQUIP",        U'U', 45.79f, 4.50f,  57.55f, 19.60f},
+    {"EQUIP",        U'I', 59.92f, 4.23f,  63.52f, 19.72f},
+    {"EQUIP",        U'P', 67.41f, 3.54f,  78.34f, 19.43f},
+    {"CUSTOMIZE",    U'C', 7.14f,  4.15f,  15.74f, 20.01f},
+    {"CUSTOMIZE",    U'U', 17.63f, 4.20f,  26.60f, 19.94f},
+    {"CUSTOMIZE",    U'S', 27.42f, 3.57f,  35.87f, 19.63f}, // a little nearer the T than fitted
+    {"CUSTOMIZE",    U'T', 36.84f, 3.94f,  44.55f, 19.73f},
+    {"CUSTOMIZE",    U'O', 44.07f, 3.88f,  52.97f, 19.73f},
+    {"CUSTOMIZE",    U'M', 53.88f, 4.08f,  63.00f, 19.59f},
+    {"CUSTOMIZE",    U'I', 65.61f, 3.75f,  68.35f, 19.88f},
+    {"CUSTOMIZE",    U'Z', 70.08f, 3.81f,  79.13f, 19.94f},
+    {"CUSTOMIZE",    U'E', 80.52f, 4.02f,  88.81f, 20.22f},
+    {"REPAIR",       U'R', 15.40f, 2.20f,  25.91f, 18.41f},
+    {"REPAIR",       U'E', 27.53f, 3.03f,  37.96f, 19.13f},
+    {"REPAIR",       U'P', 39.99f, 2.15f,  50.48f, 18.59f},
+    {"REPAIR",       U'A', 49.34f, 2.55f,  60.21f, 18.55f},
+    {"REPAIR",       U'I', 63.43f, 2.71f,  66.89f, 18.74f},
+    {"REPAIR",       U'R', 69.33f, 2.27f,  79.84f, 18.48f},
+    {"UPGRADE",      U'U', 6.63f,  3.83f,  17.97f, 19.03f},
+    {"UPGRADE",      U'P', 19.36f, 2.71f,  29.90f, 18.70f},
+    {"UPGRADE",      U'G', 29.93f, 3.32f,  41.48f, 18.82f},
+    {"UPGRADE",      U'R', 42.44f, 2.91f,  52.99f, 18.68f},
+    {"UPGRADE",      U'A', 54.48f, 3.22f,  65.40f, 18.77f},
+    {"UPGRADE",      U'D', 67.03f, 3.03f,  78.07f, 18.75f},
+    {"UPGRADE",      U'E', 78.84f, 3.60f,  89.32f, 19.26f},
+    // STATUS BREAK: its letters drawn a little wider than fitted and its words a little further apart.
+    {"STATUS BREAK", U'S', 5.38f,  3.53f,  12.41f, 19.80f},
+    {"STATUS BREAK", U'T', 13.20f, 3.72f,  19.64f, 19.71f},
+    {"STATUS BREAK", U'A', 18.71f, 3.22f,  25.88f, 19.53f},
+    {"STATUS BREAK", U'T', 26.15f, 3.62f,  32.60f, 19.61f},
+    {"STATUS BREAK", U'U', 31.92f, 4.27f,  39.36f, 20.21f},
+    {"STATUS BREAK", U'S', 39.56f, 3.36f,  46.59f, 19.63f},
+    {"STATUS BREAK", U'B', 50.41f, 3.63f,  57.55f, 19.70f},
+    {"STATUS BREAK", U'R', 58.45f, 2.93f,  65.40f, 19.46f},
+    {"STATUS BREAK", U'E', 66.58f, 3.84f,  73.48f, 20.25f},
+    {"STATUS BREAK", U'A', 74.34f, 3.23f,  81.51f, 19.53f},
+    {"STATUS BREAK", U'K', 82.97f, 3.51f,  90.37f, 19.76f},
+    {"BUILD-UP",     U'B', 9.01f,  3.55f,  19.23f, 18.90f},
+    {"BUILD-UP",     U'U', 20.26f, 4.02f,  30.94f, 19.24f},
+    {"BUILD-UP",     U'I', 32.08f, 3.39f,  35.35f, 18.99f},
+    {"BUILD-UP",     U'L', 36.98f, 3.47f,  46.51f, 19.25f},
+    {"BUILD-UP",     U'D', 48.36f, 3.27f,  58.76f, 19.00f},
+    {"BUILD-UP",     U'-', 60.25f, 12.25f, 64.75f, 13.75f},
+    {"BUILD-UP",     U'U', 66.25f, 4.02f,  76.93f, 19.24f},
+    {"BUILD-UP",     U'P', 78.35f, 2.85f,  88.28f, 18.86f},
+    {"ATTRIBUTE",    U'A', 4.01f,  3.05f,  13.16f, 18.39f},
+    {"ATTRIBUTE",    U'T', 13.52f, 3.39f,  21.69f, 18.43f},
+    {"ATTRIBUTE",    U'T', 23.91f, 3.39f,  32.08f, 18.43f},
+    {"ATTRIBUTE",    U'R', 32.62f, 2.84f,  41.46f, 18.38f},
+    {"ATTRIBUTE",    U'I', 44.38f, 3.14f,  47.29f, 18.51f},
+    {"ATTRIBUTE",    U'B', 49.79f, 3.33f,  58.88f, 18.44f},
+    {"ATTRIBUTE",    U'U', 60.12f, 3.77f,  69.62f, 18.76f},
+    {"ATTRIBUTE",    U'T', 71.42f, 3.38f,  79.60f, 18.42f},
+    {"ATTRIBUTE",    U'E', 80.32f, 3.57f,  89.10f, 19.00f},
+};
+
 } // namespace
+
+bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alpha, bool pressed) {
+    if (!FontReady() || !capfont::VariantLoaded()) {
+        return false;
+    }
+    auto first = std::find_if(std::begin(kButtonLetters), std::end(kButtonLetters),
+                              [&](const ButtonLetter &letter) { return letter.word == word; });
+    if (first == std::end(kButtonLetters)) {
+        return false;
+    }
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float               rows = draw2d::RowScale();
+    const float               kx = mapping.scale_x, ky = mapping.scale_y * rows, k = std::sqrt(kx * ky);
+    capfont::Paint            paint = {0.0f, 0.0f, 0.0f, 0, 0.0f, {}, {}, {}};
+    for (unsigned char (*colour)[3] : {&paint.fill, &paint.body, &paint.ring}) {
+        std::copy_n(kButtonFill, 3, *colour);
+    }
+    std::copy_n(kButtonShade, 3, paint.shade);
+    paint.thin = kButtonThin * k;
+    paint.shadow_x = kButtonShadowX * kx;
+    paint.shadow_y = kButtonShadowY * ky;
+    paint.shadow_grow = kButtonShadowGrow * k;
+    paint.shadow_soft = kButtonShadowSoft * k;
+    paint.shadow_alpha = kButtonShadowAlpha;
+    paint.slot = 1;
+    if (pressed) {
+        std::copy_n(kButtonGlow, 3, paint.shade);
+        paint.shadow_x = paint.shadow_y = paint.shadow_grow = 0.0f;
+        paint.shadow_soft = kButtonGlowSoft * k;
+        paint.shadow_alpha = kButtonGlowAlpha;
+        paint.band_alpha = kButtonBandAlpha;
+        paint.band_y = kButtonBandY * ky;
+        paint.band_core = kButtonBandCore * ky;
+        paint.band_fade = kButtonBandFade * ky;
+    }
+    // The word's middle: halfway between its first and last letters' middles.
+    auto last = first;
+    while (std::next(last) != std::end(kButtonLetters) && std::next(last)->word == word) {
+        ++last;
+    }
+    const float middle = (first->left + first->right + last->left + last->right) / 4;
+
+    auto                       snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    const u_char               tint = static_cast<u_char>(std::clamp(bright, 0, 255)), a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
+    std::vector<gfx::Vertex2D> quads;
+    auto                       quad = [&](const capfont::Glyph &glyph, float left, float top) {
+        const float right = left + glyph.width / mapping.scale_x, bottom = top + glyph.height / mapping.scale_y;
+        quads.push_back(draw2d::Vertex(left, top, 0.0f, glyph.u0, glyph.v0, tint, tint, tint, a));
+        quads.push_back(draw2d::Vertex(right, top, 0.0f, glyph.u1, glyph.v0, tint, tint, tint, a));
+        quads.push_back(draw2d::Vertex(right, bottom, 0.0f, glyph.u1, glyph.v1, tint, tint, tint, a));
+        quads.push_back(draw2d::Vertex(left, bottom, 0.0f, glyph.u0, glyph.v1, tint, tint, tint, a));
+    };
+
+    // Where each letter's box starts, to the screen's pixel, and how big it is in pixels.
+    struct Placed {
+        char32_t ch;
+        float    left, top, w, h;
+    };
+
+    std::vector<Placed> placed;
+    for (auto letter = first; letter != std::end(kButtonLetters) && letter->word == word; ++letter) {
+        // The letter's outline stretched so that, thinned, its ink fills the painted letter's box.
+        const float grow = kButtonThin;
+        const float shift = (middle - (letter->left + letter->right) / 2) * (1.0f - kButtonTighten);
+        placed.push_back({letter->ch, snap(x + letter->left + shift - grow, mapping.scale_x, mapping.offset_x),
+                          snap((y + letter->top - grow) * rows, mapping.scale_y, mapping.offset_y),
+                          (letter->right - letter->left + 2 * grow) * kx, (letter->bottom - letter->top + 2 * grow) * ky});
+    }
+    // The word's shadow as one, from all its letters together, so where they meet it does not darken twice; then the
+    // letters over it.
+    const float                        origin_x = snap(x, mapping.scale_x, mapping.offset_x);
+    const float                        origin_y = snap(y * rows, mapping.scale_y, mapping.offset_y);
+    std::vector<capfont::PlacedLetter> together;
+    for (const Placed &letter : placed) {
+        together.push_back({letter.ch, (letter.left - origin_x) * mapping.scale_x, (letter.top - origin_y) * mapping.scale_y, letter.w, letter.h});
+    }
+    if (pressed && together.size() > 1) {
+        paint.band_left = together.front().x + together.front().w / 2;
+        paint.band_right = together.back().x + together.back().w / 2;
+    }
+    capfont::Paint shadow = paint;
+    shadow.shadow_only = true;
+    capfont::Glyph glyph;
+    if (!capfont::GetPaintedWord(together, shadow, glyph)) {
+        return false;
+    }
+    quad(glyph, origin_x + glyph.x_offset / mapping.scale_x, origin_y + glyph.y_offset / mapping.scale_y);
+    paint.shadow_alpha = 0.0f;
+    for (const Placed &letter : placed) {
+        if (!capfont::GetPaintedGlyph(letter.ch, -1, letter.w, letter.h, paint, glyph)) {
+            return false;
+        }
+        quad(glyph, letter.left + glyph.x_offset / mapping.scale_x, letter.top + glyph.y_offset / mapping.scale_y);
+    }
+    textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
+    draw2d::RestoreTestZbuf();
+    return true;
+}
 
 bool DrawAlphabetCell(int u, int v, int texel_width, int texel_height, float x, float y, float width, float height, int r,
                       int g, int b, int alpha) {
@@ -1180,7 +1367,7 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
         y += shift_y * rows;
         const float  k = std::clamp(fade, 0.0f, 1.0f) * style.opacity * 0.5f;
         const u_char r = static_cast<u_char>(rgb[0] * k), g = static_cast<u_char>(rgb[1] * k), b = static_cast<u_char>(rgb[2] * k);
-        const u_char a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
+        const u_char a = static_cast<u_char>(std::clamp(static_cast<int>(std::lround(alpha * std::clamp(style.alpha, 0.0f, 1.0f))), 0, 0x80));
         out.push_back(draw2d::Vertex(x, y, 0.0f, glyph.u0, glyph.v0, r, g, b, a));
         out.push_back(draw2d::Vertex(x + w, y, 0.0f, glyph.u1, glyph.v0, r, g, b, a));
         out.push_back(draw2d::Vertex(x + w, y + h, 0.0f, glyph.u1, glyph.v1, r, g, b, a));

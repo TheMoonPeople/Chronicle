@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
+#include <string>
 #include <vector>
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -35,7 +36,8 @@ struct Atlas {
     int                                       row_height = 0;
     std::map<std::pair<char32_t, int>, Glyph> glyphs;
     std::map<std::pair<char32_t, int>, bool>  missing;
-    std::map<std::array<int, 12>, Glyph>      painted;
+    std::map<std::array<int, 20>, Glyph>      painted;
+    std::map<std::string, Glyph>              painted_words;
 };
 
 Font     g_fonts[3];
@@ -816,52 +818,34 @@ std::vector<std::vector<Point>> Piece(std::vector<std::vector<Point>> contours, 
 
 } // namespace
 
-bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out) {
-    const Font &font = g_fonts[0];
-    if (!font.loaded || box_w < 1 || box_h < 1 || box_w > 512 || box_h > 512) {
-        return false;
-    }
-    auto       q = [](float v, float k) { return static_cast<int>(std::lround(v * k)); };
-    const auto key = std::array<int, 12>{static_cast<int>(ch), part, q(box_w, 8), q(box_h, 8), q(paint.depth_x, 16), q(paint.depth_y, 16),
-                                         q(paint.stroke, 64), paint.strokes, q(paint.outline, 16),
-                                         paint.fill[0] << 16 | paint.fill[1] << 8 | paint.fill[2],
-                                         paint.body[0] << 16 | paint.body[1] << 8 | paint.body[2],
-                                         paint.ring[0] << 16 | paint.ring[1] << 8 | paint.ring[2]};
-    if (auto found = g_atlas.painted.find(key); found != g_atlas.painted.end()) {
-        out = found->second;
-        return true;
-    }
-    const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch));
-    std::vector<std::vector<Point>> contours = Piece(index != 0 ? Contours(font.info, index) : std::vector<std::vector<Point>>{}, part);
-    if (contours.empty()) {
-        return false;
-    }
+namespace {
 
-    // The outline in the box's pixels, y down.
-    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+// Contours in a box's pixels (y down) painted into the atlas; the glyph's offsets are from the box's top left.
+bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w, float box_h, const Paint &paint, Glyph &out) {
+    float span_left = 1e9f, span_right = -1e9f;
     for (const auto &c : contours) {
         for (const Point &p : c) {
-            x0 = std::min(x0, p.x);
-            x1 = std::max(x1, p.x);
-            y0 = std::min(y0, p.y);
-            y1 = std::max(y1, p.y);
+            span_left = std::min(span_left, p.x);
+            span_right = std::max(span_right, p.x);
         }
     }
-    const float sx = box_w / std::max(x1 - x0, 1.0f), sy = box_h / std::max(y1 - y0, 1.0f);
-    for (auto &c : contours) {
-        for (Point &p : c) {
-            p = {(p.x - x0) * sx, (y1 - p.y) * sy};
-        }
+    if (paint.band_right > paint.band_left) {
+        span_left = paint.band_left;
+        span_right = paint.band_right;
     }
-
-    // The bitmap: the box, the depth and the outline, and a pixel spare all round.
-    const float reach = paint.outline + 1.5f;
-    const int   left = static_cast<int>(std::floor(-reach)), top = left;
-    const int   w = static_cast<int>(std::ceil(box_w + paint.depth_x + reach)) - left;
-    const int   h = static_cast<int>(std::ceil(box_h + paint.depth_y + reach)) - top;
+    // The bitmap: the box, the depth, the outline and the shadow, and a pixel spare all round.
+    const float shadow_reach = std::max(paint.shadow_alpha > 0 ? paint.shadow_grow + paint.shadow_soft : 0.0f,
+                                        paint.band_alpha > 0 ? paint.band_fade : 0.0f);
+    const float reach = std::max(paint.outline, shadow_reach) + 1.5f;
+    const int   left = static_cast<int>(std::floor(-reach + std::min(0.0f, paint.shadow_x)));
+    const int   top = static_cast<int>(std::floor(-reach + std::min(0.0f, paint.shadow_y)));
+    const int   w = static_cast<int>(std::ceil(box_w + std::max({paint.depth_x, paint.shadow_x, 0.0f}) + reach)) - left;
+    const int   h = static_cast<int>(std::ceil(box_h + std::max({paint.depth_y, paint.shadow_y, 0.0f}) + reach)) - top;
 
     // The signed distance from each pixel's centre to the outline (negative inside), as far as any layer looks.
-    const float band = std::max(paint.outline + std::hypot(paint.depth_x, paint.depth_y), paint.stroke * static_cast<float>(paint.strokes)) + 2.0f;
+    const float band = std::max({paint.outline + std::hypot(paint.depth_x, paint.depth_y), paint.stroke * static_cast<float>(paint.strokes),
+                                 shadow_reach + std::hypot(paint.shadow_x, paint.shadow_y)}) +
+                       paint.thin + 2.0f;
 
     struct Segment {
         Point a, b;
@@ -911,17 +895,19 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
         if (winding[i] != 0) {
             distance[i] = -distance[i];
         }
+        distance[i] += paint.thin;
     }
-    auto at = [&](float px, float py) {
+    auto sample = [&](const std::vector<float> &field, float far, float px, float py) {
         // Bilinear between pixel centres; beyond the bitmap, outside.
         const float fx = px - static_cast<float>(left) - 0.5f, fy = py - static_cast<float>(top) - 0.5f;
         const int   ix = static_cast<int>(std::floor(fx)), iy = static_cast<int>(std::floor(fy));
         const float tx = fx - static_cast<float>(ix), ty = fy - static_cast<float>(iy);
         auto        get = [&](int gx, int gy) {
-            return gx < 0 || gy < 0 || gx >= w || gy >= h ? band : distance[static_cast<size_t>(gy) * w + gx];
+            return gx < 0 || gy < 0 || gx >= w || gy >= h ? far : field[static_cast<size_t>(gy) * w + gx];
         };
         return (get(ix, iy) * (1 - tx) + get(ix + 1, iy) * tx) * (1 - ty) + (get(ix, iy + 1) * (1 - tx) + get(ix + 1, iy + 1) * tx) * ty;
     };
+    auto at = [&](float px, float py) { return sample(distance, band, px, py); };
     auto cover = [](float signed_distance) { return std::clamp(0.5f - signed_distance, 0.0f, 1.0f); };
 
     const int                  steps = std::max(2, static_cast<int>(std::ceil(std::hypot(paint.depth_x, paint.depth_y) * 4)));
@@ -948,10 +934,31 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
                      cover(d + static_cast<float>(i) * paint.stroke));
             }
             unsigned char *texel = &rgba[(static_cast<size_t>(gy) * w + gx) * 4];
+            float          alpha = paint.shadow_only ? 0.0f : cover(wall - paint.outline);
+            if (paint.shadow_alpha > 0) {
+                // The letter over its soft shadow: darkest against the moved letter (grown by shadow_grow), fading
+                // to nothing shadow_soft beyond it.
+                const float beyond = std::max(0.0f, at(px - paint.shadow_x, py - paint.shadow_y) - paint.shadow_grow);
+                const float t = std::max(0.0f, 1.0f - beyond / std::max(paint.shadow_soft, 0.01f));
+                float       glow = paint.shadow_alpha * t * t;
+                if (paint.band_alpha > 0) {
+                    // The band, as one light with the glow: the stronger of the two at each pixel, not both.
+                    const float fade = std::max(paint.band_fade, 0.01f);
+                    const float across = std::clamp(1.0f - std::max(0.0f, std::abs(py - paint.band_y) - paint.band_core) / fade, 0.0f, 1.0f);
+                    const float along = std::clamp(std::min(px - span_left, span_right - px) / fade + 1.0f, 0.0f, 1.0f);
+                    glow = std::max(glow, paint.band_alpha * across * across * (3 - 2 * across) * along);
+                }
+                const float shadow = glow * (1 - alpha);
+                const float total = alpha + shadow;
+                for (int c = 0; c < 3; c++) {
+                    rgb[c] = total > 0 ? (rgb[c] * alpha + static_cast<float>(paint.shade[c]) * shadow) / total : rgb[c];
+                }
+                alpha = total;
+            }
             for (int c = 0; c < 3; c++) {
                 texel[c] = static_cast<unsigned char>(std::lround(std::clamp(rgb[c], 0.0f, 255.0f)));
             }
-            texel[3] = static_cast<unsigned char>(std::lround(cover(wall - paint.outline) * 255));
+            texel[3] = static_cast<unsigned char>(std::lround(alpha * 255));
         }
     }
     Glyph glyph;
@@ -960,7 +967,126 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
     }
     glyph.x_offset = static_cast<float>(left);
     glyph.y_offset = static_cast<float>(top);
+    out = glyph;
+    return true;
+}
+
+} // namespace
+
+bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out) {
+    const Font &font = g_fonts[std::clamp(paint.slot, 0, 2)];
+    if (!font.loaded || box_w < 1 || box_h < 1 || box_w > 512 || box_h > 512) {
+        return false;
+    }
+    auto       q = [](float v, float k) { return static_cast<int>(std::lround(v * k)); };
+    const auto key = std::array<int, 20>{static_cast<int>(ch), part, q(box_w, 8), q(box_h, 8), q(paint.depth_x, 16), q(paint.depth_y, 16),
+                                         q(paint.stroke, 64), paint.strokes, q(paint.outline, 16),
+                                         paint.fill[0] << 16 | paint.fill[1] << 8 | paint.fill[2],
+                                         paint.body[0] << 16 | paint.body[1] << 8 | paint.body[2],
+                                         paint.ring[0] << 16 | paint.ring[1] << 8 | paint.ring[2], q(paint.thin, 64),
+                                         q(paint.shadow_x, 16), q(paint.shadow_y, 16), q(paint.shadow_grow, 16),
+                                         q(paint.shadow_soft, 16), q(paint.shadow_alpha, 256),
+                                         paint.shade[0] << 16 | paint.shade[1] << 8 | paint.shade[2],
+                                         paint.slot * 2 + (paint.shadow_only ? 1 : 0)};
+    if (auto found = g_atlas.painted.find(key); found != g_atlas.painted.end()) {
+        out = found->second;
+        return true;
+    }
+    const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch));
+    std::vector<std::vector<Point>> contours = Piece(index != 0 ? Contours(font.info, index) : std::vector<std::vector<Point>>{}, part);
+    if (contours.empty()) {
+        return false;
+    }
+
+    // The outline in the box's pixels, y down.
+    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    for (const auto &c : contours) {
+        for (const Point &p : c) {
+            x0 = std::min(x0, p.x);
+            x1 = std::max(x1, p.x);
+            y0 = std::min(y0, p.y);
+            y1 = std::max(y1, p.y);
+        }
+    }
+    const float sx = box_w / std::max(x1 - x0, 1.0f), sy = box_h / std::max(y1 - y0, 1.0f);
+    for (auto &c : contours) {
+        for (Point &p : c) {
+            p = {(p.x - x0) * sx, (y1 - p.y) * sy};
+        }
+    }
+
+    Glyph glyph;
+    if (!PaintContours(contours, box_w, box_h, paint, glyph)) {
+        return false;
+    }
     g_atlas.painted[key] = glyph;
+    out = glyph;
+    return true;
+}
+
+bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint, Glyph &out) {
+    const Font &font = g_fonts[std::clamp(paint.slot, 0, 2)];
+    if (!font.loaded || letters.empty()) {
+        return false;
+    }
+    // The key: every letter and its box, and the look.
+    std::string key;
+    auto        add = [&](float v) { key += std::to_string(std::lround(v * 64)) + ","; };
+    for (const PlacedLetter &letter : letters) {
+        key += std::to_string(static_cast<unsigned>(letter.ch)) + ":";
+        for (float v : {letter.x, letter.y, letter.w, letter.h}) {
+            add(v);
+        }
+    }
+    for (float v : {paint.depth_x, paint.depth_y, paint.stroke, static_cast<float>(paint.strokes), paint.outline, paint.thin, paint.shadow_x,
+                    paint.shadow_y, paint.shadow_grow, paint.shadow_soft, paint.shadow_alpha, static_cast<float>(paint.slot),
+                    paint.shadow_only ? 1.0f : 0.0f, paint.band_alpha, paint.band_y, paint.band_core, paint.band_fade,
+                    paint.band_left, paint.band_right}) {
+        add(v);
+    }
+    for (const unsigned char *colour : {paint.fill, paint.body, paint.ring, paint.shade}) {
+        key += std::to_string(colour[0] << 16 | colour[1] << 8 | colour[2]) + ",";
+    }
+    if (auto found = g_atlas.painted_words.find(key); found != g_atlas.painted_words.end()) {
+        out = found->second;
+        return true;
+    }
+    // Every letter's outline stretched to its box, together in the word's pixels.
+    std::vector<std::vector<Point>> contours;
+    float                           box_w = 1.0f, box_h = 1.0f;
+    for (const PlacedLetter &letter : letters) {
+        const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(letter.ch));
+        std::vector<std::vector<Point>> own = index != 0 ? Contours(font.info, index) : std::vector<std::vector<Point>>{};
+        if (own.empty()) {
+            continue;
+        }
+        float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+        for (const auto &c : own) {
+            for (const Point &p : c) {
+                x0 = std::min(x0, p.x);
+                x1 = std::max(x1, p.x);
+                y0 = std::min(y0, p.y);
+                y1 = std::max(y1, p.y);
+            }
+        }
+        const float sx = letter.w / std::max(x1 - x0, 1.0f), sy = letter.h / std::max(y1 - y0, 1.0f);
+        for (auto &c : own) {
+            for (Point &p : c) {
+                p = {letter.x + (p.x - x0) * sx, letter.y + (y1 - p.y) * sy};
+            }
+            contours.push_back(std::move(c));
+        }
+        box_w = std::max(box_w, letter.x + letter.w);
+        box_h = std::max(box_h, letter.y + letter.h);
+    }
+    if (contours.empty() || box_w > 1024 || box_h > 512) {
+        return false;
+    }
+    Glyph glyph;
+    if (!PaintContours(contours, box_w, box_h, paint, glyph)) {
+        return false;
+    }
+    g_atlas.painted_words[key] = glyph;
     out = glyph;
     return true;
 }

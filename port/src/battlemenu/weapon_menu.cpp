@@ -288,12 +288,10 @@ PORT_OVERRIDE void DrawWeaponSelectDialog(int x, int y, int alpha) {
     constexpr int btn_h      = 23;
     constexpr int row_stride = 0x1A;
 
-    UI::BevelButton::Draw(
-        UI::Rect(left, top + 1, btn_w, btn_h),
-        LocalizeText("weaponmenu.action.equip", "EQUIP"),
-        UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80),
-        alpha
-    );
+    // While a weapon is being chosen to equip, its button shows pressed, as the game's lit EQUIP does.
+    UI::ButtonStyle equip_style = UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80);
+    equip_style.pressed = WepMenu.state == WEP_STATE_EQUIP;
+    UI::BevelButton::Draw(UI::Rect(left, top + 1, btn_w, btn_h), LocalizeText("weaponmenu.action.equip", "EQUIP"), equip_style, alpha);
 
     UI::BevelButton::Draw(
         UI::Rect(left, top + 1 + row_stride, btn_w, btn_h),
@@ -350,8 +348,8 @@ PORT_OVERRIDE void DrawWeaponSelectDialog(int x, int y, int alpha) {
                 btn_label  = LocalizeText("weaponmenu.action.upgrade", "UPGRADE");
                 btn_preset = UI::ButtonPreset::AmberGold;
             } else if (i == 2) {
-                btn_label  = LocalizeText("weaponmenu.action.synthesize", "SYNTHESIZE");
-                btn_preset = UI::ButtonPreset::AmberGold;
+                btn_label = LocalizeText("weaponmenu.action.synthesize", "STATUS BREAK");
+                btn_preset = UI::ButtonPreset::SlateBlue;
             } else {
                 btn_label  = LocalizeText("weaponmenu.action.buildup", "BUILD-UP");
                 btn_preset = UI::ButtonPreset::StoneGreen;

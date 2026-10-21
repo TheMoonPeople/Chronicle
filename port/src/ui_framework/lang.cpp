@@ -58,7 +58,7 @@ std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
         {"weaponmenu.action.attribute",   "ATTRIBUTE"                                      },
         {"weaponmenu.action.repair",      "REPAIR"                                         },
         {"weaponmenu.action.upgrade",     "UPGRADE"                                        },
-        {"weaponmenu.action.synthesize",  "SYNTHESIZE"                                     },
+        {"weaponmenu.action.synthesize",  "STATUS BREAK"                                   },
         {"weaponmenu.action.buildup",     "BUILD-UP"                                       },
         {"weaponmenu.action.discard",     "DISCARD"                                        },
         {"weaponmenu.upgrade.confirm",    "Upgrade. Confirm?"                              },

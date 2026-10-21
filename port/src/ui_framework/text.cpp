@@ -52,6 +52,8 @@ struct ScaledDrawParams {
     u8         recess_light_r = 250;                /**< Engraved bottom-right catch-light red channel. */
     u8         recess_light_g = 195;                /**< Engraved bottom-right catch-light green channel. */
     u8         recess_light_b = 155;                /**< Engraved bottom-right catch-light blue channel. */
+    bool       painted        = false;              /**< Whether to letter as the painted buttons are. */
+    float      letter         = 0.0f;               /**< Added to the gap between letters. */
 };
 
 /**
@@ -103,13 +105,13 @@ bool UseScaledRenderer(std::string_view text, float scale, float xscale, float y
 /**
  * Measures the horizontal advance width of a string in logical pixels.
  */
-int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeight weight) {
+int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeight weight, float letter = 0.0f) {
     if (text.empty()) {
         return 0;
     }
 
-    const FontSlot slot = (weight == FontWeight::Status && caption::StatusReady())
-                              ? FontSlot::Status
+    const FontSlot slot = (weight == FontWeight::Status && caption::StatusReady()) ? FontSlot::Status
+                          : (weight == FontWeight::Thin && caption::ThinReady())   ? FontSlot::Thin
                               : FontSlot::Main;
 
     /**
@@ -136,7 +138,7 @@ int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeig
     const float               cap_height = detail::kBaseCapHeight * scale;
     const float               em         = cap_height / std::max(0.2f, metrics.cap);
     const int                 em_px      = std::clamp(static_cast<int>(em * mapping.scale_x + 0.5f), 4, 512);
-    const float               gap        = cap_height * 0.075f;
+    const float               gap        = cap_height * 0.075f + letter;
 
     float natural = 0.0f;
     int   drawn   = 0;
@@ -211,7 +213,9 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
     }
 
     const float snapped_x   = std::round(center_x);
-    const float snapped_top = std::round(cap_top);
+    // The painted buttons' lettering is placed to the screen's pixel, the rest to the game's.
+    const float paint_y     = gfx::GetUiMapping(gfx::CurrentRenderTarget()).scale_y;
+    const float snapped_top = params.painted ? std::round(cap_top * paint_y) / paint_y : std::round(cap_top);
     const float cap_height  = detail::kBaseCapHeight * scale;
     const float rows        = draw2d::RowScale();
     const float fade        = std::clamp(static_cast<float>(alpha) / 128.0f, 0.0f, 1.0f);
@@ -220,12 +224,13 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
     const bool is_status = (params.weight == FontWeight::Status);
 
     caption::LineStyle style{};
-    style.thin        = false;
+    style.thin        = is_thin && caption::ThinReady();
     style.status_font = (is_status && caption::StatusReady());
     style.weight      = (params.weight == FontWeight::Bold) ? 1.1f : 0.0f;
     style.xscale      = xscale;
     style.yscale      = yscale;
     style.word        = 3.0f * scale;
+    style.letter      = params.letter;
     style.ink_fit     = false;
 
     if (params.outline_width > 0.0f) {
@@ -237,7 +242,30 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
         style.edge_width = 0.0f;
     }
 
-    if (params.drop_shadow && ConfigGet().text_shadow > 0 && !params.raised_bevel && !params.recessed) {
+    if (params.painted) {
+        // The painted buttons' lettering (wepstatus): cream letters with no outline, sunk in a broad soft dark halo
+        // that is deepest below and right of them, lighter left of them and faint above: a grid of faint copies
+        // spread round a point a little down and right.
+        caption::LineStyle shade = style;
+        shade.field      = nullptr;
+        shade.fill[0]    = 58;
+        shade.fill[1]    = 30;
+        shade.fill[2]    = 18;
+        shade.edge[0]    = 58;
+        shade.edge[1]    = 30;
+        shade.edge[2]    = 18;
+        shade.edge_width = 0.8f;
+        shade.opacity    = 1.0f;
+        shade.alpha      = 0.035f;
+        for (float dy : {-0.3f, 0.3f, 0.9f, 1.5f, 2.1f}) {
+            for (float dx : {-0.6f, 0.0f, 0.6f, 1.2f, 1.8f}) {
+                caption::DrawLine(text, snapped_x + dx, snapped_top + dy, cap_height, 1.0f, 0.0f, shade, fade, rows, nullptr);
+            }
+        }
+        style.edge_width = 0.0f;
+    }
+
+    if (params.drop_shadow && ConfigGet().text_shadow > 0 && !params.raised_bevel && !params.recessed && !params.painted) {
         caption::LineStyle shadow_style = style;
         shadow_style.fill[0]    = 0;
         shadow_style.fill[1]    = 0;
@@ -417,7 +445,9 @@ Label::Label(std::string_view text, const TextStyle &style)
       m_recess_dark_b(style.recess_dark_b),
       m_recess_light_r(style.recess_light_r),
       m_recess_light_g(style.recess_light_g),
-      m_recess_light_b(style.recess_light_b) {
+      m_recess_light_b(style.recess_light_b),
+      m_painted(style.painted),
+      m_letter(style.letter) {
     m_text.Set(m_raw_text.c_str());
 }
 
@@ -508,12 +538,14 @@ void Label::SetStyle(const TextStyle &style) {
     m_recess_light_r = style.recess_light_r;
     m_recess_light_g = style.recess_light_g;
     m_recess_light_b = style.recess_light_b;
+    m_painted        = style.painted;
+    m_letter         = style.letter;
     m_dirty          = true;
 }
 
 int Label::GetWidth() {
     if (UseScaledRenderer(m_raw_text, m_scale, m_xscale, m_yscale, m_weight, m_use_custom_rgb, m_outline_width)) {
-        m_cached_width = MeasureScaledText(m_raw_text, m_scale, m_xscale, m_weight);
+        m_cached_width = MeasureScaledText(m_raw_text, m_scale, m_xscale, m_weight, m_letter);
         m_dirty        = false;
         return m_cached_width;
     }
@@ -562,6 +594,8 @@ void Label::Draw(int x, int y, int alpha) {
             .recess_light_r = m_recess_light_r,
             .recess_light_g = m_recess_light_g,
             .recess_light_b = m_recess_light_b,
+            .painted        = m_painted,
+            .letter         = m_letter,
         };
         DrawScaledText(m_raw_text, center_x, cap_top, m_scale, m_xscale, m_yscale, params, alpha);
         return;
@@ -615,6 +649,8 @@ void Label::DrawInRect(const Rect &box, int alpha) {
             .recess_light_r = m_recess_light_r,
             .recess_light_g = m_recess_light_g,
             .recess_light_b = m_recess_light_b,
+            .painted        = m_painted,
+            .letter         = m_letter,
         };
         DrawScaledText(m_raw_text, center_x + static_cast<float>(m_dx), cap_top + static_cast<float>(m_dy),
                        m_scale, m_xscale, m_yscale, params, alpha);
