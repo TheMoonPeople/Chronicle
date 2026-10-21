@@ -100,7 +100,8 @@ public:
 };
 
 /**
- * Draws a painted plate the game takes whole from a texture (btstatus2's YES, NO and DUMP) as the weapon menu's buttons
+ * Draws a painted plate the game takes whole from a texture (btstatus2's YES, NO and DUMP, the fishing points exchange's
+ * YES and NO) as the weapon menu's buttons
  * are drawn instead, the plate procedural and its word from the font. False for any other sprite.
  */
 bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int bright, int alpha);

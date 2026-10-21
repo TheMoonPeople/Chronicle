@@ -700,22 +700,28 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
 
 namespace {
 
-// A plate in a texture: its cell, the word painted on it, and whether it is the lit (pressed) one.
+// A plate in a texture: its cell, how far down the cell the plate starts, the word painted on it, and whether it is the
+// lit (pressed) one.
 struct PaintedPlate {
     const char *texture;
-    int         u, v;
+    int         u, v, top;
     const char *key;
     const char *english;
     bool        pressed;
 };
 
 constexpr PaintedPlate kPaintedPlates[] = {
-    {"btstatus2", 0, 0x00, "battlemenu.quit.yes",       "YES",  false},
-    {"btstatus2", 0, 0x20, "battlemenu.quit.no",        "NO",   false},
-    {"btstatus2", 0, 0x40, "battlemenu.quit.yes",       "YES",  true },
-    {"btstatus2", 0, 0x60, "battlemenu.quit.no",        "NO",   true },
-    {"btstatus2", 0, 0x80, "weaponmenu.action.discard", "DUMP", false},
-    {"btstatus2", 0, 0xA0, "weaponmenu.action.discard", "DUMP", true },
+    {"btstatus2", 0,     0x00, 0, "battlemenu.quit.yes",       "YES",  false},
+    {"btstatus2", 0,     0x20, 0, "battlemenu.quit.no",        "NO",   false},
+    {"btstatus2", 0,     0x40, 0, "battlemenu.quit.yes",       "YES",  true },
+    {"btstatus2", 0,     0x60, 0, "battlemenu.quit.no",        "NO",   true },
+    {"btstatus2", 0,     0x80, 0, "weaponmenu.action.discard", "DUMP", false},
+    {"btstatus2", 0,     0xA0, 0, "weaponmenu.action.discard", "DUMP", true },
+    // the fishing points exchange's
+    {"fishbrd",   0x1A0, 0x00, 6, "battlemenu.quit.yes",       "YES",  false},
+    {"fishbrd",   0x1A0, 0x20, 2, "battlemenu.quit.no",        "NO",   false},
+    {"fishbrd",   0x1A0, 0x40, 6, "battlemenu.quit.yes",       "YES",  true },
+    {"fishbrd",   0x1A0, 0x60, 2, "battlemenu.quit.no",        "NO",   true },
 };
 
 // A plate's cell is 0x60 x 0x20 texels; the plate fills its top 23 rows, as the weapon menu's do.
@@ -735,8 +741,9 @@ bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i
         }
         ButtonStyle style = ButtonStyle::Thin(ButtonPreset::Terracotta, bright);
         style.pressed = plate.pressed;
+        const int top = (plate.top * screen.height + kPlateCell / 2) / kPlateCell;
         const int height = (kPlateHeight * screen.height + kPlateCell / 2) / kPlateCell;
-        BevelButton::Draw(Rect(screen.x, screen.y, screen.width, height), LocalizeText(plate.key, plate.english), style, alpha);
+        BevelButton::Draw(Rect(screen.x, screen.y + top, screen.width, height), LocalizeText(plate.key, plate.english), style, alpha);
         return true;
     }
     return false;
