@@ -15,8 +15,10 @@ Each letter sits on the game's glyph sheet cell: 50 units a cell pixel, the base
 letters, the cedilla, `¡`, `¿`, `œ` and `Œ` are blank; the port builds them from the font's own letters and marks
 when it draws.
 
-The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. Bold draws the
-message text, the text the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save
+The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. The message
+windows' 88 letters come from a glyph sheet the port draws from both when it first shows text (Bold for the game's bold
+set, Regular for its narrower one, at six times the cells' resolution), so the game lays them out and edges them as it
+always has. Bold also draws the text the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save
 slots and the ally card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the floor
 select's boss names and the weapon menu's buttons.
 

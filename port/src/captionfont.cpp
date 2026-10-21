@@ -1086,6 +1086,27 @@ bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int 
     return true;
 }
 
+bool RenderGlyphScaled(char32_t ch, int slot, float scale, std::vector<unsigned char> &alpha, int &w, int &h, int &x0,
+                       int &y0) {
+    if (slot < 0 || slot > 2 || !g_fonts[slot].loaded) {
+        return false;
+    }
+    const int index = stbtt_FindGlyphIndex(&g_fonts[slot].info, static_cast<int>(ch));
+    if (index == 0) {
+        return false;
+    }
+    const int previous = g_variant;
+    g_variant = slot;
+    Bitmap bitmap = Raster(index, scale, scale);
+    g_variant = previous;
+    alpha = std::move(bitmap.alpha);
+    w = bitmap.w;
+    h = bitmap.h;
+    x0 = bitmap.x0;
+    y0 = bitmap.y0;
+    return true;
+}
+
 gfx::TextureBinding Binding() {
     gfx::TextureBinding binding;
     binding.texture = g_atlas.texture;

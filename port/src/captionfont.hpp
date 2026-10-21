@@ -26,6 +26,9 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out);
 // composes have none stretched.
 bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out);
 bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int &w, int &h, int &x0, int &y0);
+// ch in the font in `slot` at `scale` pixels to a font unit, as RenderGlyph draws it. False where the font has no ch.
+bool RenderGlyphScaled(char32_t ch, int slot, float scale, std::vector<unsigned char> &alpha, int &w, int &h, int &x0,
+                       int &y0);
 
 // How a painted glyph looks, in screen pixels: the letter swept depth_x, depth_y down and right in body (its depth), its
 // face in fill with `strokes` strokes `stroke` wide inside its edge stepping from body to fill, and an outline `outline`

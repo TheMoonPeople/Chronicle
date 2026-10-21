@@ -245,7 +245,12 @@ once per file how many characters did that. The full table is in [PC.md](PC.md#g
 
 ## Crisp text from a TrueType font
 
-The game draws its text from 14x20 bitmaps, which blur when the picture is scaled up. Put a TrueType file
+The game draws its text from 14x20 bitmaps, which blur when the picture is scaled up. With Chronicle Sharp in `lang/`
+(`font.ttf` and `font_thin.ttf`, as the build puts them), the 88 letters of `gaiji.img` are drawn from a sheet the port
+makes from the two fonts at six times the cells' resolution, and the game draws them where and as it draws its bitmaps:
+the windows look as they do on the disc, sharper. What follows applies to a `font.ttf` without `font_thin.ttf`.
+
+Put a TrueType file
 called `font.ttf` in a `lang/` folder (the save folder's, then the executable's) and the port draws every
 character the font has from it instead, rasterized at the screen's own resolution, in the cell the game laid
 the bitmap character out in (size, colour, outline and the cursor row's flashing are the game's own). A
@@ -344,7 +349,8 @@ The JSON for the current language (the language's file, from both folders) is he
 hundred KB; a full export of the disc's English is about 3.5 MB. A message file taken from a pack is rebuilt
 once and kept (about 80 KB each, about 2 MB for every pack). Loose message files are rebuilt each time the
 game loads them and not kept. Reading a file costs a transient 3 to 4 times its size. With `font.ttf`, the
-glyph atlas is one 2048 x 2048 texture (16 MB of video memory).
+glyph atlas is one 2048 x 2048 texture (16 MB of video memory); Chronicle Sharp's glyph sheet is one more, 1536 x 1200
+(7 MB).
 
 Set `DC_LOCALIZE_TRACE=1` to log every message file the game loads and whether the JSON has an entry for it.
 
