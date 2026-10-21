@@ -134,8 +134,8 @@ bool DrawNameTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
 
 // A painted title the game draws whole with its icon (a strip of a texture): the icon as painted, the word in the
 // captions' look over the painted word, whose cream letters run from left to right of the strip and whose capitals
-// from top to bottom; the English word's letters (spaces not counted) moved on by after[i] and drawn narrow[i] times as
-// wide. English, or a language with the word; the painted strip otherwise.
+// from top to bottom, a space space ems; the English word's letters (spaces not counted) moved on by after[i] and drawn
+// narrow[i] times as wide. English, or a language with the word; the painted strip otherwise.
 struct PaintedTitle {
     const char            *texture;
     int                    u, v, width, height;
@@ -143,6 +143,7 @@ struct PaintedTitle {
     const char            *key;
     const char            *english;
     int                    left, right, top, bottom;
+    float                  space = 0.1f;
     std::span<const float> after = {}, narrow = {};
 };
 
@@ -153,7 +154,10 @@ constexpr float kCheckInNarrow[] = {1, 1, 1, 1, 1, 0.6f};
 constexpr PaintedTitle kPaintedTitles[] = {
     // the shop's title, and the check-in counter's (painted CHECK-INCOUNTER)
     {"shopbrd", 0x14, 0x50, 0xA2, 0x28, 58, "shop.title.shop", "SHOP", 64, 117, 9, 27},
-    {"shopbrd", 0x14, 0x78, 0xC8, 0x28, 58, "shop.title.check_in", "CHECK-IN COUNTER", 63, 194, 9, 28, kCheckInAfter, kCheckInNarrow},
+    {"shopbrd", 0x14, 0x78, 0xC8, 0x28, 58, "shop.title.check_in", "CHECK-IN COUNTER", 63, 194, 9, 28, 0.1f, kCheckInAfter, kCheckInNarrow},
+    // the fishing points exchange's title, and the fishing log's
+    {"fishbrd", 0, 0xD0, 0xF0, 0x28, 58, "fishing.title.exchange", "FP EXCHANGE", 72, 234, 12, 30, 0.35f},
+    {"fprecbrd", 0, 0xD0, 0x10C, 0x28, 58, "fishing.title.log", "FISHING LOG", 70, 219, 11, 30, 0.25f},
 };
 
 bool DrawPaintedTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
@@ -176,7 +180,7 @@ bool DrawPaintedTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ 
         set2DSprite(GetVif1Packet(), texture, CRect_i_(screen.x, screen.y, title.icon_width, screen.height),
                     CRect_i_(texel.x, texel.y, title.icon_width, texel.height), alpha);
         return caption::DrawTitle(word, screen.x, screen.y, static_cast<float>(title.left), static_cast<float>(title.right),
-                                  static_cast<float>(title.top), static_cast<float>(title.bottom), 0.1f,
+                                  static_cast<float>(title.top), static_cast<float>(title.bottom), title.space,
                                   english ? title.after : std::span<const float>{}, alpha, 0x80,
                                   english ? title.narrow : std::span<const float>{});
     }
