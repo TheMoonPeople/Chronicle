@@ -120,14 +120,14 @@ private:
 class ConfirmModal {
 public:
     /**
-     * Draws a centered two-button confirmation modal with a selection frame and hand cursor. With a pressed_choice (0
-     * or 1, once the choice is made), that button shows pressed and the frame and cursor are gone, as the game takes
-     * them away.
+     * Draws a centered two-button confirmation modal with a selection frame and hand cursor. With a chosen_choice (0
+     * or 1, once the choice is made) the frame and cursor are gone, as the game takes them away, and while lit that
+     * button shows pressed.
      */
     static void Draw(std::string_view title, std::string_view description,
                      std::string_view yes_label, std::string_view no_label,
                      int selected_choice, Cursor &cursor, int alpha = 0x80,
-                     WindowPreset preset = WindowPreset::DarkTranslucent, int pressed_choice = -1);
+                     WindowPreset preset = WindowPreset::DarkTranslucent, int chosen_choice = -1, bool lit = false);
 };
 
 /**

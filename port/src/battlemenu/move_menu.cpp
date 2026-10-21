@@ -16,6 +16,13 @@ UI::Cursor move_cursor;
 int last_move_state = -1;
 
 /**
+ * Frames since the answer was chosen. It is lit for as long as the weapon menu's EQUIP is once a weapon is equipped:
+ * the weapon's hop, WepFrameRate rising to pi by pi/9 a frame.
+ */
+int           chosen_frames = 0;
+constexpr int kChosenLitFrames = 9;
+
+/**
  * Extracts the title and description lines for the active move confirmation prompt.
  */
 void ExtractMovePromptText(std::string &out_title, std::string &out_desc) {
@@ -83,6 +90,8 @@ void PortDrawMenuMove() {
             move_cursor.SnapTo(static_cast<float>(btn_x - 34), static_cast<float>(sel_y + 3));
         }
         last_move_state = MenuMove.state;
+        const bool chosen = MenuMove.state == MENU_MOVE_STATE_CONFIRM || MenuMove.state == MENU_MOVE_STATE_CLOSE;
+        chosen_frames = chosen ? chosen_frames + 1 : 0;
 
         std::string prompt_title;
         std::string prompt_desc;
@@ -97,8 +106,8 @@ void PortDrawMenuMove() {
             move_cursor,
             alpha,
             UI::WindowPreset::DarkTranslucent,
-            // Chosen, the answer stays lit while the window closes.
-            MenuMove.state == MENU_MOVE_STATE_CONFIRM || MenuMove.state == MENU_MOVE_STATE_CLOSE ? MenuMove.cursor : -1);
+            chosen ? MenuMove.cursor : -1,
+            chosen_frames <= kChosenLitFrames);
 
         if (MenuMove.state == MENU_MOVE_STATE_INTERIOR_FADE && GetInteriorOutFlag() != 0) {
             AllFadeForMenu(std::min(0x80, static_cast<int>(MenuMove.counter * 3)));

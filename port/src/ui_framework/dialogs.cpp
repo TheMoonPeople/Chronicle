@@ -234,7 +234,7 @@ void DialogBox::Draw(int alpha) {
 void ConfirmModal::Draw(std::string_view title, std::string_view description,
                         std::string_view yes_label, std::string_view no_label,
                         int selected_choice, Cursor &cursor, int alpha,
-                        WindowPreset preset, int pressed_choice) {
+                        WindowPreset preset, int chosen_choice, bool lit) {
     if (alpha <= 0) {
         return;
     }
@@ -280,11 +280,11 @@ void ConfirmModal::Draw(std::string_view title, std::string_view description,
 
     ButtonStyle yes_style = ButtonStyle::Thin(ButtonPreset::Terracotta);
     ButtonStyle no_style = yes_style;
-    yes_style.pressed = pressed_choice == 0;
-    no_style.pressed = pressed_choice == 1;
+    yes_style.pressed = lit && chosen_choice == 0;
+    no_style.pressed = lit && chosen_choice == 1;
     BevelButton::Draw(Rect(btn_x, btn_y0, btn_w, btn_h), yes_label, yes_style, alpha);
     BevelButton::Draw(Rect(btn_x, btn_y1, btn_w, btn_h), no_label, no_style, alpha);
-    if (pressed_choice >= 0) {
+    if (chosen_choice >= 0) {
         return;
     }
 
