@@ -1,6 +1,7 @@
 #include "caption_text.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -248,7 +249,7 @@ void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x,
 // shadow of the letters a little up and left over a dark one a little down and right, both under them, and the blue
 // outline round all three. Every label at the one size; one too wide for its box is narrowed, never shrunk.
 constexpr float         kLabelCap = 17.0f;
-constexpr float         kLabelOutline = 1.2f;
+constexpr float         kLabelOutline = 1.5f;
 constexpr float         kLabelRaise = 2.8f;   // the painted ink's top sits this far above the measured bounds' top
 constexpr float         kLabelGap = 0.05f;    // between letters, in ems: the painted letters nearly touch
 constexpr float         kLabelSpace = 0.28f;  // a space, in ems
@@ -257,14 +258,15 @@ constexpr unsigned char kLabelDark[3] = {63, 63, 81};
 struct LabelCopy {
     float dx, dy;
 };
-constexpr LabelCopy kLabelLightAt = {-0.9f, -0.4f};
+constexpr LabelCopy kLabelLightAt = {-1.3f, -0.4f};
 constexpr LabelCopy kLabelDarkAt = {1.0f, 0.9f};
 
 // With fill, the letters are stretched or narrowed to fill the box (less the outline and copies), not only narrowed; cap
 // and space are the capitals' height and a space's width in ems, and after[i] is added after letter i (spaces not
-// counted), in pixels before the fit.
+// counted), in pixels before the fit; each letter is drawn widen times as wide about its own middle, the spacing kept.
 void DrawLabel(const std::string &utf8, int x, int y, float box_width, const CaptionBounds &bounds, int alpha, int bright,
-               float cap = kLabelCap, bool fill = false, float space = kLabelSpace, std::span<const float> after = {}) {
+               float cap = kLabelCap, bool fill = false, float space = kLabelSpace, std::span<const float> after = {},
+               float widen = 1.0f) {
     std::u32string text = Decode(utf8);
     for (char32_t &ch : text) {
         ch = Upper(ch);
@@ -322,9 +324,10 @@ void DrawLabel(const std::string &utf8, int x, int y, float box_width, const Cap
             if (glyph.width <= 0 || glyph.height <= 0) {
                 return;
             }
-            const float width = glyph.width / mapping.scale_x * squeeze;
+            const float width = glyph.width / mapping.scale_x * squeeze * widen;
             const float height = glyph.height / mapping.scale_y * rows;
-            float       gx = pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze;
+            const float middle = pen + fill.width / mapping.scale_x * squeeze / 2;
+            float       gx = middle + (pen + (glyph.x_offset - fill.x_offset) / mapping.scale_x * squeeze - middle) * widen;
             float       gy = base * rows + glyph.y_offset / mapping.scale_y;
             gx = snap(gx, mapping.scale_x, mapping.offset_x) + static_cast<float>(px_x) / mapping.scale_x;
             gy = snap(gy, mapping.scale_y, mapping.offset_y) + static_cast<float>(px_y) / mapping.scale_y;
@@ -1180,6 +1183,39 @@ std::optional<CaptionBounds> PaintedBounds(int icon) {
     return icon >= 0 && icon < kIcons ? g_bounds[icon] : std::nullopt;
 }
 
+// The menu captions' letters a little wider than the font's, each about its own middle.
+constexpr float kCaptionWiden = 1.06f;
+
+// The English captions' letters spaced as painted: added after each letter (spaces not counted), in pixels.
+struct CaptionSpacing {
+    std::string_view   text;
+    std::vector<float> after;
+};
+const CaptionSpacing kCaptionSpacing[] = {
+    {"ITEM",          {2.4f, -0.8f}},
+    {"WEAPON",        {0.8f, -0.8f, 1.6f, -0.8f}},
+    {"ALLIES",        {0.0f, 0.8f, 1.2f, 0.8f}},
+    {"GEORAMA PARTS", {-0.4f, -0.8f, -0.8f, 0.0f, 0.8f, 0.4f, 0.0f, -2.0f, 0.8f, 0.0f, -2.0f}},
+    {"LEAVE DUNGEON", {0.0f, 0.0f, 0.8f, 0.0f, -2.0f, 0.0f, 0.0f, 0.0f, -0.8f, -1.2f}},
+    {"OPTION",        {1.6f, 0.0f}},
+    {"OPTIONS",       {1.6f, 0.0f, 0.0f, 0.0f, 0.0f, -0.8f}},
+    {"JOURNAL",       {0.0f, 0.0f, -0.8f, 0.0f, -0.8f}},
+};
+
+std::span<const float> CaptionSpacingOf(const std::string &text) {
+    // The caption as drawn: in capitals.
+    std::string upper = text;
+    for (char &ch : upper) {
+        ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+    }
+    for (const CaptionSpacing &spacing : kCaptionSpacing) {
+        if (spacing.text == upper) {
+            return spacing.after;
+        }
+    }
+    return {};
+}
+
 bool DrawTitle(std::string_view utf8, int x, int y, float fill_left, float fill_right, float cap_top, float cap_height,
                float space, std::span<const float> after, int alpha, int bright) {
     if (utf8.empty() || !FontReady()) {
@@ -1234,7 +1270,8 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
     const bool  is_saveload_combined = custom_caption && icon == 5 && text.find('/') != std::string::npos;
     const float effective_box_w      = is_saveload_combined ? 124.0f : static_cast<float>(box_width);
     if (const auto bounds = PaintedBounds(icon)) {
-        DrawLabel(text, x, y, effective_box_w, *bounds, alpha, bright);
+        DrawLabel(text, x, y, effective_box_w, *bounds, alpha, bright, kLabelCap, false, kLabelSpace, CaptionSpacingOf(text),
+                  kCaptionWiden);
         return true;
     }
 
