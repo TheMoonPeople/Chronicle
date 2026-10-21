@@ -1,7 +1,9 @@
 #include "memcard.hpp"
 
 #include <cmath>
+#include <string>
 
+#include "caption_text.hpp"
 #include "clsmes.hpp"
 #include "gamepad.hpp"
 #include "memorycardaccess.hpp"
@@ -15,6 +17,7 @@
 #include "save_slots.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "ui_framework/lang.hpp"
 
 PORT_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
     return options::Open(mode, block_no, buffer);
@@ -476,10 +479,18 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
     }
 
     switch (SaveMenu.mode) {
-        case SAVE_MENU_MODE_LOAD:
+        case SAVE_MENU_MODE_LOAD: {
             DrawMenu2DSprite(SaveBoard, CRect_i_(0x46, 0x32, 0x3A, 0x27), CRect_i_(0x110, 0xD8, 0x3A, 0x28), alpha);
+            // LOAD in the menu captions' lettering, over the painted one: its letters from 6.8 to 72 of the picture, their
+            // capitals from row 5 to 23.8. The painted LOAD without the font.
+            std::string title, desc, save_word, load_word, prompt;
+            UI::GetLocalizedSaveLoadStrings(title, desc, save_word, load_word, prompt);
+            if (caption::DrawTitle(load_word, 0x86, 0x37, 6.8f, 70.0f, 1.5f, 18.3f, 0.1f, {}, alpha)) {
+                return;
+            }
             DrawMenu2DSprite(SaveBoard, CRect_i_(0x86, 0x37, 0x50, 0x1E), CRect_i_(0x110, 0x100, 0x50, 0x1E), alpha);
             return;
+        }
         case SAVE_MENU_MODE_ENDING:
             DrawMainMenuIcon(0x46, 0x32, 5, 1, 0x80, alpha);
             break;
