@@ -27,6 +27,7 @@ bool GetOutlinedGlyph(char32_t ch, int em_px, int outline_px, Glyph &out);
 bool GetStretchedGlyph(char32_t ch, int em_px, float outline_px, float stretch, bool smooth, Glyph &out);
 bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int &w, int &h, int &x0, int &y0);
 // ch in the font in `slot` at `scale` pixels to a font unit, as RenderGlyph draws it. False where the font has no ch.
+// Safe on another thread once the font is loaded: it reads the font and nothing else.
 bool RenderGlyphScaled(char32_t ch, int slot, float scale, std::vector<unsigned char> &alpha, int &w, int &h, int &x0,
                        int &y0);
 

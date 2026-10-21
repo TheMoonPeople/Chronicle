@@ -2,6 +2,11 @@
 
 class ClsMes;
 
+// Starts drawing the Sharp glyph sheet the message windows take their letters from, on a worker, once the fonts are
+// found (font.ttf and font_thin.ttf); the first window to show text uploads it. Startup calls it, so the sheet is
+// ready before any text is.
+void ClsMesPrepareSheet();
+
 // Marks mes as the dialog framework's choice window (dialog_npc.cpp), or none with nullptr. Its rows
 // above first_row are text, not choices: with a cursor_row the window dims every row the cursor is not
 // on, and these keep their colour. A coloured choice the cursor is not on fades rather than brightens,

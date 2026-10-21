@@ -79,17 +79,21 @@ int DrawnGlyph(char32_t ch) {
     return index != 0 && !stbtt_IsGlyphEmpty(&g_fonts[g_variant].info, index) ? index : 0;
 }
 
-Bitmap Raster(int index, float scale_x, float scale_y) {
+Bitmap Raster(const stbtt_fontinfo &info, int index, float scale_x, float scale_y) {
     Bitmap bitmap;
     int    x1, y1;
-    stbtt_GetGlyphBitmapBox(&g_fonts[g_variant].info, index, scale_x, scale_y, &bitmap.x0, &bitmap.y0, &x1, &y1);
+    stbtt_GetGlyphBitmapBox(&info, index, scale_x, scale_y, &bitmap.x0, &bitmap.y0, &x1, &y1);
     bitmap.w = x1 - bitmap.x0;
     bitmap.h = y1 - bitmap.y0;
     if (bitmap.w > 0 && bitmap.h > 0) {
         bitmap.alpha.assign(static_cast<size_t>(bitmap.w) * bitmap.h, 0);
-        stbtt_MakeGlyphBitmap(&g_fonts[g_variant].info, bitmap.alpha.data(), bitmap.w, bitmap.h, bitmap.w, scale_x, scale_y, index);
+        stbtt_MakeGlyphBitmap(&info, bitmap.alpha.data(), bitmap.w, bitmap.h, bitmap.w, scale_x, scale_y, index);
     }
     return bitmap;
+}
+
+Bitmap Raster(int index, float scale_x, float scale_y) {
+    return Raster(g_fonts[g_variant].info, index, scale_x, scale_y);
 }
 
 struct Part {
@@ -1095,10 +1099,7 @@ bool RenderGlyphScaled(char32_t ch, int slot, float scale, std::vector<unsigned 
     if (index == 0) {
         return false;
     }
-    const int previous = g_variant;
-    g_variant = slot;
-    Bitmap bitmap = Raster(index, scale, scale);
-    g_variant = previous;
+    Bitmap bitmap = Raster(g_fonts[slot].info, index, scale, scale);
     alpha = std::move(bitmap.alpha);
     w = bitmap.w;
     h = bitmap.h;

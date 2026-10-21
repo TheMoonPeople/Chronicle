@@ -26,6 +26,7 @@ void TouchOverlayPoll();
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
+#include "clsmes_port.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
@@ -450,6 +451,7 @@ int Run(int argc, const char **argv) {
     LoadInputScript(options.input);
 
     ConfigLoad();
+    ClsMesPrepareSheet();
     audio::SoundtrackEnsure();
     const Config &config = ConfigGet();
 

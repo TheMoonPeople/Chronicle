@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <future>
 #include <iterator>
 #include <span>
 #include <string_view>
@@ -127,8 +128,9 @@ constexpr int kSheetU = 128; // the sheet's left edge in gaiji.img
 constexpr int kSheetW = 256; // both sets
 constexpr int kSheetH = 200; // ten rows of cells
 
-gfx::TextureHandle          g_sheet = gfx::kNullTexture;
-std::vector<gfx::Vertex2D> *g_sheet_quads = nullptr; // where DrawMesWin's letters go while it draws them
+gfx::TextureHandle                g_sheet = gfx::kNullTexture;
+std::future<std::vector<uint8_t>> g_sheet_pixels;          // the worker drawing the sheet's pixels
+std::vector<gfx::Vertex2D>       *g_sheet_quads = nullptr; // where DrawMesWin's letters go while it draws them
 
 // The drop shadow the game's narrower letters carry in their own texels (the bold ones have none): the letter's
 // coverage moved down and right, blurred a little and thickened, at most half dark. Its shape was measured on the
@@ -179,16 +181,8 @@ std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, int 
     return out;
 }
 
-// The sheet, made the first time a window draws letters; false without both fonts.
-bool SheetReady() {
-    static bool tried = false;
-    if (tried) {
-        return g_sheet != gfx::kNullTexture;
-    }
-    tried = true;
-    if (!caption::Ready() || !caption::ThinReady()) {
-        return false;
-    }
+// The sheet's pixels, drawn from the two fonts. Reads the fonts and nothing else, so it runs on a worker.
+std::vector<uint8_t> SheetPixels() {
     constexpr int        S = kSheetScale;
     constexpr int        W = kSheetW * S, H = kSheetH * S, CW = kCellW * S, CH = kCellH * S;
     std::vector<uint8_t> rgba(static_cast<size_t>(W) * H * 4, 0);
@@ -224,13 +218,31 @@ bool SheetReady() {
             }
         }
     }
-    gfx::TextureDesc desc;
-    desc.width = W;
-    desc.height = H;
+    return rgba;
+}
+
+// The sheet, its pixels from the worker ClsMesPrepareSheet started (waited for if it has not finished); false
+// without both fonts.
+bool SheetReady() {
+    static bool tried = false;
+    if (tried) {
+        return g_sheet != gfx::kNullTexture;
+    }
+    if (!g_sheet_pixels.valid()) {
+        ClsMesPrepareSheet();
+    }
+    tried = true;
+    if (!g_sheet_pixels.valid()) {
+        return false;
+    }
+    const std::vector<uint8_t> rgba = g_sheet_pixels.get();
+    gfx::TextureDesc           desc;
+    desc.width = kSheetW * kSheetScale;
+    desc.height = kSheetH * kSheetScale;
     desc.format = gfx::TextureFormat::Rgba8;
     g_sheet = gfx::CreateTexture(desc);
     if (g_sheet != gfx::kNullTexture) {
-        gfx::UpdateTextureNow(g_sheet, 0, 0, 0, W, H, rgba.data());
+        gfx::UpdateTextureNow(g_sheet, 0, 0, 0, desc.width, desc.height, rgba.data());
     }
     return g_sheet != gfx::kNullTexture;
 }
@@ -1667,6 +1679,13 @@ PORT_OVERRIDE void ClsMes::DrawMesWin() {
     } else {
         this->cursor_y = 0;
     }
+}
+
+void ClsMesPrepareSheet() {
+    if (g_sheet_pixels.valid() || g_sheet != gfx::kNullTexture || !caption::Ready() || !caption::ThinReady()) {
+        return;
+    }
+    g_sheet_pixels = std::async(std::launch::async, SheetPixels);
 }
 
 void ClsMesSetChoiceRows(const ClsMes *mes, int first_row) {
