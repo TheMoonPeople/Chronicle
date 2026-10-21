@@ -101,7 +101,7 @@ int FishMenuTextureLoad() {
     if (FishMenu.ready == 0) {
         if (ReadBGSync() == 0) {
             BG_READ_INFO *file = GetReadBGFile(0);
-            auto          texture = std::make_unique<LOADTEXTURE_INFO2[]>(2);
+            auto          texture = std::make_unique<LOADTEXTURE_INFO2[]>(3); // the frame, the board and the list's end
             texture[0] = {FishFrameImage, 0, 0};
             texture[1] = {nullptr, 0, 0};
             texture[0].block_no = FishMenu.tex_block;
