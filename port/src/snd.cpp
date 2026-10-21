@@ -10,6 +10,7 @@
 #include <string>
 #include <tuple>
 
+#include "credits_text.hpp"
 #include "draw2d_port.hpp"
 #include "glyph_draw.hpp"
 #include "mglib_port.hpp"
@@ -70,7 +71,7 @@ void RectSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel
         }
     }
 
-    if (GlyphReplaceSprite(texture->name, screen, texel, colour.a) ||
+    if (GlyphReplaceSprite(texture->name, screen, texel, colour.a) || credits::DrawBand(texture->name, screen, texel, colour.a) ||
         UI::DrawPaintedPlate(texture->name, screen, texel, colour.r, colour.a)) {
         return;
     }
