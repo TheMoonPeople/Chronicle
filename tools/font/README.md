@@ -1,27 +1,29 @@
 # ChronicleSharp-Bold.ttf and ChronicleSharp-Regular.ttf
 
-Chronicle Sharp, the port's text font: Dark Cloud's own letters as a TrueType font. Bold is the game's bold
-dialogue set, Regular its narrower set. Each letter started as the Dark Cloud Compendium Community Font's (by Dayuppy
-and Moonbunny, copyright (c) 2020; released to the community to use as they wish, and Dayuppy confirmed on
-2026-10-06 that it may be used in this port) and was reshaped, letter by letter, until drawn at the game's 14x20 it
-matches the game's letter in `meswin/gaiji.img`. After that, `%` was split so its rings stand clear of the slash, `~`
-was redrawn, and the Japanese marks the name alphabet carries were added: `「 」 『 』` (one stroke weight down and
-across) and `・ 。`.
+Chronicle Sharp, the port's text font, copyright (c) 2026 Tororoi: Dark Cloud's letters as a TrueType font.
+Bold is the game's bold dialogue set, Regular its narrower set.
+
+It is derived from the Dark Cloud Compendium Community Font ("Dark Cloud Speech", by Dayuppy and Moonbunny, copyright
+(c) 2020), which was released to the community to use as they wish; Dayuppy confirmed on 2026-10-06 that it may be used
+in this port. Bold started from its regular weight and Regular from its THIN variant (Jeff, who contributes the port's
+text work, confirmed on 2026-10-10 that he has Dayuppy's permission to use it). Each of the game's 88 letters was then
+reshaped until, drawn at the game's 14x20, it matches the game's letter in `meswin/gaiji.img`; `%` was split so its
+rings stand clear of the slash, `~` was redrawn, and the Japanese marks the name alphabet carries were added
+(`「 」 『 』`, one stroke weight down and across, and `・ 。`). The font's other glyphs are the Compendium font's.
 
 Each letter sits on the game's glyph sheet cell: 50 units a cell pixel, the baseline at the cell's row 15. Its accented
 letters, the cedilla, `¡`, `¿`, `œ` and `Œ` are blank; the port builds them from the font's own letters and marks
 when it draws.
 
-The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. Text the port
-draws from a font uses Bold, as do the name
-alphabet's characters (the name entry keyboard, the names on it, the save slots and the ally card), drawn in the
-painted alphabet's look; the area cards and the floor select's boss names use Regular. When the disc is extracted
-(`dcdata extract`, the first-run extraction, or `dcdata sharp <data>` for data extracted before),
-`tools/dcdata/sharpfont.hpp` redraws the game's glyph sheet in the two at six times its size (the narrower set with the
-soft shadow the game's own letters carry in their texels) into `sharp/` in the data folder. With Text Font set to
-Sharp the game draws its message text from that sheet, exactly where and as it draws its own letters. The sheet is
-made from the disc, so it is never part of the repository or a release; until it is made, message text is drawn from
-the font itself.
+The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. Bold draws the text
+the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save slots and the ally
+card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the floor select's boss
+names and the weapon menu's buttons. When the disc is extracted (`dcdata extract`, the first-run extraction, or `dcdata
+sharp <data>` for data extracted before), `tools/dcdata/sharpfont.hpp` redraws the game's glyph sheet in the two at six
+times its size (the narrower set with the soft shadow the game's own letters carry in their texels) into `sharp/` in
+the data folder. With Text Font set to Sharp the game draws its message text from that sheet, exactly where and as it
+draws its own letters. The sheet is made from the disc, so it is never part of the repository or a release; until it is
+made, message text is drawn from the font itself.
 
 To use another font for the text the port draws from a font, put it at `lang/font.ttf` in the save folder (that wins
 over this one) or start the game with `--font <file>`.
