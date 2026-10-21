@@ -1,5 +1,10 @@
 #pragma once
 
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "quest_framework.hpp"
 
 // The port's quests (docs/QUEST_FRAMEWORK.md), one file each in this folder. A new quest is a
@@ -15,12 +20,25 @@ inline constexpr int kNoruneMayorLines = 280;
 
 // The Mayor of Norune's supplies, a choice of his menu rather than handed out unasked: Tasty Water,
 // Bread, Repair Powder, Escape Powder and Antidote Drink, as his talk script hands them out.
-extern const int kNoruneMayorSupplies[5];
+extern const int  kNoruneMayorSupplies[5];
 Quest::Definition MayorSupplies();
+/**
+ * Lists the Mayor quest localization text.
+ */
+std::span<const Quest::Text> MayorSuppliesTexts();
 
 // Carl's Slingshot: Gina borrowed it and won't give it back; the Bone Slingshot for Xiao in the end.
 // The example quest of docs/QUEST_FRAMEWORK.md.
 Quest::Definition CarlsSlingshot();
+/**
+ * Lists the slingshot quest localization text.
+ */
+std::span<const Quest::Text> CarlsSlingshotTexts();
 
 // Registers every quest above.
 void RegisterAllQuests();
+
+/**
+ * Lists all quest localization keys and their English text.
+ */
+std::vector<std::pair<std::string, std::string>> QuestStrings();

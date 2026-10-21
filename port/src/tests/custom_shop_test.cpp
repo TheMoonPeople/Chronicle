@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <array>
+#include <filesystem>
+#include <memory>
 #include <string>
+#include <string_view>
 
 #include "clsmes.hpp"
 #include "custom_shop.hpp"
@@ -10,6 +13,7 @@
 #include "gametext.hpp"
 #include "itemdata.hpp"
 #include "menuetc.hpp"
+#include "platform/paths.hpp"
 #include "shop.hpp"
 
 // ps2/src/shop.cpp's prices, as custom_shop.cpp declares them.
@@ -17,6 +21,7 @@ struct ITEM_MONEY_ENTRY {
     s16 buy_price;
     s16 sell_price;
 };
+
 extern ITEM_MONEY_ENTRY PriceList[296];
 
 namespace {
@@ -31,16 +36,24 @@ s16 &BuyPrice(int item) {
     return PriceList[item - ITEM_ATTACH_START].buy_price;
 }
 
-std::string PacName(int shop_kind, int shop_no) {
-    char name[76] = {};
-    ItemShopGetPacFileName(shop_kind, shop_no, name);
-    return name;
+std::string PacName(int shop_kind, int shop_no, std::string_view expected) {
+    auto name = std::make_unique<char[]>(expected.size() + 1);
+    ItemShopGetPacFileName(shop_kind, shop_no, name.get());
+    return name.get();
 }
 
-std::string ImageName(int shop_kind, int shop_no) {
-    char name[64] = {};
-    ItemShopGetImgFileName(shop_kind, shop_no, name);
-    return name;
+// Whether the game's data is here. Looking a file up indexes PathsDataRoot() first, and that stops
+// the program (InitCDFile) where it is not a directory or holds nothing.
+bool HaveGameData() {
+    std::error_code              error;
+    const std::filesystem::path &root = PathsDataRoot();
+    return std::filesystem::is_directory(root, error) && !std::filesystem::is_empty(root, error);
+}
+
+std::string ImageName(int shop_kind, int shop_no, std::string_view expected) {
+    auto name = std::make_unique<char[]>(expected.size() + 1);
+    ItemShopGetImgFileName(shop_kind, shop_no, name.get());
+    return name.get();
 }
 
 class CustomShopTest : public ::testing::Test {
@@ -54,7 +67,9 @@ TEST_F(CustomShopTest, SellsItsGoodsAtItsPricesOnlyWhileOpen) {
 
     CustomShop shop;
     shop.look = 0;
-    shop.goods = {{ITEM_TRAM_OIL, 600}};
+    shop.goods = {
+        {ITEM_TRAM_OIL, 600}
+    };
     EXPECT_EQ(CustomShopBegin(shop), 0);
     EXPECT_TRUE(CustomShopActive());
     EXPECT_EQ(GetItemShopList(0)[0], ITEM_TRAM_OIL);
@@ -68,35 +83,38 @@ TEST_F(CustomShopTest, SellsItsGoodsAtItsPricesOnlyWhileOpen) {
 }
 
 TEST_F(CustomShopTest, LeavesRetailShopsAsTheyAre) {
-    const std::string pac = PacName(SHOP_KIND_ITEM, 0);
+    const std::string pac = PacName(SHOP_KIND_ITEM, 0, "commenu/shopchara/p02a.pac");
     EXPECT_EQ(pac, "commenu/shopchara/p02a.pac");
-    EXPECT_EQ(ImageName(SHOP_KIND_ITEM, 0), "p02a01.img");
+    EXPECT_EQ(ImageName(SHOP_KIND_ITEM, 0, "p02a01.img"), "p02a01.img");
     // Retail read past its eighteen lists for the numbers ShopNoInput lets through.
     EXPECT_EQ(Goods(20), Goods(0));
 }
 
 TEST_F(CustomShopTest, AKeeperTheDataDoesNotHaveIsLooksOwn) {
+    if (!HaveGameData()) {
+        GTEST_SKIP() << "the game's data is not here";
+    }
     CustomShop shop;
     shop.look = 0;
     shop.keeper = "gedit/none/chara/zz99a.chr";
     CustomShopBegin(shop);
-    EXPECT_EQ(PacName(SHOP_KIND_ITEM, 0), "commenu/shopchara/p02a.pac");
-    EXPECT_EQ(ImageName(SHOP_KIND_ITEM, 0), "p02a01.img");
+    EXPECT_EQ(PacName(SHOP_KIND_ITEM, 0, "commenu/shopchara/p02a.pac"), "commenu/shopchara/p02a.pac");
+    EXPECT_EQ(ImageName(SHOP_KIND_ITEM, 0, "p02a01.img"), "p02a01.img");
 }
 
 TEST_F(CustomShopTest, ATownModelStandsBehindTheCounter) {
     const char *villager = "gedit/e01/chara/p13a.chr";
-    if (DataFileSize(villager) == 0) {
+    if (!HaveGameData() || DataFileSize(villager) == 0) {
         GTEST_SKIP() << "the game's data is not here";
     }
     CustomShop shop;
     shop.look = 0;
     shop.keeper = villager;
     CustomShopBegin(shop);
-    EXPECT_EQ(PacName(SHOP_KIND_ITEM, 0), villager);
-    EXPECT_EQ(ImageName(SHOP_KIND_ITEM, 0), "p13a01.img");
+    EXPECT_EQ(PacName(SHOP_KIND_ITEM, 0, villager), villager);
+    EXPECT_EQ(ImageName(SHOP_KIND_ITEM, 0, "p13a01.img"), "p13a01.img");
     // The storage shop is not the custom shop's.
-    EXPECT_EQ(PacName(SHOP_KIND_CHARGE, 0), "commenu/shopchara/p13a.pac");
+    EXPECT_EQ(PacName(SHOP_KIND_CHARGE, 0, "commenu/shopchara/p13a.pac"), "commenu/shopchara/p13a.pac");
 }
 
 TEST_F(CustomShopTest, ItsLinesAreTheShopkeepersWhileOpen) {

@@ -10,8 +10,11 @@
 #include <cstring>
 #include <fstream>
 #include <functional>
+#include <iomanip>
+#include <locale>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <unordered_map>
 
 #include "../../tools/dcdata/dcdata.hpp"
@@ -177,9 +180,9 @@ bool IsMessageName(std::string_view path) {
 
 // The opening storybook stores message data as opmes.bin.
 bool IsMessageEntry(std::string_view name) {
-    constexpr std::string_view kBook = "opmes.bin";
-    return IsMessageName(name) || (name.size() == kBook.size() &&
-                                   std::equal(name.begin(), name.end(), kBook.begin(), [](char a, char b) {
+    constexpr std::string_view book_name = "opmes.bin";
+    return IsMessageName(name) || (name.size() == book_name.size() &&
+                                   std::equal(name.begin(), name.end(), book_name.begin(), [](char a, char b) {
                                        return dcdata::FoldChar(a) == b;
                                    }));
 }
@@ -235,9 +238,10 @@ std::string LocalizeTextHash(std::string_view text) {
         hash ^= c;
         hash *= 0x100000001B3ULL;
     }
-    char digits[17];
-    std::snprintf(digits, sizeof digits, "%016llx", static_cast<unsigned long long>(hash));
-    return digits;
+    std::ostringstream digits;
+    digits.imbue(std::locale::classic());
+    digits << std::hex << std::setfill('0') << std::setw(16) << hash;
+    return digits.str();
 }
 
 std::string LocalizeMessageKey(std::string_view path) {

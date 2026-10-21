@@ -103,6 +103,11 @@ void GameRenderTick(gfx::DisplayListRef list);
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick);
 void GamePresentTickEnd();
 
+/**
+ * Stops display presentation and releases its retained lists before readback or renderer shutdown.
+ */
+void GameStopPresentation();
+
 struct GamePresentStats {
     std::uint64_t ticks;
     std::uint64_t display_frames;

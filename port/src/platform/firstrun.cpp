@@ -580,12 +580,6 @@ FirstRunOutcome FirstRunExtract(const fs::path &source, const fs::path &root,
                 dcdata::Fail("{} files are missing or the wrong size after extraction, {} among them",
                              bad.size(), bad.front()->path);
             }
-            // The Sharp glyph sheets are the disc's redrawn in Chronicle Sharp; until they are, Sharp draws the font itself.
-            try {
-                dcdata::sharp::Build(target, PathsExecutable().parent_path() / "lang", stderr);
-            } catch (const std::exception &failure) {
-                std::fprintf(stderr, "sharp: %s\n", failure.what());
-            }
             if (!in_place) {
                 // The data check found root missing or without a file, so anything there is empty
                 // directories.
@@ -628,25 +622,6 @@ FirstRunOutcome FirstRunExtract(const fs::path &source, const fs::path &root,
 
 void FirstRunSetChooser(FirstRunChooser replacement) {
     chooser = std::move(replacement);
-}
-
-void FirstRunSharpFont() {
-    static bool started = false;
-    const fs::path &root = PathsDataRoot();
-    if (started || FirstRunDataMissing(root) || dcdata::sharp::IsBuilt(root)) {
-        return;
-    }
-    started = true;
-    // Detached: the files only count once version.txt, written last, says so, so a run that ends first leaves
-    // nothing half-made in use.
-    fs::path fonts = PathsExecutable().parent_path() / "lang";
-    std::thread([root, fonts] {
-        try {
-            dcdata::sharp::Build(root, fonts, stderr);
-        } catch (const std::exception &failure) {
-            std::fprintf(stderr, "sharp: %s\n", failure.what());
-        }
-    }).detach();
 }
 
 void FirstRunIfNoData(bool headless) {

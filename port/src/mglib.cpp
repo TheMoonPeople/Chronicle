@@ -48,7 +48,6 @@ constexpr float kGsDepthRange = 16699999.0f;
 int                g_old_vcount;
 sceVif1Packet      g_null_packet;
 u_long128          g_null_packet_words[4];
-unsigned int       g_draw_cursor[64];
 std::optional<int> g_pick_pending[16];
 
 gfx::TextureHandle  g_shadow_target = gfx::kNullTexture;
@@ -94,10 +93,10 @@ void ClearBars() {
     float            bottom = (static_cast<float>(mapping.pixel_height) - mapping.offset_y) / mapping.scale_y;
     uint8_t          black[4] = {0, 0, 0, 0x80};
     gfx::LogicalRect bars[4] = {
-        {left,               top,                 -left,                      bottom - top                },
-        {kScreenWidth, top,                 right - kScreenWidth, bottom - top                },
-        {0.0f,               top,                 kScreenWidth,         -top                        },
-        {0.0f,               kScreenHeight, kScreenWidth,         bottom - kScreenHeight},
+        {left,         top,           -left,                bottom - top          },
+        {kScreenWidth, top,           right - kScreenWidth, bottom - top          },
+        {0.0f,         top,           kScreenWidth,         -top                  },
+        {0.0f,         kScreenHeight, kScreenWidth,         bottom - kScreenHeight},
     };
     for (const gfx::LogicalRect &bar : bars) {
         if (bar.w > 0.0f && bar.h > 0.0f) {
@@ -181,10 +180,8 @@ void Blit(const ResolvedRect &src, const ResolvedRect &dst, gfx::Filter filter) 
 }
 
 // The view against the last one the previous tick drew with.
-bool g_view_no_cut = false;
-
 void CheckCameraCut(sceVu0FMATRIX view) {
-    if (g_view_no_cut || !gfx::Recording() || !g_have_tick_view) {
+    if (!gfx::Recording() || !g_have_tick_view) {
         return;
     }
     float before[16];
@@ -547,6 +544,9 @@ PORT_OVERRIDE void MGInitVSyncCallBack(int (*callback)(int)) {
     ClockSetTickCallback(callback);
 }
 
+// The renderer builds no VIF packets; nothing reads the packet builders.
+PORT_OVERRIDE void MGInitVif1Packet(u_long128 *buffer0, u_long128 *buffer1) {}
+
 void MGPortCutInterpolation() {
     g_cut_next_tick = true;
 }
@@ -600,48 +600,50 @@ PORT_OVERRIDE void MGBeginFrame() {
 // game asked not to wait twice (mgWaitVSync 0). The count only moves when the clock is pumped, so
 // it is pumped first to see whether a tick went by.
 PORT_OVERRIDE void MGEndFrame() {
-    for (int i = 0; i < 16; i++) {
-        g_pick_pending[i].reset();
-        if (!mgPickZBuff[i].enable) {
-            continue;
+    {
+        gfx::RenderLease lease;
+        for (int i = 0; i < 16; i++) {
+            g_pick_pending[i].reset();
+            if (!mgPickZBuff[i].enable) {
+                continue;
+            }
+            if (mgPickZBuff[i].x < 4 || mgPickZBuff[i].x > 636 || mgPickZBuff[i].y < 4 ||
+                mgPickZBuff[i].y > SCREEN_HEIGHT - 4) {
+                mgPickZBuff[i].z = -1;
+                continue;
+            }
+            // Retail reads 8x8 of the field buffer, which is 8x16 of the frame.
+            gfx::ReadDepth(static_cast<uint32_t>(i), static_cast<float>(mgPickZBuff[i].x - 4),
+                           static_cast<float>(mgPickZBuff[i].y - 8), 8.0f, 16.0f);
+            g_pick_pending[i] = i;
         }
-        if (mgPickZBuff[i].x < 4 || mgPickZBuff[i].x > 636 || mgPickZBuff[i].y < 4 ||
-            mgPickZBuff[i].y > SCREEN_HEIGHT - 4) {
-            mgPickZBuff[i].z = -1;
-            continue;
-        }
-        // Retail reads 8x8 of the field buffer, which is 8x16 of the frame.
-        gfx::ReadDepth(static_cast<uint32_t>(i), static_cast<float>(mgPickZBuff[i].x - 4),
-                       static_cast<float>(mgPickZBuff[i].y - 8), 8.0f, 16.0f);
-        g_pick_pending[i] = i;
-    }
 
-    gfx::SetRenderTarget(gfx::kMainTarget);
-    gfx::DisplayListRef list;
-    if (gfx::Recording()) {
-        textwipe::DrawDivider();
-        list = gfx::EndRecording();
-        GameRenderTick(list);
-        sceVu0CopyMatrix(g_tick_view, mgRenderInfo.view_scaled);
-        g_have_tick_view = true;
-    } else {
-        gfx::EndFrame();
-    }
-
-    for (int i = 0; i < 16; i++) {
-        if (!g_pick_pending[i]) {
-            continue;
-        }
-        std::optional<float> depth = gfx::DepthResult(static_cast<uint32_t>(i));
-        if (!depth) {
-            mgPickZBuff[i].z = -1;
-        } else if (*depth <= 0.0f) {
-            mgPickZBuff[i].z = 0;
+        gfx::SetRenderTarget(gfx::kMainTarget);
+        gfx::DisplayListRef list;
+        if (gfx::Recording()) {
+            textwipe::DrawDivider();
+            list = gfx::EndRecording();
+            GameRenderTick(list);
+            sceVu0CopyMatrix(g_tick_view, mgRenderInfo.view_scaled);
+            g_have_tick_view = true;
         } else {
-            mgPickZBuff[i].z = static_cast<int>(std::lround(1.0 + static_cast<double>(*depth) * kGsDepthRange));
+            gfx::EndFrame();
+        }
+
+        for (int i = 0; i < 16; i++) {
+            if (!g_pick_pending[i]) {
+                continue;
+            }
+            std::optional<float> depth = gfx::DepthResult(static_cast<uint32_t>(i));
+            if (!depth) {
+                mgPickZBuff[i].z = -1;
+            } else if (*depth <= 0.0f) {
+                mgPickZBuff[i].z = 0;
+            } else {
+                mgPickZBuff[i].z = static_cast<int>(std::lround(1.0 + static_cast<double>(*depth) * kGsDepthRange));
+            }
         }
     }
-
     if (!mgWaitVSync) {
         ClockPump();
     }
@@ -786,12 +788,6 @@ PORT_OVERRIDE void MGSetViewMatrix(sceVu0FMATRIX view, float *position) {
     mgRenderInfo.position[1] = position[1];
     mgRenderInfo.position[2] = position[2];
     mgRenderInfo.position[3] = 0.0f;
-}
-
-void MGPortSetViewMatrixNoCut(float view[4][4], float *position) {
-    g_view_no_cut = true;
-    MGSetViewMatrix(view, position);
-    g_view_no_cut = false;
 }
 
 PORT_OVERRIDE void MGSetFogParm(float near_z, float far_z, u_char r, u_char g, u_char b, float far_fog, float near_fog) {
@@ -956,7 +952,7 @@ PORT_OVERRIDE int MGClipBox(CBoxVu0 *box) {
 
 PORT_OVERRIDE void MGDraw(CFrame *frame) {
     if (frame) {
-        frame->DrawVu1(g_draw_cursor, &mgRenderInfo);
+        frame->DrawVu1(static_cast<unsigned int *>(nullptr), &mgRenderInfo);
     }
 }
 
@@ -1006,8 +1002,10 @@ PORT_OVERRIDE void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *
 // The sprite of a stretch whose source TEX0 says PSMCT24: the source is sampled through a target
 // without alpha, so TEXA supplies each texel's alpha before filtering, and written with blending
 // off (retail's ALPHA there is (0 - 0) * FIX + Cs).
-static void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::TextureHandle dst, gfx::Rect dst_rect,
-                            const sceGsTexa &texa) {
+namespace {
+
+void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::TextureHandle dst, gfx::Rect dst_rect,
+                     const sceGsTexa &texa) {
     uint32_t width = static_cast<uint32_t>(kScreenWidth);
     uint32_t height = static_cast<uint32_t>(kScreenHeight);
     if (src != gfx::kMainTarget) {
@@ -1066,6 +1064,8 @@ static void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::Tex
     gfx::SetRenderTarget(previous);
 }
 
+} // namespace
+
 // One textured sprite in retail, so the source is sampled linearly; the half-pixel and field
 // offsets (dx, dyy) existed only for interlacing.
 //
@@ -1097,7 +1097,9 @@ PORT_OVERRIDE void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, 
     MGPortCurrent().texa.TA0 = 128;
 }
 
-static void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
+namespace {
+
+void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
     PortTextureRef ref = Draw3DResolveTex0(*reinterpret_cast<u_long *>(dst));
     if (!ref.valid || ref.binding.texture == gfx::kNullTexture || ref.binding.texture == gfx::kMainTarget ||
         ref.binding.texture == gfx::kPreviousFrame) {
@@ -1106,6 +1108,8 @@ static void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
     gfx::BlitTexture(frame, {0, 0, 640, SCREEN_HEIGHT}, ref.binding.texture, {0, 0, 640, SCREEN_HEIGHT},
                      gfx::Filter::Nearest);
 }
+
+} // namespace
 
 // Retail weaves the two fields line by line into a full-height image; one blit of the frame does.
 PORT_OVERRIDE void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction) {

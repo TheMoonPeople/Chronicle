@@ -27,9 +27,9 @@ struct Window {
     short       *retail_buff = nullptr; // EditMes1's talk messages, put back when the session ends.
     std::string  shown;                 // The text EditMes1 was last made with.
     GameTextFile file;
-    int          first_row = 0;         // The row the choices start on.
-    int          choice_rows = 0;       // How many choices are in view; 0 on a page of text.
-    MenuPointer  pointer;               // The mouse, while the window is up.
+    int          first_row = 0;   // The row the choices start on.
+    int          choice_rows = 0; // How many choices are in view; 0 on a page of text.
+    MenuPointer  pointer;         // The mouse, while the window is up.
 };
 
 Window g_window;
@@ -77,13 +77,20 @@ std::string_view ColourTag(const Dialog::ChoiceItem &item) {
         return "grey";
     }
     switch (item.color) {
-        case Dialog::ChoiceColor::White:     return {};
-        case Dialog::ChoiceColor::Yellow:    return "yellow";
-        case Dialog::ChoiceColor::Cyan:      return "cyan";
-        case Dialog::ChoiceColor::Green:     return "green";
-        case Dialog::ChoiceColor::Gold:      return "gold";
-        case Dialog::ChoiceColor::Grey:      return "grey";
-        case Dialog::ChoiceColor::Highlight: return "highlight";
+        case Dialog::ChoiceColor::White:
+            return {};
+        case Dialog::ChoiceColor::Yellow:
+            return "yellow";
+        case Dialog::ChoiceColor::Cyan:
+            return "cyan";
+        case Dialog::ChoiceColor::Green:
+            return "green";
+        case Dialog::ChoiceColor::Gold:
+            return "gold";
+        case Dialog::ChoiceColor::Grey:
+            return "grey";
+        case Dialog::ChoiceColor::Highlight:
+            return "highlight";
     }
     return {};
 }
@@ -149,7 +156,11 @@ void ShowWindow() {
     }
     EditMes1.cursor_row = cursor_row;
     g_window.first_row = first_row;
-    g_window.choice_rows = cursor_row >= 0 ? view->layout.visible_choice_count : 0;
+    const int choice_count = static_cast<int>(view->choices.size());
+    const int visible_start = std::clamp(view->choice_scroll_offset, 0, choice_count);
+    g_window.choice_rows = cursor_row >= 0
+                               ? std::min(choice_count - visible_start, std::max(0, view->layout.visible_choice_count))
+                               : 0;
     ClsMesSetChoiceRows(cursor_row >= 0 ? &EditMes1 : nullptr, first_row);
     const int total = static_cast<int>(view->choices.size());
     ClsMesSetChoiceScroll(cursor_row >= 0 && view->choice_scroll_offset > 0,
@@ -242,7 +253,7 @@ DialogNpcState DialogNpcStep() {
     }
     HideWindow();
     return Dialog::TakeSessionEnd() == Dialog::SessionEnd::PlayOriginal ? DialogNpcState::PlayOriginal
-                                                                         : DialogNpcState::Closed;
+                                                                        : DialogNpcState::Closed;
 }
 
 bool DialogNpcSpeaking() {
@@ -296,8 +307,8 @@ void DialogNpcMouseUpdate() {
     MenuPointerShow(&pointer);
 
     // The pointer takes over from the pad where the window's hand is.
-    const float hand_x = static_cast<float>(TextLeft() - 0xC - EditMes1.char_width * 2);
-    const float hand_y = static_cast<float>(EditMes1.text_y + EditMes1.cursor_y - 4);
+    const float           hand_x = static_cast<float>(TextLeft() - 0xC - EditMes1.char_width * 2);
+    const float           hand_y = static_cast<float>(EditMes1.text_y + EditMes1.cursor_y - 4);
     const MenuPointerTake take = pointer.Take(hand_x, hand_y);
     if (!take.pointing) {
         return;

@@ -1,12 +1,16 @@
-#include "item_icon3d.hpp"
 #include "gameloop.hpp"
 
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <charconv>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <format>
+#include <memory>
+#include <mutex>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -40,8 +44,8 @@
 #include "platform/input.hpp"
 #include "platform/overlay.hpp"
 #include "platform/paths.hpp"
-#include "quest_host.hpp"
 #include "presence.hpp"
+#include "quest_host.hpp"
 #include "save_slots.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
@@ -87,6 +91,87 @@ GamePresentStats    g_stats;
 
 using PresentClock = std::chrono::steady_clock;
 PresentClock::time_point g_last_present;
+
+struct PublishedFrame {
+    gfx::DisplayListRef      list;
+    gfx::DisplayListRef      previous;
+    gfx::DisplayListRef      overlay;
+    GamePresentSettings      settings;
+    PresentClock::time_point start;
+    PresentClock::duration   length;
+    std::uint64_t            serial = 0;
+};
+
+std::mutex                 g_publish_mutex;
+PublishedFrame             g_published;
+std::atomic<std::uint64_t> g_async_frames{0};
+std::atomic<double>        g_async_seconds{0};
+std::atomic<double>        g_async_fps{0};
+OverlayRate                g_render_rate;
+PresentClock::time_point   g_render_last_present;
+std::uint64_t              g_render_serial = 0;
+bool                       g_render_tick_shown = false;
+
+bool PresentAsync() {
+    return gfx::ActiveRenderThreadMode() == gfx::RenderThreadMode::Async;
+}
+
+// Runs only on the worker, using immutable lists and settings published by the game thread.
+PresentClock::duration PresentRenderIdle(void *) {
+    PublishedFrame frame;
+    {
+        std::lock_guard lock(g_publish_mutex);
+        frame = g_published;
+    }
+    if (!frame.list) {
+        return std::chrono::milliseconds(10);
+    }
+    if (frame.serial != g_render_serial) {
+        g_render_serial = frame.serial;
+        g_render_tick_shown = false;
+    }
+    if (!frame.settings.interpolation && g_render_tick_shown) {
+        return std::chrono::milliseconds(2);
+    }
+    const auto now = PresentClock::now();
+    if (frame.settings.max_fps > 0) {
+        const auto due = g_render_last_present + std::chrono::duration_cast<PresentClock::duration>(
+                                                     std::chrono::duration<double>(1.0 / frame.settings.max_fps));
+        if (now < due) {
+            return due - now;
+        }
+    }
+    if (frame.settings.interpolation && now >= frame.start + frame.length && g_render_tick_shown) {
+        return std::chrono::milliseconds(1);
+    }
+    bool shown;
+    if (frame.settings.interpolation) {
+        const float        alpha = std::clamp(std::chrono::duration<float>(now - frame.start).count() /
+                                                  std::chrono::duration<float>(frame.length).count(),
+                                              0.0f, std::nextafter(1.0f, 0.0f));
+        gfx::RenderOptions options;
+        options.previous = frame.previous.get();
+        options.present = true;
+        options.overlay = frame.overlay.get();
+        shown = gfx::RenderList(*frame.list, alpha, options);
+        if (shown) {
+            g_async_frames.fetch_add(1);
+            g_async_seconds.fetch_add(std::chrono::duration<double>(PresentClock::now() - now).count());
+        }
+    } else {
+        shown = frame.overlay ? gfx::RenderList(*frame.overlay, 1.0f, {.present = true, .host = true})
+                              : gfx::PresentCanonical();
+    }
+    if (!shown) {
+        return std::chrono::milliseconds(1);
+    }
+    g_render_last_present = now;
+    if (g_render_rate.Count(PresentClock::now())) {
+        g_async_fps.store(g_render_rate.PerSecond());
+    }
+    g_render_tick_shown = true;
+    return PresentClock::duration::zero();
+}
 
 bool g_menu_chord_held = false;
 bool g_debug_r3_held = false;
@@ -209,10 +294,10 @@ struct Jump {
 Jump g_jump;
 bool g_fast_load;
 bool g_autosave;
-int g_developer_return_mode = GAME_MODE_TITLE;
-int g_developer_return_map = 800;
-int g_developer_return_local_map = 0;
-int g_developer_return_menu_no = 0;
+int  g_developer_return_mode = GAME_MODE_TITLE;
+int  g_developer_return_map = 800;
+int  g_developer_return_local_map = 0;
+int  g_developer_return_menu_no = 0;
 bool g_developer_return_pending = false;
 
 std::int64_t g_frame_budget = -1;
@@ -294,14 +379,14 @@ void ModeInit(int &title_ran, int &exist_data, bool &skip_title) {
 }
 
 void StartNewGame() {
-    char names[6][64];
+    auto names = std::make_unique<std::array<char, 64>[]>(6);
     for (int i = 0; i < 6; ++i) {
-        std::memcpy(names[i], g_save_data.GetCharaName(i), sizeof(names[i]));
+        std::memcpy(names[i].data(), g_save_data.GetCharaName(i), names[i].size());
     }
     ResetSaveKeepingConfig(g_save_data);
     GameOptionsApply(ConfigGet().options);
     for (int i = 0; i < 6; ++i) {
-        std::memcpy(g_save_data.GetCharaName(i), names[i], sizeof(names[i]));
+        std::memcpy(g_save_data.GetCharaName(i), names[i].data(), names[i].size());
     }
     QuestHostNewGame();
     TrialStart();
@@ -565,9 +650,9 @@ bool GameSetGive(const char *list) {
         std::string_view token = rest.substr(0, rest.find(','));
         more = token.size() < rest.size();
         rest.remove_prefix(std::min(rest.size(), token.size() + 1));
-        int  item = 0;
+        int item = 0;
         auto [end, error] = std::from_chars(token.data(), token.data() + token.size(), item);
-        if (error != std::errc{} || end != token.data() + token.size() || item < 1 || item > ITEM_WEAPON_END) {
+        if (error != std::errc{} || end != token.data() + token.size() || item < 1 || item >= ITEM_WEAPON_END) {
             return false;
         }
         items.push_back(item);
@@ -614,12 +699,12 @@ bool GameSetJump(const char *spec) {
 // Retail PAL tests pad 2's four shoulder buttons with R3's press edge after every frame; here they are
 // pad 1's, as the host latched it, so the chord can enable debug mode after an ordinary boot.
 void GameCheckDebugToggle() {
-    constexpr std::uint16_t kShoulders = kInputL1 | kInputR1 | kInputL2 | kInputR2;
+    constexpr std::uint16_t shoulders = kInputL1 | kInputR1 | kInputL2 | kInputR2;
     std::uint16_t           buttons = InputGetPad(0).buttons;
     bool                    held = (buttons & kInputR3) != 0;
     bool                    pressed = held && !g_debug_r3_held;
     g_debug_r3_held = held;
-    if (!pressed || (buttons & kShoulders) != kShoulders) {
+    if (!pressed || (buttons & shoulders) != shoulders) {
         return;
     }
     DebugMode = !DebugMode;
@@ -629,8 +714,8 @@ void GameCheckDebugToggle() {
 // The pad as the host latched it, so a mode that has locked the game's pad (an event, a fade) still
 // leaves. Only the press of the chord counts: held into the next mode, it does not leave that too.
 bool GameDeveloperMenuRequested() {
-    constexpr std::uint16_t kChord = kInputSelect | kInputStart;
-    bool                    held = (InputGetPad(0).buttons & kChord) == kChord;
+    constexpr std::uint16_t chord = kInputSelect | kInputStart;
+    bool                    held = (InputGetPad(0).buttons & chord) == chord;
     bool                    bound = InputHostPressed(InputHostAction::DeveloperMenu);
     bool                    pressed = (held && !g_menu_chord_held) || bound;
     g_menu_chord_held = held;
@@ -691,16 +776,12 @@ bool GameStopRequested() {
 // Retail's SetEnv sends TEX1, TEST, ZBUF, ALPHA and CLAMP at the top of every frame. TEX1 is
 // read where a texture is bound and CLAMP is the sampler's; the window rectangle is what
 // sceGsSwapDBuff's draw environment restored every frame.
-PORT_OVERRIDE void SetEnv(sceVif1Packet *packet) {
-    MGSetGsTEST(nullptr);
-    MGSetGsZBUF(nullptr);
-    MGSetGsALPHA(nullptr);
-    MGSetWindowRect();
-}
-
 void GameSetPresentSettings(const GamePresentSettings &settings) {
     g_present = settings;
     g_fps.on = settings.show_fps;
+    if (PresentAsync()) {
+        gfx::SetRenderIdleHook(PresentRenderIdle, nullptr);
+    }
 }
 
 void GameRenderTick(gfx::DisplayListRef list) {
@@ -719,9 +800,31 @@ void GameRenderTick(gfx::DisplayListRef list) {
     g_previous_list = std::move(g_list);
     g_list = std::move(list);
     g_tick_shown = false;
+    if (PresentAsync()) {
+        FpsOverlayList();
+        const auto length = std::chrono::duration_cast<PresentClock::duration>(
+            std::chrono::duration<double>(1.0 / ClockTickRate()));
+        const auto elapsed = std::chrono::duration_cast<PresentClock::duration>(
+            std::chrono::duration<double>(ClockTickFraction() / ClockTickRate()));
+        {
+            std::lock_guard lock(g_publish_mutex);
+            g_published.list = g_list;
+            g_published.previous = g_previous_list;
+            g_published.overlay = g_fps.on ? g_fps.list : nullptr;
+            g_published.settings = g_present;
+            g_published.start = PresentClock::now() - elapsed;
+            g_published.length = length;
+            ++g_published.serial;
+        }
+        gfx::WakeRenderThread();
+    }
 }
 
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick) {
+    if (PresentAsync()) {
+        PollFpsToggle();
+        return false;
+    }
     if (!g_list) {
         return false;
     }
@@ -755,6 +858,9 @@ bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_po
 }
 
 void GamePresentTickEnd() {
+    if (PresentAsync()) {
+        return;
+    }
     if (g_tick_shown || !g_list) {
         return;
     }
@@ -770,7 +876,17 @@ void GamePresentTickEnd() {
 }
 
 GamePresentStats GamePresentStatistics() {
-    return g_stats;
+    auto stats = g_stats;
+    stats.display_frames += g_async_frames.load();
+    stats.display_seconds += g_async_seconds.load();
+    return stats;
+}
+
+void GameStopPresentation() {
+    gfx::SetRenderIdleHook(nullptr, nullptr);
+    gfx::RenderLease lease;
+    std::lock_guard  lock(g_publish_mutex);
+    g_published = {};
 }
 
 bool GameShowingFps() {
@@ -778,7 +894,7 @@ bool GameShowingFps() {
 }
 
 std::string GameFpsText() {
-    std::string text = std::format("FPS {:.1f}", g_fps.frames.PerSecond());
+    std::string text = std::format("FPS {:.1f}", PresentAsync() ? g_async_fps.load() : g_fps.frames.PerSecond());
     if (g_present.fps_detail != ConfigFpsDetail::Fps) {
         text += std::format("  TICK {:.1f}/{:g}", g_fps.ticks.PerSecond(), ClockTickRate());
     }
@@ -791,7 +907,6 @@ std::string GameFpsText() {
 // kPreviousFrame outside a frame is the newest main image: the canonical render, or the loading
 // screen's frame after it. ReadbackFrame would read a display frame, overlay and all.
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {
-    ItemIcons3DDumpDebug();
     return gfx::ReadbackTexture(gfx::kPreviousFrame, rgba, width, height);
 }
 
@@ -953,19 +1068,19 @@ int RunGame(int argc, char **argv) {
                 StartEventNo = -1;
                 result = 1;
             }
-            
+
             if (result == 0 && TakeBattleMenuLoadRequest()) {
                 const s32 loaded_map = *reinterpret_cast<const s32 *>(
                     reinterpret_cast<const char *>(SaveData) + kSaveMapNoOffset);
-                MapNo        = (loaded_map >= 0 && loaded_map < 200) ? loaded_map : 0;
-                LocalMapNo   = MapNo;
-                OldMapNo     = -1;
-                NextMapNo    = -1;
+                MapNo = (loaded_map >= 0 && loaded_map < 200) ? loaded_map : 0;
+                LocalMapNo = MapNo;
+                OldMapNo = -1;
+                NextMapNo = -1;
                 StartEventNo = -1;
                 GameApplyLoopResult(GAME_MODE_TITLE, 2);
                 break;
             }
-            
+
             GiveOnArrival();
             InputSetLookOnLeftStick((mode == GAME_MODE_DUNGEON && gameTask == GAME_TASK_EYE_CAMERA) ||
                                     (mode == GAME_MODE_EDIT && viewMode != 0 && EdInteriorFlag == 0));

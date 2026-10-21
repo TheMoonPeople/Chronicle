@@ -15,15 +15,10 @@ Each letter sits on the game's glyph sheet cell: 50 units a cell pixel, the base
 letters, the cedilla, `¡`, `¿`, `œ` and `Œ` are blank; the port builds them from the font's own letters and marks
 when it draws.
 
-The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. Bold draws the text
-the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save slots and the ally
-card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the floor select's boss
-names and the weapon menu's buttons. When the disc is extracted (`dcdata extract`, the first-run extraction, or `dcdata
-sharp <data>` for data extracted before), `tools/dcdata/sharpfont.hpp` redraws the game's glyph sheet in the two at six
-times its size (the narrower set with the soft shadow the game's own letters carry in their texels) into `sharp/` in
-the data folder. The game draws its message text from that sheet, exactly where and as it draws its own letters. The
-sheet is made from the disc, so it is never part of the repository or a release; until it is made, message text is
-drawn from the font itself.
+The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. Bold draws the
+message text, the text the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save
+slots and the ally card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the floor
+select's boss names and the weapon menu's buttons.
 
 To use another font for the text the port draws from a font, put it at `lang/font.ttf` in the save folder (that wins
 over this one) or start the game with `--font <file>`.

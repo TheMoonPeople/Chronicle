@@ -1,14 +1,14 @@
 #include "menu_draw.hpp"
 
-#include <algorithm>
-#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <string_view>
 #include <vector>
 
 #include "caption_text.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "itemdata.hpp"
 #include "localize.hpp"
 #include "memcard.hpp"
 #include "menu_dungeon.hpp"
@@ -140,6 +140,17 @@ bool DrawAlphabetCell(CTexture *texture, const CRect_i_ &screen, const CRect_i_ 
 
 } // namespace
 
+PORT_OVERRIDE void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *attachment) {
+    if (attachment == nullptr) {
+        return;
+    }
+
+    ATTACH_DATA *data = GetAttachData(attachment_no);
+    if (data != nullptr) {
+        std::memcpy(attachment, data, sizeof(*attachment));
+    }
+}
+
 PORT_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
     // Align the buffer address to a 64-byte boundary across the full 64-bit address space.
     auto address = reinterpret_cast<std::uintptr_t>(buffer);
@@ -158,13 +169,9 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
     if (texture == nullptr) {
         return;
     }
-    // Stretch full-screen backdrops across the visible logical target to fill widescreen viewports.
-    gfx::LogicalRect visible = gfx::VisibleLogicalRect(gfx::kMainTarget);
-    int              left    = x + static_cast<int>(std::floor(visible.x));
-    int              top     = y + static_cast<int>(std::floor(visible.y));
-    int              right   = x + static_cast<int>(std::ceil(visible.x + visible.w));
-    int              bottom  = y + static_cast<int>(std::ceil(visible.y + visible.h));
-    DrawMenu2DSprite(texture, CRect_i_(left, top, right - left, bottom - top), MenuDispRc, alpha);
+    // PAL artwork has 448 rows; the renderer expands full-screen sprites to the viewport.
+    DrawMenu2DSprite(texture, CRect_i_(x, y, MenuDispRc.width, MenuDispRc.height),
+                     CRect_i_(0, 0, 640, 448), alpha);
 }
 
 PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
@@ -184,7 +191,7 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
         texel.height = screen.height;
         if (screen.width == 0x100 && screen.height == 0x78 && texel.x == 0 && texel.y == 0x78) {
             screen.height = 0x77;
-            texel.height  = 0x77;
+            texel.height = 0x77;
         }
     }
 
@@ -214,7 +221,7 @@ PORT_OVERRIDE void DrawMainMenuIcon(int x, int y, int icon, int selected, int br
         {0x30, 0x20},
         {0x3A, 0x28}
     };
-    int width  = frame_size[selected][0];
+    int width = frame_size[selected][0];
     int height = frame_size[selected][1];
     if (selected) {
         u = info->selected_u;
@@ -255,12 +262,12 @@ PORT_OVERRIDE void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, in
         y = static_cast<int>(pointer_y);
     }
 
-    int       item_x  = x + offset_x;
-    int       item_y  = y + offset_y;
+    int       item_x = x + offset_x;
+    int       item_y = y + offset_y;
     s16       item_no = PerBoardPt->held_item.item_no;
     CRect_i_  shadow(0x80, 0x28, 0x20, 0x20);
-    int       u       = 0;
-    int       v       = 0;
+    int       u = 0;
+    int       v = 0;
     CTexture *texture = RetCTex(item_no, u, v);
 
     if (texture != nullptr) {

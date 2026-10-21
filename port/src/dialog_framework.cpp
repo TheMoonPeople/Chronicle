@@ -24,69 +24,69 @@ constexpr float kGlyphCellWidthPx = 14.0f;
 
 // English for the framework's own keys; lang/<language>.json translates them under the same keys.
 constexpr std::string_view kEnglish[][2] = {
-    {"dialog.common.talk",        "Talk"},
-    {"dialog.common.leave",       "Never mind"},
-    {"dialog.common.back",        "Back"},
-    {"dialog.common.yes",         "Yes"},
-    {"dialog.common.no",          "No"},
-    {"dialog.common.accept",      "Accept"},
-    {"dialog.common.decline",     "Decline"},
-    {"dialog.common.next_page",   "{cross} Next"},
+    {"dialog.common.talk",        "Talk"                        },
+    {"dialog.common.leave",       "Never mind"                  },
+    {"dialog.common.back",        "Back"                        },
+    {"dialog.common.yes",         "Yes"                         },
+    {"dialog.common.no",          "No"                          },
+    {"dialog.common.accept",      "Accept"                      },
+    {"dialog.common.decline",     "Decline"                     },
+    {"dialog.common.next_page",   "{cross} Next"                },
     {"dialog.hub.default_prompt", "Is there something you need?"},
-    {"dialog.hub.anything_else",  "Was there anything else?"},
+    {"dialog.hub.anything_else",  "Was there anything else?"    },
 };
 
 struct FrameNode {
-    std::vector<PageSlice> slices;
-    int32_t current_slice_idx = 0;
-    std::vector<ChoiceItem> choices;
+    std::vector<PageSlice>   slices;
+    int32_t                  current_slice_idx = 0;
+    std::vector<ChoiceItem>  choices;
     std::vector<std::string> formatted_choice_labels;
-    int32_t selected_choice = 0;
-    int32_t choice_scroll_offset = 0;
-    bool hub = false; // TryInterceptOpen's menu, which RefreshHub builds again.
-    bool close_when_read = false; // PushClosingMessage's: confirming its last slice ends the session.
+    int32_t                  selected_choice = 0;
+    int32_t                  choice_scroll_offset = 0;
+    bool                     hub = false;             // TryInterceptOpen's menu, which RefreshHub builds again.
+    bool                     close_when_read = false; // PushClosingMessage's: confirming its last slice ends the session.
 };
 
 // The widgets look their textures up when made, so the default renderer makes them when it first
 // draws rather than with g_state, before the texture manager exists.
 struct Widgets {
-    UI::Cursor cursor;
-    UI::Brackets brackets;
+    UI::Cursor    cursor;
+    UI::Brackets  brackets;
     UI::ScrollBar scrollbar;
 };
 
 struct FrameworkState {
-    TokenContext tokens;
-    LayoutConfig layout_cfg;
-    MeasureTextWidthFn text_measurer;
-    ExternalLocalizeFn external_localize;
-    RenderSessionFn render_callback;
+    TokenContext                  tokens;
+    LayoutConfig                  layout_cfg;
+    MeasureTextWidthFn            text_measurer;
+    ExternalLocalizeFn            external_localize;
+    RenderSessionFn               render_callback;
     std::vector<OptionProviderFn> providers;
-    bool intercept_all_npcs = false;
+    bool                          intercept_all_npcs = false;
 
-    bool active = false;
-    SessionEnd last_end = SessionEnd::None;
-    NpcContext active_ctx;
-    std::string original_message;
+    bool                   active = false;
+    SessionEnd             last_end = SessionEnd::None;
+    NpcContext             active_ctx;
+    std::string            original_message;
     std::vector<FrameNode> stack;
-    ActiveView cached_view;
+    ActiveView             cached_view;
 
     std::optional<Widgets> widgets;
-    bool snap_cursor = false;
-    uint32_t blink_counter = 0;
+    bool                   snap_cursor = false;
+    uint32_t               blink_counter = 0;
 
     // The default renderer's labels for cached_view, laid out again only when view_generation moves on:
     // a Label lays its text out when it is set, and that is too slow to do every frame.
-    uint32_t view_generation = 0;
-    uint32_t drawn_generation = 0;
+    uint32_t                                view_generation = 0;
+    uint32_t                                drawn_generation = 0;
     std::vector<std::unique_ptr<UI::Label>> body_labels;
     std::vector<std::unique_ptr<UI::Label>> choice_labels;
-    std::unique_ptr<UI::Label> measure_label;
+    std::unique_ptr<UI::Label>              measure_label;
 };
 
 FrameworkState g_state;
 
-Widgets& GetWidgets() {
+Widgets &GetWidgets() {
     if (!g_state.widgets) {
         g_state.widgets.emplace();
     }
@@ -149,16 +149,14 @@ bool IsZeroWidthControlTag(std::string_view tag_content) noexcept {
     }
     static constexpr std::string_view kZeroWidthNames[] = {
         "page", "white", "yellow", "cyan", "green", "dark",
-        "gold", "grey", "highlight", "/color"
-    };
+        "gold", "grey", "highlight", "/color"};
     for (std::string_view name : kZeroWidthNames) {
         if (EqualsIgnoreCase(tag_content, name)) {
             return true;
         }
     }
     static constexpr std::string_view kZeroWidthPrefixes[] = {
-        "wait ", "color ", "gap ", "spacing ", "justify ", "bubble "
-    };
+        "wait ", "color ", "gap ", "spacing ", "justify ", "bubble "};
     for (std::string_view prefix : kZeroWidthPrefixes) {
         if (StartsWithIgnoreCase(tag_content, prefix)) {
             return true;
@@ -172,13 +170,20 @@ u32 MapChoiceColor(ChoiceColor color, bool enabled) noexcept {
         return FONT_COLOR_GREY;
     }
     switch (color) {
-        case ChoiceColor::White:     return UI::ColorWhite;
-        case ChoiceColor::Yellow:    return UI::ColorYellow;
-        case ChoiceColor::Cyan:      return FONT_COLOR_CYAN;
-        case ChoiceColor::Green:     return FONT_COLOR_GREEN;
-        case ChoiceColor::Gold:      return UI::ColorGold;
-        case ChoiceColor::Grey:      return FONT_COLOR_GREY;
-        case ChoiceColor::Highlight: return UI::ColorYellow;
+        case ChoiceColor::White:
+            return UI::ColorWhite;
+        case ChoiceColor::Yellow:
+            return UI::ColorYellow;
+        case ChoiceColor::Cyan:
+            return FONT_COLOR_CYAN;
+        case ChoiceColor::Green:
+            return FONT_COLOR_GREEN;
+        case ChoiceColor::Gold:
+            return UI::ColorGold;
+        case ChoiceColor::Grey:
+            return FONT_COLOR_GREY;
+        case ChoiceColor::Highlight:
+            return UI::ColorYellow;
     }
     return UI::ColorWhite;
 }
@@ -192,7 +197,7 @@ int32_t FindFirstEnabledChoice(std::span<const ChoiceItem> choices) noexcept {
     return 0;
 }
 
-void ClampChoiceScroll(FrameNode& node, int32_t max_visible) noexcept {
+void ClampChoiceScroll(FrameNode &node, int32_t max_visible) noexcept {
     const int32_t total = static_cast<int32_t>(node.choices.size());
     if (total <= max_visible || max_visible <= 0) {
         node.choice_scroll_offset = 0;
@@ -227,7 +232,7 @@ void RebuildActiveView(bool frame_changed = false) {
         g_state.snap_cursor = true;
     }
 
-    FrameNode& top = g_state.stack.back();
+    FrameNode &top = g_state.stack.back();
     if (top.slices.empty()) {
         top.slices.push_back(BuildWrappedSlice("", g_state.layout_cfg.max_inner_width));
     }
@@ -240,7 +245,7 @@ void RebuildActiveView(bool frame_changed = false) {
 
     ClampChoiceScroll(top, g_state.layout_cfg.max_visible_choices);
 
-    ActiveView& view = g_state.cached_view;
+    ActiveView &view = g_state.cached_view;
     view.context = g_state.active_ctx;
     view.current_slice = top.slices[static_cast<size_t>(top.current_slice_idx)];
     view.slice_index = top.current_slice_idx;
@@ -264,17 +269,17 @@ void RebuildActiveView(bool frame_changed = false) {
     }
 }
 
-FrameNode MakeFrameNode(std::string_view raw_or_key,
+FrameNode MakeFrameNode(std::string_view             raw_or_key,
                         std::span<const std::string> format_args,
-                        std::vector<ChoiceItem> choices,
-                        bool resolve_as_key) {
-    const std::string base_text = resolve_as_key ? ResolveKey(raw_or_key) : std::string(raw_or_key);
-    const std::string expanded_text = SubstituteTokens(base_text, format_args, &g_state.tokens);
+                        std::vector<ChoiceItem>      choices,
+                        bool                         resolve_as_key) {
+    const std::string              base_text = resolve_as_key ? ResolveKey(raw_or_key) : std::string(raw_or_key);
+    const std::string              expanded_text = SubstituteTokens(base_text, format_args, &g_state.tokens);
     const std::vector<std::string> raw_pages = SplitRawPages(expanded_text);
 
     FrameNode node;
     node.slices.reserve(raw_pages.size());
-    for (const std::string& page_str : raw_pages) {
+    for (const std::string &page_str : raw_pages) {
         node.slices.push_back(BuildWrappedSlice(page_str, g_state.layout_cfg.max_inner_width));
     }
     if (node.slices.empty()) {
@@ -283,7 +288,7 @@ FrameNode MakeFrameNode(std::string_view raw_or_key,
 
     node.choices = std::move(choices);
     node.formatted_choice_labels.reserve(node.choices.size());
-    for (const ChoiceItem& item : node.choices) {
+    for (const ChoiceItem &item : node.choices) {
         std::string label = !item.label_key.empty() ? ResolveKey(item.label_key) : item.fallback_label;
         if (label == item.label_key && !item.fallback_label.empty()) {
             label = item.fallback_label;
@@ -297,7 +302,7 @@ FrameNode MakeFrameNode(std::string_view raw_or_key,
 }
 
 // The menu an NPC opens on: "Talk", what the providers added, "Never mind".
-FrameNode MakeHubNode(const NpcContext& ctx, std::vector<ChoiceItem> injected_choices) {
+FrameNode MakeHubNode(const NpcContext &ctx, std::vector<ChoiceItem> injected_choices) {
     std::vector<ChoiceItem> hub_choices;
     hub_choices.reserve(injected_choices.size() + 2);
 
@@ -306,12 +311,12 @@ FrameNode MakeHubNode(const NpcContext& ctx, std::vector<ChoiceItem> injected_ch
     talk_item.label_key = "dialog.common.talk";
     talk_item.fallback_label = "Talk";
     talk_item.color = ChoiceColor::White;
-    talk_item.on_select = [](ISessionController& ctrl) {
+    talk_item.on_select = [](ISessionController &ctrl) {
         ctrl.PlayOriginalMessage();
     };
     hub_choices.push_back(std::move(talk_item));
 
-    for (ChoiceItem& item : injected_choices) {
+    for (ChoiceItem &item : injected_choices) {
         hub_choices.push_back(std::move(item));
     }
 
@@ -320,7 +325,7 @@ FrameNode MakeHubNode(const NpcContext& ctx, std::vector<ChoiceItem> injected_ch
     leave_item.label_key = "dialog.common.leave";
     leave_item.fallback_label = "Never mind";
     leave_item.color = ChoiceColor::White;
-    leave_item.on_select = [](ISessionController& ctrl) {
+    leave_item.on_select = [](ISessionController &ctrl) {
         ctrl.Close();
     };
     hub_choices.push_back(std::move(leave_item));
@@ -333,35 +338,35 @@ FrameNode MakeHubNode(const NpcContext& ctx, std::vector<ChoiceItem> injected_ch
     return node;
 }
 
-void RefreshLabels(const ActiveView& view) {
+void RefreshLabels(const ActiveView &view) {
     if (g_state.drawn_generation == g_state.view_generation) {
         return;
     }
     g_state.drawn_generation = g_state.view_generation;
     g_state.body_labels.clear();
-    for (const std::string& line : view.current_slice.wrapped_markup_lines) {
+    for (const std::string &line : view.current_slice.wrapped_markup_lines) {
         g_state.body_labels.push_back(MakeLabel(line));
     }
     g_state.choice_labels.clear();
-    for (const std::string& label : view.formatted_choice_labels) {
+    for (const std::string &label : view.formatted_choice_labels) {
         g_state.choice_labels.push_back(MakeLabel(label));
     }
 }
 
-void DefaultRenderSession(const ActiveView& view) {
-    constexpr int kAlpha = 0x80;
-    Widgets& widgets = GetWidgets();
+void DefaultRenderSession(const ActiveView &view) {
+    constexpr int alpha = 0x80;
+    Widgets      &widgets = GetWidgets();
     RefreshLabels(view);
 
-    const ComputedLayout& lay = view.layout;
-    const UI::Rect box_rect(
-        static_cast<int>( std::lround(lay.box_x)),
-        static_cast<int>( std::lround(lay.box_y)),
-        static_cast<int>( std::lround(lay.box_w)),
-        static_cast<int>( std::lround(lay.box_h)));
+    const ComputedLayout &lay = view.layout;
+    const UI::Rect        box_rect(
+        static_cast<int>(std::lround(lay.box_x)),
+        static_cast<int>(std::lround(lay.box_y)),
+        static_cast<int>(std::lround(lay.box_w)),
+        static_cast<int>(std::lround(lay.box_h)));
 
     MenuTextureReload(UI::detail::kMessageTextureBlock);
-    UI::TrackerWindow::Draw(box_rect, kAlpha, UI::WindowPreset::BlueStone);
+    UI::TrackerWindow::Draw(box_rect, alpha, UI::WindowPreset::BlueStone);
 
     MenuTextureReload(UI::detail::kMessageTextureBlock);
     const int text_x = static_cast<int>(std::lround(lay.text_x));
@@ -370,7 +375,7 @@ void DefaultRenderSession(const ActiveView& view) {
 
     for (size_t i = 0; i < g_state.body_labels.size(); ++i) {
         g_state.body_labels[i]->SetColor(UI::ColorWhite);
-        g_state.body_labels[i]->Draw(text_x, text_y + static_cast<int>(i) * stride, kAlpha);
+        g_state.body_labels[i]->Draw(text_x, text_y + static_cast<int>(i) * stride, alpha);
     }
 
     if (view.show_choices_on_current_slice && !view.choices.empty()) {
@@ -379,7 +384,7 @@ void DefaultRenderSession(const ActiveView& view) {
                 text_x,
                 text_x + static_cast<int>(std::lround(lay.text_w)),
                 static_cast<int>(std::lround(lay.divider_y)),
-                kAlpha);
+                alpha);
         }
 
         const int choices_x = static_cast<int>(std::lround(lay.choices_x + g_state.layout_cfg.choice_indent_width));
@@ -394,15 +399,15 @@ void DefaultRenderSession(const ActiveView& view) {
 
         MenuTextureReload(UI::detail::kMessageTextureBlock);
         for (int s = 0; s < vis_count; ++s) {
-            const int idx = view.choice_scroll_offset + s;
-            const ChoiceItem& item = view.choices[static_cast<size_t>(idx)];
-            UI::Label& label = *g_state.choice_labels[static_cast<size_t>(idx)];
-            const u32 color = (idx == view.selected_choice && item.enabled)
-                                  ? UI::ColorYellow
-                                  : MapChoiceColor(item.color, item.enabled);
-            const int row_y = choices_y + s * row_stride;
+            const int         idx = view.choice_scroll_offset + s;
+            const ChoiceItem &item = view.choices[static_cast<size_t>(idx)];
+            UI::Label        &label = *g_state.choice_labels[static_cast<size_t>(idx)];
+            const u32         color = (idx == view.selected_choice && item.enabled)
+                                          ? UI::ColorYellow
+                                          : MapChoiceColor(item.color, item.enabled);
+            const int         row_y = choices_y + s * row_stride;
             label.SetColor(color);
-            label.Draw(choices_x, row_y, item.enabled ? kAlpha : (kAlpha >> 1));
+            label.Draw(choices_x, row_y, item.enabled ? alpha : (alpha >> 1));
         }
 
         if (lay.needs_scrollbar) {
@@ -413,14 +418,14 @@ void DefaultRenderSession(const ActiveView& view) {
                 total_choices,
                 lay.visible_choice_count,
                 view.choice_scroll_offset,
-                kAlpha);
+                alpha);
         }
 
         const int sel_slot = view.selected_choice - view.choice_scroll_offset;
         if (sel_slot >= 0 && sel_slot < vis_count) {
-            const int sel_y = choices_y + sel_slot * row_stride;
+            const int      sel_y = choices_y + sel_slot * row_stride;
             const UI::Rect sel_rect(choices_x - 4, sel_y - 1, std::max(40, row_w + 8), row_stride);
-            widgets.brackets.Draw(sel_rect, kAlpha);
+            widgets.brackets.Draw(sel_rect, alpha);
             const float hand_x = static_cast<float>(choices_x - 28);
             const float hand_y = static_cast<float>(sel_y - 2);
             if (g_state.snap_cursor) {
@@ -429,18 +434,18 @@ void DefaultRenderSession(const ActiveView& view) {
             } else {
                 widgets.cursor.SetTarget(hand_x, hand_y);
             }
-            widgets.cursor.Draw(kAlpha);
+            widgets.cursor.Draw(alpha);
         }
     } else if (view.slice_index + 1 < view.slice_count) {
         // Flashing next-page arrow matching ClsMes::DrawMesWin's syst04 indicator.
         if (((g_state.blink_counter >> 4) & 1u) != 0u) {
-            CTexture* arrow_tex = draw2d::Get().find_texture("syst04");
+            CTexture *arrow_tex = draw2d::Get().find_texture("syst04");
             if (arrow_tex != nullptr) {
                 const int arrow_x = box_rect.CenterX() - 8;
                 const int arrow_y = box_rect.Bottom() - 14;
                 set2DSprite(GetVif1Packet(), arrow_tex,
                             CRect_i_(arrow_x, arrow_y, 16, 16),
-                            CRect_i_(0, 0, 16, 16), kAlpha);
+                            CRect_i_(0, 0, 16, 16), alpha);
             }
         }
     }
@@ -448,23 +453,23 @@ void DefaultRenderSession(const ActiveView& view) {
 
 class SessionControllerImpl final : public ISessionController {
 public:
-    const NpcContext& GetContext() const noexcept override {
+    const NpcContext &GetContext() const noexcept override {
         return g_state.active_ctx;
     }
 
-    void PushMessageKey(std::string_view text_key,
+    void PushMessageKey(std::string_view         text_key,
                         std::vector<std::string> format_args) override {
         g_state.stack.push_back(MakeFrameNode(text_key, format_args, {}, true));
         RebuildActiveView(true);
     }
 
-    void PushRawMessage(std::string_view raw_utf8_text,
+    void PushRawMessage(std::string_view         raw_utf8_text,
                         std::vector<std::string> format_args) override {
         g_state.stack.push_back(MakeFrameNode(raw_utf8_text, format_args, {}, false));
         RebuildActiveView(true);
     }
 
-    void PushClosingMessage(std::string_view raw_utf8_text,
+    void PushClosingMessage(std::string_view         raw_utf8_text,
                             std::vector<std::string> format_args) override {
         FrameNode node = MakeFrameNode(raw_utf8_text, format_args, {}, false);
         node.close_when_read = true;
@@ -472,15 +477,15 @@ public:
         RebuildActiveView(true);
     }
 
-    void PushChoicePage(std::string_view prompt_key,
-                        std::vector<ChoiceItem> choices,
+    void PushChoicePage(std::string_view         prompt_key,
+                        std::vector<ChoiceItem>  choices,
                         std::vector<std::string> format_args) override {
         g_state.stack.push_back(MakeFrameNode(prompt_key, format_args, std::move(choices), true));
         RebuildActiveView(true);
     }
 
-    void PushRawChoicePage(std::string_view raw_utf8_prompt,
-                           std::vector<ChoiceItem> choices,
+    void PushRawChoicePage(std::string_view         raw_utf8_prompt,
+                           std::vector<ChoiceItem>  choices,
                            std::vector<std::string> format_args) override {
         g_state.stack.push_back(MakeFrameNode(raw_utf8_prompt, format_args, std::move(choices), false));
         RebuildActiveView(true);
@@ -495,9 +500,9 @@ public:
         FrameNode hub = MakeHubNode(g_state.active_ctx, std::move(injected));
 
         // The cursor stays on the choice it was on, where that choice is still there.
-        const FrameNode& old = g_state.stack.front();
+        const FrameNode &old = g_state.stack.front();
         if (old.selected_choice >= 0 && old.selected_choice < static_cast<int32_t>(old.choices.size())) {
-            const std::string& id = old.choices[static_cast<size_t>(old.selected_choice)].id;
+            const std::string &id = old.choices[static_cast<size_t>(old.selected_choice)].id;
             for (size_t i = 0; i < hub.choices.size(); ++i) {
                 if (hub.choices[i].id == id && hub.choices[i].enabled) {
                     hub.selected_choice = static_cast<int32_t>(i);
@@ -558,11 +563,11 @@ void SetExternalLocalizeLookup(ExternalLocalizeFn lookup_fn) {
     g_state.external_localize = std::move(lookup_fn);
 }
 
-void SetTokenContext(const TokenContext& token_ctx) {
+void SetTokenContext(const TokenContext &token_ctx) {
     g_state.tokens = token_ctx;
 }
 
-const TokenContext& GetTokenContext() noexcept {
+const TokenContext &GetTokenContext() noexcept {
     return g_state.tokens;
 }
 
@@ -575,7 +580,7 @@ std::string ResolveKey(std::string_view key_or_raw) {
     }
     // The current language's lang/<language>.json, as for the port's other text; else the English.
     std::string_view english = key_or_raw;
-    for (const auto& [key, text] : kEnglish) {
+    for (const auto &[key, text] : kEnglish) {
         if (key_or_raw == key) {
             english = text;
             break;
@@ -584,11 +589,19 @@ std::string ResolveKey(std::string_view key_or_raw) {
     return LocalizeText(key_or_raw, english);
 }
 
-std::string SubstituteTokens(std::string_view text,
+std::vector<std::pair<std::string, std::string>> Strings() {
+    std::vector<std::pair<std::string, std::string>> out;
+    for (const auto &[key, text] : kEnglish) {
+        out.emplace_back(key, text);
+    }
+    return out;
+}
+
+std::string SubstituteTokens(std::string_view             text,
                              std::span<const std::string> positional_args,
-                             const TokenContext* token_ctx) {
-    const TokenContext& ctx = token_ctx ? *token_ctx : g_state.tokens;
-    std::string out;
+                             const TokenContext          *token_ctx) {
+    const TokenContext &ctx = token_ctx ? *token_ctx : g_state.tokens;
+    std::string         out;
     out.reserve(text.size() + 32);
 
     for (size_t i = 0; i < text.size();) {
@@ -627,7 +640,7 @@ std::string SubstituteTokens(std::string_view text,
 
                 if (StartsWithIgnoreCase(tag, "insert")) {
                     const std::string_view num_part = tag.substr(6);
-                    int idx = 0;
+                    int                    idx = 0;
                     if (num_part == "10") {
                         idx = 10;
                     } else if (num_part.size() == 1 && num_part[0] >= '1' && num_part[0] <= '9') {
@@ -695,7 +708,7 @@ std::string StripControlCodes(std::string_view markup_text) {
 
 std::vector<std::string> SplitRawPages(std::string_view markup_text) {
     std::vector<std::string> pages;
-    std::string current;
+    std::string              current;
 
     for (size_t i = 0; i < markup_text.size();) {
         if (markup_text[i] == '{' && i + 1 < markup_text.size() && markup_text[i + 1] == '{') {
@@ -730,11 +743,11 @@ void SetTextMeasurer(MeasureTextWidthFn measurer_fn) {
     g_state.text_measurer = std::move(measurer_fn);
 }
 
-void SetLayoutConfig(const LayoutConfig& cfg) {
+void SetLayoutConfig(const LayoutConfig &cfg) {
     g_state.layout_cfg = cfg;
 }
 
-const LayoutConfig& GetLayoutConfig() noexcept {
+const LayoutConfig &GetLayoutConfig() noexcept {
     return g_state.layout_cfg;
 }
 
@@ -744,7 +757,7 @@ float MeasureMarkupLineWidth(std::string_view markup_line) {
     }
 
     // A custom measurer sees only text: each tag that draws something counts as one glyph cell.
-    float total_width = 0.0f;
+    float       total_width = 0.0f;
     std::string visible_run;
 
     auto flush_run = [&]() {
@@ -787,7 +800,7 @@ PageSlice BuildWrappedSlice(std::string_view single_page_markup, float max_inner
 
     size_t para_start = 0;
     while (para_start <= single_page_markup.size()) {
-        const size_t nl_pos = single_page_markup.find('\n', para_start);
+        const size_t           nl_pos = single_page_markup.find('\n', para_start);
         const std::string_view paragraph =
             (nl_pos == std::string_view::npos)
                 ? single_page_markup.substr(para_start)
@@ -801,7 +814,7 @@ PageSlice BuildWrappedSlice(std::string_view single_page_markup, float max_inner
             slice.wrapped_visible_lines.push_back(StripControlCodes(paragraph));
         } else {
             std::string current_line;
-            size_t i = 0;
+            size_t      i = 0;
             while (i < paragraph.size()) {
                 while (i < paragraph.size() && paragraph[i] == ' ' && current_line.empty()) {
                     ++i;
@@ -822,7 +835,7 @@ PageSlice BuildWrappedSlice(std::string_view single_page_markup, float max_inner
                     ++i;
                 }
                 const std::string_view word = paragraph.substr(word_start, i - word_start);
-                const std::string candidate =
+                const std::string      candidate =
                     current_line.empty() ? std::string(word) : (current_line + " " + std::string(word));
 
                 if (!current_line.empty() && MeasureMarkupLineWidth(candidate) > limit) {
@@ -856,25 +869,25 @@ PageSlice BuildWrappedSlice(std::string_view single_page_markup, float max_inner
     return slice;
 }
 
-ComputedLayout ComputeExpandedLayout(const PageSlice& slice,
+ComputedLayout ComputeExpandedLayout(const PageSlice             &slice,
                                      std::span<const std::string> formatted_choice_labels,
-                                     const NpcContext& ctx,
-                                     const LayoutConfig& cfg) {
+                                     const NpcContext            &ctx,
+                                     const LayoutConfig          &cfg) {
     ComputedLayout out;
 
     float widest_body = 0.0f;
-    for (const std::string& line : slice.wrapped_markup_lines) {
+    for (const std::string &line : slice.wrapped_markup_lines) {
         widest_body = std::max(widest_body, MeasureMarkupLineWidth(line));
     }
 
     float widest_choice = 0.0f;
-    for (const std::string& choice_label : formatted_choice_labels) {
+    for (const std::string &choice_label : formatted_choice_labels) {
         widest_choice = std::max(widest_choice, MeasureMarkupLineWidth(choice_label));
     }
 
     const int32_t total_choices = static_cast<int32_t>(formatted_choice_labels.size());
     const int32_t visible_choices = std::min(total_choices, std::max(1, cfg.max_visible_choices));
-    const bool needs_scroll = total_choices > cfg.max_visible_choices;
+    const bool    needs_scroll = total_choices > cfg.max_visible_choices;
 
     float choice_block_w = 0.0f;
     if (total_choices > 0) {
@@ -886,7 +899,7 @@ ComputedLayout ComputeExpandedLayout(const PageSlice& slice,
     out.box_w = std::clamp(inner_w + cfg.padding_x * 2.0f, cfg.min_box_width, cfg.max_box_width);
 
     const size_t body_line_count = std::max<size_t>(1, slice.wrapped_markup_lines.size());
-    const float body_h = static_cast<float>(body_line_count) * cfg.body_line_stride;
+    const float  body_h = static_cast<float>(body_line_count) * cfg.body_line_stride;
 
     float choices_h = 0.0f;
     float divider_h = 0.0f;
@@ -943,8 +956,8 @@ void ClearOptionProviders() {
     g_state.providers.clear();
 }
 
-void QueryOptionProviders(const NpcContext& ctx, std::vector<ChoiceItem>& out_choices) {
-    for (const OptionProviderFn& provider : g_state.providers) {
+void QueryOptionProviders(const NpcContext &ctx, std::vector<ChoiceItem> &out_choices) {
+    for (const OptionProviderFn &provider : g_state.providers) {
         provider(ctx, out_choices);
     }
 }
@@ -972,7 +985,7 @@ void UpdateAnchor(float anchor_x, float anchor_y, bool has_anchor) {
 
 namespace {
 
-void BeginSession(const NpcContext& ctx, std::string_view original_message) {
+void BeginSession(const NpcContext &ctx, std::string_view original_message) {
     g_state.active = true;
     g_state.last_end = SessionEnd::None;
     g_state.active_ctx = ctx;
@@ -983,7 +996,7 @@ void BeginSession(const NpcContext& ctx, std::string_view original_message) {
 
 } // namespace
 
-bool TryInterceptOpen(const NpcContext& ctx, std::string_view decoded_original_message) {
+bool TryInterceptOpen(const NpcContext &ctx, std::string_view decoded_original_message) {
     std::vector<ChoiceItem> injected_choices;
     QueryOptionProviders(ctx, injected_choices);
 
@@ -1004,10 +1017,10 @@ bool TryInterceptOpen(const NpcContext& ctx, std::string_view decoded_original_m
     return true;
 }
 
-void OpenCustomSession(const NpcContext& ctx,
-                       std::string_view prompt_raw_or_key,
+void OpenCustomSession(const NpcContext       &ctx,
+                       std::string_view        prompt_raw_or_key,
                        std::vector<ChoiceItem> choices,
-                       bool resolve_prompt_as_key) {
+                       bool                    resolve_prompt_as_key) {
     BeginSession(ctx, prompt_raw_or_key);
     g_state.stack.push_back(MakeFrameNode(prompt_raw_or_key, {}, std::move(choices), resolve_prompt_as_key));
     RebuildActiveView(true);
@@ -1017,7 +1030,7 @@ bool IsSessionActive() noexcept {
     return g_state.active;
 }
 
-const ActiveView* GetActiveView() noexcept {
+const ActiveView *GetActiveView() noexcept {
     if (!g_state.active) {
         return nullptr;
     }
@@ -1057,7 +1070,7 @@ bool InputMoveUp() {
     if (!g_state.active || g_state.stack.empty()) {
         return false;
     }
-    FrameNode& top = g_state.stack.back();
+    FrameNode &top = g_state.stack.back();
     if (!g_state.cached_view.show_choices_on_current_slice || top.choices.empty()) {
         return false;
     }
@@ -1082,7 +1095,7 @@ bool InputMoveDown() {
     if (!g_state.active || g_state.stack.empty()) {
         return false;
     }
-    FrameNode& top = g_state.stack.back();
+    FrameNode &top = g_state.stack.back();
     if (!g_state.cached_view.show_choices_on_current_slice || top.choices.empty()) {
         return false;
     }
@@ -1107,7 +1120,7 @@ bool InputHoverChoice(int32_t visible_row_index) {
     if (!g_state.active || g_state.stack.empty() || !g_state.cached_view.show_choices_on_current_slice) {
         return false;
     }
-    FrameNode& top = g_state.stack.back();
+    FrameNode    &top = g_state.stack.back();
     const int32_t target = top.choice_scroll_offset + visible_row_index;
     if (target < 0 || target >= static_cast<int32_t>(top.choices.size())) {
         return false;
@@ -1125,7 +1138,7 @@ int32_t HitTestChoiceRow(float px, float py) noexcept {
     if (!g_state.active || !g_state.cached_view.show_choices_on_current_slice) {
         return -1;
     }
-    const ComputedLayout& lay = g_state.cached_view.layout;
+    const ComputedLayout &lay = g_state.cached_view.layout;
     if (px < lay.choices_x || px > lay.choices_x + lay.choices_w ||
         py < lay.choices_y || py >= lay.choices_y + lay.choices_h) {
         return -1;
@@ -1142,9 +1155,16 @@ bool InputScrollWheel(int32_t wheel_notches) {
         !g_state.cached_view.show_choices_on_current_slice) {
         return false;
     }
-    bool moved = false;
-    const int32_t steps = std::abs(wheel_notches);
-    for (int32_t i = 0; i < steps; ++i) {
+    const int64_t notch_count = std::abs(static_cast<int64_t>(wheel_notches));
+    const auto   &choices = g_state.stack.back().choices;
+    const size_t  enabled_count = static_cast<size_t>(std::ranges::count(choices, true, &ChoiceItem::enabled));
+    if (enabled_count <= 1) {
+        return false;
+    }
+    const size_t remainder = static_cast<size_t>(notch_count % static_cast<int64_t>(enabled_count));
+    const size_t steps = (notch_count >= static_cast<int64_t>(enabled_count) ? enabled_count : 0) + remainder;
+    bool         moved = false;
+    for (size_t i = 0; i < steps; ++i) {
         if (wheel_notches > 0) {
             moved |= InputMoveUp();
         } else {
@@ -1159,7 +1179,7 @@ bool InputConfirm() {
         return false;
     }
 
-    FrameNode& top = g_state.stack.back();
+    FrameNode    &top = g_state.stack.back();
     const int32_t last_slice = static_cast<int32_t>(top.slices.size()) - 1;
 
     if (top.current_slice_idx < last_slice) {

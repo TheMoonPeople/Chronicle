@@ -3,29 +3,14 @@
 #include <exception>
 
 #include "dcdata.hpp"
-#include "sharpfont.hpp"
-#include "textures.hpp"
 
 namespace {
 
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
-               "       dcdata list <iso-or-directory>\n"
-               "       dcdata textures <data-directory> <assets-directory> [--overwrite]\n"
-               "       dcdata sharp <data-directory> [<fonts-directory>]\n",
+               "       dcdata list <iso-or-directory>\n",
                stderr);
     return 2;
-}
-
-// Where Chronicle Sharp, which the Sharp glyph sheets are drawn in, is: the lang folder beside dcdata (as the port's
-// build and install put it), else the source tree's tools/font.
-std::filesystem::path FontsDirectory(const char *argv0) {
-    std::error_code       error;
-    std::filesystem::path beside = std::filesystem::absolute(argv0, error).parent_path() / "lang";
-    if (std::filesystem::is_directory(beside, error)) {
-        return beside;
-    }
-    return std::filesystem::path(__FILE__).parent_path().parent_path() / "font";
 }
 
 void Describe(const dcdata::Archive &archive) {
@@ -48,7 +33,7 @@ int List(const std::filesystem::path &source) {
     return 0;
 }
 
-int Extract(const std::filesystem::path &source, const std::filesystem::path &out, const std::filesystem::path &fonts) {
+int Extract(const std::filesystem::path &source, const std::filesystem::path &out) {
     dcdata::Archive archive = dcdata::OpenArchive(source);
     Describe(archive);
     dcdata::Summary summary = dcdata::Extract(archive, out, stdout);
@@ -69,40 +54,15 @@ int Extract(const std::filesystem::path &source, const std::filesystem::path &ou
     }
     dcdata::Log(stdout, "verified {}/{} files in {}{}\n", reachable, reachable, out.string(),
                 summary.warnings ? std::format(" ({} warnings)", summary.warnings) : "");
-    if (!dcdata::sharp::IsBuilt(out)) {
-        dcdata::sharp::Build(out, fonts, stdout);
-    }
     return 0;
 }
 
 } // namespace
 
-int Textures(const std::filesystem::path &data, const std::filesystem::path &assets, bool overwrite) {
-    if (!std::filesystem::is_directory(data)) {
-        dcdata::Fail("{} is not a folder: extract the disc first", data.string());
-    }
-    dcdata::ConvertTextures(data, assets, stdout, overwrite);
-    return 0;
-}
-
-int Sharp(const std::filesystem::path &data, const std::filesystem::path &fonts) {
-    if (!std::filesystem::is_directory(data)) {
-        dcdata::Fail("{} is not a folder: extract the disc first", data.string());
-    }
-    return dcdata::sharp::Build(data, fonts, stdout) ? 0 : 1;
-}
-
 int main(int argc, char **argv) {
     try {
         if (argc == 4 && std::strcmp(argv[1], "extract") == 0) {
-            return Extract(argv[2], argv[3], FontsDirectory(argv[0]));
-        }
-        if ((argc == 4 || (argc == 5 && std::strcmp(argv[4], "--overwrite") == 0)) &&
-            std::strcmp(argv[1], "textures") == 0) {
-            return Textures(argv[2], argv[3], argc == 5);
-        }
-        if ((argc == 3 || argc == 4) && std::strcmp(argv[1], "sharp") == 0) {
-            return Sharp(argv[2], argc == 4 ? std::filesystem::path(argv[3]) : FontsDirectory(argv[0]));
+            return Extract(argv[2], argv[3]);
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);

@@ -79,8 +79,8 @@ bool StatusFontLoaded();
 // Selects active font slot: 0 = Main, 1 = Thin, 2 = Status (SourceSansProSemibold)
 void UseFontSlot(int slot);
 
-bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out);
-unsigned Generation();
+bool                AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out);
+unsigned            Generation();
 gfx::TextureBinding Binding();
 
 struct Metrics {

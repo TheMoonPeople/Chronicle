@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -82,34 +83,56 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst
 
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 
-extern CCameraFollow   MainCamera__3;
-static CDispFade      DispFade;
-PORT_OVERRIDE CFireOmni  CFire__4;
-extern class CScript  CScript;
-extern CWind          Wind__4;
-PORT_OVERRIDE CWater     Water__2;
-extern char           CharaTex[9];
-extern CDataAlloc2<1> CharaDataBuffer;
-static tagFRAME_INF   frame_info_cam[300];
-extern CCharacter     Cam[4];
-static MOTION_INFO    MotionInfo;
+extern CCameraFollow MainCamera__3;
+
+namespace {
+CDispFade DispFade;
+}
+
+PORT_OVERRIDE CFireOmni CFire__4;
+extern class CScript    CScript;
+extern CWind            Wind__4;
+PORT_OVERRIDE CWater    Water__2;
+extern char             CharaTex[9];
+extern CDataAlloc2<1>   CharaDataBuffer;
+
+namespace {
+auto frame_info_cam = std::make_unique<tagFRAME_INF[]>(300);
+}
+
+extern CCharacter Cam[4];
+
+namespace {
+MOTION_INFO MotionInfo;
+}
+
 extern CDataAlloc2<1> PathDataBuffer;
 extern CDataAlloc2<1> WaterBuffer;
-static CDataAlloc2<1> DummyDataBuffer(-1);
-extern CTexAnimeData  TexAnimeDataMovie[30];
-extern CRunEffect     CRunFx;
-extern CFrame        *OP_CharaFrame;
 
-static u_char bEnd;
-static int    EndCnt;
-static int    CameraMode;
-extern int    SceneNp;
-extern float  TitleAngle;
-static int    StartDisp;
-extern int    TitleFade;
-extern int    TitleFadeCnt;
-extern int    StartLightning;
-extern float  atraGetStatusRate;
+namespace {
+CDataAlloc2<1> DummyDataBuffer(-1);
+}
+
+extern CTexAnimeData TexAnimeDataMovie[30];
+extern CRunEffect    CRunFx;
+extern CFrame       *OP_CharaFrame;
+
+namespace {
+u_char bEnd;
+int    EndCnt;
+} // namespace
+
+extern int   SceneNp;
+extern float TitleAngle;
+
+namespace {
+int StartDisp;
+}
+
+extern int   TitleFade;
+extern int   TitleFadeCnt;
+extern int   StartLightning;
+extern float atraGetStatusRate;
 
 /* One actor's face, as this scene animates it. The eyes and the mouth are two strips of frames
    stacked bottom-up in one texture, and a tick copies the current frame of each over the model's
@@ -129,9 +152,12 @@ struct FACE_INFO {
     int   unk_28;
 };
 
-static void MotionProcess();
-static void DrawProcess();
-static void SoundProcess();
+namespace {
+void MotionProcess();
+void DrawProcess();
+void SoundProcess();
+} // namespace
+
 // title.cpp defines these; retail's unit declared them static and MWCC bound the calls to title.cpp
 // all the same, where clang leaves internal references nothing defines.
 void DataLoad();
@@ -159,14 +185,14 @@ PORT_OVERRIDE void FaceChangeMovie(int actor_no) {
     int              sbw;
     int              dbw;
 
-    if (face.plate == 0) {
+    if (face.plate == nullptr) {
         return;
     }
 
     plate = TexManager.GetTexture(face.plate, -1);
     strip = TexManager.GetTexture(face.strip, -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -239,7 +265,6 @@ PORT_OVERRIDE void RushInit() {
     DispFade.FadeOutStart(128.0f, 0);
     bEnd = 0;
     EndCnt = 0;
-    CameraMode = 1;
     TitleAngle = 1.57f;
     StartDisp = 1;
     TitleFade = 0;
@@ -311,7 +336,8 @@ PORT_OVERRIDE int RushLoop() {
  * @size 0xDD0
  * @unknownret
  */
-static void MotionProcess() {
+namespace {
+void MotionProcess() {
     switch (CScript.fade) {
         case TSFADE_IN_BLACK:
             DispFade.FadeInStart(CScript.fade_speed, 0);
@@ -348,13 +374,13 @@ static void MotionProcess() {
             SceneNp++;
         }
 
-        Cam[SceneNp].motion_type.state.time = (float) CScript.motion_start;
+        Cam[SceneNp].motion_type.state.time = static_cast<float>(CScript.motion_start);
         Cam[SceneNp].motion_type.state.camera = &MainCamera__3;
         CScript.motion_req = false;
     }
 
-    if (Cam[SceneNp].motion_type.state.time > (float) (CScript.motion_end - 1)) {
-        Cam[SceneNp].motion_type.state.time = (float) (CScript.motion_end - 1);
+    if (Cam[SceneNp].motion_type.state.time > static_cast<float>(CScript.motion_end - 1)) {
+        Cam[SceneNp].motion_type.state.time = static_cast<float>(CScript.motion_end - 1);
     }
 
     for (int i = 0; i < OP_AnimeSeqRot - 1; i++) {
@@ -364,7 +390,7 @@ static void MotionProcess() {
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
             if (CScript.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > (float) (Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].end - 1)) {
+                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].end - 1)) {
                     CScript.obj[i].motion = CScript.obj[i].motion_end;
                     CScript.obj[i].motion_end = -1;
                 }
@@ -374,7 +400,7 @@ static void MotionProcess() {
 
             if (CScript.obj[i].step == 1.0f) {
                 if (CScript.obj[i].motion != Chara__3[i].motion_no) {
-                    Chara__3[i].motion_type.state.time = (float) Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].start;
+                    Chara__3[i].motion_type.state.time = static_cast<float>(Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].start);
                     Chara__3[i].motion_no = CScript.obj[i].motion;
                     Chara__3[i].motion_flags = 4;
                     Chara__3[i].motion_speed = -1.0f;
@@ -391,7 +417,7 @@ static void MotionProcess() {
         }
     }
 
-    SetMotionEX(Cam[SceneNp].frame, &Cam[SceneNp].motion_type, &MotionInfo, &Cam[SceneNp].motion_type.state, frame_info_cam);
+    SetMotionEX(Cam[SceneNp].frame, &Cam[SceneNp].motion_type, &MotionInfo, &Cam[SceneNp].motion_type.state, frame_info_cam.get());
 
     sceVu0FVECTOR wind_dir;
 
@@ -443,14 +469,14 @@ static void MotionProcess() {
     }
 
     if (CScript.scene == RUSH_SCENE_H) {
-        Chara__3[1].wind = (int) (intptr_t) &Wind__4;
+        Chara__3[1].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     } else {
-        Chara__3[0].wind = (int) (intptr_t) &Wind__4;
+        Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     }
 
     Wind__4.Step();
 
-    char         *opening_frames[9] = {
+    char *opening_frames[9] = {
         "c12a", "c12a", "c08a", "c08a", "e04a1", "e04a2", "e04a3", "e04a4", "e04a5"};
     char *scene_frames[9] = {
         "chr_a", "chr_b", "chr_c", "chr_d", "chr_e", "chr_f", "chr_g", "chr_h", "chr_i"};
@@ -497,7 +523,7 @@ static void MotionProcess() {
             sceVu0Normalize(matrix[0], matrix[0]);
             sceVu0Normalize(matrix[1], matrix[1]);
             sceVu0Normalize(matrix[2], matrix[2]);
-            Chara__3[8].SetPosition((float) (scene & 0), 0.0f, 0.0f);
+            Chara__3[8].SetPosition(static_cast<float>(scene & 0), 0.0f, 0.0f);
             Chara__3[8].SetRotation(0.0f, 0.0f, 0.0f);
             Chara__3[8].frame->SetTransMatrix(matrix);
         }
@@ -523,7 +549,7 @@ static void MotionProcess() {
 
             static int old = 0;
 
-            int cam_frame = (int) Cam[SceneNp].motion_type.state.time;
+            int cam_frame = static_cast<int>(Cam[SceneNp].motion_type.state.time);
 
             if (old != cam_frame && (cam_frame == 12 || cam_frame == 17 || cam_frame == 52 || cam_frame == 111)) {
                 CScript.obj[7].motion = 0;
@@ -559,7 +585,7 @@ static void MotionProcess() {
 
         if (iwacnt == 330) {
             Chara__3[2].SetPosition(260.26f, 507.76f, 520.5f);
-            Chara__3[2].SetRotation((float) (iwacnt & 0), 1.92f, 0.0f);
+            Chara__3[2].SetRotation(static_cast<float>(iwacnt & 0), 1.92f, 0.0f);
             Chara__3[2].motion_no = 1;
             Chara__3[2].motion_flags = 4;
             Chara__3[2].motion_speed = -1.0f;
@@ -577,6 +603,7 @@ static void MotionProcess() {
         iwacnt = 0;
     }
 }
+} // namespace
 
 /**
  *
@@ -586,7 +613,8 @@ static void MotionProcess() {
  * @size 0x344
  * @unknownret
  */
-static void DrawProcess() {
+namespace {
+void DrawProcess() {
     if (DispFade.GetRate() == 128.0) {
         return;
     }
@@ -662,9 +690,10 @@ static void DrawProcess() {
 
     CTexture texture;
 
-    texture.tex0 = *(u_long *) &back_tex;
+    texture.tex0 = *reinterpret_cast<u_long *>(&back_tex);
     set2DSprite(Vif1Packet, &texture, CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, SCREEN_HALF_HEIGHT), 128, 128, 128, 35);
 }
+} // namespace
 
 /**
  *
@@ -674,7 +703,8 @@ static void DrawProcess() {
  * @size 0xCF4
  * @unknownret
  */
-static void SoundProcess() {
+namespace {
+void SoundProcess() {
     if (CScript.bgm_fade) {
         SndBgmFadeOut(64, 0);
         CScript.bgm_fade = 0;
@@ -738,7 +768,7 @@ static void SoundProcess() {
 
         if (CScript.scene == RUSH_SCENE_A) {
             CFrame *frame = Cam[SceneNp].frame->SearchFrame("c12a");
-            int     chara_frame = (int) Chara__3[1].motion_type.state.time;
+            int     chara_frame = static_cast<int>(Chara__3[1].motion_type.state.time);
 
             if (wait == 0) {
                 if (chara_frame == 10) {
@@ -762,7 +792,7 @@ static void SoundProcess() {
             }
         } else {
             CFrame *frame = Cam[SceneNp].frame->SearchFrame("chr_a");
-            int     chara_frame = (int) Chara__3[0].motion_type.state.time;
+            int     chara_frame = static_cast<int>(Chara__3[0].motion_type.state.time);
 
             if (wait == 0) {
                 if (chara_frame == 20) {
@@ -790,7 +820,7 @@ static void SoundProcess() {
     static int wait = 0;
 
     if (wait == 0) {
-        int cam_frame = (int) Cam[SceneNp].motion_type.state.time;
+        int cam_frame = static_cast<int>(Cam[SceneNp].motion_type.state.time);
 
         switch (CScript.camera_start) {
             case 4:
@@ -1051,6 +1081,7 @@ static void SoundProcess() {
         wait--;
     }
 }
+} // namespace
 
 PORT_OVERRIDE void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step) {
     OBJ_ANIME_SEQ &sequence = OP_AnimeSeq[OP_AnimeSeqRot];
@@ -1077,7 +1108,7 @@ PORT_OVERRIDE void WaterProcess() {
 
     CRect<int> rect(0, 0, 640, SCREEN_HALF_HEIGHT);
 
-    water_tex = *(sceGsTex0 *) &TexManager.GetTexture("water_buff", -1)->tex0;
+    water_tex = *reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("water_buff", -1)->tex0);
     MGMoveImage(&frame_tex, rect, &water_tex, 0, 0, 0);
 
     zbuf = mgZBuffer;
@@ -1088,14 +1119,14 @@ PORT_OVERRIDE void WaterProcess() {
         sceVu0FVECTOR position = {0.0f, -0.4f, 0.0f, 0.0f};
 
         Water__2.frame.SetPosition(position);
-        Water__2.Shake(12, 4, (float) rand() * 4.5 / 2147483647.0 + 0.5);
+        Water__2.Shake(12, 4, static_cast<float>(rand()) * 4.5 / 2147483647.0 + 0.5);
     } else {
         sceVu0FVECTOR ref;
 
         MainCamera__3.GetRef(ref);
         ref[1] = 0.0f;
         Water__2.frame.SetPosition(ref);
-        Water__2.Shake((int) (rand() * 32.0f / 2147483648.0f), (int) (rand() * 32.0f / 2147483648.0f), -0.5f);
+        Water__2.Shake(static_cast<int>(rand() * 32.0f / 2147483648.0f), static_cast<int>(rand() * 32.0f / 2147483648.0f), -0.5f);
     }
 
     Water__2.Hamon();

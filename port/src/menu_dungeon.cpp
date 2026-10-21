@@ -4,6 +4,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <span>
+#include <string>
 
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
@@ -34,29 +37,29 @@ PORT_OVERRIDE float menudebugrscale[4] = {3.0f, 3.0f, 3.0f, 0.0f};
 PORT_OVERRIDE int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST *unused) {
     (void) unused;
 
-    if (slot < 0 || slot >= 43 || GetAttachData(item_no) == 0) {
+    if (slot < 0 || slot >= 43 || GetAttachData(item_no) == nullptr) {
         return -1;
     }
 
-    if (SaveData == 0) {
+    if (SaveData == nullptr) {
         return -1;
     }
 
     CDngStatusData *status = SaveData->GetDngStatus();
-    if (status == 0) {
+    if (status == nullptr) {
         return -1;
     }
 
     DNG_CONSUMABLE *items = status->consumable_items;
-    ATTACH_LIST *attach = (ATTACH_LIST *) &items[slot];
-    s16 held_no = attach->item_no;
-    if (GetAttachData(held_no) == 0) {
+    ATTACH_LIST    *attach = reinterpret_cast<ATTACH_LIST *>(&items[slot]);
+    s16             held_no = attach->item_no;
+    if (GetAttachData(held_no) == nullptr) {
         return -1;
     }
 
     ATTACH_DATA *data = GetAttachData(item_no);
-    memset(attach, 0, sizeof(*attach));
-    memcpy(attach, data, sizeof(*attach));
+    std::memset(attach, 0, sizeof(*attach));
+    std::memcpy(attach, data, sizeof(*attach));
 
     if (level <= 0) {
         level = 1;
@@ -72,7 +75,7 @@ PORT_OVERRIDE int SetAttachMentValue(int item_no, int slot, short level, ATTACH_
 }
 
 PORT_OVERRIDE int GetAttachVolumeForMsg(ATTACH_LIST *attach) {
-    if (attach == 0 || GetAttachData(attach->item_no) == 0) {
+    if (attach == nullptr || GetAttachData(attach->item_no) == nullptr) {
         return 0;
     }
 
@@ -148,7 +151,7 @@ struct ElementPicker {
 ElementPicker g_picker;
 
 u32 Read32(const u8 *data) {
-    return data[0] | (data[1] << 8) | (data[2] << 16) | ((u32) data[3] << 24);
+    return data[0] | (data[1] << 8) | (data[2] << 16) | (static_cast<u32>(data[3]) << 24);
 }
 
 u16 Read16(const u8 *data) {
@@ -172,7 +175,7 @@ int Csm1Index(int index) {
 // The wepicon sheet's pixels and CLUT in an IM2 bank, or false where the bank has no 256 by 640
 // eight-bit sheet of that name.
 bool FindIconSheet(u8 *bank, u8 **pixels, u8 **clut) {
-    if (bank == NULL || memcmp(bank, "IM2", 3) != 0) {
+    if (bank == nullptr || std::memcmp(bank, "IM2", 3) != 0) {
         return false;
     }
 
@@ -181,14 +184,14 @@ bool FindIconSheet(u8 *bank, u8 **pixels, u8 **clut) {
     for (u32 i = 0; i < count; i++) {
         u8 *entry = bank + 0x10 + i * 0x30;
 
-        if (strncmp((char *) entry, "wepicon", 32) != 0) {
+        if (std::strncmp(reinterpret_cast<char *>(entry), "wepicon", 32) != 0) {
             continue;
         }
 
         u8 *tim = bank + Read32(entry + 0x20);
         u8 *picture = tim + 0x10;
 
-        if (memcmp(tim, "TIM2", 4) != 0 || picture[0x13] != 5 || Read16(picture + 0x0E) != 256 || Read16(picture + 0x14) != kSheetWidth || Read16(picture + 0x16) != kSheetHeight) {
+        if (std::memcmp(tim, "TIM2", 4) != 0 || picture[0x13] != 5 || Read16(picture + 0x0E) != 256 || Read16(picture + 0x14) != kSheetWidth || Read16(picture + 0x16) != kSheetHeight) {
             return false;
         }
 
@@ -238,7 +241,7 @@ void MakeNoneIcon(u8 *bank) {
                 }
             }
 
-            pixels[Psmt8Offset(to_x + x, to_y + y, kSheetWidth)] = (u8) best;
+            pixels[Psmt8Offset(to_x + x, to_y + y, kSheetWidth)] = static_cast<u8>(best);
         }
     }
 }
@@ -255,8 +258,8 @@ bool MayGoWithoutElement(int weapon_no) {
 WEAPON_HAVE *EquippedWeapon() {
     CDngStatusData *status = SaveData->GetDngStatus();
 
-    if (status == NULL) {
-        return NULL;
+    if (status == nullptr) {
+        return nullptr;
     }
 
     int chara = status->cur_chara;
@@ -287,7 +290,7 @@ void PlaceRing() {
 
 // The elements on offer, in the order of the stones: those the weapon has, then none where the
 // weapon may go without one or has nothing else. Returns how many.
-int ElementChoices(s8 (&choices)[6]) {
+int ElementChoices(std::span<s8> choices) {
     WEAPON_HAVE *weapon = EquippedWeapon();
     int          count = 0;
 
@@ -297,7 +300,7 @@ int ElementChoices(s8 (&choices)[6]) {
         }
     }
 
-    if (count == 0 || (weapon != NULL && MayGoWithoutElement(weapon->item_no))) {
+    if (count == 0 || (weapon != nullptr && MayGoWithoutElement(weapon->item_no))) {
         choices[count++] = WEAPON_ELEMENT_NONE;
     }
 
@@ -343,21 +346,21 @@ bool LoadTextures() {
 
     BG_READ_INFO *file = GetReadBGFile(0);
 
-    if (file == NULL) {
+    if (file == nullptr) {
         return false;
     }
 
     LOADTEXTURE_INFO2 table[] = {
         {chara_change_frame_image, CharaChangeTexBlock, 0},
-        {NULL,                     CharaChangeTexBlock, 0},
-        {NULL,                     0,                   0},
+        {nullptr,                  CharaChangeTexBlock, 0},
+        {nullptr,                  0,                   0},
     };
-    table[1].name = (char *) GetPackFile((u_int *) file->buffer, (char *) "quickchr.img", NULL);
-    MakeNoneIcon((u8 *) table[1].name);
+    table[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), const_cast<char *>("quickchr.img"), nullptr));
+    MakeNoneIcon(reinterpret_cast<u8 *>(table[1].name));
     TexManager.DeleteTextureBlock(CharaChangeTexBlock);
     TexManager.CleanUpTextureList();
     TexManager.LoadTextureBlockEX(-1, table);
-    g_picker.icons = TexManager.GetTexture((char *) "wepicon", -1);
+    g_picker.icons = TexManager.GetTexture(const_cast<char *>("wepicon"), -1);
     CharaChangeReadFlag = 1;
     return true;
 }
@@ -373,7 +376,7 @@ void Turn(int direction) {
         g_picker.selected = 0;
     }
 
-    g_picker.turn_direction = (float) direction;
+    g_picker.turn_direction = static_cast<float>(direction);
     g_picker.turn_frame = 0.0f;
     g_picker.step = PICKER_TURNING;
     ComMenuSePlay(MENU_SOUND_CURSOR);
@@ -391,7 +394,7 @@ int PickerKey() {
 
         if (g_picker.turn_frame > kTurnFrames) {
             for (int i = 0; i < g_picker.count; i++) {
-                g_picker.ring_slot[i] += (int) g_picker.turn_direction;
+                g_picker.ring_slot[i] += static_cast<int>(g_picker.turn_direction);
 
                 if (g_picker.ring_slot[i] >= g_picker.count) {
                     g_picker.ring_slot[i] = 0;
@@ -415,7 +418,7 @@ int PickerKey() {
         WEAPON_HAVE *weapon = EquippedWeapon();
         s8           element = g_picker.elements[g_picker.selected];
 
-        if (weapon != NULL && weapon->best_elem != element) {
+        if (weapon != nullptr && weapon->best_elem != element) {
             weapon->best_elem = element;
             g_picker.changed = true;
         }
@@ -448,7 +451,7 @@ void PickerDraw() {
     setbilinear(0);
     FrameImageDraw(100, 0x80);
 
-    if (CharaChangeReadFlag != 0 && g_picker.icons != NULL) {
+    if (CharaChangeReadFlag != 0 && g_picker.icons != nullptr) {
         bool closing = g_picker.step == PICKER_CLOSING;
         int  alpha = closing ? std::max(0x80 - g_picker.close_frame * 4, 0) : 0x80;
 
@@ -499,7 +502,7 @@ void ClosePicker() {
     TexManager.CleanUpTextureList();
     LOADTEXTURE_INFO2 restore[] = {
         {chara_change_frame_image, CharaChangeTexBlock, 0},
-        {NULL,                     0,                   0},
+        {nullptr,                  0,                   0},
     };
     TexManager.LoadTextureBlockEX(-1, restore);
     g_picker.requested = false;
@@ -514,11 +517,11 @@ void ClosePicker() {
     int chara = UserStatus->cur_chara;
 
     if (chara == CHARA_RUBY) {
-        char            path[64];
+        std::string     path;
         BT_SHOT_EFFECT *effect = Get_Main_EffectPtr(chara, NowWeaponHave->best_elem);
 
-        snprintf(path, sizeof(path), "dun/mainchara/wep_eff/%s.chr", (char *) effect);
-        LoadFile(path, read_buffer, NULL);
+        path = std::string("dun/mainchara/wep_eff/") + reinterpret_cast<const char *>(effect) + ".chr";
+        LoadFile(path.data(), read_buffer, nullptr);
         wait_now_loading_vsync();
         MainChara_Effect(effect, read_buffer, 0);
     }
@@ -527,8 +530,8 @@ void ClosePicker() {
 } // namespace
 
 bool ElementPickerHasChoice() {
-    s8 choices[6];
-    return ElementChoices(choices) >= 2;
+    auto choices = std::make_unique<s8[]>(6);
+    return ElementChoices(std::span(choices.get(), 6)) >= 2;
 }
 
 void QuickChangeOpenElements(bool elements) {

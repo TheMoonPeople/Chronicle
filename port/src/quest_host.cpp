@@ -1,5 +1,7 @@
 #include "quest_host.hpp"
 
+#include <libvu0.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -10,17 +12,15 @@
 #include <utility>
 #include <vector>
 
-#include <libvu0.h>
-
 #include "custom_shop.hpp"
 #include "dialog_framework.hpp"
 #include "dialog_npc.hpp"
 #include "dngstatusdata.hpp"
-#include "editmenu.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
+#include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "itemdata.hpp"
 #include "localize.hpp"
@@ -283,14 +283,22 @@ int g_pending_item_shown = -1;
 
 CustomShopLine ToCustomLine(Quest::ShopLine line) {
     switch (line) {
-        case Quest::ShopLine::Greeting:       return CustomShopLine::Greeting;
-        case Quest::ShopLine::Browsing:       return CustomShopLine::Browsing;
-        case Quest::ShopLine::Selling:        return CustomShopLine::Selling;
-        case Quest::ShopLine::NotEnoughMoney: return CustomShopLine::NotEnoughMoney;
-        case Quest::ShopLine::NoRoom:         return CustomShopLine::NoRoom;
-        case Quest::ShopLine::Confirm:        return CustomShopLine::Confirm;
-        case Quest::ShopLine::Thanks:         return CustomShopLine::Thanks;
-        case Quest::ShopLine::Goodbye:        return CustomShopLine::Goodbye;
+        case Quest::ShopLine::Greeting:
+            return CustomShopLine::Greeting;
+        case Quest::ShopLine::Browsing:
+            return CustomShopLine::Browsing;
+        case Quest::ShopLine::Selling:
+            return CustomShopLine::Selling;
+        case Quest::ShopLine::NotEnoughMoney:
+            return CustomShopLine::NotEnoughMoney;
+        case Quest::ShopLine::NoRoom:
+            return CustomShopLine::NoRoom;
+        case Quest::ShopLine::Confirm:
+            return CustomShopLine::Confirm;
+        case Quest::ShopLine::Thanks:
+            return CustomShopLine::Thanks;
+        case Quest::ShopLine::Goodbye:
+            return CustomShopLine::Goodbye;
     }
     return CustomShopLine::Greeting;
 }
@@ -338,7 +346,7 @@ void QuestHostTalkOpened() {
 
 // The talk script asks this whether the player has an item anywhere (_SITEM_CHECK_ALL) before the Mayor
 // hands it over. While a quest has his supplies, his own count as had, so the script hands nothing out.
-PORT_OVERRIDE int PlayerAllItemCheck(int item) {
+int QuestHostPlayerAllItemCheck(int item) {
     if (g_hold_mayor_supplies && std::find(std::begin(kNoruneMayorSupplies), std::end(kNoruneMayorSupplies), item) !=
                                      std::end(kNoruneMayorSupplies)) {
         return 1;

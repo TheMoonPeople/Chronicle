@@ -1,3 +1,4 @@
+
 #include "common.h"
 
 #include <libgraph.h>
@@ -92,6 +93,7 @@ void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRec
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
 void DepthOfField(float *dist, int level, int alpha, int blur);
 
+namespace {
 static void LoadTexture();
 static void LoadData();
 static void SetDanceMotion();
@@ -106,6 +108,8 @@ static void ShisaiShadow();
 static void DrawShadow(float x, float y, float z);
 static void setTexScroll();
 static void setCloudTexScroll();
+} // namespace
+
 /* op_b.cpp owns these three; retail has this unit call across to them. */
 void FaceChange(int actor_no);
 void LoadCharaData(int buffer_no, int actor_no);
@@ -127,17 +131,19 @@ PORT_OVERRIDE CMap          OP_BuildingMap;
 PORT_OVERRIDE CMap          OP_BuildingMap2;
 PORT_OVERRIDE CMap          OP_GroundMap;
 PORT_OVERRIDE OBJ_ANIME_SEQ OP_AnimeSeq[32];
-extern int           OP_AnimeSeqRot;
-extern int           OP_FireList;
-extern sceVu0FVECTOR OP_FirePosition[96];
-extern float         OP_FireScale[96];
-extern int           OP_FireFlg[96];
-extern CFrameVu1    *OP_GroundCol;
-extern CFrameVu1    *OP_SkyFrame;
-extern CFrame       *OP_CharaFrame__2;
-extern char          CloudFlag;
+extern int                  OP_AnimeSeqRot;
+extern int                  OP_FireList;
+extern sceVu0FVECTOR        OP_FirePosition[96];
+extern float                OP_FireScale[96];
+extern int                  OP_FireFlg[96];
+extern CFrameVu1           *OP_GroundCol;
+extern CFrameVu1           *OP_SkyFrame;
+extern CFrame              *OP_CharaFrame__2;
+extern char                 CloudFlag;
 
 PORT_OVERRIDE CFireOmni CFire;
+
+namespace {
 static sceVu0FVECTOR DancerPos[35];
 static sceVu0FVECTOR DancerRot[35];
 static CCharacter    Cloud;
@@ -147,8 +153,10 @@ static float        DancerAmb;
 static CEffectGroup Smoke;
 static CEffect     *EffectTable;
 static float        DanceWait;
-extern int                 DanceCnt;
-extern int                 DanceStart;
+} // namespace
+
+extern int DanceCnt;
+extern int DanceStart;
 
 /* The dungeon square's set-up. The two maps are cleared first because this scene is placed from a
    configuration file rather than from a table of its own, and the couple's second motion files are
@@ -161,7 +169,7 @@ PORT_OVERRIDE void OpA_InitProcess() {
     OPAnalyz("opdat/opinfo.cfg");
     LoadTexture();
     OPMdsLoad();
-    LoadFile("opdat/dungeon/dungeon.pak", read_buffer, 0);
+    LoadFile("opdat/dungeon/dungeon.pak", read_buffer, nullptr);
     wait_now_loading_vsync();
     LoadData();
     CSnd.SetReverb(0, 4, 80);
@@ -174,8 +182,8 @@ PORT_OVERRIDE void OpA_InitProcess() {
     CSnd.SE_Play(MIDI_PORT_SE_TITLE, 16, 20, 0, 0);
     wait_now_loading_vsync();
     SetDanceMotion();
-    LoadFile("opdat/chara/01p19a1b.chr", (void *) OpeningDancePack(0), 0);
-    LoadFile("opdat/chara/01p17a1b.chr", (void *) OpeningDancePack(1), 0);
+    LoadFile("opdat/chara/01p19a1b.chr", reinterpret_cast<void *>(OpeningDancePack(0)), nullptr);
+    LoadFile("opdat/chara/01p17a1b.chr", reinterpret_cast<void *>(OpeningDancePack(1)), nullptr);
     StartReadBG();
     DanceWait = 0.0f;
     DanceCnt = 1;
@@ -193,90 +201,91 @@ PORT_OVERRIDE void OpA_InitProcess() {
  * @size 0x3AC
  * @unknownret
  */
+namespace {
 static void LoadTexture() {
     LOADTEXTURE_INFO2 texture_list[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",       0,  0},
         {"#fontbase#512#256#1",                             26, 0},
         {"#fukidashibase#640#" HALF_BUFFER_HEIGHT_STR "#4", 26, 0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4",   22, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 1,  0},
-        {0,                                                 1,  0},
-        {0,                                                 6,  1},
-        {0,                                                 2,  0},
-        {0,                                                 4,  0},
-        {0,                                                 4,  0},
-        {0,                                                 3,  0},
-        {0,                                                 3,  0},
-        {0,                                                 5,  0},
-        {0,                                                 5,  0},
-        {0,                                                 7,  0},
-        {0,                                                 8,  0},
-        {0,                                                 8,  0},
-        {0,                                                 8,  0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 11, 0},
-        {0,                                                 0,  0},
-        {0,                                                 19, 0},
-        {0,                                                 19, 0},
-        {0,                                                 6,  0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           1,  0},
+        {nullptr,                                           1,  0},
+        {nullptr,                                           6,  1},
+        {nullptr,                                           2,  0},
+        {nullptr,                                           4,  0},
+        {nullptr,                                           4,  0},
+        {nullptr,                                           3,  0},
+        {nullptr,                                           3,  0},
+        {nullptr,                                           5,  0},
+        {nullptr,                                           5,  0},
+        {nullptr,                                           7,  0},
+        {nullptr,                                           8,  0},
+        {nullptr,                                           8,  0},
+        {nullptr,                                           8,  0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           11, 0},
+        {nullptr,                                           0,  0},
+        {nullptr,                                           19, 0},
+        {nullptr,                                           19, 0},
+        {nullptr,                                           6,  0},
         {"",                                                0,  0}
     };
 
     TexManager.Initialize(16352);
-    LoadFile("opdat/dungeon/dungeon.pim", (void *) read_buffer, 0);
+    LoadFile("opdat/dungeon/dungeon.pim", reinterpret_cast<void *>(read_buffer), nullptr);
 
-    texture_list[4].name = (char *) GetPackFile(read_buffer, "gaiji.img", 0);
-    texture_list[5].name = (char *) GetPackFile(read_buffer, "fuki256.img", 0);
-    texture_list[6].name = (char *) GetPackFile(read_buffer, "syst04.img", 0);
-    texture_list[7].name = (char *) GetPackFile(read_buffer, "c07a01.img", 0);
-    texture_list[8].name = (char *) GetPackFile(read_buffer, "c07a01an.img", 0);
-    texture_list[9].name = (char *) GetPackFile(read_buffer, "p17a01.img", 0);
-    texture_list[10].name = (char *) GetPackFile(read_buffer, "c08a01.img", 0);
-    texture_list[11].name = (char *) GetPackFile(read_buffer, "c09a01.img", 0);
-    texture_list[12].name = (char *) GetPackFile(read_buffer, "c09a01an.img", 0);
-    texture_list[13].name = (char *) GetPackFile(read_buffer, "c11a01.img", 0);
-    texture_list[14].name = (char *) GetPackFile(read_buffer, "c11a01an.img", 0);
-    texture_list[15].name = (char *) GetPackFile(read_buffer, "p19a01.img", 0);
-    texture_list[16].name = (char *) GetPackFile(read_buffer, "p19a01an.img", 0);
-    texture_list[17].name = (char *) GetPackFile(read_buffer, "ex.img", 0);
-    texture_list[18].name = (char *) GetPackFile(read_buffer, "cloud.img", 0);
-    texture_list[19].name = (char *) GetPackFile(read_buffer, "cloudan.img", 0);
-    texture_list[20].name = (char *) GetPackFile(read_buffer, "cloud2.img", 0);
-    texture_list[21].name = (char *) GetPackFile(read_buffer, "i01t01.img", 0);
-    texture_list[22].name = (char *) GetPackFile(read_buffer, "i01t02.img", 0);
-    texture_list[23].name = (char *) GetPackFile(read_buffer, "e01s01.img", 0);
-    texture_list[24].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
-    texture_list[25].name = (char *) GetPackFile(read_buffer, "pause.img", 0);
+    texture_list[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "gaiji.img", nullptr));
+    texture_list[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fuki256.img", nullptr));
+    texture_list[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "syst04.img", nullptr));
+    texture_list[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c07a01.img", nullptr));
+    texture_list[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c07a01an.img", nullptr));
+    texture_list[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p17a01.img", nullptr));
+    texture_list[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c08a01.img", nullptr));
+    texture_list[11].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c09a01.img", nullptr));
+    texture_list[12].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c09a01an.img", nullptr));
+    texture_list[13].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c11a01.img", nullptr));
+    texture_list[14].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c11a01an.img", nullptr));
+    texture_list[15].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p19a01.img", nullptr));
+    texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p19a01an.img", nullptr));
+    texture_list[17].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "ex.img", nullptr));
+    texture_list[18].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "cloud.img", nullptr));
+    texture_list[19].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "cloudan.img", nullptr));
+    texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "cloud2.img", nullptr));
+    texture_list[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "i01t01.img", nullptr));
+    texture_list[22].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "i01t02.img", nullptr));
+    texture_list[23].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s01.img", nullptr));
+    texture_list[24].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
+    texture_list[25].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause.img", nullptr));
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_FRENCH:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_f.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_g.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_i.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            texture_list[26].name = (char *) GetPackFile(read_buffer, "pause_s.img", 0);
+            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
             break;
     }
 
-    texture_list[27].name = (char *) GetPackFile(read_buffer, "ashikage.img", 0);
+    texture_list[27].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "ashikage.img", nullptr));
 
     TexManager.LoadTextureBlock(-1, texture_list);
 
@@ -304,7 +313,7 @@ static void LoadData() {
     char *config_names[4] = {"01c07a.cfg", "01c08a.cfg", "01c11a.cfg", "01c09a.cfg"};
 
     for (int i = 0; i < 4; i++) {
-        Chara__3[i].LoadPackData(read_buffer, config_names[i], CharaDataBuffer__2, 0);
+        Chara__3[i].LoadPackData(read_buffer, config_names[i], CharaDataBuffer__2, nullptr);
 
         CFrameAttr attr;
 
@@ -321,7 +330,7 @@ static void LoadData() {
     wait_now_loading_vsync();
 
     Chara__3[6].Initialize();
-    Chara__3[6].frame = LoadMDSFile(GetPackFile(read_buffer, "01p19a.mds", 0), &CharaDataBuffer__2[4], 6, 0, 0);
+    Chara__3[6].frame = LoadMDSFile(GetPackFile(read_buffer, "01p19a.mds", nullptr), &CharaDataBuffer__2[4], 6, nullptr, nullptr);
 
     CFrameAttr noroi_attr;
 
@@ -331,7 +340,7 @@ static void LoadData() {
     wait_now_loading_vsync();
 
     Chara__3[7].Initialize();
-    Chara__3[7].frame = LoadMDSFile(GetPackFile(read_buffer, "01p17a.mds", 0), &CharaDataBuffer__2[4], 6, 0, 0);
+    Chara__3[7].frame = LoadMDSFile(GetPackFile(read_buffer, "01p17a.mds", nullptr), &CharaDataBuffer__2[4], 6, nullptr, nullptr);
 
     CFrameAttr dancer_attr;
 
@@ -346,15 +355,15 @@ static void LoadData() {
 
     wait_now_loading_vsync();
 
-    Cloud.frame = LoadMDSFile(GetPackFile(read_buffer, "01cloud.mds", 0), 2, 0);
+    Cloud.frame = LoadMDSFile(GetPackFile(read_buffer, "01cloud.mds", nullptr), 2, 0);
     Cloud.SetPosition(0.0f, 50.0f, 20.0f);
 
     // Retail asked for 12800 bytes, fifty of the PS2's 256-byte CEffect.
-    EffectTable = (CEffect *) MapDataBuffer.Alloc(50 * sizeof(CEffect));
+    EffectTable = reinterpret_cast<CEffect *>(MapDataBuffer.Alloc(50 * sizeof(CEffect)));
     Smoke.Initialize(EffectTable, 50);
     Smoke.Clear();
 
-    Shadow = LoadMDSFile(GetPackFile(read_buffer, "ashikage.mds", 0), 2, 0);
+    Shadow = LoadMDSFile(GetPackFile(read_buffer, "ashikage.mds", nullptr), 2, 0);
 }
 
 /**
@@ -367,8 +376,8 @@ static void LoadData() {
  * @unknownret
  */
 static void SetDanceMotion() {
-    LoadFile("opdat/chara/01p19a1a.chr", (void *) read_buffer, 0);
-    Chara__3[6].LoadPackData(read_buffer, "01p19a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], 0);
+    LoadFile("opdat/chara/01p19a1a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    Chara__3[6].LoadPackData(read_buffer, "01p19a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
     Chara__3[6].motion_type.state.time = 120.0f;
     Chara__3[6].motion_type.state.blend_step = 0.1f;
     Chara__3[6].motion_type.state.motion_no = 0;
@@ -376,8 +385,8 @@ static void SetDanceMotion() {
     Chara__3[6].motion_type.motion_info->start = noroi[0].start;
     Chara__3[6].motion_type.motion_info->end = noroi[0].end;
 
-    LoadFile("opdat/chara/01p17a1a.chr", (void *) read_buffer, 0);
-    Chara__3[7].LoadPackData(read_buffer, "01p17a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], 0);
+    LoadFile("opdat/chara/01p17a1a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    Chara__3[7].LoadPackData(read_buffer, "01p17a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
     Chara__3[7].motion_type.state.time = 1.0f;
     Chara__3[7].motion_type.state.blend_step = 0.1f;
     Chara__3[7].motion_type.state.motion_no = 0;
@@ -450,6 +459,7 @@ static void InitDancerPos() {
     Chara__3[6].SetPosition(0.0f, 0.0f, 250.0f);
     Chara__3[6].SetRotation(0.0f, PI_D, 0.0f);
 }
+} // namespace
 
 /* The tick's drawing, in the order the frame is built: the ground, the buildings standing on it,
    the townspeople, the couple, the crowd behind them, the fires, the sky and last the depth of
@@ -699,13 +709,13 @@ PORT_OVERRIDE void OpA_DrawProcess() {
     if (CScript__2.sprite == 1) {
         TexManager.ReloadTexture(Vif1Packet, 7);
 
-        int alpha = (int) (128.0f - cnt / 4.0f);
+        int alpha = static_cast<int>(128.0f - cnt / 4.0f);
 
         if (alpha < 0) {
             alpha = 0;
         }
 
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("ex", -1), CRect<int>((int) (272.0f - cnt / 2.0f), (int) (10.0f - cnt / 2.0f), (int) (128.0f + cnt), (int) (128.0f + cnt)), CRect<int>(0, 0, 128, 128), (u_char) alpha);
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("ex", -1), CRect<int>(static_cast<int>(272.0f - cnt / 2.0f), static_cast<int>(10.0f - cnt / 2.0f), static_cast<int>(128.0f + cnt), static_cast<int>(128.0f + cnt)), CRect<int>(0, 0, 128, 128), static_cast<u_char>(alpha));
 
         if (sw == 0) {
             cnt -= cnt / 2.0f;
@@ -759,6 +769,7 @@ PORT_OVERRIDE void OpA_DrawProcess() {
  * @size 0x230
  * @unknownret
  */
+namespace {
 static void DrawCloud() {
     static sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 0.0f};
     static float         sc = 0.0f;
@@ -841,12 +852,12 @@ static void SmokeProcess() {
         }
 
         param.position_oscillation_flags = 1;
-        param.position_oscillation_scale[0] = 0.5f * (float) rand() / 2147483648.0f;
-        param.position_oscillation_rate[0] = (float) PI_D / (20.0f + (float) (rand() * 10) / 2147483648.0f);
+        param.position_oscillation_scale[0] = 0.5f * static_cast<float>(rand()) / 2147483648.0f;
+        param.position_oscillation_rate[0] = static_cast<float>(PI_D) / (20.0f + static_cast<float>(rand() * 10) / 2147483648.0f);
         param.opacity_mode = 2;
         param.render_flags = 2;
         param.opacity = 0.07f;
-        param.velocity[1] = 1.5f + 0.2f * (float) rand() / 2147483648.0f;
+        param.velocity[1] = 1.5f + 0.2f * static_cast<float>(rand()) / 2147483648.0f;
         param.scale_velocity[0] = 0.04f;
         param.scale_velocity[1] = 0.04f;
         param.lifetime = 120;
@@ -904,7 +915,7 @@ static void MoveDancers() {
                 DancerPos[i][1] = matrix[3][1];
                 DancerPos[i][2] = matrix[3][2];
                 DancerRot[i][0] = 0.0f;
-                DancerRot[i][1] = (float) (atan2f(matrix[2][0], matrix[2][2]) + PI_D);
+                DancerRot[i][1] = static_cast<float>(atan2f(matrix[2][0], matrix[2][2]) + PI_D);
                 DancerRot[i][2] = 0.0f;
             }
         }
@@ -1072,6 +1083,7 @@ static void DrawShadow(float x, float y, float z) {
         MGSetAmbient(ambientlight);
     }
 }
+} // namespace
 
 /* The tick's sound. The three footfalls are windows on an actor's own motion frame with a wait
    behind each, because a frame number is only inside its window for one tick at the motion's rate
@@ -1080,7 +1092,7 @@ static void DrawShadow(float x, float y, float z) {
    change of music the camera makes when it turns away. */
 PORT_OVERRIDE void OpA_SoundProcess() {
     /* These type-only names preserve the first footfall's argument-selection state. */
-    static int    mus = 0;
+    static int mus = 0;
 
     if (DanceWait > 5.0f) {
         if (mus == 0) {
@@ -1099,7 +1111,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
     OP_MainCamera.GetPos(camera_position);
 
     if (CScript__2.obj[3].motion == 1) {
-        int        motion_frame = (int) Chara__3[3].motion_type.state.time;
+        int        motion_frame = static_cast<int>(Chara__3[3].motion_type.state.time);
         static int wait = 0;
 
         if (wait == 0) {
@@ -1116,7 +1128,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
     }
 
     if (CScript__2.obj[3].motion == 4) {
-        int        motion_frame = (int) Chara__3[3].motion_type.state.time;
+        int        motion_frame = static_cast<int>(Chara__3[3].motion_type.state.time);
         static int wait = 0;
 
         if (wait == 0) {
@@ -1133,7 +1145,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
     }
 
     if (CScript__2.obj[3].motion == 10) {
-        int        motion_frame = (int) Chara__3[3].motion_type.state.time;
+        int        motion_frame = static_cast<int>(Chara__3[3].motion_type.state.time);
         static int wait = 0;
 
         if (wait == 0) {
@@ -1150,7 +1162,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
     }
 
     if (CScript__2.obj[2].motion == 14) {
-        int        motion_frame = (int) Chara__3[2].motion_type.state.time;
+        int        motion_frame = static_cast<int>(Chara__3[2].motion_type.state.time);
         static int wait = 0;
 
         if (wait == 0) {
@@ -1173,7 +1185,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
 
     OpSetVolPanSE(fountain, 200.0f, 500.0f, 15, 16, 20);
 
-    static int   seflg = 0;
+    static int                    seflg = 0;
     [[maybe_unused]] static int   secnt = 0;
     [[maybe_unused]] static float vol = 128.0f;
 
@@ -1200,7 +1212,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
                 while (ReadBGSync())
                     ;
 
-                LoadFileBG("opdat/dungeon/o1bbgm.snd", (u_long128 *) read_buffer, 0);
+                LoadFileBG("opdat/dungeon/o1bbgm.snd", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
                 flg = 1;
             }
         } else {
@@ -1238,6 +1250,7 @@ PORT_OVERRIDE void OpA_SoundProcess() {
  * @size 0x274
  * @unknownret
  */
+namespace {
 static void setTexScroll() {
     static int   setTexScrollCnt = 0;
     static float setTexScrollCntf = 0.0f;
@@ -1255,12 +1268,12 @@ static void setTexScroll() {
         setTexScrollCntf -= 0.5f;
     }
 
-    setTexScrollCnt = (int) setTexScrollCntf;
+    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
 
     plate = TexManager.GetTexture("i01t06", -1);
     strip = TexManager.GetTexture("i01t06a", -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -1303,12 +1316,12 @@ static void setCloudTexScroll() {
         setTexScrollCntf -= 0.5f;
     }
 
-    setTexScrollCnt = (int) setTexScrollCntf;
+    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
 
     plate = TexManager.GetTexture("cloud", -1);
     strip = TexManager.GetTexture("cloudan", -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -1325,6 +1338,7 @@ static void setCloudTexScroll() {
         MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, setTexScrollCnt), dbp, dbw, 0, 0, 128 - setTexScrollCnt, 0);
     }
 }
+} // namespace
 
 PORT_OVERRIDE void OpA_MotionProcess() {
     switch (CScript__2.camera_start) {
@@ -1335,7 +1349,7 @@ PORT_OVERRIDE void OpA_MotionProcess() {
             break;
         case 37: {
             /* The scoped middle arms and folded constants preserve their shared materialisation order. */
-            MGSetRenderInfo(mgRenderInfo.scale[0], (float) ((1 << 3) + 2), (0x10000 - 1));
+            MGSetRenderInfo(mgRenderInfo.scale[0], static_cast<float>((1 << 3) + 2), (0x10000 - 1));
             break;
         }
         case 0:
@@ -1389,9 +1403,9 @@ PORT_OVERRIDE void OpA_MotionProcess() {
         sceVu0FVECTOR reference;
 
         OP_MainCamera.GetRef(reference);
-        reference[0] += (float) (rand() % d) / 10.0f;
-        reference[1] += (float) (rand() % d) / 10.0f;
-        reference[2] += (float) (rand() % d) / 10.0f;
+        reference[0] += static_cast<float>(rand() % d) / 10.0f;
+        reference[1] += static_cast<float>(rand() % d) / 10.0f;
+        reference[2] += static_cast<float>(rand() % d) / 10.0f;
         OP_MainCamera.SetRef(reference);
     }
 
@@ -1402,7 +1416,7 @@ PORT_OVERRIDE void OpA_MotionProcess() {
     for (int i = 0; i < 6; i++) {
         if (CScript__2.obj[i].disp) {
             if (CScript__2.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > (float) (Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
                     CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
                     CScript__2.obj[i].motion_end = -1;
                 }
@@ -1412,7 +1426,7 @@ PORT_OVERRIDE void OpA_MotionProcess() {
 
             if (CScript__2.obj[i].step == 1.0f) {
                 if (CScript__2.obj[i].motion != Chara__3[i].motion_no) {
-                    Chara__3[i].motion_type.state.time = (float) Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].start;
+                    Chara__3[i].motion_type.state.time = static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].start);
                     Chara__3[i].motion_no = CScript__2.obj[i].motion;
                     Chara__3[i].motion_flags = 4;
                     Chara__3[i].motion_speed = -1.0f;
@@ -1433,8 +1447,8 @@ PORT_OVERRIDE void OpA_MotionProcess() {
         LoadMotionData();
     }
 
-    char         *frame_names[23] = {"c07a", "c08a", "c11a", "c09a", "c08a", "c08c", "p19a", "p17a", 0, 0, 0, 0,
-                                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    char         *frame_names[23] = {"c07a", "c08a", "c11a", "c09a", "c08a", "c08c", "p19a", "p17a", nullptr, nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
     sceVu0FMATRIX matrix;
 
     for (int i = 0; i < 8; i++) {
@@ -1445,7 +1459,7 @@ PORT_OVERRIDE void OpA_MotionProcess() {
                 frame->GetLWMatrix(matrix);
 
                 if (i == 6) {
-                    Chara__3[i].SetRotation(0.0f, (float) (atan2f(matrix[2][0], matrix[2][2]) + PI_D), 0.0f);
+                    Chara__3[i].SetRotation(0.0f, static_cast<float>(atan2f(matrix[2][0], matrix[2][2]) + PI_D), 0.0f);
                 } else if (i == 5) {
                     float tilt = atan2f(-matrix[2][1], matrix[2][2]);
 

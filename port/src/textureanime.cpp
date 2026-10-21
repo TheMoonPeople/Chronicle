@@ -7,7 +7,8 @@ namespace {
 
 void Move(const CTextureTexAnime &from, int x, int y, int width, int height, const CTextureTexAnime &to, int to_x,
           int to_y) {
-    PortMoveImage(*(const sceGsTex0 *) &from.tex0, x, y, width, height, *(const sceGsTex0 *) &to.tex0, to_x, to_y);
+    PortMoveImage(*reinterpret_cast<const sceGsTex0 *>(&from.tex0), x, y, width, height,
+                  *reinterpret_cast<const sceGsTex0 *>(&to.tex0), to_x, to_y);
 }
 
 } // namespace
@@ -15,13 +16,13 @@ void Move(const CTextureTexAnime &from, int x, int y, int width, int height, con
 // Retail's TexAnime with each MGMoveImage done on the renderer and the TEXFLUSH packets gone.
 PORT_OVERRIDE void CTextureAnime::TexAnime(int texture_block) {
     for (int i = 0; i < 24; i++) {
-        if (enabled[i] != 0 && current[i] != NULL && current[i]->linked_group >= 0) {
+        if (enabled[i] != 0 && current[i] != nullptr && current[i]->linked_group >= 0) {
             Enable(current[i]->linked_group);
         }
     }
 
     for (int group = 0; group < 24; group++) {
-        if (enabled[group] == 0 || current[group] == NULL || current[group]->first_texture.block != texture_block ||
+        if (enabled[group] == 0 || current[group] == nullptr || current[group]->first_texture.block != texture_block ||
             current[group]->second_texture.block != texture_block) {
             continue;
         }
@@ -35,15 +36,15 @@ PORT_OVERRIDE void CTextureAnime::TexAnime(int texture_block) {
 
                 if (record->source_width == record->first_texture.width &&
                     record->source_height == record->first_texture.height && record->first_texture.bpp == 1) {
-                    const sceGsTex0 &first = *(const sceGsTex0 *) &record->first_texture.tex0;
-                    const sceGsTex0 &second = *(const sceGsTex0 *) &record->second_texture.tex0;
+                    const sceGsTex0 &first = *reinterpret_cast<const sceGsTex0 *>(&record->first_texture.tex0);
+                    const sceGsTex0 &second = *reinterpret_cast<const sceGsTex0 *>(&record->second_texture.tex0);
                     PortMoveImage(first.CBP, first.CPSM, 0, 0, 16, 16, second.CBP, second.CPSM, 0, 0);
                 }
             }
 
             if (record->kind == 1) {
-                int scroll_x = (int) record->scroll_x;
-                int scroll_y = (int) record->scroll_y;
+                int scroll_x = static_cast<int>(record->scroll_x);
+                int scroll_y = static_cast<int>(record->scroll_y);
                 int width = record->source_width - scroll_x;
                 int height = record->source_height - scroll_y;
 
@@ -98,7 +99,7 @@ PORT_OVERRIDE void CTextureAnime::TexAnime(int texture_block) {
                 }
             }
 
-            if (record->duration != 0 || record->next == NULL) {
+            if (record->duration != 0 || record->next == nullptr) {
                 break;
             }
 
@@ -115,7 +116,7 @@ PORT_OVERRIDE void CTextureAnime::TexAnime(int texture_block) {
             frame[group] = 0;
             current[group] = current[group]->next;
 
-            if (current[group] == NULL) {
+            if (current[group] == nullptr) {
                 current[group] = first[group];
             }
         }

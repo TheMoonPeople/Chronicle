@@ -40,7 +40,7 @@ void Prompt(int left) {
     mes.win_line[0] = {-0x2F8, 0, 24, 0, 0};
     mes.win_line[1] = {-0x2FA, 80, 24, 0, 0};
 }
-}
+} // namespace
 
 TEST(MenuSavePointer, LoadYesFollowsCentredInlinePrompt) {
     Prompt(300);

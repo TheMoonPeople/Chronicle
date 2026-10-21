@@ -1,6 +1,5 @@
-#include "quests/quests.hpp"
-
 #include "itemdata.hpp"
+#include "quests/quests.hpp"
 
 // Carl's Slingshot: a sidequest between two of Norune's children, and the port's example quest
 // (docs/QUEST_FRAMEWORK.md). Gina borrowed Carl's slingshot and never gave it back. She makes up a
@@ -45,10 +44,10 @@ constexpr Text kCarlJunk = {"quest.carls_slingshot.carl.junk",
                             "She broke it?{page}"
                             "And she made this...? It's all crooked. It's junk.{page}"
                             "...You keep it. I don't want it.{page}"
-                            "Give it to Xiao.."};
+                            "Give it to {name2}.."};
 constexpr Text kCarlNoRoom = {"quest.carls_slingshot.carl.no_room",
-                              "Xiao's got too many weapons to carry it. Make some room first."};
-constexpr Text kReceived = {"quest.carls_slingshot.received", "Received the Bone Slingshot for Xiao."};
+                              "{name2}'s got too many weapons to carry it. Make some room first."};
+constexpr Text kReceived = {"quest.carls_slingshot.received", "Received the Bone Slingshot for {name2}."};
 
 // Gina's.
 constexpr Text kGinaAbout = {"quest.carls_slingshot.gina.about", "Carl's slingshot"};
@@ -110,6 +109,13 @@ void GinaOnTheSlingshot(Scene &scene) {
 }
 
 } // namespace
+
+std::span<const Quest::Text> CarlsSlingshotTexts() {
+    static constexpr Text texts[] = {kCarlAsk, kCarlAbout, kCarlStory, kCarlWaiting, kCarlBird,
+                                     kCarlAgain, kCarlJunk, kCarlNoRoom, kReceived, kGinaAbout,
+                                     kGinaExcuse, kGinaBird, kGinaConfess, kGinaWaiting};
+    return texts;
+}
 
 Quest::Definition CarlsSlingshot() {
     return Quest::Builder("carls_slingshot")

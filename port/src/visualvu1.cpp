@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -13,7 +12,6 @@
 #include "draw3d.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
-#include "normal_smoothing.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
 #include "visual.hpp"
@@ -22,81 +20,25 @@ namespace {
 
 constexpr uint32_t kBlockTag = 0x44334443; // "CD3D"
 
-float g_smooth_degrees = -1.0f; // -1: not read from the environment yet
-
-float SmoothingAngle() {
-    if (g_smooth_degrees < 0.0f) {
-        const char *text = std::getenv("DC_SMOOTH_NORMALS");
-        g_smooth_degrees = text != nullptr ? static_cast<float>(std::atof(text)) : 0.0f;
-        if (g_smooth_degrees < 0.0f) {
-            g_smooth_degrees = 0.0f;
-        }
-    }
-    return g_smooth_degrees;
-}
-
-// Averages each vertex's normal with those of the vertices at the same point whose normals are within the crease
-// angle of its own. Vertices are found by position, so it works across strips and across texture seams.
-void SmoothNormals(std::vector<gfx::Vertex3D> &vertices, float crease_degrees) {
-    const float threshold = std::cos(crease_degrees * 0.017453292f);
-    struct Key {
-        int32_t x, y, z;
-        bool    operator==(const Key &o) const { return x == o.x && y == o.y && z == o.z; }
-    };
-    struct KeyHash {
-        size_t operator()(const Key &k) const {
-            return (static_cast<size_t>(k.x) * 73856093u) ^ (static_cast<size_t>(k.y) * 19349663u) ^
-                   (static_cast<size_t>(k.z) * 83492791u);
-        }
-    };
-    std::unordered_map<Key, std::vector<uint32_t>, KeyHash> groups;
-    groups.reserve(vertices.size());
-    for (uint32_t i = 0; i < vertices.size(); i++) {
-        const float *p = vertices[i].position;
-        groups[{static_cast<int32_t>(std::lround(p[0] * 256.0f)), static_cast<int32_t>(std::lround(p[1] * 256.0f)),
-                static_cast<int32_t>(std::lround(p[2] * 256.0f))}].push_back(i);
-    }
-    std::vector<std::array<float, 3>> original(vertices.size());
-    for (uint32_t i = 0; i < vertices.size(); i++) {
-        const float *n = vertices[i].normal;
-        const float  length = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-        const float  scale = length > 1e-6f ? 1.0f / length : 0.0f;
-        original[i] = {n[0] * scale, n[1] * scale, n[2] * scale};
-    }
-    for (auto &entry : groups) {
-        const std::vector<uint32_t> &members = entry.second;
-        if (members.size() < 2) {
-            continue;
-        }
-        for (uint32_t i : members) {
-            float sum[3] = {0, 0, 0};
-            for (uint32_t j : members) {
-                const float dot = original[i][0] * original[j][0] + original[i][1] * original[j][1] +
-                                  original[i][2] * original[j][2];
-                if (dot >= threshold) {
-                    sum[0] += original[j][0];
-                    sum[1] += original[j][1];
-                    sum[2] += original[j][2];
-                }
-            }
-            const float length = std::sqrt(sum[0] * sum[0] + sum[1] * sum[1] + sum[2] * sum[2]);
-            if (length > 1e-6f) {
-                vertices[i].normal[0] = sum[0] / length;
-                vertices[i].normal[1] = sum[1] / length;
-                vertices[i].normal[2] = sum[2] / length;
-            }
-        }
-    }
-}
-
 std::unordered_map<const void *, std::unique_ptr<Draw3DVisual>> g_visuals;
 std::unordered_map<const void *, std::unique_ptr<Draw3DVisual>> g_transient;
+unsigned                                                        g_visual_sweep_frame = 0;
 
 void Release(Draw3DVisual &visual) {
     if (visual.mesh != gfx::kNullMesh) {
         gfx::DestroyMesh(visual.mesh);
         visual.mesh = gfx::kNullMesh;
     }
+}
+
+bool SameMaterial(const Draw3DStrip &a, const Draw3DStrip &b) {
+    return a.texture == b.texture && a.tex0 == b.tex0 && a.tex1 == b.tex1 &&
+           a.texture_name == b.texture_name &&
+           std::memcmp(a.diffuse, b.diffuse, sizeof(a.diffuse)) == 0 &&
+           std::memcmp(a.ambient, b.ambient, sizeof(a.ambient)) == 0 &&
+           std::memcmp(a.specular, b.specular, sizeof(a.specular)) == 0 &&
+           a.ground_transition == b.ground_transition && a.ground_world_uv == b.ground_world_uv &&
+           a.ground_uv_period == b.ground_uv_period && a.ground_uv_flip_v == b.ground_uv_flip_v;
 }
 
 // CreateVisual places the block right behind a visual whose host size outgrows the two or three
@@ -124,7 +66,7 @@ struct MdtView {
 MdtView View(u_int *data) {
     MdtView view = {};
     view.header = reinterpret_cast<MDT_HEADER *>(data);
-    auto   at = [&](int offset) { return reinterpret_cast<float(*)[4]>(reinterpret_cast<u_char *>(data) + offset); };
+    auto   at = [&](int offset) { return reinterpret_cast<float (*)[4]>(reinterpret_cast<u_char *>(data) + offset); };
     u_int *mesh = reinterpret_cast<u_int *>(reinterpret_cast<u_char *>(data) + view.header->mesh_ofs);
     view.vertex = at(view.header->vertex_ofs);
     view.normal = at(view.header->normal[1]);
@@ -239,12 +181,12 @@ void AddGroundTransition(Draw3DVisual &visual, const GroundFace &target_face, co
             break;
         }
     }
-    int third = 3 - edge_a - edge_b;
+    int   third = 3 - edge_a - edge_b;
     float altitude = GroundAltitude(target[edge_a], target[edge_b], target[third]);
     if (altitude < 0.01f) {
         return;
     }
-    float fraction = std::min(4.0f / altitude, 0.25f);
+    float         fraction = std::min(4.0f / altitude, 0.25f);
     gfx::Vertex3D band[4] = {target[edge_a], target[edge_b], target[edge_b], target[edge_a]};
     for (int axis = 0; axis < 3; axis++) {
         band[2].position[axis] += fraction * (target[third].position[axis] - band[2].position[axis]);
@@ -267,27 +209,26 @@ void AddGroundTransition(Draw3DVisual &visual, const GroundFace &target_face, co
     strip.index_count = 6;
     strip.ground_transition = true;
     visual.indices.insert(visual.indices.end(), {first_vertex, first_vertex + 1, first_vertex + 2,
-                                                  first_vertex, first_vertex + 2, first_vertex + 3});
+                                                 first_vertex, first_vertex + 2, first_vertex + 3});
     visual.strips.push_back(strip);
     visual.vertex_colour = true;
 }
 
 void AddForestGroundTransitions(Draw3DVisual &visual) {
     std::vector<GroundFace> faces;
-    size_t base_strips = visual.strips.size();
+    size_t                  base_strips = visual.strips.size();
     for (size_t strip_no = 0; strip_no < base_strips; strip_no++) {
         const Draw3DStrip &strip = visual.strips[strip_no];
         if (strip.texture < 0) {
             continue;
         }
         const char *name = TexManager.GetTexture(strip.texture)->name;
-        bool grassy = std::strcmp(name, "d02b05") == 0;
+        bool        grassy = std::strcmp(name, "d02b05") == 0;
         if (!grassy && std::strcmp(name, "d02b06") != 0) {
             continue;
         }
         for (uint32_t i = strip.first_index; i + 2 < strip.first_index + strip.index_count; i += 3) {
-            GroundFace face = {{{visual.indices[i], visual.indices[i + 1], visual.indices[i + 2]}}, strip_no,
-                               grassy};
+            GroundFace face = {{{visual.indices[i], visual.indices[i + 1], visual.indices[i + 2]}}, strip_no, grassy};
             faces.push_back(face);
         }
     }
@@ -331,12 +272,12 @@ void AddForestGroundTransitions(Draw3DVisual &visual) {
 
 void AddGroundBorderBand(Draw3DVisual &visual, const std::array<gfx::Vertex3D, 3> &face,
                          const Draw3DStrip &material, int edge_a, int edge_b, int soil_texture) {
-    int third = 3 - edge_a - edge_b;
+    int   third = 3 - edge_a - edge_b;
     float altitude = GroundAltitude(face[edge_a], face[edge_b], face[third]);
     if (altitude < 0.01f) {
         return;
     }
-    float fraction = std::min(1.0f / altitude, 0.25f);
+    float         fraction = std::min(1.0f / altitude, 0.25f);
     gfx::Vertex3D band[4] = {face[edge_a], face[edge_b], face[edge_b], face[edge_a]};
     for (int axis = 0; axis < 3; axis++) {
         band[2].position[axis] += fraction * (face[third].position[axis] - band[2].position[axis]);
@@ -352,7 +293,7 @@ void AddGroundBorderBand(Draw3DVisual &visual, const std::array<gfx::Vertex3D, 3
 
     uint32_t first_vertex = static_cast<uint32_t>(visual.vertices.size());
     visual.vertices.insert(visual.vertices.end(), std::begin(band), std::end(band));
-    Draw3DStrip strip = material;
+    Draw3DStrip     strip = material;
     const CTexture *soil = TexManager.GetTexture(soil_texture);
     strip.texture = soil_texture;
     strip.tex0 = soil->tex0;
@@ -362,7 +303,7 @@ void AddGroundBorderBand(Draw3DVisual &visual, const std::array<gfx::Vertex3D, 3
     strip.ground_transition = true;
     strip.ground_world_uv = true;
     visual.indices.insert(visual.indices.end(), {first_vertex, first_vertex + 1, first_vertex + 2,
-                                                  first_vertex, first_vertex + 2, first_vertex + 3});
+                                                 first_vertex, first_vertex + 2, first_vertex + 3});
     visual.strips.push_back(strip);
     visual.vertex_colour = true;
 }
@@ -371,7 +312,7 @@ void AddGroundBorderBand(Draw3DVisual &visual, const std::array<gfx::Vertex3D, 3
 // sample covers the edge itself and fades into each cell's original image a short way inward.
 void AddForestGroundBorders(Draw3DVisual &visual) {
     char soil_name[] = "d02b04";
-    int soil_texture = TexManager.GetTextureHandle(soil_name, -1);
+    int  soil_texture = TexManager.GetTextureHandle(soil_name, -1);
     if (soil_texture < 0) {
         return;
     }
@@ -391,13 +332,13 @@ void AddForestGroundBorders(Draw3DVisual &visual) {
                                                  visual.vertices[visual.indices[i + 1]],
                                                  visual.vertices[visual.indices[i + 2]]};
             for (int edge = 0; edge < 3; edge++) {
-                int next = (edge + 1) % 3;
+                int                  next = (edge + 1) % 3;
                 const gfx::Vertex3D &a = face[edge];
                 const gfx::Vertex3D &b = face[next];
-                bool x_border = std::fabs(std::fabs(a.position[0]) - 80.0f) < 0.5f &&
-                                std::fabs(a.position[0] - b.position[0]) < 0.5f;
-                bool z_border = std::fabs(std::fabs(a.position[2]) - 80.0f) < 0.5f &&
-                                std::fabs(a.position[2] - b.position[2]) < 0.5f;
+                bool                 x_border = std::fabs(std::fabs(a.position[0]) - 80.0f) < 0.5f &&
+                                                std::fabs(a.position[0] - b.position[0]) < 0.5f;
+                bool                 z_border = std::fabs(std::fabs(a.position[2]) - 80.0f) < 0.5f &&
+                                                std::fabs(a.position[2] - b.position[2]) < 0.5f;
                 if ((x_border || z_border) && std::fabs(a.position[1]) < 2.0f &&
                     std::fabs(b.position[1]) < 2.0f && a.normal[1] > 0.6f && b.normal[1] > 0.6f) {
                     AddGroundBorderBand(visual, face, strip, edge, next, soil_texture);
@@ -471,6 +412,11 @@ Draw3DVisual *Draw3DFindVisual(const void *block) {
         return it->second.get();
     }
     if (auto it = g_visuals.find(block); it != g_visuals.end()) {
+        if (static_cast<const unsigned int *>(block)[8] != kBlockTag) {
+            Release(*it->second);
+            g_visuals.erase(it);
+            return nullptr;
+        }
         return it->second.get();
     }
     return nullptr;
@@ -492,6 +438,9 @@ Draw3DVisual &Draw3DRegisterVisual(unsigned int *block, bool transient) {
 // and nothing tells the records; a block whose tag is gone no longer holds a visual.
 void Draw3DSweepVisuals() {
     g_transient.clear();
+    if ((++g_visual_sweep_frame & 15u) != 0) {
+        return;
+    }
     std::erase_if(g_visuals, [](auto &entry) {
         const unsigned int *block = static_cast<const unsigned int *>(entry.first);
         if (block[8] == kBlockTag) {
@@ -565,9 +514,19 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
     }
 
     static const float kWhite[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    uint32_t base_flags = constants.flags;
-    for (const Draw3DStrip &strip : visual.strips) {
-        if (strip.index_count == 0) {
+    uint32_t           base_flags = constants.flags;
+    for (size_t strip_index = 0; strip_index < visual.strips.size();) {
+        const Draw3DStrip &strip = visual.strips[strip_index++];
+        uint32_t           index_count = strip.index_count;
+        while (strip_index < visual.strips.size()) {
+            const Draw3DStrip &next = visual.strips[strip_index];
+            if (strip.first_index + index_count != next.first_index || !SameMaterial(strip, next)) {
+                break;
+            }
+            index_count += next.index_count;
+            ++strip_index;
+        }
+        if (index_count == 0) {
             continue;
         }
         if (projected && strip.ground_transition) {
@@ -578,7 +537,7 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
             for (int axis = 0; axis < 4; axis++) {
                 constants.world_uv[0][axis] = model[axis][0] / strip.ground_uv_period;
                 constants.world_uv[1][axis] = model[axis][2] / strip.ground_uv_period *
-                                               (strip.ground_uv_flip_v ? -1.0f : 1.0f);
+                                              (strip.ground_uv_flip_v ? -1.0f : 1.0f);
             }
         }
         if (projected) {
@@ -591,10 +550,10 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
         gfx::TextureBinding binding;
         if (lit && strip.texture >= 0) {
             int handle = strip.texture;
-            if (strip.texture_name[0] != 0 && std::strcmp(TexManager.GetTexture(handle)->name, strip.texture_name) != 0) {
-                char name[sizeof(strip.texture_name)];
-                std::memcpy(name, strip.texture_name, sizeof(name));
-                int moved = TexManager.GetTextureHandle(name, -1);
+            if (!strip.texture_name.empty() &&
+                std::strcmp(TexManager.GetTexture(handle)->name, strip.texture_name.c_str()) != 0) {
+                std::string name = strip.texture_name;
+                int         moved = TexManager.GetTextureHandle(name.data(), -1);
                 if (moved >= 0) {
                     handle = moved;
                 }
@@ -621,10 +580,10 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
 
         if (visual.immediate) {
             gfx::DrawMeshImmediate(visual.vertices,
-                                   std::span<const uint32_t>(visual.indices).subspan(strip.first_index, strip.index_count),
+                                   std::span<const uint32_t>(visual.indices).subspan(strip.first_index, index_count),
                                    constants, binding, strip_state, &transform);
         } else {
-            gfx::DrawMesh(visual.mesh, strip.first_index, strip.index_count, constants, binding, strip_state,
+            gfx::DrawMesh(visual.mesh, strip.first_index, index_count, constants, binding, strip_state,
                           &transform);
         }
     }
@@ -646,12 +605,12 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
 // ---- CVisualVu1 ------------------------------------------------------------------------------
 
 PORT_OVERRIDE int CVisualVu1::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                    u_long128 *draw_state, int unknown1, int unknown2) {
+                                      u_long128 *draw_state, int unknown1, int unknown2) {
     return CVisualVu1::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }
 
 PORT_OVERRIDE int CVisualVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                    u_long128 *draw_state, int unknown1, int unknown2) {
+                                      u_long128 *draw_state, int unknown1, int unknown2) {
     if (vu_data == nullptr || vu_size == 0) {
         return 0;
     }
@@ -673,7 +632,7 @@ PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int
 
     Draw3DStrip             current;
     std::vector<TextureRun> runs;
-    u_int      *index = view.strip;
+    u_int                  *index = view.strip;
     for (int s = 0; s < view.strips; s++) {
         uint32_t count = index[1];
         u_int    prim = index[0];
@@ -684,8 +643,7 @@ PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int
             MDT_MATERIAL &entry = view.materials[material];
             int           handle = TexManager.GetTextureHandle(entry.texture, -1);
             current.texture = handle;
-            std::strncpy(current.texture_name, handle >= 0 ? TexManager.GetTexture(handle)->name : "",
-                         sizeof(current.texture_name) - 1);
+            current.texture_name = handle >= 0 ? TexManager.GetTexture(handle)->name : "";
             current.tex0 = TexManager.GetTexture(handle)->tex0;
             current.tex1 = TexManager.GetTexture(handle)->tex1;
             TakeMaterial(current, entry);
@@ -721,9 +679,6 @@ PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int
         visual.strips.push_back(strip);
     }
 
-    if (SmoothingAngle() > 0.0f) {
-        SmoothNormals(visual.vertices, SmoothingAngle());
-    }
     SpanWholeTexture(visual, runs);
     AddForestGroundTransitions(visual);
     AddForestGroundBorders(visual);
@@ -777,6 +732,7 @@ PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDTRemake(u_int *block, u_int *dat
             }
         }
     }
+    // Record stationary poses too: a display frame needs both ends when animation starts or stops.
     if (visual->mesh != gfx::kNullMesh) {
         gfx::UpdateMeshVertices(visual->mesh, 0, visual->vertices);
     }
@@ -787,17 +743,18 @@ PORT_OVERRIDE int CVisualVu1::CreateVUdataFromMDTRemake(u_int *block, u_int *dat
 
 // copy_on_draw kept a private copy of the block for each draw because the DMA read it at the end
 // of the frame; the renderer orders a remake after a draw of the same frame by itself.
+// Use one host mesh across display buffers so consecutive poses retain the same surface identity.
 PORT_OVERRIDE int CVisualMDTVu1::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                       u_long128 *draw_state, int unknown1, int unknown2) {
-    vu_data = vu_data_buffer[DBuffID];
+                                         u_long128 *draw_state, int unknown1, int unknown2) {
+    vu_data = vu_data_buffer[0];
     int result = CVisualVu1::DrawVu1(packet, matrix, info, program, draw_state, unknown1, unknown2);
-    vu_data = vu_data_buffer[DBuffID];
+    vu_data = vu_data_buffer[0];
     return result;
 }
 
 PORT_OVERRIDE int CVisualMDTVu1::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                       u_long128 *draw_state, int unknown1, int unknown2) {
-    vu_data = vu_data_buffer[DBuffID];
+                                         u_long128 *draw_state, int unknown1, int unknown2) {
+    vu_data = vu_data_buffer[0];
     return CVisualVu1::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }
 
@@ -805,11 +762,5 @@ PORT_OVERRIDE int CVisualMDTVu1::RemakeData(u_int *block) {
     if (data == nullptr) {
         return 0;
     }
-    return CreateVUdataFromMDTRemake(vu_data_buffer[DBuffID], data, 1);
-}
-
-float PortSetNormalSmoothing(float crease_degrees) {
-    const float previous = SmoothingAngle();
-    g_smooth_degrees = crease_degrees < 0.0f ? 0.0f : crease_degrees;
-    return previous;
+    return CreateVUdataFromMDTRemake(vu_data_buffer[0], data, 1);
 }

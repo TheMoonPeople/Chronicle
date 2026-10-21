@@ -6,7 +6,6 @@
 #include <string>
 
 #include "../../../tools/dcdata/dcdata.hpp"
-#include "../../../tools/dcdata/sharpfont.hpp"
 
 // The first start of an installed copy: the data directory is missing or holds no file, so the
 // game asks for the disc in the system's file selector (the file-chooser portal inside Flatpak,
@@ -45,7 +44,3 @@ void FirstRunSetChooser(FirstRunChooser chooser);
 // (main's data check then exits with the no-data status and the manual dcdata command). A failed
 // extraction shows the error and exits with status 1.
 void FirstRunIfNoData(bool headless);
-
-// Data extracted before the Sharp glyph sheets existed (or for an older recipe of them) gets them made on a worker
-// thread; message text drawn before they are ready is drawn from Chronicle Sharp itself.
-void FirstRunSharpFont();

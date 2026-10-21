@@ -1,5 +1,6 @@
 #include "ebattle.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 #include "character.hpp"
@@ -75,12 +76,13 @@ PORT_OVERRIDE int EBLoop() {
 
     ReadBG();
 
-    int     i;
-    float   frame_speed = speed;
-    EB_KEY *active = NULL;
-    int     cool = 0;
+    int       i;
+    const int key_count = std::clamp(eb_key_num, 0, 64);
+    float     frame_speed = speed;
+    EB_KEY   *active = nullptr;
+    int       cool = 0;
 
-    for (i = 0; i < eb_key_num; i++) {
+    for (i = 0; i < key_count; i++) {
         EB_KEY *key = &eb_key[i];
         float   distance = eb_count - key->frame;
         distance *= frame_speed;
@@ -120,7 +122,7 @@ PORT_OVERRIDE int EBLoop() {
 
     int failed = 0;
 
-    if (active != NULL) {
+    if (active != nullptr) {
         active->pressed |= GamePad.GetPadDown();
 
         if (active->pressed == active->buttons) {
@@ -146,7 +148,7 @@ PORT_OVERRIDE int EBLoop() {
         failed = 1;
     }
 
-    for (i = 0; i < eb_key_num; i++) {
+    for (i = 0; i < key_count; i++) {
         EB_KEY *key = &eb_key[i];
 
         if (key->passed == 0) {
@@ -158,7 +160,7 @@ PORT_OVERRIDE int EBLoop() {
         }
     }
 
-    if (failed && !ConfigGet().qte_always_win && debug_mode == 0 && eb_key_count < eb_key_num &&
+    if (failed && !ConfigGet().qte_always_win && debug_mode == 0 && eb_key_count < key_count &&
         EdDebugParamDrawOff == 0) {
         SndBgmFadeOut(40, 0);
         eb_finish_cnt = 80;
@@ -219,7 +221,7 @@ int PortEdCheckKeyMode(int mode);
 PORT_OVERRIDE float EdGetRXf(int mode) {
     if (PortEdCheckKeyMode(mode)) {
         CCameraFollow *camera = EdMoveCharaInfo.camera;
-        if (viewMode == 0 && !EdMoveCharaInfo.interior && camera != NULL) {
+        if (viewMode == 0 && !EdMoveCharaInfo.interior && camera != nullptr) {
             TownMouseRecord(camera, EdMoveCharaInfo.fishing != 0);
         }
         return GamePad.GetRXf();
@@ -233,7 +235,7 @@ PORT_OVERRIDE float EdGetRYf(int mode) {
     if (PortEdCheckKeyMode(mode)) {
         CCameraFollow *camera = EdMoveCharaInfo.camera;
         float          stick = GamePad.GetRYf();
-        if (camera == NULL) {
+        if (camera == nullptr) {
             return stick;
         }
         float reading = MouseLookRise(camera, stick, EdDebugCameraFlag == 0 ? 30.0f : INFINITY, 5.0f);
@@ -350,7 +352,7 @@ int PortEdMoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *
         rotation[1] = heading;
         chara->SetRotation(rotation);
     }
-    int result = MoveCheck(pos, velocity, out_pos, out_info, polys, poly_num, mode);
+    int          result = MoveCheck(pos, velocity, out_pos, out_info, polys, poly_num, mode);
     static float walked = 0.0f;
     if (walking && !EdMoveCharaInfo.interior && out_info->landed) {
         walked += hypotf(out_pos[0] - pos[0], out_pos[2] - pos[2]);

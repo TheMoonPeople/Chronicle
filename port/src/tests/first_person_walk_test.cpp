@@ -8,9 +8,6 @@
 #include <memory>
 
 #include "../first_person_walk.hpp"
-#include "platform/clock.hpp"
-#include "platform/config.hpp"
-#include "platform/input.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
 #include "character.hpp"
@@ -21,6 +18,9 @@
 #include "frame.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
+#include "platform/clock.hpp"
+#include "platform/config.hpp"
+#include "platform/input.hpp"
 
 extern int   viewMode, chara_mode, chara_fishing;
 extern float viewAngleH, viewAngleV;

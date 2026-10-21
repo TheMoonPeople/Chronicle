@@ -29,7 +29,7 @@ overlays ship as raw images. Content covers all three.
 Needs mips-ps2-decompals-nm/readelf/objdump on PATH, so run it in the Kazarov
 shell:
 
-    tools/kazarov/bin/kazarov shell python3 scripts/diff/compare_build.py
+    tools/kazarov/scripts/kazarov shell python3 scripts/diff/compare_build.py
 """
 import argparse
 import bisect
@@ -98,7 +98,7 @@ def require_tools():
         raise SystemExit(
             "compare_build: %s not on PATH. This has to run in the Kazarov\n"
             "shell, which is where the toolchain lives:\n\n"
-            "    tools/kazarov/bin/kazarov shell python3 scripts/diff/compare_build.py\n"
+            "    tools/kazarov/scripts/kazarov shell python3 scripts/diff/compare_build.py\n"
             % ", ".join(missing))
 
 

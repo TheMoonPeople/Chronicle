@@ -18,9 +18,8 @@ The files are laid out as Minecraft's language files are: one flat JSON file per
    `<save folder>/lang/` and edit it.
 2. **Sharp text.** The port draws text in Chronicle Sharp, the game's own letters redrawn as a TrueType font
    (`tools/font/`, see its README), instead of the game's blurry bitmaps. The build copies it to `lang/font.ttf`
-   and `lang/font_thin.ttf` beside the executable. Message text is drawn from the game's glyph sheet redrawn in
-   it when the data is extracted, and from the font itself until then. To use another font for the text the port
-   draws from a font, put it at `<save folder>/lang/font.ttf` (that wins), or start with `--font <file>`.
+   and `lang/font_thin.ttf` beside the executable. To use another font, put it at `<save folder>/lang/font.ttf`
+   (that wins), or start with `--font <file>`.
 3. **The language.** Options, Text page, Language row (or `game.language` in `config.json`).
 
 ## Where the files go

@@ -1,5 +1,3 @@
-#include "ui_framework/internal.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -15,6 +13,7 @@
 #include "localize.hpp"
 #include "platform/imagefile.hpp"
 #include "texture_port.hpp"
+#include "ui_framework/internal.hpp"
 
 namespace UI {
 
@@ -71,120 +70,120 @@ struct CachedButtonTex {
  * Surface specification for the terracotta clay button preset.
  */
 constexpr ButtonSurfaceSpec kTerracottaBtnSpec{
-    .plate_path      = "textures/plates/ui_btn_terracotta.png",
-    .tex_name        = "ui_btn_terracotta",
-    .seed_offset     = 2100,
-    .base_r          = 214.0f,
-    .base_g          = 114.0f,
-    .base_b          = 60.0f,
-    .scale_r         = 1.08f,
-    .scale_g         = 0.86f,
-    .scale_b         = 0.68f,
-    .bevel_r         = 1.06f,
-    .bevel_g         = 0.92f,
-    .bevel_b         = 0.76f,
-    .rim_r           = 74.0f,
-    .rim_g           = 34.0f,
-    .rim_b           = 16.0f,
-    .macro_weight    = 26.0f,
-    .med_weight      = 22.0f,
-    .detail_weight   = 24.0f,
-    .ridge_weight    = 18.0f,
-    .pitting_weight  = 14.0f,
-    .tooth_weight    = 0.115f,
-    .bump_strength   = 46.0f,
+    .plate_path = "textures/plates/ui_btn_terracotta.png",
+    .tex_name = "ui_btn_terracotta",
+    .seed_offset = 2100,
+    .base_r = 214.0f,
+    .base_g = 114.0f,
+    .base_b = 60.0f,
+    .scale_r = 1.08f,
+    .scale_g = 0.86f,
+    .scale_b = 0.68f,
+    .bevel_r = 1.06f,
+    .bevel_g = 0.92f,
+    .bevel_b = 0.76f,
+    .rim_r = 74.0f,
+    .rim_g = 34.0f,
+    .rim_b = 16.0f,
+    .macro_weight = 26.0f,
+    .med_weight = 22.0f,
+    .detail_weight = 24.0f,
+    .ridge_weight = 18.0f,
+    .pitting_weight = 14.0f,
+    .tooth_weight = 0.115f,
+    .bump_strength = 46.0f,
     .dither_strength = 3.2f,
-    .bevel_strength  = 58.0f,
+    .bevel_strength = 58.0f,
 };
 
 /**
  * Surface specification for the amber-gold sandstone button preset.
  */
 constexpr ButtonSurfaceSpec kAmberGoldBtnSpec{
-    .plate_path      = "textures/plates/ui_btn_ambergold.png",
-    .tex_name        = "ui_btn_amber",
-    .seed_offset     = 3200,
-    .base_r          = 218.0f,
-    .base_g          = 158.0f,
-    .base_b          = 74.0f,
-    .scale_r         = 1.05f,
-    .scale_g         = 0.94f,
-    .scale_b         = 0.72f,
-    .bevel_r         = 1.06f,
-    .bevel_g         = 0.98f,
-    .bevel_b         = 0.82f,
-    .rim_r           = 78.0f,
-    .rim_g           = 52.0f,
-    .rim_b           = 20.0f,
-    .macro_weight    = 24.0f,
-    .med_weight      = 20.0f,
-    .detail_weight   = 22.0f,
-    .ridge_weight    = 18.0f,
-    .pitting_weight  = 12.0f,
-    .tooth_weight    = 0.105f,
-    .bump_strength   = 44.0f,
+    .plate_path = "textures/plates/ui_btn_ambergold.png",
+    .tex_name = "ui_btn_amber",
+    .seed_offset = 3200,
+    .base_r = 218.0f,
+    .base_g = 158.0f,
+    .base_b = 74.0f,
+    .scale_r = 1.05f,
+    .scale_g = 0.94f,
+    .scale_b = 0.72f,
+    .bevel_r = 1.06f,
+    .bevel_g = 0.98f,
+    .bevel_b = 0.82f,
+    .rim_r = 78.0f,
+    .rim_g = 52.0f,
+    .rim_b = 20.0f,
+    .macro_weight = 24.0f,
+    .med_weight = 20.0f,
+    .detail_weight = 22.0f,
+    .ridge_weight = 18.0f,
+    .pitting_weight = 12.0f,
+    .tooth_weight = 0.105f,
+    .bump_strength = 44.0f,
     .dither_strength = 3.0f,
-    .bevel_strength  = 58.0f,
+    .bevel_strength = 58.0f,
 };
 
 /**
  * Surface specification for the stone-green jade button preset.
  */
 constexpr ButtonSurfaceSpec kStoneGreenBtnSpec{
-    .plate_path      = "textures/plates/ui_btn_stonegreen.png",
-    .tex_name        = "ui_btn_green",
-    .seed_offset     = 4300,
-    .base_r          = 92.0f,
-    .base_g          = 176.0f,
-    .base_b          = 148.0f,
-    .scale_r         = 0.82f,
-    .scale_g         = 1.04f,
-    .scale_b         = 0.96f,
-    .bevel_r         = 0.90f,
-    .bevel_g         = 1.06f,
-    .bevel_b         = 1.02f,
-    .rim_r           = 28.0f,
-    .rim_g           = 68.0f,
-    .rim_b           = 56.0f,
-    .macro_weight    = 25.0f,
-    .med_weight      = 21.0f,
-    .detail_weight   = 22.0f,
-    .ridge_weight    = 19.0f,
-    .pitting_weight  = 13.0f,
-    .tooth_weight    = 0.110f,
-    .bump_strength   = 45.0f,
+    .plate_path = "textures/plates/ui_btn_stonegreen.png",
+    .tex_name = "ui_btn_green",
+    .seed_offset = 4300,
+    .base_r = 92.0f,
+    .base_g = 176.0f,
+    .base_b = 148.0f,
+    .scale_r = 0.82f,
+    .scale_g = 1.04f,
+    .scale_b = 0.96f,
+    .bevel_r = 0.90f,
+    .bevel_g = 1.06f,
+    .bevel_b = 1.02f,
+    .rim_r = 28.0f,
+    .rim_g = 68.0f,
+    .rim_b = 56.0f,
+    .macro_weight = 25.0f,
+    .med_weight = 21.0f,
+    .detail_weight = 22.0f,
+    .ridge_weight = 19.0f,
+    .pitting_weight = 13.0f,
+    .tooth_weight = 0.110f,
+    .bump_strength = 45.0f,
     .dither_strength = 3.0f,
-    .bevel_strength  = 58.0f,
+    .bevel_strength = 58.0f,
 };
 
 /**
  * Surface specification for the slate-blue button preset (the painted STATUS BREAK button's blue).
  */
 constexpr ButtonSurfaceSpec kSlateBlueBtnSpec{
-    .plate_path      = "textures/plates/ui_btn_slateblue.png",
-    .tex_name        = "ui_btn_blue",
-    .seed_offset     = 5400,
-    .base_r          = 62.0f,
-    .base_g          = 94.0f,
-    .base_b          = 166.0f,
-    .scale_r         = 0.80f,
-    .scale_g         = 0.92f,
-    .scale_b         = 1.08f,
-    .bevel_r         = 0.92f,
-    .bevel_g         = 0.98f,
-    .bevel_b         = 1.06f,
-    .rim_r           = 18.0f,
-    .rim_g           = 32.0f,
-    .rim_b           = 72.0f,
-    .macro_weight    = 25.0f,
-    .med_weight      = 21.0f,
-    .detail_weight   = 22.0f,
-    .ridge_weight    = 18.0f,
-    .pitting_weight  = 13.0f,
-    .tooth_weight    = 0.110f,
-    .bump_strength   = 45.0f,
+    .plate_path = "textures/plates/ui_btn_slateblue.png",
+    .tex_name = "ui_btn_blue",
+    .seed_offset = 5400,
+    .base_r = 62.0f,
+    .base_g = 94.0f,
+    .base_b = 166.0f,
+    .scale_r = 0.80f,
+    .scale_g = 0.92f,
+    .scale_b = 1.08f,
+    .bevel_r = 0.92f,
+    .bevel_g = 0.98f,
+    .bevel_b = 1.06f,
+    .rim_r = 18.0f,
+    .rim_g = 32.0f,
+    .rim_b = 72.0f,
+    .macro_weight = 25.0f,
+    .med_weight = 21.0f,
+    .detail_weight = 22.0f,
+    .ridge_weight = 18.0f,
+    .pitting_weight = 13.0f,
+    .tooth_weight = 0.110f,
+    .bump_strength = 45.0f,
     .dither_strength = 3.0f,
-    .bevel_strength  = 58.0f,
+    .bevel_strength = 58.0f,
 };
 
 /**
@@ -246,10 +245,10 @@ float BtnSmoothNoisePow2(float x, float y, int px_mask, int py_mask, int seed) {
  * Evaluates tileable fractional Brownian motion over a 256x256 domain.
  */
 float BtnFbmPeriodic256(float x, float y, int cell_size, int octaves, int seed) {
-    float val      = 0.0f;
-    float amp      = 0.5f;
+    float val = 0.0f;
+    float amp = 0.5f;
     float inv_cell = 1.0f / static_cast<float>(cell_size);
-    int   period   = std::max(1, 256 / cell_size);
+    int   period = std::max(1, 256 / cell_size);
 
     for (int i = 0; i < octaves; ++i) {
         const int mask = period - 1;
@@ -265,14 +264,14 @@ float BtnFbmPeriodic256(float x, float y, int cell_size, int octaves, int seed) 
  * Evaluates tileable ridged multifractal noise over a 256x256 domain.
  */
 float BtnRidgedPeriodic256(float x, float y, int cell_size, int octaves, int seed) {
-    float val      = 0.0f;
-    float amp      = 0.5f;
+    float val = 0.0f;
+    float amp = 0.5f;
     float inv_cell = 1.0f / static_cast<float>(cell_size);
-    int   period   = std::max(1, 256 / cell_size);
+    int   period = std::max(1, 256 / cell_size);
 
     for (int i = 0; i < octaves; ++i) {
-        const int   mask  = period - 1;
-        const float n     = BtnSmoothNoisePow2(x * inv_cell, y * inv_cell, mask, mask, seed + i * 31);
+        const int   mask = period - 1;
+        const float n = BtnSmoothNoisePow2(x * inv_cell, y * inv_cell, mask, mask, seed + i * 31);
         const float ridge = 1.0f - std::sqrt((n * 2.0f - 1.0f) * (n * 2.0f - 1.0f) + 0.05f);
         val += ridge * amp;
         inv_cell *= 2.0f;
@@ -301,7 +300,7 @@ void BlurPeriodic256(std::vector<float> &field, int size, int passes) {
         }
         for (int y = 0; y < size; ++y) {
             const size_t r_m1 = static_cast<size_t>((y - 1) & mask) * size;
-            const size_t r_0  = static_cast<size_t>(y) * size;
+            const size_t r_0 = static_cast<size_t>(y) * size;
             const size_t r_p1 = static_cast<size_t>((y + 1) & mask) * size;
             for (int x = 0; x < size; ++x) {
                 const float sum = tmp[r_m1 + x] * 3.0f +
@@ -317,10 +316,10 @@ void BlurPeriodic256(std::vector<float> &field, int size, int passes) {
  * Computes the signed distance from a point to a rounded rectangle centered at (cx, cy).
  */
 float BtnRoundedSdf(float px, float py, float cx, float cy, float half_w, float half_h, float radius) {
-    const float dx    = std::fabs(px - cx) - (half_w - radius);
-    const float dy    = std::fabs(py - cy) - (half_h - radius);
+    const float dx = std::fabs(px - cx) - (half_w - radius);
+    const float dy = std::fabs(py - cy) - (half_h - radius);
     const float out_d = std::hypot(std::max(dx, 0.0f), std::max(dy, 0.0f));
-    const float in_d  = std::min(std::max(dx, dy), 0.0f);
+    const float in_d = std::min(std::max(dx, dy), 0.0f);
     return out_d + in_d - radius;
 }
 
@@ -330,106 +329,106 @@ float BtnRoundedSdf(float px, float py, float cx, float cy, float half_w, float 
 const ButtonBaseSurface &GetButtonBaseSurface(ButtonPreset preset) {
     static ButtonBaseSurface surfaces[4];
     const int                idx = (preset == ButtonPreset::AmberGold)    ? 1
-                                 : (preset == ButtonPreset::StoneGreen) ? 2
+                                   : (preset == ButtonPreset::StoneGreen) ? 2
                                  : (preset == ButtonPreset::SlateBlue)  ? 3
-                                                                        : 0;
+                                                                          : 0;
     ButtonBaseSurface       &out = surfaces[idx];
 
     if (!out.rgba.empty()) {
         return out;
     }
 
-    const ButtonSurfaceSpec &spec       = GetButtonSpec(preset);
+    const ButtonSurfaceSpec &spec = GetButtonSpec(preset);
     std::filesystem::path    custom_png = LocalizeFindFile(spec.plate_path);
-    int                      png_w      = 0;
-    int                      png_h      = 0;
+    int                      png_w = 0;
+    int                      png_h = 0;
     std::vector<uint8_t>     loaded;
     if (!custom_png.empty() && imagefile::LoadPng(custom_png, png_w, png_h, loaded) &&
         png_w == png_h && (png_w == 128 || png_w == 256 || png_w == 512)) {
         out.size_mask = png_w - 1;
-        out.rgba      = std::move(loaded);
+        out.rgba = std::move(loaded);
         out.height.assign(static_cast<size_t>(png_w) * png_h, 0.5f);
         return out;
     }
 
-    constexpr int kSize = 256;
-    constexpr int kMask = kSize - 1;
-    out.size_mask       = kMask;
+    constexpr int size = 256;
+    constexpr int mask = size - 1;
+    out.size_mask = mask;
 
     const int          s = spec.seed_offset;
-    std::vector<float> height_map(static_cast<size_t>(kSize) * kSize, 0.0f);
-    std::vector<float> tone_map(static_cast<size_t>(kSize) * kSize, 0.0f);
+    std::vector<float> height_map(static_cast<size_t>(size) * size, 0.0f);
+    std::vector<float> tone_map(static_cast<size_t>(size) * size, 0.0f);
 
-    for (int y = 0; y < kSize; ++y) {
-        for (int x = 0; x < kSize; ++x) {
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
             const float fx = static_cast<float>(x);
             const float fy = static_cast<float>(y);
 
             const float wx = (BtnFbmPeriodic256(fx, fy, 32, 3, s + 501) - 0.5f) * 9.0f;
             const float wy = (BtnFbmPeriodic256(fx, fy, 32, 3, s + 601) - 0.5f) * 9.0f;
 
-            const float macro  = BtnFbmPeriodic256(fx + wx, fy + wy, 64, 4, s + 101);
-            const float med    = BtnFbmPeriodic256(fx - wy * 0.6f, fy + wx * 0.6f, 24, 4, s + 303);
+            const float macro = BtnFbmPeriodic256(fx + wx, fy + wy, 64, 4, s + 101);
+            const float med = BtnFbmPeriodic256(fx - wy * 0.6f, fy + wx * 0.6f, 24, 4, s + 303);
             const float detail = BtnFbmPeriodic256(fx, fy, 12, 3, s + 202);
-            const float ridge  = BtnRidgedPeriodic256(fx + wx * 0.5f, fy - wy * 0.5f, 28, 3, s + 404);
+            const float ridge = BtnRidgedPeriodic256(fx + wx * 0.5f, fy - wy * 0.5f, 28, 3, s + 404);
 
             const float raw_pit = BtnSmoothNoisePow2(fx * 0.35f, fy * 0.35f, 63, 63, s + 707);
-            const float pit     = (raw_pit < 0.28f) ? ((raw_pit - 0.28f) * 2.2f) : 0.0f;
+            const float pit = (raw_pit < 0.28f) ? ((raw_pit - 0.28f) * 2.2f) : 0.0f;
 
-            const size_t i = static_cast<size_t>(y) * kSize + x;
-            height_map[i]  = macro * 0.28f + med * 0.34f + detail * 0.22f + ridge * 0.16f + pit * 0.08f;
-            tone_map[i]    = (macro - 0.48f) * spec.macro_weight +
-                             (med - 0.48f) * spec.med_weight +
-                             (detail - 0.48f) * spec.detail_weight +
-                             (ridge - 0.34f) * spec.ridge_weight +
-                             pit * spec.pitting_weight;
+            const size_t i = static_cast<size_t>(y) * size + x;
+            height_map[i] = macro * 0.28f + med * 0.34f + detail * 0.22f + ridge * 0.16f + pit * 0.08f;
+            tone_map[i] = (macro - 0.48f) * spec.macro_weight +
+                          (med - 0.48f) * spec.med_weight +
+                          (detail - 0.48f) * spec.detail_weight +
+                          (ridge - 0.34f) * spec.ridge_weight +
+                          pit * spec.pitting_weight;
         }
     }
 
-    BlurPeriodic256(height_map, kSize, 1);
+    BlurPeriodic256(height_map, size, 1);
 
-    for (int y = 0; y < kSize; ++y) {
-        for (int x = 0; x < kSize; ++x) {
-            const float fx    = static_cast<float>(x);
-            const float fy    = static_cast<float>(y);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            const float fx = static_cast<float>(x);
+            const float fy = static_cast<float>(y);
             const float tooth = BtnSmoothNoisePow2(fx * 0.65f, fy * 0.65f, 127, 127, s + 808) * 0.55f +
                                 BtnHash2D(x, y, s + 909) * 0.45f;
-            height_map[static_cast<size_t>(y) * kSize + x] += (tooth - 0.5f) * spec.tooth_weight;
+            height_map[static_cast<size_t>(y) * size + x] += (tooth - 0.5f) * spec.tooth_weight;
         }
     }
 
     static constexpr float kBayer4x4[4][4] = {
-        {-0.46875f,  0.03125f, -0.34375f,  0.15625f},
-        { 0.28125f, -0.21875f,  0.40625f, -0.09375f},
-        {-0.28125f,  0.21875f, -0.40625f,  0.09375f},
-        { 0.46875f, -0.03125f,  0.34375f, -0.15625f}
+        {-0.46875f, 0.03125f,  -0.34375f, 0.15625f },
+        {0.28125f,  -0.21875f, 0.40625f,  -0.09375f},
+        {-0.28125f, 0.21875f,  -0.40625f, 0.09375f },
+        {0.46875f,  -0.03125f, 0.34375f,  -0.15625f}
     };
 
-    out.rgba.assign(static_cast<size_t>(kSize) * kSize * 4, 255);
+    out.rgba.assign(static_cast<size_t>(size) * size * 4, 255);
 
-    for (int y = 0; y < kSize; ++y) {
-        const int ym1 = (y - 1) & kMask;
-        const int yp1 = (y + 1) & kMask;
-        for (int x = 0; x < kSize; ++x) {
-            const int xm1 = (x - 1) & kMask;
-            const int xp1 = (x + 1) & kMask;
+    for (int y = 0; y < size; ++y) {
+        const int ym1 = (y - 1) & mask;
+        const int yp1 = (y + 1) & mask;
+        for (int x = 0; x < size; ++x) {
+            const int xm1 = (x - 1) & mask;
+            const int xp1 = (x + 1) & mask;
 
-            const size_t i    = static_cast<size_t>(y) * kSize + x;
-            const float  h_tl = height_map[static_cast<size_t>(ym1) * kSize + xm1];
-            const float  h_br = height_map[static_cast<size_t>(yp1) * kSize + xp1];
-            const float  h_t  = height_map[static_cast<size_t>(ym1) * kSize + x];
-            const float  h_b  = height_map[static_cast<size_t>(yp1) * kSize + x];
+            const size_t i = static_cast<size_t>(y) * size + x;
+            const float  h_tl = height_map[static_cast<size_t>(ym1) * size + xm1];
+            const float  h_br = height_map[static_cast<size_t>(yp1) * size + xp1];
+            const float  h_t = height_map[static_cast<size_t>(ym1) * size + x];
+            const float  h_b = height_map[static_cast<size_t>(yp1) * size + x];
 
-            const float bump       = ((h_tl - h_br) * 0.68f + (h_t - h_b) * 0.32f) * spec.bump_strength;
-            const float dither     = kBayer4x4[y & 3][x & 3] * spec.dither_strength;
-            const float delta      = tone_map[i] + bump + dither;
+            const float bump = ((h_tl - h_br) * 0.68f + (h_t - h_b) * 0.32f) * spec.bump_strength;
+            const float dither = kBayer4x4[y & 3][x & 3] * spec.dither_strength;
+            const float delta = tone_map[i] + bump + dither;
             const float clay_shift = (BtnHash2D(x >> 1, y >> 1, s + 111) - 0.5f) * 6.0f;
 
             const float r = spec.base_r + delta * spec.scale_r + clay_shift;
             const float g = spec.base_g + delta * spec.scale_g;
             const float b = spec.base_b + delta * spec.scale_b - clay_shift * 0.5f;
 
-            const size_t out_idx  = i * 4;
+            const size_t out_idx = i * 4;
             out.rgba[out_idx + 0] = static_cast<uint8_t>(std::lround(std::clamp(r, 0.0f, 255.0f)));
             out.rgba[out_idx + 1] = static_cast<uint8_t>(std::lround(std::clamp(g, 0.0f, 255.0f)));
             out.rgba[out_idx + 2] = static_cast<uint8_t>(std::lround(std::clamp(b, 0.0f, 255.0f)));
@@ -456,75 +455,75 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
         return &it->second.tex;
     }
 
-    const ButtonSurfaceSpec &spec        = GetButtonSpec(preset);
-    const ButtonBaseSurface &surface     = GetButtonBaseSurface(preset);
-    const int                size_mask   = surface.size_mask;
+    const ButtonSurfaceSpec &spec = GetButtonSpec(preset);
+    const ButtonBaseSurface &surface = GetButtonBaseSurface(preset);
+    const int                size_mask = surface.size_mask;
     const int                base_stride = size_mask + 1;
 
     const int u_off = (variant_bucket * 53) & size_mask;
     const int v_off = (variant_bucket * 89) & size_mask;
 
     PortDecodedTexture decoded{};
-    decoded.width     = static_cast<unsigned>(width_px);
-    decoded.height    = static_cast<unsigned>(height_px);
-    decoded.format    = gfx::TextureFormat::Rgba8;
+    decoded.width = static_cast<unsigned>(width_px);
+    decoded.height = static_cast<unsigned>(height_px);
+    decoded.format = gfx::TextureFormat::Rgba8;
     decoded.has_alpha = true;
 
     std::vector<uint8_t> rgba(static_cast<size_t>(width_px) * height_px * 4, 0);
 
-    const float cx      = width_px * 0.5f;
-    const float cy      = height_px * 0.5f;
-    const float half_w  = width_px * 0.5f - 0.75f;
-    const float half_h  = height_px * 0.5f - 0.75f;
-    const float radius  = rounded ? 3.5f : 1.0f;
+    const float cx = width_px * 0.5f;
+    const float cy = height_px * 0.5f;
+    const float half_w = width_px * 0.5f - 0.75f;
+    const float half_h = height_px * 0.5f - 0.75f;
+    const float radius = rounded ? 3.5f : 1.0f;
     const float bevel_w = 2.8f;
-    const float inv_w   = 1.0f / static_cast<float>(std::max(1, width_px));
-    const float inv_h   = 1.0f / static_cast<float>(std::max(1, height_px));
+    const float inv_w = 1.0f / static_cast<float>(std::max(1, width_px));
+    const float inv_h = 1.0f / static_cast<float>(std::max(1, height_px));
 
     for (int y = 0; y < height_px; ++y) {
-        const int   by     = (y + v_off) & size_mask;
+        const int   by = (y + v_off) & size_mask;
         const float v_norm = static_cast<float>(y) * inv_h;
 
         for (int x = 0; x < width_px; ++x) {
-            const int    bx      = (x + u_off) & size_mask;
+            const int    bx = (x + u_off) & size_mask;
             const size_t src_idx = (static_cast<size_t>(by) * base_stride + bx) * 4;
             const size_t dst_idx = (static_cast<size_t>(y) * width_px + x) * 4;
 
-            const float px   = static_cast<float>(x) + 0.5f;
-            const float py   = static_cast<float>(y) + 0.5f;
+            const float px = static_cast<float>(x) + 0.5f;
+            const float py = static_cast<float>(y) + 0.5f;
             const float dist = BtnRoundedSdf(px, py, cx, cy, half_w, half_h, radius);
             if (dist > 0.5f) {
                 continue;
             }
 
             const float edge_alpha = std::clamp(0.5f - dist, 0.0f, 1.0f);
-            const float inward     = -dist;
-            const float u_norm     = static_cast<float>(x) * inv_w;
-            const float dome       = std::sin(v_norm * 3.14159265f) * 6.0f +
-                                     (0.45f - (u_norm * 0.35f + v_norm * 0.65f)) * 16.0f;
+            const float inward = -dist;
+            const float u_norm = static_cast<float>(x) * inv_w;
+            const float dome = std::sin(v_norm * 3.14159265f) * 6.0f +
+                               (0.45f - (u_norm * 0.35f + v_norm * 0.65f)) * 16.0f;
 
             float r = static_cast<float>(surface.rgba[src_idx + 0]) + dome * spec.scale_r;
             float g = static_cast<float>(surface.rgba[src_idx + 1]) + dome * spec.scale_g;
             float b = static_cast<float>(surface.rgba[src_idx + 2]) + dome * spec.scale_b;
 
             if (inward < bevel_w + 1.2f) {
-                constexpr float kEps = 0.5f;
-                const float gx = BtnRoundedSdf(px + kEps, py, cx, cy, half_w, half_h, radius) -
-                                 BtnRoundedSdf(px - kEps, py, cx, cy, half_w, half_h, radius);
-                const float gy = BtnRoundedSdf(px, py + kEps, cx, cy, half_w, half_h, radius) -
-                                 BtnRoundedSdf(px, py - kEps, cx, cy, half_w, half_h, radius);
-                const float glen = std::max(1e-5f, std::hypot(gx, gy));
-                const float nx   = gx / glen;
-                const float ny   = gy / glen;
+                constexpr float epsilon = 0.5f;
+                const float     gx = BtnRoundedSdf(px + epsilon, py, cx, cy, half_w, half_h, radius) -
+                                     BtnRoundedSdf(px - epsilon, py, cx, cy, half_w, half_h, radius);
+                const float     gy = BtnRoundedSdf(px, py + epsilon, cx, cy, half_w, half_h, radius) -
+                                     BtnRoundedSdf(px, py - epsilon, cx, cy, half_w, half_h, radius);
+                const float     glen = std::max(1e-5f, std::hypot(gx, gy));
+                const float     nx = gx / glen;
+                const float     ny = gy / glen;
 
-                const float h_val     = surface.height[static_cast<size_t>(by) * base_stride + bx];
+                const float h_val = surface.height[static_cast<size_t>(by) * base_stride + bx];
                 const float light_dot = -(nx * 0.58f + ny * 0.81f) + (h_val - 0.5f) * 0.35f;
 
-                const float profile      = (inward < bevel_w)
-                                               ? std::sin(std::clamp(inward / bevel_w, 0.0f, 1.0f) * 3.14159265f)
-                                               : 0.0f;
+                const float profile = (inward < bevel_w)
+                                          ? std::sin(std::clamp(inward / bevel_w, 0.0f, 1.0f) * 3.14159265f)
+                                          : 0.0f;
                 const float inner_groove = std::exp(-((inward - 2.2f) * (inward - 2.2f)) / 0.65f) * 11.0f;
-                const float bevel        = light_dot * profile * spec.bevel_strength - inner_groove;
+                const float bevel = light_dot * profile * spec.bevel_strength - inner_groove;
 
                 r += bevel * spec.bevel_r;
                 g += bevel * spec.bevel_g;
@@ -560,15 +559,15 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
     }
 
     CachedButtonTex &entry = cache[key];
-    entry.tbp              = tbp;
+    entry.tbp = tbp;
     entry.tex.Initialize();
     std::strcpy(entry.tex.name, spec.tex_name);
-    entry.tex.width  = width_px;
+    entry.tex.width = width_px;
     entry.tex.height = height_px;
-    entry.tex.bpp    = 4;
-    entry.tex.block  = -1;
-    entry.tex.tex0   = static_cast<u_long>(tbp) | (1ull << 34);
-    entry.tex.tex1   = 0;
+    entry.tex.bpp = 4;
+    entry.tex.block = -1;
+    entry.tex.tex0 = static_cast<u_long>(tbp) | (1ull << 34);
+    entry.tex.tex1 = 0;
     return &entry.tex;
 }
 
@@ -588,9 +587,9 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
     }
 
     const int seed_variant = (box.y / 13) + (box.x / 17) * 3;
-    CTexture *btn_tex      = (box.w >= 16 && box.h >= 12)
+    CTexture *btn_tex = (box.w >= 16 && box.h >= 12)
                                  ? GetProceduralButtonTex(box.w, box.h, style.preset, style.rounded, seed_variant, style.pressed)
-                                 : nullptr;
+                            : nullptr;
 
     if (btn_tex != nullptr) {
         const unsigned char mod = static_cast<unsigned char>(std::clamp(style.brightness, 0, 255));
@@ -601,7 +600,7 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
     } else if (CTexture *gaiji_tex = detail::GetWhitePixelTex()) {
         auto scale_c = [&](int c) -> unsigned char {
             const int modulated = (c * style.brightness) >> 7;
-            const int gs_val    = (modulated * 128 + 127) / 255;
+            const int gs_val = (modulated * 128 + 127) / 255;
             return static_cast<unsigned char>(std::clamp(gs_val, 0, 255));
         };
         detail::DrawRoundedRect(gaiji_tex, box.x, box.y, box.w, box.h,
@@ -617,11 +616,11 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
     if (!text.empty()) {
         float     fitted_xscale = style.text_xscale;
         // The painted buttons' words run to a few pixels from their ends.
-        const int max_text_w    = std::max(16, box.w - (style.painted_text ? 12 : 16));
+        const int max_text_w = std::max(16, box.w - (style.painted_text ? 12 : 16));
         Label     measure_lbl(text, style.text_color, style.align, style.drop_shadow,
                               style.text_scale, style.text_weight, style.text_xscale);
         int       natural_w = measure_lbl.GetWidth();
-        float     letter    = 0.0f;
+        float     letter = 0.0f;
         if (natural_w > max_text_w && style.painted_text) {
             // The painted buttons fit a long word by closing its letters up first, until they nearly touch.
             constexpr float kTightest = -1.5f;
@@ -670,27 +669,27 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
 
         const Rect inner_face(box.x + 2, box.y + 2, std::max(1, box.w - 5), std::max(1, box.h - 4));
         TextStyle  txt_style{
-            .color          = style.text_color,
-            .drop_shadow    = style.drop_shadow && !style.recessed_text,
-            .align          = style.align,
-            .scale          = style.text_scale,
-            .xscale         = fitted_xscale,
-            .weight         = style.text_weight,
-            .text_dx        = style.text_dx - 1,
-            .text_dy        = style.text_dy,
+            .color = style.text_color,
+            .drop_shadow = style.drop_shadow && !style.recessed_text,
+            .align = style.align,
+            .scale = style.text_scale,
+            .xscale = fitted_xscale,
+            .weight = style.text_weight,
+            .text_dx = style.text_dx - 1,
+            .text_dy = style.text_dy,
             .use_custom_rgb = style.recessed_text || style.painted_text,
-            .fill_r         = static_cast<u8>(style.painted_text ? 255 : 236),
-            .fill_g         = static_cast<u8>(style.painted_text ? 244 : 230),
-            .fill_b         = static_cast<u8>(style.painted_text ? 222 : 218),
-            .recessed       = style.recessed_text,
-            .recess_dark_r  = dark_r,
-            .recess_dark_g  = dark_g,
-            .recess_dark_b  = dark_b,
+            .fill_r = static_cast<u8>(style.painted_text ? 255 : 236),
+            .fill_g = static_cast<u8>(style.painted_text ? 244 : 230),
+            .fill_b = static_cast<u8>(style.painted_text ? 222 : 218),
+            .recessed = style.recessed_text,
+            .recess_dark_r = dark_r,
+            .recess_dark_g = dark_g,
+            .recess_dark_b = dark_b,
             .recess_light_r = lite_r,
             .recess_light_g = lite_g,
             .recess_light_b = lite_b,
-            .painted        = style.painted_text,
-            .letter         = letter,
+            .painted = style.painted_text,
+            .letter = letter,
         };
         const int text_alpha = (style.brightness < 0x80)
                                    ? ((alpha * std::max(0x48, style.brightness)) >> 7)
@@ -705,9 +704,9 @@ void BevelButton::Draw(int x, int y, int width, int height, std::string_view tex
     ButtonStyle style = (weight == FontWeight::Thin)
                             ? ButtonStyle::Thin(preset)
                             : ButtonStyle::Thick(preset);
-    style.text_color  = text_color;
+    style.text_color = text_color;
     style.drop_shadow = drop_shadow;
-    style.align       = align;
+    style.align = align;
     Draw(Rect(x, y, width, height), text, style, alpha);
 }
 

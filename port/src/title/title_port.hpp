@@ -18,11 +18,21 @@ void TitlePortFeedback(u_char alpha);
 struct TitleFogBand {
     CRect_i_ screen;
     CRect_i_ texel;
-    u_char   alpha;
+    u_char   alpha = {};
 };
 
 // The fog's bands, softened as the PS2 softened them (see the definition).
 void TitlePortFog(std::span<const TitleFogBand> bands);
+
+/**
+ * Captures the full visible title background for the next fog pass.
+ */
+void TitlePortCaptureFog();
+
+/**
+ * Scales the title smoke vertically to keep its animation returns outside the visible frame.
+ */
+float TitlePortBackdropHeightScale();
 
 // How much larger than retail's the title's backdrops are drawn (the title screen's sky model and
 // its cloud, whose animation keeps the spheres it is not showing just outside the frame's sides;

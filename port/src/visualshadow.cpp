@@ -313,6 +313,9 @@ void DrawVolume(const Volume &volume, const Projection &projection, const Render
 
 // The shadow mesh's triangles, three model-space corners each, for the fast programs to extrude.
 PORT_OVERRIDE int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_data) {
+    if (block == nullptr || model_data == nullptr) {
+        return 0;
+    }
     vu_data = block;
     vu_size = kDraw3DBlockQuads;
     Draw3DVisual &visual = Draw3DRegisterVisual(block, false);
@@ -373,6 +376,9 @@ PORT_OVERRIDE int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *mod
         return 0;
     }
     int                             count = ShadowClipBuild(nullptr, 0, model_data, info, matrix, 0);
+    if (count <= 0) {
+        return vu_size;
+    }
     std::vector<ShadowClipTriangle> triangles(static_cast<size_t>(count));
     ShadowClipBuild(triangles.data(), count, model_data, info, matrix, 0);
 

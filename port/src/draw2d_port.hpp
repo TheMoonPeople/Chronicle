@@ -65,12 +65,6 @@ void DrawUntextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices,
 void TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y,
                   float angle, float scale);
 
-// Adds a sprite to the open set2DSprite_Start batch at a place set2DSprite_Core cannot give, between whole units.
-void SpriteBatchAdd(float x, float y, float width, float height, const CRect_i_ &texel, u_char red, u_char green,
-                    u_char blue, u_char alpha);
-// Whether the next batches sample their texture filtered; retail's never do. Put back when the batch is done.
-void SpriteBatchLinear(bool linear);
-
 } // namespace draw2d
 
 // What setbilinear last set (retail's linear__2): the filter the 2D units' sprite batches use.

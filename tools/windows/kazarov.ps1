@@ -103,14 +103,16 @@ if ($command -eq 'build') {
     exit 0
 }
 
-# The game data is extracted from the PAL disc into data\, once per disc and dcdata.exe. data\.kazarov-data
+# The game data is extracted into port/run/data, once per disc and dcdata.exe. data/.kazarov-data
 # records both files' sizes and write times; a run with the same ones skips the extraction.
 $iso = @(
     (Join-Path $checkout 'rom/pal/Dark Cloud (PAL).iso'),
     (Join-Path $checkout 'rom/Dark Cloud (PAL).iso')
 ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 
-$data = Join-Path $checkout 'data'
+$run = Join-Path $checkout 'port/run'
+New-Item -ItemType Directory -Force $run | Out-Null
+$data = Join-Path $run 'data'
 # Every port configuration extracts into the same data\, so they take one lock for it. The game holds it shared while it runs.
 $dataLockFile = Join-Path $locks 'port-data.lock'
 if (-not $iso) {
@@ -168,8 +170,8 @@ if ($iso) {
     }
 }
 
-Push-Location $checkout
-& (Join-Path $build 'darkcloud.exe') @rest
+Push-Location $run
+& (Join-Path $build 'darkcloud.exe') --data $data --save (Join-Path $run 'save') @rest
 $code = $LASTEXITCODE
 Pop-Location
 $dataShared.Dispose()

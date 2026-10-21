@@ -16,10 +16,10 @@ namespace UI {
  * Configurable button option entry for a modal DialogBox.
  */
 struct DialogOption {
-    std::string           label;                          /**< Button text label. */
-    std::function<void()> on_select{};                    /**< Callback invoked when the option is confirmed. */
-    ButtonStyle           style   = ButtonStyle::Thick(); /**< Visual button style. */
-    bool                  enabled = true;                 /**< Whether the option can be selected. */
+    std::string           label;                        /**< Button text label. */
+    std::function<void()> on_select{};                  /**< Callback invoked when the option is confirmed. */
+    ButtonStyle           style = ButtonStyle::Thick(); /**< Visual button style. */
+    bool                  enabled = true;               /**< Whether the option can be selected. */
 };
 
 /**
@@ -27,12 +27,12 @@ struct DialogOption {
  */
 struct DialogStyle {
     WindowPreset window_preset = WindowPreset::DarkTranslucent; /**< Background surface preset for the prompt box. */
-    int          min_width     = Metrics::kModalMinWidth;       /**< Minimum prompt box width in logical pixels. */
-    int          max_width     = Metrics::kModalMaxWidth;       /**< Maximum prompt box width in logical pixels. */
-    int          button_width  = Metrics::kButtonWidth;         /**< Option button width in logical pixels. */
+    int          min_width = Metrics::kModalMinWidth;           /**< Minimum prompt box width in logical pixels. */
+    int          max_width = Metrics::kModalMaxWidth;           /**< Maximum prompt box width in logical pixels. */
+    int          button_width = Metrics::kButtonWidth;          /**< Option button width in logical pixels. */
     int          button_height = Metrics::kButtonHeight;        /**< Option button height in logical pixels. */
-    int          button_gap    = Metrics::kButtonGap;           /**< Vertical gap between option buttons in pixels. */
-    int          base_y        = 164;                           /**< Baseline top Y coordinate of the prompt box. */
+    int          button_gap = Metrics::kButtonGap;              /**< Vertical gap between option buttons in pixels. */
+    int          base_y = 164;                                  /**< Baseline top Y coordinate of the prompt box. */
 };
 
 /**
@@ -50,8 +50,8 @@ public:
      */
     void Configure(std::string_view title, std::string_view description,
                    std::vector<DialogOption> options,
-                   std::function<void()> on_cancel = {},
-                   const DialogStyle &style = {});
+                   std::function<void()>     on_cancel = {},
+                   const DialogStyle        &style = {});
 
     /**
      * Opens the dialog box and snaps the cursor to default_choice.
@@ -132,18 +132,18 @@ public:
  * Layout and behavior configuration for a scrollable ListView widget.
  */
 struct ListViewConfig {
-    Rect  bounds{};                             /**< Bounding rectangle of the visible row area. */
-    int   row_height      = Metrics::kRowHeight; /**< Height of an individual row in logical pixels. */
-    int   row_stride      = Metrics::kRowStride; /**< Vertical distance between row tops in pixels. */
-    int   visible_rows    = 6;                  /**< Maximum number of rows visible at once. */
-    int   bracket_pad_x   = 4;                  /**< Horizontal expansion of selection brackets around a row. */
-    int   bracket_pad_y   = 1;                  /**< Vertical expansion of selection brackets around a row. */
-    float cursor_offset_x = -44.0f;             /**< Horizontal offset of the hand cursor relative to a row. */
-    float cursor_offset_y = -2.0f;              /**< Vertical offset of the hand cursor relative to a row. */
-    bool  wrap_navigation = true;               /**< Whether up/down navigation wraps around at the ends. */
-    bool  draw_brackets   = true;               /**< Whether to draw pulsing brackets on the selected row. */
-    bool  draw_scrollbar  = true;               /**< Whether to draw a vertical scrollbar when rows overflow. */
-    bool  draw_cursor     = true;               /**< Whether to draw the hand cursor beside the selected row. */
+    Rect  bounds{};                         /**< Bounding rectangle of the visible row area. */
+    int   row_height = Metrics::kRowHeight; /**< Height of an individual row in logical pixels. */
+    int   row_stride = Metrics::kRowStride; /**< Vertical distance between row tops in pixels. */
+    int   visible_rows = 6;                 /**< Maximum number of rows visible at once. */
+    int   bracket_pad_x = 4;                /**< Horizontal expansion of selection brackets around a row. */
+    int   bracket_pad_y = 1;                /**< Vertical expansion of selection brackets around a row. */
+    float cursor_offset_x = -44.0f;         /**< Horizontal offset of the hand cursor relative to a row. */
+    float cursor_offset_y = -2.0f;          /**< Vertical offset of the hand cursor relative to a row. */
+    bool  wrap_navigation = true;           /**< Whether up/down navigation wraps around at the ends. */
+    bool  draw_brackets = true;             /**< Whether to draw pulsing brackets on the selected row. */
+    bool  draw_scrollbar = true;            /**< Whether to draw a vertical scrollbar when rows overflow. */
+    bool  draw_cursor = true;               /**< Whether to draw the hand cursor beside the selected row. */
 };
 
 /**
@@ -206,9 +206,9 @@ public:
     /**
      * Processes directional navigation, mouse hover, confirm, and cancel inputs.
      */
-    bool HandleInput(int total_items,
+    bool HandleInput(int                             total_items,
                      const std::function<void(int)> &on_confirm = {},
-                     const std::function<void()> &on_cancel = {});
+                     const std::function<void()>    &on_cancel = {});
 
     /**
      * Draws all visible rows, the scrollbar, selection brackets, and the hand cursor.
@@ -231,12 +231,12 @@ private:
      */
     void EnsureVisible(int total_items);
 
-    ListViewConfig m_cfg{};       /**< Active list configuration. */
-    int            m_selected{0}; /**< Currently selected item index. */
-    int            m_first_row{0};/**< Index of the top-most visible item. */
-    Cursor         m_cursor;      /**< Hand cursor instance. */
-    Brackets       m_brackets;    /**< Selection brackets instance. */
-    ScrollBar      m_scrollbar;   /**< Vertical scrollbar instance. */
+    ListViewConfig m_cfg{};        /**< Active list configuration. */
+    int            m_selected{0};  /**< Currently selected item index. */
+    int            m_first_row{0}; /**< Index of the top-most visible item. */
+    Cursor         m_cursor;       /**< Hand cursor instance. */
+    Brackets       m_brackets;     /**< Selection brackets instance. */
+    ScrollBar      m_scrollbar;    /**< Vertical scrollbar instance. */
 };
 
 } // namespace UI

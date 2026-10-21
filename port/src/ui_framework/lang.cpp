@@ -25,47 +25,47 @@ struct HelpSpec {
 
 std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
     return {
-        {"battlemenu.item.title",         "\"Item\""                                       },
-        {"battlemenu.item.help",          "Use current item or\nSet active items."         },
-        {"battlemenu.weapon.title",       "\"Weapon\""                                     },
-        {"battlemenu.weapon.help",        "Change and customise\nweapons."                 },
-        {"battlemenu.allies.title",       "\"Allies\""                                     },
-        {"battlemenu.allies.help",        "Change controllable\ncharacter."                },
-        {"battlemenu.georama.title",      "\"Georama Parts\""                              },
-        {"battlemenu.georama.help",       "Check acquired\ngeorama parts."                 },
-        {"battlemenu.dungeon.title",      "\"Go to Dungeon\""                              },
-        {"battlemenu.dungeon.help",       "Go to Divine\nBeast Cave."                      },
-        {"battlemenu.world_map.title",    "\"World Map\""                                  },
-        {"battlemenu.world_map.help",     "Move to another\narea on world map."            },
-        {"battlemenu.go_outside.title",   "\"Go Outside\""                                 },
-        {"battlemenu.go_outside.help",    "Go outside of\nthe building."                   },
+        {"battlemenu.item.title",         "\"Item\""                                     },
+        {"battlemenu.item.help",          "Use current item or\nSet active items."       },
+        {"battlemenu.weapon.title",       "\"Weapon\""                                   },
+        {"battlemenu.weapon.help",        "Change and customise\nweapons."               },
+        {"battlemenu.allies.title",       "\"Allies\""                                   },
+        {"battlemenu.allies.help",        "Change controllable\ncharacter."              },
+        {"battlemenu.georama.title",      "\"Georama Parts\""                            },
+        {"battlemenu.georama.help",       "Check acquired\ngeorama parts."               },
+        {"battlemenu.dungeon.title",      "\"Go to Dungeon\""                            },
+        {"battlemenu.dungeon.help",       "Go to Divine\nBeast Cave."                    },
+        {"battlemenu.world_map.title",    "\"World Map\""                                },
+        {"battlemenu.world_map.help",     "Move to another\narea on world map."          },
+        {"battlemenu.go_outside.title",   "\"Go Outside\""                               },
+        {"battlemenu.go_outside.help",    "Go outside of\nthe building."                 },
         {"battlemenu.leave_dungeon.title", "\"Leave Dungeon\""                             },
-        {"battlemenu.escape.help",        "Escape from the\ncurrent dungeon."              },
-        {"battlemenu.save.title",         "\"Save\""                                       },
-        {"battlemenu.save.help",          "Record current\ngame progress."                 },
-        {"battlemenu.option.title",       "\"Options\""                                    },
-        {"battlemenu.option.help",        "Change game\nconfigurations."                   },
-        {"battlemenu.journal.title",      "\"Journal\""                                    },
-        {"battlemenu.journal.help",       "Check manuals and\nchest tracker."              },
+        {"battlemenu.escape.help",        "Escape from the\ncurrent dungeon."            },
+        {"battlemenu.save.title",         "\"Save\""                                     },
+        {"battlemenu.save.help",          "Record current\ngame progress."               },
+        {"battlemenu.option.title",       "\"Options\""                                  },
+        {"battlemenu.option.help",        "Change game\nconfigurations."                 },
+        {"battlemenu.journal.title",      "\"Journal\""                                  },
+        {"battlemenu.journal.help",       "Check manuals and\nchest tracker."            },
         {"battlemenu.quit.title",         "\"Quit\""                                       },
-        {"battlemenu.quit.help",          "Exit the game and\nreturn to desktop."          },
+        {"battlemenu.quit.help",          "Exit the game and\nreturn to desktop."        },
         {"battlemenu.quit.confirm_title", "\"Quit\""                                       },
-        {"battlemenu.quit.confirm_desc",  "Return to desktop?"                             },
-        {"battlemenu.quit.yes",           "YES"                                            },
-        {"battlemenu.quit.no",            "NO"                                             },
-        {"weaponmenu.action.equip",       "EQUIP"                                          },
-        {"weaponmenu.action.customize",   "CUSTOMIZE"                                      },
-        {"weaponmenu.action.attribute",   "ATTRIBUTE"                                      },
-        {"weaponmenu.action.repair",      "REPAIR"                                         },
-        {"weaponmenu.action.upgrade",     "UPGRADE"                                        },
-        {"weaponmenu.action.statusbreak",  "STATUS BREAK"                                 },
-        {"weaponmenu.action.buildup",     "BUILD-UP"                                       },
-        {"weaponmenu.action.discard",     "DISCARD"                                        },
-        {"weaponmenu.upgrade.confirm",    "Upgrade. Confirm?"                              },
-        {"weaponmenu.buildup.confirm",    "Build-up. Confirm?"                             },
-        {"weaponmenu.break.confirm",       "Status break this weapon?\nWeapon disappears."},
-        {"weaponmenu.discard.confirm",    "Throw away this weapon?"                        },
-        {"weaponmenu.buildup.prompt",     "Select weapon to build up to:"                  },
+        {"battlemenu.quit.confirm_desc",  "Return to desktop?"                           },
+        {"battlemenu.quit.yes",           "YES"                                          },
+        {"battlemenu.quit.no",            "NO"                                           },
+        {"weaponmenu.action.equip",       "EQUIP"                                        },
+        {"weaponmenu.action.customize",   "CUSTOMIZE"                                    },
+        {"weaponmenu.action.attribute",   "ATTRIBUTE"                                    },
+        {"weaponmenu.action.repair",      "REPAIR"                                       },
+        {"weaponmenu.action.upgrade",     "UPGRADE"                                      },
+        {"weaponmenu.action.statusbreak", "STATUS BREAK"                                 },
+        {"weaponmenu.action.buildup",     "BUILD-UP"                                     },
+        {"weaponmenu.action.discard",     "DISCARD"                                      },
+        {"weaponmenu.upgrade.confirm",    "Upgrade. Confirm?"                            },
+        {"weaponmenu.buildup.confirm",    "Build-up. Confirm?"                           },
+        {"weaponmenu.break.confirm",      "Status break this weapon?\nWeapon disappears."},
+        {"weaponmenu.discard.confirm",    "Throw away this weapon?"                      },
+        {"weaponmenu.buildup.prompt",     "Select weapon to build up to:"                },
     };
 }
 
@@ -86,33 +86,33 @@ void GetLocalizedSaveLoadStrings(std::string &out_title, std::string &out_desc,
 
     switch (GetMenuLangFlag()) {
         case LANG_FRENCH:
-            out_load_btn     = "CHARGER";
-            out_title        = "\"Sauver/Charger\"";
-            out_desc         = "Sauvegarder ou\ncharger une partie.";
+            out_load_btn = "CHARGER";
+            out_title = "\"Sauver/Charger\"";
+            out_desc = "Sauvegarder ou\ncharger une partie.";
             out_modal_prompt = "Choisir une action :";
             break;
         case LANG_GERMAN:
-            out_load_btn     = "LADEN";
-            out_title        = "\"Speichern/Laden\"";
-            out_desc         = "Fortschritt speichern\noder Spielstand laden.";
+            out_load_btn = "LADEN";
+            out_title = "\"Speichern/Laden\"";
+            out_desc = "Fortschritt speichern\noder Spielstand laden.";
             out_modal_prompt = "Aktion wählen:";
             break;
         case LANG_ITALIAN:
-            out_load_btn     = "CARICA";
-            out_title        = "\"Salva/Carica\"";
-            out_desc         = "Salva i progressi o\ncarica una partita.";
+            out_load_btn = "CARICA";
+            out_title = "\"Salva/Carica\"";
+            out_desc = "Salva i progressi o\ncarica una partita.";
             out_modal_prompt = "Scegli un'azione:";
             break;
         case LANG_SPANISH:
-            out_load_btn     = "CARGAR";
-            out_title        = "\"Guardar/Cargar\"";
-            out_desc         = "Guardar progreso o\ncargar una partida.";
+            out_load_btn = "CARGAR";
+            out_title = "\"Guardar/Cargar\"";
+            out_desc = "Guardar progreso o\ncargar una partida.";
             out_modal_prompt = "Elige una acción:";
             break;
         default:
-            out_load_btn     = "LOAD";
-            out_title        = "\"Save/Load\"";
-            out_desc         = "Save Progress or\nLoad a save.";
+            out_load_btn = "LOAD";
+            out_title = "\"Save/Load\"";
+            out_desc = "Save Progress or\nLoad a save.";
             out_modal_prompt = "Select an action:";
             break;
     }
@@ -128,8 +128,8 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
         {"battlemenu.allies.title",  "\"Allies\"",        "battlemenu.allies.help",  "Change controllable\ncharacter."       },
         {"battlemenu.georama.title", "\"Georama Parts\"", "battlemenu.georama.help", "Check acquired\ngeorama parts."        },
     };
-    static constexpr HelpSpec option_spec  = {"battlemenu.option.title",  "\"Options\"",   "battlemenu.option.help",  "Change game\nconfigurations."         };
-    static constexpr HelpSpec journal_spec = {"battlemenu.journal.title", "\"Journal\"",   "battlemenu.journal.help", "Check manuals and\nchest tracker."     };
+    static constexpr HelpSpec option_spec = {"battlemenu.option.title", "\"Options\"", "battlemenu.option.help", "Change game\nconfigurations."};
+    static constexpr HelpSpec journal_spec = {"battlemenu.journal.title", "\"Journal\"", "battlemenu.journal.help", "Check manuals and\nchest tracker."};
     static constexpr HelpSpec quit_spec    = {"battlemenu.quit.title",    "\"Quit\"", "battlemenu.quit.help",    "Exit the game and\nreturn to desktop."};
 
     const HelpSpec *spec = nullptr;
@@ -145,15 +145,15 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
             switch (NowGetGameFlagForBtlMenu(BtlMenuMode)) {
                 case MENU_MOVE_WORLD_MAP:
                     out_title = LocalizeText("battlemenu.world_map.title", "\"World Map\"");
-                    out_desc  = LocalizeText("battlemenu.world_map.help", "Move to another\narea on world map.");
+                    out_desc = LocalizeText("battlemenu.world_map.help", "Move to another\narea on world map.");
                     break;
                 case MENU_MOVE_INTERIOR_OUT:
                     out_title = LocalizeText("battlemenu.go_outside.title", "\"Go Outside\"");
-                    out_desc  = LocalizeText("battlemenu.go_outside.help", "Go outside of\nthe building.");
+                    out_desc = LocalizeText("battlemenu.go_outside.help", "Go outside of\nthe building.");
                     break;
                 default:
                     out_title = LocalizeText("battlemenu.dungeon.title", "\"Go to Dungeon\"");
-                    out_desc  = LocalizeText("battlemenu.dungeon.help", "Go to Divine\nBeast Cave.");
+                    out_desc = LocalizeText("battlemenu.dungeon.help", "Go to Divine\nBeast Cave.");
                     break;
             }
         }
@@ -184,12 +184,12 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
 
     if (spec != nullptr) {
         out_title = LocalizeText(spec->title_key, spec->title_def);
-        out_desc  = LocalizeText(spec->desc_key, spec->desc_def);
+        out_desc = LocalizeText(spec->desc_key, spec->desc_def);
     }
 }
 
 std::string GetBattleMenuCaption(int index, int menu_mode, bool ingame_load_active) {
-    const int  menu_flag    = BattleMenuFlag;
+    const int  menu_flag = BattleMenuFlag;
     const bool in_main_ring = (menu_flag == BTLMENU_STATE_MAIN ||
                                menu_flag == BTLMENU_STATE_APPEAR ||
                                menu_flag == BTLMENU_STATE_EXIT);

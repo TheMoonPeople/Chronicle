@@ -44,7 +44,7 @@ PORT_OVERRIDE void CSpriteTable::DrawTable() {
 
 // Retail compares the pointers as 32-bit integers, which a pool above 4 GiB defeats.
 PORT_OVERRIDE SPRITE_TABLE *CSpriteTable::GetNext() {
-    SPRITE_TABLE *next = NULL;
+    SPRITE_TABLE *next = nullptr;
 
     if (current < end) {
         next = current;

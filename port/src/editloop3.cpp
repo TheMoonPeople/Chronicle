@@ -5,37 +5,43 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <string>
 
-#include "edit.hpp"
-#include "editground.hpp"
-#include "editloop3.hpp"
-#include "editloop.hpp"
-#include "editpartsinfo.hpp"
+#include "battlemenu.hpp"
 #include "boxvu0.hpp"
 #include "camera.hpp"
+#include "camerafollow.hpp"
 #include "character.hpp"
+#include "clsmes.hpp"
 #include "collision.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dialog_npc.hpp"
+#include "edit.hpp"
+#include "editground.hpp"
+#include "editloop.hpp"
+#include "editloop3.hpp"
+#include "editpartsinfo.hpp"
 #include "frame.hpp"
+#include "gamepad.hpp"
 #include "gameutil.hpp"
+#include "main.hpp"
 #include "mapparts.hpp"
 #include "mathutil.hpp"
-#include "npcharacter.hpp"
-#include "camerafollow.hpp"
-#include "clsmes.hpp"
-#include "dialog_npc.hpp"
-#include "gamepad.hpp"
-#include "main.hpp"
 #include "mglib.hpp"
+#include "npcharacter.hpp"
+#include "platform/config.hpp"
 #include "quest_host.hpp"
+#include "runscript.hpp"
 #include "savedata.hpp"
 
-#include "platform/config.hpp"
-
 void PortEdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground);
+int  PortEdRunEvent(int program, CDataAlloc2<1> *arena);
 
 namespace {
+
+RS_STACKDATA *world_map_result = nullptr;
 
 float g_villager_ground_height[10] = {};
 bool  g_villager_ground_height_valid[10] = {};
@@ -201,14 +207,14 @@ PORT_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
             if (EdVillager[i].CheckDraw()) {
                 EdVillager[i].FootSoundEnable(g_villager_retail_near[i]);
                 WorkBuffer__2->used = 0;
-                CCPoly    *polys = (CCPoly *) WorkBuffer__2->Alloc(2000);
-                int        count = 0;
+                CCPoly *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+                int     count = 0;
                 if (!use_terrain) {
                     count = ground->PickUpEditAreaPoly(polys, position[0], position[1], position[2]);
                 }
                 CMapParts *parts = ground->GetParts(position[0], position[1], position[2]);
 
-                if (parts != NULL) {
+                if (parts != nullptr) {
                     CBoxVu0 box;
                     box.max[0] = position[0] + 20.0f;
                     box.min[0] = position[0] - 20.0f;
@@ -218,7 +224,7 @@ PORT_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
                     box.min[1] = -1000.0f;
                     CFrame *frame = parts->GetCollisionFrame();
 
-                    if (frame != NULL) {
+                    if (frame != nullptr) {
                         count += frame->PickUpNearPoly(polys + count, box);
                     }
                 }
@@ -232,7 +238,7 @@ PORT_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
                     box.max[1] = 1000.0f;
                     box.min[1] = -1000.0f;
                     CFrame *terrain = ground->fixed_parts[0].GetCollisionFrame();
-                    if (terrain != NULL) {
+                    if (terrain != nullptr) {
                         count += terrain->PickUpNearPoly(polys + count, box);
                     }
                 }
@@ -274,7 +280,7 @@ PORT_OVERRIDE void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
             EdVillager[i].SetPosition(villagers[i].position);
             EdVillager[i].SetRotation(villagers[i].rotation);
 
-            if (EdVillager[i].frame != NULL) {
+            if (EdVillager[i].frame != nullptr) {
                 EdVillager[i].near_camera = true;
             }
         }
@@ -297,18 +303,24 @@ PORT_OVERRIDE void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
 // host header is 0xA0 bytes, so 0x78 lands on its element names and function table. They start past
 // the host's header instead.
 PORT_OVERRIDE int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header) {
+    constexpr size_t cell_capacity = sizeof(init->cell) / sizeof(init->cell[0][0]);
+    if (init == nullptr || header == nullptr || init->width < 0 || init->height < 0 || init->width > cell_capacity ||
+        init->height > cell_capacity || init->width * init->height > cell_capacity) {
+        return 0;
+    }
+
     header->header_size = sizeof(EPARTS_INFO_HEADER);
     header->width = init->width;
     header->height = init->height;
     header->kind = init->kind;
-    header->cell = NULL;
+    header->cell = nullptr;
 
     for (int i = 0; i < 6; i++) {
         header->element_id[i] = init->element_id[i];
-        header->element_name[i] = NULL;
+        header->element_name[i] = nullptr;
     }
 
-    u8 *write = (u8 *) header + header->header_size;
+    u8 *write = reinterpret_cast<u8 *>(header) + header->header_size;
     header->cell = write;
 
     for (int i = 0; i < header->width * header->height; i++) {
@@ -316,14 +328,18 @@ PORT_OVERRIDE int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *heade
     }
 
     for (int i = 0; i < 6; i++) {
-        header->element_name[i] = (char *) write;
-        strcpy((char *) write, init->element_name[i]);
-        write += strlen(init->element_name[i]);
+        header->element_name[i] = reinterpret_cast<char *>(write);
+        const char *terminator = static_cast<const char *>(
+            std::memchr(init->element_name[i], '\0', sizeof(init->element_name[i])));
+        const size_t name_length = terminator != nullptr ? static_cast<size_t>(terminator - init->element_name[i])
+                                                         : sizeof(init->element_name[i]);
+        std::memcpy(write, init->element_name[i], name_length);
+        write += name_length;
         *write++ = '\0';
         *write++ = '\0';
     }
 
-    header->data_size = write - (u8 *) header;
+    header->data_size = write - reinterpret_cast<u8 *>(header);
     return header->data_size;
 }
 
@@ -331,6 +347,7 @@ PORT_OVERRIDE int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *heade
 // (docs/DIALOG_FRAMEWORK.md). The functions below are every one that reads retail's file statics
 // for the conversation, so the port has its own copies of those.
 
+namespace {
 /**
  * Steps of a villager conversation, as EdTalkMode's talk_mode holds them.
  */
@@ -374,6 +391,7 @@ static int TalkMesNo;
 
 /** Whether the dialog framework has the active conversation: it is asked on the conversation's first tick. */
 static TalkDialog talk_dialog = TALK_DIALOG_RETAIL;
+} // namespace
 
 PORT_OVERRIDE int EdTalkModeInit(CNPCharacter *villager, int character_info_id) {
     if (villager->villager_id < 0) {
@@ -418,7 +436,8 @@ PORT_OVERRIDE int EdNowTalkCharaInfoID() {
 /**
  * Closes the conversation window and leaves it ready for the next message.
  */
-static inline void EdCloseTalkMes() {
+namespace {
+void EdCloseTalkMes() {
     EditMes1.text_rate = EditMes1.text_rate_set;
     EditMes1.mes_made = -1;
     EditMes1.fade_in = false;
@@ -466,6 +485,7 @@ static inline void EdCloseTalkMes() {
         EditMes1.line_pos[i].y = -1;
     }
 }
+} // namespace
 
 /**
  * Runs the talking-to-a-villager mode for one frame.
@@ -487,7 +507,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
     GamePad.MenuModeOn(0x78);
     ReadBG();
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->FollowOff();
     }
 
@@ -520,7 +540,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
     sceVu0ScaleVector(reference, reference, 0.5f);
     reference[1] += 15.0f;
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->FollowOff();
         camera->SetRef(reference);
     }
@@ -532,11 +552,11 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
     sceVu0ApplyMatrix(camera_position, rotation, vv[talk_camera]);
     sceVu0AddVector(camera_position, reference, camera_position);
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->SetPos(camera_position);
     }
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         sceVu0FMATRIX view;
         sceVu0FVECTOR eye;
         camera->GetCameraMatrix(view);
@@ -608,7 +628,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                 EdCloseTalkMes();
                 villager->SetMotion(0, 0);
 
-                if (camera != NULL) {
+                if (camera != nullptr) {
                     camera->FollowOn();
                 }
 
@@ -625,13 +645,12 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                     model = EdEventInfo.villagers[talk_chara_info_id].name;
                 }
 
-                char speaker[64];
-                char directory[64];
-                GetEditDataDir(directory);
-                snprintf(speaker, sizeof(speaker), "%schara/%s.chr", directory, model);
-                int shop_no = 0;
+                auto directory = std::make_unique<char[]>(4096);
+                GetEditDataDir(directory.get());
+                const std::string speaker = std::string(directory.get()) + "chara/" + model + ".chr";
+                int               shop_no = 0;
 
-                if (QuestHostTakeShop(model[0] != '\0' ? speaker : NULL, &shop_no)) {
+                if (QuestHostTakeShop(model[0] != '\0' ? speaker.c_str() : nullptr, &shop_no)) {
                     EdSetShopNo(shop_no);
                     return 2;
                 }
@@ -639,7 +658,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                 // A quest showed an item received: its event runs, as a talk's own event does.
                 int event_no = 0;
 
-                if (selection != NULL && QuestHostTakeItemShown(&event_no)) {
+                if (selection != nullptr && QuestHostTakeItemShown(&event_no)) {
                     *selection = event_no;
                     return 4;
                 }
@@ -655,7 +674,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                 if (EditMes1.State() == CLSMES_SHOWN) {
                     EdCloseTalkMes();
 
-                    if (camera != NULL) {
+                    if (camera != nullptr) {
                         camera->FollowOn();
                     }
 
@@ -701,7 +720,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                     if (EdEventInfo.talk_select_prompt == 0 && talk_select == 3) {
                         SV_GRD_NPC *npc = SaveData->GetGrdNPCData(MapNo, EdNowTalkCharaInfoID());
 
-                        if (npc != NULL) {
+                        if (npc != nullptr) {
                             npc->flags |= 2;
                         }
                     }
@@ -709,7 +728,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                     if ((talk_select == 0 && EdEventInfo.talk_select_prompt > 0 && EdEventInfo.talk_select_prompt != 4) || (talk_select > 0 && EdEventInfo.talk_select_prompt == 4)) {
                         EdCloseTalkMes();
 
-                        if (camera != NULL) {
+                        if (camera != nullptr) {
                             camera->FollowOn();
                         }
 
@@ -748,7 +767,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                         }
 
                         if (EdEventInfo.talk_select_prompt == 3) {
-                            if (selection != NULL) {
+                            if (selection != nullptr) {
                                 *selection = EdEventInfo.talk_messages[0];
                             }
 
@@ -767,7 +786,7 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
                 GamePad.MenuModeOff();
                 EdCloseTalkMes();
 
-                if (camera != NULL) {
+                if (camera != nullptr) {
                     camera->FollowOn();
                 }
 
@@ -814,4 +833,35 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
     }
 
     return 0;
+}
+
+// Starts the event interpreter held by this translation unit.
+PORT_OVERRIDE int EdRunEvent(int program, CDataAlloc2<1> *arena) {
+    return PortEdRunEvent(program, arena);
+}
+
+PORT_OVERRIDE int PortEventMenuMode = ED_MENU_NONE;
+
+/**
+ * Opens the world map while retaining the script result pointer at native width.
+ */
+PORT_OVERRIDE int PortWorldMapCommand(RS_STACKDATA *stack, int argument_count) {
+    if (stack->type != RS_PTR) {
+        return 0;
+    }
+    world_map_result = stack->p;
+    PortEventMenuMode = ED_MENU_WORLD_MAP;
+    return 1;
+}
+
+/**
+ * Publishes the world-map choice when its menu finishes.
+ */
+int PortEdEventMenuMode() {
+    const int done = EdMenuMode();
+    if (done && PortEventMenuMode == ED_MENU_WORLD_MAP && world_map_result != nullptr) {
+        world_map_result->i = MenuMapJumpMode + 1;
+        world_map_result = nullptr;
+    }
+    return done;
 }

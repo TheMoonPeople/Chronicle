@@ -1,0 +1,78 @@
+plugins {
+    id 'com.android.application'
+}
+
+def sdlNativeLibs = layout.buildDirectory.dir('generated/sdlJniLibs')
+def extractSdlNativeLibs = tasks.register('extractSdlNativeLibs', Sync) {
+    from(zipTree(file('libs/SDL3-3.4.16.aar'))) {
+        include 'prefab/modules/SDL3-shared/libs/android.*/libSDL3.so'
+        eachFile {
+            path = path.replaceFirst('prefab/modules/SDL3-shared/libs/android\\.', '')
+        }
+        includeEmptyDirs = false
+    }
+    into sdlNativeLibs
+}
+
+android {
+    namespace 'org.themoonpeople.chronicle'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'org.themoonpeople.chronicle'
+        minSdk 29
+        targetSdk 35
+        versionCode 11
+        versionName '0.11'
+
+        ndk {
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DPLATFORM=ANDROID', '-DANDROID_STL=c++_shared', '-DDC_BUILD_TESTS=OFF',
+                    "-DGLSLANG_VALIDATOR=${projectDir.parentFile}/host-tools/glslang.exe"
+                cppFlags '-std=c++26'
+            }
+        }
+    }
+
+    buildFeatures {
+        prefab true
+    }
+
+    buildTypes {
+        profile {
+            initWith debug
+            matchingFallbacks = ['debug']
+            externalNativeBuild {
+                cmake {
+                    arguments '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                }
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path '../../../CMakeLists.txt'
+            version '3.31.6'
+        }
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDir sdlNativeLibs
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn extractSdlNativeLibs
+}
+
+dependencies {
+    implementation files('libs/SDL3-3.4.16.aar')
+}

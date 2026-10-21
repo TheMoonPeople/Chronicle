@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "gfx/gfx.hpp"
@@ -97,8 +98,8 @@ public:
     Draw3DIdentityScope &operator=(const Draw3DIdentityScope &) = delete;
 
 private:
-    gfx::InterpKey key_;
-    bool           no_interpolation_;
+    gfx::InterpKey key;
+    bool           no_interpolation;
 };
 
 // What SetMaterial uploaded: diffuse (alpha in w), ambient and specular. The diffuse colours the
@@ -122,13 +123,13 @@ struct Draw3DStrip {
     // The name the handle held when the visual was built. Retail bakes the texture's VRAM address,
     // which a reloaded block refills in place; a table slot is not kept, so the draw looks the name
     // up again when the slot has since been given to another texture.
-    char     texture_name[32] = {};
-    u_long   tex0 = 0;
-    u_long   tex1 = 0;
-    bool     ground_transition = false;
-    bool     ground_world_uv = false;
-    float    ground_uv_period = 160.0f;
-    bool     ground_uv_flip_v = false;
+    std::string texture_name;
+    u_long      tex0 = 0;
+    u_long      tex1 = 0;
+    bool        ground_transition = false;
+    bool        ground_world_uv = false;
+    float       ground_uv_period = 160.0f;
+    bool        ground_uv_flip_v = false;
 };
 
 struct Draw3DVisual {
@@ -144,7 +145,8 @@ Draw3DVisual *Draw3DFindVisual(const void *block);
 // A fresh record for block, replacing (and destroying) what an earlier build left there. A
 // transient record lives until the next MGBeginFrame, a lasting one until its block loses its tag.
 Draw3DVisual &Draw3DRegisterVisual(unsigned int *block, bool transient);
-// MGBeginFrame's: drops transient records and those whose block was cleared or reused.
+// Drops transient records every frame and sweeps cleared blocks every sixteen frames; lookups
+// reject cleared blocks immediately.
 void Draw3DSweepVisuals();
 // Uploads the record's vertices and indices as a mesh, or keeps them for immediate draws.
 void Draw3DFinishVisual(Draw3DVisual &visual);

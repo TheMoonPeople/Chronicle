@@ -8,6 +8,7 @@
 #include "area_card.hpp"
 #include "clsmes.hpp"
 #include "dataread.hpp"
+#include "dialog_framework.hpp"
 #include "gameloop.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
@@ -20,6 +21,7 @@
 #include "platform/display.hpp"
 #include "platform/input.hpp"
 #include "platform/window.hpp"
+#include "quests/quests.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
@@ -50,7 +52,7 @@ constexpr int kPageHelp = 900;
 constexpr int kRowHelp = 1000;
 
 constexpr const char *kShortcutsText = PAD_GLYPH_SQUARE " Reset page\n" PAD_GLYPH_TRIANGLE " Undo changes\n" PAD_GLYPH_CIRCLE
-                                                         " Close";
+                                                        " Close";
 constexpr const char *kSaveHelpText = "Could not save.\nChanges apply now.\nClose to retry writing\nconfig.json.";
 constexpr const char *kDisplayHelpText = "The display could not\nchange, and kept the\nmode it had. Try\nanother mode or size.";
 constexpr const char *kTurnPageText = PAD_GLYPH_L1 " " PAD_GLYPH_R1 " turn the page.";
@@ -291,8 +293,8 @@ void RunMouse() {
         mouse.dx = mouse.dy = mouse.wheel = 0.0f;
     }
 #endif
-    std::uint32_t  clicked = mouse.buttons & ~g_screen.mouse_buttons;
-    bool           moved = mouse.dx != 0.0f || mouse.dy != 0.0f;
+    std::uint32_t clicked = mouse.buttons & ~g_screen.mouse_buttons;
+    bool          moved = mouse.dx != 0.0f || mouse.dy != 0.0f;
     g_screen.mouse_buttons = mouse.buttons;
 
     if (g_screen.binding_row >= 0) {
@@ -440,7 +442,8 @@ void RunKeys() {
     }
     ScrollToCursor();
 
-    int direction = (moves & PAD_LEFT) != 0 ? -1 : (moves & PAD_RIGHT) != 0 ? 1 : 0;
+    int direction = (moves & PAD_LEFT) != 0 ? -1 : (moves & PAD_RIGHT) != 0 ? 1
+                                                                            : 0;
 
     if ((actions & PAD_CIRCLE) != 0) {
         Close();
@@ -584,7 +587,7 @@ int R1X() {
 
 int Open(int mode, int block_no, u_long128 *buffer) {
     if (buffer == nullptr) {
-        buffer = (u_long128 *) read_buffer;
+        buffer = reinterpret_cast<u_long128 *>(read_buffer);
     }
 
     u_long128 *data = MenuCalcBufAlignment(buffer);
@@ -626,23 +629,22 @@ int Run() {
                 ReadBG();
 
                 if (ReadBGSync() == 0) {
-                    LOADTEXTURE_INFO2 textures[3] = {
-                        {const_cast<char *>("#frame_image_option#640#" SCREEN_HEIGHT_STR "#4"), 0, 0},
-                        {nullptr,                                                               0, 0},
-                        {nullptr,                                                               0, 0}
-                    };
+                    auto textures = std::make_unique<LOADTEXTURE_INFO2[]>(3);
+                    textures[0] = {const_cast<char *>("#frame_image_option#640#" SCREEN_HEIGHT_STR "#4"), 0, 0};
+                    textures[1] = {nullptr, 0, 0};
+                    textures[2] = {nullptr, 0, 0};
                     textures[0].block_no = g_screen.block_no;
                     textures[1].block_no = g_screen.block_no;
                     BG_READ_INFO *file = GetReadBGFile(0);
-                    textures[1].name = (char *) GetPackFile((u_int *) file->buffer, const_cast<char *>("option.img"), nullptr);
+                    textures[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), const_cast<char *>("option.img"), nullptr));
                     TexManager.DeleteTextureBlock(g_screen.block_no);
                     TexManager.CleanUpTextureList();
-                    TexManager.LoadTextureBlockEX(-1, textures);
+                    TexManager.LoadTextureBlockEX(-1, textures.get());
                     g_screen.texture = TexManager.GetTexture(const_cast<char *>("option2"), -1);
 
                     if (g_screen.mode == OPTION_OPEN_TITLE) {
                         InitMenuMesSet(MENU_MES_SET_ALLMENU,
-                                       (short *) GetPackFile((u_int *) file->buffer, const_cast<char *>("allmenu.mes"), nullptr));
+                                       reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), const_cast<char *>("allmenu.mes"), nullptr)));
                     }
 
                     g_screen.game_messages = CommonMenuMes2.buff;
@@ -695,14 +697,14 @@ int Run() {
 
 std::vector<std::pair<std::string, std::string>> OptionStrings() {
     std::vector<std::pair<std::string, std::string>> out = {
-        {"options.shortcuts",             options::kShortcutsText    },
-        {"options.help.save_failed",      options::kSaveHelpText     },
-        {"options.help.display_kept",     options::kDisplayHelpText  },
-        {"options.help.turn_page",        options::kTurnPageText     },
-        {"options.help.exit",             options::kExitHelpText     },
-        {"options.help.display_now",      options::kDisplayNowText   },
+        {"options.shortcuts",              options::kShortcutsText    },
+        {"options.help.save_failed",       options::kSaveHelpText     },
+        {"options.help.display_kept",      options::kDisplayHelpText  },
+        {"options.help.turn_page",         options::kTurnPageText     },
+        {"options.help.exit",              options::kExitHelpText     },
+        {"options.help.display_now",       options::kDisplayNowText   },
         {"options.display.fullscreen_now", options::kFullscreenNowText},
-        {"options.display.window_now",    options::kWindowNowText    },
+        {"options.display.window_now",     options::kWindowNowText    },
     };
     for (auto &entry : options::RowStrings()) {
         out.push_back(std::move(entry));
@@ -714,6 +716,12 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
         out.push_back(std::move(entry));
     }
     for (auto &entry : UI::JournalStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : Dialog::Strings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : QuestStrings()) {
         out.push_back(std::move(entry));
     }
     return out;

@@ -18,7 +18,7 @@ enum class SaveLoadChoice : int {
  */
 enum class QuitChoice : int {
     Yes = 0,
-    No  = 1,
+    No = 1,
 };
 
 /**
@@ -97,14 +97,14 @@ int GetMenuModeMax() {
  * Populates the array of sprite icon indices for the current Battle Menu mode.
  */
 void BtlMenuMekeIconInfo(int *icons, int /*menu_mode*/) {
-    constexpr s16 kCustomDrawTbl[2][kTownRingIconCount] = {
-        {0, 1, 2, 3, 7, 4, 6, 12,  0},
-        {0, 1, 2, 3, 8, 5, 4,  6, 12}
+    constexpr s16 custom_draw_table[2][kTownRingIconCount] = {
+        {0, 1, 2, 3, 7, 4, 6, 12, 0 },
+        {0, 1, 2, 3, 8, 5, 4, 6,  12}
     };
 
     const int icon_count = GetMenuModeMax();
     for (int i = 0; i < icon_count; i++) {
-        icons[i] = kCustomDrawTbl[BtlMenuMode][i];
+        icons[i] = custom_draw_table[BtlMenuMode][i];
     }
 
     if (BtlMenuMode != BATTLE_MENU_MODE_DUNGEON) {
@@ -130,7 +130,7 @@ void BtlMenuMekeIconInfo(int *icons, int /*menu_mode*/) {
  * Computes the resting screen coordinates of a ring icon by its slot index.
  */
 void GetMainRingIconTarget(int index, float &out_x, float &out_y) {
-    const int next     = index + 1;
+    const int next = index + 1;
     int       target_x = next * 16 + 80;
     const int target_y = index * 40 + 54;
     if (next > 4) {
@@ -145,7 +145,7 @@ void GetMainRingIconTarget(int index, float &out_x, float &out_y) {
  * Computes the animated screen coordinates of a ring icon, including the 9th slot.
  */
 void GetSafeIconPos(int index, float &out_x, float &out_y) {
-    const int  menu_flag    = BattleMenuFlag;
+    const int  menu_flag = BattleMenuFlag;
     const bool in_main_ring = (menu_flag == BTLMENU_STATE_MAIN ||
                                menu_flag == BTLMENU_STATE_APPEAR ||
                                menu_flag == BTLMENU_STATE_EXIT);
@@ -165,8 +165,8 @@ void GetSafeIconPos(int index, float &out_x, float &out_y) {
     float base_y = 0.0f;
     GetMainRingIconTarget(index, base_x, base_y);
     const float slide_dx = NorMenuIcon[0].x - 96.0f;
-    out_x                = base_x + slide_dx;
-    out_y                = base_y;
+    out_x = base_x + slide_dx;
+    out_y = base_y;
 }
 
 /**
@@ -181,14 +181,14 @@ void DrawBtlMenuBar() {
     }
 
     NowGetGameFlagForBtlMenu(BtlMenuMode);
-    const int icon_count                = GetMenuModeMax();
+    const int icon_count = GetMenuModeMax();
     int       icons[kTownRingIconCount] = {};
     BtlMenuMekeIconInfo(icons, BtlMenuMode);
 
     setbilinear(0);
     MenuTextureReload(BtlMenuReadBlock);
 
-    const int  menu_flag    = BattleMenuFlag;
+    const int  menu_flag = BattleMenuFlag;
     const bool in_main_ring = (menu_flag == BTLMENU_STATE_MAIN ||
                                menu_flag == BTLMENU_STATE_APPEAR ||
                                menu_flag == BTLMENU_STATE_EXIT);
@@ -216,13 +216,13 @@ void DrawBtlMenuBar() {
         }
 
         int selected = 0;
-        int x        = static_cast<int>(icon_x);
-        int y        = static_cast<int>(icon_y + 3.0f);
+        int x = static_cast<int>(icon_x);
+        int y = static_cast<int>(icon_y + 3.0f);
 
         if (i == MenuSelect[1]) {
-            selected   = 1;
-            x          = static_cast<int>(icon_x - 10.0f);
-            y          = static_cast<int>(icon_y - 1.0f);
+            selected = 1;
+            x = static_cast<int>(icon_x - 10.0f);
+            y = static_cast<int>(icon_y - 1.0f);
             icon_alpha = 128;
         }
 
@@ -246,11 +246,11 @@ void DrawBattleMainOverlay() {
     int icons[kTownRingIconCount] = {};
     BtlMenuMekeIconInfo(icons, BtlMenuMode);
     const int       sel_icon = icons[MenuSelect[1]];
-    MENU_ICON_INFO *info     = GetMenuIconInfo(sel_icon);
+    MENU_ICON_INFO *info = GetMenuIconInfo(sel_icon);
 
     UI::Label cap_lbl(UI::GetBattleMenuCaption(MenuSelect[1], BtlMenuMode, ingame_load_active),
                       UI::ColorWhite, UI::Alignment::Left, true, kCaptionToMessageRatio);
-    int width = cap_lbl.GetWidth() + 0x52;
+    int       width = cap_lbl.GetWidth() + 0x52;
     if (info != nullptr && width < (info->label_width + 0x4A)) {
         width = info->label_width + 0x4A;
     }
@@ -275,7 +275,8 @@ void DrawBattleMainOverlay() {
  */
 int BtlMenuDrawSpecialFlag(int flag) {
     if ((BattleMenuFlag == BTLMENU_STATE_ATLA_OPEN || BattleMenuFlag == BTLMENU_STATE_ATLA ||
-         BattleMenuFlag == BTLMENU_STATE_ATLA_CLOSE) && GetMenuAtraEventFlag() != 0) {
+         BattleMenuFlag == BTLMENU_STATE_ATLA_CLOSE) &&
+        GetMenuAtraEventFlag() != 0) {
         flag = 0;
     }
     if (MenuChara.state == MENU_CHARA_CHANGE_LOAD || MenuChara.state == MENU_CHARA_CHANGE_EXIT) {
@@ -295,8 +296,7 @@ void DrawQuitConfirmModal(int alpha) {
         LocalizeText("battlemenu.quit.no", "NO"),
         quit_confirm_choice,
         quit_cursor,
-        alpha
-    );
+        alpha);
 }
 
 /**
@@ -317,8 +317,7 @@ void DrawSaveLoadChoiceModal(int alpha) {
         load_btn,
         saveload_modal_choice,
         saveload_cursor,
-        alpha
-    );
+        alpha);
 }
 
 /**
@@ -333,13 +332,13 @@ void StepInGameLoadMonitor() {
     // directly to BTLMENU_STATE_MAIN once the fade-out slide finishes.
     if (SaveMenu.loaded != 0 || SaveMenu.result == MENU_SAVE_LOADED) {
         if (BattleMenuFlag == BTLMENU_STATE_MAIN || SaveMenu.step_time > 16 || SaveMenu.result == MENU_SAVE_LOADED) {
-            ingame_load_active  = false;
-            SaveMenu.loaded     = false;
+            ingame_load_active = false;
+            SaveMenu.loaded = false;
             ingame_load_pending = true;
             ExitBattleMenu(1);
             BattleMenuFlag = 0;
-            BtlEffectFlag  = 0;
-            BtlEffectCt    = 0.0f;
+            BtlEffectFlag = 0;
+            BtlEffectCt = 0.0f;
         }
         return;
     }
@@ -355,7 +354,7 @@ void StepInGameLoadMonitor() {
 
 } // namespace
 
-PORT_OVERRIDE void DrawBattleMain() {
+void PortDrawBattleMenuMain() {
     float pos_x = 0.0f;
     float pos_y = 0.0f;
     GetMainRingIconTarget(MenuSelect[1], pos_x, pos_y);
@@ -363,8 +362,8 @@ PORT_OVERRIDE void DrawBattleMain() {
     SysCur[0] += ((pos_x - 44.0f) - SysCur[0]) / 4.0f;
     SysCur[1] += (pos_y - SysCur[1]) / 4.0f;
 
-    BtlWakuMake2              = 1;
-    CommonMenuMes2.mes_made   = -1;
+    BtlWakuMake2 = 1;
+    CommonMenuMes2.mes_made = -1;
     CommonMenuMes2.stay_frame = false;
 
     if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON) {
@@ -374,8 +373,8 @@ PORT_OVERRIDE void DrawBattleMain() {
         }
         if (limit >= 0) {
             MenuTextureReload(CommonMenuMes1.tex_block);
-            CommonMenuMes1.text_x     = 0x50;
-            CommonMenuMes1.text_y     = 0x14A;
+            CommonMenuMes1.text_x = 0x50;
+            CommonMenuMes1.text_y = 0x14A;
             CommonMenuMes1.stay_frame = true;
             CommonMenuMes1.Step();
             CommonMenuMes1.DrawMesWin();
@@ -383,7 +382,7 @@ PORT_OVERRIDE void DrawBattleMain() {
     }
 }
 
-PORT_OVERRIDE void BattleMenuDraw() {
+void PortDrawBattleMenu() {
     StepInGameLoadMonitor();
     if (BattleMenuFlag == 0 && ingame_load_pending) {
         return;
@@ -560,7 +559,7 @@ PORT_OVERRIDE void BattleMenuDraw() {
     setbilinear(0);
 }
 
-PORT_OVERRIDE int BattleMenuSelect() {
+int PortBattleMenuSelect() {
     if (MenuWarningMsgFlag != 0) {
         if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
             MenuWarningMsgFlag = 0;
@@ -574,9 +573,9 @@ PORT_OVERRIDE int BattleMenuSelect() {
             ComMenuSePlay(MENU_SOUND_CURSOR);
         } else if (GamePad.Down(PAD_CROSS)) {
             saveload_modal_active = false;
-            BtlWakuMake2          = 0;
-            MenuSelect[0]         = BTLMENU_PAGE_SAVE;
-            u_long128 *buffer     = BtlMenuReadBuf;
+            BtlWakuMake2 = 0;
+            MenuSelect[0] = BTLMENU_PAGE_SAVE;
+            u_long128 *buffer = BtlMenuReadBuf;
 
             if (saveload_modal_choice == static_cast<int>(SaveLoadChoice::Save)) {
                 ingame_load_active = false;
@@ -587,8 +586,8 @@ PORT_OVERRIDE int BattleMenuSelect() {
             }
 
             BattleMenuFlag = MenuSelect[0] + BTLMENU_STATE_OPEN_OFFSET;
-            BtlEffectFlag  = BTLEFFECT_PAGE_OPEN;
-            BtlEffectCt    = 0;
+            BtlEffectFlag = BTLEFFECT_PAGE_OPEN;
+            BtlEffectCt = 0;
             ComMenuSePlay(MENU_SOUND_CONFIRM);
         } else if (GamePad.Down(PAD_CIRCLE)) {
             ComMenuSePlay(MENU_SOUND_REFUSE);
@@ -636,17 +635,17 @@ PORT_OVERRIDE int BattleMenuSelect() {
     }
 
     if (GamePad.Down(PAD_CROSS)) {
-        constexpr int kPages[2][kTownRingIconCount] = {
+        constexpr int pages[2][kTownRingIconCount] = {
             {BTLMENU_PAGE_ITEM, BTLMENU_PAGE_WEAPON, BTLMENU_PAGE_CHARA, BTLMENU_PAGE_ATLA, BTLMENU_PAGE_MOVE,
-             BTLMENU_PAGE_OPTION, BTLMENU_PAGE_MANUAL, BTLMENU_PAGE_QUIT, BTLMENU_PAGE_NONE},
+             BTLMENU_PAGE_OPTION, BTLMENU_PAGE_MANUAL, BTLMENU_PAGE_QUIT,   BTLMENU_PAGE_NONE},
             {BTLMENU_PAGE_ITEM, BTLMENU_PAGE_WEAPON, BTLMENU_PAGE_CHARA, BTLMENU_PAGE_ATLA, BTLMENU_PAGE_MOVE,
-             BTLMENU_PAGE_SAVE, BTLMENU_PAGE_OPTION, BTLMENU_PAGE_MANUAL, BTLMENU_PAGE_QUIT}
+             BTLMENU_PAGE_SAVE,   BTLMENU_PAGE_OPTION, BTLMENU_PAGE_MANUAL, BTLMENU_PAGE_QUIT}
         };
-        MenuSelect[0]             = kPages[BtlMenuMode][MenuSelect[1]];
+        MenuSelect[0] = pages[BtlMenuMode][MenuSelect[1]];
         CommonMenuMes1.stay_frame = false;
-        CUserStatus *status       = reinterpret_cast<CUserStatus *>(BtlMenuStatusPt);
-        const int    chara        = status->cur_chara;
-        u_long128   *buffer       = BtlMenuReadBuf;
+        CUserStatus *status = reinterpret_cast<CUserStatus *>(BtlMenuStatusPt);
+        const int    chara = status->cur_chara;
+        u_long128   *buffer = BtlMenuReadBuf;
 
         switch (MenuSelect[0]) {
             case BTLMENU_PAGE_CHARA:
@@ -667,11 +666,11 @@ PORT_OVERRIDE int BattleMenuSelect() {
                 Btl_InitItemMode(0, chara);
                 break;
             case BTLMENU_PAGE_ATLA: {
-                BtlWakuMake2  = 1;
+                BtlWakuMake2 = 1;
                 int blocks[2] = {BtlMenuReadBlock, MenuExtendReadBlock};
-                int map       = (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON)
-                                    ? status->cur_georama
-                                    : GetNowMapTransAtraMap(MapNo);
+                int map = (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON)
+                              ? status->cur_georama
+                              : GetNowMapTransAtraMap(MapNo);
                 if (map < 0 || map >= 6) {
                     map = 0;
                 }
@@ -700,7 +699,7 @@ PORT_OVERRIDE int BattleMenuSelect() {
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
                 return 1;
             case BTLMENU_PAGE_MANUAL: {
-                BtlWakuMake2  = 0;
+                BtlWakuMake2 = 0;
                 int blocks[3] = {MenuExtendReadBlock, BtlMenuExReadBlock, BtlMenuManualReadBlock};
                 Btl_BattleManualInit(blocks, buffer);
                 break;
@@ -714,8 +713,8 @@ PORT_OVERRIDE int BattleMenuSelect() {
         }
 
         BattleMenuFlag = MenuSelect[0] + BTLMENU_STATE_OPEN_OFFSET;
-        BtlEffectFlag  = BTLEFFECT_PAGE_OPEN;
-        BtlEffectCt    = 0;
+        BtlEffectFlag = BTLEFFECT_PAGE_OPEN;
+        BtlEffectCt = 0;
         ComMenuSePlay(MENU_SOUND_CONFIRM);
     } else if (GamePad.Down(PAD_CIRCLE) != 0) {
         ComMenuSePlay(MENU_SOUND_REFUSE);
@@ -740,4 +739,5 @@ bool TakeBattleMenuLoadRequest() {
     ingame_load_pending = false;
     return true;
 }
+
 void BattleMenuIconPosition(int index, float &x, float &y) { GetSafeIconPos(index, x, y); }

@@ -322,49 +322,49 @@ Bitmap Dilate(const Bitmap &in, int radius) {
     out.y0 = in.y0 - pad;
     out.w = in.w + 2 * pad;
     out.h = in.h + 2 * pad;
-    const int          W = out.w, H = out.h;
-    const float        kFar = 1e12f;
-    std::vector<float> grid(static_cast<size_t>(W) * H, kFar);
+    const int          width = out.w, height = out.h;
+    const float        far_distance = 1e12f;
+    std::vector<float> grid(static_cast<size_t>(width) * height, far_distance);
     for (int row = 0; row < in.h; row++) {
         for (int col = 0; col < in.w; col++) {
             if (in.alpha[static_cast<size_t>(row) * in.w + col] >= 128) {
-                grid[static_cast<size_t>(row + pad) * W + col + pad] = 0.0f;
+                grid[static_cast<size_t>(row + pad) * width + col + pad] = 0.0f;
             }
         }
     }
-    const int          longest = std::max(W, H);
+    const int          longest = std::max(width, height);
     std::vector<float> line(static_cast<size_t>(longest)), result(static_cast<size_t>(longest)), z(static_cast<size_t>(longest) + 1);
     std::vector<int>   v(static_cast<size_t>(longest));
-    for (int col = 0; col < W; col++) {
-        line.resize(static_cast<size_t>(H));
-        for (int row = 0; row < H; row++) {
-            line[static_cast<size_t>(row)] = grid[static_cast<size_t>(row) * W + col];
+    for (int col = 0; col < width; col++) {
+        line.resize(static_cast<size_t>(height));
+        for (int row = 0; row < height; row++) {
+            line[static_cast<size_t>(row)] = grid[static_cast<size_t>(row) * width + col];
         }
         DistanceLine(line, v, z, result);
-        for (int row = 0; row < H; row++) {
-            grid[static_cast<size_t>(row) * W + col] = result[static_cast<size_t>(row)];
+        for (int row = 0; row < height; row++) {
+            grid[static_cast<size_t>(row) * width + col] = result[static_cast<size_t>(row)];
         }
     }
-    for (int row = 0; row < H; row++) {
-        line.resize(static_cast<size_t>(W));
-        for (int col = 0; col < W; col++) {
-            line[static_cast<size_t>(col)] = grid[static_cast<size_t>(row) * W + col];
+    for (int row = 0; row < height; row++) {
+        line.resize(static_cast<size_t>(width));
+        for (int col = 0; col < width; col++) {
+            line[static_cast<size_t>(col)] = grid[static_cast<size_t>(row) * width + col];
         }
         DistanceLine(line, v, z, result);
-        for (int col = 0; col < W; col++) {
-            grid[static_cast<size_t>(row) * W + col] = result[static_cast<size_t>(col)];
+        for (int col = 0; col < width; col++) {
+            grid[static_cast<size_t>(row) * width + col] = result[static_cast<size_t>(col)];
         }
     }
-    out.alpha.assign(static_cast<size_t>(W) * H, 0);
-    for (int row = 0; row < H; row++) {
-        for (int col = 0; col < W; col++) {
-            const float d = std::sqrt(grid[static_cast<size_t>(row) * W + col]);
+    out.alpha.assign(static_cast<size_t>(width) * height, 0);
+    for (int row = 0; row < height; row++) {
+        for (int col = 0; col < width; col++) {
+            const float d = std::sqrt(grid[static_cast<size_t>(row) * width + col]);
             float       cover = std::clamp(static_cast<float>(radius) + 0.5f - d, 0.0f, 1.0f) * 255.0f;
             const int   src_row = row - pad, src_col = col - pad;
             if (src_row >= 0 && src_row < in.h && src_col >= 0 && src_col < in.w) {
                 cover = std::max(cover, static_cast<float>(in.alpha[static_cast<size_t>(src_row) * in.w + src_col]));
             }
-            out.alpha[static_cast<size_t>(row) * W + col] = static_cast<unsigned char>(cover + 0.5f);
+            out.alpha[static_cast<size_t>(row) * width + col] = static_cast<unsigned char>(cover + 0.5f);
         }
     }
     return out;
@@ -427,13 +427,13 @@ bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
     if (slot < 0 || slot >= 3 || bytes.empty()) {
         return false;
     }
-    Font      font;
-    font.data        = std::move(bytes);
+    Font font;
+    font.data = std::move(bytes);
     const int offset = stbtt_GetFontOffsetForIndex(font.data.data(), 0);
     if (offset < 0 || !stbtt_InitFont(&font.info, font.data.data(), offset)) {
         return false;
     }
-    font.loaded   = true;
+    font.loaded = true;
     g_fonts[slot] = std::move(font);
     stbtt_InitFont(&g_fonts[slot].info, g_fonts[slot].data.data(),
                    stbtt_GetFontOffsetForIndex(g_fonts[slot].data.data(), 0));
@@ -441,13 +441,15 @@ bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
 }
 
 bool LoadFontSlot(int slot, const std::filesystem::path &file) {
-    if (slot < 0 || slot >= 3) return false;
+    if (slot < 0 || slot >= 3) {
+        return false;
+    }
     std::ifstream stream(file, std::ios::binary);
     if (!stream) {
         return false;
     }
     std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)),
-                                      std::istreambuf_iterator<char>());
+                                     std::istreambuf_iterator<char>());
     if (!InitFontSlotFromBytes(slot, std::move(bytes))) {
         std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
         return false;
@@ -465,7 +467,7 @@ bool Load(const std::filesystem::path &file) {
         return false;
     }
     std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)),
-                                      std::istreambuf_iterator<char>());
+                                     std::istreambuf_iterator<char>());
     if (!InitFontSlotFromBytes(0, std::move(bytes))) {
         std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
         return false;

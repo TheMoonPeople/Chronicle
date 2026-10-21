@@ -10,8 +10,10 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <map>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -336,12 +338,12 @@ Kind MessageKind() {
     return g_context;
 }
 
-MessageContext::MessageContext(Kind kind) : previous_(g_context) {
+MessageContext::MessageContext(Kind kind) : previous(g_context) {
     g_context = kind;
 }
 
 MessageContext::~MessageContext() {
-    g_context = previous_;
+    g_context = previous;
 }
 
 const Tuning &Get(Kind kind) {
@@ -487,9 +489,9 @@ void DrawDivider() {
         if (kValues[v].field == &Tuning::fit) {
             number = tuning.fit >= 0.5f ? "ON" : "OFF";
         } else {
-            char text[32];
-            std::snprintf(text, sizeof text, "%.3f", tuning.*(kValues[v].field));
-            number = text;
+            std::ostringstream text;
+            text << std::fixed << std::setprecision(3) << tuning.*(kValues[v].field);
+            number = text.str();
         }
         line_of(std::string(v == g_value ? "> " : "  ") + kValues[v].label + " " + number);
     }

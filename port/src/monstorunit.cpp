@@ -6,7 +6,6 @@
 #include "framevu1.hpp"
 #include "itemdata.hpp"
 #include "mglib.hpp"
-
 #include "platform/config.hpp"
 
 // Retail's DrawShadowMonstor, which casts the shadows of the monsters taking part. A dormant
@@ -22,7 +21,7 @@ PORT_OVERRIDE void CMonstorUnit::DrawShadowMonstor() {
         bool drawn = monster[i].state == 2 || (monster[i].state == 1 && monster[i].player_distance < detail);
 
         if (drawn && monster[i].shadow_visible != 0 && monster[i].revealed != 0) {
-            if (chara[i][0].shadow_frame != NULL) {
+            if (chara[i][0].shadow_frame != nullptr) {
                 CCharacter *character = &chara[i][0];
                 character->ShadowStep();
                 character->GetPosition(position);

@@ -102,7 +102,7 @@ public:
     // save keeps it.
     virtual bool PartObtained(int town, int part) const = 0;
     // Copies of the part standing in the town.
-    virtual int  PartPlaced(int town, int part) const = 0;
+    virtual int PartPlaced(int town, int part) const = 0;
     // Every element the part wants is in place (CEditPartsInfo::CheckComplete).
     virtual bool PartComplete(int town, int part) const = 0;
     // The part's completion event has run (CEditPartsInfo::GetCompEvent): Norune's part 7 is Gaffer's Buggy.
@@ -153,9 +153,9 @@ public:
     void SetVar(std::string_view name, int value);
 
 private:
-    const Definition *quest_;
-    Progress         *progress_;
-    IGame            *game_;
+    const Definition *quest;
+    Progress         *progress;
+    IGame            *game;
 };
 
 class Scene;
@@ -185,10 +185,10 @@ public:
     // A page of text, as Say says it, that ends the conversation once read.
     void SayThenClose(Text text, std::vector<std::string> args = {});
 
-    Dialog::ISessionController &Session() const { return *session_; }
+    Dialog::ISessionController &Session() const { return *session; }
 
 private:
-    Dialog::ISessionController *session_;
+    Dialog::ISessionController *session;
 };
 
 using Condition = std::function<bool(const Context &)>;
@@ -243,6 +243,7 @@ public:
         Condition   when;
         std::string to;
     };
+
     struct Option {
         NpcMatch            npc;
         Condition           when;
@@ -250,27 +251,34 @@ public:
         Dialog::ChoiceColor color = Dialog::ChoiceColor::White;
         SceneFn             on_select;
     };
+
     struct Takeover {
         NpcMatch npc;
         Retail   behaviour;
     };
 
-    const std::string              &Id() const { return id_; }
-    const std::vector<std::string> &Stages() const { return stages_; }
-    const std::string              &FirstStage() const { return stages_.front(); }
-    bool                            HasStage(std::string_view stage) const;
-    const std::vector<Rule>        &Rules() const { return rules_; }
-    const std::vector<Option>      &Options() const { return options_; }
-    const std::vector<Takeover>    &Takeovers() const { return takeovers_; }
+    const std::string &Id() const { return id; }
+
+    const std::vector<std::string> &Stages() const { return stages; }
+
+    const std::string &FirstStage() const { return stages.front(); }
+
+    bool HasStage(std::string_view stage) const;
+
+    const std::vector<Rule> &Rules() const { return rules; }
+
+    const std::vector<Option> &Options() const { return options; }
+
+    const std::vector<Takeover> &Takeovers() const { return takeovers; }
 
 private:
     friend class Builder;
 
-    std::string              id_;
-    std::vector<std::string> stages_;
-    std::vector<Rule>        rules_;
-    std::vector<Option>      options_;
-    std::vector<Takeover>    takeovers_;
+    std::string              id;
+    std::vector<std::string> stages;
+    std::vector<Rule>        rules;
+    std::vector<Option>      options;
+    std::vector<Takeover>    takeovers;
 };
 
 // Puts a quest together:
@@ -299,13 +307,13 @@ public:
     Definition Build();
 
 private:
-    Definition quest_;
+    Definition quest;
 };
 
 // The quests the game knows and their progress.
 void Register(Definition quest);
 // Forgets every quest and its progress (for tests).
-void Clear();
+void              Clear();
 const Definition *Find(std::string_view id);
 const Progress   *FindProgress(std::string_view id);
 

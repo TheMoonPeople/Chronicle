@@ -61,13 +61,14 @@ void Show(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, u_ch
 }
 
 void Upload(CTexture *texture) {
-    sceGsTex0 *tex0 = (sceGsTex0 *) &texture->tex0;
+    sceGsTex0 *tex0 = reinterpret_cast<sceGsTex0 *>(&texture->tex0);
     unsigned   tbp = 0;
     unsigned   cbp = 0;
-    if (texture->image[0] != 0) {
-        const u_char      *levels[1] = {(u_char *) texture->image[0]};
+    if (texture->image[0] != nullptr) {
+        const u_char      *levels[1] = {reinterpret_cast<const u_char *>(texture->image[0])};
         PortDecodedTexture decoded;
-        if (PortDecodeTexture(texture->bpp, texture->width, texture->height, levels, 1, (u_char *) texture->clut, 0,
+        if (PortDecodeTexture(texture->bpp, texture->width, texture->height, levels, 1,
+                              reinterpret_cast<const u_char *>(texture->clut), 0,
                               false, decoded)) {
             if (texture == &nl_tex && !card_name.empty()) {
                 painted_tbp = painted_cbp = 0;
@@ -198,27 +199,26 @@ PORT_OVERRIDE void init_now_loading(int title_number) {
     int     archive_size;
     now_loding_flag = 0;
 
-    char image_directory[64] = "img";
-
+    std::string image_directory = "img";
     if (LanguageCode > LANG_JAPANESE) {
-        std::snprintf(image_directory, sizeof image_directory, "img_%d", LanguageCode);
+        image_directory += "_" + std::to_string(LanguageCode);
     }
 
-    char path[64] = "";
+    std::string path;
     card_name.clear();
 
     if (title_number < 5) {
-        std::snprintf(path, sizeof path, "%s/mt0%d.tm2", image_directory, title_number + 1);
+        path = image_directory + "/mt0" + std::to_string(title_number + 1) + ".tm2";
     } else if (title_number < 100) {
-        std::snprintf(path, sizeof path, "%s/mt%d.tm2", image_directory, title_number);
+        path = image_directory + "/mt" + std::to_string(title_number) + ".tm2";
     } else {
-        std::snprintf(path, sizeof path, "%s/mt%d.tm2", image_directory, title_number - 99);
+        path = image_directory + "/mt" + std::to_string(title_number - 99) + ".tm2";
     }
 
     if (title_number == 0x321) {
-        std::snprintf(path, sizeof path, "%s/title.img", image_directory);
+        path = image_directory + "/title.img";
 
-        if (LoadFile2(path, archive, &archive_size, 0) == 0) {
+        if (LoadFile2(path.data(), archive, &archive_size, 0) == 0) {
             return;
         }
 
@@ -227,16 +227,16 @@ PORT_OVERRIDE void init_now_loading(int title_number) {
         LoadTexture(sce_logo, archive, &nl_tex, 8000, 10000);
         LoadTexture(l5_logo, archive, &nl_tex2, 9500, 10100);
     } else {
-        if (path[0] == '\0') {
+        if (path.empty()) {
             return;
         }
 
-        if (LoadFile2(path, archive, &archive_size, 0) == 0) {
+        if (LoadFile2(path.data(), archive, &archive_size, 0) == 0) {
             return;
         }
 
         card_name = std::filesystem::path(path).stem().string();
-        LoadTexture((TM2_head *) archive, &nl_tex, 8000, 9000);
+        LoadTexture(reinterpret_cast<TM2_head *>(archive), &nl_tex, 8000, 9000);
     }
 
     map_title_no = title_number;
@@ -273,14 +273,17 @@ PORT_OVERRIDE int VSyncCallBack_Load(int field) {
         if (map_title_no == 0x321) {
             if (logo_count == 0) {
                 if (nl_tex.width >= 640) {
-                    Show(&nl_tex, CRect_i_(0, 0x10, 0x280, 0x1C0), CRect_i_(0, 0, 0x280, 0x1C0), (u_char) (int) col_cnt);
+                    Show(&nl_tex, CRect_i_(0, 0x10, 0x280, 0x1C0), CRect_i_(0, 0, 0x280, 0x1C0),
+                         static_cast<u_char>(static_cast<int>(col_cnt)));
                 } else {
-                    Show(&nl_tex, CRect_i_(0x60, 0xC0, 0x1C0, 0x40), CRect_i_(0, 0, 0x1C0, 0x40), (u_char) (int) col_cnt);
+                    Show(&nl_tex, CRect_i_(0x60, 0xC0, 0x1C0, 0x40), CRect_i_(0, 0, 0x1C0, 0x40),
+                         static_cast<u_char>(static_cast<int>(col_cnt)));
                 }
             }
 
             if (logo_count == 1) {
-                Show(&nl_tex2, CRect_i_(0x100, 0xA0, 0x80, 0x80), CRect_i_(0, 0, 0x80, 0x80), (u_char) (int) col_cnt);
+                Show(&nl_tex2, CRect_i_(0x100, 0xA0, 0x80, 0x80), CRect_i_(0, 0, 0x80, 0x80),
+                     static_cast<u_char>(static_cast<int>(col_cnt)));
             }
 
             if (count == 0) {
@@ -311,7 +314,8 @@ PORT_OVERRIDE int VSyncCallBack_Load(int field) {
                 count = 0;
             }
         } else {
-            Show(&nl_tex, CRect_i_(0x80, 0xA0, 0x180, 0x80), CRect_i_(0, 0, 0x180, 0x80), (u_char) (int) col_cnt);
+            Show(&nl_tex, CRect_i_(0x80, 0xA0, 0x180, 0x80), CRect_i_(0, 0, 0x180, 0x80),
+                 static_cast<u_char>(static_cast<int>(col_cnt)));
 
             if (count == 0) {
                 col_cnt += col_add;

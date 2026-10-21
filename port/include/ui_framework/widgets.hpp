@@ -70,15 +70,15 @@ public:
     void DeferDraw(int alpha = 0x80);
 
 private:
-    float     m_cur_x{0.0f};       /**< Current interpolated X coordinate. */
-    float     m_cur_y{0.0f};       /**< Current interpolated Y coordinate. */
-    float     m_target_x{0.0f};    /**< Target X coordinate. */
-    float     m_target_y{0.0f};    /**< Target Y coordinate. */
-    bool      m_pointing{false};   /**< Whether explicit pointer override is enabled. */
-    float     m_pointer_x{0.0f};   /**< Explicit pointer X coordinate. */
-    float     m_pointer_y{0.0f};   /**< Explicit pointer Y coordinate. */
-    int       m_anim_count{0};     /**< Oscillation animation frame counter. */
-    CTexture *m_texture{nullptr};  /**< Cached pointer to the gaiji sprite sheet. */
+    float     m_cur_x{0.0f};      /**< Current interpolated X coordinate. */
+    float     m_cur_y{0.0f};      /**< Current interpolated Y coordinate. */
+    float     m_target_x{0.0f};   /**< Target X coordinate. */
+    float     m_target_y{0.0f};   /**< Target Y coordinate. */
+    bool      m_pointing{false};  /**< Whether explicit pointer override is enabled. */
+    float     m_pointer_x{0.0f};  /**< Explicit pointer X coordinate. */
+    float     m_pointer_y{0.0f};  /**< Explicit pointer Y coordinate. */
+    int       m_anim_count{0};    /**< Oscillation animation frame counter. */
+    CTexture *m_texture{nullptr}; /**< Cached pointer to the gaiji sprite sheet. */
 };
 
 /**
@@ -143,22 +143,22 @@ private:
  * Visual and typographic styling parameters for a progress bar.
  */
 struct ProgressBarStyle {
-    u32        text_color  = ColorWhite;         /**< Label color when progress is below 100%. */
+    u32        text_color = ColorWhite;          /**< Label color when progress is below 100%. */
     bool       drop_shadow = true;               /**< Whether to draw a drop shadow behind the overlay text. */
-    float      text_scale  = 0.78f;              /**< Overlay text scale multiplier. */
+    float      text_scale = 0.78f;               /**< Overlay text scale multiplier. */
     FontWeight text_weight = FontWeight::Normal; /**< Overlay text font weight. */
-    u8         fill_r      = 28;                 /**< Active bar fill base red channel. */
-    u8         fill_g      = 68;                 /**< Active bar fill base green channel. */
-    u8         fill_b      = 45;                 /**< Active bar fill base blue channel. */
-    u8         hi_r        = 45;                 /**< Active bar highlight red channel. */
-    u8         hi_g        = 95;                 /**< Active bar highlight green channel. */
-    u8         hi_b        = 65;                 /**< Active bar highlight blue channel. */
-    u8         done_r      = 95;                 /**< Completed bar fill base red channel. */
-    u8         done_g      = 70;                 /**< Completed bar fill base green channel. */
-    u8         done_b      = 18;                 /**< Completed bar fill base blue channel. */
-    u8         done_hi_r   = 125;                /**< Completed bar highlight red channel. */
-    u8         done_hi_g   = 98;                 /**< Completed bar highlight green channel. */
-    u8         done_hi_b   = 32;                 /**< Completed bar highlight blue channel. */
+    u8         fill_r = 28;                      /**< Active bar fill base red channel. */
+    u8         fill_g = 68;                      /**< Active bar fill base green channel. */
+    u8         fill_b = 45;                      /**< Active bar fill base blue channel. */
+    u8         hi_r = 45;                        /**< Active bar highlight red channel. */
+    u8         hi_g = 95;                        /**< Active bar highlight green channel. */
+    u8         hi_b = 65;                        /**< Active bar highlight blue channel. */
+    u8         done_r = 95;                      /**< Completed bar fill base red channel. */
+    u8         done_g = 70;                      /**< Completed bar fill base green channel. */
+    u8         done_b = 18;                      /**< Completed bar fill base blue channel. */
+    u8         done_hi_r = 125;                  /**< Completed bar highlight red channel. */
+    u8         done_hi_g = 98;                   /**< Completed bar highlight green channel. */
+    u8         done_hi_b = 32;                   /**< Completed bar highlight blue channel. */
 };
 
 /**
@@ -177,39 +177,39 @@ public:
  * Oval command icon kinds available in the Battle Menu atlas.
  */
 enum class MenuIconKind : int {
-    Item      = 0,
-    Weapon    = 1,
-    Allies    = 2,
-    Georama   = 3,
-    Dungeon   = 4,
-    WorldMap  = 5,
+    Item = 0,
+    Weapon = 1,
+    Allies = 2,
+    Georama = 3,
+    Dungeon = 4,
+    WorldMap = 5,
     GoOutside = 6,
-    Escape    = 7,
-    Save      = 8,
-    Option    = 9,
-    Manual    = 10,
-    Load      = 11,
-    Quit      = 12,
+    Escape = 7,
+    Save = 8,
+    Option = 9,
+    Manual = 10,
+    Load = 11,
+    Quit = 12,
 };
 
 /**
  * Styling parameters for top-left menu screen headers.
  */
 struct MenuHeaderStyle {
-    float scale         = 1.48f; /**< Header title scale factor. */
-    float xscale        = 1.06f; /**< Horizontal stretch factor. */
-    float yscale        = 0.94f; /**< Vertical stretch factor. */
-    u8    fill_r        = 82;    /**< Main face fill red channel. */
-    u8    fill_g        = 118;   /**< Main face fill green channel. */
-    u8    fill_b        = 235;   /**< Main face fill blue channel. */
+    float scale = 1.48f;         /**< Header title scale factor. */
+    float xscale = 1.06f;        /**< Horizontal stretch factor. */
+    float yscale = 0.94f;        /**< Vertical stretch factor. */
+    u8    fill_r = 82;           /**< Main face fill red channel. */
+    u8    fill_g = 118;          /**< Main face fill green channel. */
+    u8    fill_b = 235;          /**< Main face fill blue channel. */
     float outline_width = 1.85f; /**< Outer rim stroke width in logical pixels. */
-    u8    outline_r     = 235;   /**< Outer rim stroke red channel. */
-    u8    outline_g     = 225;   /**< Outer rim stroke green channel. */
-    u8    outline_b     = 170;   /**< Outer rim stroke blue channel. */
-    bool  raised_bevel  = true;  /**< Whether to draw the inner 3D extrusion pass. */
-    u8    bevel_r       = 24;    /**< Inner extrusion red channel. */
-    u8    bevel_g       = 38;    /**< Inner extrusion green channel. */
-    u8    bevel_b       = 104;   /**< Inner extrusion blue channel. */
+    u8    outline_r = 235;       /**< Outer rim stroke red channel. */
+    u8    outline_g = 225;       /**< Outer rim stroke green channel. */
+    u8    outline_b = 170;       /**< Outer rim stroke blue channel. */
+    bool  raised_bevel = true;   /**< Whether to draw the inner 3D extrusion pass. */
+    u8    bevel_r = 24;          /**< Inner extrusion red channel. */
+    u8    bevel_g = 38;          /**< Inner extrusion green channel. */
+    u8    bevel_b = 104;         /**< Inner extrusion blue channel. */
 };
 
 /**

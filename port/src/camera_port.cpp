@@ -8,12 +8,12 @@
 #include <numbers>
 #include <vector>
 
+#include "camera_zoom.hpp"
 #include "camerafollow.hpp"
 #include "collision.hpp"
 #include "editground.hpp"
 #include "gameutil.hpp"
 #include "mouse_collision.hpp"
-#include "camera_zoom.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 
@@ -40,13 +40,14 @@ Share g_turn;
 // floor clearance and controller-only cameras retain their retail behavior.
 struct HeightControl {
     CCameraFollow *camera = nullptr;
-    std::uint64_t read = 0;
-    float input_delta = 0.0f;
-    bool input_pending = false;
-    bool native = false;
-    bool moving = false;
-    bool stick = false;
+    std::uint64_t  read = 0;
+    float          input_delta = 0.0f;
+    bool           input_pending = false;
+    bool           native = false;
+    bool           moving = false;
+    bool           stick = false;
 };
+
 HeightControl g_height;
 
 struct TownRequest {
@@ -107,9 +108,9 @@ float MouseLookTurn(CCameraFollow *camera, float radians, float stick) {
 
 float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float floor) {
     const InputMouseLook &look = InputGetMouseLook();
-    float pitch = look.pitch;
-    bool moving = look.yaw != 0.0f || pitch != 0.0f;
-    bool native = g_height.camera == camera && g_height.native;
+    float                 pitch = look.pitch;
+    bool                  moving = look.yaw != 0.0f || pitch != 0.0f;
+    bool                  native = g_height.camera == camera && g_height.native;
     if (!camera->follow_on || CCamera::StopCamera) {
         g_height = {};
         return stick;
@@ -193,12 +194,12 @@ float MouseLookEyeAngleV(float angle) {
 }
 
 float MouseLookEyeAngleH(float angle) {
-    constexpr float kPi = std::numbers::pi_v<float>;
+    constexpr float k_pi = std::numbers::pi_v<float>;
     float           yaw = InputGetMouseLook().yaw;
     if (yaw == 0.0f) {
         return angle;
     }
-    return std::remainder(angle - yaw, 2.0f * kPi);
+    return std::remainder(angle - yaw, 2.0f * k_pi);
 }
 
 float MouseLookClampOrbit(const float *eye, const float *look, float turn, const MouseLookPolys &polys) {
@@ -217,11 +218,11 @@ float MouseLookClampOrbit(const float *eye, const float *look, float turn, const
 }
 
 void MouseLookTurnOrbit(CCameraFollow *camera, float turn) {
-    constexpr float kTurn = 2.0f * std::numbers::pi_v<float>;
+    constexpr float k_turn = 2.0f * std::numbers::pi_v<float>;
     Orbit(camera->pos, camera->ref, turn);
     Orbit(camera->next_pos, camera->next_ref, turn);
-    camera->angle = std::remainder(camera->angle + turn, kTurn);
-    camera->next_angle = std::remainder(camera->next_angle + turn, kTurn);
+    camera->angle = std::remainder(camera->angle + turn, k_turn);
+    camera->next_angle = std::remainder(camera->next_angle + turn, k_turn);
     // The view's own angles, which a step works out from the eye, without stepping it.
     camera->CCamera::Step(0);
 }
@@ -234,7 +235,9 @@ void TownMouseRecord(CCameraFollow *camera, bool fishing) {
     if (g_town.open && g_town.camera == camera && g_town.read == InputGetMouseLook().read && g_town.yaw == 0.0f) {
         g_town.yaw = InputGetMouseLook().yaw;
         g_town.fishing = fishing;
-        if (!fishing) TownZoomRead(camera);
+        if (!fishing) {
+            TownZoomRead(camera);
+        }
     }
 }
 

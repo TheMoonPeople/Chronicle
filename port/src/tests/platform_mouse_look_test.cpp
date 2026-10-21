@@ -7,28 +7,28 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
-#include <numbers>
 #include <memory>
+#include <numbers>
 #include <string_view>
 #include <vector>
 
 #include "../camera_port.hpp"
 #include "../mouse_collision.hpp"
-#include "platform/clock.hpp"
-#include "platform/config.hpp"
-#include "platform/input.hpp"
-#include "platform/paths.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "collision.hpp"
+#include "dungeonmap.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
-#include "dungeonmap.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
+#include "platform/clock.hpp"
+#include "platform/config.hpp"
+#include "platform/input.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 extern int   viewMode;
@@ -260,14 +260,17 @@ TEST(PlatformMouseLook, HorizontalMouseMotionHoldsHeightAndIdleResumesSoftDescen
 TEST(PlatformMouseLook, AutoReturnSettingChangesImmediatelyAndMouseMotionPausesEveryRate) {
     auto root = std::filesystem::temp_directory_path() /
                 ("chronicle-height-rate-test-" + std::to_string(dc::test::ProcessId()));
+
     struct Cleanup {
         std::filesystem::path root;
+
         ~Cleanup() {
             std::error_code error;
             std::filesystem::remove(root / "config.json", error);
             std::filesystem::remove(root, error);
         }
     } cleanup{root};
+
     PathsSetSaveRoot(root);
     Settings(0.2f, false);
     CCameraFollow camera(60.0f, 25.0f, 0.0f, 8.0f);
@@ -337,8 +340,14 @@ TEST(PlatformMouseLook, TownMouseCanLowerTheCameraAtItsCeiling) {
 }
 
 TEST(PlatformMouseLook, InteriorEyeTurnsTheCharacter) {
-    static unsigned char dma[2][1024];
-    ASSERT_TRUE(scePadInit(0) == 1 && scePadPortOpen(0, 0, dma[0]) == 1 && scePadPortOpen(1, 0, dma[1]) == 1);
+    struct alignas(64) PadDmaBuffer {
+        std::array<unsigned char, 1024> bytes;
+    };
+
+    static std::array<std::unique_ptr<PadDmaBuffer>, 2> dma = {
+        std::make_unique<PadDmaBuffer>(), std::make_unique<PadDmaBuffer>()};
+    ASSERT_TRUE(scePadInit(0) == 1 && scePadPortOpen(0, 0, dma[0]->bytes.data()) == 1 &&
+                scePadPortOpen(1, 0, dma[1]->bytes.data()) == 1);
     Settings(0.2f, false);
     viewMode = 1;
     CCamera    eye(1.0f);
@@ -464,7 +473,7 @@ TEST(PlatformMouseLook, ZoomDistanceCannotCrossAWallOrLeaveAnUnsafePendingTarget
     CCameraFollow camera(60.0f, 30.0f, 0.0f, 8.0f);
     camera.Step(-1);
     CCPoly wall = Triangle({-200, -100, 90}, {200, -100, 90}, {0, 200, 90});
-    float accepted = MouseCameraClampDistance(camera, 140.0f, &wall, 1);
+    float  accepted = MouseCameraClampDistance(camera, 140.0f, &wall, 1);
     ASSERT_GT(accepted, 60.0f);
     ASSERT_LT(accepted, 80.0f);
     camera.SetDistance(accepted);
@@ -494,7 +503,9 @@ TEST(PlatformMouseLook, ZoomDistanceCannotCrossAWallOrLeaveAnUnsafePendingTarget
 TEST(PlatformMouseLook, DungeonZoomCollectorRejectsInvalidCellsAndOversizedMeshes) {
     auto map = std::make_unique<CDungeonMap>();
     map->map_type = 1;
-    for (auto &cell : map->cells) cell.parts_no = -1;
+    for (auto &cell : map->cells) {
+        cell.parts_no = -1;
+    }
     CBoxVu0 box{};
     for (int i = 0; i < 3; ++i) {
         box.min[i] = -1000.0f;
@@ -506,7 +517,7 @@ TEST(PlatformMouseLook, DungeonZoomCollectorRejectsInvalidCellsAndOversizedMeshe
     ASSERT_EQ(MouseCameraPolys(*map, box, output), -1);
     map->cells[0].parts_no = 0;
     map->cells[0].direction = 0;
-    CFrame frame;
+    CFrame        frame;
     CCollisionMDT collision;
     frame.flags = 1;
     frame.collision = &collision;
@@ -526,7 +537,9 @@ TEST(PlatformMouseLook, LowDungeonCameraZoomRetainsFloorAndWallClearance) {
         camera.SetDistance(MouseCameraClampDistance(camera, goal, &floor, 1, 5.0f));
         camera.Step(1);
         ASSERT_GT(camera.pos[1], 5.0f);
-        if (step == 119) ASSERT_NEAR(camera.distance, 100.0f, 1e-3f);
+        if (step == 119) {
+            ASSERT_NEAR(camera.distance, 100.0f, 1e-3f);
+        }
     }
     ASSERT_NEAR(camera.distance, 60.0f, 1e-3f);
     CCPoly wall = Triangle({-200, -100, 90}, {200, -100, 90}, {0, 200, 90});

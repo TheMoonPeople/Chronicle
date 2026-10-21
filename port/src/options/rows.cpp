@@ -1,5 +1,7 @@
 #include "options/rows.hpp"
 
+#include <SDL3/SDL.h>
+
 #include <algorithm>
 #include <cmath>
 #include <deque>
@@ -8,8 +10,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <SDL3/SDL.h>
 
 #include "localize.hpp"
 #include "menu_option.hpp"
@@ -362,7 +362,7 @@ void RestoreMouseSensitivity(Config &config, const Config &defaults) {
     config.mouse_sensitivity = defaults.mouse_sensitivity;
 }
 
-constexpr float kCameraReturnRates[] = {0.0f, 0.05f, 0.2f, 0.5f, 1.0f};
+constexpr float       kCameraReturnRates[] = {0.0f, 0.05f, 0.2f, 0.5f, 1.0f};
 constexpr const char *kCameraReturnNames[] = {"Off", "Very Slow", "Slow", "Moderate", "Retail"};
 
 int CameraReturnChoice(const Config &config) {
@@ -573,7 +573,8 @@ int Three(const Config &) {
 }
 
 int SoundChoice(const Config &config) {
-    return config.surround ? 2 : config.options.stereo ? 1 : 0;
+    return config.surround ? 2 : config.options.stereo ? 1
+                                                       : 0;
 }
 
 void SetSound(Config &config, int choice) {
@@ -772,36 +773,37 @@ std::string ActionName(std::string_view action) {
         std::string_view action;
         const char      *name;
     } kNames[] = {
-        {"up",             "Up"              },
-        {"down",           "Down"            },
-        {"left",           "Left"            },
-        {"right",          "Right"           },
-        {"cross",          "Cross"           },
-        {"circle",         "Circle"          },
-        {"square",         "Square"          },
-        {"triangle",       "Triangle"        },
-        {"l1",             "L1"              },
-        {"r1",             "R1"              },
-        {"l2",             "L2"              },
-        {"r2",             "R2"              },
-        {"l3",             "L3"              },
-        {"r3",             "R3"              },
-        {"start",          "Start"           },
-        {"select",         "Select"          },
-        {"lx-",            "Left Stick Left" },
-        {"lx+",            "Left Stick Right"},
-        {"ly-",            "Left Stick Up"   },
-        {"ly+",            "Left Stick Down" },
-        {"rx-",            "Right Stick Left"},
+        {"up",             "Up"               },
+        {"down",           "Down"             },
+        {"left",           "Left"             },
+        {"right",          "Right"            },
+        {"cross",          "Cross"            },
+        {"circle",         "Circle"           },
+        {"square",         "Square"           },
+        {"triangle",       "Triangle"         },
+        {"l1",             "L1"               },
+        {"r1",             "R1"               },
+        {"l2",             "L2"               },
+        {"r2",             "R2"               },
+        {"l3",             "L3"               },
+        {"r3",             "R3"               },
+        {"start",          "Start"            },
+        {"select",         "Select"           },
+        {"lx-",            "Left Stick Left"  },
+        {"lx+",            "Left Stick Right" },
+        {"ly-",            "Left Stick Up"    },
+        {"ly+",            "Left Stick Down"  },
+        {"rx-",            "Right Stick Left" },
         {"rx+",            "Right Stick Right"},
-        {"ry-",            "Right Stick Up"  },
-        {"ry+",            "Right Stick Down"},
-        {"fps_toggle",     "Toggle FPS"      },
-        {"developer_menu", "Developer Menu"  },
-        {"debug_menu",     "Debug Menu"      },
-        {"gyro_hold",      "Gyro Hold"       },
-        {"zoom_reset",     "Reset Zoom"      },
+        {"ry-",            "Right Stick Up"   },
+        {"ry+",            "Right Stick Down" },
+        {"fps_toggle",     "Toggle FPS"       },
+        {"developer_menu", "Developer Menu"   },
+        {"debug_menu",     "Debug Menu"       },
+        {"gyro_hold",      "Gyro Hold"        },
+        {"zoom_reset",     "Reset Zoom"       },
     };
+
     for (const auto &entry : kNames) {
         if (entry.action == action) {
             return entry.name;
@@ -936,9 +938,16 @@ std::string RowValue(const Row &row, const Config &config) {
 }
 
 bool StepRow(const Row &row, Config &config, int direction, bool wrap) {
-    int count = row.count(config);
-    int choice = row.get(config);
-    int next = wrap ? (choice + direction + count) % count : std::clamp(choice + direction, 0, count - 1);
+    if (row.count == nullptr || row.get == nullptr || row.set == nullptr || direction == 0) {
+        return false;
+    }
+    const int count = row.count(config);
+    if (count <= 0) {
+        return false;
+    }
+    const int choice = std::clamp(row.get(config), 0, count - 1);
+    direction = direction > 0 ? 1 : -1;
+    const int next = wrap ? (choice + direction + count) % count : std::clamp(choice + direction, 0, count - 1);
     if (next == choice) {
         return false;
     }
@@ -1013,7 +1022,7 @@ void OptionRestoreCameraReturn(Config &config, const Config &defaults) {
 namespace options {
 
 void SetBinding(Config &config, std::string_view action, std::string_view key) {
-    auto binding = std::ranges::find(config.key_bindings, std::string(action), &ConfigKeyBinding::action);
+    auto                     binding = std::ranges::find(config.key_bindings, std::string(action), &ConfigKeyBinding::action);
     std::vector<std::string> keys;
     keys.emplace_back(key);
     if (binding == config.key_bindings.end()) {

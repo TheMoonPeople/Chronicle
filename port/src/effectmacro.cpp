@@ -79,12 +79,12 @@ void DrawBeyond(gfx::TextureHandle beyond, gfx::TextureHandle snapshot, float fr
     binding.filter = gfx::Filter::Nearest;
     const int samples = feather ? 8 : 1;
     for (int i = 0; i < samples; i++) {
-        float         t     = static_cast<float>(i) / 7.0f;
+        float         t = static_cast<float>(i) / 7.0f;
         float         plane = feather ? 1.0f / (1.0f / front + (1.0f / back - 1.0f / front) * t) : front;
         sceVu0FVECTOR point = {0.0f, 0.0f, plane, 1.0f};
         sceVu0ApplyMatrix(point, mgRenderInfo.screen, point);
         point[2] /= point[3];
-        float depth = MGPortDepth(static_cast<unsigned>(static_cast<int>(point[2])) & 0xFFFFFF);
+        float                        depth = MGPortDepth(static_cast<unsigned>(static_cast<int>(point[2])) & 0xFFFFFF);
         std::array<gfx::Vertex2D, 4> quad = Quad(0.0f, 0.0f, kScreenWidth, kScreenHeight, depth, 0.0f,
                                                  0.0f, kScreenWidth, kScreenHeight);
         if (feather) {
@@ -190,7 +190,7 @@ PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
     for (i = 0; i < 4; i++) {
         sceVu0ApplyMatrix(depth_point[i], mgRenderInfo.screen, depth_point[i]);
         depth_point[i][2] /= depth_point[i][3];
-        screen[i][2] = (int) depth_point[i][2];
+        screen[i][2] = static_cast<int>(depth_point[i][2]);
     }
 
     if (haze) {
@@ -206,10 +206,8 @@ PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
     }
 
     gfx::TextureHandle snapshot = gfx::NamedRenderTarget("dof frame", 0x280, SCREEN_HEIGHT, false, false, true);
-    gfx::TextureHandle beyond = haze ? gfx::kNullTexture :
-                                       gfx::NamedRenderTarget("dof beyond", 0x280, SCREEN_HEIGHT, true, true);
-    gfx::TextureHandle near_image = haze ? gfx::NamedRenderTarget("dof near", 0x280, SCREEN_HEIGHT, true, true) :
-                                          gfx::NamedRenderTarget("dof near", half_width, half_height, true);
+    gfx::TextureHandle beyond = haze ? gfx::kNullTexture : gfx::NamedRenderTarget("dof beyond", 0x280, SCREEN_HEIGHT, true, true);
+    gfx::TextureHandle near_image = haze ? gfx::NamedRenderTarget("dof near", 0x280, SCREEN_HEIGHT, true, true) : gfx::NamedRenderTarget("dof near", half_width, half_height, true);
     gfx::TextureHandle far_image = gfx::kNullTexture;
     bool               ready = snapshot != gfx::kNullTexture && (haze || beyond != gfx::kNullTexture) &&
                                near_image != gfx::kNullTexture && target == gfx::kMainTarget &&
@@ -276,7 +274,7 @@ PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
                 int   x = (j << 8) + 0x6C00;
                 int   v = k << 9;
                 int   v_bottom = std::min(v + 0x200, SCREEN_HALF_HEIGHT << 4);
-                float across = (float) j / 40.0f;
+                float across = static_cast<float>(j) / 40.0f;
                 strip.push_back(StripVertex(span, x, v + GS_Y_OFFSET, screen[(j + phase) % 2][2], across, v, alpha));
                 strip.push_back(StripVertex(span, x, v_bottom + GS_Y_OFFSET, screen[(j + phase) % 2][2], across,
                                             v_bottom, alpha));
@@ -299,14 +297,14 @@ PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
             for (i = 0; i < 21; i++) {
                 for (j = 0; j < 15; j++) {
                     if (blur > 0) {
-                        Jitter(i, j) += 0.2f * ((float) blur * ((float) rand() / 2147483648.0f - 0.5f));
+                        Jitter(i, j) += 0.2f * (static_cast<float>(blur) * (static_cast<float>(rand()) / 2147483648.0f - 0.5f));
 
                         if (Jitter(i, j) < 0.0f) {
                             Jitter(i, j) = 0.0f;
                         }
 
-                        if (Jitter(i, j) > (float) blur) {
-                            Jitter(i, j) = (float) blur;
+                        if (Jitter(i, j) > static_cast<float>(blur)) {
+                            Jitter(i, j) = static_cast<float>(blur);
                         }
                     } else {
                         Jitter(i, j) = 0.0f;
@@ -323,17 +321,17 @@ PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
             strip.clear();
 
             for (i = 0; i < 21; i++) {
-                int x = (i << 9) + 0x6C00;
-                int v = j << 8;
-                int y = v + GS_Y_OFFSET;
-                int y_bottom = y + 0x100;
-                float across = (float) i / 20.0f;
+                int   x = (i << 9) + 0x6C00;
+                int   v = j << 8;
+                int   y = v + GS_Y_OFFSET;
+                int   y_bottom = y + 0x100;
+                float across = static_cast<float>(i) / 20.0f;
                 int   v_bottom = v + 0x100;
 
                 if (blur > 0 && i > 0 && i < 20) {
                     strip.push_back(
-                        StripVertex(span, x - (int) Jitter(i, j), y, screen[2 + i % 2][2], across, v, alpha));
-                    strip.push_back(StripVertex(span, x - (int) Jitter(i, j + 1), y_bottom, screen[2 + i % 2][2],
+                        StripVertex(span, x - static_cast<int>(Jitter(i, j)), y, screen[2 + i % 2][2], across, v, alpha));
+                    strip.push_back(StripVertex(span, x - static_cast<int>(Jitter(i, j + 1)), y_bottom, screen[2 + i % 2][2],
                                                 across, v_bottom, alpha));
                 } else {
                     strip.push_back(StripVertex(span, x, y, screen[2 + i % 2][2], across, v, alpha));

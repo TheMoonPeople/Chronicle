@@ -77,6 +77,14 @@ Every string is a `Quest::Text`: a key and the English. The key looks the text u
 `port/lang/<language>.json` (LocalizeText), so a quest is translated as the port's other text is,
 under `quest.<quest id>.`. `Text` holds views, so it is made of string literals.
 
+Each quest file lists every `Text` it uses in its `...Texts()` (`MayorSuppliesTexts`,
+`CarlsSlingshotTexts`), and `QuestStrings()` (`quests/quests.cpp`) gathers them for
+`OptionStrings()`: the text export lists them for translators, and the test
+`LocalizeOptions.ShippedTranslationsHaveExactlyTheCodesKeys` checks that every language file in
+`port/lang/` has exactly those keys, with the same `{codes}` and `%1`... as the English. A new
+quest adds its list there and its keys to the four language files. Xiao and the other party
+members are `{name2}`...`{name6}` in the text rather than their names, as retail's text has them.
+
 ---
 
 ## 3. The game

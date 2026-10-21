@@ -1,9 +1,11 @@
 #include "gamepad.hpp"
-#include "gamepad_port.hpp"
 
 #include <libpad.h>
 
+#include <memory>
+
 #include "dualsense.hpp"
+#include "gamepad_port.hpp"
 #include "mainselect.hpp"
 #include "menu_pointer.hpp"
 #include "platform/input.hpp"
@@ -12,25 +14,27 @@
 // keys must also press the d-pad. Button replacements require a deliberate modifier for retail's
 // pad 2 debug reads without PAL's pad 2 Start/Select overrides changing ordinary pad 1 buttons.
 
+namespace {
+
 constexpr int kDebugButtonsModifier = PAD_SELECT | PAD_L2;
+bool          g_debug_menu_pressed = false;
+int           g_held_down = 0;
 
-static bool g_debug_menu_pressed = false;
-
-static int g_held_down = 0;
+} // namespace
 
 void PadHoldDown(int mask) {
     g_held_down = mask;
 }
 
 PORT_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
-    unsigned char data[32];
+    static thread_local auto data = std::make_unique<unsigned char[]>(32);
     InputLatchPad(port);
     if (port == 0) {
         DualSenseUpdate();
         MenuMouseUpdate();
         g_debug_menu_pressed = InputHostPressed(InputHostAction::DebugMenu);
     }
-    if (!scePadRead(port, slot, data)) {
+    if (!scePadRead(port, slot, data.get())) {
         return 0;
     }
     int mode = 0;

@@ -121,3 +121,16 @@ void ApplyMatrixN(sceVu0FVECTOR *out, sceVu0FMATRIX matrix, sceVu0FVECTOR *in, i
         i++;
     } while (i < count);
 }
+
+// The host has already run every static constructor before main starts.
+PORT_OVERRIDE extern "C" void mwInit(int argc, const char **argv, const char **envp) {}
+
+PORT_OVERRIDE extern "C" int mwLoadOverlay(char *path, void *address) {
+    return 1;
+}
+
+PORT_OVERRIDE extern "C" void __unexpected(void *exception_record) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__vt__Q23std9exception[4] = {};

@@ -1,4 +1,8 @@
+#include <SDL3/SDL_stdinc.h>
+
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -16,11 +20,13 @@
 
 #if defined(__ANDROID__)
 void TouchOverlaySetOpacity(float opacity);
+void TouchOverlayPoll();
 #endif
 
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
+#include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
 #include "exitcodes.hpp"
@@ -34,6 +40,7 @@ void TouchOverlaySetOpacity(float opacity);
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"
+#include "platform/arena.hpp"
 #include "platform/audio.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
@@ -50,6 +57,7 @@ void TouchOverlaySetOpacity(float opacity);
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
+#include "title/title_port.hpp"
 
 int  EditInit(void *param);
 int  EditLoop();
@@ -244,6 +252,9 @@ void PumpHost() {
             gfx::SetFrameLayout(layout);
         }
     }
+#if defined(__ANDROID__)
+    TouchOverlayPoll();
+#endif
     InputPoll();
     InputScriptApply(GameFrameCount());
 }
@@ -413,7 +424,6 @@ int Run(int argc, const char **argv) {
     GameSetFastLoad(options.fast_load || (fast_load != nullptr && *fast_load != '\0' && *fast_load != '0'));
     RequireData();
     DC_ANDROID_TRACE("Run: data available");
-    FirstRunSharpFont();
     if (!options.headless) {
         GameSetDataIcon();
     }
@@ -448,7 +458,7 @@ int Run(int argc, const char **argv) {
 #if defined(__ANDROID__)
     window.fixed_display = true;
 #endif
-    bool         offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
+    bool offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
     window.vulkan = !offscreen;
     WindowInit(window);
     DC_ANDROID_TRACE("Run: window initialized");
@@ -466,6 +476,17 @@ int Run(int argc, const char **argv) {
     renderer.pipeline_cache = PathsSaveRoot() / "pipeline_cache.bin";
     renderer.progress = ReportShaderProgress;
     renderer.offscreen = offscreen;
+    renderer.render_thread = config.render_thread;
+    if (const char *mode = SettingsEnv("RENDER_THREAD")) {
+        if (const auto parsed = gfx::ParseRenderThreadMode(mode)) {
+            renderer.render_thread = *parsed;
+        }
+    }
+    if (options.headless || options.screenshot != nullptr) {
+        renderer.render_thread = gfx::RenderThreadMode::Off;
+        // The renderer also reads this override; deterministic runs take precedence over it.
+        SDL_setenv_unsafe("KZ_RENDER_THREAD", "off", 1);
+    }
     renderer.layout = Layout(config);
 #if defined(__ANDROID__)
     renderer.render_scale = config.render_scale;
@@ -494,6 +515,7 @@ int Run(int argc, const char **argv) {
     ConfigAddChangeHook(LocalizeConfigChanged);
 
     int status = RunGame(argc, const_cast<char **>(argv));
+    GameStopPresentation();
     if (status == kExitOk && options.screenshot != nullptr) {
         status = Screenshot(options.screenshot);
     }
@@ -513,18 +535,6 @@ int Run(int argc, const char **argv) {
 }
 
 } // namespace
-
-PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
-    return Run(argc, argv);
-}
-
-#if defined(__ANDROID__)
-// SDLActivity resolves SDL_main from the native application library.
-extern "C" int SDL_main(int argc, char **argv) {
-    DC_ANDROID_TRACE("SDL_main: entry");
-    return Run(argc, const_cast<const char **>(argv));
-}
-#endif
 
 extern "C" {
 void init_all__Fv() {
@@ -700,6 +710,19 @@ int func_01DD2220() {
 }
 }
 
+#ifndef DC_NO_ENTRYPOINT
+PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+    return Run(argc, argv);
+}
+
+#if defined(__ANDROID__)
+// SDLActivity resolves SDL_main from the native application library.
+extern "C" int SDL_main(int argc, char **argv) {
+    DC_ANDROID_TRACE("SDL_main: entry");
+    return Run(argc, const_cast<const char **>(argv));
+}
+#endif
+
 #ifdef _WIN32
 int wmain(int argc, wchar_t **wide_argv) {
     std::vector<std::string>  args;
@@ -714,3 +737,56 @@ int wmain(int argc, wchar_t **wide_argv) {
     return Run(argc, argv.data());
 }
 #endif
+#endif
+
+PORT_OVERRIDE extern "C" void *__ct__10CCharacterFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__ct__13CTextureAnimeFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__ct__7CObjectFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__ct__8CHitMarkFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE void LoadOverlay(int mode) {
+    enum class Overlay {
+        None,
+        Title,
+        Dungeon
+    };
+    constexpr Overlay overlay_modes[] = {Overlay::Title, Overlay::Title, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                         Overlay::Title, Overlay::None, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                         Overlay::None, Overlay::None, Overlay::None, Overlay::None, Overlay::None};
+    static Overlay    loaded = Overlay::None;
+    if (mode < 0 || mode >= static_cast<int>(std::size(overlay_modes)) || overlay_modes[mode] == Overlay::None ||
+        overlay_modes[mode] == loaded) {
+        return;
+    }
+    loaded = overlay_modes[mode];
+    if (loaded == Overlay::Title) {
+        TitleOverlayConstruct();
+    }
+}
+
+PORT_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
+    if (quads < 0 || used < 0 || used > 6000 || quads > 6000 - used) {
+        ArenaOverflow(this, -1, 6000);
+    }
+    u_char *run = reinterpret_cast<u_char *>(block) + used * 16;
+    used += quads;
+    return run;
+}
+
+PORT_OVERRIDE void SetEnv(sceVif1Packet *packet) {
+    MGSetGsTEST(nullptr);
+    MGSetGsZBUF(nullptr);
+    MGSetGsALPHA(nullptr);
+    MGSetWindowRect();
+}

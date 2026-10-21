@@ -17,7 +17,6 @@
 #include "menu_draw.hpp"
 #include "menuetc.hpp"
 #include "platform/config.hpp"
-#include "texture_assets.hpp"
 #include "texture_port.hpp"
 #include "textwipe.hpp"
 
@@ -26,17 +25,17 @@ namespace caption {
 namespace {
 
 #if defined(__has_embed)
-#  if __has_embed("../../tools/font/SourceSansProSemibold.ttf")
-#    define CHRONICLE_HAS_EMBEDDED_STATUS_FONT 1
+#if __has_embed("../../tools/font/SourceSansProSemibold.ttf")
+#define CHRONICLE_HAS_EMBEDDED_STATUS_FONT 1
 alignas(16) constexpr unsigned char kEmbeddedStatusFont[] = {
-#    embed "../../tools/font/SourceSansProSemibold.ttf"
+#embed "../../tools/font/SourceSansProSemibold.ttf"
 };
-#  elif __has_embed("../tools/font/SourceSansProSemibold.ttf")
-#    define CHRONICLE_HAS_EMBEDDED_STATUS_FONT 1
+#elif __has_embed("../tools/font/SourceSansProSemibold.ttf")
+#define CHRONICLE_HAS_EMBEDDED_STATUS_FONT 1
 alignas(16) constexpr unsigned char kEmbeddedStatusFont[] = {
-#    embed "../tools/font/SourceSansProSemibold.ttf"
+#embed "../tools/font/SourceSansProSemibold.ttf"
 };
-#  endif
+#endif
 #endif
 
 struct Entry {
@@ -75,16 +74,17 @@ std::array<std::optional<CaptionBounds>, kIcons> g_bounds;
 
 std::filesystem::path FindStatusFontPath() {
     std::filesystem::path p = LocalizeFindFile("SourceSansProSemibold.ttf");
-    if (!p.empty()) return p;
+    if (!p.empty()) {
+        return p;
+    }
 
-    static const char* kCandidates[] = {
+    static const char *kCandidates[] = {
         "tools/font/SourceSansProSemibold.ttf",
         "../tools/font/SourceSansProSemibold.ttf",
         "../../tools/font/SourceSansProSemibold.ttf",
         "/run/build/chronicle/tools/font/SourceSansProSemibold.ttf",
-        "lang/SourceSansProSemibold.ttf"
-    };
-    for (const char* rel : kCandidates) {
+        "lang/SourceSansProSemibold.ttf"};
+    for (const char *rel : kCandidates) {
         std::error_code ec;
         if (std::filesystem::exists(rel, ec)) {
             return std::filesystem::path(rel);
@@ -1264,7 +1264,7 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
         return false;
     }
 
-    bool custom_caption = false;
+    bool        custom_caption = false;
     std::string text;
     if (!s_next_caption_text.empty()) {
         custom_caption = true;
@@ -1297,7 +1297,7 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
     // Only expand the box width when the Save slot (icon 5, whose vanilla box_width is 56px for "SAVE")
     // is given a combined "SAVE/LOAD" caption; all other icons keep their exact vanilla box_width.
     const bool  is_saveload_combined = custom_caption && icon == 5 && text.find('/') != std::string::npos;
-    const float effective_box_w      = is_saveload_combined ? 124.0f : static_cast<float>(box_width);
+    const float effective_box_w = is_saveload_combined ? 124.0f : static_cast<float>(box_width);
     if (const auto bounds = PaintedBounds(icon)) {
         DrawLabel(text, x, y, effective_box_w, *bounds, alpha, bright, kLabelCap, false, kLabelSpace, CaptionSpacingOf(text),
                   kCaptionWiden);
@@ -1314,8 +1314,8 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright) {
     const int                 em_px = std::max(4, static_cast<int>(layout.em * mapping.scale_x + 0.5f));
     const int                 outline_px = std::max(1, static_cast<int>(kOutlineWidth * mapping.scale_x + 0.5f));
 
-    constexpr float kCell = 30.0f;
-    const float     base = static_cast<float>(y) + (kCell - layout.em * (metrics.ascent + metrics.descent)) / 2 +
+    constexpr float cell = 30.0f;
+    const float     base = static_cast<float>(y) + (cell - layout.em * (metrics.ascent + metrics.descent)) / 2 +
                            layout.em * metrics.ascent + tune.dy;
 
     std::vector<gfx::Vertex2D> edges, fills;
@@ -1402,12 +1402,12 @@ std::vector<LetterWidth> LetterWidths(std::string_view utf8) {
     if (!FontReady()) {
         return out;
     }
-    constexpr int kEmPx = 64;
+    constexpr int em_px = 64;
     for (char32_t ch : Decode(utf8)) {
         capfont::Glyph glyph;
         if (ch == U' ') {
-            out.push_back({kEmPx * 0.3f, true});
-        } else if (capfont::GetGlyph(ch, kEmPx, glyph) && glyph.width > 0) {
+            out.push_back({em_px * 0.3f, true});
+        } else if (capfont::GetGlyph(ch, em_px, glyph) && glyph.width > 0) {
             out.push_back({static_cast<float>(glyph.width), false});
         }
     }

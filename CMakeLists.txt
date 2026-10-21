@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(dcdecomp NONE)
 
+# Allows local candidate builds against an isolated Kazarov checkout.
+set(KAZAROV_SOURCE_DIR "${CMAKE_SOURCE_DIR}/tools/kazarov" CACHE PATH "Kazarov source tree")
+get_filename_component(KAZAROV_SOURCE_DIR "${KAZAROV_SOURCE_DIR}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
+
 # PLATFORM picks what is built: PS2 builds and verifies the retail images
 # (ps2/CMakeLists.txt), PC builds the x64 port (port/CMakeLists.txt).
 set(PLATFORM PS2 CACHE STRING "Platform to build: PS2 or PC")

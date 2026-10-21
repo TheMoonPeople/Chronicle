@@ -64,7 +64,7 @@ public:
     MessageContext &operator=(const MessageContext &) = delete;
 
 private:
-    Kind previous_;
+    Kind previous;
 };
 
 /**

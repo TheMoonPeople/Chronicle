@@ -21,9 +21,20 @@ dc_link_game(darkcloud_tests)
 kz_port_tests(darkcloud_tests)
 target_link_libraries(darkcloud_tests PRIVATE GTest::gtest nlohmann_json::nlohmann_json)
 
-# A case is a unit test: it finishes in milliseconds, and one that does not is cut off. The clock
+# The tests need the port's compatibility overrides from main.cpp, but they already provide a
+# GoogleTest main. Compile the shared unit with only its process entrypoints disabled.
+add_library(dc_test_main_overrides OBJECT ${PORT_DIR}/main.cpp)
+target_compile_definitions(dc_test_main_overrides PRIVATE DC_NO_ENTRYPOINT)
+target_include_directories(dc_test_main_overrides PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
+target_link_libraries(dc_test_main_overrides PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan
+    nlohmann_json::nlohmann_json kz_port_headers)
+target_compile_options(dc_test_main_overrides PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
+    -Wno-overloaded-virtual -Wno-unused-function)
+target_sources(darkcloud_tests PRIVATE $<TARGET_OBJECTS:dc_test_main_overrides>)
+
+# A test that stalls is cut off; graphics startup can take several seconds on some systems. The clock
 # cases measure short sleeps, which the parallel gfx cases skew, so they run on their own.
-set(DC_TEST_TIMEOUT 5 CACHE STRING "Seconds a test case may run before it is cut off")
+set(DC_TEST_TIMEOUT 30 CACHE STRING "Seconds a test case may run before it is cut off")
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER -PlatformClock.*

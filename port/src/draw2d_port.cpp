@@ -20,7 +20,13 @@ PortTextureRef RealTexture(u_long tex0, u_long tex1) { return PortTextureFromTex
 CTexture *RealFindTexture(const char *name) { return TexManager.GetTexture(const_cast<char *>(name), -1); }
 
 constexpr Services kRealServices = {
-    RealDrawState, RealTexture, RealFindTexture, MGSetGsTEST, MGSetGsZBUF, MGSetGsALPHA, MGSetGsTEXA,
+    RealDrawState,
+    RealTexture,
+    RealFindTexture,
+    MGSetGsTEST,
+    MGSetGsZBUF,
+    MGSetGsALPHA,
+    MGSetGsTEXA,
 };
 
 const Services *g_services = &kRealServices;

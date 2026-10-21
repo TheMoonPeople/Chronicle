@@ -11,12 +11,12 @@ class CCharacter;
 class CFrameVu1;
 class CSeireiKing;
 
-extern CFrameVu1   *Hamon[4] asm("OpD_Hamon");
-extern float        HScale[5] asm("OpD_HScale");
-extern CCharacter   Effect asm("OpD_Effect");
-extern CSeireiKing  SeireiKing asm("OpD_SeireiKing");
-extern int          amb3 asm("OpD_amb3");
-extern CFrameVu1   *SkyFrame asm("OpD_SkyFrame");
+extern CFrameVu1  *Hamon[4] asm("OpD_Hamon");
+extern float       HScale[5] asm("OpD_HScale");
+extern CCharacter  Effect asm("OpD_Effect");
+extern CSeireiKing SeireiKing asm("OpD_SeireiKing");
+extern int         amb3 asm("OpD_amb3");
+extern CFrameVu1  *SkyFrame asm("OpD_SkyFrame");
 
 static void SkyColor(CFrameVu1 *frame);
 static void EffectAtraPrizum();

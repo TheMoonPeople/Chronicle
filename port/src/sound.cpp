@@ -78,13 +78,6 @@ void RenderOutput(void *, float *out, int frames) {
     audio::DefaultMixer().Render(out, frames);
 }
 
-// LoadHdBd_* and LoadSeq_* take their buffers as int, as retail's 32-bit pointers were. Only this
-// unit calls them, always with pointers below 4 GiB from the non-PIE image; LoadSoundFileFromPack
-// itself passes real pointers to the helpers and never goes through an int.
-const std::uint8_t *FromInt(int address) {
-    return reinterpret_cast<const std::uint8_t *>(static_cast<std::uintptr_t>(static_cast<std::uint32_t>(address)));
-}
-
 int SequenceSlot(int port) {
     switch (port) {
         case MIDI_PORT_BGM:
@@ -338,15 +331,16 @@ PORT_OVERRIDE void set_spu(int mode0, int mode1, int depth0, int depth1) {
     Player().SetReverb(1, mode1, depth1);
 }
 
-PORT_OVERRIDE int TransHdBd(int hd, int hd_size, int bd, int bd_size) {
-    return TransHdBdData(FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int TransHdBd(int, int, int, int) {
+    // The retail ABI cannot carry host pointers; LoadSoundFileFromPack uses full pointers directly.
+    return -1;
 }
 
 PORT_OVERRIDE int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
     int size = 0;
     std::printf("SND_INF= %s \n", name);
     const char *list = reinterpret_cast<const char *>(GetPackFile(pack, name, &size));
-    if (list == nullptr) {
+    if (list == nullptr || size <= 0) {
         std::printf("sound: %s not in pack\n", name);
         return 0;
     }
@@ -366,38 +360,40 @@ PORT_OVERRIDE int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) 
             continue;
         }
 
-        char name_hd[10] = {};
-        char name_bd[10] = {};
-        std::strncpy(name_hd, line.c_str(), 9);
-        if (std::strlen(name_hd) < 9) {
+        if (line.size() < 9) {
             continue;
         }
+        std::string name_hd = line.substr(0, 9);
         const char  kind = name_hd[5];
-        const char *ext = &name_hd[6];
 
-        if (std::strncmp(ext, ".sq", 3) == 0) {
+        if (name_hd.compare(6, 3, ".sq") == 0) {
             const int slot = kind == 'a' ? 0 : kind == 'e' ? 2
                                            : kind == 'i'   ? 4
                                                            : -1;
             if (slot >= 0) {
                 int         sq_size = 0;
-                const auto *sq = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_hd, &sq_size));
-                audio::Trace("load %s (slot letter %c)", name_hd, kind);
+                const auto *sq = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_hd.data(), &sq_size));
+                if (sq == nullptr || sq_size <= 0) {
+                    continue;
+                }
+                audio::Trace("load %s (slot letter %c)", name_hd.c_str(), kind);
                 LoadSequence(slot, sq, sq_size);
-                RegisterSequence(slot, name_hd);
+                RegisterSequence(slot, name_hd.c_str());
             }
             continue;
         }
-        if (std::strncmp(ext, ".hd", 3) != 0) {
+        if (name_hd.compare(6, 3, ".hd") != 0) {
             continue;
         }
-        audio::Trace("load %s (slot letter %c)", name_hd, kind);
-        std::memcpy(name_bd, name_hd, 7);
-        std::strcpy(&name_bd[7], "bd");
+        audio::Trace("load %s (slot letter %c)", name_hd.c_str(), kind);
+        std::string name_bd = name_hd.substr(0, 7) + "bd";
         int         hd_size = 0;
         int         bd_size = 0;
-        const auto *hd = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_hd, &hd_size));
-        const auto *bd = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_bd, &bd_size));
+        const auto *hd = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_hd.data(), &hd_size));
+        const auto *bd = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_bd.data(), &bd_size));
+        if (hd == nullptr || bd == nullptr || hd_size <= 0 || bd_size <= 0) {
+            continue;
+        }
         switch (kind) {
             case 'a':
                 LoadSlotA(hd, hd_size, bd, bd_size);
@@ -645,46 +641,48 @@ PORT_OVERRIDE void CSound::SetStereoMode(int mode) {
     Player().SetStereo(ConfigGet().options.stereo);
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_A(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotA(FromInt(hd), hd_size, FromInt(bd), bd_size);
+// These retail entry points carry pointers in 32-bit integers and have no host callers: the port's
+// LoadSoundFileFromPack passes pointers directly to the loaders above.
+PORT_OVERRIDE int CSound::LoadHdBd_A(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_C(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotC(FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_C(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_E(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotE(FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_E(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_G(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotG(FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_G(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_I(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotI(FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_I(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_M(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotSimple(5, MIDI_PORT_UNK_D, 0x3080, FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_M(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_Q(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotSimple(6, MIDI_PORT_SE_SPECIAL, 0x3090, FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_Q(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_S(int hd, int hd_size, int bd, int bd_size) {
-    return LoadSlotSimple(7, MIDI_PORT_UNK_B, 0x3090, FromInt(hd), hd_size, FromInt(bd), bd_size);
+PORT_OVERRIDE int CSound::LoadHdBd_S(int, int, int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSeq_A(int address, int size) {
-    return LoadSequence(0, FromInt(address), size);
+PORT_OVERRIDE int CSound::LoadSeq_A(int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSeq_E(int address, int size) {
-    return LoadSequence(2, FromInt(address), size);
+PORT_OVERRIDE int CSound::LoadSeq_E(int, int) {
+    return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSeq_I(int address, int size) {
-    return LoadSequence(4, FromInt(address), size);
+PORT_OVERRIDE int CSound::LoadSeq_I(int, int) {
+    return -1;
 }

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <climits>
 #include <csignal>
 #include <cstdint>
 #include <cstring>
@@ -73,6 +74,14 @@ TEST(PlatformArena, OverflowAborts) {
     // An overrun that skips the allocator runs into the guard page behind the block.
     KZ_ASSERT_FAULT([] { VisualData.base[VisualData.limit * 16] = 1; });
     KZ_ASSERT_ABORT([] { SystemMesBuffer.Alloc(6001); });
+}
+
+TEST(PlatformArena, RejectsNegativeAndUnrepresentableRequests) {
+    InitializeDataBuffer();
+    SetDataBuffer(&VisualData, 100);
+    KZ_ASSERT_ABORT([] { VisualData.Alloc(-1); });
+    KZ_ASSERT_ABORT([] { VisualData.Alloc64(-1); });
+    KZ_ASSERT_ABORT([] { VisualData.Alloc(INT_MAX); });
 }
 
 TEST(PlatformArena, ModeBuffers) {

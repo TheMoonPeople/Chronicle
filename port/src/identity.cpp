@@ -39,6 +39,7 @@ void GameSetDataIcon() {
     }
     source.member = "dkicon.ico";
     source.ico_file = L"darkcloud.ico";
-    source.shortcut = L"Dark Cloud";
+    const std::wstring shortcut = (PathsDataRoot().parent_path() / "Dark Cloud").wstring();
+    source.shortcut = shortcut.c_str();
     GameIconInstall(PathsDataRoot(), source);
 }

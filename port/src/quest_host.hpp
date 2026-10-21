@@ -17,6 +17,7 @@ void QuestHostNewGame();
 // conversation is up (QuestHostTalkOpened, its first tick in EdTalkMode).
 void QuestHostTalkStarting(int map_no, int npc_id);
 void QuestHostTalkOpened();
+int  QuestHostPlayerAllItemCheck(int item);
 
 // The quests' progress, written into or read from a save's folder (quests.json) as the save is.
 // A save without the file (made before there were quests) starts every quest again.

@@ -35,7 +35,7 @@ void CheckTranslatedCard(const char *text) {
     if (std::strstr(gfx::detail::g.properties.deviceName, "Paravirtual") != nullptr) {
         GTEST_SKIP() << "the CI runner's virtual GPU misreads the card";
     }
-    CardFiles            files;
+    CardFiles files;
     std::filesystem::create_directories(files.dir / "textures" / "plates");
     LocalizeReset();
     LocalizeSetDirectories({files.dir});

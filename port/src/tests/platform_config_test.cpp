@@ -24,6 +24,18 @@ TEST(PlatformConfig, Defaults) {
     ASSERT_TRUE(config.shadow_distance == 0.0f);
 }
 
+TEST(PlatformConfig, RenderThreadModesPersistAndRequireRestart) {
+    EXPECT_EQ(ConfigParse("").render_thread, gfx::RenderThreadMode::Async);
+    for (const auto *name : {"off", "lockstep", "async"}) {
+        const auto mode = gfx::ParseRenderThreadMode(name);
+        const auto config = ConfigParse(std::string("{\"video\":{\"render_thread\":\"") + name + "\"}}");
+        EXPECT_EQ(config.render_thread, *mode);
+        EXPECT_EQ(ConfigParse(ConfigSerialize(config)).render_thread, *mode);
+    }
+    EXPECT_EQ(ConfigParse(R"({"video":{"render_thread":"invalid"}})").render_thread, gfx::RenderThreadMode::Async);
+    EXPECT_TRUE(ConfigAppliesOnRestart("video.render_thread"));
+}
+
 TEST(PlatformConfig, DetailDistance) {
     ASSERT_TRUE(ConfigParse(R"({"video": {"detail_distance": 450}})").detail_distance == 450.0f);
     ASSERT_TRUE(ConfigParse(R"({"video": {"detail_distance": -1}})").detail_distance == 0.0f);
@@ -40,33 +52,6 @@ TEST(PlatformConfig, ShadowDistance) {
     Config config;
     config.shadow_distance = 320.0f;
     ASSERT_TRUE(ConfigParse(ConfigSerialize(config)).shadow_distance == 320.0f);
-}
-
-TEST(PlatformConfig, AerialMap) {
-    Config defaults = ConfigParse("");
-    ASSERT_TRUE(defaults.aerial_map);
-    ASSERT_FLOAT_EQ(defaults.aerial_map_ceiling, 40.0f);
-    ASSERT_FLOAT_EQ(defaults.aerial_map_zoom, 1.0f);
-    ASSERT_FLOAT_EQ(defaults.aerial_map_model_scale, 8.0f);
-    ASSERT_FALSE(defaults.aerial_map_markers);
-    ASSERT_TRUE(ConfigParse(R"({"game": {"aerial_map_markers": true}})").aerial_map_markers);
-    ASSERT_FLOAT_EQ(defaults.aerial_map_size, 1.4f);
-    ASSERT_FLOAT_EQ(ConfigParse(R"({"game": {"aerial_map_size": 1}})").aerial_map_size, 1.0f);
-    ASSERT_FLOAT_EQ(ConfigParse(R"({"game": {"aerial_map_size": 3}})").aerial_map_size, 1.4f);
-    Config config = ConfigParse(
-        R"({"game": {"aerial_map": false, "aerial_map_ceiling": 90, "aerial_map_zoom": 2, "aerial_map_model_scale": 3}})");
-    ASSERT_FALSE(config.aerial_map);
-    ASSERT_FLOAT_EQ(config.aerial_map_ceiling, 90.0f);
-    ASSERT_FLOAT_EQ(config.aerial_map_zoom, 2.0f);
-    ASSERT_FLOAT_EQ(config.aerial_map_model_scale, 3.0f);
-    ASSERT_EQ(ConfigParse(ConfigSerialize(config)), config);
-    // Out of range or the wrong type keeps the default.
-    Config bad = ConfigParse(
-        R"({"game": {"aerial_map": "on", "aerial_map_ceiling": -1, "aerial_map_zoom": 0.1, "aerial_map_model_scale": "big"}})");
-    ASSERT_TRUE(bad.aerial_map);
-    ASSERT_FLOAT_EQ(bad.aerial_map_ceiling, 40.0f);
-    ASSERT_FLOAT_EQ(bad.aerial_map_zoom, 1.0f);
-    ASSERT_FLOAT_EQ(bad.aerial_map_model_scale, 8.0f);
 }
 
 TEST(PlatformConfig, OptionalMouseZoomRoundTripsAndKeepsResetBindings) {

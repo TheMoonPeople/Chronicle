@@ -1,6 +1,5 @@
-#include "quests/quests.hpp"
-
 #include "itemdata.hpp"
+#include "quests/quests.hpp"
 
 // The Mayor of Norune's supplies. Retail's talk script (gedit/e01/event.stb, the talk event) hands
 // the player one of each of these they have none of, in the pack or stored, each time they talk to
@@ -62,6 +61,11 @@ void HandOutSupplies(Scene &scene) {
 
 const int kNoruneMayorSupplies[5] = {ITEM_TASTY_WATER, ITEM_BREAD, ITEM_REPAIR_POWDER, ITEM_ESCAPE_POWDER,
                                      ITEM_ANTIDOTE_DRINK};
+
+std::span<const Quest::Text> MayorSuppliesTexts() {
+    static constexpr Text texts[] = {kAsk, kHere, kBuggy, kStocked, kNoRoom};
+    return texts;
+}
 
 Quest::Definition MayorSupplies() {
     return Quest::Builder("mayor_supplies")

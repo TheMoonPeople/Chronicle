@@ -1,5 +1,4 @@
 #include "editground.hpp"
-#include "editground_port.hpp"
 
 #include <cstdint>
 #include <cstdlib>
@@ -9,6 +8,7 @@
 #include "camerafollow.hpp"
 #include "dataread.hpp"
 #include "editarea.hpp"
+#include "editground_port.hpp"
 #include "editpartsinfo.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -16,11 +16,10 @@
 #include "mathutil.hpp"
 #include "mglib.hpp"
 #include "objanime.hpp"
+#include "platform/config.hpp"
 #include "rect.hpp"
 #include "savedata.hpp"
 #include "vector3.hpp"
-
-#include "platform/config.hpp"
 
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -89,43 +88,43 @@ int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z) {
 
 CFrame *PreviewFrame(CMapParts *parts, s32 truncated) {
     if (truncated == 0) {
-        return NULL;
+        return nullptr;
     }
 
     for (int k = 3; k >= 0; k--) {
         CFrame        *frame = parts->frame[k];
         std::uintptr_t bits = reinterpret_cast<std::uintptr_t>(frame) & 0xFFFFFFFFu;
 
-        if (frame != NULL && bits == static_cast<u32>(truncated)) {
+        if (frame != nullptr && bits == static_cast<u32>(truncated)) {
             return frame;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 } // namespace
 
 PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float *model_pos, int rot_y, float *rotation, int area_no) {
     [[maybe_unused]] static int old_parts = -1;
-    CVector3_f_     cell;
-    CVector3_i_     grid;
-    sceVu0FMATRIX   light_direction;
-    sceVu0FMATRIX   light_colour;
-    sceVu0FVECTOR   ambient;
-    int             area_code;
-    CEditArea      *area;
-    CMapParts      *source;
-    int             width;
-    int             height;
-    int             fits;
-    int             occupant;
-    EDITPARTS_INFO *info;
-    CFrame         *preview;
-    CFrame         *model;
-    int             saved_draw;
-    int             subtype;
-    float           step;
+    CVector3_f_                 cell;
+    CVector3_i_                 grid;
+    sceVu0FMATRIX               light_direction;
+    sceVu0FMATRIX               light_colour;
+    sceVu0FVECTOR               ambient;
+    int                         area_code;
+    CEditArea                  *area;
+    CMapParts                  *source;
+    int                         width;
+    int                         height;
+    int                         fits;
+    int                         occupant;
+    EDITPARTS_INFO             *info;
+    CFrame                     *preview;
+    CFrame                     *model;
+    int                         saved_draw;
+    int                         subtype;
+    float                       step;
 
     if (plot < 0 || plot >= 24) {
         sceVu0CopyVector(model_pos, position);
@@ -158,15 +157,15 @@ PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float
             fits = 0;
         }
 
-        if (occupant >= 0 && parts[occupant].handle != 1) {
+        if (occupant >= 0 && occupant < 128 && parts[occupant].handle != 1) {
             fits = 0;
         }
     }
 
-    if (parts_info != NULL) {
+    if (parts_info != nullptr) {
         info = parts_info->GetPartsInfo(plot);
 
-        if (info != NULL) {
+        if (info != nullptr) {
             fits &= info->placed < info->stock;
         }
     }
@@ -179,7 +178,7 @@ PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float
     preview = fits != 0 ? PreviewFrame(source, source->preview_frame) : PreviewFrame(source, source->blocked_preview_frame);
 
     // The preview is the part's finest level of detail, where retail showed its coarsest.
-    if (preview != NULL && source->frame[0] != NULL) {
+    if (preview != nullptr && source->frame[0] != nullptr) {
         preview = source->frame[0];
     }
 
@@ -241,18 +240,18 @@ PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float
     if (source->category_no == area_no) {
         subtype = source->subtype;
 
-        if (preview != NULL && subtype != MAP_PARTS_SUBTYPE_RIVER && subtype != MAP_PARTS_SUBTYPE_BRIDGE) {
-            model = NULL;
+        if (preview != nullptr && subtype != MAP_PARTS_SUBTYPE_RIVER && subtype != MAP_PARTS_SUBTYPE_BRIDGE) {
+            model = nullptr;
 
             if (subtype == MAP_PARTS_SUBTYPE_ON_RIVER) {
                 model = preview->SearchFrame("kawa");
 
-                if (model != NULL) {
+                if (model != nullptr) {
                     saved_draw = model->attr.draw_on;
                     model->attr.draw_on = 2;
                 }
 
-                if (occupant >= 0) {
+                if (occupant >= 0 && occupant < 128) {
                     CMapParts *target = &parts[occupant];
                     target->GetRotation(rotation);
                 }
@@ -263,7 +262,7 @@ PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float
             preview->SetRotation(angle[0], angle[1], angle[2]);
             MGDraw(preview);
 
-            if (model != NULL) {
+            if (model != nullptr) {
                 model->attr.draw_on = saved_draw;
             }
         }
@@ -288,7 +287,7 @@ PORT_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highe
 
     for (i = 0; i < 64; i++) {
         if (fixed_parts[i].category_no == pass) {
-            fixed_parts[i].DrawParts(time, lod_distance, fixed_lowest, fixed_highest, NULL);
+            fixed_parts[i].DrawParts(time, lod_distance, fixed_lowest, fixed_highest, nullptr);
         }
     }
 
@@ -303,7 +302,7 @@ PORT_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highe
             continue;
         }
 
-        if (object->area >= 0 && area_visible[object->area] == 0) {
+        if (object->area >= 0 && (object->area >= 4 || area_visible[object->area] == 0)) {
             continue;
         }
 
@@ -322,7 +321,7 @@ PORT_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highe
             MGSetAmbient(focus_ambient);
         }
 
-        object->DrawParts(time, lod_distance, lowest, highest, NULL);
+        object->DrawParts(time, lod_distance, lowest, highest, nullptr);
         MGSetAmbient(ambient);
     }
 }
@@ -352,7 +351,7 @@ void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float
             continue;
         }
 
-        if (object->area >= 0 && ground.area_visible[object->area] == 0) {
+        if (object->area >= 0 && (object->area >= 4 || ground.area_visible[object->area] == 0)) {
             continue;
         }
 
@@ -379,7 +378,7 @@ void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float
         if (view[2] > near_distance && view[2] < far_distance) {
             object->DrawShade();
 
-            if (object->shadow_frame != NULL) {
+            if (object->shadow_frame != nullptr) {
                 fast = pass != 0;
 
                 if (view[2] > fast_distance) {
@@ -409,7 +408,7 @@ void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float
         if (view[2] > near_distance && view[2] < far_distance) {
             fixed->DrawShade();
 
-            if (fixed->shadow_frame != NULL) {
+            if (fixed->shadow_frame != nullptr) {
                 fast = pass != 0;
 
                 if (view[2] > fast_distance) {

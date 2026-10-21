@@ -176,14 +176,14 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
                        static_cast<float>(top) / height, static_cast<float>(bottom + 1) / height};
     // Touching painted letters require sheared-column cuts near the font's estimated boundaries.
     {
-        constexpr float  kLean = -0.1f; // the painted lean, the same on every card (x = x' + kLean * (y - mid))
+        constexpr float  lean = -0.1f; // the painted lean, the same on every card (x = x' + lean * (y - mid))
         const int        rows_n = bottom - top + 1;
         const int        pad = rows_n;
         std::vector<int> cols(static_cast<size_t>(width + 2 * pad), 0);
         for (int y = top; y <= bottom; y++) {
             for (int x = 0; x < width; x++) {
                 if (mask[static_cast<size_t>(y) * width + x]) {
-                    const int sheared = static_cast<int>(std::lround(static_cast<float>(x) - kLean * (static_cast<float>(y - top) - rows_n / 2.0f))) + pad;
+                    const int sheared = static_cast<int>(std::lround(static_cast<float>(x) - lean * (static_cast<float>(y - top) - rows_n / 2.0f))) + pad;
                     if (sheared >= 0 && sheared < static_cast<int>(cols.size())) {
                         cols[static_cast<size_t>(sheared)]++;
                     }
@@ -234,7 +234,7 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
                     if (!mask[static_cast<size_t>(y) * width + x]) {
                         continue;
                     }
-                    const int sheared = static_cast<int>(std::lround(static_cast<float>(x) - kLean * (static_cast<float>(y - top) - rows_n / 2.0f))) + pad;
+                    const int sheared = static_cast<int>(std::lround(static_cast<float>(x) - lean * (static_cast<float>(y - top) - rows_n / 2.0f))) + pad;
                     size_t    item = 0;
                     while (item + 1 < letters.size() && sheared > bound[item + 1]) {
                         item++;
@@ -398,8 +398,8 @@ struct Frame {
 void Ribbon(std::vector<gfx::Vertex2D> &out, const Frame &frame, const Layout &layout, float left, float right, float grow,
             float feather, const unsigned char (&top_rgb)[3], const unsigned char (&mid_rgb)[3], const unsigned char (&low_rgb)[3],
             float fade) {
-    constexpr int   kSteps = 96;
-    constexpr float kPi = 3.14159265f;
+    constexpr int   steps = 96;
+    constexpr float pi = 3.14159265f;
     const float     k = std::clamp(fade, 0.0f, 1.0f);
     const float     aspect = frame.w / frame.h;
     const float     amplitude = std::max(layout.underline_wave, 0.0f);
@@ -408,12 +408,12 @@ void Ribbon(std::vector<gfx::Vertex2D> &out, const Frame &frame, const Layout &l
         return std::array<uint8_t, 4>{rgb[0], rgb[1], rgb[2], static_cast<uint8_t>(std::clamp(alpha * k, 0.0f, 1.0f) * 0x80 + 0.5f)};
     };
     auto point = [&](int i, float at, const unsigned char (&rgb)[3], float alpha, float extra) {
-        const float t = static_cast<float>(i) / kSteps;
+        const float t = static_cast<float>(i) / steps;
         const float x = left - grow + (right - left + 2 * grow) * t;
         const float taper = smooth(t / 0.16f) * smooth((1 - t) / 0.16f);
-        const float body = 0.62f + 0.38f * std::sin(kPi * t);
+        const float body = 0.62f + 0.38f * std::sin(pi * t);
         const float half = layout.underline_thick * 0.5f * body * taper;
-        const float cy = layout.underline_y - amplitude * std::sin(2 * kPi * t - 0.35f);
+        const float cy = layout.underline_y - amplitude * std::sin(2 * pi * t - 0.35f);
         const float y = cy + at * (half + (grow + extra) * aspect);
         const auto  c = shade(rgb, alpha);
         return gfx::Vertex2D{
@@ -422,7 +422,7 @@ void Ribbon(std::vector<gfx::Vertex2D> &out, const Frame &frame, const Layout &l
     };
     auto band = [&](float at0, const unsigned char (&rgb0)[3], float a0, float e0, float at1, const unsigned char (&rgb1)[3], float a1,
                     float e1) {
-        for (int i = 0; i < kSteps; i++) {
+        for (int i = 0; i < steps; i++) {
             out.push_back(point(i, at0, rgb0, a0, e0));
             out.push_back(point(i + 1, at0, rgb0, a0, e0));
             out.push_back(point(i + 1, at1, rgb1, a1, e1));

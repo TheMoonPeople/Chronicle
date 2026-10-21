@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <string>
 
 #include "battlemenu.hpp"
 #include "btactstatus.hpp"
@@ -12,6 +14,7 @@
 #include "btmisc.hpp"
 #include "btsysscript.hpp"
 #include "camera.hpp"
+#include "camera_port.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "clothread.hpp"
@@ -23,8 +26,8 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dun/gameloop_port.hpp"
 #include "dungeoneventman.hpp"
-#include "dungeon_aerial.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
 #include "editloop3.hpp"
@@ -52,6 +55,7 @@
 #include "nowload.hpp"
 #include "npcharacter.hpp"
 #include "platform/config.hpp"
+#include "platform/input.hpp"
 #include "randomitem.hpp"
 #include "rect.hpp"
 #include "runeffect.hpp"
@@ -116,14 +120,17 @@ extern s32             oldMsgNo;
 extern s32             rogoAlphaA[3];
 extern s32             rogoSwitch2;
 extern s32             rogoY3;
+void                   unitBlowActionRot(float *velocity);
+
+namespace {
 
 // Draws the floor's monsters. CMonstorUnit::DrawMonstor draws the ones taking part; a dormant one
 // within video.detail_distance of the player is passed off as taking part for the length of the
 // call, so that its model draws and animates without the monster waking.
-static void DrawMonstorDetail() {
+void DrawMonstorDetail() {
     CMonstorUnit *unit = NowMonstorUnit;
     float         detail = ConfigDetailDistance();
-    bool          dormant[16];
+    auto          dormant = std::make_unique<bool[]>(16);
 
     for (int i = 0; i < 16; i++) {
         MONSTOR *monster = &unit->monster[i];
@@ -142,8 +149,6 @@ static void DrawMonstorDetail() {
         }
     }
 }
-
-namespace {
 
 // Where the status panel's pieces go in a window wider or taller than the frame: life, weapon and
 // water (left of the quick items at 0x124) to the left edge, the floor plate (from 0x1FC) to the
@@ -164,6 +169,30 @@ CTexture *NamedTexture(const char *name) {
 
 } // namespace
 
+void HitBlowVelocity(int hit_no, float *velocity) {
+    COLLISION_HIT &hit = NowColData->hit[hit_no];
+    sceVu0CopyVector(velocity, hit.velocity);
+
+    if (hit.ready_phase != 10) {
+        return;
+    }
+
+    float away_x = CharaMain.pos[0] - hit.pos[0];
+    float away_z = CharaMain.pos[2] - hit.pos[2];
+    float length = std::sqrt(away_x * away_x + away_z * away_z);
+    if (length < 0.1f) {
+        sceVu0FVECTOR rotation;
+        CharaFrame->GetRotation(rotation);
+        away_x = -std::sin(rotation[1]);
+        away_z = -std::cos(rotation[1]);
+        length = 1.0f;
+    }
+
+    velocity[0] = away_x / length;
+    velocity[1] = 0.0f;
+    velocity[2] = away_z / length;
+}
+
 PORT_OVERRIDE void DunMainDraw() {
     sceVu0FMATRIX camera;
     sceVu0FVECTOR eye;
@@ -173,7 +202,7 @@ PORT_OVERRIDE void DunMainDraw() {
     sceGsTex0     water_tex;
     int           i;
 
-    EdEventInfo.main_texture_animation = NULL;
+    EdEventInfo.main_texture_animation = nullptr;
     NowCamera__3->GetPos(eye);
     NowCamera__3->GetCameraMatrix(camera);
     sceVu0UnitMatrix(unit);
@@ -273,7 +302,7 @@ PORT_OVERRIDE void DunMainDraw() {
             CharaHand.Draw();
         }
 
-        if (NowWeapon != NULL && UserStatus->cur_chara == CHARA_XIAO && NowWeapon->frame != NULL && BtActStatus.weapon_visible != 0) {
+        if (NowWeapon != nullptr && UserStatus->cur_chara == CHARA_XIAO && NowWeapon->frame != nullptr && BtActStatus.weapon_visible != 0) {
             TexManager.ReloadTexture(Vif1Packet, 0x1D);
             NowWeapon->Draw();
         }
@@ -312,7 +341,7 @@ PORT_OVERRIDE void DunMainDraw() {
         area.y = 0;
         area.width = 0x280;
         area.height = SCREEN_HALF_HEIGHT;
-        water_tex = *(sceGsTex0 *) &NamedTexture("water")->tex0;
+        water_tex = *reinterpret_cast<sceGsTex0 *>(&NamedTexture("water")->tex0);
         MGMoveImage(&frame_tex, area, &water_tex, 0, 0, 0);
         sceVu0CopyVector(water_pos, CharaFrame->position);
         NowDngMap->DrawWater(water_pos, driveStepHold);
@@ -495,7 +524,7 @@ PORT_OVERRIDE void DunMainDraw() {
         }
 
         if (CEffectHyde == 0 && BtEventMode == 0) {
-            MGSetGsZBUF(NULL);
+            MGSetGsZBUF(nullptr);
             RandomItem->Draw();
             StealItem.Draw();
         }
@@ -540,8 +569,8 @@ PORT_OVERRIDE void DunMainDraw() {
             CWeaponFx.Draw();
             CRunFx__2.Step();
             CRunFx__2.Draw();
-            MGSetGsALPHA(NULL);
-            MGSetGsZBUF(NULL);
+            MGSetGsALPHA(nullptr);
+            MGSetGsZBUF(nullptr);
         }
 
         if (rogoSwitch2 == 1 && BtEventInfo.floor_title_off == 0) {
@@ -556,7 +585,7 @@ PORT_OVERRIDE void DunMainDraw() {
 
         int gauge_alpha = rogoY3 + 0x60;
 
-        if ((int) BtActStatus.action_gauge >= 100) {
+        if (static_cast<int>(BtActStatus.action_gauge) >= 100) {
             if (BtActStatus.gauge_flash == 0) {
                 set2DSprite(Vif1Packet, TEX_WepGage, CRect_i_(0x28, SCREEN_HEIGHT - 0x34, 0x80, 0x1C), CRect_i_(0, 0, 0x80, 0x1C), gauge_alpha);
             } else {
@@ -566,8 +595,8 @@ PORT_OVERRIDE void DunMainDraw() {
 
         float wear = BtActStatus.action_gauge;
 
-        if ((int) wear < 100) {
-            int left = (int) wear;
+        if (static_cast<int>(wear) < 100) {
+            int left = static_cast<int>(wear);
 
             set2DSprite(Vif1Packet, TEX_WepGage, CRect_i_(0x28, SCREEN_HEIGHT - 0x34, 0x80, 0x1C), CRect_i_(0, 0x54, 0x80, 0x1C), gauge_alpha);
             set2DSprite(Vif1Packet, TEX_WepGage, CRect_i_(0x42, SCREEN_HEIGHT - 0x34, left, 0x1C), CRect_i_(0x1A, 0x38, left, 0x1C), gauge_alpha);
@@ -583,11 +612,7 @@ PORT_OVERRIDE void DunMainDraw() {
             sceVu0CopyVector(map_pos, CharaFrame->position);
             CharaFrame->GetRotation(map_rot);
             NowDngMap->DrawMiniMap(map_pos, map_rot[1]);
-
-            // The aerial map shows the monsters as their models.
-            if (!DungeonAerialMapDrawn()) {
-                NowMonstorUnit->DrawMapSymbol(map_pos);
-            }
+            NowMonstorUnit->DrawMapSymbol(map_pos);
             RandomItem->MapSymbolDraw();
         }
 
@@ -617,7 +642,7 @@ PORT_OVERRIDE void DunMainDraw() {
         sceVu0FVECTOR fade;
 
         sceVu0CopyVector(fade, EdEventInfo.screen_filter_color);
-        MGFillBox(CRect_i_(0, 0, 0x2800, 0xE00), (int) fade[0], (int) fade[1], (int) fade[2], (int) fade[3]);
+        MGFillBox(CRect_i_(0, 0, 0x2800, 0xE00), static_cast<int>(fade[0]), static_cast<int>(fade[1]), static_cast<int>(fade[2]), static_cast<int>(fade[3]));
     }
 
     if (BtEventMode != 0) {
@@ -629,7 +654,7 @@ PORT_OVERRIDE void DunMainDraw() {
     }
 
     for (i = 0; i < 1; i++) {
-        if (EdEventInfo.item_frame[i] != NULL) {
+        if (EdEventInfo.item_frame[i] != nullptr) {
             TexManager.ReloadTexture(Vif1Packet, i + 0x28);
             MGDraw(EdEventInfo.item_frame[i]);
         }
@@ -714,7 +739,7 @@ PORT_OVERRIDE void DunMainDraw() {
 
     if (frameCaputer != 0) {
         TexManager.ReloadTexture(Vif1Packet, 0x17);
-        MGMoveFrameBuffImage((sceGsTex0 *) &NamedTexture("frame_image")->tex0, 0, 0, 0);
+        MGMoveFrameBuffImage(reinterpret_cast<sceGsTex0 *>(&NamedTexture("frame_image")->tex0), 0, 0, 0);
     }
 }
 
@@ -723,28 +748,29 @@ extern LOADTEXTURE_INFO2 texdata__2[];
 // Retail formats the floor's gate key image over the third name in texdata__2, a string literal the
 // PS2 left writable and a host need not; the port formats it into a buffer of its own.
 PORT_OVERRIDE void LoadBaseTexture() {
-    LOADTEXTURE_INFO2 info[96];
-    int               size;
-    int               i;
-    char             *name;
-    char              gate_key[16];
-
-    snprintf(gate_key, sizeof(gate_key), "gatekey0%d.img", selectMapNo + 1);
-
-    char path[64] = "dun/pack/teximg2.pac";
-
-    if (LanguageCode > LANG_JAPANESE) {
-        sprintf(path, "dun/pack/teximg2_%d.pac", LanguageCode);
+    std::size_t info_count = 0;
+    while (texdata__2[info_count].name != nullptr) {
+        info_count++;
     }
+    auto        info = std::make_unique<LOADTEXTURE_INFO2[]>(info_count + 1);
+    int         size;
+    int         i;
+    char       *name;
+    std::string gate_key = "gatekey0" + std::to_string(selectMapNo + 1) + ".img";
+    std::string path = "dun/pack/teximg2";
+    if (LanguageCode > LANG_JAPANESE) {
+        path += "_" + std::to_string(LanguageCode);
+    }
+    path += ".pac";
 
-    LoadFile(path, (void *) read_buffer, NULL);
+    LoadFile(path.data(), reinterpret_cast<void *>(read_buffer), nullptr);
     wait_now_loading_vsync();
 
     i = 0;
 
-    while ((name = texdata__2[i].name) != NULL) {
+    while ((name = texdata__2[i].name) != nullptr) {
         if (i == 2) {
-            name = gate_key;
+            name = gate_key.data();
         }
 
         // A name that starts with '#' asks the manager for a blank page of that size rather than
@@ -754,8 +780,8 @@ PORT_OVERRIDE void LoadBaseTexture() {
         } else {
             u_int *found = GetPackFile(read_buffer, name, &size);
 
-            if (found != NULL) {
-                info[i].name = (char *) found;
+            if (found != nullptr) {
+                info[i].name = reinterpret_cast<char *>(found);
             } else {
                 printf("Error::Pack->FileNotFound [%d]%s!!\n", i, name);
                 exit__2(-1);
@@ -766,52 +792,75 @@ PORT_OVERRIDE void LoadBaseTexture() {
         i++;
     }
 
-    info[i].name = NULL;
-    TexManager.LoadTextureBlock(-1, info);
+    info[i].name = nullptr;
+    TexManager.LoadTextureBlock(-1, info.get());
 
     // The message window's pages, and the three images the language's own pack supplies in place of
     // the names written here.
     LOADTEXTURE_INFO2 mes_info[8] = {
-        {(char *) "#mes_frame_buff#640#480#4", 0x1A, 0},
-        {(char *) "#fukidashibase#640#224#4",  0x1A, 0},
-        {(char *) "#fontbase#512#256#1",       0x1A, 0},
-        {(char *) "meswin/gaiji.img",          0x1A, 0},
-        {(char *) "meswin/fuki256.img",        0x1A, 0},
-        {(char *) "meswin/syst04.img",         0x1A, 0},
+        {const_cast<char *>("#mes_frame_buff#640#480#4"), 0x1A, 0},
+        {const_cast<char *>("#fukidashibase#640#224#4"),  0x1A, 0},
+        {const_cast<char *>("#fontbase#512#256#1"),       0x1A, 0},
+        {const_cast<char *>("meswin/gaiji.img"),          0x1A, 0},
+        {const_cast<char *>("meswin/fuki256.img"),        0x1A, 0},
+        {const_cast<char *>("meswin/syst04.img"),         0x1A, 0},
     };
 
-    char mes_path[64] = "meswin/mes_tex.pak";
-
+    std::string mes_path = "meswin/mes_tex";
     if (LanguageCode > LANG_JAPANESE) {
-        sprintf(mes_path, "meswin/mes_tex_%d.pak", LanguageCode);
+        mes_path += "_" + std::to_string(LanguageCode);
     }
+    mes_path += ".pak";
 
-    LoadFile(mes_path, read_buffer, NULL);
+    LoadFile(mes_path.data(), read_buffer, nullptr);
     wait_now_loading_vsync();
 
-    mes_info[3].name = (char *) GetPackFile(read_buffer, (char *) "gaiji.img", NULL);
-    mes_info[4].name = (char *) GetPackFile(read_buffer, (char *) "fuki256.img", NULL);
-    mes_info[5].name = (char *) GetPackFile(read_buffer, (char *) "syst04.img", NULL);
+    mes_info[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, const_cast<char *>("gaiji.img"), nullptr));
+    mes_info[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, const_cast<char *>("fuki256.img"), nullptr));
+    mes_info[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, const_cast<char *>("syst04.img"), nullptr));
     TexManager.LoadTextureBlock(-1, mes_info);
 }
 
 PORT_OVERRIDE int LoaderLoop() {
-    char       name[96];
     int        i;
     int        chosen = 0;
     static int nowCursor = 0;
 
-    CDbgMsg.length = sprintf(&CDbgMsg.text[CDbgMsg.length], "- MapInfomationFile Loader -\n");
+    int length = snprintf(CDbgMsg.text, sizeof(CDbgMsg.text), "- MapInfomationFile Loader -\n");
+
+    if (length < 0 || length >= static_cast<int>(sizeof(CDbgMsg.text))) {
+        CDbgMsg.length = 0;
+        return 0;
+    }
 
     for (i = 0; i < 7; i++) {
-        strcpy(name, MapInfoNameArea[i]);
+        const char *name = MapInfoNameArea[i] != nullptr ? MapInfoNameArea[i] : "";
+        const int   remaining = static_cast<int>(sizeof(CDbgMsg.text)) - length;
 
         if (nowCursor == i) {
-            CDbgMsg.length += sprintf(&CDbgMsg.text[CDbgMsg.length], ">>[%2d] %s\n", i + 1, name);
+            int written = snprintf(&CDbgMsg.text[length], remaining, ">>[%2d] %s\n", i + 1, name);
+
+            if (written < 0) {
+                break;
+            }
+
+            length += written < remaining ? written : remaining - 1;
         } else {
-            CDbgMsg.length += sprintf(&CDbgMsg.text[CDbgMsg.length], "  [%2d] %s\n", i + 1, name);
+            int written = snprintf(&CDbgMsg.text[length], remaining, "  [%2d] %s\n", i + 1, name);
+
+            if (written < 0) {
+                break;
+            }
+
+            length += written < remaining ? written : remaining - 1;
+        }
+
+        if (length >= static_cast<int>(sizeof(CDbgMsg.text)) - 1) {
+            break;
         }
     }
+
+    CDbgMsg.length = length;
 
     if (GamePad.Down(PAD_UP) != 0 && nowCursor != 0) {
         nowCursor--;
@@ -836,4 +885,448 @@ PORT_OVERRIDE int LoaderLoop() {
     TexManager.ReloadTexture(Vif1Packet, 12);
     CDbgMsg.Draw();
     return chosen;
+}
+
+PORT_OVERRIDE int BtCheckDamageProc() {
+    sceVu0FVECTOR pos;
+    sceVu0FVECTOR from;
+    sceVu0FVECTOR blow;
+    int           taken = 0;
+    int           blown = 0;
+
+    static int dmgSnd = 0;
+
+    if (dmgSnd > 0) {
+        dmgSnd--;
+    }
+
+    // The debug menu can hold the player at full health.
+    if (DebugStatus[20] == 2) {
+        CUserStatus *status = UserStatus;
+
+        status->hp[status->cur_chara] = status->max_hp[status->cur_chara];
+        return 0;
+    }
+
+    if (BtActStatus.recoil_frames == 0 && BtActStatus.invincible_frames == 0) {
+        sceVu0CopyVector(pos, CharaMain.pos);
+
+        int hit_no = NowColData->CheckHitUser(pos, 1, CharaHeight(UserStatus));
+
+        if (hit_no != -1) {
+            taken = 1;
+
+            if (BtActStatus.action_on == 6) {
+                blown = taken;
+            }
+
+            BombInfo.aiming = false;
+            BombInfo.throw_step = -1;
+            BtActStatus.can_act = 1;
+            BtActStatus.action_on = 0;
+            BtActStatus.action_busy = 0;
+
+            if (activeItem.model[8] != -1) {
+                activeItem.models->AllReleasItem();
+                activeItem.model[8] = -1;
+            }
+
+            BtActStatus.move_power = 0.0f;
+            BtActStatus.gauge_exhausted = 0;
+            BtActStatus.action_gauge = 100.0f;
+            CMonUnitHold = 0;
+            CEffectHold = 0;
+
+            if (ruby_effect_id != -1 && UserStatus->cur_chara == CHARA_RUBY) {
+                NowMainEffect->OffEffect(ruby_effect_id);
+                ruby_effect_id = -1;
+            }
+
+            int            damage = NowColData->Get(hit_no)->damage;
+            int            guard = UserStatus->defense[UserStatus->cur_chara];
+            int            monster;
+            int            roll;
+            COLLISION_HIT *hit = &NowColData->hit[hit_no];
+
+            if (StatusErrCheck(AILMENT_STAMINA) != 0) {
+                guard *= 2;
+            }
+
+            damage -= guard;
+
+            if (damage <= 0) {
+                damage = 0;
+            }
+
+            int owner = NowColData->hit[hit_no].owner;
+
+            monster = -1;
+
+            if (owner != -1) {
+                monster = (owner - 200) / 5;
+                CMonstorUnit *unit = NowMonstorUnit;
+
+                if (monster >= 0 && monster < 16) {
+                    unit->monster[monster].last_hit_damage = damage;
+                }
+
+                NowMonstorUnit->chara[monster][0].GetPosition(from);
+            }
+
+            roll = static_cast<int>(100.0f * static_cast<float>(rand()) / 2147483648.0f);
+
+            // A hit that drains takes a fifth of the player's money and gives it to
+            // whatever landed it.
+            if ((hit->flags & 0x40000) && roll < 20 && monster != -1) {
+                u16 *wallet = &UserStatus->money;
+                u16  had = UserStatus->money;
+
+                if (had > 10) {
+                    int drained = had / 5;
+
+                    *wallet -= drained;
+                    SndSePlay(SE_ITEM_GET, -1, 0);
+                    NowMonstorUnit->monster[monster].stolen_money += drained;
+                    DngMessMan.message = 0xB5;
+                    DngMessMan.timer = 0xB4;
+                    DngMessMan.steev_window = false;
+                }
+            }
+
+            if ((hit->flags & 0x1000) && roll < 0x41) {
+                BtSetStatusErr(AILMENT_STAMINA);
+            }
+
+            if (hit->flags & 0x100000) {
+                BtSetStatusErr(AILMENT_FREEZE);
+            }
+
+            if ((hit->flags & 0x100) && roll < 0x41) {
+                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTI_FREEZE_AMULET);
+
+                if (slot == -1) {
+                    BtSetStatusErr(AILMENT_FREEZE);
+                } else {
+                    // &who->active_item_vol[slot], spelled so the index is added first.
+                    CUserStatus   *who = UserStatus;
+                    std::uintptr_t address = slot * sizeof(s32);
+
+                    address += reinterpret_cast<std::uintptr_t>(who);
+                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
+
+                    if (--(*vol) <= 0) {
+                        DelActiveItem(slot + 1);
+                        DngMessMan.message = 0xB7;
+                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTI_FREEZE_AMULET);
+                        DngMessMan.timer = 0xB4;
+                        DngMessMan.steev_window = false;
+                    }
+                }
+            }
+
+            if ((hit->flags & 0x200) && roll < 0x41 && (UserStatus->ailments[UserStatus->cur_chara] & AILMENT_POISON) == 0) {
+                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTIDOTE_AMULET);
+
+                if (slot == -1) {
+                    BtSetStatusErr(AILMENT_POISON);
+                    DngMessMan.message = 0xBB;
+                    DngMessMan.timer = 0xB4;
+                    DngMessMan.steev_window = false;
+                } else {
+                    CUserStatus   *who = UserStatus;
+                    std::uintptr_t address = slot * sizeof(s32);
+
+                    address += reinterpret_cast<std::uintptr_t>(who);
+                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
+
+                    if (--(*vol) <= 0) {
+                        DelActiveItem(slot + 1);
+                        DngMessMan.message = 0xB7;
+                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTIDOTE_AMULET);
+                        DngMessMan.timer = 0xB4;
+                        DngMessMan.steev_window = false;
+                    }
+                }
+            }
+
+            if ((hit->flags & 0x400) && roll < 0x41 && (UserStatus->ailments[UserStatus->cur_chara] & AILMENT_CURSE) == 0) {
+                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTICURSEAMULET);
+
+                if (slot == -1) {
+                    BtSetStatusErr(AILMENT_CURSE);
+                    DngMessMan.message = 0xB9;
+                    DngMessMan.timer = 0xB4;
+                    DngMessMan.steev_window = false;
+                } else {
+                    CUserStatus   *who = UserStatus;
+                    std::uintptr_t address = slot * sizeof(s32);
+
+                    address += reinterpret_cast<std::uintptr_t>(who);
+                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
+
+                    if (--(*vol) <= 0) {
+                        DelActiveItem(slot + 1);
+                        DngMessMan.message = 0xB7;
+                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTICURSEAMULET);
+                        DngMessMan.timer = 0xB4;
+                        DngMessMan.steev_window = false;
+                    }
+                }
+            }
+
+            if ((hit->flags & 0x800) && roll < 0x41 && (UserStatus->ailments[UserStatus->cur_chara] & AILMENT_GOO) == 0) {
+                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTIGOO_AMULET);
+
+                if (slot == -1) {
+                    BtSetStatusErr(AILMENT_GOO);
+                    DngMessMan.message = 0xBA;
+                    DngMessMan.timer = 0xB4;
+                    DngMessMan.steev_window = false;
+                } else {
+                    CUserStatus   *who = UserStatus;
+                    std::uintptr_t address = slot * sizeof(s32);
+
+                    address += reinterpret_cast<std::uintptr_t>(who);
+                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
+
+                    if (--(*vol) <= 0) {
+                        DelActiveItem(slot + 1);
+                        DngMessMan.message = 0xB7;
+                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTIGOO_AMULET);
+                        DngMessMan.timer = 0xB4;
+                        DngMessMan.steev_window = false;
+                    }
+                }
+            }
+
+            // A hit that halves takes half of what the player can hold.
+            if (hit->flags & 0x80000) {
+                damage = UserStatus->max_hp[UserStatus->cur_chara] >> 1;
+            }
+
+            if (NowColData->hit[hit_no].kind == 3) {
+                sceVu0CopyVector(blow, NowColData->hit[hit_no].pos);
+                GamePad.SetVibration(1, 0xE6, 0x16);
+
+                if (BtActStatus.action_no == 9) {
+                    HitBlowVelocity(hit_no, blowVelo);
+                    velo__2[0] = blowVelo[0] / 10.0f;
+                    velo__2[2] = blowVelo[2] / 10.0f;
+
+                    if (NowColData->hit[hit_no].target_mask != 3) {
+                        NowColData->active[hit_no] = 0;
+                    }
+
+                    if (dmgSnd <= 0) {
+                        SndSePlay(SE_HIT_BLOCKED, -1, 0);
+                        dmgSnd = 30;
+                    }
+                } else {
+                    SndSePlay(SE_CHARA_HURT, -1, 0);
+                    SndSePlay(SE_PLAYER_HIT, -1, 0);
+                    BtActStatus.hud_shake_frames = 15;
+                    setUnitAmbientAnime(160.0f, 1.0f, 255.0f, 0.0f, 0.0f);
+                    UserStatus->AddNowLife(UserStatus->cur_chara, -damage, 10.0f);
+
+                    float number_pos[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+                    number_pos[1] = CharaHeight(UserStatus);
+                    HitValueEntry(NowHitValue, number_pos, damage, HIT_VALUE_PLAYER, CharaMain.frame);
+
+                    HitBlowVelocity(hit_no, blowVelo);
+                    unitBlowActionRot(blowVelo);
+
+                    if (NowColData->hit[hit_no].target_mask != 3) {
+                        NowColData->active[hit_no] = 0;
+                    }
+
+                    if (damage < UserStatus->hp[UserStatus->cur_chara]) {
+                        BtActStatus.action_on = 5;
+                        BtActStatus.motion_no = 6;
+                        CharaMain.motion_type.state.time = static_cast<float>(CharaMain.motion_type.motion_info[6].start);
+                    } else {
+                        BtActStatus.action_on = 4;
+                        BtActStatus.motion_no = 4;
+                        CharaMain.motion_type.state.time = static_cast<float>(CharaMain.motion_type.motion_info[4].start);
+                    }
+
+                    driveNoInterpolate = 1;
+                    lockOnTargetFlag = 0;
+                    BtActStatus.recoil_frames = 0xA0;
+                }
+            }
+
+            COLLISION_HIT *hits = NowColData->hit;
+            int            kind = hits[hit_no].kind;
+
+            if (kind == 2 || hits[hit_no].kind == 4) {
+                sceVu0FVECTOR at;
+                sceVu0FVECTOR away;
+
+                sceVu0CopyVector(at, hits[hit_no].pos);
+                GamePad.SetVibration(1, 0xDC, 0xC);
+
+                if (blown != 0) {
+                    sceVu0CopyVector(away, CharaMain.pos);
+
+                    if (monster != -1) {
+                        away[0] -= from[0];
+                        away[1] = 0.0f;
+                        away[2] -= from[2];
+                    } else {
+                        away[0] -= at[0];
+                        away[1] = 0.0f;
+                        away[2] -= at[2];
+                    }
+
+                    sceVu0CopyVector(MyHitPointMark[0].pos, at);
+                    MyHitPointMark[0].on = 1;
+                    MyHitPointMark[0].blink = 0;
+                    MyHitPointMark[0].timer = 0x10;
+                    velo__2[0] = away[0] / 2.0f;
+                    velo__2[2] = away[2] / 2.0f;
+
+                    if (NowColData->hit[hit_no].target_mask != 3) {
+                        NowColData->active[hit_no] = 0;
+                    }
+
+                    if (dmgSnd <= 0) {
+                        SndSePlay(SE_HIT_BLOCKED, -1, 0);
+                        dmgSnd = 30;
+                    }
+                } else {
+                    SndSePlay(SE_CHARA_HURT_HEAVY, -1, 0);
+                    SndSePlay(SE_PLAYER_HIT, -1, 0);
+                    BtActStatus.hud_shake_frames = 25;
+                    setUnitAmbientAnime(80.0f, 1.0f, 255.0f, 0.0f, 0.0f);
+                    UserStatus->AddNowLife(UserStatus->cur_chara, -damage, 10.0f);
+
+                    if (NowColData->hit[hit_no].target_mask != 3) {
+                        NowColData->active[hit_no] = 0;
+                    }
+
+                    float heavy_number_pos[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+                    heavy_number_pos[1] = CharaHeight(UserStatus);
+                    HitValueEntry(NowHitValue, heavy_number_pos, damage, HIT_VALUE_PLAYER, CharaMain.frame);
+
+                    static int     cnt = 0;
+                    CHitPointMark *spot = &MyHitPointMark[cnt];
+
+                    sceVu0CopyVector(spot->pos, at);
+                    spot->on = 1;
+                    spot->blink = 0;
+                    spot->timer = 0x10;
+
+                    if (cnt >= 15) {
+                        cnt = 0;
+                    } else {
+                        cnt++;
+                    }
+
+                    if (!(stickVector < 0.8f)) {
+                        BtActStatus.action_on = 0;
+                        BtActStatus.motion_no = 0x1D;
+                    } else {
+                        BtActStatus.action_on = 4;
+                        BtActStatus.motion_no = 4;
+                        CharaMain.motion_type.state.time = static_cast<float>(CharaMain.motion_type.motion_info[4].start);
+                    }
+
+                    driveNoInterpolate = 1;
+                    BtActStatus.recoil_frames = 0x50;
+
+                    if (NowColData->hit[hit_no].kind == 4) {
+                        BtActStatus.recoil_frames = 8;
+                        setUnitAmbientAnime(10.0f, 1.0f, 255.0f, 0.0f, 0.0f);
+                    } else {
+                        setUnitAmbientAnime(80.0f, 1.0f, 255.0f, 0.0f, 0.0f);
+                    }
+                }
+            }
+        }
+    }
+
+    if (DebugStatus[20] > 0) {
+        CUserStatus *status = UserStatus;
+
+        status->hp[status->cur_chara] = status->max_hp[status->cur_chara];
+    }
+
+    return taken;
+}
+
+PORT_OVERRIDE void EyeCamera() {
+    sceVu0FVECTOR pos;
+    sceVu0FVECTOR ref;
+    sceVu0FMATRIX rotation;
+    sceVu0FMATRIX unit;
+    float         stick_x;
+    float         stick_y;
+
+    auto keyboard = InputGetKeyboardMovement();
+    bool walking = keyboard.x || keyboard.y;
+    stick_x = walking ? 0.0f : GamePad.GetLXf();
+    stick_y = walking ? 0.0f : -GamePad.GetLYf();
+
+    if (stick_x > 0.0f) {
+        float rate = 0.02f;
+
+        viewAngleH__2 -= stick_x * rate;
+
+        if (viewAngleH__2 < -PI) {
+            viewAngleH__2 += TWO_PI;
+        }
+    }
+
+    if (stick_x < -0.0f) {
+        float rate = 0.02f;
+
+        viewAngleH__2 -= stick_x * rate;
+
+        if (viewAngleH__2 > PI) {
+            viewAngleH__2 -= TWO_PI;
+        }
+    }
+
+    if (stick_y > 0.0f) {
+        if (viewAngleV__2 < 0.65f) {
+            float rate = 0.02f;
+
+            viewAngleV__2 += stick_y * rate;
+        }
+    }
+
+    if (stick_y < -0.0f) {
+        if (viewAngleV__2 > -1.0f) {
+            float rate = 0.02f;
+
+            viewAngleV__2 += stick_y * rate;
+        }
+    }
+
+    viewAngleH__2 = MouseLookEyeAngleH(viewAngleH__2);
+    viewAngleV__2 = MouseLookEyeAngleV(viewAngleV__2);
+
+    ref[0] = 0.0f;
+    ref[1] = 0.0f;
+    ref[2] = 10.0f;
+    ref[3] = 0.0f;
+
+    sceVu0UnitMatrix(unit);
+    sceVu0RotMatrixX(rotation, unit, viewAngleV__2);
+    sceVu0RotMatrixY(rotation, rotation, viewAngleH__2);
+    sceVu0ApplyMatrix(ref, rotation, ref);
+    sceVu0CopyVector(pos, CharaMain.pos);
+
+    CUserStatus *status = UserStatus;
+    float        height = CharaHeight(status);
+
+    pos[1] += height - 1.5f;
+    ref[0] += pos[0];
+    ref[1] += pos[1];
+    ref[2] += pos[2];
+
+    NowCamera__3->SetPos(pos);
+    NowCamera__3->SetRef(ref);
 }

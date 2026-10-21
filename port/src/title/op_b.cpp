@@ -5,16 +5,21 @@
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataread_port.hpp"
 #include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -25,6 +30,7 @@
 #include "mglib.hpp"
 #include "objanime.hpp"
 #include "objectframe.hpp"
+#include "platform/arena.hpp"
 #include "renderinfo.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
@@ -111,24 +117,33 @@ struct MAPOBJ_INFO {
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 void DepthOfField(float *dist, int level, int alpha, int blur);
 
-static CFrameVu1 *ToansHouse;
-static CFrameVu1 *DoransFuusya[2];
-static int        VolFade;
+namespace {
+CFrameVu1 *ToansHouse;
+CFrameVu1 *DoransFuusya[2];
+int        VolFade;
 
-static void setTexAnime();
-void        FaceChangeC(int no);
+void setTexAnime();
+} // namespace
+
+void FaceChangeC(int no);
 
 PORT_OVERRIDE CMapObject OP_NornMapObj[76];
 PORT_OVERRIDE CMapObject OP_NornMapObj2[87];
 
-static CFireOmni     CFire;
-static CCharacter    Komono;
-static OBJ_ANIME_SEQ Door;
-static OBJ_ANIME_SEQ Fuusya[2];
-extern CWind         Wind;
-static CFrame       *TaimatsuFrame[12];
-static OBJ_ANIME_SEQ Taimatsu[12];
-static CMapObject    OP_ToanMapObj;
+namespace {
+CFireOmni     CFire;
+CCharacter    Komono;
+OBJ_ANIME_SEQ Door;
+OBJ_ANIME_SEQ Fuusya[2];
+} // namespace
+
+extern CWind Wind;
+
+namespace {
+CFrame       *TaimatsuFrame[12];
+OBJ_ANIME_SEQ Taimatsu[12];
+CMapObject    OP_ToanMapObj;
+} // namespace
 
 /* One actor's blinking and speaking. Four of the eight rows are never blinked because their actors
    are too far from the camera for it to read, and the two the script talks through carry a hand-off
@@ -158,7 +173,7 @@ PORT_OVERRIDE void FaceChange(int actor_no) {
     plate = TexManager.GetTexture(face[actor_no].plate, -1);
     strip = TexManager.GetTexture(face[actor_no].strip, -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -256,7 +271,7 @@ PORT_OVERRIDE void FaceChange(int actor_no) {
             CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
             if (CScript__2.obj[actor_no].talk) {
-                if ((int) (100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
+                if (static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
                     CScript__2.obj[actor_no].mouth = rand() % 4;
                 }
             }
@@ -279,13 +294,63 @@ PORT_OVERRIDE void FaceChange(int actor_no) {
 
 namespace {
 
-// The largest of the couple's motion files is 1,187,152 bytes.
-u_char g_dance_pack[2][0x130000] __attribute__((aligned(64)));
+struct AlignedBufferDeleter {
+    void operator()(u_char *buffer) const noexcept {
+        ::operator delete[](buffer, std::align_val_t{64});
+    }
+};
+
+constexpr const char *g_dance_motion_files[20] = {
+    "opdat/chara/01p19a1a.chr",
+    "opdat/chara/01p19a1b.chr",
+    "opdat/chara/01p19a2a.chr",
+    "opdat/chara/01p19a2a.chr",
+    "opdat/chara/01p19a2b.chr",
+    "opdat/chara/01p19a3.chr",
+    "opdat/chara/01p19a3b.chr",
+    "opdat/chara/01p19a4a.chr",
+    "opdat/chara/01p19a4b.chr",
+    "opdat/chara/01p19a5.chr",
+    "opdat/chara/01p17a1a.chr",
+    "opdat/chara/01p17a1b.chr",
+    "opdat/chara/01p17a2a.chr",
+    "opdat/chara/01p17a2a.chr",
+    "opdat/chara/01p17a2b.chr",
+    "opdat/chara/01p17a3.chr",
+    "opdat/chara/01p17a3b.chr",
+    "opdat/chara/01p17a4a.chr",
+    "opdat/chara/01p17a4b.chr",
+    "opdat/chara/01p17a5.chr",
+};
+
+std::unique_ptr<u_char[], AlignedBufferDeleter> g_dance_pack[2];
 
 } // namespace
 
 u_int *OpeningDancePack(int dancer) {
-    return (u_int *) g_dance_pack[dancer];
+    if (dancer < 0 || dancer >= 2) {
+        return nullptr;
+    }
+
+    if (!g_dance_pack[dancer]) {
+        std::uintmax_t file_size = 0;
+
+        for (int i = dancer * 10; i < (dancer + 1) * 10; i++) {
+            file_size = std::max(file_size, DataFileSize(g_dance_motion_files[i]));
+        }
+
+        if (file_size > std::numeric_limits<int>::max()) {
+            ArenaOverflow("opening dance motion", std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
+        }
+
+        const std::size_t capacity = static_cast<std::size_t>((file_size + 0x7FF) & ~std::uintmax_t{0x7FF}) + 128;
+        if (capacity == 128) {
+            ArenaOverflow("opening dance motion", 0, 128);
+        }
+        g_dance_pack[dancer].reset(static_cast<u_char *>(::operator new[](capacity, std::align_val_t{64})));
+    }
+
+    return reinterpret_cast<u_int *>(g_dance_pack[dancer].get());
 }
 
 /* Plays the couple's dance from separate motion buffers so object loads cannot overwrite the next
@@ -315,24 +380,24 @@ PORT_OVERRIDE void LoadMotionData() {
     };
 
     if (DanceCnt < 10) {
-        if (Chara__3[6].motion_type.state.time > (float) (Chara__3[6].motion_type.motion_info->end - 1)) {
+        if (Chara__3[6].motion_type.state.time > static_cast<float>(Chara__3[6].motion_type.motion_info->end - 1)) {
             if (DanceCnt != 2) {
                 CharaDataBuffer__2[6].used = 0;
-                Chara__3[6].LoadPackData(OpeningDancePack(0), motion_files[DanceCnt][1], &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], 0);
-                Chara__3[7].LoadPackData(OpeningDancePack(1), motion_files[DanceCnt + 10][1], &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], 0);
+                Chara__3[6].LoadPackData(OpeningDancePack(0), motion_files[DanceCnt][1], &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
+                Chara__3[7].LoadPackData(OpeningDancePack(1), motion_files[DanceCnt + 10][1], &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
             }
 
             Chara__3[6].motion_type.motion_info->start = noroi[DanceCnt].start;
             Chara__3[6].motion_type.motion_info->end = noroi[DanceCnt].end;
-            Chara__3[6].motion_type.state.time = (float) Chara__3[6].motion_type.motion_info->start;
+            Chara__3[6].motion_type.state.time = static_cast<float>(Chara__3[6].motion_type.motion_info->start);
             Chara__3[7].motion_type.motion_info->start = dancer[DanceCnt].start;
             Chara__3[7].motion_type.motion_info->end = dancer[DanceCnt].end;
-            Chara__3[7].motion_type.state.time = (float) Chara__3[7].motion_type.motion_info->start;
+            Chara__3[7].motion_type.state.time = static_cast<float>(Chara__3[7].motion_type.motion_info->start);
             DanceCnt++;
 
             if (DanceCnt != 3 && DanceCnt < 10) {
-                LoadFileBG(motion_files[DanceCnt][0], (u_long128 *) OpeningDancePack(0), 0);
-                LoadFileBG(motion_files[DanceCnt + 10][0], (u_long128 *) OpeningDancePack(1), 0);
+                LoadFileBG(motion_files[DanceCnt][0], reinterpret_cast<u_long128 *>(OpeningDancePack(0)), nullptr);
+                LoadFileBG(motion_files[DanceCnt + 10][0], reinterpret_cast<u_long128 *>(OpeningDancePack(1)), nullptr);
             }
         }
 
@@ -370,70 +435,70 @@ PORT_OVERRIDE void OpB_InitProcess() {
         {"#fukidashibase#640#" HALF_BUFFER_HEIGHT_STR "#4", 26, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4",   23, 0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4",   21, 0},
-        {0,                                                 2,  0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 0,  0},
-        {0,                                                 19, 0},
-        {0,                                                 19, 0},
-        {0,                                                 2,  0},
+        {nullptr,                                           2,  0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           11, 0},
+        {nullptr,                                           11, 0},
+        {nullptr,                                           11, 0},
+        {nullptr,                                           11, 0},
+        {nullptr,                                           11, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           0,  0},
+        {nullptr,                                           19, 0},
+        {nullptr,                                           19, 0},
+        {nullptr,                                           2,  0},
         {"",                                                0,  0}
     };
 
     while (ReadBGSync())
         ;
 
-    texture_list[5].name = (char *) GetPackFile(read_buffer, "p09a01.img", 0);
-    texture_list[6].name = (char *) GetPackFile(read_buffer, "e01b01.img", 0);
-    texture_list[7].name = (char *) GetPackFile(read_buffer, "e01b02.img", 0);
-    texture_list[8].name = (char *) GetPackFile(read_buffer, "e01b03.img", 0);
-    texture_list[9].name = (char *) GetPackFile(read_buffer, "e01t01.img", 0);
-    texture_list[10].name = (char *) GetPackFile(read_buffer, "t0003.img", 0);
-    texture_list[11].name = (char *) GetPackFile(read_buffer, "e01s03.img", 0);
-    texture_list[12].name = (char *) GetPackFile(read_buffer, "e01s06.img", 0);
-    texture_list[13].name = (char *) GetPackFile(read_buffer, "t0001.img", 0);
-    texture_list[14].name = (char *) GetPackFile(read_buffer, "t0002.img", 0);
-    texture_list[15].name = (char *) GetPackFile(read_buffer, "gaiji.img", 0);
-    texture_list[16].name = (char *) GetPackFile(read_buffer, "fuki256.img", 0);
-    texture_list[17].name = (char *) GetPackFile(read_buffer, "syst04.img", 0);
-    texture_list[18].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
-    texture_list[19].name = (char *) GetPackFile(read_buffer, "pause.img", 0);
+    texture_list[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01.img", nullptr));
+    texture_list[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b01.img", nullptr));
+    texture_list[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b02.img", nullptr));
+    texture_list[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b03.img", nullptr));
+    texture_list[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01t01.img", nullptr));
+    texture_list[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0003.img", nullptr));
+    texture_list[11].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s03.img", nullptr));
+    texture_list[12].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s06.img", nullptr));
+    texture_list[13].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0001.img", nullptr));
+    texture_list[14].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0002.img", nullptr));
+    texture_list[15].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "gaiji.img", nullptr));
+    texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fuki256.img", nullptr));
+    texture_list[17].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "syst04.img", nullptr));
+    texture_list[18].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
+    texture_list[19].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause.img", nullptr));
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_FRENCH:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_f.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_g.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_i.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            texture_list[20].name = (char *) GetPackFile(read_buffer, "pause_s.img", 0);
+            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
             break;
     }
 
-    texture_list[21].name = (char *) GetPackFile(read_buffer, "p09a01an.img", 0);
+    texture_list[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01an.img", nullptr));
 
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, texture_list);
@@ -461,74 +526,74 @@ PORT_OVERRIDE void OpB_InitProcess() {
     OPMdsLoad();
 
     MAPOBJ_INFO norn[] = {
-        {"opdat/norn/t0005.mds",    0,                         {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/t0005.mds",    nullptr,                   {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  },
         {"opdat/norn/e01h01_0.mds", "opdat/norn/e01h01_s.mds", {-35.0f, 0.0f, -10.0f},        {0.0f, 0.0f, 0.0f}  },
         {"opdat/norn/e01h03_2.mds", "opdat/norn/e01h03_s.mds", {-15.0f, 0.0f, -50.0f},        {0.0f, 0.0f, 0.0f}  },
         {"opdat/norn/e01h10_2.mds", "opdat/norn/e01h10_s.mds", {15.0f, 0.0f, -50.0f},         {0.0f, 0.0f, 0.0f}  },
         {"opdat/norn/e01h07_0.mds", "opdat/norn/e01h07_s.mds", {5.0f, 0.0f, -10.0f},          {0.0f, 0.0f, 0.0f}  },
         {"opdat/norn/e01h08_2.mds", "opdat/norn/e01h08_s.mds", {-45.0f, 0.0f, -35.0f},        {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/t0002.mds",    0,                         {-35.0f, 0.0f, -55.0f},        {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-55.0f, 0.0f, -45.0f},        {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01t01_0.mds", 0,                         {-5.0f, 0.1f, 5.0f},           {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01t01_1.mds", 0,                         {15.0f, 0.1f, 5.0f},           {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-55.0f, 0.1f, 15.0f},         {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01t01_2.mds", 0,                         {-45.0f, 0.1f, -55.0f},        {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-55.0f, 0.1f, -65.0f},        {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-45.0f, 0.1f, -65.0f},        {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-35.0f, 0.1f, -65.0f},        {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-5.0f, 0.1f, -75.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {5.0f, 0.1f, -75.0f},          {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {15.0f, 0.1f, -65.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {25.0f, 0.1f, -65.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {35.0f, 0.1f, -55.0f},         {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01c01_0.mds", 0,                         {25.0f, 0.0f, -35.0f},         {0.0f, 180.0f, 0.0f}},
-        {0,                         0,                         {-55.0f, 0.0f, -25.0f},        {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-55.0f, 0.0f, -25.0f},        {0.0f, -90.0f, 0.0f}},
-        {"opdat/norn/e01c02_0.mds", 0,                         {-25.0f, 0.0f, -35.0f},        {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-5.0f, 0.0f, -35.0f},         {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {5.0f, 0.0f, -35.0f},          {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {15.0f, 0.0f, -35.0f},         {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {25.0f, 0.0f, -15.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {25.0f, 0.0f, -5.0f},          {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {25.0f, 0.0f, 5.0f},           {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {15.0f, 0.0f, 15.0f},          {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-5.0f, 0.0f, 15.0f},          {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-15.0f, 0.0f, 15.0f},         {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-35.0f, 0.0f, 15.0f},         {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-45.0f, 0.0f, 25.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-45.0f, 0.0f, 35.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-45.0f, 0.0f, 45.0f},         {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01c06_0.mds", 0,                         {-35.0f, 0.0f, -35.0f},        {0.0f, 90.0f, 0.0f} },
-        {"opdat/norn/e01c07_0.mds", 0,                         {-15.0f, 0.0f, -35.0f},        {0.0f, -90.0f, 0.0f}},
-        {0,                         0,                         {25.0f, 0.0f, -25.0f},         {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {5.0f, 0.0f, 15.0f},           {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {0.0f, 0.0f, 15.0f},           {0.0f, 90.0f, 0.0f} },
-        {"opdat/norn/e01r01_0.mds", 0,                         {-55.0f, 0.05f, -35.0f},       {0.0f, -90.0f, 0.0f}},
-        {0,                         0,                         {-55.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
-        {"opdat/norn/e01r02_0.mds", 0,                         {-45.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-35.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-25.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-5.0f, 0.05f, -25.0f},        {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {5.0f, 0.05f, -25.0f},         {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {15.0f, 0.05f, -25.0f},        {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-15.0f, 0.05f, -15.0f},       {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01r03_0.mds", 0,                         {-15.0f, 0.05f, -25.0f},       {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01r06_0.mds", 0,                         {-65.0f, 0.05f, -35.0f},       {0.0f, 90.0f, 0.0f} },
-        {0,                         0,                         {-15.0f, 0.05f, -5.0f},        {0.0f, 180.0f, 0.0f}},
-        {"opdat/norn/t0004.mds",    0,                         {-22.9331f, 0.05f, 9.8816f},   {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-26.9302f, 0.05f, 9.8816f},   {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-26.9302f, 0.05f, 20.2919f},  {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-22.9331f, 0.05f, 20.2919f},  {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {3.0797f, 0.05f, 20.2919f},    {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {7.0849f, 0.05f, 20.2919f},    {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {7.0849f, 0.05f, 9.8816f},     {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {3.0797f, 0.05f, 9.8816f},     {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {19.8785f, 0.05f, -22.8436f},  {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {19.8785f, 0.05f, -27.0007f},  {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-12.8131f, 0.05f, -28.8014f}, {0.0f, 0.0f, 0.0f}  },
-        {0,                         0,                         {-16.9416f, 0.05f, -28.8014f}, {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01g02_0.mds", 0,                         {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  },
-        {"opdat/norn/e01g03_0.mds", 0,                         {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  }
+        {"opdat/norn/t0002.mds",    nullptr,                   {-35.0f, 0.0f, -55.0f},        {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-55.0f, 0.0f, -45.0f},        {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01t01_0.mds", nullptr,                   {-5.0f, 0.1f, 5.0f},           {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01t01_1.mds", nullptr,                   {15.0f, 0.1f, 5.0f},           {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-55.0f, 0.1f, 15.0f},         {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01t01_2.mds", nullptr,                   {-45.0f, 0.1f, -55.0f},        {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-55.0f, 0.1f, -65.0f},        {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-45.0f, 0.1f, -65.0f},        {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-35.0f, 0.1f, -65.0f},        {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-5.0f, 0.1f, -75.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {5.0f, 0.1f, -75.0f},          {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {15.0f, 0.1f, -65.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {25.0f, 0.1f, -65.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {35.0f, 0.1f, -55.0f},         {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01c01_0.mds", nullptr,                   {25.0f, 0.0f, -35.0f},         {0.0f, 180.0f, 0.0f}},
+        {nullptr,                   nullptr,                   {-55.0f, 0.0f, -25.0f},        {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-55.0f, 0.0f, -25.0f},        {0.0f, -90.0f, 0.0f}},
+        {"opdat/norn/e01c02_0.mds", nullptr,                   {-25.0f, 0.0f, -35.0f},        {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-5.0f, 0.0f, -35.0f},         {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {5.0f, 0.0f, -35.0f},          {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {15.0f, 0.0f, -35.0f},         {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {25.0f, 0.0f, -15.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {25.0f, 0.0f, -5.0f},          {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {25.0f, 0.0f, 5.0f},           {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {15.0f, 0.0f, 15.0f},          {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-5.0f, 0.0f, 15.0f},          {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-15.0f, 0.0f, 15.0f},         {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-35.0f, 0.0f, 15.0f},         {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-45.0f, 0.0f, 25.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-45.0f, 0.0f, 35.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-45.0f, 0.0f, 45.0f},         {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01c06_0.mds", nullptr,                   {-35.0f, 0.0f, -35.0f},        {0.0f, 90.0f, 0.0f} },
+        {"opdat/norn/e01c07_0.mds", nullptr,                   {-15.0f, 0.0f, -35.0f},        {0.0f, -90.0f, 0.0f}},
+        {nullptr,                   nullptr,                   {25.0f, 0.0f, -25.0f},         {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {5.0f, 0.0f, 15.0f},           {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {0.0f, 0.0f, 15.0f},           {0.0f, 90.0f, 0.0f} },
+        {"opdat/norn/e01r01_0.mds", nullptr,                   {-55.0f, 0.05f, -35.0f},       {0.0f, -90.0f, 0.0f}},
+        {nullptr,                   nullptr,                   {-55.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
+        {"opdat/norn/e01r02_0.mds", nullptr,                   {-45.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-35.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-25.0f, 0.05f, -25.0f},       {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-5.0f, 0.05f, -25.0f},        {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {5.0f, 0.05f, -25.0f},         {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {15.0f, 0.05f, -25.0f},        {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-15.0f, 0.05f, -15.0f},       {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01r03_0.mds", nullptr,                   {-15.0f, 0.05f, -25.0f},       {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01r06_0.mds", nullptr,                   {-65.0f, 0.05f, -35.0f},       {0.0f, 90.0f, 0.0f} },
+        {nullptr,                   nullptr,                   {-15.0f, 0.05f, -5.0f},        {0.0f, 180.0f, 0.0f}},
+        {"opdat/norn/t0004.mds",    nullptr,                   {-22.9331f, 0.05f, 9.8816f},   {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-26.9302f, 0.05f, 9.8816f},   {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-26.9302f, 0.05f, 20.2919f},  {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-22.9331f, 0.05f, 20.2919f},  {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {3.0797f, 0.05f, 20.2919f},    {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {7.0849f, 0.05f, 20.2919f},    {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {7.0849f, 0.05f, 9.8816f},     {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {3.0797f, 0.05f, 9.8816f},     {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {19.8785f, 0.05f, -22.8436f},  {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {19.8785f, 0.05f, -27.0007f},  {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-12.8131f, 0.05f, -28.8014f}, {0.0f, 0.0f, 0.0f}  },
+        {nullptr,                   nullptr,                   {-16.9416f, 0.05f, -28.8014f}, {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01g02_0.mds", nullptr,                   {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  },
+        {"opdat/norn/e01g03_0.mds", nullptr,                   {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  }
     };
     CFrameAttr  attr;
     CFrameVu1  *frame;
@@ -539,8 +604,8 @@ PORT_OVERRIDE void OpB_InitProcess() {
 
     for (int i = 0; i < 68; i++) {
         if (norn[i].name) {
-            LoadFile(norn[i].name, (void *) read_buffer, 0);
-            frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, 0, 0);
+            LoadFile(norn[i].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
         if (i == 4) {
@@ -566,48 +631,48 @@ PORT_OVERRIDE void OpB_InitProcess() {
         OP_NornMapObj[i].category_no = 0;
 
         object->SetPosition(CVector3_f_(10.0f * norn[i].position[0], 10.0f * norn[i].position[1], 10.0f * norn[i].position[2]));
-        object->SetRotation(CVector3_f_((float) (PI_D * norn[i].rotation[0] / 180), (float) (PI_D * norn[i].rotation[1] / 180), (float) (PI_D * norn[i].rotation[2] / 180)));
+        object->SetRotation(CVector3_f_(static_cast<float>(PI_D * norn[i].rotation[0] / 180), static_cast<float>(PI_D * norn[i].rotation[1] / 180), static_cast<float>(PI_D * norn[i].rotation[2] / 180)));
 
         object->FrameObjectOnOff("win1", 0);
         object->FrameObjectOnOff("light1", 0);
 
         if (norn[i].shadow_name) {
-            LoadFile(norn[i].shadow_name, (void *) read_buffer, 0);
-            object->shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, 0, 0);
+            LoadFile(norn[i].shadow_name, reinterpret_cast<void *>(read_buffer), nullptr);
+            object->shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, nullptr, nullptr);
             object->shadow_offset = -20.0f;
         }
     }
 
     MAPOBJ_INFO ground[] = {
-        {"opdat/norn/t0006.mds", 0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"opdat/norn/t0001.mds", 0, {-25.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-35.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-45.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-55.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-45.0203f, 0.03f, -28.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-35.0203f, 0.03f, -28.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-25.0203f, 0.03f, -28.3403f}, {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-5.0203f, 0.03f, -28.3403f},  {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {4.9797f, 0.03f, -28.3403f},   {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {14.9797f, 0.03f, -21.3403f},  {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {14.9797f, 0.03f, -28.3403f},  {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {4.9797f, 0.03f, -21.3403f},   {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-5.0203f, 0.03f, -21.3403f},  {0.0f, 0.0f, 0.0f}},
-        {"opdat/norn/t0003.mds", 0, {-50.0f, 0.03f, -21.2932f},    {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-40.0f, 0.03f, -21.2932f},    {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-30.0f, 0.03f, -21.2932f},    {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {0.0f, 0.03f, -21.2932f},      {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {10.0f, 0.03f, -21.2932f},     {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {10.0f, 0.03f, -28.2932f},     {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-30.0f, 0.03f, -28.2932f},    {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {0.0f, 0.03f, -28.2932f},      {0.0f, 0.0f, 0.0f}},
-        {0,                      0, {-40.0f, 0.03f, -28.2932f},    {0.0f, 0.0f, 0.0f}}
+        {"opdat/norn/t0006.mds", nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"opdat/norn/t0001.mds", nullptr, {-25.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-35.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-45.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-55.0203f, 0.03f, -21.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-45.0203f, 0.03f, -28.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-35.0203f, 0.03f, -28.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-25.0203f, 0.03f, -28.3403f}, {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-5.0203f, 0.03f, -28.3403f},  {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {4.9797f, 0.03f, -28.3403f},   {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {14.9797f, 0.03f, -21.3403f},  {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {14.9797f, 0.03f, -28.3403f},  {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {4.9797f, 0.03f, -21.3403f},   {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-5.0203f, 0.03f, -21.3403f},  {0.0f, 0.0f, 0.0f}},
+        {"opdat/norn/t0003.mds", nullptr, {-50.0f, 0.03f, -21.2932f},    {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-40.0f, 0.03f, -21.2932f},    {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-30.0f, 0.03f, -21.2932f},    {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {0.0f, 0.03f, -21.2932f},      {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {10.0f, 0.03f, -21.2932f},     {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {10.0f, 0.03f, -28.2932f},     {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-30.0f, 0.03f, -28.2932f},    {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {0.0f, 0.03f, -28.2932f},      {0.0f, 0.0f, 0.0f}},
+        {nullptr,                nullptr, {-40.0f, 0.03f, -28.2932f},    {0.0f, 0.0f, 0.0f}}
     };
 
     for (int i = 0; i < 23; i++) {
         if (ground[i].name) {
-            LoadFile(ground[i].name, (void *) read_buffer, 0);
-            frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, 0, 0);
+            LoadFile(ground[i].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
         if (i > 0) {
@@ -633,12 +698,12 @@ PORT_OVERRIDE void OpB_InitProcess() {
         OP_NornMapObj2[i].category_no = 0;
 
         object->SetPosition(CVector3_f_(10.0f * ground[i].position[0], 10.0f * ground[i].position[1], 10.0f * ground[i].position[2]));
-        ((CMapObject &) OP_NornMapObj2[i]).SetRotation(CVector3_f_((float) (PI_D * ground[i].rotation[0] / 180), (float) (PI_D * ground[i].rotation[1] / 180), (float) (PI_D * ground[i].rotation[2] / 180)));
+        (const_cast<CMapObject &>(OP_NornMapObj2[i])).SetRotation(CVector3_f_(static_cast<float>(PI_D * ground[i].rotation[0] / 180), static_cast<float>(PI_D * ground[i].rotation[1] / 180), static_cast<float>(PI_D * ground[i].rotation[2] / 180)));
     }
 
-    LoadFile("opdat/chara/03p09a.chr", (void *) read_buffer, 0);
+    LoadFile("opdat/chara/03p09a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
     CharaDataBuffer__2[6].used = 0;
-    Chara__3[9].LoadPackData(read_buffer, "03p09a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[9].LoadPackData(read_buffer, "03p09a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr chara_attr;
 
@@ -711,62 +776,62 @@ PORT_OVERRIDE void OpB_InitProcess2() {
         {"#fukidashibase#640#" HALF_BUFFER_HEIGHT_STR "#4", 26, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4",   23, 0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4",   21, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 10, 0},
-        {0,                                                 2,  0},
-        {0,                                                 22, 0},
-        {0,                                                 22, 0},
-        {0,                                                 22, 0},
-        {0,                                                 22, 0},
-        {0,                                                 0,  0},
-        {0,                                                 19, 0},
-        {0,                                                 19, 0},
-        {0,                                                 2,  0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           26, 0},
+        {nullptr,                                           10, 0},
+        {nullptr,                                           2,  0},
+        {nullptr,                                           22, 0},
+        {nullptr,                                           22, 0},
+        {nullptr,                                           22, 0},
+        {nullptr,                                           22, 0},
+        {nullptr,                                           0,  0},
+        {nullptr,                                           19, 0},
+        {nullptr,                                           19, 0},
+        {nullptr,                                           2,  0},
         {"",                                                0,  0}
     };
 
     while (ReadBGSync())
         ;
 
-    texture_list[5].name = (char *) GetPackFile(read_buffer, "gaiji.img", 0);
-    texture_list[6].name = (char *) GetPackFile(read_buffer, "fuki256.img", 0);
-    texture_list[7].name = (char *) GetPackFile(read_buffer, "syst04.img", 0);
-    texture_list[8].name = (char *) GetPackFile(read_buffer, "i01h01n.img", 0);
-    texture_list[9].name = (char *) GetPackFile(read_buffer, "p09a01.img", 0);
-    texture_list[10].name = (char *) GetPackFile(read_buffer, "p10a01.img", 0);
-    texture_list[11].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    texture_list[12].name = (char *) GetPackFile(read_buffer, "03c01d.img", 0);
-    texture_list[13].name = (char *) GetPackFile(read_buffer, "03komono.img", 0);
-    texture_list[14].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
-    texture_list[15].name = (char *) GetPackFile(read_buffer, "pause.img", 0);
+    texture_list[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "gaiji.img", nullptr));
+    texture_list[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fuki256.img", nullptr));
+    texture_list[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "syst04.img", nullptr));
+    texture_list[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "i01h01n.img", nullptr));
+    texture_list[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01.img", nullptr));
+    texture_list[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p10a01.img", nullptr));
+    texture_list[11].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    texture_list[12].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "03c01d.img", nullptr));
+    texture_list[13].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "03komono.img", nullptr));
+    texture_list[14].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
+    texture_list[15].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause.img", nullptr));
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_FRENCH:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_f.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_g.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_i.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            texture_list[16].name = (char *) GetPackFile(read_buffer, "pause_s.img", 0);
+            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
             break;
     }
 
-    texture_list[17].name = (char *) GetPackFile(read_buffer, "p09a01an.img", 0);
+    texture_list[17].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01an.img", nullptr));
 
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, texture_list);
@@ -775,16 +840,16 @@ PORT_OVERRIDE void OpB_InitProcess2() {
     OPAnalyz("opdat/toan.cfg");
     OPMdsLoad();
 
-    LoadFile("opdat/toan/t0101.mds", (void *) read_buffer, 0);
+    LoadFile("opdat/toan/t0101.mds", reinterpret_cast<void *>(read_buffer), nullptr);
     MapDataBuffer.used = 0;
-    ToansHouse = LoadMDSFile(read_buffer, &MapDataBuffer, 2, 0, 0);
+    ToansHouse = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
     OP_ToanMapObj.Initialize();
     OP_ToanMapObj.SetFrame(ToansHouse, 0);
     OP_ToanMapObj.handle = 0;
     OP_ToanMapObj.category_no = 0;
 
-    LoadFile("opdat/toan/03komono.chr", (void *) read_buffer, 0);
-    Komono.LoadPackData(read_buffer, "03komono.cfg", &MapDataBuffer, 0);
+    LoadFile("opdat/toan/03komono.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    Komono.LoadPackData(read_buffer, "03komono.cfg", &MapDataBuffer, nullptr);
 
     CFrameAttr komono_attr;
 
@@ -795,8 +860,8 @@ PORT_OVERRIDE void OpB_InitProcess2() {
     Komono.motion_type.state.motion_no = 0;
     Komono.motion_type.state.playing_no = 0;
 
-    LoadFile("opdat/chara/03p10a.chr", (void *) read_buffer, 0);
-    Chara__3[10].LoadPackData(read_buffer, "03p10a.cfg", &CharaDataBuffer__2[6], 0);
+    LoadFile("opdat/chara/03p10a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    Chara__3[10].LoadPackData(read_buffer, "03p10a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr mother_attr;
 
@@ -813,8 +878,8 @@ PORT_OVERRIDE void OpB_InitProcess2() {
         soup->attr.draw_on = 0;
     }
 
-    LoadFile("opdat/chara/03c01d.chr", (void *) read_buffer, 0);
-    Chara__3[8].LoadPackData(read_buffer, "03c01d.cfg", &CharaDataBuffer__2[6], 0);
+    LoadFile("opdat/chara/03c01d.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    Chara__3[8].LoadPackData(read_buffer, "03c01d.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr toan_attr;
 
@@ -833,11 +898,11 @@ PORT_OVERRIDE void OpB_InitProcess2() {
     wind_dir[0] = 0.0f;
     Wind.SetDir(wind_dir);
     Wind.SetVelocity(0.0f);
-    Chara__3[8].wind = (int) (intptr_t) &Wind;
+    Chara__3[8].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind));
     Chara__3[8].ClothStep(-1);
 
-    LoadFile("opdat/chara/03c01d2.chr", (void *) read_buffer, 0);
-    Chara__3[11].LoadPackData(read_buffer, "03c01d2.cfg", &CharaDataBuffer__2[6], 0);
+    LoadFile("opdat/chara/03c01d2.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    Chara__3[11].LoadPackData(read_buffer, "03c01d2.cfg", &CharaDataBuffer__2[6], nullptr);
 
     toan_attr.clip_enable = false;
     Chara__3[11].frame->SetAttr(toan_attr, 1, 4);
@@ -863,8 +928,8 @@ PORT_OVERRIDE void OpB_InitProcess2() {
 
     CSnd.SE_Stop(MIDI_PORT_SE_TITLE, 16, 22, 0);
     CSnd.SE_Stop(MIDI_PORT_SE_TITLE, 16, 21, 0);
-    CSnd.SetVol(MIDI_PORT_BGM, (float) (OpGetVolSQ(0) * 0.5));
-    CSnd.SetVol(MIDI_PORT_AMBIENT, (float) (OpGetVolSQ(1) * 0.1));
+    CSnd.SetVol(MIDI_PORT_BGM, static_cast<float>(OpGetVolSQ(0) * 0.5));
+    CSnd.SetVol(MIDI_PORT_AMBIENT, static_cast<float>(OpGetVolSQ(1) * 0.1));
     CScript__2.init_no = 0;
 }
 
@@ -877,7 +942,7 @@ PORT_OVERRIDE void OpB_MotionProcess() {
     for (int i = 8; i < 12; i++) {
         if (CScript__2.obj[i].disp) {
             if (CScript__2.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > (float) (Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
                     CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
                     CScript__2.obj[i].motion_end = -1;
                 }
@@ -1050,7 +1115,7 @@ PORT_OVERRIDE void OpB_DrawProcess() {
     }
 
     TexManager.ReloadTexture(Vif1Packet, 23);
-    MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
 
     for (int i = 8; i < 12; i++) {
         if (CScript__2.obj[i].disp) {
@@ -1093,7 +1158,7 @@ PORT_OVERRIDE void OpB_DrawProcess() {
 
     if (CScript__2.scene == OP_SCENE_NORUNE) {
         TexManager.ReloadTexture(Vif1Packet, 23);
-        MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+        MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
 
         switch (CScript__2.scene) {
             case OP_SCENE_NORUNE:
@@ -1132,7 +1197,8 @@ PORT_OVERRIDE void OpB_DrawProcess() {
  * @size 0x1EC
  * @unknownret
  */
-static void setTexAnime() {
+namespace {
+void setTexAnime() {
     CTexture *plate;
     CTexture *strip;
     int       dbp;
@@ -1143,7 +1209,7 @@ static void setTexAnime() {
     plate = TexManager.GetTexture("i01e01", -1);
     strip = TexManager.GetTexture("i01e01_a", -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -1154,7 +1220,7 @@ static void setTexAnime() {
 
     static float cnt = 0.0f;
 
-    MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, (int) cnt * 64, 64, 64), dbp, dbw, 0, 0, 0, 0);
+    MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, static_cast<int>(cnt) * 64, 64, 64), dbp, dbw, 0, 0, 0, 0);
 
     cnt += 0.5f;
 
@@ -1162,6 +1228,7 @@ static void setTexAnime() {
         cnt = 0.0f;
     }
 }
+} // namespace
 
 /* One actor's blinking and speaking. The mouth is driven from the script's own clock rather than
    from a motion: while the actor is talking, a new mouth frame is picked at random every sixth
