@@ -64,6 +64,48 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
                                   alpha);
 }
 
+// The dungeon-entry list's floor labels, in the 0x70 by 0x1C rows of the sheet "kaisou" at (u, v) the list cuts each
+// dungeon's from (English: the other languages' painted words stay): each word's painted letters' box in its row.
+struct FloorLabel {
+    int         u, v;
+    const char *english;
+    float       left, top, right, bottom;
+};
+
+const FloorLabel kFloorLabels[] = {
+    {0x00, 0x00, "B",         29.0f, 5.0f, 43.4f,  23.2f},
+    {0x80, 0x00, "Floor",     17.0f, 5.0f, 62.4f,  23.2f},
+    {0x00, 0x20, "Territory", 6.0f,  4.0f, 69.4f,  24.2f},
+    {0x00, 0x40, "Layer",     16.0f, 5.0f, 62.4f,  25.2f},
+    {0x00, 0x60, "Level",     16.0f, 5.0f, 60.4f,  22.2f},
+    {0x00, 0x80, "No.",       3.0f,  5.0f, 20.4f,  23.2f},
+    {0x00, 0x80, "Craters",   58.0f, 5.0f, 109.4f, 23.2f},
+    {0x00, 0xA0, "Years ago", 50.0f, 5.0f, 110.4f, 25.2f},
+};
+
+bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
+    if (texture == nullptr || std::string_view(texture->name) != "kaisou" || texel.width != 0x70 || texel.height <= 0 ||
+        texel.height > 0x1C || texel.y >= 0xC0 || !caption::Ready() || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+        return false;
+    }
+    // The row the strip is cut from; the list clips a row at its edges by starting the strip lower or ending it sooner.
+    const int row_v = texel.y / 0x20 * 0x20;
+    if (texel.y + texel.height > row_v + 0x1C) {
+        return false;
+    }
+    const float left = static_cast<float>(screen.x), row_top = static_cast<float>(screen.y - (texel.y - row_v));
+    bool        drew = false;
+    for (const FloorLabel &label : kFloorLabels) {
+        if (label.u == texel.x && label.v == row_v) {
+            drew = caption::DrawFloorLabel(label.english, left + label.left, row_top + label.top, left + label.right,
+                                           row_top + label.bottom, static_cast<float>(screen.y),
+                                           static_cast<float>(screen.y + screen.height), alpha) ||
+                   drew;
+        }
+    }
+    return drew;
+}
+
 // The name alphabet's cells (the keyboard, the name being entered, the save slots, the ally card) drawn from the font.
 bool DrawAlphabetCell(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int r, int g, int b, int alpha) {
     return texture != nullptr && std::string_view(texture->name) == "alphabet" &&
@@ -102,7 +144,8 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
 }
 
 PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
-    if (DrawAlphabetCell(texture, screen, texel, 0x80, 0x80, 0x80, alpha) || DrawBoardName(texture, screen, texel, alpha)) {
+    if (DrawAlphabetCell(texture, screen, texel, 0x80, 0x80, 0x80, alpha) || DrawBoardName(texture, screen, texel, alpha) ||
+        DrawFloorLabels(texture, screen, texel, alpha)) {
         return;
     }
     set2DSprite(GetVif1Packet(), texture, screen, texel, alpha);
@@ -122,7 +165,8 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
     }
 
     NameMouseHand(texture, screen, texel, r == 0 && g == 0 && b == 0);
-    if (DrawAlphabetCell(texture, screen, texel, r, g, b, alpha) || DrawBoardName(texture, screen, texel, alpha)) {
+    if (DrawAlphabetCell(texture, screen, texel, r, g, b, alpha) || DrawBoardName(texture, screen, texel, alpha) ||
+        DrawFloorLabels(texture, screen, texel, alpha)) {
         return;
     }
     set2DSprite(GetVif1Packet(), texture, screen, texel, r, g, b, alpha);

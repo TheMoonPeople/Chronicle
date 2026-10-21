@@ -1091,6 +1091,25 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
     return true;
 }
 
+bool GetGlyphBounds(char32_t ch, float (&bounds)[4], int slot) {
+    const Font &font = g_fonts[std::clamp(slot, 0, 2)];
+    const int   index = font.loaded ? stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch)) : 0;
+    if (index == 0) {
+        return false;
+    }
+    bounds[0] = bounds[1] = 1e9f;
+    bounds[2] = bounds[3] = -1e9f;
+    for (const auto &c : Contours(font.info, index)) {
+        for (const Point &p : c) {
+            bounds[0] = std::min(bounds[0], p.x);
+            bounds[1] = std::min(bounds[1], p.y);
+            bounds[2] = std::max(bounds[2], p.x);
+            bounds[3] = std::max(bounds[3], p.y);
+        }
+    }
+    return bounds[0] < bounds[2] && bounds[1] < bounds[3];
+}
+
 unsigned Generation() {
     return g_generation;
 }

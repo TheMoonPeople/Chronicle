@@ -64,6 +64,9 @@ struct PlacedLetter {
 
 bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint, Glyph &out);
 
+// The bounds of ch in the font in `slot` as GetPaintedGlyph stretches them, in font units (y up): left, bottom, right,
+// top.
+bool GetGlyphBounds(char32_t ch, float (&bounds)[4], int slot = 0);
 
 // Slot 1: Optional thin variant font
 bool LoadVariant(const std::filesystem::path &file);

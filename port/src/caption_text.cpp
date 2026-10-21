@@ -486,6 +486,17 @@ constexpr AlphaPlace kAlphabet[] = {
     {9, 6, U'$',  -1, 1.345f, 1.614f,  18.155f, 17.636f},
 };
 
+// The dungeon-entry list's floor labels ("Floor", "Territory"...), painted as the game paints them: the bold letters in
+// warm yellow, a navy outline round the word swept down and right for depth, the letters nearly touching (a gap of
+// kFloorLabelGap font units, a space kFloorLabelSpace) and the word stretched to the painted one's box.
+constexpr float         kFloorLabelGap = 30.0f;
+constexpr float         kFloorLabelSpace = 140.0f;
+constexpr float         kFloorLabelDepthX = 0.6f;
+constexpr float         kFloorLabelDepthY = 0.8f;
+constexpr float         kFloorLabelOutline = 1.0f;
+constexpr unsigned char kFloorLabelFill[3] = {254, 212, 84};
+constexpr unsigned char kFloorLabelRing[3] = {44, 44, 106};
+
 // The weapon menu's painted button lettering (wepstatus), measured on it: cream letters of the narrower set in a faint
 // dark brown glow all round them, a little lower than they are, darkest against them and fading with distance.
 constexpr unsigned char kButtonFill[3] = {255, 244, 222};
@@ -672,6 +683,95 @@ bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alp
     }
     textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
     draw2d::RestoreTestZbuf();
+    return true;
+}
+
+bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, float bottom, float clip_top, float clip_bottom,
+                    int alpha) {
+    if (utf8.empty() || right <= left || bottom <= top || !FontReady()) {
+        return false;
+    }
+
+    // The letters set by their own ink, then the word stretched to the box.
+    struct Letter {
+        char32_t ch;
+        float    pen;
+        float    bounds[4];
+    };
+
+    std::vector<Letter> letters;
+    float               pen = 0.0f, low = 1e9f, high = -1e9f;
+    for (char32_t ch : Decode(utf8)) {
+        if (ch == U' ') {
+            pen += kFloorLabelSpace;
+            continue;
+        }
+        Letter letter = {ch, pen, {}};
+        if (!capfont::GetGlyphBounds(ch, letter.bounds)) {
+            return false;
+        }
+        low = std::min(low, letter.bounds[1]);
+        high = std::max(high, letter.bounds[3]);
+        pen += letter.bounds[2] - letter.bounds[0] + kFloorLabelGap;
+        letters.push_back(letter);
+    }
+    if (letters.empty()) {
+        return false;
+    }
+    const float sx = (right - left) / (pen - kFloorLabelGap), sy = (bottom - top) / (high - low);
+
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::CurrentRenderTarget());
+    const float               rows = draw2d::RowScale();
+    const float               kx = mapping.scale_x, ky = mapping.scale_y * rows, k = std::sqrt(kx * ky);
+    capfont::Paint            outlined = {kFloorLabelDepthX * kx, kFloorLabelDepthY * ky, 0.0f, 0, kFloorLabelOutline * k, {}, {}, {}};
+    capfont::Paint            face = {0.0f, 0.0f, 0.0f, 0, 0.0f, {}, {}, {}};
+    std::copy_n(kFloorLabelFill, 3, outlined.fill);
+    std::copy_n(kFloorLabelRing, 3, outlined.body);
+    std::copy_n(kFloorLabelRing, 3, outlined.ring);
+    for (unsigned char (*colour)[3] : {&face.fill, &face.body, &face.ring}) {
+        std::copy_n(kFloorLabelFill, 3, *colour);
+    }
+
+    auto                       snap = [](float value, float scale, float offset) { return (std::round(value * scale + offset) - offset) / scale; };
+    const u_char               a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
+    std::vector<gfx::Vertex2D> quads;
+    // Every letter outlined, then every face over all the outlines, so the word is outlined as one.
+    for (const capfont::Paint *paint : {&outlined, &face}) {
+        for (const Letter &letter : letters) {
+            capfont::Glyph glyph;
+            const float    w = (letter.bounds[2] - letter.bounds[0]) * sx, h = (letter.bounds[3] - letter.bounds[1]) * sy;
+            if (!capfont::GetPaintedGlyph(letter.ch, -1, w * kx, h * ky, *paint, glyph)) {
+                return false;
+            }
+            const float x0 = snap(left + letter.pen * sx, mapping.scale_x, mapping.offset_x) + glyph.x_offset / mapping.scale_x;
+            const float y0 = snap((top + (high - letter.bounds[3]) * sy) * rows, mapping.scale_y, mapping.offset_y) +
+                             glyph.y_offset / mapping.scale_y;
+            const float x1 = x0 + glyph.width / mapping.scale_x;
+            float       y1 = y0 + glyph.height / mapping.scale_y;
+            // Cut to the rows the list shows.
+            float       v0 = glyph.v0, v1 = glyph.v1, from = y0;
+            const float cut_top = clip_top * rows, cut_bottom = clip_bottom * rows;
+            if (y1 <= cut_top || from >= cut_bottom) {
+                continue;
+            }
+            if (from < cut_top) {
+                v0 += (glyph.v1 - glyph.v0) * (cut_top - y0) / (y1 - y0);
+                from = cut_top;
+            }
+            if (y1 > cut_bottom) {
+                v1 -= (glyph.v1 - glyph.v0) * (y1 - cut_bottom) / (y1 - y0);
+                y1 = cut_bottom;
+            }
+            quads.push_back(draw2d::Vertex(x0, from, 0.0f, glyph.u0, v0, 0x80, 0x80, 0x80, a));
+            quads.push_back(draw2d::Vertex(x1, from, 0.0f, glyph.u1, v0, 0x80, 0x80, 0x80, a));
+            quads.push_back(draw2d::Vertex(x1, y1, 0.0f, glyph.u1, v1, 0x80, 0x80, 0x80, a));
+            quads.push_back(draw2d::Vertex(x0, y1, 0.0f, glyph.u0, v1, 0x80, 0x80, 0x80, a));
+        }
+    }
+    if (!quads.empty()) {
+        textwipe::Draw2D(gfx::Primitive::Quads, quads, capfont::Binding(), draw2d::SpriteState());
+        draw2d::RestoreTestZbuf();
+    }
     return true;
 }
 

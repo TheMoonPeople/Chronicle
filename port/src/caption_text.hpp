@@ -66,6 +66,14 @@ bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alpha, bool pressed = false);
 
 /**
+ * Draws a dungeon-entry floor label ("Floor", "Territory"...) as the game paints them: bold warm yellow letters nearly
+ * touching, outlined in navy as one word with the outline swept down and right for depth, the letters' ink stretched
+ * to the box (left to right, top to bottom); rows outside clip_top to clip_bottom are left out. False with no font.
+ */
+bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, float bottom, float clip_top, float clip_bottom,
+                    int alpha);
+
+/**
  * Draws a cell of the name alphabet's sheet (the 22-pixel cell at u, v; the game cuts it 21 to 23 rows tall) stretched
  * to the screen rectangle as the game draws it, its character drawn from the font in the painted alphabet's look, the
  * game's colour (0x80 as painted) and alpha over it. False for a cell it has no character for, or no font.
