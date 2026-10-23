@@ -3,13 +3,18 @@
 #include <libgraph.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <iterator>
 #include <vector>
 
 #include "draw2d_port.hpp"
+#include "fish_port.hpp"
 #include "framevu1.hpp"
+#include "itemdata.hpp"
 #include "mathutil.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
+#include "runscript.hpp"
 #include "texture.hpp"
 
 namespace {
@@ -161,4 +166,33 @@ PORT_OVERRIDE void FishLineDraw(int above_water) {
             MGDraw(EsaFrame);
         }
     }
+}
+
+namespace {
+
+// The baits the picker offers (_GOTO_CHANGE_ESA) and esa_info knows.
+constexpr int kBaits[] = {ITEM_EVY, ITEM_MIMI, ITEM_PRICKLY, ITEM_THROBBING_CHERRY, ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS,
+                          ITEM_POISONOUS_APPLE, ITEM_MELLOW_BANANA, ITEM_CARROT, ITEM_POTATO_CAKE, ITEM_MINON,
+                          ITEM_BATTAN, ITEM_PETITE_FISH};
+
+// How many baits the towns' scripts list after the variable the picker writes to.
+constexpr int kScriptBaitList = 8;
+
+bool IsBait(int item) {
+    return std::find(std::begin(kBaits), std::end(kBaits), item) != std::end(kBaits);
+}
+
+} // namespace
+
+bool ListBaitForScript(RS_STACKDATA *choice, int bait) {
+    if (choice == nullptr || !IsBait(bait)) {
+        return false;
+    }
+    for (int i = 1; i <= kScriptBaitList; i++) {
+        if (choice[i].type != RS_INT || !IsBait(choice[i].i) || choice[i].i == bait) {
+            return false;
+        }
+    }
+    choice[1].i = bait;
+    return true;
 }

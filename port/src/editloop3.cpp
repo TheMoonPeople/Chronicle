@@ -23,6 +23,7 @@
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editpartsinfo.hpp"
+#include "fish_port.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
@@ -38,6 +39,10 @@
 
 void PortEdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground);
 int  PortEdRunEvent(int program, CDataAlloc2<1> *arena);
+
+// The script variable the town's bait picker writes its choice to: retail's static p_use_item, given a global
+// name in port/include/stubs/editloop3.hpp.
+extern char *EditLoop3UseItem asm("EditLoop3_p_use_item");
 
 namespace {
 
@@ -862,6 +867,10 @@ int PortEdEventMenuMode() {
     if (done && PortEventMenuMode == ED_MENU_WORLD_MAP && world_map_result != nullptr) {
         world_map_result->i = MenuMapJumpMode + 1;
         world_map_result = nullptr;
+    }
+    if (done && PortEventMenuMode == ED_MENU_CHANGE_ESA && EditLoop3UseItem != nullptr) {
+        // Before the script reads the choice: a bait its list lacks is put on it (fish_port.hpp).
+        ListBaitForScript(reinterpret_cast<RS_STACKDATA *>(EditLoop3UseItem), EdGetUseItem());
     }
     return done;
 }

@@ -1789,7 +1789,13 @@ renames what the unit takes from MWCC or from the PS2 link alone:
   (`port/src/runscript.cpp`): retail's has no return statement and leaves
   `CRunScript::run`'s result in `v0` for `EdEventInit`. Walking villagers in
   Muska Racka use its fixed ground model's collision, so their feet follow
-  the sculpted terrain instead of the editable grid's flat polygons.
+  the sculpted terrain instead of the editable grid's flat polygons. It also
+  declares its static `p_use_item` `extern`, for the port's bait fix
+  (`ListBaitForScript`, `port/src/fish_port.hpp`): the towns' bait-changing
+  events in PAL retail attach only the eight baits they list, so Carrot,
+  Potato Cake, Minon, Battan and Petite Fish were taken from the bag and never
+  put on the hook. When the bait picker closes, a bait the list lacks is put on
+  it, and the script attaches it as it does the others.
 - `main` gets an overload of `LoadFileMenuData` for a `const char *`: one call
   names its file with a comma expression ending in a string literal.
 - `mathutil` gets the Metrowerks runtime's own `std::exception` and
