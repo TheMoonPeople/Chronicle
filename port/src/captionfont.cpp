@@ -41,7 +41,7 @@ struct Atlas {
     std::set<std::string>                     painted_missing; // ones that could not be made
 };
 
-Font     g_fonts[3];
+Font     g_fonts[4];
 int      g_variant = 0;
 Atlas    g_atlas;
 unsigned g_generation = 0;
@@ -428,7 +428,7 @@ float AdvanceOf(char32_t ch, float scale) {
 }
 
 bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
-    if (slot < 0 || slot >= 3 || bytes.empty()) {
+    if (slot < 0 || slot >= 4 || bytes.empty()) {
         return false;
     }
     Font font;
@@ -445,7 +445,7 @@ bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
 }
 
 bool LoadFontSlot(int slot, const std::filesystem::path &file) {
-    if (slot < 0 || slot >= 3) {
+    if (slot < 0 || slot >= 4) {
         return false;
     }
     std::ifstream stream(file, std::ios::binary);
@@ -508,8 +508,31 @@ bool StatusFontLoaded() {
     return g_fonts[2].loaded;
 }
 
+bool LoadTitleFontMemory(const unsigned char *data, std::size_t size) {
+    if (data == nullptr || size == 0) {
+        return false;
+    }
+    std::vector<unsigned char> bytes(data, data + size);
+    return InitFontSlotFromBytes(3, std::move(bytes));
+}
+
+bool TitleFontLoaded() {
+    return g_fonts[3].loaded;
+}
+
+float KernPixels(char32_t left, char32_t right, int em_px) {
+    const Font &font = g_fonts[g_variant];
+    if (!font.loaded) {
+        return 0.0f;
+    }
+    const int kern = stbtt_GetCodepointKernAdvance(&font.info, static_cast<int>(left), static_cast<int>(right));
+    return static_cast<float>(kern) * stbtt_ScaleForMappingEmToPixels(&font.info, static_cast<float>(em_px));
+}
+
 void UseFontSlot(int slot) {
-    if (slot == 2 && g_fonts[2].loaded) {
+    if (slot == 3 && g_fonts[3].loaded) {
+        g_variant = 3;
+    } else if (slot == 2 && g_fonts[2].loaded) {
         g_variant = 2;
     } else if (slot == 1 && g_fonts[1].loaded) {
         g_variant = 1;
@@ -941,7 +964,7 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
 } // namespace
 
 bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out) {
-    const Font &font = g_fonts[std::clamp(paint.slot, 0, 2)];
+    const Font &font = g_fonts[std::clamp(paint.slot, 0, 3)];
     if (!font.loaded || box_w < 1 || box_h < 1 || box_w > 512 || box_h > 512) {
         return false;
     }
@@ -990,7 +1013,7 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
 }
 
 bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint, Glyph &out) {
-    const Font &font = g_fonts[std::clamp(paint.slot, 0, 2)];
+    const Font &font = g_fonts[std::clamp(paint.slot, 0, 3)];
     if (!font.loaded || letters.empty()) {
         return false;
     }
@@ -1049,7 +1072,7 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
 }
 
 bool GetGlyphBounds(char32_t ch, float (&bounds)[4], int slot) {
-    const Font &font = g_fonts[std::clamp(slot, 0, 2)];
+    const Font &font = g_fonts[std::clamp(slot, 0, 3)];
     const int   index = font.loaded ? stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch)) : 0;
     if (index == 0) {
         return false;
@@ -1065,6 +1088,28 @@ bool GetGlyphBounds(char32_t ch, float (&bounds)[4], int slot) {
         }
     }
     return bounds[0] < bounds[2] && bounds[1] < bounds[3];
+}
+
+bool GetInkExtent(char32_t ch, int em_px, float &left, float &right) {
+    const Font &font = g_fonts[g_variant];
+    const int   index = font.loaded ? DrawnGlyph(ch) : 0;
+    if (index == 0) {
+        return false;
+    }
+    float x0 = 1e9f, x1 = -1e9f;
+    for (const auto &c : Contours(font.info, index)) {
+        for (const Point &p : c) {
+            x0 = std::min(x0, p.x);
+            x1 = std::max(x1, p.x);
+        }
+    }
+    if (x0 >= x1) {
+        return false;
+    }
+    const float scale = stbtt_ScaleForMappingEmToPixels(&font.info, static_cast<float>(em_px));
+    left = x0 * scale;
+    right = x1 * scale;
+    return true;
 }
 
 unsigned Generation() {
@@ -1092,7 +1137,7 @@ bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int 
 
 bool RenderGlyphScaled(char32_t ch, int slot, float scale, std::vector<unsigned char> &alpha, int &w, int &h, int &x0,
                        int &y0) {
-    if (slot < 0 || slot > 2 || !g_fonts[slot].loaded) {
+    if (slot < 0 || slot > 3 || !g_fonts[slot].loaded) {
         return false;
     }
     const int index = stbtt_FindGlyphIndex(&g_fonts[slot].info, static_cast<int>(ch));

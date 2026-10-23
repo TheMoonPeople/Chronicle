@@ -34,6 +34,7 @@
 
 extern bool BattleMenuQuitConfirmActive();
 extern int *BattleMenuQuitConfirmChoicePtr();
+extern int  BattleMenuQuitConfirmHit(float x, float y);
 
 namespace {
 
@@ -86,9 +87,9 @@ int ConfirmModalHit(float px, float py, int btn_y0 = 232) {
     return -1;
 }
 
+// Hover and click on a confirmation modal's buttons, hit is the one under the pointer (-1 for none).
 template <typename T>
-void ConfirmModalMouse(const MenuPointerTake &take, T *answer, int btn_y0 = 232) {
-    int hit = take.pointing ? ConfirmModalHit(g_battle.x, g_battle.y, btn_y0) : -1;
+void ConfirmModalAnswer(const MenuPointerTake &take, T *answer, int hit) {
     if (hit >= 0 && hit != *answer && take.moved) {
         *answer = static_cast<T>(hit);
         ComMenuSePlay(MENU_SOUND_CURSOR);
@@ -101,6 +102,11 @@ void ConfirmModalMouse(const MenuPointerTake &take, T *answer, int btn_y0 = 232)
     }
 }
 
+template <typename T>
+void ConfirmModalMouse(const MenuPointerTake &take, T *answer, int btn_y0 = 232) {
+    ConfirmModalAnswer(take, answer, take.pointing ? ConfirmModalHit(g_battle.x, g_battle.y, btn_y0) : -1);
+}
+
 // The bar of icons that opens the pause menu (and the Quit Game confirmation modal when active).
 void RingMouse(const MenuPointerTake &take) {
     if (MenuWarningMsgFlag != 0) {
@@ -111,7 +117,9 @@ void RingMouse(const MenuPointerTake &take) {
         return;
     }
     if (BattleMenuQuitConfirmActive()) {
-        ConfirmModalMouse(take, BattleMenuQuitConfirmChoicePtr());
+        // The modal says where its buttons are; their place moves with the length of its text.
+        ConfirmModalAnswer(take, BattleMenuQuitConfirmChoicePtr(),
+                           take.pointing ? BattleMenuQuitConfirmHit(g_battle.x, g_battle.y) : -1);
         return;
     }
     if (!take.pointing) {

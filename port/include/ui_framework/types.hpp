@@ -210,6 +210,7 @@ enum class FontWeight {
     Normal,
     Bold,
     Status,
+    Title, /**< The title menu's lettering (Chronicle Title Bold), as the title's painted rows have it. */
 };
 
 /**

@@ -70,6 +70,10 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
 // top.
 bool GetGlyphBounds(char32_t ch, float (&bounds)[4], int slot = 0);
 
+// The left and right of ch's outline in the current slot's font at em_px pixels to the em, in pixels from its origin
+// (as Glyph::x_offset is). A glyph's picture is wider than this by the soft edge round its outline.
+bool GetInkExtent(char32_t ch, int em_px, float &left, float &right);
+
 // Slot 1: Optional thin variant font
 bool LoadVariant(const std::filesystem::path &file);
 bool VariantLoaded();
@@ -80,7 +84,15 @@ bool LoadStatusFont(const std::filesystem::path &file);
 bool LoadStatusFontMemory(const unsigned char *data, std::size_t size);
 bool StatusFontLoaded();
 
-// Selects active font slot: 0 = Main, 1 = Thin, 2 = Status (SourceSansProSemibold)
+// Slot 3: the title menu's font (ChronicleTitle-Bold.ttf)
+bool LoadTitleFontMemory(const unsigned char *data, std::size_t size);
+bool TitleFontLoaded();
+
+// How far the active font kerns right after left at em_px pixels to the em, in screen pixels (negative closes them
+// up), from its kerning table or GPOS pair kerning.
+float KernPixels(char32_t left, char32_t right, int em_px);
+
+// Selects active font slot: 0 = Main, 1 = Thin, 2 = Status (SourceSansProSemibold), 3 = Title (Chronicle Title Bold)
 void UseFontSlot(int slot);
 
 bool                AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out);

@@ -4,7 +4,9 @@
 #include <utility>
 #include <vector>
 
-namespace UI {
+// The battle menu's text. What a ring slot says depends on the menu's state (town or dungeon, which
+// exit the map offers), so it lives with the menu rather than in the UI framework, which holds no
+// menu's content.
 
 /**
  * Returns the default English localization key-value pairs for the Battle Menu and Weapon Menu.
@@ -27,5 +29,3 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
  * Returns the unquoted caption string displayed beside a Battle Menu ring icon.
  */
 std::string GetBattleMenuCaption(int index, int menu_mode, bool ingame_load_active);
-
-} // namespace UI

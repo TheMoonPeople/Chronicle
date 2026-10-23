@@ -25,6 +25,7 @@
 #include "memcard.hpp"
 #include "menu_draw.hpp"
 #include "menu_journal_chest.hpp"
+#include "menu_manual_port.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
@@ -376,7 +377,7 @@ PORT_OVERRIDE void MenuManualDraw() {
     }
 }
 
-std::vector<std::pair<std::string, std::string>> UI::JournalStrings() {
+std::vector<std::pair<std::string, std::string>> JournalStrings() {
     std::vector<std::pair<std::string, std::string>> out = {
         {"manual.category.georama",        "Georama"       },
         {"manual.category.dungeon",        "Dungeon"       },

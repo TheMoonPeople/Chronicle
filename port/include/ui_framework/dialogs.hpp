@@ -128,6 +128,19 @@ public:
                      std::string_view yes_label, std::string_view no_label,
                      int selected_choice, Cursor &cursor, int alpha = 0x80,
                      WindowPreset preset = WindowPreset::DarkTranslucent, int chosen_choice = -1, bool lit = false);
+
+    /**
+     * Returns the button of the modal Draw lays out for this title and description under the logical point (x, y):
+     * 0 for the first (yes), 1 for the second (no), -1 for neither. Each button's row of the stack counts, so the
+     * point need not be on the plate itself.
+     */
+    static int Hit(std::string_view title, std::string_view description, float x, float y);
+
+    /**
+     * Returns where Draw puts a button (0 yes, 1 no) of the modal for this title and description, as for placing the
+     * hand cursor on one before the modal is first drawn: Draw aims it at 34 left of the plate and 3 below its top.
+     */
+    static Rect ButtonRect(std::string_view title, std::string_view description, int button);
 };
 
 /**

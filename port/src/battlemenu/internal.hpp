@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "battlemenu.hpp"
+#include "battlemenu/strings.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
 #include "caption_text.hpp"
@@ -40,7 +41,6 @@
 #include "snd.hpp"
 #include "texture.hpp"
 #include "ui_framework.hpp"
-#include "ui_framework/lang.hpp"
 #include "userstatus.hpp"
 #include "weapon_buildup.hpp"
 #include "weaponlevelup.hpp"
@@ -87,9 +87,19 @@ bool BattleMenuQuitConfirmActive();
 int *BattleMenuQuitConfirmChoicePtr();
 
 /**
+ * Returns the active Battle Menu modal's button under the logical point (x, y): 0, 1, or -1 for neither.
+ */
+int BattleMenuQuitConfirmHit(float x, float y);
+
+/**
  * Consumes and returns whether an in-game save load is ready to reload the town.
  */
 bool TakeBattleMenuLoadRequest();
+
+/**
+ * Consumes and returns whether Quit was confirmed, so the main loop goes back to the title screen.
+ */
+bool TakeBattleMenuTitleRequest();
 
 /**
  * Page identifier for the in-game Load Game action on the Battle Menu ring.

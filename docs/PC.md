@@ -1473,6 +1473,25 @@ language's tabs. The kana keyboards are Japanese-only and not offered.
 `name_mouse.cpp` is called from `pad_button_read`, ahead of the game's read of
 the pad, so no function of `ps2/src` is replaced for it.
 
+## The title menu, Exit and Quit
+
+The title's menu has a fourth row, Exit, which asks "Return to desktop?" and closes the game on Yes.
+Retail's three rows are painted pictures (`start.img` and its French, German, Italian and Spanish
+copies) with no Exit among them, so all four are drawn through the UI framework
+(`port/src/title/title_menu.cpp`) in Chronicle Title, whose capitals are the painted rows' own letters
+fitted into the font, with retail's words as the `title.menu.*` keys, and coloured as the GS drew the painting:
+the selected row the painting's cream, the rest that cream at half opacity (see "Matching retail's
+2D look" in `docs/UI_FRAMEWORK.md`). The rows stand 28
+pixels apart from 284, so the fourth clears the trademark lines; they keep retail's hand, blink and
+sounds. Exit's row shares its number with the attract movie's,
+which retail only sets on the way out, so `TitleLoop`'s handling of the other rows is retail's.
+
+Quit in the pause menu, in a town or a dungeon, asks "Return to the title?" and on Yes goes back to
+the title screen instead of the desktop. The main loop leaves the mode where it stands, as the
+developer menu does (`TakeBattleMenuTitleRequest`, `port/src/gameloop.cpp`): it waits for loads in
+flight, stops the sound and jumps to map 800, so the title starts as it does at start-up. Nothing is
+saved on the way.
+
 ## The mouse in the pause menu
 
 The pause menu (the ring of pages in a dungeon, and the same ring in town) takes the mouse as a

@@ -1,13 +1,10 @@
-#include "ui_framework/lang.hpp"
+#include "battlemenu/strings.hpp"
 
 #include "battlemenu.hpp"
 #include "localize.hpp"
-#include "menu_draw.hpp"
 #include "menu_dungeon.hpp"
 #include "menu_misc.hpp"
 #include "menuetc.hpp"
-
-namespace UI {
 
 namespace {
 
@@ -43,14 +40,18 @@ std::vector<std::pair<std::string, std::string>> BattleMenuStrings() {
         {"battlemenu.escape.help",        "Escape from the\ncurrent dungeon."            },
         {"battlemenu.save.title",         "\"Save\""                                     },
         {"battlemenu.save.help",          "Record current\ngame progress."               },
+        {"battlemenu.saveload.title",     "\"Save/Load\""                                },
+        {"battlemenu.saveload.help",      "Save Progress or\nLoad a save."               },
+        {"battlemenu.saveload.load",      "LOAD"                                         },
+        {"battlemenu.saveload.prompt",    "Select an action:"                            },
         {"battlemenu.option.title",       "\"Options\""                                  },
         {"battlemenu.option.help",        "Change game\nconfigurations."                 },
         {"battlemenu.journal.title",      "\"Journal\""                                  },
         {"battlemenu.journal.help",       "Check manuals and\nchest tracker."            },
         {"battlemenu.quit.title",         "\"Quit\""                                       },
-        {"battlemenu.quit.help",          "Exit the game and\nreturn to desktop."        },
+        {"battlemenu.quit.help",          "Return to the\ntitle screen."                 },
         {"battlemenu.quit.confirm_title", "\"Quit\""                                       },
-        {"battlemenu.quit.confirm_desc",  "Return to desktop?"                           },
+        {"battlemenu.quit.confirm_desc",  "Return to the title?\nUnsaved progress is lost."},
         {"battlemenu.quit.yes",           "YES"                                          },
         {"battlemenu.quit.no",            "NO"                                           },
         {"weaponmenu.action.equip",       "EQUIP"                                        },
@@ -84,38 +85,10 @@ void GetLocalizedSaveLoadStrings(std::string &out_title, std::string &out_desc,
         }
     }
 
-    switch (GetMenuLangFlag()) {
-        case LANG_FRENCH:
-            out_load_btn = "CHARGER";
-            out_title = "\"Sauver/Charger\"";
-            out_desc = "Sauvegarder ou\ncharger une partie.";
-            out_modal_prompt = "Choisir une action :";
-            break;
-        case LANG_GERMAN:
-            out_load_btn = "LADEN";
-            out_title = "\"Speichern/Laden\"";
-            out_desc = "Fortschritt speichern\noder Spielstand laden.";
-            out_modal_prompt = "Aktion wählen:";
-            break;
-        case LANG_ITALIAN:
-            out_load_btn = "CARICA";
-            out_title = "\"Salva/Carica\"";
-            out_desc = "Salva i progressi o\ncarica una partita.";
-            out_modal_prompt = "Scegli un'azione:";
-            break;
-        case LANG_SPANISH:
-            out_load_btn = "CARGAR";
-            out_title = "\"Guardar/Cargar\"";
-            out_desc = "Guardar progreso o\ncargar una partida.";
-            out_modal_prompt = "Elige una acción:";
-            break;
-        default:
-            out_load_btn = "LOAD";
-            out_title = "\"Save/Load\"";
-            out_desc = "Save Progress or\nLoad a save.";
-            out_modal_prompt = "Select an action:";
-            break;
-    }
+    out_load_btn = LocalizeText("battlemenu.saveload.load", "LOAD");
+    out_title = LocalizeText("battlemenu.saveload.title", "\"Save/Load\"");
+    out_desc = LocalizeText("battlemenu.saveload.help", "Save Progress or\nLoad a save.");
+    out_modal_prompt = LocalizeText("battlemenu.saveload.prompt", "Select an action:");
 }
 
 void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std::string &out_desc) {
@@ -130,7 +103,7 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
     };
     static constexpr HelpSpec option_spec = {"battlemenu.option.title", "\"Options\"", "battlemenu.option.help", "Change game\nconfigurations."};
     static constexpr HelpSpec journal_spec = {"battlemenu.journal.title", "\"Journal\"", "battlemenu.journal.help", "Check manuals and\nchest tracker."};
-    static constexpr HelpSpec quit_spec    = {"battlemenu.quit.title",    "\"Quit\"", "battlemenu.quit.help",    "Exit the game and\nreturn to desktop."};
+    static constexpr HelpSpec quit_spec    = {"battlemenu.quit.title",    "\"Quit\"", "battlemenu.quit.help",    "Return to the\ntitle screen."};
 
     const HelpSpec *spec = nullptr;
 
@@ -211,5 +184,3 @@ std::string GetBattleMenuCaption(int index, int menu_mode, bool ingame_load_acti
     }
     return title;
 }
-
-} // namespace UI

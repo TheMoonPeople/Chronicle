@@ -3,6 +3,7 @@
 #include <cmath>
 #include <string>
 
+#include "battlemenu/strings.hpp"
 #include "caption_text.hpp"
 #include "clsmes.hpp"
 #include "gamepad.hpp"
@@ -17,7 +18,6 @@
 #include "save_slots.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
-#include "ui_framework/lang.hpp"
 
 PORT_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
     return options::Open(mode, block_no, buffer);
@@ -484,7 +484,7 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
             // LOAD in the menu captions' lettering, over the painted one: its letters from 6 to 72 of the picture, their
             // capitals from row 5 to 24. The painted LOAD without the font.
             std::string title, desc, save_word, load_word, prompt;
-            UI::GetLocalizedSaveLoadStrings(title, desc, save_word, load_word, prompt);
+            GetLocalizedSaveLoadStrings(title, desc, save_word, load_word, prompt);
             if (caption::DrawTitle(load_word, 0x86, 0x37, 6, 72, 5, 24, 0.1f, {}, alpha)) {
                 return;
             }

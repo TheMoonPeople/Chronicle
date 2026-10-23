@@ -1,10 +1,11 @@
 #pragma once
 
+// battlemenu.hpp and memcard.hpp for the game's own menu drawing: its colour gradients and the
+// menus' frame (DrawMenuWaku).
 #include "battlemenu.hpp"
 #include "draw2d_port.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
-#include "menu_inventory.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
 #include "platform/config.hpp"

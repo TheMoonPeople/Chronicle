@@ -59,6 +59,7 @@ int  EditInit(void *param);
 int  EditLoop();
 void SndInit();
 bool TakeBattleMenuLoadRequest();
+bool TakeBattleMenuTitleRequest();
 
 extern s32 mode;
 extern s32 gameTask;
@@ -480,6 +481,20 @@ void ApplyJump() {
             break;
     }
     NextMapNo = -1;
+}
+
+// Quit from the pause menu: the town or dungeon is left where it stands, as the developer menu leaves
+// it (GameEnterDeveloperMenu), and the title screen loads as it does at start-up.
+void ReturnToTitle() {
+    while (ReadBGSync() != 0) {
+        ClockSyncV();
+    }
+    SndExit();
+    MGScisioringForce(0);
+    GamePad.KeyLock(0);
+    MGSetBGColor(0.0f, 0.0f, 0.0f, 128.0f);
+    StartEventNo = -1;
+    MapJump(800, -1);
 }
 
 bool FrameBoundaryStop() {
@@ -1078,6 +1093,11 @@ int RunGame(int argc, char **argv) {
                 NextMapNo = -1;
                 StartEventNo = -1;
                 GameApplyLoopResult(GAME_MODE_TITLE, 2);
+                break;
+            }
+
+            if (result == 0 && TakeBattleMenuTitleRequest()) {
+                ReturnToTitle();
                 break;
             }
 

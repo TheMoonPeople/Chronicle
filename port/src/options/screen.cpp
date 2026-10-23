@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "area_card.hpp"
+#include "battlemenu/strings.hpp"
 #include "clsmes.hpp"
 #include "dataread.hpp"
 #include "dialog_framework.hpp"
@@ -17,6 +18,7 @@
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
+#include "menu_manual_port.hpp"
 #include "menuetc.hpp"
 #include "platform/display.hpp"
 #include "platform/input.hpp"
@@ -25,6 +27,7 @@
 #include "snd.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
+#include "title/title_menu.hpp"
 #include "ui_framework.hpp"
 
 #define PAD_GLYPH_L1 "{L1}"
@@ -712,10 +715,13 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
     for (auto &entry : areacard::Strings()) {
         out.push_back(std::move(entry));
     }
-    for (auto &entry : UI::BattleMenuStrings()) {
+    for (auto &entry : BattleMenuStrings()) {
         out.push_back(std::move(entry));
     }
-    for (auto &entry : UI::JournalStrings()) {
+    for (auto &entry : JournalStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : TitleMenu::Strings()) {
         out.push_back(std::move(entry));
     }
     for (auto &entry : Dialog::Strings()) {

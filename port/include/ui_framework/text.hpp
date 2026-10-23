@@ -45,6 +45,11 @@ struct TextStyle {
     u8         recess_light_b = 155;        /**< Engraved bottom-right catch-light blue channel. */
     bool       painted = false;             /**< Whether to letter as the painted buttons are: no outline, a soft brown shadow. */
     float      letter = 0.0f;               /**< Added to the gap between letters, in logical pixels. */
+    bool       see_through = false;         /**< Whether alpha makes the text see-through, as retail's sprites fade, instead of darkening it. */
+    float      halo = 0.0f;                 /**< How far a soft dark halo reaches out from the letters, fading as it goes, in logical pixels (0 for none). */
+    float      halo_strength = 0.5f;        /**< How dark the halo is next to the letters, 0 to 1 (1 is all but black there). */
+    float      kern = 0.0f;                 /**< The font's kerning between letters, at this strength (0 for none). */
+    bool       ink_spacing = false;         /**< Whether letters are spaced by their outlines, the same at any window size, instead of their pictures. */
 };
 
 /**
@@ -214,6 +219,11 @@ private:
     u8          m_recess_light_b{155};        /**< Engraved bottom-right catch-light blue channel. */
     bool        m_painted{false};             /**< Whether the painted buttons' lettering is used. */
     float       m_letter{0.0f};               /**< Added to the gap between letters. */
+    bool        m_see_through{false};         /**< Whether alpha makes the text see-through. */
+    float       m_halo{0.0f};                 /**< Reach of the soft dark halo. */
+    float       m_halo_strength{0.5f};        /**< Darkness of the halo next to the letters. */
+    float       m_kern{0.0f};                 /**< Strength of the font's kerning. */
+    bool        m_ink_spacing{false};         /**< Whether letters are spaced by their outlines. */
     bool        m_dirty{true};                /**< Whether the cached width needs recomputation. */
     int         m_cached_width{0};            /**< Cached horizontal width in logical pixels. */
 };

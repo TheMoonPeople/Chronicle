@@ -22,6 +22,7 @@ enum class FontSlot : int {
     Main = 0,
     Thin = 1,
     Status = 2,
+    Title = 3,
 };
 
 /**
@@ -53,6 +54,11 @@ struct ScaledDrawParams {
     u8         recess_light_b = 155;        /**< Engraved bottom-right catch-light blue channel. */
     bool       painted = false;             /**< Whether to letter as the painted buttons are. */
     float      letter = 0.0f;               /**< Added to the gap between letters. */
+    bool       see_through = false;         /**< Whether alpha makes the text see-through instead of darkening it. */
+    float      halo = 0.0f;                 /**< Reach of the soft dark halo in logical pixels. */
+    float      halo_strength = 0.5f;        /**< Darkness of the halo next to the letters. */
+    float      kern = 0.0f;                 /**< Strength of the font's kerning. */
+    bool       ink_spacing = false;         /**< Whether letters are spaced by their outlines. */
 };
 
 /**
@@ -104,14 +110,16 @@ bool UseScaledRenderer(std::string_view text, float scale, float xscale, float y
 /**
  * Measures the horizontal advance width of a string in logical pixels.
  */
-int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeight weight, float letter = 0.0f) {
+int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeight weight, float letter = 0.0f,
+                      float kern = 0.0f, bool ink_spacing = false) {
     if (text.empty()) {
         return 0;
     }
 
-    const FontSlot slot = (weight == FontWeight::Status && caption::StatusReady()) ? FontSlot::Status
-                          : (weight == FontWeight::Thin && caption::ThinReady())   ? FontSlot::Thin
-                              : FontSlot::Main;
+    const FontSlot slot = (weight == FontWeight::Title && caption::TitleReady())     ? FontSlot::Title
+                          : (weight == FontWeight::Status && caption::StatusReady()) ? FontSlot::Status
+                          : (weight == FontWeight::Thin && caption::ThinReady())     ? FontSlot::Thin
+                                                                                     : FontSlot::Main;
 
     /**
      * Scoped guard that activates a capfont slot and restores the main slot on exit.
@@ -139,16 +147,26 @@ int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeig
     const int                 em_px = std::clamp(static_cast<int>(em * mapping.scale_x + 0.5f), 4, 512);
     const float               gap = cap_height * 0.075f + letter;
 
-    float natural = 0.0f;
-    int   drawn = 0;
+    float    natural = 0.0f;
+    int      drawn = 0;
+    char32_t previous = 0;
     for (char32_t ch : DecodeUtf8(text)) {
         capfont::Glyph glyph;
         if (ch == U' ') {
             natural += cap_height * 0.32f + (3.0f * scale);
             drawn++;
+            previous = 0;
         } else if (capfont::GetGlyph(ch, em_px, glyph) && glyph.width > 0) {
-            natural += (glyph.width / mapping.scale_x * xscale) + gap;
+            // Kerned as caption::DrawLine kerns.
+            if (kern != 0.0f && previous != 0) {
+                natural += capfont::KernPixels(previous, ch, em_px) / mapping.scale_x * xscale * kern;
+            }
+            // Spaced as caption::DrawLine spaces them.
+            float ink0, ink1;
+            const bool by_ink = ink_spacing && capfont::GetInkExtent(ch, em_px, ink0, ink1);
+            natural += (by_ink ? ink1 - ink0 : glyph.width) / mapping.scale_x * xscale + gap;
             drawn++;
+            previous = ch;
         }
     }
     if (drawn > 0) {
@@ -217,14 +235,23 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
     const float snapped_top = params.painted ? std::round(cap_top * paint_y) / paint_y : std::round(cap_top);
     const float cap_height = detail::kBaseCapHeight * scale;
     const float rows = draw2d::RowScale();
-    const float fade = std::clamp(static_cast<float>(alpha) / 128.0f, 0.0f, 1.0f);
+    const float amount = std::clamp(static_cast<float>(alpha) / 128.0f, 0.0f, 1.0f);
+    // The lettering fades by darkening, so its passes (shadow, rim, face) don't show through one another;
+    // see-through text fades by alpha, as retail's sprites do.
+    const float fade = params.see_through ? 1.0f : amount;
 
     const bool is_thin = (params.weight == FontWeight::Thin);
     const bool is_status = (params.weight == FontWeight::Status);
+    // The title's painted rows have the status numbers' soft, close shadow.
+    const bool is_title = (params.weight == FontWeight::Title);
 
     caption::LineStyle style{};
+    style.alpha = params.see_through ? amount : 1.0f;
     style.thin = is_thin && caption::ThinReady();
     style.status_font = (is_status && caption::StatusReady());
+    style.title_font = (params.weight == FontWeight::Title && caption::TitleReady());
+    style.kern = params.kern;
+    style.ink_spacing = params.ink_spacing;
     style.weight = (params.weight == FontWeight::Bold) ? 1.1f : 0.0f;
     style.xscale = xscale;
     style.yscale = yscale;
@@ -264,6 +291,23 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
         style.edge_width = 0.0f;
     }
 
+    if (params.halo > 0.0f) {
+        // Retail's painted lettering sits in a soft dark halo that fades as it reaches out: a few dark outlines, each
+        // wider and fainter than the last, laid down before the letters.
+        constexpr int kHaloLayers = 4;
+        for (int layer = kHaloLayers; layer >= 1; --layer) {
+            caption::LineStyle halo_style = style;
+            halo_style.field = nullptr;
+            halo_style.fill[0] = halo_style.fill[1] = halo_style.fill[2] = 0;
+            halo_style.edge[0] = halo_style.edge[1] = halo_style.edge[2] = 0;
+            halo_style.edge_width = params.halo * static_cast<float>(layer) / kHaloLayers;
+            // Each layer adds its share; next to the letters, where all overlap, strength 1 is all but black. Faded by
+            // alpha whichever way the letters fade, since black can't be darkened.
+            halo_style.alpha = amount * params.halo_strength / kHaloLayers;
+            caption::DrawLine(text, snapped_x, snapped_top, cap_height, 1.0f, 0.0f, halo_style, fade, rows, nullptr);
+        }
+    }
+
     if (params.drop_shadow && ConfigGet().text_shadow > 0 && !params.raised_bevel && !params.recessed && !params.painted) {
         caption::LineStyle shadow_style = style;
         shadow_style.fill[0] = 0;
@@ -272,12 +316,12 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
         shadow_style.edge[0] = 0;
         shadow_style.edge[1] = 0;
         shadow_style.edge[2] = 0;
-        shadow_style.edge_width = (is_thin || is_status) ? 0.0f : (0.5f * scale);
+        shadow_style.edge_width = (is_thin || is_status || is_title) ? 0.0f : (0.5f * scale);
 
         const float base_op = std::clamp(static_cast<float>(ConfigGet().text_shadow) / 100.0f, 0.0f, 1.0f);
-        shadow_style.opacity = is_thin ? (base_op * 0.55f) : (is_status ? (base_op * 0.65f) : base_op);
+        shadow_style.opacity = is_thin ? (base_op * 0.55f) : ((is_status || is_title) ? (base_op * 0.65f) : base_op);
 
-        const float s_mult = (is_thin || is_status) ? 1.25f : 1.85f;
+        const float s_mult = (is_thin || is_status || is_title) ? 1.25f : 1.85f;
         const float s_dx = std::round(s_mult * scale);
         const float s_dy = std::round(s_mult * scale);
         caption::DrawLine(text, snapped_x + s_dx, snapped_top + s_dy, cap_height, 1.0f, 0.0f, shadow_style, fade, rows, nullptr);
@@ -446,7 +490,12 @@ Label::Label(std::string_view text, const TextStyle &style)
       m_recess_light_g(style.recess_light_g),
       m_recess_light_b(style.recess_light_b),
       m_painted(style.painted),
-      m_letter(style.letter) {
+      m_letter(style.letter),
+      m_see_through(style.see_through),
+      m_halo(style.halo),
+      m_halo_strength(style.halo_strength),
+      m_kern(style.kern),
+      m_ink_spacing(style.ink_spacing) {
     m_text.Set(m_raw_text.c_str());
 }
 
@@ -539,12 +588,17 @@ void Label::SetStyle(const TextStyle &style) {
     m_recess_light_b = style.recess_light_b;
     m_painted = style.painted;
     m_letter = style.letter;
+    m_see_through = style.see_through;
+    m_halo = style.halo;
+    m_halo_strength = style.halo_strength;
+    m_kern = style.kern;
+    m_ink_spacing = style.ink_spacing;
     m_dirty = true;
 }
 
 int Label::GetWidth() {
     if (UseScaledRenderer(m_raw_text, m_scale, m_xscale, m_yscale, m_weight, m_use_custom_rgb, m_outline_width)) {
-        m_cached_width = MeasureScaledText(m_raw_text, m_scale, m_xscale, m_weight, m_letter);
+        m_cached_width = MeasureScaledText(m_raw_text, m_scale, m_xscale, m_weight, m_letter, m_kern, m_ink_spacing);
         m_dirty = false;
         return m_cached_width;
     }
@@ -595,6 +649,11 @@ void Label::Draw(int x, int y, int alpha) {
             .recess_light_b = m_recess_light_b,
             .painted = m_painted,
             .letter = m_letter,
+            .see_through = m_see_through,
+            .halo = m_halo,
+            .halo_strength = m_halo_strength,
+            .kern = m_kern,
+            .ink_spacing = m_ink_spacing,
         };
         DrawScaledText(m_raw_text, center_x, cap_top, m_scale, m_xscale, m_yscale, params, alpha);
         return;
@@ -650,6 +709,11 @@ void Label::DrawInRect(const Rect &box, int alpha) {
             .recess_light_b = m_recess_light_b,
             .painted = m_painted,
             .letter = m_letter,
+            .see_through = m_see_through,
+            .halo = m_halo,
+            .halo_strength = m_halo_strength,
+            .kern = m_kern,
+            .ink_spacing = m_ink_spacing,
         };
         DrawScaledText(m_raw_text, center_x + static_cast<float>(m_dx), cap_top + static_cast<float>(m_dy),
                        m_scale, m_xscale, m_yscale, params, alpha);

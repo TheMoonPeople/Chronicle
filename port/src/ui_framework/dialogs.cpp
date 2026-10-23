@@ -26,6 +26,55 @@ struct QueuedDrawCmd {
 constexpr int kModalLineSpacing = 20;
 
 /**
+ * Where ConfirmModal puts its box, text lines and the game's yes/no plates, from its title and description.
+ */
+struct ConfirmLayout {
+    std::vector<std::string> lines; /**< The title's lines, then the description's. */
+    int box_x = 0;                  /**< Box left. */
+    int box_y = 0;                  /**< Box top. */
+    int box_w = 0;                  /**< Box width. */
+    int box_h = 0;                  /**< Box height. */
+    int btn_x = 0;                  /**< Plates' left. */
+    int btn_y0 = 0;                 /**< First (yes) plate's top. */
+    int btn_y1 = 0;                 /**< Second (no) plate's top. */
+};
+
+// The game's yes/no plates: their size and spacing, lettered as the weapon menu's buttons are.
+constexpr int kConfirmButtonWidth = 0x60;
+constexpr int kConfirmButtonHeight = 23;
+constexpr int kConfirmButtonStride = 0x1C;
+
+ConfirmLayout LayOutConfirm(std::string_view title, std::string_view description) {
+    ConfirmLayout layout;
+    if (!title.empty()) {
+        std::vector<std::string> title_lines = WrapText(title, 280);
+        layout.lines.insert(layout.lines.end(), title_lines.begin(), title_lines.end());
+    }
+    if (!description.empty()) {
+        std::vector<std::string> desc_lines = WrapText(description, 280);
+        layout.lines.insert(layout.lines.end(), desc_lines.begin(), desc_lines.end());
+    }
+    if (layout.lines.empty()) {
+        layout.lines.emplace_back("");
+    }
+
+    int max_text_w = 0;
+    for (const std::string &line : layout.lines) {
+        max_text_w = std::max(max_text_w, Label(line, ColorWhite).GetWidth());
+    }
+
+    const int line_count = static_cast<int>(layout.lines.size());
+    layout.box_w = std::clamp(max_text_w + 48, Metrics::kModalMinWidth, Metrics::kModalMaxWidth);
+    layout.box_h = 38 + (line_count - 1) * kModalLineSpacing;
+    layout.box_x = (Metrics::kScreenWidth - layout.box_w) / 2;
+    layout.box_y = 164 - std::max(0, line_count - 2) * 12;
+    layout.btn_x = (Metrics::kScreenWidth - kConfirmButtonWidth) / 2;
+    layout.btn_y0 = layout.box_y + layout.box_h + 10;
+    layout.btn_y1 = layout.btn_y0 + kConfirmButtonStride;
+    return layout;
+}
+
+/**
  * Returns the frame's deferred layer draw queue.
  */
 std::vector<QueuedDrawCmd> &GetLayerQueueStorage() {
@@ -241,42 +290,19 @@ void ConfirmModal::Draw(std::string_view title, std::string_view description,
 
     MenuTextureReload(detail::kMessageTextureBlock);
 
-    std::vector<std::string> lines;
-    if (!title.empty()) {
-        std::vector<std::string> title_lines = WrapText(title, 280);
-        lines.insert(lines.end(), title_lines.begin(), title_lines.end());
-    }
-    if (!description.empty()) {
-        std::vector<std::string> desc_lines = WrapText(description, 280);
-        lines.insert(lines.end(), desc_lines.begin(), desc_lines.end());
-    }
-    if (lines.empty()) {
-        lines.emplace_back("");
-    }
-
-    int max_text_w = 0;
-    for (const std::string &line : lines) {
-        max_text_w = std::max(max_text_w, Label(line, ColorWhite).GetWidth());
-    }
-
-    const int box_w = std::clamp(max_text_w + 48, Metrics::kModalMinWidth, Metrics::kModalMaxWidth);
-    const int box_h = 38 + static_cast<int>(lines.size() - 1) * kModalLineSpacing;
-    const int box_x = (Metrics::kScreenWidth - box_w) / 2;
-    const int box_y = 164 - std::max(0, static_cast<int>(lines.size()) - 2) * 12;
-
-    TrackerWindow::Draw(box_x, box_y, box_w, box_h, alpha, preset);
+    const ConfirmLayout layout = LayOutConfirm(title, description);
+    TrackerWindow::Draw(layout.box_x, layout.box_y, layout.box_w, layout.box_h, alpha, preset);
 
     MenuTextureReload(detail::kMessageTextureBlock);
-    for (size_t i = 0; i < lines.size(); ++i) {
-        Label(lines[i], ColorWhite).Draw(box_x + 22, box_y + 12 + static_cast<int>(i) * kModalLineSpacing, alpha);
+    for (size_t i = 0; i < layout.lines.size(); ++i) {
+        Label(layout.lines[i], ColorWhite).Draw(layout.box_x + 22, layout.box_y + 12 + static_cast<int>(i) * kModalLineSpacing, alpha);
     }
 
-    // The game's yes/no plates: their size and spacing, lettered as the weapon menu's buttons are.
-    constexpr int btn_w = 0x60;
-    constexpr int btn_h = 23;
-    constexpr int btn_x = (Metrics::kScreenWidth - btn_w) / 2;
-    const int     btn_y0 = box_y + box_h + 10;
-    const int     btn_y1 = btn_y0 + 0x1C;
+    constexpr int btn_w = kConfirmButtonWidth;
+    constexpr int btn_h = kConfirmButtonHeight;
+    const int     btn_x = layout.btn_x;
+    const int     btn_y0 = layout.btn_y0;
+    const int     btn_y1 = layout.btn_y1;
 
     ButtonStyle yes_style = ButtonStyle::Thin(ButtonPreset::Terracotta);
     ButtonStyle no_style = yes_style;
@@ -298,6 +324,27 @@ void ConfirmModal::Draw(std::string_view title, std::string_view description,
 
     cursor.SetTarget(static_cast<float>(btn_x - 34), static_cast<float>(sel_y + 3));
     cursor.Draw(alpha);
+}
+
+int ConfirmModal::Hit(std::string_view title, std::string_view description, float x, float y) {
+    const ConfirmLayout layout = LayOutConfirm(title, description);
+    // The selection frame reaches 14 pixels past the plate's left and 2 past its right.
+    if (x < layout.btn_x - 14 || x >= layout.btn_x + kConfirmButtonWidth + 2) {
+        return -1;
+    }
+    const float top = static_cast<float>(layout.btn_y0 - (kConfirmButtonStride - kConfirmButtonHeight) / 2);
+    if (y >= top && y < top + kConfirmButtonStride) {
+        return 0;
+    }
+    if (y >= top + kConfirmButtonStride && y < top + 2 * kConfirmButtonStride) {
+        return 1;
+    }
+    return -1;
+}
+
+Rect ConfirmModal::ButtonRect(std::string_view title, std::string_view description, int button) {
+    const ConfirmLayout layout = LayOutConfirm(title, description);
+    return Rect(layout.btn_x, button == 0 ? layout.btn_y0 : layout.btn_y1, kConfirmButtonWidth, kConfirmButtonHeight);
 }
 
 void ListView::Reset(int initial_index) {

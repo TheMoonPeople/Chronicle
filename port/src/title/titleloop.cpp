@@ -27,6 +27,7 @@
 #include "title/scfader.hpp"
 #include "title/sprite.hpp"
 #include "title/title.hpp"
+#include "title/title_menu.hpp"
 #include "title/titleloop.hpp"
 #include "title_port.hpp"
 
@@ -51,6 +52,7 @@ struct TitlePointerAction {
     bool confirm = false;
     bool back = false;
     bool moved = false;
+    int  confirm_hover = -1; // the exit confirmation's button under the pointer
 };
 
 TitlePointerAction TakeTitlePointer() {
@@ -77,10 +79,14 @@ TitlePointerAction TakeTitlePointer() {
     const float y = title_pointer.y - (SCREEN_HEIGHT - 448) / 2;
     if (CProcess.no == TITLE_STEP_LOGO) {
         action.start = (take.clicked & 1) && x >= 64 && x < 576 && y >= 296 && y < 360;
+    } else if (TitleMenu::ConfirmOpen()) {
+        action.confirm_hover = TitleMenu::ConfirmHit(title_pointer.x, title_pointer.y);
+        action.confirm = (take.clicked & 1) != 0 && action.confirm_hover >= 0;
+        action.back = (take.clicked & 2) != 0;
     } else {
         action.back = (take.clicked & 2) != 0;
-        if (x >= 193 && x < 449 && y >= 280 && y < 376) {
-            int row = static_cast<int>((y - 280) / 32);
+        const int row = TitleMenu::RowAt(x, title_pointer.y);
+        if (row >= 0) {
             if (CCursol.select != row) {
                 CCursol.select = row;
                 TiPlayVolSE(MIDI_PORT_UNK_D, 122, 24, 1.0f);
@@ -200,6 +206,11 @@ PORT_OVERRIDE int TitleLoop() {
         case TITLE_STEP_MENU:
             CLogo.Move();
 
+            if (TitleMenu::ConfirmOpen()) {
+                TitleMenu::StepConfirm(pointer.confirm_hover, pointer.confirm, pointer.back);
+                break;
+            }
+
             if (CCursol.Move() || pointer.moved || pointer.back) {
                 if (GamePad.Down(PAD_UP)) {
                     CCursol.select--;
@@ -214,32 +225,26 @@ PORT_OVERRIDE int TitleLoop() {
                 }
 
                 if (CCursol.select < 0) {
-                    CCursol.select = TITLE_MENU_OPTION;
+                    CCursol.select = TitleMenu::kExitRow;
                 }
 
-                if (CCursol.select > 2) {
+                if (CCursol.select > TitleMenu::kExitRow) {
                     CCursol.select = TITLE_MENU_NEW_GAME;
                 }
 
-                switch (CCursol.select) {
-                    case TITLE_MENU_NEW_GAME:
-                        CCursol.Set(304.0f);
-                        break;
-                    case TITLE_MENU_LOAD:
-                        CCursol.Set(332.0f);
-                        break;
-                    case TITLE_MENU_OPTION:
-                        CCursol.Set(364.0f);
-                        break;
-                }
+                CCursol.Set(TitleMenu::HandY(CCursol.select));
 
                 if (GamePad.Down(PAD_START) || GamePad.Down(PAD_CROSS) || pointer.confirm) {
-                    TiPlayVolSE(MIDI_PORT_SE_DEFAULT, 38, 20, 1.0f);
-                    CProcess.no = TITLE_STEP_MENU_BLINK;
+                    if (CCursol.select == TitleMenu::kExitRow) {
+                        TitleMenu::OpenConfirm();
+                    } else {
+                        TiPlayVolSE(MIDI_PORT_SE_DEFAULT, 38, 20, 1.0f);
+                        CProcess.no = TITLE_STEP_MENU_BLINK;
+                    }
                     opcnt = 0;
                 }
 
-                if (GamePad.Down(PAD_CIRCLE) || pointer.back) {
+                if (!TitleMenu::ConfirmOpen() && (GamePad.Down(PAD_CIRCLE) || pointer.back)) {
                     Fade1 = Fade2 = Fade3 = Fade4 = 0;
                     CSprite.Init();
                     CLogo.Init();
@@ -525,27 +530,13 @@ PORT_OVERRIDE void TitleDraw() {
                     br = 128;
                 }
 
-                switch (CCursol.GetSelect()) {
-                    case TITLE_MENU_NEW_GAME:
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(280), 256, 32), CRect_i_(0, 0, 256, 32), static_cast<u_char>(CFade.Get(br)));
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(312), 256, 32), CRect_i_(0, 32, 256, 32), static_cast<u_char>(CFade.Get(32)));
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(344), 256, 32), CRect_i_(0, 64, 256, 32), static_cast<u_char>(CFade.Get(32)));
-                        break;
-
-                    case TITLE_MENU_LOAD:
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(280), 256, 32), CRect_i_(0, 0, 256, 32), static_cast<u_char>(CFade.Get(32)));
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(312), 256, 32), CRect_i_(0, 32, 256, 32), static_cast<u_char>(CFade.Get(br)));
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(344), 256, 32), CRect_i_(0, 64, 256, 32), static_cast<u_char>(CFade.Get(32)));
-                        break;
-
-                    case TITLE_MENU_OPTION:
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(280), 256, 32), CRect_i_(0, 0, 256, 32), static_cast<u_char>(CFade.Get(32)));
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(312), 256, 32), CRect_i_(0, 32, 256, 32), static_cast<u_char>(CFade.Get(32)));
-                        set2DSprite(GetVif1Packet(), TexManager.GetTexture("start3", -1), CRect_i_(193, MENU_Y(344), 256, 32), CRect_i_(0, 64, 256, 32), static_cast<u_char>(CFade.Get(br)));
-                        break;
+                // Retail's painted rows (start3) have no Exit, so all four come from the font. Retail
+                // draws none on the way to the attract movie, whose number Exit's row shares.
+                if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT) {
+                    TitleMenu::Draw(CCursol.GetSelect(), CFade.Get(br), CFade.Get(32));
                 }
 
-                if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT) {
+                if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT && !TitleMenu::ConfirmOpen()) {
                     setbilinear(0);
                     CursorVibeCnt++;
 
@@ -557,6 +548,9 @@ PORT_OVERRIDE void TitleDraw() {
                     DrawObjectVibe(hand_x, hand_y, TexManager.GetTexture("icon01", -1), rect, 128, CFade.Get(128));
                     setbilinear(1);
                 }
+
+                TitleMenu::DrawConfirm(CFade.Get(128));
+                setbilinear(1);
             }
 
             break;

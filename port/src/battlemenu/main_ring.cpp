@@ -1,7 +1,7 @@
 #include "battlemenu/internal.hpp"
+#include "battlemenu/strings.hpp"
 #include "save_slots.hpp"
 #include "savedata.hpp"
-#include "ui_framework/lang.hpp"
 
 namespace {
 
@@ -55,6 +55,11 @@ int quit_confirm_choice = static_cast<int>(QuitChoice::No);
  * Animated hand cursor for the Quit Game confirmation modal.
  */
 UI::Cursor quit_cursor;
+
+/**
+ * Whether Quit was confirmed and the main loop has yet to go back to the title screen.
+ */
+bool quit_to_title_pending = false;
 
 /**
  * Whether the Save/Load selection modal is currently open.
@@ -229,7 +234,7 @@ void DrawBtlMenuBar() {
         if (icons[i] >= 0) {
             setbilinear(0);
             MenuTextureReload(BtlMenuReadBlock);
-            caption::SetNextCaptionText(UI::GetBattleMenuCaption(i, BtlMenuMode, ingame_load_active));
+            caption::SetNextCaptionText(GetBattleMenuCaption(i, BtlMenuMode, ingame_load_active));
             DrawMainMenuIcon(x, y, icons[i], selected, brightness, icon_alpha);
         }
     }
@@ -248,7 +253,7 @@ void DrawBattleMainOverlay() {
     const int       sel_icon = icons[MenuSelect[1]];
     MENU_ICON_INFO *info = GetMenuIconInfo(sel_icon);
 
-    UI::Label cap_lbl(UI::GetBattleMenuCaption(MenuSelect[1], BtlMenuMode, ingame_load_active),
+    UI::Label cap_lbl(GetBattleMenuCaption(MenuSelect[1], BtlMenuMode, ingame_load_active),
                       UI::ColorWhite, UI::Alignment::Left, true, kCaptionToMessageRatio);
     int       width = cap_lbl.GetWidth() + 0x52;
     if (info != nullptr && width < (info->label_width + 0x4A)) {
@@ -285,13 +290,21 @@ int BtlMenuDrawSpecialFlag(int flag) {
     return flag;
 }
 
+std::string QuitConfirmTitle() {
+    return LocalizeText("battlemenu.quit.confirm_title", "\"Quit\"");
+}
+
+std::string QuitConfirmDescription() {
+    return LocalizeText("battlemenu.quit.confirm_desc", "Return to the title?\nUnsaved progress is lost.");
+}
+
 /**
  * Draws the Quit Game confirmation modal.
  */
 void DrawQuitConfirmModal(int alpha) {
     UI::ConfirmModal::Draw(
-        LocalizeText("battlemenu.quit.confirm_title", "\"Quit Game\""),
-        LocalizeText("battlemenu.quit.confirm_desc", "Return to desktop?"),
+        QuitConfirmTitle(),
+        QuitConfirmDescription(),
         LocalizeText("battlemenu.quit.yes", "YES"),
         LocalizeText("battlemenu.quit.no", "NO"),
         quit_confirm_choice,
@@ -308,7 +321,7 @@ void DrawSaveLoadChoiceModal(int alpha) {
     std::string save_btn;
     std::string load_btn;
     std::string modal_prompt;
-    UI::GetLocalizedSaveLoadStrings(title, desc, save_btn, load_btn, modal_prompt);
+    GetLocalizedSaveLoadStrings(title, desc, save_btn, load_btn, modal_prompt);
 
     UI::ConfirmModal::Draw(
         title,
@@ -524,7 +537,7 @@ void PortDrawBattleMenu() {
                BtlHelpWinAlpha > 0 && !quit_confirm_active && !saveload_modal_active) {
         std::string title;
         std::string desc;
-        UI::GetBattleMenuHelpData(MenuSelect[1], BtlMenuMode, title, desc);
+        GetBattleMenuHelpData(MenuSelect[1], BtlMenuMode, title, desc);
 
         const int box_x = (HelpWinHead[0] > 0) ? static_cast<int>(HelpWinHead[0]) : (640 - kHelpBoxWidth - 20);
         UI::HelpBox::DrawTitled(box_x, 452, kHelpBoxWidth, text_x, title, desc, BtlHelpWinAlpha);
@@ -602,10 +615,15 @@ int PortBattleMenuSelect() {
             ComMenuSePlay(MENU_SOUND_CURSOR);
         } else if (GamePad.Down(PAD_CROSS)) {
             if (quit_confirm_choice == static_cast<int>(QuitChoice::Yes)) {
+                // Back to the title screen, which has Exit; the main loop leaves the town or
+                // dungeon (TakeBattleMenuTitleRequest), as it does for an in-game load.
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
-                SDL_Event event{};
-                event.type = SDL_EVENT_QUIT;
-                SDL_PushEvent(&event);
+                quit_confirm_active = false;
+                quit_to_title_pending = true;
+                ExitBattleMenu(1);
+                BattleMenuFlag = 0;
+                BtlEffectFlag = 0;
+                BtlEffectCt = 0.0f;
             } else {
                 ComMenuSePlay(MENU_SOUND_REFUSE);
                 quit_confirm_active = false;
@@ -707,7 +725,11 @@ int PortBattleMenuSelect() {
             case BTLMENU_PAGE_QUIT:
                 quit_confirm_active = true;
                 quit_confirm_choice = static_cast<int>(QuitChoice::No);
-                quit_cursor.SnapTo((640 - 100) / 2.0f - 34.0f, (164 + 58 + 10 + 26 + 6) + 3.0f);
+                {
+                    const UI::Rect no = UI::ConfirmModal::ButtonRect(QuitConfirmTitle(), QuitConfirmDescription(),
+                                                                     static_cast<int>(QuitChoice::No));
+                    quit_cursor.SnapTo(static_cast<float>(no.x - 34), static_cast<float>(no.y + 3));
+                }
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
                 return 1;
         }
@@ -732,11 +754,32 @@ int *BattleMenuQuitConfirmChoicePtr() {
     return saveload_modal_active ? &saveload_modal_choice : &quit_confirm_choice;
 }
 
+int BattleMenuQuitConfirmHit(float x, float y) {
+    if (saveload_modal_active) {
+        std::string title;
+        std::string desc;
+        std::string save_btn;
+        std::string load_btn;
+        std::string prompt;
+        GetLocalizedSaveLoadStrings(title, desc, save_btn, load_btn, prompt);
+        return UI::ConfirmModal::Hit(title, prompt, x, y);
+    }
+    return UI::ConfirmModal::Hit(QuitConfirmTitle(), QuitConfirmDescription(), x, y);
+}
+
 bool TakeBattleMenuLoadRequest() {
     if (!ingame_load_pending) {
         return false;
     }
     ingame_load_pending = false;
+    return true;
+}
+
+bool TakeBattleMenuTitleRequest() {
+    if (!quit_to_title_pending) {
+        return false;
+    }
+    quit_to_title_pending = false;
     return true;
 }
 
