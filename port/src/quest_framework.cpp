@@ -86,7 +86,10 @@ json ProgressJson(const Progress &progress) {
     for (const auto &[name, value] : progress.vars) {
         vars[name] = value;
     }
-    return json{{"stage", progress.stage}, {"vars", vars}};
+    return json{
+        {"stage", progress.stage},
+        {"vars",  vars          }
+    };
 }
 
 Progress ProgressFrom(const Definition &quest, const json &saved) {
@@ -118,46 +121,46 @@ Progress ProgressFrom(const Definition &quest, const json &saved) {
 // ---- Context and Scene ----
 
 Context::Context(const Definition &quest, Progress &progress, IGame &game)
-    : quest_(&quest), progress_(&progress), game_(&game) {}
+    : quest(&quest), progress(&progress), game(&game) {}
 
-const std::string &Context::QuestId() const { return quest_->Id(); }
+const std::string &Context::QuestId() const { return quest->Id(); }
 
-IGame &Context::Game() const { return *game_; }
+IGame &Context::Game() const { return *game; }
 
-const std::string &Context::Stage() const { return progress_->stage; }
+const std::string &Context::Stage() const { return progress->stage; }
 
-bool Context::AtStage(std::string_view stage) const { return progress_->stage == stage; }
+bool Context::AtStage(std::string_view stage) const { return progress->stage == stage; }
 
 void Context::SetStage(std::string_view stage) {
-    if (!quest_->HasStage(stage)) {
-        std::fprintf(stderr, "quests: %s has no stage \"%.*s\"\n", quest_->Id().c_str(),
+    if (!quest->HasStage(stage)) {
+        std::fprintf(stderr, "quests: %s has no stage \"%.*s\"\n", quest->Id().c_str(),
                      static_cast<int>(stage.size()), stage.data());
         return;
     }
-    progress_->stage = std::string(stage);
+    progress->stage = std::string(stage);
 }
 
 int Context::Var(std::string_view name) const {
-    const auto it = progress_->vars.find(std::string(name));
-    return it == progress_->vars.end() ? 0 : it->second;
+    const auto it = progress->vars.find(std::string(name));
+    return it == progress->vars.end() ? 0 : it->second;
 }
 
-void Context::SetVar(std::string_view name, int value) { progress_->vars[std::string(name)] = value; }
+void Context::SetVar(std::string_view name, int value) { progress->vars[std::string(name)] = value; }
 
 Scene::Scene(const Definition &quest, Progress &progress, IGame &game, Dialog::ISessionController &session)
-    : Context(quest, progress, game), session_(&session) {}
+    : Context(quest, progress, game), session(&session) {}
 
 void Scene::Say(Text text, std::vector<std::string> args) {
-    session_->PushRawMessage(Localized(text), std::move(args));
+    session->PushRawMessage(Localized(text), std::move(args));
 }
 
 void Scene::SayTalkLine(int message, Text fallback) {
     std::string line = Game().TalkLine(message);
-    session_->PushRawMessage(line.empty() ? Localized(fallback) : std::move(line));
+    session->PushRawMessage(line.empty() ? Localized(fallback) : std::move(line));
 }
 
 void Scene::Ask(Text prompt, std::vector<Dialog::ChoiceItem> choices, std::vector<std::string> args) {
-    session_->PushRawChoicePage(Localized(prompt), std::move(choices), std::move(args));
+    session->PushRawChoicePage(Localized(prompt), std::move(choices), std::move(args));
 }
 
 Dialog::ChoiceItem Scene::Choice(Text label, SceneFn on_select, Dialog::ChoiceColor color) const {
@@ -165,16 +168,16 @@ Dialog::ChoiceItem Scene::Choice(Text label, SceneFn on_select, Dialog::ChoiceCo
 }
 
 void Scene::SayThenClose(Text text, std::vector<std::string> args) {
-    session_->PushClosingMessage(Localized(text), std::move(args));
+    session->PushClosingMessage(Localized(text), std::move(args));
 }
 
-void Scene::Back() { session_->PopPage(); }
+void Scene::Back() { session->PopPage(); }
 
-void Scene::Close() { session_->Close(); }
+void Scene::Close() { session->Close(); }
 
 void Scene::OpenShop(ShopSpec shop) {
     Game().OpenShop(std::move(shop));
-    session_->Close();
+    session->Close();
 }
 
 // ---- Conditions ----
@@ -270,53 +273,53 @@ Condition Not(Condition condition) {
 // ---- Definition and Builder ----
 
 bool Definition::HasStage(std::string_view stage) const {
-    return std::find(stages_.begin(), stages_.end(), stage) != stages_.end();
+    return std::find(stages.begin(), stages.end(), stage) != stages.end();
 }
 
-Builder::Builder(std::string id) { quest_.id_ = std::move(id); }
+Builder::Builder(std::string id) { quest.id = std::move(id); }
 
 Builder &Builder::Stages(std::initializer_list<std::string_view> stages) {
-    quest_.stages_.assign(stages.begin(), stages.end());
+    quest.stages.assign(stages.begin(), stages.end());
     return *this;
 }
 
 Builder &Builder::Advance(std::string_view from, Condition when, std::string_view to) {
-    quest_.rules_.push_back({std::string(from), std::move(when), std::string(to)});
+    quest.rules.push_back({std::string(from), std::move(when), std::string(to)});
     return *this;
 }
 
 Builder &Builder::Option(NpcMatch npc, Condition when, Text label, SceneFn on_select, Dialog::ChoiceColor color) {
-    quest_.options_.push_back({std::move(npc), std::move(when), label, color, std::move(on_select)});
+    quest.options.push_back({std::move(npc), std::move(when), label, color, std::move(on_select)});
     return *this;
 }
 
 Builder &Builder::TakesOver(NpcMatch npc, Retail behaviour) {
-    quest_.takeovers_.push_back({std::move(npc), behaviour});
+    quest.takeovers.push_back({std::move(npc), behaviour});
     return *this;
 }
 
 Definition Builder::Build() {
-    const std::string &id = quest_.id_;
-    if (id.empty() || quest_.stages_.empty()) {
+    const std::string &id = quest.id;
+    if (id.empty() || quest.stages.empty()) {
         throw std::logic_error("quest \"" + id + "\" needs an id and at least one stage");
     }
-    for (size_t i = 0; i < quest_.stages_.size(); ++i) {
-        if (std::find(quest_.stages_.begin() + i + 1, quest_.stages_.end(), quest_.stages_[i]) != quest_.stages_.end()) {
-            throw std::logic_error("quest \"" + id + "\" names stage \"" + quest_.stages_[i] + "\" twice");
+    for (size_t i = 0; i < quest.stages.size(); ++i) {
+        if (std::find(quest.stages.begin() + i + 1, quest.stages.end(), quest.stages[i]) != quest.stages.end()) {
+            throw std::logic_error("quest \"" + id + "\" names stage \"" + quest.stages[i] + "\" twice");
         }
     }
-    for (const Definition::Rule &rule : quest_.rules_) {
-        if (!quest_.HasStage(rule.from) || !quest_.HasStage(rule.to) || !rule.when) {
+    for (const Definition::Rule &rule : quest.rules) {
+        if (!quest.HasStage(rule.from) || !quest.HasStage(rule.to) || !rule.when) {
             throw std::logic_error("quest \"" + id + "\" has a rule from \"" + rule.from + "\" to \"" + rule.to +
                                    "\" that is not between two of its stages");
         }
     }
-    for (const Definition::Option &option : quest_.options_) {
+    for (const Definition::Option &option : quest.options) {
         if (!option.on_select) {
             throw std::logic_error("quest \"" + id + "\" has a choice that does nothing");
         }
     }
-    return std::move(quest_);
+    return std::move(quest);
 }
 
 // ---- Registry ----
@@ -388,7 +391,7 @@ void CollectOptions(const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceIte
     }
     Evaluate();
     for (const std::unique_ptr<Entry> &entry : state.quests) {
-        Context ctx(entry->quest, entry->progress, *state.game);
+        Context                                ctx(entry->quest, entry->progress, *state.game);
         const std::vector<Definition::Option> &options = entry->quest.Options();
         for (size_t i = 0; i < options.size(); ++i) {
             const Definition::Option &option = options[i];
@@ -423,14 +426,18 @@ void ResetProgress() {
 
 std::string SaveJson() {
     const State &state = Get();
-    json quests = json::object();
+    json         quests = json::object();
     for (const auto &[id, saved] : state.orphans) {
         quests[id] = saved;
     }
     for (const std::unique_ptr<Entry> &entry : state.quests) {
         quests[entry->quest.Id()] = ProgressJson(entry->progress);
     }
-    return json{{"version", kSaveVersion}, {"quests", quests}}.dump(2);
+    return json{
+        {"version", kSaveVersion},
+        {"quests",  quests      }
+    }
+        .dump(2);
 }
 
 bool LoadJson(std::string_view text) {

@@ -10,11 +10,13 @@
 #include <string>
 #include <tuple>
 
+#include "credits_text.hpp"
 #include "draw2d_port.hpp"
 #include "glyph_draw.hpp"
 #include "mglib_port.hpp"
 #include "rect.hpp"
 #include "texture.hpp"
+#include "ui_framework/buttons.hpp"
 
 extern unsigned int *snd_read_buf;
 
@@ -69,7 +71,8 @@ void RectSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel
         }
     }
 
-    if (GlyphReplaceSprite(texture->name, screen, texel, colour.a)) {
+    if (GlyphReplaceSprite(texture->name, screen, texel, colour.a) || credits::DrawBand(texture->name, screen, texel, colour.a) ||
+        UI::DrawPaintedPlate(texture->name, screen, texel, colour.r, colour.a)) {
         return;
     }
     std::array<gfx::Vertex2D, 4> quad = RectQuad(screen, texel, colour);
@@ -158,25 +161,25 @@ PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const C
 }
 
 PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                             unsigned char alpha) {
+                               unsigned char alpha) {
     RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, alpha});
 }
 
 PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                             unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+                               unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
     RectSprite(texture, screen, texel, {red, green, blue, alpha});
 }
 
 // A gouraud strip, so the corner order decides the diagonal the colours interpolate across.
 PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                             spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
+                               spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
     if (texture == nullptr) {
         return;
     }
 
     std::array<gfx::Vertex2D, 4> quad = RectQuad(screen, texel, {});
-    const Colour colours[4] = {ToColour(top_left), ToColour(top_right), ToColour(bottom_right),
-                               ToColour(bottom_left)};
+    const Colour                 colours[4] = {ToColour(top_left), ToColour(top_right), ToColour(bottom_right),
+                                               ToColour(bottom_left)};
     for (int i = 0; i < 4; i++) {
         quad[i].color[0] = colours[i].r;
         quad[i].color[1] = colours[i].g;
@@ -196,8 +199,8 @@ PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const C
 }
 
 PORT_OVERRIDE void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
-                                spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
-                                spRGBA *bottom_right_colour) {
+                                  spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
+                                  spRGBA *bottom_right_colour) {
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, 0.0f, 0.0f, ToColour(top_left_colour), false),
         GsVertex(top_right, 0.0f, 0.0f, ToColour(top_right_colour), false),
@@ -208,7 +211,7 @@ PORT_OVERRIDE void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top
 }
 
 PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                             int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
+                               int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     spRGBA colour = {0x80, 0x80, 0x80, 0};
 
     colour.a = alpha;
@@ -216,7 +219,7 @@ PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const C
 }
 
 PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                             int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
+                               int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -225,7 +228,7 @@ PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const C
 }
 
 PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                             int *bottom_right, spRGBA *colour) {
+                               int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -234,7 +237,7 @@ PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const C
 }
 
 PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                                int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
+                                  int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }
@@ -244,7 +247,7 @@ PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, cons
 }
 
 PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                                int *bottom_right, spRGBA *colour) {
+                                  int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -253,7 +256,7 @@ PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, cons
 }
 
 PORT_OVERRIDE void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
-                              unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+                                unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
     const Colour                 colour = {red, green, blue, alpha};
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, 0.0f, 0.0f, colour, false, true),
@@ -265,7 +268,7 @@ PORT_OVERRIDE void setColSprite(sceVif1Packet *packet, int *top_left, int *top_r
 }
 
 PORT_OVERRIDE void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
-                               spRGBA *bottom_left, spRGBA *bottom_right) {
+                                 spRGBA *bottom_left, spRGBA *bottom_right) {
     const float x0 = static_cast<float>(screen.x);
     const float y0 = static_cast<float>(screen.y);
     const float x1 = static_cast<float>(screen.x + screen.width);
@@ -288,7 +291,7 @@ PORT_OVERRIDE void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, 
 // title's backdrop, half a milliradian a tick) moves the corners one at a time; they are kept as
 // turned here.
 PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                             int pivot_x, int pivot_y, float angle) {
+                               int pivot_x, int pivot_y, float angle) {
     draw2d::TurnedSprite(texture, screen, texel, pivot_x, pivot_y, angle, 1.0f);
 }
 
@@ -335,8 +338,8 @@ void draw2d::TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect
 // Retail's rotation in 12.4 units: the far edges a sixteenth short, mirrored about the pivot at
 // angle 0, y halved for the field after turning.
 PORT_OVERRIDE void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                                int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
-                                unsigned char blue, unsigned char alpha) {
+                                  int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
+                                  unsigned char blue, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }

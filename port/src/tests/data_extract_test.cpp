@@ -163,8 +163,8 @@ static Bytes MakeNtscSystemPack(std::uint32_t colour) {
 
 TEST(DataExtract, NormalizesNtscAssets) {
     fs::path dir = TempDir("normalize_ntsc");
-    Bytes   start = Pattern(32, 7);
-    Bytes   event(24, 0);
+    Bytes    start = Pattern(32, 7);
+    Bytes    event(24, 0);
     Put32(event, 20, 24);
     event.insert(event.end(), {1, 2, 3, 4});
     Bytes image(16 + 2 * 48 + 8, 0);
@@ -175,7 +175,7 @@ TEST(DataExtract, NormalizesNtscAssets) {
     std::memcpy(image.data() + 64, "wepstatus", 9);
     Put32(image, 64 + 32, 16 + 2 * 48 + 4);
     std::iota(image.begin() + 16 + 2 * 48, image.end(), 1);
-    Disc disc = MakeDisc({
+    Disc            disc = MakeDisc({
         {"gedit/system/esys.pak", MakeNtscSystemPack(0x100)},
         {"meswin/mes_tex.pak", Pattern(16, 2)},
         {"rmdat/rmdat1.pak", MakePack({{"start.img", start}})},
@@ -183,7 +183,7 @@ TEST(DataExtract, NormalizesNtscAssets) {
         {"dun/script/d01/event.stb", event},
         {"commenu/a_eng/dungeon/dunmenu5.pak", MakePack({{"btlmenu.img", image}})}
     });
-    fs::path out = dir / "data";
+    fs::path        out = dir / "data";
     dcdata::Archive archive = dcdata::OpenArchive(WriteStandardIso(dir, disc));
     dcdata::Extract(archive, out, nullptr);
 
@@ -254,16 +254,16 @@ TEST(DataExtract, NormalizesIconSheets) {
         {"wepicon", 0x100, 5}
     });
     Disc     disc = MakeDisc({
-        {"commenu/a_eng/itempack.img",           MakeIconBank({{"itempack", 0x100, 1}})                             },
-        {"commenu/a_eng/quickchr.pac",           MakePack({{"qchr.mes", Pattern(8, 2)}, {"quickchr.img", american}})},
-        {"commenu/a_eng/itemlst.img",            MakeIconBank({{"wepicon", 0x200, 4}, {"itemicon", 0x200, 7}})      },
-        {"commenu/a_eng/dunenter/dunenter2.pak", MakePack({{"dunenter.img", english}})                              },
-        {"commenu/a_eng/kgetoan2.img",           MakeIconBank({{"wepicon", 0x200, 4}})                              },
-        {"commenu/a_eng/_charatex.img",          MakeIconBank({{"wepicon", 0x200, 4}})                              },
-        {"commenu/a_eng/manual/m10.pac",         Pattern(80, 9)                                                     },
-        {"commenu/a_fre/itempack.img",           MakeIconBank({{"itempack", 0x200, 6}})                             },
-        {"commenu/a_fre/quickchr.pac",           MakePack({{"quickchr.img", american}})                             },
-        {"commenu/a_fre/dunenter/dunenter2.pak", MakePack({{"dunenter.img", english}})                              },
+        {"commenu/a_eng/itempack.img", MakeIconBank({{"itempack", 0x100, 1}})},
+        {"commenu/a_eng/quickchr.pac", MakePack({{"qchr.mes", Pattern(8, 2)}, {"quickchr.img", american}})},
+        {"commenu/a_eng/itemlst.img", MakeIconBank({{"wepicon", 0x200, 4}, {"itemicon", 0x200, 7}})},
+        {"commenu/a_eng/dunenter/dunenter2.pak", MakePack({{"dunenter.img", english}})},
+        {"commenu/a_eng/kgetoan2.img", MakeIconBank({{"wepicon", 0x200, 4}})},
+        {"commenu/a_eng/_charatex.img", MakeIconBank({{"wepicon", 0x200, 4}})},
+        {"commenu/a_eng/manual/m10.pac", Pattern(80, 9)},
+        {"commenu/a_fre/itempack.img", MakeIconBank({{"itempack", 0x200, 6}})},
+        {"commenu/a_fre/quickchr.pac", MakePack({{"quickchr.img", american}})},
+        {"commenu/a_fre/dunenter/dunenter2.pak", MakePack({{"dunenter.img", english}})},
     });
     fs::path out = dir / "data";
     dcdata::Extract(dcdata::OpenArchive(WriteStandardIso(dir, disc)), out, nullptr);
@@ -426,10 +426,10 @@ static Bytes MakeItempack(const std::vector<std::uint32_t> &colours, unsigned ch
 
 // The July 12 PAL prototype's blank floor plates take American English's, in each sheet's palette.
 TEST(DataExtract, FillsBlankFloorPlates) {
-    fs::path dir = TempDir("floor_plates");
+    fs::path                   dir = TempDir("floor_plates");
     std::vector<std::uint32_t> american(256), british(256);
     for (int i = 0; i < 256; i++) {
-        american[i] = 0x80000000u | (i * 0x010101u);         // grey i, opaque
+        american[i] = 0x80000000u | (i * 0x010101u);        // grey i, opaque
         british[i] = 0x80000000u | ((255 - i) * 0x010101u); // the same greys, reversed
     }
     american[0] = 0x00000000u; // transparent
@@ -438,10 +438,10 @@ TEST(DataExtract, FillsBlankFloorPlates) {
     WriteBytes(dir / "commenu/a_eng/itempack.img", MakeItempack(british, 200, 200));
     dcdata::FillFloorPlates(dir);
 
-    Bytes          sheet = ReadBytes(dir / "normalized/commenu/a_eng/itempack.img");
+    Bytes                sheet = ReadBytes(dir / "normalized/commenu/a_eng/itempack.img");
     const unsigned char *pixels = sheet.data() + 16 + 48 + 64;
-    auto           value = [&](int x, int y) { return pixels[dcdata::Tim2T8Texel(x, y, 256)]; };
-    EXPECT_EQ(value(0x9A, 1), 255 - 40);    // grey 40, at its place in the British palette
+    auto                 value = [&](int x, int y) { return pixels[dcdata::Tim2T8Texel(x, y, 256)]; };
+    EXPECT_EQ(value(0x9A, 1), 255 - 40); // grey 40, at its place in the British palette
     EXPECT_EQ(value(0x9A + 0x65, 1), 255 - 40);
     EXPECT_EQ(value(0x9A, 2), 7);           // the American plate's transparent texels
     EXPECT_EQ(value(0xDA, 0x2B + 0x28), 7); // and the back floor's plate

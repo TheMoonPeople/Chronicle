@@ -10,14 +10,16 @@
 #include "hitvalue.hpp"
 #include "itemdata.hpp"
 #include "mathutil.hpp"
+// Keep the prerequisite before menu_inventory.hpp; its ITEM_PACK use needs this declaration.
+// clang-format off
+#include "userstatus.hpp"
+#include "menu_inventory.hpp"
+// clang-format on
 #include "mglib.hpp"
 #include "monstorunit.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
-#include "userstatus.hpp"
-#include "menu_inventory.hpp"
-
 extern int statusAlarmRate;
 
 namespace {
@@ -51,6 +53,21 @@ PORT_OVERRIDE void setItemToReserved(char *page_name, int x, int y, char *item_n
 // Retail's but for the life and weapon bars' fills, and the floor number's height: PAL's branch
 // otherwise.
 PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
+    const int chara = UserStatus->cur_chara;
+    if (chara < 0 || chara >= 6) {
+        return;
+    }
+
+    const int weapon_slot = UserStatus->equipped_weapon_slot[chara];
+    if (weapon_slot < 0 || weapon_slot >= 11) {
+        return;
+    }
+
+    const int georama = UserStatus->cur_georama;
+    if (georama < 0 || georama >= 7) {
+        return;
+    }
+
     int       alpha;
     CTexture *icons;
     CTexture *frame;
@@ -59,12 +76,12 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
     spRGBA   *lower;
     y -= 10;
     y += BtActStatus.hud_shake_y;
-    icons = TexManager.GetTexture("itempack", -1);
-    frame = TexManager.GetTexture("stayframe", -1);
+    icons = TexManager.GetTexture(const_cast<char *>("itempack"), -1);
+    frame = TexManager.GetTexture(const_cast<char *>("stayframe"), -1);
 
-    float life = UserStatus->hp[UserStatus->cur_chara];
-    float life_max = UserStatus->max_hp[UserStatus->cur_chara];
-    int   length = (int) (0.74f * life_max);
+    float life = UserStatus->hp[chara];
+    float life_max = UserStatus->max_hp[chara];
+    int   length = static_cast<int>(0.74f * life_max);
 
     if (length < 2) {
         length = 2;
@@ -82,8 +99,8 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
         alpha = statusAlarmRate;
     }
 
-    upper = (spRGBA *) BtGetStatusPal(0, life_max, life);
-    lower = (spRGBA *) BtGetStatusPal2(0, life_max, life);
+    upper = reinterpret_cast<spRGBA *>(BtGetStatusPal(0, life_max, life));
+    lower = reinterpret_cast<spRGBA *>(BtGetStatusPal2(0, life_max, life));
     set2DSprite(Vif1Packet, icons, CRect_i_(0x30, y, 4, 0x10), CRect_i_(0x68, 0x70, 4, 0x10), alpha);
 
     for (int i = 0; i < cells - 2; i++) {
@@ -97,16 +114,16 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
     }
 
     cells = (cells - 1) * 4 + 0x38;
-    cells += ValuePrint(cells, y + 7, (int) life, 0, alpha) * 10;
+    cells += ValuePrint(cells, y + 7, static_cast<int>(life), 0, alpha) * 10;
     set2DSprite(Vif1Packet, frame, CRect_i_(cells, y + 7, 0xC, 0xC), CRect_i_(0x78, 0xB0, 0xC, 0xC), alpha);
-    ValuePrint(cells + 10, y + 7, (int) life_max, 0, alpha);
+    ValuePrint(cells + 10, y + 7, static_cast<int>(life_max), 0, alpha);
     set2DSprite(Vif1Packet, icons, CRect_i_(0x20, y, 0x10, 0x10), CRect_i_(0x40, 0xA0, 0x10, 0x10), alpha);
 
-    WEAPON_HAVE *weapon = &UserStatus->chara_weapons[UserStatus->cur_chara][UserStatus->equipped_weapon_slot[UserStatus->cur_chara]];
+    WEAPON_HAVE *weapon = &UserStatus->chara_weapons[chara][weapon_slot];
     float        durability_max = weapon->durability;
     float        durability = weapon->durability_f;
     float        bar = 1.4949495f * durability_max;
-    length = (int) bar;
+    length = static_cast<int>(bar);
 
     if (length < 2) {
         length = 2;
@@ -124,8 +141,8 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
         alpha = statusAlarmRate;
     }
 
-    upper = (spRGBA *) BtGetStatusPal(1, durability_max, durability);
-    lower = (spRGBA *) BtGetStatusPal2(1, durability_max, durability);
+    upper = reinterpret_cast<spRGBA *>(BtGetStatusPal(1, durability_max, durability));
+    lower = reinterpret_cast<spRGBA *>(BtGetStatusPal2(1, durability_max, durability));
     set2DSprite(Vif1Packet, icons, CRect_i_(0x30, y + 0x11, 4, 0x10), CRect_i_(0x68, 0x70, 4, 0x10), alpha);
 
     for (int i = 0; i < cells - 2; i++) {
@@ -140,28 +157,28 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
 
     int width;
     int exp_max = GetWeaponMaxExp(weapon);
-    width = (int) bar;
+    width = static_cast<int>(bar);
     MGFillBox(CRect_i_(0x340, ((y + 0x1F) >> 1) * 16, (width - 1) * 16, 0x10), 0x40, 0x40, 0x40, alpha);
 
     if (weapon->experience > 0) {
-        int filled = (int) ((float) weapon->experience * ((float) width / (float) exp_max));
+        int filled = static_cast<int>(static_cast<float>(weapon->experience) * (static_cast<float>(width) / static_cast<float>(exp_max)));
         MGFillBox(CRect_i_(0x340, ((y + 0x1F) >> 1) * 16, (filled - 1) * 16, 0x10), 0, 0xA2, 0xFF, alpha);
     }
 
     cells = (cells - 1) * 4 + 0x38;
-    int shown = (int) durability;
+    int shown = static_cast<int>(durability);
 
-    if (durability - (float) shown > 0.0f) {
+    if (durability - static_cast<float>(shown) > 0.0f) {
         shown++;
     }
 
     cells += ValuePrint(cells, y + 0x18, shown, 0, alpha) * 10;
     set2DSprite(Vif1Packet, frame, CRect_i_(cells, y + 0x18, 0xC, 0xC), CRect_i_(0x78, 0xB0, 0xC, 0xC), alpha);
-    ValuePrint(cells + 10, y + 0x18, (int) durability_max, 0, alpha);
+    ValuePrint(cells + 10, y + 0x18, static_cast<int>(durability_max), 0, alpha);
     set2DSprite(Vif1Packet, icons, CRect_i_(0x20, y + 0x10, 0x10, 0x10), CRect_i_(0x40, 0xB0, 0x10, 0x10), alpha);
 
-    float water_max = UserStatus->water_max[UserStatus->cur_chara];
-    float water = UserStatus->water_now[UserStatus->cur_chara];
+    float water_max = UserStatus->water_max[chara];
+    float water = UserStatus->water_now[chara];
     alpha = 0x80;
 
     if (water < 0.15f * water_max) {
@@ -169,26 +186,26 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
     }
 
     set2DSprite(Vif1Packet, icons, CRect_i_(0x20, y + 0x22, 0x12, 0x14), CRect_i_(0x64, 0x84, 0x12, 0x14), alpha);
-    int drops = (int) water_max / 10;
+    int drops = static_cast<int>(water_max) / 10;
 
     for (cells = 0; cells < drops; cells++) {
         set2DSprite(Vif1Packet, icons, CRect_i_(cells * 0x12 + 0x32, y + 0x22, 0x12, 0x14), CRect_i_(0x64, 0x98, 0x12, 0x14), alpha);
     }
 
-    if ((int) water_max % 10 != 0) {
+    if (static_cast<int>(water_max) % 10 != 0) {
         set2DSprite(Vif1Packet, icons, CRect_i_(drops * 0x12 + 0x32, y + 0x22, 0x12, 0x14), CRect_i_(0x64, 0xAC, 0x18, 0x14), alpha);
     }
 
-    int full_drops = (int) water / 10;
+    int full_drops = static_cast<int>(water) / 10;
 
     for (cells = 0; cells < full_drops; cells++) {
         set2DSprite(Vif1Packet, icons, CRect_i_(cells * 0x12 + 0x33, y + 0x22, 0x10, 0x14), CRect_i_(0, 0x48, 0x10, 0x14), 0x50);
     }
 
-    int leftover = (int) water % 10;
+    int leftover = static_cast<int>(water) % 10;
 
     if (leftover != 0) {
-        set2DSprite(Vif1Packet, icons, CRect_i_(full_drops * 0x12 + 0x33, y + 0x22, 0x10, 0x14), CRect_i_((3 - (int) ((float) leftover / 2.5f)) * 16, 0x48, 0x10, 0x14), 0x50);
+        set2DSprite(Vif1Packet, icons, CRect_i_(full_drops * 0x12 + 0x33, y + 0x22, 0x10, 0x14), CRect_i_((3 - static_cast<int>(static_cast<float>(leftover) / 2.5f)) * 16, 0x48, 0x10, 0x14), 0x50);
     }
 
     static float popupYRate = -PI;
@@ -212,7 +229,7 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
         int glow = 0;
 
         if (BtBySpeedFlag != 0 && pack->quick_item_slot[i] == ITEM_UNUSED_156) {
-            glow = (int) (64.0f * sinf(popupRGBRate)) + 0x3F;
+            glow = static_cast<int>(64.0f * sinf(popupRGBRate)) + 0x3F;
             bob = 0;
         }
 
@@ -247,7 +264,7 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
         set2DSprite(Vif1Packet, icons, CRect_i_(0x21E, y + 5, 0x20, 0x20), CRect_i_(0x20, 0xA0, 0x20, 0x20));
     }
 
-    int last_floor = maxFloorTbl__3[UserStatus->cur_georama];
+    int last_floor = maxFloorTbl__3[georama];
 
     if (floor + 1 == last_floor) {
         set2DSprite(Vif1Packet, frame, CRect_i_(0x23C, y + 0x12, 0x26, 0x11), CRect_i_(0x78, 0x9E, 0x26, 0x12));
@@ -281,16 +298,15 @@ PORT_OVERRIDE void topStatusInfo(int y, int selected_item, int floor) {
     alpha = y + 0x6A;
     set2DSprite(Vif1Packet, icons, CRect_i_(0x18, 0x1AC, 0x2A, 0x1D), CRect_i_(0x78, 0x37, 0x2A, 0x1D), alpha);
     set2DSprite(Vif1Packet, icons, CRect_i_(0x45, 0x1A8, 0x2B, 0x10), CRect_i_(0xA2, 0x37, 0x2B, 0x10), alpha);
-    int chara = UserStatus->cur_chara;
     int u = 0;
     int v = 0;
-    int item = UserStatus->chara_weapons[chara][UserStatus->equipped_weapon_slot[chara]].item_no;
+    int item = UserStatus->chara_weapons[chara][weapon_slot].item_no;
 
-    if (item == defWeapon__2[UserStatus->cur_chara] + 1) {
+    if (item == defWeapon__2[chara] + 1) {
         v = 0x20;
     }
 
-    if (item == defWeapon__2[UserStatus->cur_chara]) {
+    if (item == defWeapon__2[chara]) {
         v = u = 0x20;
     }
 

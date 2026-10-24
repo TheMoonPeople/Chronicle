@@ -3,7 +3,12 @@
 #include "../fish_port.hpp"
 
 TEST(FishSize, KeepsTheEndsAndOnlyLifts) {
-    const float ranges[][2] = {{10.0f, 30.0f}, {10.0f, 16.0f}, {6.0f, 10.0f}, {8.0f, 8.3f}};
+    const float ranges[][2] = {
+        {10.0f, 30.0f},
+        {10.0f, 16.0f},
+        {6.0f,  10.0f},
+        {8.0f,  8.3f }
+    };
     for (const auto &[base, max] : ranges) {
         ASSERT_EQ(SmoothFishSize(base, base, max), base);
         ASSERT_EQ(SmoothFishSize(max, base, max), max);

@@ -35,7 +35,7 @@ void SetLayerRegisters() {
 } // namespace
 
 PORT_OVERRIDE void CFireOmni::DrawFire(int unused0, int unused1, CCamera *camera, float *colour, float scale, int layers,
-                                     float camera_offset) {
+                                       float camera_offset) {
     sceVu0FVECTOR camera_direction;
     sceVu0FVECTOR camera_ref;
     int           near_top_left[4];
@@ -47,11 +47,11 @@ PORT_OVERRIDE void CFireOmni::DrawFire(int unused0, int unused1, CCamera *camera
     int           bottom_left[4];
 
     if (texture_set == 0) {
-        if (core == NULL) {
+        if (core == nullptr) {
             core = TexManager.GetTexture(const_cast<char *>("lightling"), -1);
         }
 
-        if (glow == NULL) {
+        if (glow == nullptr) {
             glow = TexManager.GetTexture(const_cast<char *>("blender"), -1);
         }
     }

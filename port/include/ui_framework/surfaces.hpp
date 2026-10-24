@@ -92,10 +92,10 @@ public:
     static void DrawStoneBanner(const Rect &box, int alpha = 0x80, int brightness = 0x80,
                                 std::string_view title = {},
                                 const TextStyle &title_style = {
-                                    .color       = ColorGold,
+                                    .color = ColorGold,
                                     .drop_shadow = true,
-                                    .align       = Alignment::Center,
-                                    .scale       = Metrics::kScaleHeader,
+                                    .align = Alignment::Center,
+                                    .scale = Metrics::kScaleHeader,
                                 });
 };
 
@@ -265,9 +265,9 @@ public:
                                                     bool draw_divider = false, int alpha = 0x80) const;
 
 private:
-    Rect         m_outer{};                       /**< Outer window bounding rectangle. */
-    Rect         m_content{};                     /**< Inset inner content bounding rectangle. */
-    WindowPreset m_preset{WindowPreset::None};    /**< Background surface preset. */
+    Rect         m_outer{};                    /**< Outer window bounding rectangle. */
+    Rect         m_content{};                  /**< Inset inner content bounding rectangle. */
+    WindowPreset m_preset{WindowPreset::None}; /**< Background surface preset. */
 };
 
 } // namespace UI

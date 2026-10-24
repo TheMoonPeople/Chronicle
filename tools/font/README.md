@@ -1,23 +1,29 @@
-# DarkCloudCompendium.ttf
+# ChronicleSharp-Bold.ttf and ChronicleSharp-Regular.ttf
 
-The Dark Cloud Compendium Community Font ("Dark Cloud Speech", version 001.000), by Dayuppy and Moonbunny,
-copyright (c) 2020 Dayuppy & Moonbunny. It was released to the community to use as they wish, and Dayuppy
-confirmed on 2026-10-06 that it may be used in this port.
+Chronicle Sharp, the port's text font, copyright (c) 2026 Tororoi: Dark Cloud's letters as a TrueType font.
+Bold is the game's bold dialogue set, Regular its narrower set.
 
-The digit 5 was redrawn (the original had no tail on its bottom stroke, so it read like an S); every other glyph is Dayuppy and Moonbunny's.
-It draws the FPS counter (`gen_overlay_font.py`) and the game's message text (docs/LOCALIZATION.md): the build
-copies it to `lang/font.ttf` beside the executable. Its accented letters, the cedilla, `¡`, `¿`, `œ` and `Œ`
-are blank in the file; the port builds them from the font's own letters and marks when it draws.
+It is derived from the Dark Cloud Compendium Community Font ("Dark Cloud Speech", by Dayuppy and Moonbunny, copyright
+(c) 2020), which was released to the community to use as they wish; Dayuppy confirmed on 2026-10-06 that it may be used
+in this port. Bold started from its regular weight and Regular from its THIN variant (Jeff, who contributes the port's
+text work, confirmed on 2026-10-10 that he has Dayuppy's permission to use it). Each of the game's 88 letters was then
+reshaped until, drawn at the game's 14x20, it matches the game's letter in `meswin/gaiji.img`; `%` was split so its
+rings stand clear of the slash, `~` was redrawn, and the Japanese marks the name alphabet carries were added
+(`「 」 『 』`, one stroke weight down and across, and `・ 。`). The font's other glyphs are the Compendium font's.
 
-To use another font for message text, put it at `lang/font.ttf` in the save folder (that wins over this
-one) or start the game with `--font <file>`.
+Each letter sits on the game's glyph sheet cell: 50 units a cell pixel, the baseline at the cell's row 15. Its accented
+letters, the cedilla, `¡`, `¿`, `œ` and `Œ` are blank; the port builds them from the font's own letters and marks
+when it draws.
 
-## DarkCloudCompendiumThin.ttf
+The build copies Bold to `lang/font.ttf` and Regular to `lang/font_thin.ttf` beside the executable. The message windows'
+88 letters are drawn from both at the screen's own resolution (Bold for the game's bold set, Regular for its narrower
+one), each in the cell the game cuts its letter from, so the game lays them out and edges them as it always has. Bold
+also draws the text the port draws from a font, the name alphabet (the name entry keyboard, the names on it, the save
+slots and the ally card), the menu captions and the dungeon entry's floor labels; Regular draws the area cards, the
+floor select's boss names and the weapon menu's buttons.
 
-The THIN variant of the same font, unchanged ("THIN Dark Cloud Compendium Community Font", by Dayuppy and Moonbunny; Jeff, who contributes the port's
-text work, confirmed on 2026-10-10 that he has Dayuppy's permission to use it). The build copies it to `lang/font_thin.ttf`. The port
-draws the area name cards from it when it is there (the cards' painted lettering has a lighter stroke than the regular font's); everything else
-uses `font.ttf`. Its digit 5 is the original, not the redrawn one, and no card draws a digit.
+To use another font for the text the port draws from a font, put it at `lang/font.ttf` in the save folder (that wins
+over this one) or start the game with `--font <file>`.
 
 ## Cinzel-Regular.ttf
 

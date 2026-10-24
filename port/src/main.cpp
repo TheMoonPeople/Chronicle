@@ -1,4 +1,11 @@
+#include <SDL3/SDL_stdinc.h>
+#ifdef __SWITCH__
+#include "switch_main.hpp"
+#endif
+
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -6,10 +13,6 @@
 #include <string_view>
 #include <system_error>
 #include <vector>
-
-#ifdef __SWITCH__
-#include <SDL3/SDL.h>
-#endif
 
 #if defined(__ANDROID__)
 #include <android/log.h>
@@ -20,11 +23,13 @@
 
 #if defined(__ANDROID__)
 void TouchOverlaySetOpacity(float opacity);
+void TouchOverlayPoll();
 #endif
 
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
+#include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
 #include "exitcodes.hpp"
@@ -38,6 +43,7 @@ void TouchOverlaySetOpacity(float opacity);
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"
+#include "platform/arena.hpp"
 #include "platform/audio.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
@@ -54,16 +60,13 @@ void TouchOverlaySetOpacity(float opacity);
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
+#include "title/title_port.hpp"
 
 int  EditInit(void *param);
 int  EditLoop();
 void SndInit();
 
 namespace fs = std::filesystem;
-
-#ifdef __SWITCH__
-void SwitchApplyGpuBoost(bool on); // port/switch/clocks.cpp
-#endif
 
 namespace {
 
@@ -252,6 +255,9 @@ void PumpHost() {
             gfx::SetFrameLayout(layout);
         }
     }
+#if defined(__ANDROID__)
+    TouchOverlayPoll();
+#endif
     InputPoll();
     InputScriptApply(GameFrameCount());
 }
@@ -427,8 +433,6 @@ int Run(int argc, const char **argv) {
     if (options.font != nullptr) {
         LocalizeSetFontPath(PathsFromUtf8(options.font));
     }
-    // Not on a console or a phone. On the Switch the 13 MB of JSON for translators to edit on a
-    // computer took its CPU and SD card so long that the first start showed nothing but black.
 #if !defined(__ANDROID__) && !defined(__SWITCH__)
     if (options.export_text == nullptr) {
         // Once per save folder: the extracted data's text as JSON for translators (docs/LOCALIZATION.md).
@@ -457,14 +461,13 @@ int Run(int argc, const char **argv) {
 
     DisplaySetOverrides(options.width, options.height, options.headless);
     WindowConfig window = DisplayWindowConfig(config);
-#if defined(__ANDROID__)
-    window.fixed_display = true;
+#if defined(__SWITCH__)
+    window.width = 0;
+    window.height = 0;
+    window.fullscreen = true;
 #endif
     bool         offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
     window.vulkan = !offscreen;
-#ifdef DC_GL_RENDERER
-    window.opengl = true;
-#endif
     WindowInit(window);
     DC_ANDROID_TRACE("Run: window initialized");
     InputInit();
@@ -479,24 +482,30 @@ int Run(int argc, const char **argv) {
     renderer.display_aspect = 4.0f / 3.0f;
     renderer.present_mode = PresentMode(config.present_mode);
     renderer.pipeline_cache = PathsSaveRoot() / "pipeline_cache.bin";
+#if defined(__SWITCH__)
+    SwitchConfigureRenderer(renderer);
+#endif
     renderer.progress = ReportShaderProgress;
     renderer.offscreen = offscreen;
+    renderer.render_thread = config.render_thread;
+    if (const char *mode = SettingsEnv("RENDER_THREAD")) {
+        if (const auto parsed = gfx::ParseRenderThreadMode(mode)) {
+            renderer.render_thread = *parsed;
+        }
+    }
+    if (options.headless || options.screenshot != nullptr) {
+        renderer.render_thread = gfx::RenderThreadMode::Off;
+        // The renderer also reads this override; deterministic runs take precedence over it.
+        SDL_setenv_unsafe("KZ_RENDER_THREAD", "off", 1);
+    }
     renderer.layout = Layout(config);
 #if defined(__ANDROID__)
     renderer.render_scale = config.render_scale;
 #endif
     renderer.validation = renderer.validation || SettingsEnv("VULKAN_VALIDATION") != nullptr;
 #ifdef __SWITCH__
-    // Render targets at the screen's own scale: rounding 720 / 480 up to 2 drew the effects' images
-    // at 1280x960 for a frame shown at 960x720, which on the Switch's GPU cost more than they showed.
-    {
-        int width = 0;
-        int height = 0;
-        SDL_GetWindowSizeInPixels(WindowHandle(), &width, &height);
-        if (height > 0) {
-            renderer.target_scale = static_cast<float>(height) / static_cast<float>(kScreenHeight);
-        }
-    }
+    // Index textures drawn from RGBA expansions: the palette lookup was the largest cost of the
+    // Switch GPU's frames.
     renderer.expand_palettes = true;
 #endif
     gfx::RendererInit(WindowHandle(), renderer);
@@ -522,6 +531,7 @@ int Run(int argc, const char **argv) {
     ConfigAddChangeHook(LocalizeConfigChanged);
 
     int status = RunGame(argc, const_cast<char **>(argv));
+    GameStopPresentation();
     if (status == kExitOk && options.screenshot != nullptr) {
         status = Screenshot(options.screenshot);
     }
@@ -535,47 +545,12 @@ int Run(int argc, const char **argv) {
     DiscordStop();
     AudioOutputStop();
     InputShutdown();
-    GameRenderStop();
     gfx::RendererShutdown();
     WindowShutdown();
     return status;
 }
 
 } // namespace
-
-PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
-#ifdef __SWITCH__
-    // The Homebrew Menu passes no arguments, so on the Switch args.txt beside the .nro (the working
-    // directory) supplies them: whitespace-separated, after any the launcher gave.
-    static std::vector<std::string>  words;
-    static std::vector<const char *> args;
-    if (std::FILE *file = std::fopen("args.txt", "r")) {
-        char word[512];
-        while (std::fscanf(file, "%511s", word) == 1) {
-            words.emplace_back(word);
-        }
-        std::fclose(file);
-    }
-    args.assign(argv, argv + argc);
-    if (args.empty()) {
-        args.push_back("darkcloud"); // Ryujinx starts a homebrew .nro without even argv[0]
-    }
-    for (const std::string &word : words) {
-        args.push_back(word.c_str());
-    }
-    args.push_back(nullptr);
-    return Run(static_cast<int>(args.size()) - 1, args.data());
-#endif
-    return Run(argc, argv);
-}
-
-#if defined(__ANDROID__)
-// SDLActivity resolves SDL_main from the native application library.
-extern "C" int SDL_main(int argc, char **argv) {
-    DC_ANDROID_TRACE("SDL_main: entry");
-    return Run(argc, const_cast<const char **>(argv));
-}
-#endif
 
 extern "C" {
 void init_all__Fv() {
@@ -751,6 +726,23 @@ int func_01DD2220() {
 }
 }
 
+#ifndef DC_NO_ENTRYPOINT
+PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+#if defined(__SWITCH__)
+    return SwitchMain(argc, argv, Run);
+#else
+    return Run(argc, argv);
+#endif
+}
+
+#if defined(__ANDROID__)
+// SDLActivity resolves SDL_main from the native application library.
+extern "C" int SDL_main(int argc, char **argv) {
+    DC_ANDROID_TRACE("SDL_main: entry");
+    return Run(argc, const_cast<const char **>(argv));
+}
+#endif
+
 #ifdef _WIN32
 int wmain(int argc, wchar_t **wide_argv) {
     std::vector<std::string>  args;
@@ -765,3 +757,56 @@ int wmain(int argc, wchar_t **wide_argv) {
     return Run(argc, argv.data());
 }
 #endif
+#endif
+
+PORT_OVERRIDE extern "C" void *__ct__10CCharacterFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__ct__13CTextureAnimeFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__ct__7CObjectFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE extern "C" void *__ct__8CHitMarkFv(void *self) {
+    PS2_UNIMPLEMENTED();
+}
+
+PORT_OVERRIDE void LoadOverlay(int mode) {
+    enum class Overlay {
+        None,
+        Title,
+        Dungeon
+    };
+    constexpr Overlay overlay_modes[] = {Overlay::Title, Overlay::Title, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                         Overlay::Title, Overlay::None, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                         Overlay::None, Overlay::None, Overlay::None, Overlay::None, Overlay::None};
+    static Overlay    loaded = Overlay::None;
+    if (mode < 0 || mode >= static_cast<int>(std::size(overlay_modes)) || overlay_modes[mode] == Overlay::None ||
+        overlay_modes[mode] == loaded) {
+        return;
+    }
+    loaded = overlay_modes[mode];
+    if (loaded == Overlay::Title) {
+        TitleOverlayConstruct();
+    }
+}
+
+PORT_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
+    if (quads < 0 || used < 0 || used > 6000 || quads > 6000 - used) {
+        ArenaOverflow(this, -1, 6000);
+    }
+    u_char *run = reinterpret_cast<u_char *>(block) + used * 16;
+    used += quads;
+    return run;
+}
+
+PORT_OVERRIDE void SetEnv(sceVif1Packet *packet) {
+    MGSetGsTEST(nullptr);
+    MGSetGsZBUF(nullptr);
+    MGSetGsALPHA(nullptr);
+    MGSetWindowRect();
+}

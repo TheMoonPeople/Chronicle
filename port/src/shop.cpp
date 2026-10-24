@@ -1,10 +1,13 @@
 #include "shop.hpp"
+
 #include <libvu0.h>
+
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+
 #include "battlemenu.hpp"
 #include "camera.hpp"
 #include "character.hpp"
@@ -97,22 +100,20 @@ int FishMenuTextureLoad() {
 
     if (FishMenu.ready == 0) {
         if (ReadBGSync() == 0) {
-            BG_READ_INFO     *file = GetReadBGFile(0);
-            LOADTEXTURE_INFO2 texture[3] = {
-                {FishFrameImage, 0, 0},
-                {NULL,           0, 0},
-                {NULL,           0, 0},
-            };
+            BG_READ_INFO *file = GetReadBGFile(0);
+            auto          texture = std::make_unique<LOADTEXTURE_INFO2[]>(3); // the frame, the board and the list's end
+            texture[0] = {FishFrameImage, 0, 0};
+            texture[1] = {nullptr, 0, 0};
             texture[0].block_no = FishMenu.tex_block;
             texture[1].block_no = FishMenu.tex_block;
-            texture[1].name = (char *) GetPackFile((u_int *) file->buffer, "fishing.img", NULL);
+            texture[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "fishing.img", nullptr));
             TexManager.DeleteTextureBlock(FishMenu.tex_block);
             TexManager.CleanUpTextureList();
-            TexManager.LoadTextureBlockEX(-1, texture);
+            TexManager.LoadTextureBlockEX(-1, texture.get());
             FishMenuTex = TexManager.GetTexture("fishbrd", -1);
             WepIcon = TexManager.GetTexture("wepicon", -1);
             ItemIcon = TexManager.GetTexture("itemicon", -1);
-            InitMenuMesSet(MENU_MES_SET_ALLMENU, (short *) GetPackFile((u_int *) file->buffer, FishMessageFile, NULL));
+            InitMenuMesSet(MENU_MES_SET_ALLMENU, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), FishMessageFile, nullptr)));
             CommonMenuMes2.mes_made = -1;
             AtoraNameMes.Preset(MES_PRESET_SYSTEM);
 
@@ -209,15 +210,15 @@ void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
 
 // Draws the 60 cells it fills; retail drew 128 from 120-cell arrays.
 PORT_OVERRIDE void ChargeShopBoardDraw(int x, int y, int alpha) {
-    s16 items[60];
-    u8  values[60];
-    int top = y + 9;
-    int bottom = y + 0xA9;
-    int board_y;
-    int left = x + 0x14;
+    auto items = std::make_unique<s16[]>(60);
+    auto values = std::make_unique<u8[]>(60);
+    int  top = y + 9;
+    int  bottom = y + 0xA9;
+    int  board_y;
+    int  left = x + 0x14;
 
     board_y = y + 6 - ShopMenu.stock_top_row * 0x28;
-    ShopMenu.stock_y += ((float) board_y - ShopMenu.stock_y) / 4.0f;
+    ShopMenu.stock_y += (static_cast<float>(board_y) - ShopMenu.stock_y) / 4.0f;
     board_y = ShopMenu.stock_y;
     DrawPerBoardDraw(0, 0x64, left, board_y, top, bottom, ShopBoard, alpha);
 
@@ -260,7 +261,7 @@ PORT_OVERRIDE void ChargeShopBoardDraw(int x, int y, int alpha) {
         values[i] = 0;
     }
 
-    ShopIconDraw(items, values, 60, left + 4, board_y + 6, top, bottom, 0x80);
+    ShopIconDraw(items.get(), values.get(), 60, left + 4, board_y + 6, top, bottom, 0x80);
 
     int tag = 0;
 
@@ -415,10 +416,10 @@ PORT_OVERRIDE int FishingExchangeKey() {
                 prize = GetExchangeItemList(0x20);
             }
 
-            if (prize != NULL) {
+            if (prize != nullptr) {
                 COM_ITEM_INFO *info = GetCommonItemInfo(prize->item_no);
 
-                if (info != NULL) {
+                if (info != nullptr) {
                     int mes_no = info->msg + 500;
 
                     if (CommonMenuMes2.mes_made != mes_no) {
@@ -428,7 +429,7 @@ PORT_OVERRIDE int FishingExchangeKey() {
             }
 
             if (GamePad.Down(PAD_CROSS) != 0) {
-                CUserStatus *status = (CUserStatus *) SaveData->GetDngStatus();
+                CUserStatus *status = static_cast<CUserStatus *>(SaveData->GetDngStatus());
                 int          full = 0;
                 int          kind = WhatIsKindofItem(prize->item_no);
                 count = 0;
@@ -476,14 +477,10 @@ PORT_OVERRIDE int FishingExchangeKey() {
                     case BOARD_PAGE_ATTACH: {
                         int             held;
                         DNG_CONSUMABLE *attach = status->consumable_items;
-                        std::uintptr_t  entry;
                         held = 0;
 
                         for (; count < 40; count++) {
-                            entry = count * sizeof(DNG_CONSUMABLE);
-                            entry = (std::uintptr_t) attach + entry;
-
-                            if (((DNG_CONSUMABLE *) entry)->id >= ITEM_ATTACH_START) {
+                            if (attach[count].id >= ITEM_ATTACH_START) {
                                 held++;
                             }
                         }
@@ -524,12 +521,12 @@ PORT_OVERRIDE int FishingExchangeKey() {
                         entry = GetExchangeItemList(0x20);
                     }
 
-                    if (entry == NULL) {
+                    if (entry == nullptr) {
                         printf("getinfo is NULL\n");
                     } else {
                         COM_ITEM_INFO *info = GetCommonItemInfo(entry->item_no);
 
-                        if (info != NULL) {
+                        if (info != nullptr) {
                             AtoraNameMes.mes_no[i] = info->msg + 100;
                             entry++;
                         }
@@ -563,7 +560,7 @@ PORT_OVERRIDE int FishingExchangeKey() {
                     prize = GetExchangeItemList(0x20);
                 }
 
-                if (prize == NULL) {
+                if (prize == nullptr) {
                     ComMenuSePlay(MENU_SOUND_REFUSE);
                     break;
                 }
@@ -577,7 +574,7 @@ PORT_OVERRIDE int FishingExchangeKey() {
                 if (FishMenu.confirm == 0) {
                     if (enough != 0) {
                         ComMenuSePlay(SE_PURCHASE);
-                        ((CDngStatusData *) SaveData->GetDngStatus())->GetItem(prize->item_no, 0);
+                        (SaveData->GetDngStatus())->GetItem(prize->item_no, 0);
                         FishMenu.point -= price;
 
                         if (prize->item_no == ITEM_WEAPON_MARDAN_EINS) {
@@ -610,10 +607,10 @@ PORT_OVERRIDE int FishingExchangeKey() {
                 prize = GetExchangeItemList(0x20);
             }
 
-            if (prize != NULL) {
+            if (prize != nullptr) {
                 COM_ITEM_INFO *info = GetCommonItemInfo(prize->item_no);
 
-                if (info != NULL) {
+                if (info != nullptr) {
                     int msg = info->msg;
 
                     if (CommonMenuMes1.mes_made != 0xCA || CommonMenuMes1.mes_no[0] != msg + 100 || CommonMenuMes1.values[0] != prize->price) {
@@ -677,4 +674,16 @@ PORT_OVERRIDE int CommonShopLoop() {
     }
 
     return done;
+}
+
+PORT_OVERRIDE s16 *GetItemShopList(int shop_no) {
+    return PortGetItemShopList(shop_no);
+}
+
+PORT_OVERRIDE void ItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name) {
+    PortItemShopGetPacFileName(shop_kind, shop_no, file_name);
+}
+
+PORT_OVERRIDE void ItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name) {
+    PortItemShopGetImgFileName(shop_kind, shop_no, file_name);
 }

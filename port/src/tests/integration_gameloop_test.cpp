@@ -152,6 +152,8 @@ TEST(IntegrationGameloop, LinkAliases) {
 TEST(IntegrationGameloop, GiveListParses) {
     ASSERT_TRUE(GameSetGive("210,211"));
     ASSERT_TRUE(GameSetGive("268"));
+    ASSERT_TRUE(GameSetGive("376"));
+    ASSERT_TRUE(!GameSetGive("377"));
     ASSERT_TRUE(!GameSetGive(""));
     ASSERT_TRUE(!GameSetGive("210,"));
     ASSERT_TRUE(!GameSetGive("sun"));

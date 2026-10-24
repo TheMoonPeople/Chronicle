@@ -22,8 +22,8 @@ float FishSizeLift(float range) {
     if (!(centimetre < 1.0)) {
         return 0.0f;
     }
-    double at_max = LowTail(2.0);                            // the deviation reaches 4: clamped
-    double below = LowTail(2.0 + centimetre) - at_max;       // the centimetre below the largest
+    double at_max = LowTail(2.0);                      // the deviation reaches 4: clamped
+    double below = LowTail(2.0 + centimetre) - at_max; // the centimetre below the largest
     return static_cast<float>(std::fmax(0.0, 1.0 - below / at_max));
 }
 

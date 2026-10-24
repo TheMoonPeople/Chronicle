@@ -34,7 +34,7 @@ at 60 frames a second. Like the PC port it needs your own disc's data.
 git clone --recurse-submodules -b switch-port https://github.com/columna1/Chronicle-nintendo-switch.git Chronicle && cd Chronicle
 ./build.sh linux-x64-release                                     # the PC build, for dcdata
 port/build/pc-release/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
-tools/switch/build.sh                                            # port/build/switch/darkcloud.nro
+./build.sh switch                                                # port/build/switch/darkcloud.nro
 ```
 
 Copy to the SD card ([Installing](#installing)):
@@ -50,32 +50,24 @@ and start **Chronicle** from the Homebrew Menu, opened by holding R while starti
 
 ## Building
 
-The toolchain is a container image, built once and tagged by a hash of its Containerfile, so an
+The toolchain is a container image, built once and tagged by a hash of its Containerfile and patches, so an
 edit to it builds a new image and an old checkout keeps its own. podman by default; `BUILDER=docker`
 uses docker. The build runs as the calling user, so the tree it writes stays yours.
 
 ```sh
-tools/switch/build.sh            # the image if needed, then port/build/switch/darkcloud.nro (Vulkan)
-tools/switch/build.sh -v         # arguments go to the build
-tools/switch/build.sh shell      # a shell in the image
-SWITCH_PRESET=switch-gl tools/switch/build.sh   # port/build/switch-gl/darkcloud.nro: the GL renderer
+port/switch/build.sh            # the image if needed, then port/build/switch/darkcloud.nro (Vulkan)
+port/switch/build.sh -v         # arguments go to the build
+port/switch/build.sh shell      # a shell in the image
 ```
 
-| Preset | Image | Renderer | First image build |
-|---|---|---|---|
-| `switch` (default) | `tools/switch/Containerfile` | Kazarov's Vulkan renderer on NVK | about an hour: Mesa, Rust's standard library for the Switch, SPIRV-Tools, glslang, SDL3 |
-| `switch-gl` | `tools/switch/Containerfile.gl` | `port/gl`, OpenGL 4.3 on devkitPro's Mesa | a few minutes: glslang, the Vulkan headers, SDL3 |
-
-Both start from a pinned `devkitpro/devkita64` image and pin every source they build by commit or
-release. The build is CMake with Ninja and devkitPro's `Switch.cmake` toolchain
+The first image build takes about an hour: Mesa with NVK, Rust's standard library for the Switch,
+SPIRV-Tools, glslang and SDL3. It starts from a pinned `devkitpro/devkita64` image and pins every
+source it builds by commit or release. The build is CMake with Ninja and devkitPro's `Switch.cmake` toolchain
 (`CMakePresets.json`); `port/switch/switch.cmake` adds what the Switch needs and packages the `.nro`
 with its title, author and icon (`port/switch/icon.jpg`).
 
 VS Code can open the checkout in the same image: `.devcontainer/switch/devcontainer.json` (with
 podman, set `dev.containers.dockerPath` to `podman`).
-
-The GL renderer also builds for a PC (`./build.sh linux-x64-gl-release`), where its pictures
-match the Vulkan renderer's, so it can be checked without a console.
 
 ## Installing
 
@@ -106,8 +98,7 @@ run.
 - **Controls** are the PC port's gamepad layout (`docs/PC.md`), handheld or with a Pro Controller.
 - **Settings** are the PC port's `save/config.json` and in-game Options. The Switch's own
   defaults: `video.interpolation` (smooth motion) off, since a display frame between ticks costs its
-  GPU as much as a tick does; `game.aerial_map` (the dungeon map as the floor seen from above) off,
-  for retail's tiles and dots; and `video.switch_gpu_boost` on ([What the port changes for the
+  GPU as much as a tick does; and `video.switch_gpu_boost` on ([What the port changes for the
   Switch](#what-the-port-changes-for-the-switch)). `video.present_mode` is `fifo` (vsync);
   `immediate` presents without waiting and shows no tearing handheld.
 - **Arguments.** The Homebrew Menu passes none, so `args.txt` beside the `.nro` supplies them: words
@@ -145,19 +136,19 @@ name (the names lead with the console's clock, which may be wrong). Its addresse
 lines:
 
 ```sh
-tools/switch/build.sh shell -c 'aarch64-none-elf-addr2line -f -C -i -e port/build/switch/darkcloud.elf 0x40e820'
+port/switch/build.sh shell -c 'aarch64-none-elf-addr2line -f -C -i -e port/build/switch/darkcloud.elf 0x40e820'
 ```
 
 ## Testing from a computer
 
-`tools/switch/run.sh` sends a build to the Homebrew Menu's netloader (Y), which saves it as
+`port/switch/run.sh` sends a build to the Homebrew Menu's netloader (Y), which saves it as
 `sdmc:/switch/chronicle/darkcloud.nro` and starts it, and prints the game's log as it runs. Its
 arguments after `--` go to the game. `SWITCH_ADDRESS` names the Switch (the netloader shows its
 address) when nxlink's broadcast does not reach it, as on a computer with several networks.
 
 ```sh
-SWITCH_ADDRESS=192.168.1.99 tools/switch/run.sh                       # the build, as installed
-SWITCH_ADDRESS=192.168.1.99 tools/switch/run.sh -- --fast-load --frames 5300 \
+SWITCH_ADDRESS=192.168.1.99 port/switch/run.sh                       # the build, as installed
+SWITCH_ADDRESS=192.168.1.99 port/switch/run.sh -- --fast-load --frames 5300 \
     --input sdmc:/switch/chronicle/test/norune.input --save sdmc:/switch/chronicle/save-test
 ```
 
@@ -177,17 +168,12 @@ memory behind when the game exits that the next program in the same process trip
 [etonedemid/mesa-switch](https://github.com/etonedemid/mesa-switch), Mesa 26.2 with NVK (Vulkan 1.3)
 on the Tegra X1, linked statically (there is no loader). SDL3 is devkitPro's `switch-sdl-3.4` branch
 with [etonedemid/SDL](https://github.com/etonedemid/SDL)'s Vulkan surfaces (`VK_NN_vi_surface`),
-plus one patch (`tools/switch/patches/sdl-vulkan-window-without-egl.patch`): the fork refused every
+plus one patch (`port/switch/patches/sdl-vulkan-window-without-egl.patch`): the fork refused every
 window until EGL was loaded, which SDL does only for OpenGL windows. NVK compiles the shaders through
 NAK; the pipeline cache in `save/` keeps later starts quick.
 
-**The GL renderer** (`port/gl`, `DC_RENDERER=gl`) is Kazarov's renderer redone over OpenGL 4.3 core
-for devkitPro's packaged Mesa (`switch-mesa`, nouveau GL) and devkitPro's SDL3 alone, with no fork.
-It draws the same pictures (`port/gl/README.md` tells how it maps Vulkan's conventions onto GL), but
-on the console nouveau's GL driver gave the GPU about 1.5 times NVK's work for the same frames, so
-the Vulkan build is the one to play.
-
-**The platform underneath Kazarov** (`port/switch/`) supplies what libnx lacks:
+**The platform underneath Kazarov** (`port/switch/src/`, with the headers in `port/switch/include/`)
+supplies what libnx lacks:
 
 - `memory.cpp`: the game's arenas on page-aligned heap, each followed by a guard page that
   `svcSetMemoryPermission` makes inaccessible, in place of `mmap`. Every guard page still standing
@@ -197,11 +183,16 @@ the Vulkan build is the one to play.
   kernel's threads, which newlib does not have.
 - `switch_compat.h`: POSIX flags newlib lacks, included ahead of every unit.
 - `nxlink.cpp`: the log, to nxlink's host or `darkcloud.log`.
-- `clocks.cpp`: the handheld GPU clock, and pinning the render thread to its core.
-- `fall_off_returns.txt`, `fall_off_returns.py`: GCC has no `-fno-strict-return` and miscompiles a
-  function that falls off its end (it drops the branch that leads there, or runs on into the next
-  function), so the build's copies of the 19 such functions in `ps2/src` get a return. `ps2/src` is
-  compiled with `-Werror=return-type`, so a new one stops the build until it is listed.
+- `main.cpp`: the arguments from `args.txt`, and the render scale from the screen's height.
+- `clocks.cpp`: the handheld GPU clock.
+- `assert.cpp`, `discord.cpp`, `firstrun.cpp`: newlib's assertion message, and no Discord or
+  first-run setup window on a console.
+- `patch_simdjson.cmake`: simdjson without its `mmap` file reader, which fastgltf does not use.
+
+GCC has no `-fno-strict-return` and miscompiles a function that falls off its end (it drops the
+branch that leads there, or runs on into the next function), so the 19 such functions in `ps2/src`
+end in a `PORT_RETURN`, and `ps2/src` is compiled with `-Werror=return-type` so that a new one stops
+the build.
 
 Kazarov's `platform/files.cpp` has a Horizon branch for its atomic writes: Horizon opens no directory
 as a file (so a directory is not synced; the file system commits a name when the call returns), and
@@ -221,11 +212,9 @@ What a console needed that a PC did not, roughly in the order it came up:
   alone, and the setting ends with the game.
 - **Render targets at the screen's scale**: the render scale is the screen's height over 480 (1.5
   handheld) rather than rounded up to 2.
-- **Four submissions in flight** (Kazarov's `kFramesInFlight`), two ticks, so the CPU records a tick
-  while the GPU draws the last.
 - **No per-draw branches in `draw.frag`.** NAK compiles a uniform branch into a sync and padding,
-  and on the Tegra X1 a fragment costs about its instruction count; the per-draw constants carry
-  each draw's choices as values to select between.
+  and on the Tegra X1 a fragment costs about its instruction count; the shader selects between each
+  draw's choices instead of branching on them, and draws the same pixels.
   For the same reason the draw shader leaves out the smooth-motion debugging tint
   (`KZ_PORT_INTERPOLATION_TINT`, on for PC builds), which made Norune's frames 3 ms slower.
 - **Palette textures expanded** to RGBA on the CPU (Kazarov's `RendererConfig::expand_palettes`),
@@ -233,13 +222,11 @@ What a console needed that a PC did not, roughly in the order it came up:
 - **Cheaper effects**, which help the PC build too: the shadow composites scissored to their
   volumes' screen bounds, a frame's later shadow groups clearing only what the earlier ones drew,
   the shadow volumes drawn as indexed corners, and each depth-of-field band in one premultiplied draw where the GS needed two.
-- **Depth queries answered when their frame is done** (Kazarov's `kAsyncDepthQueries`). The game
-  reads the depth buffer every tick (the sun's lens flare, pick-Z), and the renderer used to wait for
-  the whole frame on the GPU before the CPU could go on; the answer now comes a tick or two later.
-- **A render thread** on the second CPU core: a tick's render and present run while the game runs
-  the next tick (`port/src/gameloop.cpp`; Kazarov's gfx README, "Threads", for what the renderer
-  guards). On by default on the Switch with smooth motion off; `DC_RENDER_THREAD=1` turns it on for a
-  PC build, where it draws the same pictures and ThreadSanitizer finds no race.
+- **The render thread on the second CPU core.** Kazarov's render thread (`video.render_thread`,
+  `async` by default) renders and presents while the game runs the next tick. libnx starts every
+  thread on the process's core, where the game runs, so on the Switch the worker moves itself to
+  core 1. Kazarov keeps four submissions (two ticks) in flight and answers the game's depth queries
+  (the sun's lens flare, pick-Z) without waiting for the GPU.
 
 ## Performance
 
@@ -266,7 +253,5 @@ NVK, which reports a `timestampPeriod` of 1, and devkitPro's Mesa. A profile mus
 - Plays handheld on a Switch OLED: the intro, the title, new and loaded games (PS2 saves included),
   towns and dungeons. Docked has not been tuned.
 - Busy dungeon scenes run near 40 frames a second ([Performance](#performance)).
-- Ryujinx runs the GL `.nro` with its picture, which helps with crashes before the first frame, but
-  says nothing of the console's speed, and `--screenshot` there reads back only part of each row
-  (`port/gl/README.md`). It runs the Vulkan `.nro` only on its OpenGL backend, with a black screen.
+- Ryujinx runs the `.nro` only on its OpenGL backend, with a black screen.
 - What the PC port does not do yet, the Switch does not either (`docs/PC.md`).

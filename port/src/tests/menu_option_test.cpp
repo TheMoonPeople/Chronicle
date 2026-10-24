@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
+#include <memory>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -14,7 +16,12 @@
 namespace {
 
 alignas(64) CSaveData g_options_save;
-alignas(64) char g_save_buffer[0x30000];
+
+struct alignas(64) SaveBuffer {
+    std::array<char, 0x30000> bytes;
+};
+
+std::unique_ptr<SaveBuffer> g_save_buffer = std::make_unique<SaveBuffer>();
 
 ConfigGameOptions AllChanged() {
     ConfigGameOptions options;
@@ -54,7 +61,7 @@ TEST(MenuOption, OptionsLiveInConfigNotInSaves) {
     ASSERT_TRUE(g_options_save.GetMenuCursor()->pos[0] == 0);
 
     CMemoryCardAccess card{};
-    card.SetBuff(g_save_buffer);
+    card.SetBuff(g_save_buffer->bytes.data());
     s32 *serialized = static_cast<s32 *>(card.save_buffer->GetConfigData());
     for (int word = 2; word <= 11; ++word) {
         ASSERT_EQ(serialized[word], 0) << word;

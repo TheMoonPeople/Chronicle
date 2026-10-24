@@ -5,10 +5,15 @@
 #include <libvu0.h>
 #include <sifdev.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
+#include <memory>
+#include <string_view>
 
 #include "battle_globals.hpp"
 #include "battlemenu.hpp"
@@ -19,6 +24,8 @@
 #include "clsmes.hpp"
 #include "debugfont.hpp"
 #include "dngstatusdata.hpp"
+#include "draw2d_port.hpp"
+#include "draw3d.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
 #include "editloop3.hpp"
@@ -35,6 +42,7 @@
 #include "menu_misc.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
+#include "mglib_port.hpp"
 #include "npcharacter.hpp"
 #include "objanime.hpp"
 #include "rect.hpp"
@@ -43,12 +51,6 @@
 #include "snd.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
-
-#include <array>
-
-#include "draw2d_port.hpp"
-#include "draw3d.hpp"
-#include "mglib_port.hpp"
 
 // The bodies are retail's, which pass string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
@@ -60,8 +62,10 @@
 
 /* Retail editetc.cpp: shared editor presentation, sound, menus and message helpers. */
 
-static void DrawBound(CFrame *frame);
-static void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a);
+namespace {
+void DrawBound(CFrame *frame);
+void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a);
+} // namespace
 
 /**
  * Stores one positional sound effect and every place it is heard from this frame.
@@ -102,8 +106,11 @@ extern int EdDebugCharaDrawOff;
 extern int EdDebugMoveFlag;
 extern int EdDebugRunEventNo;
 
-static int         Debug = 1;
-static CDebugFont *DebugFont;
+namespace {
+int         Debug = 1;
+CDebugFont *DebugFont;
+int         AddStr(CDebugFont *font, std::string_view text);
+} // namespace
 
 PORT_OVERRIDE void EdDDebug(int on) {
     Debug = 0;
@@ -117,15 +124,13 @@ PORT_OVERRIDE void EdDSetFont(CDebugFont *font) {
    after it. With the overlay switched off the buffer is still emptied every frame, which is what
    keeps a switched-off build from overrunning it. */
 PORT_OVERRIDE void EdDDrawFont() {
-    char       work[112];
     static int count = 0;
 
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
-    sprintf(work, "%d\n", count++);
-    EdDPrint(work);
+    AddStr(DebugFont, std::format("{}\n", count++));
 
     if (Debug == 0) {
         DebugFont->length = 0;
@@ -139,7 +144,7 @@ PORT_OVERRIDE void EdDDrawFont() {
 /* The overflow guard for the frames nothing draws the overlay on: the buffer is 512 bytes and a
    line is short, so emptying it at 500 leaves room for whatever is already on its way in. */
 PORT_OVERRIDE void EdDCheck() {
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
@@ -155,7 +160,7 @@ PORT_OVERRIDE void EdOutPutFile() {
         return;
     }
 
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
@@ -171,75 +176,79 @@ PORT_OVERRIDE void EdOutPutFile() {
 
 /* The append is length-counted on the way out, and the length it adds goes to whatever DebugFont
    points at now rather than to the object it was handed. */
-static int AddStr(CDebugFont *font, char *str) {
-    int len;
+namespace {
+int AddStr(CDebugFont *font, std::string_view text) {
+    if (font == nullptr || DebugFont == nullptr || font->length < 0 || DebugFont->length < 0) {
+        return 0;
+    }
 
-    len = strlen(str);
-    strcpy(&font->text[font->length], str);
+    const int available = std::min(static_cast<int>(sizeof(font->text)) - font->length,
+                                   static_cast<int>(sizeof(DebugFont->text)) - DebugFont->length);
+    const int len = std::min(static_cast<int>(text.size()), available);
+
+    if (len <= 0) {
+        return 0;
+    }
+
+    memmove(&font->text[font->length], text.data(), len);
     DebugFont->length += len;
     return len;
 }
+} // namespace
 
 PORT_OVERRIDE void EdDPrintChara(CMainChara *chara) {
     sceVu0FVECTOR vector;
-    char          work[128];
 
     if (Debug == 0) {
         return;
     }
 
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
     chara->GetPosition(vector);
-    sprintf(work, "chara\n pos = %7.2f,%7.2f,%7.2f\n", vector[0], vector[1], vector[2]);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("chara\n pos = {:7.2f},{:7.2f},{:7.2f}\n", vector[0], vector[1], vector[2]));
     chara->GetRotation(vector);
-    sprintf(work, " rot = %7.2f,%7.2f,%7.2f\n", vector[0], vector[1], vector[2]);
-    AddStr(DebugFont, work);
-    sprintf(work, " (%d %d %d)\n", chara->move_info.ground_poly.attr.ground_kind, chara->move_info.ground_poly.attr.foot_sound, chara->move_info.ground_poly.attr.area_kind);
+    AddStr(DebugFont, std::format(" rot = {:7.2f},{:7.2f},{:7.2f}\n", vector[0], vector[1], vector[2]));
+    const auto text = std::format(" ({} {} {})\n", chara->move_info.ground_poly.attr.ground_kind,
+                                  chara->move_info.ground_poly.attr.foot_sound,
+                                  chara->move_info.ground_poly.attr.area_kind);
 
     if (chara->move_info.landed) {
-        AddStr(DebugFont, work);
+        AddStr(DebugFont, text);
     }
 }
 
 PORT_OVERRIDE void EdDPrintCamera(CCamera *camera) {
     sceVu0FVECTOR vector;
-    char          work[128];
 
     if (Debug == 0) {
         return;
     }
 
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
     camera->GetPos(vector);
-    sprintf(work, "camera\n pos = %7.2f,%7.2f,%7.2f\n", vector[0], vector[1], vector[2]);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("camera\n pos = {:7.2f},{:7.2f},{:7.2f}\n", vector[0], vector[1], vector[2]));
     camera->GetRef(vector);
-    sprintf(work, " ref = %7.2f,%7.2f,%7.2f\n", vector[0], vector[1], vector[2]);
-    AddStr(DebugFont, work);
-    sprintf(work, " projection = %7.1f\n", MGGetProjection());
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format(" ref = {:7.2f},{:7.2f},{:7.2f}\n", vector[0], vector[1], vector[2]));
+    AddStr(DebugFont, std::format(" projection = {:7.1f}\n", MGGetProjection()));
 }
 
 PORT_OVERRIDE void EdDPrintVector(char *name, float *vector) {
-    char work[128];
 
     if (Debug == 0) {
         return;
     }
 
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
-    sprintf(work, "%s %7.2f,%7.2f,%7.2f\n", name, vector[0], vector[1], vector[2]);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("{} {:7.2f},{:7.2f},{:7.2f}\n", name, vector[0], vector[1], vector[2]));
 }
 
 PORT_OVERRIDE void EdDPrint(char *text) {
@@ -247,7 +256,7 @@ PORT_OVERRIDE void EdDPrint(char *text) {
         return;
     }
 
-    if (DebugFont == 0) {
+    if (DebugFont == nullptr) {
         return;
     }
 
@@ -422,7 +431,7 @@ PORT_OVERRIDE void EdDMoveChara(CCharacter *character, CCamera *camera) {
     float         ambient;
     int           i;
 
-    if (character == 0) {
+    if (character == nullptr) {
         return;
     }
 
@@ -547,29 +556,19 @@ PORT_OVERRIDE void DM_Main() {
     static int select = 0;
     static int run_event = 150;
     static int talk_chara = 0;
-    char       work[128];
     char      *on_off[2] = {"OFF", "ON"};
     char      *cursor[2] = {"  ", "->"};
 
     AddStr(DebugFont, "    MAIN    ->R2\n");
-    sprintf(work, "%sDEBUG CAMERA %s\n", cursor[select == 0], on_off[EdDebugCameraFlag]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sPARAMETER %s\n", cursor[select == 1], on_off[!EdDebugParamDrawOff]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sCHARACTER %s\n", cursor[select == 2], on_off[!EdDebugCharaDrawOff]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sMESSAGE %s\n", cursor[select == 3], on_off[!MesAbsDrawOff]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sDEBUG MOVE %d\n", cursor[select == 4], EdDebugMoveFlag);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sRUN EVENT %d\n", cursor[select == 5], run_event);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sTALK EVENT %d\n", cursor[select == 6], talk_chara);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sEVENT %s\n", cursor[select == 7], on_off[EdDebugEventEnable]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sLANGUAGE %d\n", cursor[select == 8], LanguageCode);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("{}DEBUG CAMERA {}\n", cursor[select == 0], on_off[EdDebugCameraFlag]));
+    AddStr(DebugFont, std::format("{}PARAMETER {}\n", cursor[select == 1], on_off[!EdDebugParamDrawOff]));
+    AddStr(DebugFont, std::format("{}CHARACTER {}\n", cursor[select == 2], on_off[!EdDebugCharaDrawOff]));
+    AddStr(DebugFont, std::format("{}MESSAGE {}\n", cursor[select == 3], on_off[!MesAbsDrawOff]));
+    AddStr(DebugFont, std::format("{}DEBUG MOVE {}\n", cursor[select == 4], EdDebugMoveFlag));
+    AddStr(DebugFont, std::format("{}RUN EVENT {}\n", cursor[select == 5], run_event));
+    AddStr(DebugFont, std::format("{}TALK EVENT {}\n", cursor[select == 6], talk_chara));
+    AddStr(DebugFont, std::format("{}EVENT {}\n", cursor[select == 7], on_off[EdDebugEventEnable]));
+    AddStr(DebugFont, std::format("{}LANGUAGE {}\n", cursor[select == 8], LanguageCode));
 
     EdDebugRunEventNo = -1;
 
@@ -730,19 +729,14 @@ PORT_OVERRIDE void DM_Sound() {
     static int se_no = 0;
     static int set_no = 0;
     static int bgm_seq = 0;
-    char       work[128];
     char      *on_off[2] = {"OFF", "ON"};
     char      *cursor[2] = {"  ", "->"};
 
     AddStr(DebugFont, "L2<-SOUND   ->\n");
-    sprintf(work, "%sBGM PLAY %d SEQ = %d x:PLAY start:STOP\n", cursor[select == 0], bgm_no, bgm_seq);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sBGM OFF = %s\n", cursor[select == 1], on_off[SndGetBgmDisableFlag()]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sSE PLAY  %d  O:PLAY X:STOP\n", cursor[select == 2], se_no);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sSOUND SET  %d  O:PLAY X:STOP\n", cursor[select == 3], set_no);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("{}BGM PLAY {} SEQ = {} x:PLAY start:STOP\n", cursor[select == 0], bgm_no, bgm_seq));
+    AddStr(DebugFont, std::format("{}BGM OFF = {}\n", cursor[select == 1], on_off[SndGetBgmDisableFlag()]));
+    AddStr(DebugFont, std::format("{}SE PLAY  {}  O:PLAY X:STOP\n", cursor[select == 2], se_no));
+    AddStr(DebugFont, std::format("{}SOUND SET  {}  O:PLAY X:STOP\n", cursor[select == 3], set_no));
 
     switch (select) {
         case 0:
@@ -871,11 +865,13 @@ PORT_OVERRIDE void DM_Sound() {
 /**
  * Raises the deepest floor reached in one dungeon to the given floor if it lies deeper.
  */
-static inline void RaiseFloorReached(CDngStatusData *status, int dungeon, int floor) {
+namespace {
+void RaiseFloorReached(CDngStatusData *status, int dungeon, int floor) {
     if (floor > status->floor_reached[dungeon]) {
         status->floor_reached[dungeon] = floor;
     }
 }
+} // namespace
 
 PORT_OVERRIDE void DM_Flag() {
     static int      select = 0;
@@ -884,7 +880,6 @@ PORT_OVERRIDE void DM_Flag() {
     static int      comp_no = 0;
     static int      dun_map = MapNo;
     static int      chara = 0;
-    char            work[128];
     CDngStatusData *status;
     SV_GRD_NPC     *npc;
     int            *value;
@@ -934,21 +929,14 @@ PORT_OVERRIDE void DM_Flag() {
 
     AddStr(DebugFont, "L2<-FALG   ->R\n");
     status = SaveData->GetDngStatus();
-    sprintf(work, "%sGAMEFLAG %3d    = %s\n", cursor[select == 0], game_no, on_off[SaveData->GetGameFlag(game_no)]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sMAPFLAG %3d     = %s\n", cursor[select == 1], map_no, on_off[!SaveData->GetMapFlag(MapNo, map_no)]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sCOMPFLAG %3d    = %s\n", cursor[select == 2], comp_no, on_off[EditPartsInfo.GetCompEvent(comp_no)]);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sGAME INT FALG 0 = %d\n", cursor[select == 3], SaveData->GetGameIntFlag(0));
-    AddStr(DebugFont, work);
-    sprintf(work, "%sQUEST DUNGEON   = %d\n", cursor[select == 4], SaveData->QuestDungeon(dun_map, 0));
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("{}GAMEFLAG {:3d}    = {}\n", cursor[select == 0], game_no, on_off[SaveData->GetGameFlag(game_no)]));
+    AddStr(DebugFont, std::format("{}MAPFLAG {:3d}     = {}\n", cursor[select == 1], map_no, on_off[!SaveData->GetMapFlag(MapNo, map_no)]));
+    AddStr(DebugFont, std::format("{}COMPFLAG {:3d}    = {}\n", cursor[select == 2], comp_no, on_off[EditPartsInfo.GetCompEvent(comp_no)]));
+    AddStr(DebugFont, std::format("{}GAME INT FALG 0 = {}\n", cursor[select == 3], SaveData->GetGameIntFlag(0)));
+    AddStr(DebugFont, std::format("{}QUEST DUNGEON   = {}\n", cursor[select == 4], SaveData->QuestDungeon(dun_map, 0)));
     floor = status->floor_reached[dun_map];
-    sprintf(work, "%sDUNGEON FLOOR   = %d\n", cursor[select == 5], floor);
-    AddStr(DebugFont, work);
-    sprintf(work, "%sPARTY NUM       = %d\n", cursor[select == 6], status->party_size);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("{}DUNGEON FLOOR   = {}\n", cursor[select == 5], floor));
+    AddStr(DebugFont, std::format("{}PARTY NUM       = {}\n", cursor[select == 6], status->party_size));
     npc = SaveData->GetGrdNPCData(MapNo, chara);
     talk = false;
 
@@ -956,10 +944,9 @@ PORT_OVERRIDE void DM_Flag() {
         talk = npc->talk_message;
     }
 
-    sprintf(work, "%sTALKFLAG %3d    = %d\n", cursor[select == 7], chara, talk);
-    AddStr(DebugFont, work);
+    AddStr(DebugFont, std::format("{}TALKFLAG {:3d}    = {}\n", cursor[select == 7], chara, talk));
 
-    value = NULL;
+    value = nullptr;
 
     switch (select) {
         case 0:
@@ -1186,47 +1173,48 @@ PORT_OVERRIDE void DM_Flag() {
 /* The box drawn as twelve edges of the frame's own corner list, taken to the screen in one go and
    drawn only if every corner survived: a box with one corner behind the eye would otherwise be
    drawn through a projected point that means nothing. */
-static void DrawBound(CFrame *frame) {
-    int           screen[8][4];
-    sceVu0FVECTOR world[8];
+namespace {
+void DrawBound(CFrame *frame) {
+    auto          screen = std::make_unique<int[]>(8 * 4);
+    auto          world = std::make_unique<sceVu0FVECTOR[]>(8);
     sceVu0FMATRIX matrix;
     int           i;
     int           visible;
 
-    if (frame == 0) {
+    if (frame == nullptr) {
         return;
     }
 
     frame->GetLWMatrix(matrix);
     visible = true;
-    ApplyMatrixN(world, matrix, frame->corner, 8);
+    ApplyMatrixN(world.get(), matrix, frame->corner, 8);
 
     for (i = 0; i < 8; i++) {
-        visible &= MGRotTransPers(screen[i], world[i], 0);
+        visible &= MGRotTransPers(screen.get() + i * 4, world[i], 0);
     }
 
     if (visible == 0) {
         return;
     }
 
-    DrawLine(screen[0], screen[1], 128, 64, 64, 80);
-    DrawLine(screen[1], screen[5], 128, 64, 64, 80);
-    DrawLine(screen[5], screen[4], 128, 64, 64, 80);
-    DrawLine(screen[4], screen[0], 128, 64, 64, 80);
-    DrawLine(screen[2], screen[3], 128, 64, 64, 80);
-    DrawLine(screen[3], screen[7], 128, 64, 64, 80);
-    DrawLine(screen[7], screen[6], 128, 64, 64, 80);
-    DrawLine(screen[6], screen[2], 128, 64, 64, 80);
-    DrawLine(screen[0], screen[2], 128, 64, 64, 80);
-    DrawLine(screen[4], screen[6], 128, 64, 64, 80);
-    DrawLine(screen[5], screen[7], 128, 64, 64, 80);
-    DrawLine(screen[1], screen[3], 128, 64, 64, 80);
+    DrawLine(screen.get() + 0 * 4, screen.get() + 1 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 1 * 4, screen.get() + 5 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 5 * 4, screen.get() + 4 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 4 * 4, screen.get() + 0 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 2 * 4, screen.get() + 3 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 3 * 4, screen.get() + 7 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 7 * 4, screen.get() + 6 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 6 * 4, screen.get() + 2 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 0 * 4, screen.get() + 2 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 4 * 4, screen.get() + 6 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 5 * 4, screen.get() + 7 * 4, 128, 64, 64, 80);
+    DrawLine(screen.get() + 1 * 4, screen.get() + 3 * 4, 128, 64, 64, 80);
 }
 
 // One line in the colour given, blended through the current ALPHA register, depth-tested ALWAYS but
 // writing depth as mgZBuffer says, with TEST and ZBUF left at mglib's shadows afterwards as retail's
 // packet left them. The ends are MGRotTransPers's GS window coordinates.
-static void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a) {
+void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 0;
     test.bits.aref = 0;
@@ -1251,12 +1239,13 @@ static void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a)
     MGPortCurrent().test = mgPixelTest;
     MGPortCurrent().zbuf = mgZBuffer;
 }
+} // namespace
 
 // Runs in the town's step, ahead of the tick's drawing, so the scene to keep behind the menu is
 // the frame before.
 PORT_OVERRIDE void EdSaveFrameImageTask() {
     if (frame_image_flag != 0) {
-        MGPortMovePreviousFrameImage((sceGsTex0 *) &frame_image_tex.tex0);
+        MGPortMovePreviousFrameImage(reinterpret_cast<sceGsTex0 *>(&frame_image_tex.tex0));
         frame_image_tex.Initialize();
         frame_image_flag = 0;
     }

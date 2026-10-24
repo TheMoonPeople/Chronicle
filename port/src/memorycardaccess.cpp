@@ -1,10 +1,12 @@
 #include "memorycardaccess.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <memory>
 #include <system_error>
 #include <vector>
 
@@ -30,7 +32,12 @@ constexpr int kImageSize = 0x136A7;
 constexpr int kVersionSize = 0x20;
 
 // The whole save, read before any of it reaches SaveData.
-alignas(64) char g_image[kImageSize];
+struct alignas(64) SaveImage {
+    std::array<char, kImageSize> bytes{};
+};
+
+std::unique_ptr<SaveImage> g_image_storage = std::make_unique<SaveImage>();
+char *const                g_image = g_image_storage->bytes.data();
 
 constexpr char kVersion[] = "darkcloudVer1.9";
 
@@ -133,8 +140,8 @@ PORT_OVERRIDE void CMemoryCardAccess::MakeMcIconSysInfo() {
 #else
     strcpy(this->icon_sys.head, "PS2D");
 #endif
-    strcpy((char *) this->icon_sys.title_name, "\x82\x63\x82\x81\x82\x92\x82\x8B\x81\x40\x82\x62\x82\x8C\x82\x8F"
-                                               "\x82\x95\x82\x84\x81\x40\x82\x63\x82\x81\x82\x94\x82\x81");
+    strcpy(reinterpret_cast<char *>(this->icon_sys.title_name), "\x82\x63\x82\x81\x82\x92\x82\x8B\x81\x40\x82\x62\x82\x8C\x82\x8F"
+                                                                "\x82\x95\x82\x84\x81\x40\x82\x63\x82\x81\x82\x94\x82\x81");
     this->icon_sys.nl_offset = 20;
     this->icon_sys.trans_rate = 0x60;
     memcpy(this->icon_sys.bg_color, bg_color, 16);
@@ -154,7 +161,7 @@ PORT_OVERRIDE int CMemoryCardAccess::InitForMC() {
 
 PORT_OVERRIDE void CMemoryCardAccess::SetBuff(char *buffer) {
     buffer = PastNext64(buffer);
-    this->save_buffer = (CSaveData *) buffer;
+    this->save_buffer = reinterpret_cast<CSaveData *>(buffer);
     BuildImage(buffer, this->version);
     this->check_sum = buffer + sizeof(CSaveData) + kVersionSize;
     this->read_buffer = PastNext64(buffer + kImageSize);

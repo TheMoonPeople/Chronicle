@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -133,42 +134,49 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src
 void MGMoveImage(sceGsTex0 *dst, const CRect<int> &rect, sceGsTex0 *src, int dsax, int dsay, int dir);
 void DepthOfField(float *dist, int level, int alpha, int blur);
 
-static void MapLoad();
-static void MapLoad2();
-static void LoadCharaMajin();
-static void DrawDancer();
-static void InchikiShadow();
-static void DrawShadow(int shadow_no, float x, float y, float z);
-static void MajinBeemProcess();
-static void SmokeProcess();
-static void WaterProcess();
-static int  KageCheck(int actor);
-static void LightSet(float x, float y, float z, int actor);
-static void setTexScroll();
-static void setTexAnim();
-void        FaceChangeD(int actor);
+void FaceChangeD(int actor);
 
-static CFireOmni     CFire;
-static OBJ_ANIME_SEQ Fuusya[2];
-static CWind         Wind;
-static CFrame       *TaimatsuFrame[12];
-static OBJ_ANIME_SEQ Taimatsu[12];
-PORT_OVERRIDE CWater   Water;
-static CMapObject    OP_NornMapObj3[4];
-static CBombEffect   CBomb[3];
-static CFrameVu1    *DoransFuusya[2];
-static CEffect      *EffectTable;
-static CEffectGroup  Smoke;
-static CMajinBeem    CBeem[3];
-static CFrameVu1    *Shadow[16];
-static CFrame       *CharaF[3];
+namespace {
+void MapLoad();
+void MapLoad2();
+void LoadCharaMajin();
+void DrawDancer();
+void InchikiShadow();
+void DrawShadow(int shadow_no, float x, float y, float z);
+void MajinBeemProcess();
+void SmokeProcess();
+void WaterProcess();
+int  KageCheck(int actor);
+void LightSet(float x, float y, float z, int actor);
+void setTexScroll();
+void setTexAnim();
 
-static int   MBeemCnt;
-static float FireStep;
-static int   MajinBgmStart;
-static int   DanceBgmStart;
-static int   DanceBgmCnt;
-static int   SndCnt;
+CFireOmni     CFire;
+OBJ_ANIME_SEQ Fuusya[2];
+CWind         Wind;
+CFrame       *TaimatsuFrame[12];
+OBJ_ANIME_SEQ Taimatsu[12];
+} // namespace
+
+PORT_OVERRIDE CWater Water;
+
+namespace {
+CMapObject   OP_NornMapObj3[4];
+CBombEffect  CBomb[3];
+CFrameVu1   *DoransFuusya[2];
+CEffect     *EffectTable;
+CEffectGroup Smoke;
+CMajinBeem   CBeem[3];
+CFrameVu1   *Shadow[16];
+CFrame      *CharaF[3];
+
+int   MBeemCnt;
+float FireStep;
+int   MajinBgmStart;
+int   DanceBgmStart;
+int   DanceBgmCnt;
+int   SndCnt;
+} // namespace
 
 /* One actor's blinking and speaking. The mouth is driven from the script's own clock rather than
    from a motion: while the actor is talking, a new mouth frame is picked at random every sixth
@@ -179,27 +187,27 @@ static int   SndCnt;
 // op_c's FaceChange, under the name op_b's scene calls it by (FaceChange__Fi__2 in the PS2 build).
 PORT_OVERRIDE void FaceChangeC(int actor_no) {
     static FACE_INFO face[21] = {
-        {0,        0,            42, 40, 87, 35, 0, 0, 256, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            32, 40, 84, 35, 0, 0, 448, 3, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 256, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      32, 40, 84, 35, 0, 0, 448, 3, 0},
         {"c09a01", "c09a01an",   10, 40, 73, 35, 0, 0, 448, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            8,  40, 76, 35, 0, 0, 256, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      8,  40, 76, 35, 0, 0, 256, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
         {"p09a01", "p09a01an_2", 44, 40, 92, 32, 0, 0, 256, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
         {"c01d01", "c01d01an_3", 27, 48, 78, 44, 0, 0, 512, 3, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0}
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0}
     };
     CTexture *plate;
     CTexture *strip;
@@ -208,14 +216,14 @@ PORT_OVERRIDE void FaceChangeC(int actor_no) {
     int       sbw;
     int       dbw;
 
-    if (face[actor_no].plate == 0) {
+    if (face[actor_no].plate == nullptr) {
         return;
     }
 
     plate = TexManager.GetTexture(face[actor_no].plate, -1);
     strip = TexManager.GetTexture(face[actor_no].strip, -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -234,7 +242,7 @@ PORT_OVERRIDE void FaceChangeC(int actor_no) {
         CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
         if (CScript__2.obj[actor_no].talk) {
-            if ((int) (100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
+            if (static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
                 CScript__2.obj[actor_no].mouth = rand() % 4;
             }
         }
@@ -262,112 +270,111 @@ PORT_OVERRIDE void OpC_InitProcess() {
     while (ReadBGSync())
         ;
 
-    LOADTEXTURE_INFO2 tex[] = {
-        {"#water_buff#640#" HALF_BUFFER_HEIGHT_STR "#4",    22, 0},
-        {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",       0,  0},
-        {"#fontbase#512#256#1",                             26, 0},
-        {"#fukidashibase#640#" HALF_BUFFER_HEIGHT_STR "#4", 26, 0},
-        {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4",   23, 0},
-        {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4",   22, 0},
-        {0,                                                 0,  0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 10, 0},
-        {0,                                                 13, 0},
-        {0,                                                 10, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 11, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 26, 0},
-        {0,                                                 19, 0},
-        {0,                                                 19, 0},
-        {0,                                                 0,  0}
-    };
+    auto tex = std::make_unique<LOADTEXTURE_INFO2[]>(23);
+    tex[0] = {"#water_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0};
+    tex[1] = {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 0, 0};
+    tex[2] = {"#fontbase#512#256#1", 26, 0};
+    tex[3] = {"#fukidashibase#640#" HALF_BUFFER_HEIGHT_STR "#4", 26, 0};
+    tex[4] = {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0};
+    tex[5] = {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0};
+    tex[6] = {nullptr, 0, 0};
+    tex[7] = {nullptr, 10, 0};
+    tex[8] = {nullptr, 10, 0};
+    tex[9] = {nullptr, 10, 0};
+    tex[10] = {nullptr, 10, 0};
+    tex[11] = {nullptr, 13, 0};
+    tex[12] = {nullptr, 10, 0};
+    tex[13] = {nullptr, 11, 0};
+    tex[14] = {nullptr, 11, 0};
+    tex[15] = {nullptr, 11, 0};
+    tex[16] = {nullptr, 11, 0};
+    tex[17] = {nullptr, 26, 0};
+    tex[18] = {nullptr, 26, 0};
+    tex[19] = {nullptr, 26, 0};
+    tex[20] = {nullptr, 19, 0};
+    tex[21] = {nullptr, 19, 0};
+    tex[22] = {nullptr, 0, 0};
 
-    tex[6].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
-    tex[7].name = (char *) GetPackFile(read_buffer, "t0203.img", 0);
-    tex[8].name = (char *) GetPackFile(read_buffer, "e01b01.img", 0);
-    tex[9].name = (char *) GetPackFile(read_buffer, "e01b02.img", 0);
-    tex[10].name = (char *) GetPackFile(read_buffer, "e01b03.img", 0);
-    tex[11].name = (char *) GetPackFile(read_buffer, "e01t01.img", 0);
-    tex[12].name = (char *) GetPackFile(read_buffer, "t0205.img", 0);
-    tex[13].name = (char *) GetPackFile(read_buffer, "t0003.img", 0);
-    tex[14].name = (char *) GetPackFile(read_buffer, "e01s03.img", 0);
-    tex[15].name = (char *) GetPackFile(read_buffer, "e01s06.img", 0);
-    tex[16].name = (char *) GetPackFile(read_buffer, "t0001.img", 0);
-    tex[17].name = (char *) GetPackFile(read_buffer, "gaiji.img", 0);
-    tex[18].name = (char *) GetPackFile(read_buffer, "fuki256.img", 0);
-    tex[19].name = (char *) GetPackFile(read_buffer, "syst04.img", 0);
-    tex[20].name = (char *) GetPackFile(read_buffer, "pause.img", 0);
+    tex[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
+    tex[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0203.img", nullptr));
+    tex[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b01.img", nullptr));
+    tex[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b02.img", nullptr));
+    tex[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b03.img", nullptr));
+    tex[11].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01t01.img", nullptr));
+    tex[12].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0205.img", nullptr));
+    tex[13].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0003.img", nullptr));
+    tex[14].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s03.img", nullptr));
+    tex[15].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s06.img", nullptr));
+    tex[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0001.img", nullptr));
+    tex[17].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "gaiji.img", nullptr));
+    tex[18].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fuki256.img", nullptr));
+    tex[19].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "syst04.img", nullptr));
+    tex[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause.img", nullptr));
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_e.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
         case LANG_FRENCH:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_f.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_g.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_i.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            tex[21].name = (char *) GetPackFile(read_buffer, "pause_s.img", 0);
+            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
             break;
     }
 
     TexManager.Initialize(16352);
-    TexManager.LoadTextureBlock(-1, tex);
+    TexManager.LoadTextureBlock(-1, tex.get());
 
-    LoadFile("opdat/norn2/norn2b.pak", (void *) read_buffer, 0);
+    LoadFile("opdat/norn2/norn2b.pak", reinterpret_cast<void *>(read_buffer), nullptr);
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "t0201.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0201.img", nullptr));
     tex[0].block_no = 12;
     tex[0].mipmap = false;
-    tex[1].name = (char *) GetPackFile(read_buffer, "t0206.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0206.img", nullptr));
     tex[1].block_no = 12;
     tex[1].mipmap = false;
-    tex[2].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
+    tex[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
     tex[2].block_no = 2;
     tex[2].mipmap = false;
-    tex[3].name = (char *) GetPackFile(read_buffer, "c01d01an.img", 0);
+    tex[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
     tex[3].block_no = 2;
     tex[3].mipmap = false;
-    tex[4].name = (char *) GetPackFile(read_buffer, "p03a01.img", 0);
+    tex[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p03a01.img", nullptr));
     tex[4].block_no = 14;
     tex[4].mipmap = false;
-    tex[5].name = (char *) GetPackFile(read_buffer, "p08a01.img", 0);
+    tex[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p08a01.img", nullptr));
     tex[5].block_no = 15;
     tex[5].mipmap = false;
-    tex[6].name = (char *) GetPackFile(read_buffer, "p07a01.img", 0);
+    tex[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p07a01.img", nullptr));
     tex[6].block_no = 7;
     tex[6].mipmap = false;
-    tex[7].name = (char *) GetPackFile(read_buffer, "yokobue.img", 0);
+    tex[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "yokobue.img", nullptr));
     tex[7].block_no = 7;
     tex[7].mipmap = false;
-    tex[8].name = (char *) GetPackFile(read_buffer, "p02a01.img", 0);
+    tex[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p02a01.img", nullptr));
     tex[8].block_no = 8;
     tex[8].mipmap = false;
-    tex[9].name = (char *) GetPackFile(read_buffer, "guiter.img", 0);
+    tex[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "guiter.img", nullptr));
     tex[9].block_no = 8;
     tex[9].mipmap = false;
-    tex[10].name = 0;
+    tex[10].name = nullptr;
     tex[10].block_no = 0;
     tex[10].mipmap = false;
 
-    TexManager.LoadTextureBlock(-1, tex);
+    TexManager.LoadTextureBlock(-1, tex.get());
 
     CharaTex__2[11] = 2;
     CharaTex__2[12] = 14;
@@ -413,7 +420,7 @@ PORT_OVERRIDE void OpC_InitProcess() {
     DanceBgmCnt = 0;
 
     CharaDataBuffer__2[0].used = 0;
-    Chara__3[11].LoadPackData(read_buffer, "04c01d.cfg", &CharaDataBuffer__2[0], 0);
+    Chara__3[11].LoadPackData(read_buffer, "04c01d.cfg", &CharaDataBuffer__2[0], nullptr);
 
     CFrameAttr attr11;
 
@@ -424,7 +431,7 @@ PORT_OVERRIDE void OpC_InitProcess() {
     Chara__3[11].motion_type.state.motion_no = 0;
     Chara__3[11].motion_type.state.playing_no = 0;
 
-    Chara__3[17].LoadPackData(read_buffer, "04p07a.cfg", &CharaDataBuffer__2[0], 0);
+    Chara__3[17].LoadPackData(read_buffer, "04p07a.cfg", &CharaDataBuffer__2[0], nullptr);
 
     CFrameAttr attr17;
 
@@ -435,7 +442,7 @@ PORT_OVERRIDE void OpC_InitProcess() {
     Chara__3[17].motion_type.state.motion_no = 0;
     Chara__3[17].motion_type.state.playing_no = 0;
 
-    Chara__3[18].LoadPackData(read_buffer, "04p02a.cfg", &CharaDataBuffer__2[0], 0);
+    Chara__3[18].LoadPackData(read_buffer, "04p02a.cfg", &CharaDataBuffer__2[0], nullptr);
 
     CFrameAttr attr18;
 
@@ -446,7 +453,7 @@ PORT_OVERRIDE void OpC_InitProcess() {
     Chara__3[18].motion_type.state.motion_no = 0;
     Chara__3[18].motion_type.state.playing_no = 0;
 
-    Chara__3[12].LoadPackData(read_buffer, "04p03a.cfg", &CharaDataBuffer__2[0], 0);
+    Chara__3[12].LoadPackData(read_buffer, "04p03a.cfg", &CharaDataBuffer__2[0], nullptr);
 
     CFrameAttr attr12;
 
@@ -458,7 +465,7 @@ PORT_OVERRIDE void OpC_InitProcess() {
     Chara__3[12].motion_type.state.playing_no = 0;
 
     CharaDataBuffer__2[6].used = 0;
-    Chara__3[13].LoadPackData(read_buffer, "04p08a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[13].LoadPackData(read_buffer, "04p08a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr13;
 
@@ -555,53 +562,38 @@ PORT_OVERRIDE void OpC_InitProcess2() {
     TexManager.DeleteTextureBlock(15);
     TexManager.CleanUpBuffer();
 
-    LOADTEXTURE_INFO2 tex[15] = {
-        {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0}
-    };
+    auto tex = std::make_unique<LOADTEXTURE_INFO2[]>(5);
+    tex[0] = {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 0, 0};
 
-    tex[1].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
     tex[1].block_no = 0;
     tex[1].mipmap = false;
-    tex[2].name = 0;
+    tex[2].name = nullptr;
 
-    TexManager.LoadTextureBlock(0, tex);
+    TexManager.LoadTextureBlock(0, tex.get());
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "ashikage.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "ashikage.img", nullptr));
     tex[0].block_no = 18;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(18, tex);
+    TexManager.LoadTextureBlock(18, tex.get());
 
     CharaDataBuffer__2[6].used = 0;
 
-    CFrameVu1 *shadow = LoadMDSFile((u_int *) GetPackFile(read_buffer, "ashikage.mds", 0), &CharaDataBuffer__2[6], 2, 0, 0);
+    CFrameVu1 *shadow = LoadMDSFile(GetPackFile(read_buffer, "ashikage.mds", nullptr), &CharaDataBuffer__2[6], 2, nullptr, nullptr);
 
     for (int i = 0; i < 16; i++) {
         Shadow[i] = shadow;
     }
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "p05b01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p05b01.img", nullptr));
     tex[0].block_no = 4;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(4, tex);
-    Chara__3[14].LoadPackData(read_buffer, "04p05b.cfg", &CharaDataBuffer__2[6], 0);
+    TexManager.LoadTextureBlock(4, tex.get());
+    Chara__3[14].LoadPackData(read_buffer, "04p05b.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr14;
 
@@ -612,13 +604,13 @@ PORT_OVERRIDE void OpC_InitProcess2() {
     Chara__3[14].motion_type.state.motion_no = 0;
     Chara__3[14].motion_type.state.playing_no = 0;
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "p15a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p15a01.img", nullptr));
     tex[0].block_no = 9;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(9, tex);
-    Chara__3[19].LoadPackData(read_buffer, "04p15a.cfg", &CharaDataBuffer__2[6], 0);
+    TexManager.LoadTextureBlock(9, tex.get());
+    Chara__3[19].LoadPackData(read_buffer, "04p15a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr19;
 
@@ -629,7 +621,7 @@ PORT_OVERRIDE void OpC_InitProcess2() {
     Chara__3[19].motion_type.state.motion_no = 0;
     Chara__3[19].motion_type.state.playing_no = 0;
 
-    Chara__3[20].LoadPackData(read_buffer, "04p16a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[20].LoadPackData(read_buffer, "04p16a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr20;
 
@@ -640,13 +632,13 @@ PORT_OVERRIDE void OpC_InitProcess2() {
     Chara__3[20].motion_type.state.motion_no = 0;
     Chara__3[20].motion_type.state.playing_no = 0;
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "p01a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p01a01.img", nullptr));
     tex[0].block_no = 5;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(5, tex);
-    Chara__3[15].LoadPackData(read_buffer, "04p01a.cfg", &CharaDataBuffer__2[6], 0);
+    TexManager.LoadTextureBlock(5, tex.get());
+    Chara__3[15].LoadPackData(read_buffer, "04p01a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr15;
 
@@ -657,13 +649,13 @@ PORT_OVERRIDE void OpC_InitProcess2() {
     Chara__3[15].motion_type.state.motion_no = 0;
     Chara__3[15].motion_type.state.playing_no = 0;
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "p12a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p12a01.img", nullptr));
     tex[0].block_no = 6;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(6, tex);
-    Chara__3[16].LoadPackData(read_buffer, "04p12a.cfg", &CharaDataBuffer__2[6], 0);
+    TexManager.LoadTextureBlock(6, tex.get());
+    Chara__3[16].LoadPackData(read_buffer, "04p12a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr16;
 
@@ -693,44 +685,44 @@ PORT_OVERRIDE void OpC_InitProcess3() {
     TexManager.DeleteTextureBlock(13);
     TexManager.CleanUpBuffer();
 
-    LOADTEXTURE_INFO2 tex[4];
+    auto tex = std::make_unique<LOADTEXTURE_INFO2[]>(4);
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "b0203.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "b0203.img", nullptr));
     tex[0].block_no = 10;
     tex[0].mipmap = false;
-    tex[1].name = (char *) GetPackFile(read_buffer, "b0204.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "b0204.img", nullptr));
     tex[1].block_no = 10;
     tex[1].mipmap = false;
-    tex[2].name = (char *) GetPackFile(read_buffer, "tukikage.img", 0);
+    tex[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "tukikage.img", nullptr));
     tex[2].block_no = 10;
     tex[2].mipmap = false;
-    tex[3].name = 0;
+    tex[3].name = nullptr;
 
-    TexManager.LoadTextureBlock(10, tex);
+    TexManager.LoadTextureBlock(10, tex.get());
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "c08a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c08a01.img", nullptr));
     tex[0].block_no = 16;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(16, tex);
+    TexManager.LoadTextureBlock(16, tex.get());
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "c09a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c09a01.img", nullptr));
     tex[0].block_no = 17;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(17, tex);
+    TexManager.LoadTextureBlock(17, tex.get());
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "beem.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "beem.img", nullptr));
     tex[0].block_no = 18;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(18, tex);
+    TexManager.LoadTextureBlock(18, tex.get());
 
     CharaDataBuffer__2[6].used = 0;
-    Chara__3[1].LoadPackData(read_buffer, "04c08a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[1].LoadPackData(read_buffer, "04c08a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr1;
 
@@ -741,7 +733,7 @@ PORT_OVERRIDE void OpC_InitProcess3() {
     Chara__3[1].motion_type.state.motion_no = 0;
     Chara__3[1].motion_type.state.playing_no = 0;
 
-    Chara__3[3].LoadPackData(read_buffer, "04c09a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[3].LoadPackData(read_buffer, "04c09a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr3;
 
@@ -757,7 +749,7 @@ PORT_OVERRIDE void OpC_InitProcess3() {
     sky_attr.use_color = true;
     sky_attr.depth_write = false;
 
-    CFrameVu1 *frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, "b0203.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *frame = LoadMDSFile(GetPackFile(read_buffer, "b0203.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     frame->SetAttr(sky_attr, 1, 4608);
     CMapObject &sky0 = OP_NornMapObj3[0];
@@ -769,7 +761,7 @@ PORT_OVERRIDE void OpC_InitProcess3() {
     sky0.SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     sky0.SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, "b0204.mds", 0), &MapDataBuffer, 2, 0, 0);
+    frame = LoadMDSFile(GetPackFile(read_buffer, "b0204.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     frame->SetAttr(sky_attr, 1, 4608);
     OP_NornMapObj3[1].Initialize();
     OP_NornMapObj3[1].SetFrame(frame, 0);
@@ -781,7 +773,7 @@ PORT_OVERRIDE void OpC_InitProcess3() {
     sky1.SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     sky1.SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, "b0302.mds", 0), &MapDataBuffer, 2, 0, 0);
+    frame = LoadMDSFile(GetPackFile(read_buffer, "b0302.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     OP_NornMapObj3[2].Initialize();
     OP_NornMapObj3[2].SetFrame(frame, 0);
     OP_NornMapObj3[2].handle = 0;
@@ -792,7 +784,7 @@ PORT_OVERRIDE void OpC_InitProcess3() {
     sky2.SetPosition(CVector3_f_(-1147.01f, 2524.122f, 1603.736f));
     sky2.SetRotation(CVector3_f_(0.49406955f, 2.3992832f, -0.07209257f));
 
-    frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, "tukikage.mds", 0), &MapDataBuffer, 2, 0, 0);
+    frame = LoadMDSFile(GetPackFile(read_buffer, "tukikage.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     OP_NornMapObj3[3].Initialize();
     OP_NornMapObj3[3].SetFrame(frame, 0);
     OP_NornMapObj3[3].handle = 0;
@@ -829,51 +821,36 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     TexManager.DeleteTextureBlock(0);
     TexManager.CleanUpBuffer();
 
-    LOADTEXTURE_INFO2 tex[15] = {
-        {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0},
-        {0,                                           0, 0}
-    };
+    auto tex = std::make_unique<LOADTEXTURE_INFO2[]>(5);
+    tex[0] = {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 0, 0};
 
-    tex[1].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
     tex[1].block_no = 0;
     tex[1].mipmap = false;
-    tex[2].name = 0;
+    tex[2].name = nullptr;
 
-    TexManager.LoadTextureBlock(0, tex);
+    TexManager.LoadTextureBlock(0, tex.get());
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "smoke.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "smoke.img", nullptr));
     tex[0].block_no = 18;
     tex[0].mipmap = false;
-    tex[1].name = (char *) GetPackFile(read_buffer, "beem.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "beem.img", nullptr));
     tex[1].block_no = 18;
     tex[1].mipmap = false;
-    tex[2].name = (char *) GetPackFile(read_buffer, "bakuhatu.img", 0);
+    tex[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "bakuhatu.img", nullptr));
     tex[2].block_no = 18;
     tex[2].mipmap = false;
-    tex[3].name = (char *) GetPackFile(read_buffer, "sunakemuri.img", 0);
+    tex[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "sunakemuri.img", nullptr));
     tex[3].block_no = 18;
     tex[3].mipmap = false;
-    tex[4].name = 0;
+    tex[4].name = nullptr;
 
-    TexManager.LoadTextureBlock(18, tex);
+    TexManager.LoadTextureBlock(18, tex.get());
 
     CharaDataBuffer__2[6].used = 0;
     MapLoad2();
 
-    Chara__3[11].LoadPackData(read_buffer, "04c01d.cfg", &CharaDataBuffer__2[0], 0);
+    Chara__3[11].LoadPackData(read_buffer, "04c01d.cfg", &CharaDataBuffer__2[0], nullptr);
 
     CFrameAttr attr11;
 
@@ -883,18 +860,18 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     Chara__3[11].motion_type.state.blend_step = 0.05f;
     Chara__3[11].motion_type.state.motion_no = 0;
     Chara__3[11].motion_type.state.playing_no = 0;
-    Chara__3[11].wind = (int) (intptr_t) &Wind;
+    Chara__3[11].wind = static_cast<int>(reinterpret_cast<intptr_t>(&Wind));
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "p09a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01.img", nullptr));
     tex[0].block_no = 3;
     tex[0].mipmap = false;
-    tex[1].name = (char *) GetPackFile(read_buffer, "p09a01an.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01an.img", nullptr));
     tex[1].block_no = 3;
     tex[1].mipmap = false;
-    tex[2].name = 0;
+    tex[2].name = nullptr;
 
-    TexManager.LoadTextureBlock(3, tex);
-    Chara__3[9].LoadPackData(read_buffer, "04p09a.cfg", &CharaDataBuffer__2[6], 0);
+    TexManager.LoadTextureBlock(3, tex.get());
+    Chara__3[9].LoadPackData(read_buffer, "04p09a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr9;
 
@@ -905,13 +882,13 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     Chara__3[9].motion_type.state.motion_no = 0;
     Chara__3[9].motion_type.state.playing_no = 0;
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "p08a01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p08a01.img", nullptr));
     tex[0].block_no = 15;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
-    TexManager.LoadTextureBlock(15, tex);
-    Chara__3[13].LoadPackData(read_buffer, "04p08a.cfg", &CharaDataBuffer__2[6], 0);
+    TexManager.LoadTextureBlock(15, tex.get());
+    Chara__3[13].LoadPackData(read_buffer, "04p08a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr13;
 
@@ -922,7 +899,7 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     Chara__3[13].motion_type.state.motion_no = 0;
     Chara__3[13].motion_type.state.playing_no = 0;
 
-    Chara__3[18].LoadPackData(read_buffer, "04p02a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[18].LoadPackData(read_buffer, "04p02a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr18;
 
@@ -933,7 +910,7 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     Chara__3[18].motion_type.state.motion_no = 0;
     Chara__3[18].motion_type.state.playing_no = 0;
 
-    Chara__3[1].LoadPackData(read_buffer, "04c08a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[1].LoadPackData(read_buffer, "04c08a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr1;
 
@@ -944,7 +921,7 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     Chara__3[1].motion_type.state.motion_no = 0;
     Chara__3[1].motion_type.state.playing_no = 0;
 
-    Chara__3[3].LoadPackData(read_buffer, "04c09a.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[3].LoadPackData(read_buffer, "04c09a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr3;
 
@@ -1012,7 +989,7 @@ PORT_OVERRIDE void OpC_InitProcess5() {
     InitObjAnime(TaimatsuFrame[8], &Taimatsu[8]);
 
     // Retail asked for 12800 bytes, fifty of the PS2's 256-byte CEffect.
-    EffectTable = (CEffect *) CharaDataBuffer__2[0].Alloc(50 * sizeof(CEffect));
+    EffectTable = reinterpret_cast<CEffect *>(CharaDataBuffer__2[0].Alloc(50 * sizeof(CEffect)));
     Smoke.Initialize(EffectTable, 50);
     Smoke.Clear();
     CScript__2.init_no = 0;
@@ -1030,83 +1007,84 @@ PORT_OVERRIDE void OpC_InitProcess5() {
  * @size 0x6B8
  * @unknownret
  */
-static void MapLoad() {
+namespace {
+void MapLoad() {
     MAPOBJ_INFO norn[] = {
-        {"opdat/norn2/t0207.mds",    0,                          {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/t0207.mds",    nullptr,                    {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
         {"opdat/norn2/e01h01_0.mds", "opdat/norn2/e01h01_s.mds", {-35.0f, 0.0f, -20.0f},       {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01h05_2.mds", 0,                          {50.0f, 0.0f, 20.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"opdat/norn2/e01h11_2.mds", 0,                          {50.0f, 0.0f, -10.0f},        {0.0f, -90.0f, 0.0f}   },
-        {"opdat/norn2/e01h07_2.mds", 0,                          {5.0f, 0.0f, -20.0f},         {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01h08_2.mds", 0,                          {-45.0f, 0.0f, -45.0f},       {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01h02_2.mds", 0,                          {-60.0f, 0.0f, 30.0f},        {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/e01h06_2.mds", 0,                          {0.0f, 4.7424f, 79.274f},     {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01a02_1.mds", 0,                          {0.0f, 0.0f, 59.965f},        {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/t0002.mds",    0,                          {-23.7809f, 0.0f, 19.8331f},  {0.0f, -4.4f, 0.0f}    },
-        {0,                          0,                          {23.1908f, 0.0f, 38.0943f},   {0.0f, -170.971f, 0.0f}},
-        {"opdat/norn2/e01t01_0.mds", 0,                          {-45.0f, 0.1f, -5.0f},        {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01t01_1.mds", 0,                          {65.0f, 0.1f, 45.0f},         {0.0f, -90.0f, 0.0f}   },
-        {0,                          0,                          {55.0f, 0.1f, 55.0f},         {0.0f, -90.0f, 0.0f}   },
-        {0,                          0,                          {-45.0f, 0.1f, 55.0f},        {0.0f, -90.0f, 0.0f}   },
-        {0,                          0,                          {55.0f, 0.1f, 5.0f},          {0.0f, -90.0f, 0.0f}   },
-        {"opdat/norn2/e01c01_0.mds", 0,                          {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"opdat/norn2/e01c02_0.mds", 0,                          {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01c06_0.mds", 0,                          {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
-        {"opdat/norn2/e01c07_0.mds", 0,                          {-35.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {5.0f, 0.0f, 5.0f},           {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/e01c08_0.mds", 0,                          {25.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-45.0f, -0.01f, 5.0f},       {0.0f, -90.0f, 0.0f}   },
-        {0,                          0,                          {-45.0f, -0.01f, 25.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-45.0f, -0.01f, 15.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-25.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-5.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-15.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {15.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {25.0f, -0.01f, -5.0f},       {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {25.0f, -0.01f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {25.0f, -0.01f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-45.0f, -0.01f, 35.0f},      {0.0f, 180.0f, 0.0f}   },
-        {0,                          0,                          {-35.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {5.0f, -0.01f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/e01w01_0.mds", 0,                          {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"opdat/norn2/e01w02_0.mds", 0,                          {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/e01w06_0.mds", 0,                          {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
-        {"opdat/norn2/e01r02_0.mds", 0,                          {-35.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {-25.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/e01r02_0.mds", 0,                          {-15.0f, 0.05f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-5.0f, 0.05f, -5.0f},        {0.0f, -90.0f, 0.0f}   },
-        {0,                          0,                          {-15.0f, 0.05f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-25.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/e01r03_0.mds", 0,                          {-15.0f, 0.05f, -35.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-15.0f, 0.05f, -5.0f},       {0.0f, 180.0f, 0.0f}   },
-        {"opdat/norn2/e01r06_0.mds", 0,                          {-35.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,                          0,                          {5.0f, 0.05f, -5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"opdat/norn2/t0004.mds",    0,                          {-32.9331f, 0.06f, 10.3033f}, {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-36.9302f, 0.06f, 10.3033f}, {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-36.9302f, 0.06f, -0.0916f}, {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {-32.9331f, 0.06f, -0.0916f}, {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {3.0797f, 0.06f, -0.0916f},   {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {7.0849f, 0.06f, -0.0916f},   {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {7.0849f, 0.06f, 10.3125f},   {0.0f, 0.0f, 0.0f}     },
-        {0,                          0,                          {3.0797f, 0.06f, 10.3125f},   {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/t0213.mds",    0,                          {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     }
+        {"opdat/norn2/e01h05_2.mds", nullptr,                    {50.0f, 0.0f, 20.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"opdat/norn2/e01h11_2.mds", nullptr,                    {50.0f, 0.0f, -10.0f},        {0.0f, -90.0f, 0.0f}   },
+        {"opdat/norn2/e01h07_2.mds", nullptr,                    {5.0f, 0.0f, -20.0f},         {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/e01h08_2.mds", nullptr,                    {-45.0f, 0.0f, -45.0f},       {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/e01h02_2.mds", nullptr,                    {-60.0f, 0.0f, 30.0f},        {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/e01h06_2.mds", nullptr,                    {0.0f, 4.7424f, 79.274f},     {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/e01a02_1.mds", nullptr,                    {0.0f, 0.0f, 59.965f},        {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/t0002.mds",    nullptr,                    {-23.7809f, 0.0f, 19.8331f},  {0.0f, -4.4f, 0.0f}    },
+        {nullptr,                    nullptr,                    {23.1908f, 0.0f, 38.0943f},   {0.0f, -170.971f, 0.0f}},
+        {"opdat/norn2/e01t01_0.mds", nullptr,                    {-45.0f, 0.1f, -5.0f},        {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/e01t01_1.mds", nullptr,                    {65.0f, 0.1f, 45.0f},         {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                    nullptr,                    {55.0f, 0.1f, 55.0f},         {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                    nullptr,                    {-45.0f, 0.1f, 55.0f},        {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                    nullptr,                    {55.0f, 0.1f, 5.0f},          {0.0f, -90.0f, 0.0f}   },
+        {"opdat/norn2/e01c01_0.mds", nullptr,                    {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"opdat/norn2/e01c02_0.mds", nullptr,                    {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/e01c06_0.mds", nullptr,                    {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
+        {"opdat/norn2/e01c07_0.mds", nullptr,                    {-35.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {5.0f, 0.0f, 5.0f},           {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/e01c08_0.mds", nullptr,                    {25.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-45.0f, -0.01f, 5.0f},       {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                    nullptr,                    {-45.0f, -0.01f, 25.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-45.0f, -0.01f, 15.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-25.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-5.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-15.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {15.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {25.0f, -0.01f, -5.0f},       {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {25.0f, -0.01f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {25.0f, -0.01f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-45.0f, -0.01f, 35.0f},      {0.0f, 180.0f, 0.0f}   },
+        {nullptr,                    nullptr,                    {-35.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {5.0f, -0.01f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/e01w01_0.mds", nullptr,                    {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"opdat/norn2/e01w02_0.mds", nullptr,                    {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/e01w06_0.mds", nullptr,                    {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
+        {"opdat/norn2/e01r02_0.mds", nullptr,                    {-35.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {-25.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/e01r02_0.mds", nullptr,                    {-15.0f, 0.05f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-5.0f, 0.05f, -5.0f},        {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                    nullptr,                    {-15.0f, 0.05f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-25.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/e01r03_0.mds", nullptr,                    {-15.0f, 0.05f, -35.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-15.0f, 0.05f, -5.0f},       {0.0f, 180.0f, 0.0f}   },
+        {"opdat/norn2/e01r06_0.mds", nullptr,                    {-35.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                    nullptr,                    {5.0f, 0.05f, -5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"opdat/norn2/t0004.mds",    nullptr,                    {-32.9331f, 0.06f, 10.3033f}, {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-36.9302f, 0.06f, 10.3033f}, {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-36.9302f, 0.06f, -0.0916f}, {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {-32.9331f, 0.06f, -0.0916f}, {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {3.0797f, 0.06f, -0.0916f},   {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {7.0849f, 0.06f, -0.0916f},   {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {7.0849f, 0.06f, 10.3125f},   {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                    nullptr,                    {3.0797f, 0.06f, 10.3125f},   {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/t0213.mds",    nullptr,                    {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     }
     };
     CFrameAttr attr;
     CFrameVu1 *frame;
@@ -1118,8 +1096,8 @@ static void MapLoad() {
 
     for (i = 0; i < 75; i++) {
         if (norn[i].name) {
-            LoadFile(norn[i].name, (void *) read_buffer, 0);
-            frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, 0, 0);
+            LoadFile(norn[i].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
         if (i == 4) {
@@ -1145,112 +1123,112 @@ static void MapLoad() {
         OP_NornMapObj[i].category_no = 0;
 
         object.SetPosition(CVector3_f_(10.0f * norn[i].position[0], 10.0f * norn[i].position[1], 10.0f * norn[i].position[2]));
-        object.SetRotation(CVector3_f_((float) (PI_D * norn[i].rotation[0] / 180), (float) (PI_D * norn[i].rotation[1] / 180), (float) (PI_D * norn[i].rotation[2] / 180)));
+        object.SetRotation(CVector3_f_(static_cast<float>(PI_D * norn[i].rotation[0] / 180), static_cast<float>(PI_D * norn[i].rotation[1] / 180), static_cast<float>(PI_D * norn[i].rotation[2] / 180)));
 
         object.FrameObjectOnOff("win1", 0);
         object.FrameObjectOnOff("light1", 0);
 
         if (norn[i].shadow_name) {
-            LoadFile(norn[i].shadow_name, (void *) read_buffer, 0);
-            object.shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, 0, 0);
+            LoadFile(norn[i].shadow_name, reinterpret_cast<void *>(read_buffer), nullptr);
+            object.shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, nullptr, nullptr);
             object.shadow_offset = -20.0f;
         }
     }
 
     MAPOBJ_INFO ground[] = {
-        {"opdat/norn/t0006.mds",  0, {0.0f, 0.0f, 0.0f},             {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/t0001.mds", 0, {-33.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {-23.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {-13.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {-3.25f, 0.03f, 13.0707f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {14.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {24.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {34.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {36.4833f, 0.03f, 17.4747f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {36.4833f, 0.03f, 27.4747f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {36.4833f, 0.03f, 37.4747f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {36.4833f, 0.03f, 47.4747f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {34.9598f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {25.8411f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {16.0658f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {6.657f, 0.03f, 52.2721f},      {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-6.7301f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-15.4243f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-24.5027f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-33.5025f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-35.0227f, 0.03f, 47.4712f},   {0.0f, 90.0f, 0.0f}    },
-        {0,                       0, {-35.0227f, 0.03f, 37.4712f},   {0.0f, 90.0f, 0.0f}    },
-        {0,                       0, {-35.0227f, 0.03f, 27.4712f},   {0.0f, 90.0f, 0.0f}    },
-        {0,                       0, {-35.0227f, 0.03f, 17.4712f},   {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/t0003.mds", 0, {-28.23f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {-18.23f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {-8.23f, 0.03f, 13.1174f},      {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {19.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {29.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,                       0, {36.4365f, 0.03f, 22.4967f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {36.4365f, 0.03f, 32.4967f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {36.4365f, 0.03f, 42.4967f},    {0.0f, -90.0f, 0.0f}   },
-        {0,                       0, {31.6374f, 0.03f, 52.3176f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {21.6374f, 0.03f, 52.3176f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {11.6374f, 0.03f, 52.3176f},    {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-10.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-20.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-30.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
-        {0,                       0, {-34.9775f, 0.03f, 42.4508f},   {0.0f, 90.0f, 0.0f}    },
-        {0,                       0, {-34.9775f, 0.03f, 32.4508f},   {0.0f, 90.0f, 0.0f}    },
-        {0,                       0, {-34.9775f, 0.03f, 22.4508f},   {0.0f, 90.0f, 0.0f}    },
-        {"opdat/norn2/t0212.mds", 0, {0.0f, 0.02f, 30.0f},           {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/t0208.mds", 0, {0.0f, 0.0f, 29.999f},          {0.0f, 0.0f, 0.0f}     },
-        {"opdat/norn2/t0201.mds", 0, {8.1246f, 0.0f, 21.2374f},      {0.0f, -190.452f, 0.0f}},
-        {0,                       0, {9.3114f, 0.0f, 21.4458f},      {0.0f, -243.621f, 0.0f}},
-        {0,                       0, {9.8278f, 0.0f, 22.3789f},      {0.0f, -237.204f, 0.0f}},
-        {0,                       0, {9.6149f, 1.2748f, 21.9196f},   {0.0f, -237.777f, 0.0f}},
-        {0,                       0, {-10.8524f, 0.0f, 38.0058f},    {0.0f, 279.8325f, 0.0f}},
-        {0,                       0, {-11.6807f, 0.0f, 36.7247f},    {0.0f, 281.7807f, 0.0f}},
-        {0,                       0, {-11.9794f, 0.0f, 37.8902f},    {0.0f, 287.5107f, 0.0f}},
-        {0,                       0, {-12.2587f, 0.0f, 39.046f},     {0.0f, 288.9999f, 0.0f}},
-        {0,                       0, {-10.9969f, 0.0f, 39.1231f},    {0.0f, 280.291f, 0.0f} },
-        {0,                       0, {24.4449f, 0.0f, 28.8081f},     {0.0f, -84.5684f, 0.0f}},
-        {0,                       0, {24.5097f, 1.2748f, 29.317f},   {0.0f, -84.5684f, 0.0f}},
-        {0,                       0, {24.7114f, 0.0f, 29.8031f},     {0.0f, -84.5684f, 0.0f}},
-        {0,                       0, {24.9802f, 1.2748f, 30.2274f},  {0.0f, -84.5684f, 0.0f}},
-        {0,                       0, {25.2412f, 0.0f, 30.6682f},     {0.0f, -84.5684f, 0.0f}},
-        {"opdat/norn2/t0202.mds", 0, {6.9352f, 0.0f, 22.8016f},      {0.0f, -66.4631f, 0.0f}},
-        {0,                       0, {-14.5591f, 0.0f, 35.5869f},    {0.0f, 112.4143f, 0.0f}},
-        {"opdat/norn2/t0203.mds", 0, {8.5959f, 0.0f, 23.4822f},      {0.0f, -49.7327f, 0.0f}},
-        {0,                       0, {-13.0716f, 0.0f, 36.4929f},    {0.0f, 129.2592f, 0.0f}},
-        {0,                       0, {-14.4103f, 0.0f, 37.4364f},    {0.0f, 112.5289f, 0.0f}},
-        {"opdat/norn2/t0204.mds", 0, {-9.0122f, 0.0f, 20.8749f},     {0.0f, -234.912f, 0.0f}},
-        {0,                       0, {-9.9647f, 0.0f, 21.4127f},     {0.0f, -227.234f, 0.0f}},
-        {0,                       0, {-10.7374f, 0.0f, 22.1576f},    {0.0f, -223.797f, 0.0f}},
-        {0,                       0, {-9.4268f, 0.9971f, 21.1822f},  {0.0f, -241.444f, 0.0f}},
-        {0,                       0, {-10.3487f, 0.9971f, 21.8464f}, {0.0f, -225.287f, 0.0f}},
-        {0,                       0, {-9.8716f, 1.9904f, 21.4498f},  {0.0f, -228.61f, 0.0f} },
-        {0,                       0, {12.8223f, 0.0f, 26.3336f},     {0.0f, -343.545f, 0.0f}},
-        {0,                       0, {11.8478f, 0.0f, 26.9861f},     {0.0f, -348.702f, 0.0f}},
-        {0,                       0, {11.9701f, 0.0f, 28.1885f},     {0.0f, -354.661f, 0.0f}},
-        {0,                       0, {13.085f, 0.0f, 27.3741f},      {0.0f, -346.983f, 0.0f}},
-        {0,                       0, {11.7334f, 0.9971f, 27.8052f},  {0.0f, -348.358f, 0.0f}},
-        {0,                       0, {12.58f, 0.9971f, 26.905f},     {0.0f, -337.013f, 0.0f}},
-        {0,                       0, {12.8088f, 0.0f, 38.6433f},     {0.0f, -382.965f, 0.0f}},
-        {0,                       0, {11.6416f, 0.0f, 38.5285f},     {0.0f, -388.121f, 0.0f}},
-        {0,                       0, {10.9726f, 0.0f, 39.535f},      {0.0f, -394.08f, 0.0f} },
-        {0,                       0, {12.3514f, 0.0f, 39.6143f},     {0.0f, -386.402f, 0.0f}},
-        {0,                       0, {11.0331f, 0.9971f, 39.0886f},  {0.0f, -387.777f, 0.0f}},
-        {0,                       0, {12.2587f, 0.9971f, 38.9308f},  {0.0f, -376.433f, 0.0f}},
-        {"opdat/norn2/t0205.mds", 0, {-9.8702f, 2.9808f, 21.5102f},  {0.0f, -140.374f, 0.0f}},
-        {0,                       0, {-11.6688f, 1.2789f, 36.7089f}, {0.0f, -61.7649f, 0.0f}},
-        {0,                       0, {12.4831f, 1.9258f, 26.9556f},  {0.0f, -84.3394f, 0.0f}},
-        {"opdat/norn2/t0206.mds", 0, {-4.3913f, 0.0f, 18.9443f},     {0.0f, 18.3347f, 0.0f} },
-        {0,                       0, {-13.2586f, 0.0f, 27.5378f},    {0.0f, 77.6931f, 0.0f} },
-        {0,                       0, {4.648f, 0.0f, 19.1829f},       {0.0f, -21.6578f, 0.0f}},
-        {0,                       0, {13.7675f, 0.0f, 33.1962f},     {0.0f, -110.58f, 0.0f} }
+        {"opdat/norn/t0006.mds",  nullptr, {0.0f, 0.0f, 0.0f},             {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/t0001.mds", nullptr, {-33.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {-23.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {-13.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {-3.25f, 0.03f, 13.0707f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {14.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {24.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {34.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {36.4833f, 0.03f, 17.4747f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {36.4833f, 0.03f, 27.4747f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {36.4833f, 0.03f, 37.4747f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {36.4833f, 0.03f, 47.4747f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {34.9598f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {25.8411f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {16.0658f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {6.657f, 0.03f, 52.2721f},      {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-6.7301f, 0.03f, 52.2721f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-15.4243f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-24.5027f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-33.5025f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-35.0227f, 0.03f, 47.4712f},   {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                 nullptr, {-35.0227f, 0.03f, 37.4712f},   {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                 nullptr, {-35.0227f, 0.03f, 27.4712f},   {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                 nullptr, {-35.0227f, 0.03f, 17.4712f},   {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/t0003.mds", nullptr, {-28.23f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {-18.23f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {-8.23f, 0.03f, 13.1174f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {19.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {29.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,                 nullptr, {36.4365f, 0.03f, 22.4967f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {36.4365f, 0.03f, 32.4967f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {36.4365f, 0.03f, 42.4967f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,                 nullptr, {31.6374f, 0.03f, 52.3176f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {21.6374f, 0.03f, 52.3176f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {11.6374f, 0.03f, 52.3176f},    {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-10.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-20.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-30.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,                 nullptr, {-34.9775f, 0.03f, 42.4508f},   {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                 nullptr, {-34.9775f, 0.03f, 32.4508f},   {0.0f, 90.0f, 0.0f}    },
+        {nullptr,                 nullptr, {-34.9775f, 0.03f, 22.4508f},   {0.0f, 90.0f, 0.0f}    },
+        {"opdat/norn2/t0212.mds", nullptr, {0.0f, 0.02f, 30.0f},           {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/t0208.mds", nullptr, {0.0f, 0.0f, 29.999f},          {0.0f, 0.0f, 0.0f}     },
+        {"opdat/norn2/t0201.mds", nullptr, {8.1246f, 0.0f, 21.2374f},      {0.0f, -190.452f, 0.0f}},
+        {nullptr,                 nullptr, {9.3114f, 0.0f, 21.4458f},      {0.0f, -243.621f, 0.0f}},
+        {nullptr,                 nullptr, {9.8278f, 0.0f, 22.3789f},      {0.0f, -237.204f, 0.0f}},
+        {nullptr,                 nullptr, {9.6149f, 1.2748f, 21.9196f},   {0.0f, -237.777f, 0.0f}},
+        {nullptr,                 nullptr, {-10.8524f, 0.0f, 38.0058f},    {0.0f, 279.8325f, 0.0f}},
+        {nullptr,                 nullptr, {-11.6807f, 0.0f, 36.7247f},    {0.0f, 281.7807f, 0.0f}},
+        {nullptr,                 nullptr, {-11.9794f, 0.0f, 37.8902f},    {0.0f, 287.5107f, 0.0f}},
+        {nullptr,                 nullptr, {-12.2587f, 0.0f, 39.046f},     {0.0f, 288.9999f, 0.0f}},
+        {nullptr,                 nullptr, {-10.9969f, 0.0f, 39.1231f},    {0.0f, 280.291f, 0.0f} },
+        {nullptr,                 nullptr, {24.4449f, 0.0f, 28.8081f},     {0.0f, -84.5684f, 0.0f}},
+        {nullptr,                 nullptr, {24.5097f, 1.2748f, 29.317f},   {0.0f, -84.5684f, 0.0f}},
+        {nullptr,                 nullptr, {24.7114f, 0.0f, 29.8031f},     {0.0f, -84.5684f, 0.0f}},
+        {nullptr,                 nullptr, {24.9802f, 1.2748f, 30.2274f},  {0.0f, -84.5684f, 0.0f}},
+        {nullptr,                 nullptr, {25.2412f, 0.0f, 30.6682f},     {0.0f, -84.5684f, 0.0f}},
+        {"opdat/norn2/t0202.mds", nullptr, {6.9352f, 0.0f, 22.8016f},      {0.0f, -66.4631f, 0.0f}},
+        {nullptr,                 nullptr, {-14.5591f, 0.0f, 35.5869f},    {0.0f, 112.4143f, 0.0f}},
+        {"opdat/norn2/t0203.mds", nullptr, {8.5959f, 0.0f, 23.4822f},      {0.0f, -49.7327f, 0.0f}},
+        {nullptr,                 nullptr, {-13.0716f, 0.0f, 36.4929f},    {0.0f, 129.2592f, 0.0f}},
+        {nullptr,                 nullptr, {-14.4103f, 0.0f, 37.4364f},    {0.0f, 112.5289f, 0.0f}},
+        {"opdat/norn2/t0204.mds", nullptr, {-9.0122f, 0.0f, 20.8749f},     {0.0f, -234.912f, 0.0f}},
+        {nullptr,                 nullptr, {-9.9647f, 0.0f, 21.4127f},     {0.0f, -227.234f, 0.0f}},
+        {nullptr,                 nullptr, {-10.7374f, 0.0f, 22.1576f},    {0.0f, -223.797f, 0.0f}},
+        {nullptr,                 nullptr, {-9.4268f, 0.9971f, 21.1822f},  {0.0f, -241.444f, 0.0f}},
+        {nullptr,                 nullptr, {-10.3487f, 0.9971f, 21.8464f}, {0.0f, -225.287f, 0.0f}},
+        {nullptr,                 nullptr, {-9.8716f, 1.9904f, 21.4498f},  {0.0f, -228.61f, 0.0f} },
+        {nullptr,                 nullptr, {12.8223f, 0.0f, 26.3336f},     {0.0f, -343.545f, 0.0f}},
+        {nullptr,                 nullptr, {11.8478f, 0.0f, 26.9861f},     {0.0f, -348.702f, 0.0f}},
+        {nullptr,                 nullptr, {11.9701f, 0.0f, 28.1885f},     {0.0f, -354.661f, 0.0f}},
+        {nullptr,                 nullptr, {13.085f, 0.0f, 27.3741f},      {0.0f, -346.983f, 0.0f}},
+        {nullptr,                 nullptr, {11.7334f, 0.9971f, 27.8052f},  {0.0f, -348.358f, 0.0f}},
+        {nullptr,                 nullptr, {12.58f, 0.9971f, 26.905f},     {0.0f, -337.013f, 0.0f}},
+        {nullptr,                 nullptr, {12.8088f, 0.0f, 38.6433f},     {0.0f, -382.965f, 0.0f}},
+        {nullptr,                 nullptr, {11.6416f, 0.0f, 38.5285f},     {0.0f, -388.121f, 0.0f}},
+        {nullptr,                 nullptr, {10.9726f, 0.0f, 39.535f},      {0.0f, -394.08f, 0.0f} },
+        {nullptr,                 nullptr, {12.3514f, 0.0f, 39.6143f},     {0.0f, -386.402f, 0.0f}},
+        {nullptr,                 nullptr, {11.0331f, 0.9971f, 39.0886f},  {0.0f, -387.777f, 0.0f}},
+        {nullptr,                 nullptr, {12.2587f, 0.9971f, 38.9308f},  {0.0f, -376.433f, 0.0f}},
+        {"opdat/norn2/t0205.mds", nullptr, {-9.8702f, 2.9808f, 21.5102f},  {0.0f, -140.374f, 0.0f}},
+        {nullptr,                 nullptr, {-11.6688f, 1.2789f, 36.7089f}, {0.0f, -61.7649f, 0.0f}},
+        {nullptr,                 nullptr, {12.4831f, 1.9258f, 26.9556f},  {0.0f, -84.3394f, 0.0f}},
+        {"opdat/norn2/t0206.mds", nullptr, {-4.3913f, 0.0f, 18.9443f},     {0.0f, 18.3347f, 0.0f} },
+        {nullptr,                 nullptr, {-13.2586f, 0.0f, 27.5378f},    {0.0f, 77.6931f, 0.0f} },
+        {nullptr,                 nullptr, {4.648f, 0.0f, 19.1829f},       {0.0f, -21.6578f, 0.0f}},
+        {nullptr,                 nullptr, {13.7675f, 0.0f, 33.1962f},     {0.0f, -110.58f, 0.0f} }
     };
 
     for (int j = 0; j < 87; j++) {
         if (ground[j].name) {
-            LoadFile(ground[j].name, (void *) read_buffer, 0);
-            ground_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, 0, 0);
+            LoadFile(ground[j].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            ground_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
         if (j > 0) {
@@ -1270,7 +1248,7 @@ static void MapLoad() {
             y = 400.0f;
             z = -30.0f;
             x = 420.0f;
-            sun->SetPosition(x, (float) y, (float) z);
+            sun->SetPosition(x, y, z);
         }
 
         CMapObject &object = OP_NornMapObj2[j];
@@ -1281,7 +1259,7 @@ static void MapLoad() {
         OP_NornMapObj2[j].category_no = 0;
 
         object.SetPosition(CVector3_f_(10.0f * ground[j].position[0], 10.0f * ground[j].position[1], 10.0f * ground[j].position[2]));
-        object.SetRotation(CVector3_f_((float) (PI_D * ground[j].rotation[0] / 180), (float) (PI_D * ground[j].rotation[1] / 180), (float) (PI_D * ground[j].rotation[2] / 180)));
+        object.SetRotation(CVector3_f_(static_cast<float>(PI_D * ground[j].rotation[0] / 180), static_cast<float>(PI_D * ground[j].rotation[1] / 180), static_cast<float>(PI_D * ground[j].rotation[2] / 180)));
     }
 }
 
@@ -1295,84 +1273,84 @@ static void MapLoad() {
  * @size 0x6A0
  * @unknownret
  */
-static void MapLoad2() {
+void MapLoad2() {
     MAPOBJ_INFO norn[] = {
-        {"b0301.mds",    0, {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
-        {"e01h01_1.mds", 0, {-35.0f, 0.0f, -20.0f},       {0.0f, 0.0f, 0.0f}     },
-        {"e01h05_2.mds", 0, {50.0f, 0.0f, 20.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"e01h11_2.mds", 0, {55.0f, 0.0f, -10.0f},        {0.0f, -90.0f, 0.0f}   },
-        {"e01h07_2.mds", 0, {5.0f, 0.0f, -20.0f},         {0.0f, 0.0f, 0.0f}     },
-        {"e01h02_2.mds", 0, {-60.0f, 0.0f, 30.0f},        {0.0f, 90.0f, 0.0f}    },
-        {"e01h06_2.mds", 0, {0.0f, 4.7424f, 79.274f},     {0.0f, 0.0f, 0.0f}     },
-        {"e01a02_1.mds", 0, {0.0f, 0.0f, 59.965f},        {0.0f, 0.0f, 0.0f}     },
-        {"t0304.mds",    0, {-5.0f, 0.0f, -45.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-25.0f, 0.0f, -45.0f},       {0.0f, 0.0f, 0.0f}     },
-        {"t0305.mds",    0, {45.0f, 0.0f, -50.0f},        {0.0f, 0.0f, 0.0f}     },
-        {"t0002.mds",    0, {-23.7809f, 0.0f, 19.8331f},  {0.0f, -4.4f, 0.0f}    },
-        {0,              0, {23.1908f, 0.0f, 38.0943f},   {0.0f, -170.971f, 0.0f}},
-        {"e01t01_0.mds", 0, {-45.0f, 0.1f, -5.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {65.0f, 0.1f, 45.0f},         {0.0f, 0.0f, 0.0f}     },
-        {"e01t01_1.mds", 0, {55.0f, 0.1f, -35.0f},        {0.0f, -90.0f, 0.0f}   },
-        {0,              0, {-45.0f, 0.1f, 55.0f},        {0.0f, -90.0f, 0.0f}   },
-        {0,              0, {-55.0f, 0.1f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"e01c01_0.mds", 0, {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"e01c02_0.mds", 0, {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {"e01c06_0.mds", 0, {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
-        {"e01c07_0.mds", 0, {-35.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {5.0f, 0.0f, 5.0f},           {0.0f, 90.0f, 0.0f}    },
-        {"e01c08_0.mds", 0, {25.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-45.0f, -0.01f, 5.0f},       {0.0f, -90.0f, 0.0f}   },
-        {0,              0, {-45.0f, -0.01f, 25.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-45.0f, -0.01f, 15.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-25.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-5.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-15.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {15.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {25.0f, -0.01f, -5.0f},       {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {25.0f, -0.01f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {25.0f, -0.01f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-45.0f, -0.01f, 35.0f},      {0.0f, 180.0f, 0.0f}   },
-        {0,              0, {-35.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {5.0f, -0.01f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {"e01w01_0.mds", 0, {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"e01w02_0.mds", 0, {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
-        {"e01w06_0.mds", 0, {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
-        {"e01r02_0.mds", 0, {-35.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {-25.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
-        {"e01r02_0.mds", 0, {-15.0f, 0.05f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-5.0f, 0.05f, -5.0f},        {0.0f, -90.0f, 0.0f}   },
-        {0,              0, {-15.0f, 0.05f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-25.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {"e01r03_0.mds", 0, {-15.0f, 0.05f, -35.0f},      {0.0f, 0.0f, 0.0f}     },
-        {0,              0, {-15.0f, 0.05f, -5.0f},       {0.0f, 180.0f, 0.0f}   },
-        {"e01r06_0.mds", 0, {-35.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
-        {0,              0, {5.0f, 0.05f, -5.0f},         {0.0f, -90.0f, 0.0f}   },
-        {"t0302.mds",    0, {2.9721f, 0.06f, -0.6331f},   {0.0f, 36.2109f, 0.0f} },
-        {0,              0, {7.2685f, 0.06f, 11.4402f},   {0.0f, -116.883f, 0.0f}},
-        {0,              0, {2.9715f, 0.06f, 12.3798f},   {0.0f, 135.9057f, 0.0f}},
-        {0,              0, {7.6022f, 0.06f, -3.0402f},   {0.0f, 75.5158f, 0.0f} },
-        {0,              0, {-35.9097f, 0.06f, 12.6724f}, {0.0f, 145.6459f, 0.0f}},
-        {"t0213.mds",    0, {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
-        {"t0306.mds",    0, {45.0f, 0.0f, 50.0f},         {0.0f, 90.0f, 0.0f}    },
-        {"t0307.mds",    0, {45.0f, 0.0f, 50.0f},         {0.0f, 180.0f, 0.0f}   }
+        {"b0301.mds",    nullptr, {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
+        {"e01h01_1.mds", nullptr, {-35.0f, 0.0f, -20.0f},       {0.0f, 0.0f, 0.0f}     },
+        {"e01h05_2.mds", nullptr, {50.0f, 0.0f, 20.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"e01h11_2.mds", nullptr, {55.0f, 0.0f, -10.0f},        {0.0f, -90.0f, 0.0f}   },
+        {"e01h07_2.mds", nullptr, {5.0f, 0.0f, -20.0f},         {0.0f, 0.0f, 0.0f}     },
+        {"e01h02_2.mds", nullptr, {-60.0f, 0.0f, 30.0f},        {0.0f, 90.0f, 0.0f}    },
+        {"e01h06_2.mds", nullptr, {0.0f, 4.7424f, 79.274f},     {0.0f, 0.0f, 0.0f}     },
+        {"e01a02_1.mds", nullptr, {0.0f, 0.0f, 59.965f},        {0.0f, 0.0f, 0.0f}     },
+        {"t0304.mds",    nullptr, {-5.0f, 0.0f, -45.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-25.0f, 0.0f, -45.0f},       {0.0f, 0.0f, 0.0f}     },
+        {"t0305.mds",    nullptr, {45.0f, 0.0f, -50.0f},        {0.0f, 0.0f, 0.0f}     },
+        {"t0002.mds",    nullptr, {-23.7809f, 0.0f, 19.8331f},  {0.0f, -4.4f, 0.0f}    },
+        {nullptr,        nullptr, {23.1908f, 0.0f, 38.0943f},   {0.0f, -170.971f, 0.0f}},
+        {"e01t01_0.mds", nullptr, {-45.0f, 0.1f, -5.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {65.0f, 0.1f, 45.0f},         {0.0f, 0.0f, 0.0f}     },
+        {"e01t01_1.mds", nullptr, {55.0f, 0.1f, -35.0f},        {0.0f, -90.0f, 0.0f}   },
+        {nullptr,        nullptr, {-45.0f, 0.1f, 55.0f},        {0.0f, -90.0f, 0.0f}   },
+        {nullptr,        nullptr, {-55.0f, 0.1f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"e01c01_0.mds", nullptr, {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"e01c02_0.mds", nullptr, {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {"e01c06_0.mds", nullptr, {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
+        {"e01c07_0.mds", nullptr, {-35.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {5.0f, 0.0f, 5.0f},           {0.0f, 90.0f, 0.0f}    },
+        {"e01c08_0.mds", nullptr, {25.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-45.0f, -0.01f, 5.0f},       {0.0f, -90.0f, 0.0f}   },
+        {nullptr,        nullptr, {-45.0f, -0.01f, 25.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-45.0f, -0.01f, 15.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-25.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-5.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-15.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {15.0f, -0.01f, 5.0f},        {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {25.0f, -0.01f, -5.0f},       {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {25.0f, -0.01f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {25.0f, -0.01f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-45.0f, -0.01f, 35.0f},      {0.0f, 180.0f, 0.0f}   },
+        {nullptr,        nullptr, {-35.0f, -0.01f, 5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {5.0f, -0.01f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {"e01w01_0.mds", nullptr, {25.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-45.0f, 0.0f, 5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"e01w02_0.mds", nullptr, {-45.0f, 0.0f, 25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-45.0f, 0.0f, 15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-25.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-5.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-15.0f, 0.0f, 5.0f},         {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {15.0f, 0.0f, 5.0f},          {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {25.0f, 0.0f, -5.0f},         {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {25.0f, 0.0f, -15.0f},        {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {25.0f, 0.0f, -25.0f},        {0.0f, 0.0f, 0.0f}     },
+        {"e01w06_0.mds", nullptr, {-45.0f, 0.0f, 35.0f},        {0.0f, 180.0f, 0.0f}   },
+        {"e01r02_0.mds", nullptr, {-35.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {-25.0f, 0.05f, -35.0f},      {0.0f, 90.0f, 0.0f}    },
+        {"e01r02_0.mds", nullptr, {-15.0f, 0.05f, -25.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-5.0f, 0.05f, -5.0f},        {0.0f, -90.0f, 0.0f}   },
+        {nullptr,        nullptr, {-15.0f, 0.05f, -15.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-25.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {"e01r03_0.mds", nullptr, {-15.0f, 0.05f, -35.0f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,        nullptr, {-15.0f, 0.05f, -5.0f},       {0.0f, 180.0f, 0.0f}   },
+        {"e01r06_0.mds", nullptr, {-35.0f, 0.05f, -5.0f},       {0.0f, 90.0f, 0.0f}    },
+        {nullptr,        nullptr, {5.0f, 0.05f, -5.0f},         {0.0f, -90.0f, 0.0f}   },
+        {"t0302.mds",    nullptr, {2.9721f, 0.06f, -0.6331f},   {0.0f, 36.2109f, 0.0f} },
+        {nullptr,        nullptr, {7.2685f, 0.06f, 11.4402f},   {0.0f, -116.883f, 0.0f}},
+        {nullptr,        nullptr, {2.9715f, 0.06f, 12.3798f},   {0.0f, 135.9057f, 0.0f}},
+        {nullptr,        nullptr, {7.6022f, 0.06f, -3.0402f},   {0.0f, 75.5158f, 0.0f} },
+        {nullptr,        nullptr, {-35.9097f, 0.06f, 12.6724f}, {0.0f, 145.6459f, 0.0f}},
+        {"t0213.mds",    nullptr, {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
+        {"t0306.mds",    nullptr, {45.0f, 0.0f, 50.0f},         {0.0f, 90.0f, 0.0f}    },
+        {"t0307.mds",    nullptr, {45.0f, 0.0f, 50.0f},         {0.0f, 180.0f, 0.0f}   }
     };
     CFrameAttr attr;
     CFrameVu1 *frame;
@@ -1384,7 +1362,7 @@ static void MapLoad2() {
 
     for (i = 0; i < 76; i++) {
         if (norn[i].name) {
-            frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, norn[i].name, 0), &CharaDataBuffer__2[0], 2, 0, 0);
+            frame = LoadMDSFile(GetPackFile(read_buffer, norn[i].name, nullptr), &CharaDataBuffer__2[0], 2, nullptr, nullptr);
         }
 
         if (i == 4) {
@@ -1410,86 +1388,86 @@ static void MapLoad2() {
         OP_NornMapObj[i].category_no = 0;
 
         object.SetPosition(CVector3_f_(10.0f * norn[i].position[0], 10.0f * norn[i].position[1], 10.0f * norn[i].position[2]));
-        object.SetRotation(CVector3_f_((float) (PI_D * norn[i].rotation[0] / 180), (float) (PI_D * norn[i].rotation[1] / 180), (float) (PI_D * norn[i].rotation[2] / 180)));
+        object.SetRotation(CVector3_f_(static_cast<float>(PI_D * norn[i].rotation[0] / 180), static_cast<float>(PI_D * norn[i].rotation[1] / 180), static_cast<float>(PI_D * norn[i].rotation[2] / 180)));
 
         object.FrameObjectOnOff("win1", 0);
         object.FrameObjectOnOff("light1", 0);
 
         if (norn[i].shadow_name) {
-            LoadFile(norn[i].shadow_name, (void *) read_buffer, 0);
-            object.shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, 0, 0);
+            LoadFile(norn[i].shadow_name, reinterpret_cast<void *>(read_buffer), nullptr);
+            object.shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, nullptr, nullptr);
             object.shadow_offset = -20.0f;
         }
     }
 
     MAPOBJ_INFO ground[] = {
-        {"t0006.mds", 0, {0.0f, 0.0f, 0.0f},             {0.0f, 0.0f, 0.0f}     },
-        {"t0001.mds", 0, {-33.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {-23.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {-3.25f, 0.03f, 13.0707f},      {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {14.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {24.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {34.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {36.4833f, 0.03f, 17.4747f},    {0.0f, -90.0f, 0.0f}   },
-        {0,           0, {6.657f, 0.03f, 52.2721f},      {0.0f, -180.0f, 0.0f}  },
-        {0,           0, {-24.5027f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
-        {0,           0, {-33.5025f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
-        {0,           0, {-35.0227f, 0.03f, 37.4712f},   {0.0f, 90.0f, 0.0f}    },
-        {0,           0, {-35.0227f, 0.03f, 27.4712f},   {0.0f, 90.0f, 0.0f}    },
-        {"t0301.mds", 0, {-35.6934f, 0.0f, 20.4342f},    {0.0f, 130.0f, 0.0f}   },
-        {0,           0, {-32.5089f, 0.0f, 46.7067f},    {0.0f, -74.3699f, 0.0f}},
-        {0,           0, {-10.4729f, 0.0f, 13.2973f},    {0.0f, 79.7557f, 0.0f} },
-        {0,           0, {15.1651f, 0.0f, 54.5186f},     {0.0f, 207.0f, 0.0f}   },
-        {0,           0, {35.441f, 0.0f, 28.889f},       {0.0f, 156.3029f, 0.0f}},
-        {0,           0, {-6.7649f, 0.0f, 49.889f},      {0.0f, 17.6471f, 0.0f} },
-        {0,           0, {-17.6795f, 0.0f, 54.369f},     {0.0f, 105.768f, 0.0f} },
-        {0,           0, {34.153f, 0.0f, 39.193f},       {0.0f, 42.628f, 0.0f}  },
-        {0,           0, {28.736f, 0.0f, 55.7777f},      {0.0f, 121.467f, 0.0f} },
-        {"t0003.mds", 0, {-28.23f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {19.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {29.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
-        {0,           0, {-30.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
-        {"t0212.mds", 0, {0.0f, 0.02f, 30.0f},           {0.0f, 0.0f, 0.0f}     },
-        {"t0208.mds", 0, {0.0f, 0.0f, 29.999f},          {0.0f, 0.0f, 0.0f}     },
-        {"t0201.mds", 0, {9.8278f, 0.0f, 22.3789f},      {0.0f, -237.204f, 0.0f}},
-        {0,           0, {-11.6807f, 0.0f, 36.7247f},    {0.0f, 281.7807f, 0.0f}},
-        {"t0303.mds", 0, {5.6932f, 0.0f, 21.7183f},      {0.0f, -40.0f, 0.0f}   },
-        {0,           0, {8.0326f, 0.0f, 25.0416f},      {0.0f, 57.0f, 0.0f}    },
-        {0,           0, {8.1469f, 0.0f, 18.4168f},      {0.0f, 77.0f, 0.0f}    },
-        {0,           0, {-11.9749f, 0.0f, 34.2407f},    {0.0f, 157.0f, 0.0f}   },
-        {0,           0, {-10.5469f, 0.0f, 36.1527f},    {0.0f, 217.0f, 0.0f}   },
-        {0,           0, {-18.8727f, 0.0f, 32.604f},     {0.0f, 40.0f, 0.0f}    },
-        {0,           0, {12.1088f, 0.0f, 43.2429f},     {0.0f, -55.0f, 0.0f}   },
-        {0,           0, {-25.5735f, 0.0f, 30.4597f},    {0.0f, -52.0f, 0.0f}   },
-        {0,           0, {-27.1088f, 0.0f, 29.2536f},    {0.0f, 22.0f, 0.0f}    },
-        {0,           0, {-28.1088f, 0.0f, 33.4081f},    {0.0f, 78.0f, 0.0f}    },
-        {"t0202.mds", 0, {6.9352f, 0.0f, 22.8016f},      {0.0f, -66.4631f, 0.0f}},
-        {0,           0, {-14.5591f, 0.0f, 35.5869f},    {0.0f, 112.4143f, 0.0f}},
-        {"t0203.mds", 0, {8.5959f, 0.0f, 23.4822f},      {0.0f, -49.7327f, 0.0f}},
-        {0,           0, {-13.0716f, 0.0f, 36.4929f},    {0.0f, 129.2592f, 0.0f}},
-        {0,           0, {-14.4103f, 0.0f, 37.4364f},    {0.0f, 112.5289f, 0.0f}},
-        {"t0204.mds", 0, {19.0043f, 0.0f, 20.5515f},     {0.0f, 18.2201f, 0.0f} },
-        {0,           0, {23.1962f, 0.0f, 27.52f},       {0.0f, 71.7343f, 0.0f} },
-        {0,           0, {19.0335f, 0.0f, 22.3668f},     {0.0f, 39.5341f, 0.0f} },
-        {0,           0, {15.9599f, 0.0f, 27.5015f},     {0.0f, -11.6883f, 0.0f}},
-        {0,           0, {-11.7777f, 0.0f, 28.0256f},    {0.0f, -16.9596f, 0.0f}},
-        {0,           0, {-8.2194f, 0.0f, 22.6732f},     {0.0f, -23.3767f, 0.0f}},
-        {0,           0, {-8.9274f, 0.0f, 17.7011f},     {0.0f, 28.9917f, 0.0f} },
-        {0,           0, {-15.2388f, 0.0f, 22.5856f},    {0.0f, -15.5854f, 0.0f}},
-        {0,           0, {-12.4433f, 0.0f, 23.0674f},    {0.0f, 15.2407f, 0.0f} },
-        {0,           0, {-11.3862f, 0.0f, 21.697f},     {0.0f, -10.657f, 0.0f} },
-        {0,           0, {11.704f, 0.0f, 38.1355f},      {0.0f, -45.7425f, 0.0f}},
-        {0,           0, {14.5128f, 0.0f, 38.3406f},     {0.0f, -16.272f, 0.0f} },
-        {0,           0, {10.6253f, 0.0f, 40.4613f},     {0.0f, 25.3247f, 0.0f} },
-        {0,           0, {-21.0844f, 0.0f, 38.2517f},    {0.0f, 50.0f, 0.0f}    },
-        {"t0205.mds", 0, {-11.6688f, 1.2789f, 36.7089f}, {0.0f, -61.7649f, 0.0f}},
-        {"t0206.mds", 0, {-4.3913f, 0.0f, 18.9443f},     {0.0f, 18.3347f, 0.0f} },
-        {0,           0, {13.2586f, 0.0f, 33.1962f},     {0.0f, 110.58f, 0.0f}  }
+        {"t0006.mds", nullptr, {0.0f, 0.0f, 0.0f},             {0.0f, 0.0f, 0.0f}     },
+        {"t0001.mds", nullptr, {-33.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {-23.25f, 0.03f, 13.0707f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {-3.25f, 0.03f, 13.0707f},      {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {14.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {24.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {34.9146f, 0.03f, 13.0707f},    {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {36.4833f, 0.03f, 17.4747f},    {0.0f, -90.0f, 0.0f}   },
+        {nullptr,     nullptr, {6.657f, 0.03f, 52.2721f},      {0.0f, -180.0f, 0.0f}  },
+        {nullptr,     nullptr, {-24.5027f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,     nullptr, {-33.5025f, 0.03f, 52.2721f},   {0.0f, -180.0f, 0.0f}  },
+        {nullptr,     nullptr, {-35.0227f, 0.03f, 37.4712f},   {0.0f, 90.0f, 0.0f}    },
+        {nullptr,     nullptr, {-35.0227f, 0.03f, 27.4712f},   {0.0f, 90.0f, 0.0f}    },
+        {"t0301.mds", nullptr, {-35.6934f, 0.0f, 20.4342f},    {0.0f, 130.0f, 0.0f}   },
+        {nullptr,     nullptr, {-32.5089f, 0.0f, 46.7067f},    {0.0f, -74.3699f, 0.0f}},
+        {nullptr,     nullptr, {-10.4729f, 0.0f, 13.2973f},    {0.0f, 79.7557f, 0.0f} },
+        {nullptr,     nullptr, {15.1651f, 0.0f, 54.5186f},     {0.0f, 207.0f, 0.0f}   },
+        {nullptr,     nullptr, {35.441f, 0.0f, 28.889f},       {0.0f, 156.3029f, 0.0f}},
+        {nullptr,     nullptr, {-6.7649f, 0.0f, 49.889f},      {0.0f, 17.6471f, 0.0f} },
+        {nullptr,     nullptr, {-17.6795f, 0.0f, 54.369f},     {0.0f, 105.768f, 0.0f} },
+        {nullptr,     nullptr, {34.153f, 0.0f, 39.193f},       {0.0f, 42.628f, 0.0f}  },
+        {nullptr,     nullptr, {28.736f, 0.0f, 55.7777f},      {0.0f, 121.467f, 0.0f} },
+        {"t0003.mds", nullptr, {-28.23f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {19.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {29.937f, 0.03f, 13.1174f},     {0.0f, 0.0f, 0.0f}     },
+        {nullptr,     nullptr, {-30.1013f, 0.03f, 52.3176f},   {0.0f, -180.0f, 0.0f}  },
+        {"t0212.mds", nullptr, {0.0f, 0.02f, 30.0f},           {0.0f, 0.0f, 0.0f}     },
+        {"t0208.mds", nullptr, {0.0f, 0.0f, 29.999f},          {0.0f, 0.0f, 0.0f}     },
+        {"t0201.mds", nullptr, {9.8278f, 0.0f, 22.3789f},      {0.0f, -237.204f, 0.0f}},
+        {nullptr,     nullptr, {-11.6807f, 0.0f, 36.7247f},    {0.0f, 281.7807f, 0.0f}},
+        {"t0303.mds", nullptr, {5.6932f, 0.0f, 21.7183f},      {0.0f, -40.0f, 0.0f}   },
+        {nullptr,     nullptr, {8.0326f, 0.0f, 25.0416f},      {0.0f, 57.0f, 0.0f}    },
+        {nullptr,     nullptr, {8.1469f, 0.0f, 18.4168f},      {0.0f, 77.0f, 0.0f}    },
+        {nullptr,     nullptr, {-11.9749f, 0.0f, 34.2407f},    {0.0f, 157.0f, 0.0f}   },
+        {nullptr,     nullptr, {-10.5469f, 0.0f, 36.1527f},    {0.0f, 217.0f, 0.0f}   },
+        {nullptr,     nullptr, {-18.8727f, 0.0f, 32.604f},     {0.0f, 40.0f, 0.0f}    },
+        {nullptr,     nullptr, {12.1088f, 0.0f, 43.2429f},     {0.0f, -55.0f, 0.0f}   },
+        {nullptr,     nullptr, {-25.5735f, 0.0f, 30.4597f},    {0.0f, -52.0f, 0.0f}   },
+        {nullptr,     nullptr, {-27.1088f, 0.0f, 29.2536f},    {0.0f, 22.0f, 0.0f}    },
+        {nullptr,     nullptr, {-28.1088f, 0.0f, 33.4081f},    {0.0f, 78.0f, 0.0f}    },
+        {"t0202.mds", nullptr, {6.9352f, 0.0f, 22.8016f},      {0.0f, -66.4631f, 0.0f}},
+        {nullptr,     nullptr, {-14.5591f, 0.0f, 35.5869f},    {0.0f, 112.4143f, 0.0f}},
+        {"t0203.mds", nullptr, {8.5959f, 0.0f, 23.4822f},      {0.0f, -49.7327f, 0.0f}},
+        {nullptr,     nullptr, {-13.0716f, 0.0f, 36.4929f},    {0.0f, 129.2592f, 0.0f}},
+        {nullptr,     nullptr, {-14.4103f, 0.0f, 37.4364f},    {0.0f, 112.5289f, 0.0f}},
+        {"t0204.mds", nullptr, {19.0043f, 0.0f, 20.5515f},     {0.0f, 18.2201f, 0.0f} },
+        {nullptr,     nullptr, {23.1962f, 0.0f, 27.52f},       {0.0f, 71.7343f, 0.0f} },
+        {nullptr,     nullptr, {19.0335f, 0.0f, 22.3668f},     {0.0f, 39.5341f, 0.0f} },
+        {nullptr,     nullptr, {15.9599f, 0.0f, 27.5015f},     {0.0f, -11.6883f, 0.0f}},
+        {nullptr,     nullptr, {-11.7777f, 0.0f, 28.0256f},    {0.0f, -16.9596f, 0.0f}},
+        {nullptr,     nullptr, {-8.2194f, 0.0f, 22.6732f},     {0.0f, -23.3767f, 0.0f}},
+        {nullptr,     nullptr, {-8.9274f, 0.0f, 17.7011f},     {0.0f, 28.9917f, 0.0f} },
+        {nullptr,     nullptr, {-15.2388f, 0.0f, 22.5856f},    {0.0f, -15.5854f, 0.0f}},
+        {nullptr,     nullptr, {-12.4433f, 0.0f, 23.0674f},    {0.0f, 15.2407f, 0.0f} },
+        {nullptr,     nullptr, {-11.3862f, 0.0f, 21.697f},     {0.0f, -10.657f, 0.0f} },
+        {nullptr,     nullptr, {11.704f, 0.0f, 38.1355f},      {0.0f, -45.7425f, 0.0f}},
+        {nullptr,     nullptr, {14.5128f, 0.0f, 38.3406f},     {0.0f, -16.272f, 0.0f} },
+        {nullptr,     nullptr, {10.6253f, 0.0f, 40.4613f},     {0.0f, 25.3247f, 0.0f} },
+        {nullptr,     nullptr, {-21.0844f, 0.0f, 38.2517f},    {0.0f, 50.0f, 0.0f}    },
+        {"t0205.mds", nullptr, {-11.6688f, 1.2789f, 36.7089f}, {0.0f, -61.7649f, 0.0f}},
+        {"t0206.mds", nullptr, {-4.3913f, 0.0f, 18.9443f},     {0.0f, 18.3347f, 0.0f} },
+        {nullptr,     nullptr, {13.2586f, 0.0f, 33.1962f},     {0.0f, 110.58f, 0.0f}  }
     };
 
     for (int j = 0; j < 62; j++) {
         if (ground[j].name) {
-            ground_frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, ground[j].name, 0), &CharaDataBuffer__2[6], 2, 0, 0);
+            ground_frame = LoadMDSFile(GetPackFile(read_buffer, ground[j].name, nullptr), &CharaDataBuffer__2[6], 2, nullptr, nullptr);
         }
 
         if (j > 0) {
@@ -1509,7 +1487,7 @@ static void MapLoad2() {
         OP_NornMapObj2[j].category_no = 0;
 
         object.SetPosition(CVector3_f_(10.0f * ground[j].position[0], 10.0f * ground[j].position[1], 10.0f * ground[j].position[2]));
-        object.SetRotation(CVector3_f_((float) (PI_D * ground[j].rotation[0] / 180), (float) (PI_D * ground[j].rotation[1] / 180), (float) (PI_D * ground[j].rotation[2] / 180)));
+        object.SetRotation(CVector3_f_(static_cast<float>(PI_D * ground[j].rotation[0] / 180), static_cast<float>(PI_D * ground[j].rotation[1] / 180), static_cast<float>(PI_D * ground[j].rotation[2] / 180)));
 
         if (j == 0) {
             object.FrameObjectOnOff("sun3", 0);
@@ -1517,11 +1495,13 @@ static void MapLoad2() {
     }
 }
 
+} // namespace
+
 /* The tick's motion. Every one of the twenty-three actors the script is displaying takes whatever
    it last asked for — a motion whose frame has run past its last key falls through to the motion
    queued behind it — and is then placed from a frame of the camera's own model found by name, which
-   is how an actor walks with a camera move animated in the same file. The name table is two entries
-   shorter than the loop that reads it, which is the original's own reach past its end.
+   is how an actor walks with a camera move animated in the same file. The last two actors have no
+   camera frame name and keep their script-assigned positions.
 
    The last camera of the scene is the one the fire and the windmill are timed against: while it
    runs, the motion step drops to a twentieth and the camera shakes by a random amount whose spread
@@ -1530,7 +1510,7 @@ PORT_OVERRIDE void OpC_MotionProcess() {
     for (int i = 0; i < 23; i++) {
         if (CScript__2.obj[i].disp) {
             if (CScript__2.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > (float) (Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
                     CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
                     CScript__2.obj[i].motion_end = -1;
                 }
@@ -1543,13 +1523,13 @@ PORT_OVERRIDE void OpC_MotionProcess() {
         }
     }
 
-    char         *frame_names[21] = {"", "c08a", "", "", "c08a", "point", "", "", "", "p09a", "", "c01d", "p03a",
-                                     "p08a", "p05b", "p01a", "p12a", "p07a", "p02a", "p15a", "p16a"};
+    const char   *frame_names[23] = {"", "c08a", "", "", "c08a", "point", "", "", "", "p09a", "", "c01d", "p03a",
+                                     "p08a", "p05b", "p01a", "p12a", "p07a", "p02a", "p15a", "p16a", "", ""};
     sceVu0FMATRIX matrix;
 
     for (int i = 0; i < 23; i++) {
         if (CScript__2.obj[i].disp) {
-            CFrame *frame = Cam__2[SceneNp__2].frame->SearchFrame(frame_names[i]);
+            CFrame *frame = Cam__2[SceneNp__2].frame->SearchFrame(const_cast<char *>(frame_names[i]));
 
             if (frame) {
                 frame->GetLWMatrix(matrix);
@@ -1586,7 +1566,7 @@ PORT_OVERRIDE void OpC_MotionProcess() {
     dir[3] = 0.0f;
     Wind.SetDir(dir);
     Wind.SetVelocity(0.2f);
-    Chara__3[11].wind = (int) (intptr_t) &Wind;
+    Chara__3[11].wind = static_cast<int>(reinterpret_cast<intptr_t>(&Wind));
     Wind.Step();
 
     static int camera = 0;
@@ -1677,7 +1657,7 @@ PORT_OVERRIDE void OpC_MotionProcess() {
                         d += 0.5f;
                     }
 
-                    ref[1] += (float) (rand() % 10) / d;
+                    ref[1] += static_cast<float>(rand() % 10) / d;
                     OP_MainCamera.SetRef(ref);
                 }
 
@@ -1707,10 +1687,11 @@ PORT_OVERRIDE void OpC_MotionProcess() {
  * @size 0x10C
  * @unknownret
  */
-static void LoadCharaMajin() {
+namespace {
+void LoadCharaMajin() {
     switch (CScript__2.obj[4].load_step) {
         case TSLOAD_START:
-            LoadFileBG("opdat/norn2/majinb.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("opdat/norn2/majinb.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             CScript__2.obj[4].load_step = TSLOAD_WAIT;
             break;
 
@@ -1723,7 +1704,7 @@ static void LoadCharaMajin() {
 
         case TSLOAD_UNPACK:
             Chara__3[4].Initialize();
-            Chara__3[4].LoadPackData(read_buffer, "04c08b.cfg", &CharaDataBuffer__2[6], 0);
+            Chara__3[4].LoadPackData(read_buffer, "04c08b.cfg", &CharaDataBuffer__2[6], nullptr);
             Chara__3[4].motion_type.state.time = 5.0f;
             Chara__3[4].motion_type.state.blend_step = 1.0f;
             Chara__3[4].motion_type.state.motion_no = 0;
@@ -1734,6 +1715,8 @@ static void LoadCharaMajin() {
     }
 }
 
+} // namespace
+
 /* The tick's sound. Most of the scene is a table played against one counter — a row states which
    sample goes on which tick of the count, which is what keeps a long cut in step without the script
    naming every effect — and the four footfalls beside it are windows on an actor's own motion frame
@@ -1742,7 +1725,7 @@ static void LoadCharaMajin() {
    its motion has gone, because the ground under him changes part way through the scene. */
 PORT_OVERRIDE void OpC_SoundProcess() {
     [[maybe_unused]] static float vol = 40.0f;
-    static int   cnt = 0;
+    static int                    cnt = 0;
 
     if (!DanceBgmStart) {
         vol = 40.0f;
@@ -1777,7 +1760,7 @@ PORT_OVERRIDE void OpC_SoundProcess() {
 
         float river2_near;
         float river2_far;
-        river2_far = (float) (CScript__2.camera_start - CScript__2.camera_start + 500);
+        river2_far = static_cast<float>(CScript__2.camera_start - CScript__2.camera_start + 500);
         river2_near = 50.0f;
         OpSetVolPanSE(river2, river2_near, river2_far, 15, 16, 22);
 
@@ -1785,7 +1768,7 @@ PORT_OVERRIDE void OpC_SoundProcess() {
 
         float river3_near;
         float river3_far;
-        river3_far = (float) (cnt - cnt + 300);
+        river3_far = static_cast<float>(cnt - cnt + 300);
         river3_near = 100.0f;
         OpSetVolPanSE(river3, river3_near, river3_far, 15, 16, 24);
     }
@@ -1866,7 +1849,7 @@ PORT_OVERRIDE void OpC_SoundProcess() {
         float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[11].pos);
-        motion_frame = (int) Chara__3[11].motion_type.state.time;
+        motion_frame = static_cast<int>(Chara__3[11].motion_type.state.time);
 
         if (wait == 0) {
             if (motion_frame > 73.0f && motion_frame < 75.0f) {
@@ -1881,7 +1864,7 @@ PORT_OVERRIDE void OpC_SoundProcess() {
                 if (footstep_ground == 40) {
                     OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
                 } else {
-                    OpPlayVolPanSE(position, 10.0f, (float) (footstep_ground - footstep_ground + 400), MIDI_PORT_SE_DEFAULT, 21, 33);
+                    OpPlayVolPanSE(position, 10.0f, static_cast<float>(footstep_ground - footstep_ground + 400), MIDI_PORT_SE_DEFAULT, 21, 33);
                 }
 
                 wait = 4;
@@ -1897,7 +1880,7 @@ PORT_OVERRIDE void OpC_SoundProcess() {
         float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[11].pos);
-        motion_frame = (int) Chara__3[11].motion_type.state.time;
+        motion_frame = static_cast<int>(Chara__3[11].motion_type.state.time);
 
         if (wait == 0) {
             if (motion_frame > 258.0f && motion_frame < 260.0f) {
@@ -1918,14 +1901,14 @@ PORT_OVERRIDE void OpC_SoundProcess() {
         float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[13].pos);
-        motion_frame = (int) Chara__3[13].motion_type.state.time;
+        motion_frame = static_cast<int>(Chara__3[13].motion_type.state.time);
 
         if (wait == 0) {
             if (motion_frame > 123.0f && motion_frame < 125.0f) {
-                OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
+                OpPlayVolPanSE(position, 10.0f, static_cast<float>(wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
             } else if (motion_frame > 133.0f && motion_frame < 135.0f) {
-                OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 21);
+                OpPlayVolPanSE(position, 10.0f, static_cast<float>(wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 21);
                 wait = 4;
             }
         } else {
@@ -1939,11 +1922,11 @@ PORT_OVERRIDE void OpC_SoundProcess() {
         float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[12].pos);
-        motion_frame = (int) Chara__3[12].motion_type.state.time;
+        motion_frame = static_cast<int>(Chara__3[12].motion_type.state.time);
 
         if (wait == 0) {
             if (motion_frame > 33.0f && motion_frame < 35.0f) {
-                OpPlayVolPanSE(position, 10.0f, (float) (wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
+                OpPlayVolPanSE(position, 10.0f, static_cast<float>(wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
             } else if (motion_frame > 43.0f && motion_frame < 45.0f) {
                 OpPlayVolPanSE(position, 10.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
@@ -2006,11 +1989,11 @@ PORT_OVERRIDE void OpC_DrawProcess() {
             TexManager.ReloadTexture(Vif1Packet, 10);
 
             for (int i = 0; i < 3; i++) {
-                ((CMapObject &) OP_NornMapObj3[i]).Draw();
+                (const_cast<CMapObject &>(OP_NornMapObj3[i])).Draw();
             }
 
             if (CScript__2.camera_start < 72) {
-                ((CMapObject &) OP_NornMapObj3[3]).Draw();
+                (const_cast<CMapObject &>(OP_NornMapObj3[3])).Draw();
             }
 
             break;
@@ -2156,18 +2139,18 @@ PORT_OVERRIDE void OpC_DrawProcess() {
 
         int brightened = 0;
 
-        if (color[0][0] < (float) bright) {
-            color[0][0] = (float) bright;
+        if (color[0][0] < static_cast<float>(bright)) {
+            color[0][0] = static_cast<float>(bright);
             brightened = 1;
         }
 
-        if (color[0][1] < (float) bright) {
-            color[0][1] = (float) bright;
+        if (color[0][1] < static_cast<float>(bright)) {
+            color[0][1] = static_cast<float>(bright);
             brightened = 1;
         }
 
-        if (color[0][2] < (float) bright) {
-            color[0][2] = (float) bright;
+        if (color[0][2] < static_cast<float>(bright)) {
+            color[0][2] = static_cast<float>(bright);
             brightened = 1;
         }
 
@@ -2219,14 +2202,14 @@ PORT_OVERRIDE void OpC_DrawProcess() {
 
         CTexture texture;
 
-        texture.tex0 = *(u_long *) &back;
+        texture.tex0 = *reinterpret_cast<u_long *>(&back);
         set2DSprite(Vif1Packet, &texture, CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, SCREEN_HALF_HEIGHT), 128, 128, 128, 105);
     }
 
     for (int i = 0; i < 23; i++) {
         if (KageCheck(i) && CScript__2.obj[i].disp) {
             TexManager.ReloadTexture(Vif1Packet, 23);
-            MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+            MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
 
             if (!Pause) {
                 Chara__3[i].ShadowStep();
@@ -2277,7 +2260,7 @@ PORT_OVERRIDE void OpC_DrawProcess() {
 
     if (CScript__2.scene != OP_SCENE_MAJIN && CScript__2.camera_start < 60) {
         TexManager.ReloadTexture(Vif1Packet, 23);
-        MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+        MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
 
         if (CScript__2.scene != OP_SCENE_NORUNE_BURNING) {
             for (int i = 0; i < 75; i++) {
@@ -2330,7 +2313,7 @@ PORT_OVERRIDE void OpC_DrawProcess() {
                 int fire_flag = OP_FireFlg[i];
 
                 if (fire_flag == 1) {
-                    CFire.DrawFire(1, 1, &OP_MainCamera, eye, OP_FireScale[i], 3, (float) (15.0 * OP_FireScale[i]));
+                    CFire.DrawFire(1, 1, &OP_MainCamera, eye, OP_FireScale[i], 3, static_cast<float>(15.0 * OP_FireScale[i]));
                 } else {
                     CFire.DrawFire(1, 1, &OP_MainCamera, eye, OP_FireScale[i], 2, 15.0f);
                 }
@@ -2434,7 +2417,8 @@ PORT_OVERRIDE void OpC_DrawProcess() {
  * @size 0x4D8
  * @unknownret
  */
-static void DrawDancer() {
+namespace {
+void DrawDancer() {
     sceVu0FMATRIX  matrix;
     register float zero = 0.0f;
 
@@ -2446,7 +2430,7 @@ static void DrawDancer() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            CharaF[0]->SetRotation((float) zero, atan2f(matrix[2][0], matrix[2][2]), zero);
+            CharaF[0]->SetRotation(zero, atan2f(matrix[2][0], matrix[2][2]), zero);
             float x = matrix[3][0];
             float y = matrix[3][1];
             float z = matrix[3][2];
@@ -2458,14 +2442,14 @@ static void DrawDancer() {
 
             if (frame) {
                 frame->GetLWMatrix(matrix);
-                DrawShadow(10, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+                DrawShadow(10, matrix[3][0], matrix[3][1], matrix[3][2]);
             }
 
             frame = CharaF[0]->SearchFrame("l_foot");
 
             if (frame) {
                 frame->GetLWMatrix(matrix);
-                DrawShadow(11, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+                DrawShadow(11, matrix[3][0], matrix[3][1], matrix[3][2]);
             }
         }
 
@@ -2488,18 +2472,17 @@ static void DrawDancer() {
 
             if (frame) {
                 frame->GetLWMatrix(matrix);
-                DrawShadow(12, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+                DrawShadow(12, matrix[3][0], matrix[3][1], matrix[3][2]);
             }
 
             frame = CharaF[1]->SearchFrame("l_foot");
 
             if (frame) {
                 frame->GetLWMatrix(matrix);
-                DrawShadow(13, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+                DrawShadow(13, matrix[3][0], matrix[3][1], matrix[3][2]);
             }
         }
     }
-
 
     if (CScript__2.obj[20].disp) {
         TexManager.ReloadTexture(Vif1Packet, CharaTex__2[20]);
@@ -2523,14 +2506,14 @@ static void DrawDancer() {
 
             if (frame) {
                 frame->GetLWMatrix(matrix2);
-                DrawShadow(14, (float) matrix2[3][0], (float) matrix2[3][1], (float) matrix2[3][2]);
+                DrawShadow(14, matrix2[3][0], matrix2[3][1], matrix2[3][2]);
             }
 
             frame = CharaF[2]->SearchFrame("l_foot");
 
             if (frame) {
                 frame->GetLWMatrix(matrix2);
-                DrawShadow(15, (float) matrix2[3][0], (float) matrix2[3][1], (float) matrix2[3][2]);
+                DrawShadow(15, matrix2[3][0], matrix2[3][1], matrix2[3][2]);
             }
         }
     }
@@ -2546,7 +2529,7 @@ static void DrawDancer() {
  * @size 0x478
  * @unknownret
  */
-static void InchikiShadow() {
+void InchikiShadow() {
     sceVu0FMATRIX matrix;
     CFrame       *frame;
 
@@ -2555,14 +2538,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(0, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(0, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[14].frame->SearchFrame("l_foot");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(1, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(1, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 
@@ -2571,14 +2554,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(2, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(2, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[15].frame->SearchFrame("l_foot");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(3, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(3, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 
@@ -2587,14 +2570,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(4, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(4, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[16].frame->SearchFrame("l_foot");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(5, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(5, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 
@@ -2603,14 +2586,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(4, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(4, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[17].frame->SearchFrame("eff7");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(5, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(5, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 
@@ -2619,14 +2602,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(4, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(4, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[18].frame->SearchFrame("l_foot");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(5, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(5, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 
@@ -2635,14 +2618,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(6, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(6, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[19].frame->SearchFrame("l_foot");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(7, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(7, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 
@@ -2651,14 +2634,14 @@ static void InchikiShadow() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(6, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(6, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
 
         frame = Chara__3[20].frame->SearchFrame("l_foot");
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            DrawShadow(7, (float) matrix[3][0], (float) matrix[3][1], (float) matrix[3][2]);
+            DrawShadow(7, matrix[3][0], matrix[3][1], matrix[3][2]);
         }
     }
 }
@@ -2673,7 +2656,7 @@ static void InchikiShadow() {
  * @size 0x134
  * @unknownret
  */
-static void DrawShadow(int shadow_no, float x, float y, float z) {
+void DrawShadow(int shadow_no, float x, float y, float z) {
     sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 54.0f};
 
     TexManager.ReloadTexture(Vif1Packet, 18);
@@ -2702,7 +2685,7 @@ static void DrawShadow(int shadow_no, float x, float y, float z) {
  * @size 0x890
  * @unknownret
  */
-static void MajinBeemProcess() {
+void MajinBeemProcess() {
     char *frame_names[10] = {"yubi", "heso", "l_asi", "r_asi", "kuti", "toutyou", "yubi", "yubi", "yubi",
                              "heso"};
 
@@ -2750,8 +2733,8 @@ static void MajinBeemProcess() {
                     sceVu0CopyVector(CBeem[beam].positions[i], pos);
                     CBeem[beam].state = MAJIN_BEEM_AIM;
                     CBeem[beam].counters[i] = -i;
-                    CBeem[beam].alphas[i] = 128.0f - (float) (2 * i);
-                    CBeem[beam].sizes[i] = 20.0f - (float) (i / 3);
+                    CBeem[beam].alphas[i] = 128.0f - static_cast<float>(2 * i);
+                    CBeem[beam].sizes[i] = 20.0f - static_cast<float>(i / 3);
 
                     if (CBeem[beam].sizes[i] < 8.0f) {
                         CBeem[beam].sizes[i] = 8.0f;
@@ -2774,8 +2757,8 @@ static void MajinBeemProcess() {
                     sceVu0CopyVector(CBeem[beam].positions[i], pos);
                     CBeem[beam].state = MAJIN_BEEM_AIM;
                     CBeem[beam].counters[i] = -i;
-                    CBeem[beam].alphas[i] = 128.0f - (float) (2 * i);
-                    CBeem[beam].sizes[i] = 20.0f - (float) (i / 3);
+                    CBeem[beam].alphas[i] = 128.0f - static_cast<float>(2 * i);
+                    CBeem[beam].sizes[i] = 20.0f - static_cast<float>(i / 3);
 
                     if (CBeem[beam].sizes[i] < 8.0f) {
                         CBeem[beam].sizes[i] = 8.0f;
@@ -2799,8 +2782,8 @@ static void MajinBeemProcess() {
                 sceVu0CopyVector(CBeem[beam].positions[i], CScript__2.beem_from[beam]);
                 CBeem[beam].state = MAJIN_BEEM_AIM;
                 CBeem[beam].counters[i] = -i;
-                CBeem[beam].alphas[i] = 128.0f - (float) (2 * i);
-                CBeem[beam].sizes[i] = 20.0f - (float) (i / 3);
+                CBeem[beam].alphas[i] = 128.0f - static_cast<float>(2 * i);
+                CBeem[beam].sizes[i] = 20.0f - static_cast<float>(i / 3);
 
                 if (CBeem[beam].sizes[i] < 8.0f) {
                     CBeem[beam].sizes[i] = 8.0f;
@@ -2870,7 +2853,7 @@ static void MajinBeemProcess() {
  * @size 0x564
  * @unknownret
  */
-static void SmokeProcess() {
+void SmokeProcess() {
     static int cnt = 0;
 
     cnt = cnt + 1;
@@ -2887,7 +2870,7 @@ static void SmokeProcess() {
         sceVu0CopyVector(param.position, position);
         param.position_oscillation_flags = 1;
         param.position_oscillation_scale[0] = 0.5f * rand() / 2147483648.0f;
-        param.position_oscillation_rate[0] = (float) PI_D / (20.0f + 10 * rand() / 2147483648.0f);
+        param.position_oscillation_rate[0] = static_cast<float>(PI_D) / (20.0f + 10 * rand() / 2147483648.0f);
         param.opacity_mode = 2;
         param.render_flags = 1;
         param.opacity = 0.15f;
@@ -2930,7 +2913,7 @@ static void SmokeProcess() {
         sceVu0CopyVector(param2.position, position);
         param2.position_oscillation_flags = 1;
         param2.position_oscillation_scale[0] = 0.5f * rand() / 2147483648.0f;
-        param2.position_oscillation_rate[0] = (float) PI_D / (20.0f + 10 * rand() / 2147483648.0f);
+        param2.position_oscillation_rate[0] = static_cast<float>(PI_D) / (20.0f + 10 * rand() / 2147483648.0f);
         param2.opacity_mode = 2;
         param2.render_flags = 1;
         param2.opacity = 0.15f;
@@ -2968,6 +2951,8 @@ static void SmokeProcess() {
     Smoke.Draw();
 }
 
+} // namespace
+
 /**
  * The river, which is drawn as a grid that refracts what is already in the frame buffer: the frame
  * is copied into the surface the grid samples, the grid is placed under the camera, and the depth
@@ -2978,7 +2963,8 @@ static void SmokeProcess() {
  * @size 0x1D4
  * @unknownret
  */
-static void WaterProcess() {
+namespace {
+void WaterProcess() {
     setTexScroll();
     setTexAnim();
 
@@ -2987,7 +2973,7 @@ static void WaterProcess() {
     MGGetFBuffTex(&frame_tex);
 
     CRect<int> rect(0, 0, 640, SCREEN_HALF_HEIGHT);
-    sceGsTex0  surface = *(sceGsTex0 *) &TexManager.GetTexture("water_buff", -1)->tex0;
+    sceGsTex0  surface = *reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("water_buff", -1)->tex0);
 
     MGMoveImage(&frame_tex, rect, &surface, 0, 0, 0);
 
@@ -3001,7 +2987,7 @@ static void WaterProcess() {
 
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
-    Water.Shake((int) (32.0f * rand() / 2147483648.0f), (int) (32.0f * rand() / 2147483648.0f), -0.5f);
+    Water.Shake(static_cast<int>(32.0f * rand() / 2147483648.0f), static_cast<int>(32.0f * rand() / 2147483648.0f), -0.5f);
     Water.Hamon();
     DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(&Water, &mgRenderInfo, GetVif1Packet(), nullptr);
     MGSetGsZBUF(&mgZBuffer);
@@ -3017,7 +3003,7 @@ static void WaterProcess() {
  * @size 0x128
  * @unknownret
  */
-static int KageCheck(int actor) {
+int KageCheck(int actor) {
     if (actor == 1) {
         return 0;
     }
@@ -3076,7 +3062,7 @@ static int KageCheck(int actor) {
  * @size 0x2C4
  * @unknownret
  */
-static void LightSet(float x, float y, float z, int actor) {
+void LightSet(float x, float y, float z, int actor) {
     sceVu0FVECTOR dir;
 
     dir[0] = -x;
@@ -3116,14 +3102,14 @@ static void LightSet(float x, float y, float z, int actor) {
     to[2] = 299.99f;
     to[3] = 0.0f;
 
-    int falloff = (int) DistVector(from, to) / 20;
+    int falloff = static_cast<int>(DistVector(from, to)) / 20;
 
     if (falloff > 60) {
         falloff = 60;
     }
 
-    color[0][0] = color[0][0] - (float) falloff;
-    color[0][0] = color[0][0] + (float) (rand() % 20 - 10);
+    color[0][0] = color[0][0] - static_cast<float>(falloff);
+    color[0][0] = color[0][0] + static_cast<float>(rand() % 20 - 10);
     MGSetPLight(light, color);
 
     sceVu0FVECTOR ambient;
@@ -3131,14 +3117,14 @@ static void LightSet(float x, float y, float z, int actor) {
     sceVu0CopyVector(ambient, ambientlight);
 
     if (CScript__2.scene != OP_SCENE_NORUNE_BURNING) {
-        falloff = (int) DistVector(from, to) / 10;
+        falloff = static_cast<int>(DistVector(from, to)) / 10;
 
         if (falloff > 20) {
             falloff = 20;
         }
 
         ambient[0] += 20.0f;
-        ambient[0] = ambient[0] - (float) falloff;
+        ambient[0] = ambient[0] - static_cast<float>(falloff);
     } else {
         ambient[0] += 25.0f;
         ambient[1] += 10.0f;
@@ -3147,10 +3133,10 @@ static void LightSet(float x, float y, float z, int actor) {
     MGSetAmbient(ambient);
 }
 
-static int   setTexScrollCnt;
-static float setTexScrollCntf;
-static int   setTexAnimCnt;
-static float setTexAnimCntf;
+int   setTexScrollCnt;
+float setTexScrollCntf;
+int   setTexAnimCnt;
+float setTexAnimCntf;
 
 /**
  * The waterfall, which is one 128-pixel texture scrolled sideways over another at half a pixel a
@@ -3161,19 +3147,19 @@ static float setTexAnimCntf;
  * @size 0x250
  * @unknownret
  */
-static void setTexScroll() {
+void setTexScroll() {
     if (setTexScrollCntf >= 126.0f) {
         setTexScrollCntf = 0.0f;
     } else {
         setTexScrollCntf += 0.5f;
     }
 
-    setTexScrollCnt = (int) setTexScrollCntf;
+    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
 
     CTexture *plate = TexManager.GetTexture("e01b20", -1);
     CTexture *strip = TexManager.GetTexture("e01b21", -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -3210,21 +3196,22 @@ static void setTexScroll() {
  * @size 0x1C0
  * @unknownret
  */
-static void setTexAnim() {
+void setTexAnim() {
     if (setTexAnimCntf >= 7.0f) {
         setTexAnimCntf = 0.0f;
     } else {
         setTexAnimCntf += 0.2f;
     }
 
-    setTexAnimCnt = (int) setTexAnimCntf;
+    setTexAnimCnt = static_cast<int>(setTexAnimCntf);
 
     CTexture *strip = TexManager.GetTexture("e01b23", -1);
     CTexture *plate = TexManager.GetTexture("e01b22", -1);
 
-    if (strip == 0 || plate == 0) {
+    if (strip == nullptr || plate == nullptr) {
         return;
     }
 
-    MGMoveImage((sceGsTex0 *) &strip->tex0, CRect<int>(0, setTexAnimCnt * 64, 64, 64), (sceGsTex0 *) &plate->tex0, 0, 0, 0);
+    MGMoveImage(reinterpret_cast<sceGsTex0 *>(&strip->tex0), CRect<int>(0, setTexAnimCnt * 64, 64, 64), reinterpret_cast<sceGsTex0 *>(&plate->tex0), 0, 0, 0);
 }
+} // namespace

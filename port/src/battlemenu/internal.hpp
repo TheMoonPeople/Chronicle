@@ -1,7 +1,5 @@
 #pragma once
 
-#include "battlemenu.hpp"
-
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -11,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "battlemenu.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
 #include "caption_text.hpp"
@@ -45,6 +44,17 @@
 #include "userstatus.hpp"
 #include "weapon_buildup.hpp"
 #include "weaponlevelup.hpp"
+
+void PortDrawBattleMenuMain();
+void PortDrawBattleMenu();
+int  PortBattleMenuSelect();
+void PortDrawMenuMove();
+void PortDrawWeaponSelectDialog(int x, int y, int alpha);
+void PortDrawBuildUpWeaponSelect(int x, int y, int cursor);
+void PortDrawAallWeapon(int x, int y, float depth, CCharacter *model, WEAPON_HAVE *weapon,
+                        int equipped, int selected, int alpha);
+void PortBtlWeaponDraw(int x, float depth, int chara, int alpha);
+void PortWeaponMenuDraw();
 
 /**
  * Initializes the Battle Menu character selection page and turntable.
@@ -98,13 +108,13 @@ namespace btlmenu_detail {
  */
 inline void RefreshBtlMenuTextures() {
     MenuCharaFace = TexManager.GetTexture(const_cast<char *>("charaface"), BtlMenuReadBlock);
-    BtStatus      = TexManager.GetTexture(const_cast<char *>("btstatus2"), BtlMenuReadBlock);
-    WepIcon       = TexManager.GetTexture(const_cast<char *>("wepicon"), -1);
-    ItemIcon      = TexManager.GetTexture(const_cast<char *>("itemicon"), BtlMenuReadBlock);
-    PerBoardTex   = TexManager.GetTexture(const_cast<char *>("perbrd"), BtlMenuReadBlock);
-    WepStatus     = TexManager.GetTexture(const_cast<char *>("wepstatus"), BtlMenuExtBlock);
-    VillageName   = TexManager.GetTexture(const_cast<char *>("vilname"), -1);
-    VillageBar    = TexManager.GetTexture(const_cast<char *>("viltag"), -1);
+    BtStatus = TexManager.GetTexture(const_cast<char *>("btstatus2"), BtlMenuReadBlock);
+    WepIcon = TexManager.GetTexture(const_cast<char *>("wepicon"), -1);
+    ItemIcon = TexManager.GetTexture(const_cast<char *>("itemicon"), BtlMenuReadBlock);
+    PerBoardTex = TexManager.GetTexture(const_cast<char *>("perbrd"), BtlMenuReadBlock);
+    WepStatus = TexManager.GetTexture(const_cast<char *>("wepstatus"), BtlMenuExtBlock);
+    VillageName = TexManager.GetTexture(const_cast<char *>("vilname"), -1);
+    VillageBar = TexManager.GetTexture(const_cast<char *>("viltag"), -1);
 }
 
 /**
@@ -132,9 +142,9 @@ inline std::string DecodeMesFromBuffer(short *mes_buffer, int mes_no) {
     if (mes_buffer == nullptr || mes_no < 0) {
         return {};
     }
-    short *saved_buff   = CommonMenuMes3.buff;
+    short *saved_buff = CommonMenuMes3.buff;
     CommonMenuMes3.buff = mes_buffer;
-    const short *codes  = CommonMenuMes3.GetTextLineDataTop(mes_no);
+    const short *codes = CommonMenuMes3.GetTextLineDataTop(mes_no);
     CommonMenuMes3.buff = saved_buff;
     if (codes == nullptr) {
         return {};
@@ -150,7 +160,7 @@ inline std::string DecodeItemNamePort(int item_no, std::string_view fallback = {
         if (COM_ITEM_INFO *info = GetCommonItemInfo(item_no)) {
             if (info->msg > 0) {
                 std::string  name = DecodeMesFromBuffer(SystemMes, info->msg + 0x64);
-                const size_t nl   = name.find('\n');
+                const size_t nl = name.find('\n');
                 if (nl != std::string::npos) {
                     name.resize(nl);
                 }

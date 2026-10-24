@@ -5,6 +5,7 @@
 #endif
 
 #include "icon/chronicle.hpp"
+#include "icon_retail.hpp"
 #include "platform/game_icon.hpp"
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
@@ -33,12 +34,9 @@ void GameSetIdentity() {
 void GameSetDataIcon() {
     // The save menu's pack in each language folder (menu_draw.cpp's ComMenuContryName) carries the memory
     // card icon; a disc holds only its own languages, so every folder is tried, English first.
-    GameIconSource source;
-    for (const char *language : {"a_usa", "a_eng", "a_jpn", "a_fre", "a_ger", "a_ita", "a_spa"}) {
-        source.packs.push_back(std::filesystem::path("commenu") / language / "savetex.pak");
-    }
-    source.member = "dkicon.ico";
+    GameIconSource source = RetailIconSource(PathsDataRoot());
     source.ico_file = L"darkcloud.ico";
-    source.shortcut = L"Dark Cloud";
+    const std::wstring shortcut = (PathsDataRoot().parent_path() / "Dark Cloud").wstring();
+    source.shortcut = shortcut.c_str();
     GameIconInstall(PathsDataRoot(), source);
 }

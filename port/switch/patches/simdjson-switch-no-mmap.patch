@@ -1,0 +1,31 @@
+--- a/include/simdjson/padded_string-inl.h
++++ b/include/simdjson/padded_string-inl.h
+@@ -10,7 +10,7 @@
+ #include <climits>
+ #include <cwchar>
+ 
+-#ifndef _WIN32
++#if !defined(_WIN32) && !defined(__SWITCH__)
+ #include <fcntl.h>
+ #include <stdio.h>
+ #include <sys/mman.h>
+@@ -385,7 +385,7 @@
+ }
+ 
+ 
+-#ifndef _WIN32
++#if !defined(_WIN32) && !defined(__SWITCH__)
+ simdjson_inline padded_memory_map::padded_memory_map(const char *filename) noexcept {
+ 
+     int fd = open(filename, O_RDONLY);
+--- a/include/simdjson/padded_string.h
++++ b/include/simdjson/padded_string.h
+@@ -278,7 +278,7 @@
+ #endif
+ 
+ 
+-#ifndef _WIN32
++#if !defined(_WIN32) && !defined(__SWITCH__)
+ /**
+  * A class representing a memory-mapped file with padding.
+  * It is only available on non-Windows platforms, as Windows has different APIs for memory mapping.

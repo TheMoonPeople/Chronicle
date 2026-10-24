@@ -21,14 +21,50 @@ dc_link_game(darkcloud_tests)
 kz_port_tests(darkcloud_tests)
 target_link_libraries(darkcloud_tests PRIVATE GTest::gtest nlohmann_json::nlohmann_json)
 
-# A case is a unit test: it finishes in milliseconds, and one that does not is cut off. The clock
+# The tests need the port's compatibility overrides from main.cpp, but they already provide a
+# GoogleTest main. Compile the shared unit with only its process entrypoints disabled.
+add_library(dc_test_main_overrides OBJECT ${PORT_DIR}/main.cpp)
+target_compile_definitions(dc_test_main_overrides PRIVATE DC_NO_ENTRYPOINT)
+target_include_directories(dc_test_main_overrides PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
+target_link_libraries(dc_test_main_overrides PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan
+    nlohmann_json::nlohmann_json kz_port_headers)
+target_compile_options(dc_test_main_overrides PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
+    -Wno-overloaded-virtual -Wno-unused-function)
+target_sources(darkcloud_tests PRIVATE $<TARGET_OBJECTS:dc_test_main_overrides>)
+
+# A test that stalls is cut off; graphics startup can take several seconds on some systems. The clock
 # cases measure short sleeps, which the parallel gfx cases skew, so they run on their own.
-set(DC_TEST_TIMEOUT 5 CACHE STRING "Seconds a test case may run before it is cut off")
+set(DC_TEST_TIMEOUT 30 CACHE STRING "Seconds a test case may run before it is cut off")
+# The cases that need a Vulkan device have the gpu label, so a machine without one runs ctest -LE gpu. They are
+# Kazarov's suites named GfxGpu* (its src/cpp/gfx/README.md, "Shared device test classification") and its older
+# GfxMisc and GfxTim2, and every suite in a Chronicle test file that includes gfx_fixture.hpp or tex_fixture.hpp,
+# found here so that a new one is labeled without a list to keep. Some start several renderers, seconds apiece on
+# a software driver such as lavapipe, so they have their own limit.
+set(DC_GPU_TEST_TIMEOUT ${DC_TEST_TIMEOUT} CACHE STRING "Seconds a test case that needs a Vulkan device may run")
+set(device_suites GfxMisc GfxTim2)
+foreach(source IN LISTS TEST_SOURCES)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${source})
+    file(STRINGS ${source} fixture REGEX "^#include \"(gfx|tex)_fixture\\.hpp\"")
+    if(fixture)
+        file(STRINGS ${source} cases REGEX "^TEST(_F|_P)?\\([A-Za-z0-9_]+,")
+        list(TRANSFORM cases REPLACE "^TEST(_F|_P)?\\(([A-Za-z0-9_]+),.*" "\\2")
+        list(APPEND device_suites ${cases})
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES device_suites)
+list(TRANSFORM device_suites APPEND ".*")
+list(JOIN device_suites ":" device_filter)
+set(device_filter "*GfxGpu*.*:${device_filter}")
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
-    TEST_FILTER -PlatformClock.*
-    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf")
+    TEST_FILTER -PlatformClock.*:${device_filter}
+    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Bold.ttf")
+gtest_discover_tests(darkcloud_tests
+    DISCOVERY_MODE PRE_TEST
+    TEST_FILTER ${device_filter}
+    PROPERTIES TIMEOUT ${DC_GPU_TEST_TIMEOUT} LABELS gpu
+        ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Bold.ttf")
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER PlatformClock.*
-    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/DarkCloudCompendium.ttf" RUN_SERIAL TRUE)
+    PROPERTIES TIMEOUT ${DC_TEST_TIMEOUT} ENVIRONMENT "DC_TEST_FONT=${CMAKE_SOURCE_DIR}/tools/font/ChronicleSharp-Bold.ttf" RUN_SERIAL TRUE)

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <memory>
 #include <random>
 
 #include "gfx/context.hpp"
@@ -50,8 +51,8 @@ void BlockConv8to32(const uint8_t *source, uint8_t *destination) {
 void PageConv8to32(const uint8_t *source, uint8_t *destination) {
     static const int block_table[32] = {0, 1, 4, 5, 16, 17, 20, 21, 2, 3, 6, 7, 18, 19, 22, 23,
                                         8, 9, 12, 13, 24, 25, 28, 29, 10, 11, 14, 15, 26, 27, 30, 31};
-    int              block_column[32];
-    int              block_row[32];
+    auto             block_column = std::make_unique<int[]>(32);
+    auto             block_row = std::make_unique<int[]>(32);
     int              entry = 0;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 8; j++) {
@@ -60,32 +61,32 @@ void PageConv8to32(const uint8_t *source, uint8_t *destination) {
             entry++;
         }
     }
-    uint8_t work8[256];
-    uint8_t work32[256];
+    auto work8 = std::make_unique<uint8_t[]>(256);
+    auto work32 = std::make_unique<uint8_t[]>(256);
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 8; j++) {
             const uint8_t *source_cursor = source + i * 2048 + j * 16;
             for (int k = 0; k < 16; k++) {
-                std::memcpy(work8 + k * 16, source_cursor + k * 128, 16);
+                std::memcpy(work8.get() + k * 16, source_cursor + k * 128, 16);
             }
-            BlockConv8to32(work8, work32);
+            BlockConv8to32(work8.get(), work32.get());
             int      block_index = block_table[i * 8 + j];
             uint8_t *destination_cursor = destination + block_row[block_index] * 2048 + block_column[block_index] * 32;
             for (int k = 0; k < 8; k++) {
-                std::memcpy(destination_cursor + k * 256, work32 + k * 32, 32);
+                std::memcpy(destination_cursor + k * 256, work32.get() + k * 32, 32);
             }
         }
     }
 }
 
 Bytes Conv8to32(int width, int height, const Bytes &source) {
-    Bytes   destination(static_cast<size_t>(width) * height);
-    uint8_t work8[8192] = {};
-    uint8_t work32[8192] = {};
-    int     pages_x = ((width - 1) >> 7) + 1;
-    int     pages_y = ((height - 1) >> 6) + 1;
-    int     row_bytes;
-    int     row_count;
+    Bytes destination(static_cast<size_t>(width) * height);
+    auto  work8 = std::make_unique<uint8_t[]>(8192);
+    auto  work32 = std::make_unique<uint8_t[]>(8192);
+    int   pages_x = ((width - 1) >> 7) + 1;
+    int   pages_y = ((height - 1) >> 6) + 1;
+    int   row_bytes;
+    int   row_count;
     if (pages_x == 1) {
         row_bytes = width * 2;
     } else {
@@ -102,13 +103,13 @@ Bytes Conv8to32(int width, int height, const Bytes &source) {
         for (int j = 0; j < pages_x; j++) {
             const uint8_t *source_cursor = source.data() + i * (pages_x * (width << 6)) + width * j;
             for (int k = 0; k < height; k++) {
-                std::memcpy(work8 + k * 128, source_cursor, width);
+                std::memcpy(work8.get() + k * 128, source_cursor, width);
                 source_cursor += width * pages_x;
             }
-            PageConv8to32(work8, work32);
+            PageConv8to32(work8.get(), work32.get());
             uint8_t *destination_cursor = destination.data() + i * (pages_x * (row_bytes * row_count)) + row_bytes * j;
             for (int k = 0; k < row_count; k++) {
-                std::memcpy(destination_cursor, work32 + k * 256, row_bytes);
+                std::memcpy(destination_cursor, work32.get() + k * 256, row_bytes);
                 destination_cursor += row_bytes * pages_x;
             }
         }
@@ -143,9 +144,9 @@ TEST(TexDecode, Rgb32Alpha) {
 // A town block can overlap a fixed texture's simulated PS2 address while both native images remain valid.
 TEST(TexDecode, FixedAndBlockTexturesSurviveLegacyVramOverlap) {
     TexEnv env;
-    char fixed_name[] = "fixed";
-    Bytes fixed(8 * 8 * 4, 0);
-    Bytes menu(8 * 8 * 4, 0);
+    char   fixed_name[] = "fixed";
+    Bytes  fixed(8 * 8 * 4, 0);
+    Bytes  menu(8 * 8 * 4, 0);
     for (size_t i = 0; i < fixed.size(); i += 4) {
         fixed[i] = 255;
         fixed[i + 3] = 0x80;
@@ -153,11 +154,13 @@ TEST(TexDecode, FixedAndBlockTexturesSurviveLegacyVramOverlap) {
         menu[i + 3] = 0x80;
     }
     TexManager.EnterFixTexture(fixed_name, fixed.data(), 8, 8, 4, nullptr, 0, 0,
-                              nullptr, nullptr, nullptr, 0, 0);
+                               nullptr, nullptr, nullptr, 0, 0);
 
     TexManager.blocks[16].vram_top = 16320;
     TexManager.blocks[16].vram_end = 16320;
-    Bytes img = Img({{"menu", Tim2({TIM2_RGB32, 8, 8, {menu}, {}, 0})}});
+    Bytes img = Img({
+        {"menu", Tim2({TIM2_RGB32, 8, 8, {menu}, {}, 0})}
+    });
     Enter(img, 16);
 
     PortTextureRef fixed_ref = Resolve("fixed");
@@ -253,9 +256,9 @@ TEST(TexDecode, Idtex4ExpandsToIndex8) {
     if (OnParavirtualGpu()) {
         GTEST_SKIP() << "the CI runner's virtual GPU misreads palette index 1";
     }
-    Bytes  clut = Rgba32({Gs(255, 255, 255), Gs(255, 0, 0), Gs(0, 255, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          Gs(0, 0, 255)});
-    Bytes  img = Img({
+    Bytes clut = Rgba32({Gs(255, 255, 255), Gs(255, 0, 0), Gs(0, 255, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                         Gs(0, 0, 255)});
+    Bytes img = Img({
         {"idx4", Tim2({TIM2_IDTEX4, 4, 1, {{0x21, 0x0F}}, clut, 16})}
     });
     Enter(img, 0);
@@ -307,7 +310,7 @@ TEST(TexDecode, Im2ArchiveDrawsUnswizzled) {
     if (OnParavirtualGpu()) {
         GTEST_SKIP() << "the CI runner's virtual GPU misreads palette index 1";
     }
-    Bytes  linear(32 * 32);
+    Bytes linear(32 * 32);
     for (int y = 0; y < 32; y++) {
         for (int x = 0; x < 32; x++) {
             linear[y * 32 + x] = static_cast<uint8_t>(1 + x / 16 + 2 * (y / 16));
@@ -377,4 +380,38 @@ TEST(TexDecode, MipmapsAsSupplied) {
     ASSERT_TRUE(plain != nullptr && plain->tex1 == 0);
     auto plain_info = gfx::GetTextureInfo(PortTextureFromCTexture(plain).binding.texture);
     ASSERT_TRUE(plain_info && plain_info->mip_levels == 1);
+}
+
+TEST(TextureBuffer, CompactsBlocksAndRelocatesTexturePointers) {
+    TexEnv env;
+    TexManager.blocks[1].buffer = staging + 8;
+    TexManager.blocks[1].buffer_end = staging + 10;
+    TexManager.blocks[2].buffer = staging + 16;
+    TexManager.blocks[2].buffer_end = staging + 18;
+    staging[8] = 0x1234;
+    staging[9] = 0x5678;
+    staging[16] = 0x9ABC;
+    staging[17] = 0xDEF0;
+    TexManager.textures[1].block = 1;
+    TexManager.textures[1].image[0] = reinterpret_cast<u_int *>(staging + 8);
+
+    ASSERT_EQ(TexManager.CleanUpBuffer(), 1);
+    ASSERT_EQ(TexManager.blocks[1].buffer, staging);
+    ASSERT_EQ(TexManager.blocks[1].buffer_end, staging + 2);
+    ASSERT_EQ(TexManager.blocks[2].buffer, staging + 8);
+    ASSERT_EQ(TexManager.textures[1].image[0], reinterpret_cast<u_int *>(staging));
+    ASSERT_EQ(staging[0], 0x1234);
+    ASSERT_EQ(staging[1], 0x5678);
+    ASSERT_EQ(staging[8], 0x9ABC);
+    ASSERT_EQ(staging[9], 0xDEF0);
+}
+
+TEST(TextureBuffer, RejectsBlocksOutsideStagingBuffer) {
+    TexEnv env;
+    TexManager.blocks[1].buffer = staging + 8;
+    TexManager.blocks[1].buffer_end = staging + std::size(staging) + 1;
+
+    ASSERT_EQ(TexManager.CleanUpBuffer(), 0);
+    ASSERT_EQ(TexManager.blocks[1].buffer, staging + 8);
+    ASSERT_EQ(TexManager.buffer_used, 0);
 }

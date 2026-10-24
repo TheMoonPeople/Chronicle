@@ -1305,6 +1305,7 @@ int OpGetVolSQ(int no) {
         case 1:
             return CSnd.GetMidiState()->port[0].sequence[0]->volume;
     }
+    PORT_RETURN(0);
 }
 
 void FadeCansel() {

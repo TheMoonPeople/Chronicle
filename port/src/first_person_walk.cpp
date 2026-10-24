@@ -67,7 +67,7 @@ bool FirstPersonDungeonStep(CDungeonMap &map, DRAN_MAP_FIELD_SET *fields, float 
     int  visits = 0;
     auto append = [&](CFrame *frame) {
         int bound = FrameBound(frame, visits);
-        if (bound < 0 || bound > kPolys - int(polys.size())) {
+        if (bound < 0 || bound > kPolys - static_cast<int>(polys.size())) {
             return false;
         }
         if (!bound) {
@@ -104,7 +104,7 @@ bool FirstPersonDungeonStep(CDungeonMap &map, DRAN_MAP_FIELD_SET *fields, float 
             if (!p.frame[0]) {
                 break;
             }
-            if (!part(p.collision, p.frame_offset[0][0], p.frame_offset[0][1], p.frame_offset[0][2], int(p.frame_turn[0]) + p.collision_turn)) {
+            if (!part(p.collision, p.frame_offset[0][0], p.frame_offset[0][1], p.frame_offset[0][2], static_cast<int>(p.frame_turn[0]) + p.collision_turn)) {
                 return false;
             }
         }
@@ -155,7 +155,7 @@ bool FirstPersonDungeonStep(CDungeonMap &map, DRAN_MAP_FIELD_SET *fields, float 
         }
     }
     sceVu0FVECTOR next;
-    MoveCheck(pos, velocity, next, &info, polys.data(), int(polys.size()), mode);
+    MoveCheck(pos, velocity, next, &info, polys.data(), static_cast<int>(polys.size()), mode);
     sceVu0CopyVector(pos, next);
     return true;
 }

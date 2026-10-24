@@ -1,10 +1,10 @@
 #pragma once
 
-#include "rect.hpp"
 #include "common.h"
 
-#define CRect_i_(...) Ps2Lvalue(CRect_i_(__VA_ARGS__))
+#include "rect.hpp"
 
+#define CRect_i_(...) Ps2Lvalue(CRect_i_(__VA_ARGS__))
 
 // Expose the static initialization functions as global Btl_ prefixed functions
 #define InitMenuChara Btl_InitMenuChara

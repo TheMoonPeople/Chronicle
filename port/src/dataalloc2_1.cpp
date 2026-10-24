@@ -25,6 +25,12 @@ int AlignedUsed(const unsigned char *start, int used) {
     return used;
 }
 
+void CheckAllocation(const void *arena, int used, int quads, int limit) {
+    if (quads < 0 || used < 0 || used > limit || quads > limit - used) {
+        ArenaOverflow(arena, -1, limit);
+    }
+}
+
 // The run a CDataAlloc2<1> handed out last, which the placement operators below may grow.
 struct Run {
     CDataAlloc2<1> *arena;
@@ -52,18 +58,12 @@ void *Place(std::size_t size, u_long128 *block) {
 
 } // namespace
 
-PORT_OVERRIDE void *operator new(size_t size, u_long128 *block) {
-    return Place(size, block);
-}
-
-PORT_OVERRIDE void *operator new[](size_t size, u_long128 *block) {
+void *PlaceDataAllocObject(std::size_t size, u_long128 *block) {
     return Place(size, block);
 }
 
 PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
-    if (used + quads > limit) {
-        ArenaOverflow(this, used + quads, limit);
-    }
+    CheckAllocation(this, used, quads, limit);
     u_char *block = base + used * 16;
     used += quads;
     g_last_run = {this, block, quads};
@@ -71,17 +71,23 @@ PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
 }
 
 PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc64(int quads) {
+    if (quads < 0) {
+        ArenaOverflow(this, -1, limit);
+    }
     Align64();
+    if (quads >= limit - used) {
+        ArenaOverflow(this, -1, limit);
+    }
     u_char *block = base + used * 16;
     used += quads;
-    if (used >= limit) {
-        ArenaOverflow(this, used, limit);
-    }
     g_last_run = {this, block, quads};
     return block;
 }
 
 void CDataAlloc2<1>::Align64() {
+    if (used < 0 || used > limit) {
+        ArenaOverflow(this, used, limit);
+    }
     used = AlignedUsed(base, used);
     if (used >= limit) {
         ArenaOverflow(this, used, limit);
@@ -89,43 +95,42 @@ void CDataAlloc2<1>::Align64() {
 }
 
 u_char *CDataAlloc<1, 1690000>::Alloc(int quads) {
-    if (used + quads > kGlobalQuads * kArenaHeadroom) {
-        ArenaOverflow(this, used + quads, kGlobalQuads * kArenaHeadroom);
-    }
+    constexpr int limit = kGlobalQuads * kArenaHeadroom;
+    CheckAllocation(this, used, quads, limit);
     u_char *allocation = GlobalBlock() + used * 16;
     used += quads;
     return allocation;
 }
 
 PORT_OVERRIDE u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
+    constexpr int limit = kGlobalQuads * kArenaHeadroom;
+    if (quads < 0) {
+        ArenaOverflow(this, -1, limit);
+    }
     Align64();
+    if (quads >= limit - used) {
+        ArenaOverflow(this, -1, limit);
+    }
     u_char *allocation = GlobalBlock() + used * 16;
     used += quads;
-    if (used >= kGlobalQuads * kArenaHeadroom) {
-        ArenaOverflow(this, used, kGlobalQuads * kArenaHeadroom);
-    }
     return allocation;
 }
 
 void CDataAlloc<1, 1690000>::Align64() {
+    constexpr int limit = kGlobalQuads * kArenaHeadroom;
+    if (used < 0 || used > limit) {
+        ArenaOverflow(this, used, limit);
+    }
     used = AlignedUsed(GlobalBlock(), used);
-    if (used >= kGlobalQuads * kArenaHeadroom) {
-        ArenaOverflow(this, used, kGlobalQuads * kArenaHeadroom);
+    if (used >= limit) {
+        ArenaOverflow(this, used, limit);
     }
-}
-
-// SystemMesBuffer keeps its embedded storage: LoadSystemMessage points
-// SystemMes at block[used] directly.
-PORT_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
-    if (used + quads > 6000) {
-        ArenaOverflow(this, used + quads, 6000);
-    }
-    u_char *run = reinterpret_cast<u_char *>(block) + used * 16;
-    used += quads;
-    return run;
 }
 
 void CDataAlloc<1, 6000>::Align64() {
+    if (used < 0 || used > 6000) {
+        ArenaOverflow(this, used, 6000);
+    }
     used = AlignedUsed(reinterpret_cast<const unsigned char *>(block), used);
     if (used >= 6000) {
         ArenaOverflow(this, used, 6000);

@@ -1,5 +1,7 @@
 #include "options/rows.hpp"
 
+#include <SDL3/SDL.h>
+
 #include <algorithm>
 #include <cmath>
 #include <deque>
@@ -8,8 +10,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <SDL3/SDL.h>
 
 #include "localize.hpp"
 #include "menu_option.hpp"
@@ -362,7 +362,7 @@ void RestoreMouseSensitivity(Config &config, const Config &defaults) {
     config.mouse_sensitivity = defaults.mouse_sensitivity;
 }
 
-constexpr float kCameraReturnRates[] = {0.0f, 0.05f, 0.2f, 0.5f, 1.0f};
+constexpr float       kCameraReturnRates[] = {0.0f, 0.05f, 0.2f, 0.5f, 1.0f};
 constexpr const char *kCameraReturnNames[] = {"Off", "Very Slow", "Slow", "Moderate", "Retail"};
 
 int CameraReturnChoice(const Config &config) {
@@ -398,7 +398,7 @@ constexpr const char *kZoomResetNames[] = {"Middle Mouse", "Mouse4", "Mouse5", "
 
 const std::vector<std::string> &ZoomResetBindings(const Config &config) {
     static const std::vector<std::string> defaults = {"Mouse3"};
-    auto                                  binding = std::ranges::find(config.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
+    auto                                  binding = std::ranges::find(config.key_bindings, std::string{"zoom_reset"}, &ConfigKeyBinding::action);
     return binding == config.key_bindings.end() ? defaults : binding->keys;
 }
 
@@ -423,7 +423,7 @@ void SetZoomReset(Config &config, int choice) {
     if (choice < 0 || choice >= 5) {
         return;
     }
-    auto                     binding = std::ranges::find(config.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
+    auto                     binding = std::ranges::find(config.key_bindings, std::string{"zoom_reset"}, &ConfigKeyBinding::action);
     std::vector<std::string> keys;
     if (choice < 4) {
         keys.push_back(kZoomResetBindings[choice]);
@@ -451,11 +451,11 @@ std::string ZoomResetText(const Config &config) {
 }
 
 void RestoreZoomReset(Config &config, const Config &defaults) {
-    auto binding = std::ranges::find(config.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
+    auto binding = std::ranges::find(config.key_bindings, std::string{"zoom_reset"}, &ConfigKeyBinding::action);
     if (binding != config.key_bindings.end()) {
         config.key_bindings.erase(binding);
     }
-    auto default_binding = std::ranges::find(defaults.key_bindings, std::string_view("zoom_reset"), &ConfigKeyBinding::action);
+    auto default_binding = std::ranges::find(defaults.key_bindings, std::string{"zoom_reset"}, &ConfigKeyBinding::action);
     if (default_binding != defaults.key_bindings.end()) {
         config.key_bindings.push_back(*default_binding);
     }
@@ -573,7 +573,8 @@ int Three(const Config &) {
 }
 
 int SoundChoice(const Config &config) {
-    return config.surround ? 2 : config.options.stereo ? 1 : 0;
+    return config.surround ? 2 : config.options.stereo ? 1
+                                                       : 0;
 }
 
 void SetSound(Config &config, int choice) {
@@ -740,9 +741,6 @@ const Row kTextRows[] = {
     SettingRow("input.glyph_device", "Symbols Shown",
                "\"Symbols Shown\"\nAuto: the device you\nuse. Or always show one\nof the others.", GlyphDeviceCount,
                GlyphDeviceChoice, SetGlyphDevice, nullptr, "Auto|PS3|PS4|PS5|PS5 Colored|Xbox|Switch|Steam Deck|Steam Controller|Keyboard"),
-    NamedRow<&Config::font_sharp>("video.text_font", "Text Font",
-                                  "\"Text Font\"\nSharp: a clear font at\nthe screen's size.\nOriginal: the game's.",
-                                  "Original|Sharp"),
     SettingRow("video.text_shadow", "Text Shadow",
                "\"Text Shadow\"\nHow dark the shadow\nunder the letters is.\n50% is the soft one.", ShadowCount,
                TextShadowChoice, SetTextShadow, TextShadowText),
@@ -775,36 +773,37 @@ std::string ActionName(std::string_view action) {
         std::string_view action;
         const char      *name;
     } kNames[] = {
-        {"up",             "Up"              },
-        {"down",           "Down"            },
-        {"left",           "Left"            },
-        {"right",          "Right"           },
-        {"cross",          "Cross"           },
-        {"circle",         "Circle"          },
-        {"square",         "Square"          },
-        {"triangle",       "Triangle"        },
-        {"l1",             "L1"              },
-        {"r1",             "R1"              },
-        {"l2",             "L2"              },
-        {"r2",             "R2"              },
-        {"l3",             "L3"              },
-        {"r3",             "R3"              },
-        {"start",          "Start"           },
-        {"select",         "Select"          },
-        {"lx-",            "Left Stick Left" },
-        {"lx+",            "Left Stick Right"},
-        {"ly-",            "Left Stick Up"   },
-        {"ly+",            "Left Stick Down" },
-        {"rx-",            "Right Stick Left"},
+        {"up",             "Up"               },
+        {"down",           "Down"             },
+        {"left",           "Left"             },
+        {"right",          "Right"            },
+        {"cross",          "Cross"            },
+        {"circle",         "Circle"           },
+        {"square",         "Square"           },
+        {"triangle",       "Triangle"         },
+        {"l1",             "L1"               },
+        {"r1",             "R1"               },
+        {"l2",             "L2"               },
+        {"r2",             "R2"               },
+        {"l3",             "L3"               },
+        {"r3",             "R3"               },
+        {"start",          "Start"            },
+        {"select",         "Select"           },
+        {"lx-",            "Left Stick Left"  },
+        {"lx+",            "Left Stick Right" },
+        {"ly-",            "Left Stick Up"    },
+        {"ly+",            "Left Stick Down"  },
+        {"rx-",            "Right Stick Left" },
         {"rx+",            "Right Stick Right"},
-        {"ry-",            "Right Stick Up"  },
-        {"ry+",            "Right Stick Down"},
-        {"fps_toggle",     "Toggle FPS"      },
-        {"developer_menu", "Developer Menu"  },
-        {"debug_menu",     "Debug Menu"      },
-        {"gyro_hold",      "Gyro Hold"       },
-        {"zoom_reset",     "Reset Zoom"      },
+        {"ry-",            "Right Stick Up"   },
+        {"ry+",            "Right Stick Down" },
+        {"fps_toggle",     "Toggle FPS"       },
+        {"developer_menu", "Developer Menu"   },
+        {"debug_menu",     "Debug Menu"       },
+        {"gyro_hold",      "Gyro Hold"        },
+        {"zoom_reset",     "Reset Zoom"       },
     };
+
     for (const auto &entry : kNames) {
         if (entry.action == action) {
             return entry.name;
@@ -939,9 +938,16 @@ std::string RowValue(const Row &row, const Config &config) {
 }
 
 bool StepRow(const Row &row, Config &config, int direction, bool wrap) {
-    int count = row.count(config);
-    int choice = row.get(config);
-    int next = wrap ? (choice + direction + count) % count : std::clamp(choice + direction, 0, count - 1);
+    if (row.count == nullptr || row.get == nullptr || row.set == nullptr || direction == 0) {
+        return false;
+    }
+    const int count = row.count(config);
+    if (count <= 0) {
+        return false;
+    }
+    const int choice = std::clamp(row.get(config), 0, count - 1);
+    direction = direction > 0 ? 1 : -1;
+    const int next = wrap ? (choice + direction + count) % count : std::clamp(choice + direction, 0, count - 1);
     if (next == choice) {
         return false;
     }
@@ -1016,7 +1022,7 @@ void OptionRestoreCameraReturn(Config &config, const Config &defaults) {
 namespace options {
 
 void SetBinding(Config &config, std::string_view action, std::string_view key) {
-    auto binding = std::ranges::find(config.key_bindings, std::string(action), &ConfigKeyBinding::action);
+    auto                     binding = std::ranges::find(config.key_bindings, std::string(action), &ConfigKeyBinding::action);
     std::vector<std::string> keys;
     keys.emplace_back(key);
     if (binding == config.key_bindings.end()) {

@@ -21,10 +21,10 @@ namespace {
 // The game as a quest sees it, kept in a few maps.
 class FakeGame final : public Quest::IGame {
 public:
-    std::map<int, int>             items;
-    std::map<int, int>             stored;
-    std::map<int, int>             floors;
-    std::map<int, int>             dungeon_counts;
+    std::map<int, int>                  items;
+    std::map<int, int>                  stored;
+    std::map<int, int>                  floors;
+    std::map<int, int>                  dungeon_counts;
     std::map<std::pair<int, int>, bool> part_events;
     std::map<std::pair<int, int>, int>  parts_placed;
     std::map<std::pair<int, int>, bool> parts_complete;
@@ -33,18 +33,19 @@ public:
     std::map<int, bool>                 game_flags;
     std::map<int, int>                  game_numbers;
     std::map<std::pair<int, int>, bool> map_flags;
-    std::map<int, std::string>     talk_lines;
-    int                            money = 0;
-    int                            party = 1;
-    int                            pack_room = 10;
-    std::optional<Quest::ShopSpec> shop;
-    bool                           can_show_items = true;
-    std::vector<int>               items_shown;
+    std::map<int, std::string>          talk_lines;
+    int                                 money = 0;
+    int                                 party = 1;
+    int                                 pack_room = 10;
+    std::optional<Quest::ShopSpec>      shop;
+    bool                                can_show_items = true;
+    std::vector<int>                    items_shown;
 
     int ItemCount(int item) const override {
         const auto it = items.find(item);
         return it == items.end() ? 0 : it->second;
     }
+
     bool GiveItem(int item) override {
         if (pack_room <= 0) {
             return false;
@@ -53,6 +54,7 @@ public:
         ++items[item];
         return true;
     }
+
     bool TakeItem(int item) override {
         if (ItemCount(item) <= 0) {
             return false;
@@ -61,7 +63,9 @@ public:
         ++pack_room;
         return true;
     }
-    int  Money() const override { return money; }
+
+    int Money() const override { return money; }
+
     bool SpendMoney(int amount) override {
         if (amount > money) {
             return false;
@@ -69,44 +73,65 @@ public:
         money -= amount;
         return true;
     }
+
     void EarnMoney(int amount) override { money += amount; }
-    int  DeepestFloor(int dungeon) const override {
+
+    int DeepestFloor(int dungeon) const override {
         const auto it = floors.find(dungeon);
         return it == floors.end() ? -1 : it->second;
     }
+
     bool HasItemAnywhere(int item) const override {
         const auto it = stored.find(item);
         return ItemCount(item) > 0 || (it != stored.end() && it->second > 0);
     }
+
     int DungeonCount(int dungeon) const override {
         const auto it = dungeon_counts.find(dungeon);
         return it == dungeon_counts.end() ? 0 : it->second;
     }
-    int  PartySize() const override { return party; }
+
+    int PartySize() const override { return party; }
+
     template <typename Map, typename Key>
     static auto Get(const Map &map, const Key &key) {
         const auto it = map.find(key);
         return it == map.end() ? typename Map::mapped_type{} : it->second;
     }
+
     bool GameFlag(int flag) const override { return Get(game_flags, flag); }
+
     void SetGameFlag(int flag, bool on) override { game_flags[flag] = on; }
-    int  GameNumber(int slot) const override { return Get(game_numbers, slot); }
+
+    int GameNumber(int slot) const override { return Get(game_numbers, slot); }
+
     void SetGameNumber(int slot, int value) override { game_numbers[slot] = value; }
+
     bool MapFlag(int map, int flag) const override { return Get(map_flags, std::make_pair(map, flag)); }
+
     void SetMapFlag(int map, int flag, bool on) override { map_flags[{map, flag}] = on; }
+
     bool PartObtained(int town, int part) const override { return PartPlaced(town, part) > 0; }
-    int  PartPlaced(int town, int part) const override { return Get(parts_placed, std::make_pair(town, part)); }
+
+    int PartPlaced(int town, int part) const override { return Get(parts_placed, std::make_pair(town, part)); }
+
     bool PartComplete(int town, int part) const override { return Get(parts_complete, std::make_pair(town, part)); }
+
     bool PartEventDone(int town, int part) const override { return Get(part_events, std::make_pair(town, part)); }
+
     bool RequestMet(int town, int request) const override { return Get(requests, std::make_pair(town, request)); }
+
     bool VillagerHome(int town, int villager) const override {
         return Get(villagers_home, std::make_pair(town, villager));
     }
+
     std::string TalkLine(int message) const override {
         const auto it = talk_lines.find(message);
         return it == talk_lines.end() ? std::string() : it->second;
     }
+
     void OpenShop(Quest::ShopSpec spec) override { shop = std::move(spec); }
+
     bool ShowItemReceived(int item) override {
         if (!can_show_items) {
             return false;
@@ -296,8 +321,12 @@ Quest::Definition FetchQuest() {
     };
     auto sell = [=](Scene &scene) {
         Quest::ShopSpec shop;
-        shop.goods = {{ITEM_BREAD, 50}};
-        shop.lines = {{Quest::ShopLine::Greeting, kGreeting}};
+        shop.goods = {
+            {ITEM_BREAD, 50}
+        };
+        shop.lines = {
+            {Quest::ShopLine::Greeting, kGreeting}
+        };
         scene.OpenShop(std::move(shop));
     };
     return Quest::Builder("test_fetch")

@@ -67,18 +67,18 @@ inline constexpr int kMessageTextureBlock = 0x1A;
  * Temporary override that disables global text drop shadows while in scope.
  */
 struct ScopedShadow {
-    int  saved_shadow = 0;     /**< Previous text shadow configuration value. */
-    bool active       = false; /**< Whether the shadow configuration was modified. */
+    int  saved_shadow = 0; /**< Previous text shadow configuration value. */
+    bool active = false;   /**< Whether the shadow configuration was modified. */
 
     /**
      * Suppresses global text drop shadows when enable_shadow is false.
      */
     explicit ScopedShadow(bool enable_shadow) {
         if (!enable_shadow) {
-            Config &cfg     = const_cast<Config &>(ConfigGet());
-            saved_shadow    = cfg.text_shadow;
+            Config &cfg = const_cast<Config &>(ConfigGet());
+            saved_shadow = cfg.text_shadow;
             cfg.text_shadow = 0;
-            active          = true;
+            active = true;
         }
     }
 
@@ -87,7 +87,7 @@ struct ScopedShadow {
      */
     ~ScopedShadow() {
         if (active) {
-            Config &cfg     = const_cast<Config &>(ConfigGet());
+            Config &cfg = const_cast<Config &>(ConfigGet());
             cfg.text_shadow = saved_shadow;
         }
     }

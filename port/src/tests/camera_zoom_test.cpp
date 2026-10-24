@@ -7,14 +7,14 @@
 #include "../camera_port.hpp"
 #include "../camera_zoom.hpp"
 #include "../mouse_collision.hpp"
-#include "platform/clock.hpp"
-#include "platform/config.hpp"
-#include "platform/input.hpp"
-#include "platform/paths.hpp"
 #include "camerafollow.hpp"
 #include "collision.hpp"
 #include "dungeonmap.hpp"
 #include "frame.hpp"
+#include "platform/clock.hpp"
+#include "platform/config.hpp"
+#include "platform/input.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 TEST(CameraZoom, RetailRelaxationCannotExpandPastAWallAndResetReturnsToNormal) {

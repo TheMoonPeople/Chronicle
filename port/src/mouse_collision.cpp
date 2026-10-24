@@ -154,7 +154,7 @@ struct Bound {
 bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *polys, int count,
                    float floor_clearance = 18.0f) {
     constexpr double turn = 2 * std::numbers::pi;
-    double           gap = std::remainder(double(camera.next_angle) - camera.angle, turn);
+    double           gap = std::remainder(static_cast<double>(camera.next_angle) - camera.angle, turn);
     Vec              ref = V(camera.ref), next_ref = V(camera.next_ref), follow = V(camera.follow);
     Vec              eye = V(camera.pos), next_eye = V(camera.next_pos);
     if (!Finite(ref) || !Finite(next_ref) || !Finite(follow) || !Finite(eye) || !Finite(next_eye)) {
@@ -177,11 +177,12 @@ bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *po
     refs.Add(next_ref);
     refs.Add(follow);
     Vec   e = eyes.Centre(), r = refs.Centre();
-    float ep[4] = {float(e.x), float(e.y), float(e.z), 1}, rp[4] = {float(r.x), float(r.y), float(r.z), 1};
+    float ep[4] = {static_cast<float>(e.x), static_cast<float>(e.y), static_cast<float>(e.z), 1};
+    float rp[4] = {static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.z), 1};
     // CCamera eases coordinates separately (and may snap/limit a coordinate), so bounding each
     // coordinate encloses its subsequent states, including the generated follow destinations.
-    return MouseCameraClear(ep, rp, float(eyes.Radius()), float(refs.Radius()), polys, count,
-                            float((eyes.max.y - eyes.min.y) / 2), floor_clearance);
+    return MouseCameraClear(ep, rp, static_cast<float>(eyes.Radius()), static_cast<float>(refs.Radius()), polys, count,
+                            static_cast<float>((eyes.max.y - eyes.min.y) / 2), floor_clearance);
 }
 
 // Retail may pull the eye in while leaving a blocked follow destination or angular target.
@@ -248,7 +249,7 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
         }
         CFrame *frame = part.camera_frame;
         int     bound = FrameBound(frame, visits);
-        if (bound < 0 || bound > kPolyBudget - int(polys.size())) {
+        if (bound < 0 || bound > kPolyBudget - static_cast<int>(polys.size())) {
             return false;
         }
         if (!bound) {
@@ -290,7 +291,7 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
             return -1;
         }
         int bound = 2 * area->width * area->height;
-        if (bound > kPolyBudget - int(polys.size())) {
+        if (bound > kPolyBudget - static_cast<int>(polys.size())) {
             return -1;
         }
         auto start = polys.size();
@@ -304,7 +305,7 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
             polys.resize(start + found);
         }
     }
-    return int(polys.size());
+    return static_cast<int>(polys.size());
 }
 
 int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys) {
@@ -315,7 +316,7 @@ int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys)
             return true;
         }
         int bound = FrameBound(frame, visits);
-        if (bound < 0 || bound > kPolyBudget - int(polys.size()) || turn < 0 || turn > 6) {
+        if (bound < 0 || bound > kPolyBudget - static_cast<int>(polys.size()) || turn < 0 || turn > 6) {
             return false;
         }
         // Match the retail transform, without relying on camera_dist's old draw visibility.
@@ -345,7 +346,7 @@ int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys)
                 break;
             }
             if (!append(part.camera_collision, part.frame_offset[0][0], part.frame_offset[0][1],
-                        part.frame_offset[0][2], int(part.frame_turn[0]) + part.camera_collision_turn)) {
+                        part.frame_offset[0][2], static_cast<int>(part.frame_turn[0]) + part.camera_collision_turn)) {
                 return -1;
             }
         }
@@ -367,11 +368,14 @@ int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys)
             }
         }
     }
-    return int(polys.size());
+    return static_cast<int>(polys.size());
 }
 
 bool MouseCameraClear(const float *eye, const float *look, float eye_radius, float look_radius,
                       CCPoly *polys, int count, float vertical_radius, float floor_clearance) {
+    if (eye == nullptr || look == nullptr) {
+        return false;
+    }
     Vec e = V(eye), r = V(look);
     if (count < 0 || (count && !polys) || !Finite(e) || !Finite(r) ||
         !std::isfinite(eye_radius) || !std::isfinite(look_radius) || !std::isfinite(vertical_radius) ||
@@ -392,8 +396,10 @@ bool MouseCameraClear(const float *eye, const float *look, float eye_radius, flo
         if (SegmentTriangle(r, e, p) <= ray_margin || PointTriangle(e, V(p.vertex[0]), V(p.vertex[1]), V(p.vertex[2])) <= clearance + eye_radius + kMargin) {
             return false;
         }
-        double floor_min = std::min({double(p.vertex[0][1]), double(p.vertex[1][1]), double(p.vertex[2][1])});
-        double floor_max = std::max({double(p.vertex[0][1]), double(p.vertex[1][1]), double(p.vertex[2][1])});
+        double floor_min = std::min({static_cast<double>(p.vertex[0][1]), static_cast<double>(p.vertex[1][1]),
+                                     static_cast<double>(p.vertex[2][1])});
+        double floor_max = std::max({static_cast<double>(p.vertex[0][1]), static_cast<double>(p.vertex[1][1]),
+                                     static_cast<double>(p.vertex[2][1])});
         if (floor_max < down.y - vertical_radius - kMargin || floor_min > up.y + vertical_radius + kMargin) {
             continue;
         }
@@ -414,8 +420,8 @@ float MouseCameraClamp(CCameraFollow &camera, float turn, CCPoly *polys, int cou
         return 0;
     }
     // A complete revolution covers any further revolutions; keep work bounded for huge deltas.
-    double check = std::copysign(std::min(std::fabs(double(turn)), 2 * std::numbers::pi), turn);
-    int    steps = std::max(1, int(std::ceil(std::fabs(check) / kStep)));
+    double check = std::copysign(std::min(std::fabs(static_cast<double>(turn)), 2 * std::numbers::pi), turn);
+    int    steps = std::max(1, static_cast<int>(std::ceil(std::fabs(check) / kStep)));
     double accepted = 0;
     // Bound both interval subdivision and total geometry work. Exhaustion drops the remainder
     // of this read rather than queuing a delayed turn.
@@ -424,7 +430,7 @@ float MouseCameraClamp(CCameraFollow &camera, float turn, CCPoly *polys, int cou
         double end = check * (i + 1) / steps;
         double prefix = ClearPrefix(camera, accepted, end, polys, count, budget);
         if (prefix != end) {
-            return std::nextafter(float(prefix), 0.0f);
+            return std::nextafter(static_cast<float>(prefix), 0.0f);
         }
         accepted = end;
     }

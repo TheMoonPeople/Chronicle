@@ -14,12 +14,6 @@
 
 </div>
 
-> **This fork adds a Nintendo Switch build.** The PC port runs as homebrew on a Switch with custom
-> firmware, handheld at 1280x720 and at 60 frames a second in towns, with saves imported from PS2
-> memory cards. See [Nintendo Switch](#nintendo-switch) below and [`docs/SWITCH.md`](docs/SWITCH.md). Its
-> engine changes are on the `switch-port` branch of
-> [columna1/Kazarov-switch](https://github.com/columna1/Kazarov-switch), the `tools/kazarov` submodule.
-
 ## Overview
 
 **Chronicle** is a decompilation project and port of _Dark Cloud_ for the PlayStation 2.
@@ -72,22 +66,35 @@ build.bat <configuration>
 ./run.sh <configuration> [arguments]
 ```
 
+Native runs through `run.bat` or `run.sh` keep runtime files in the ignored
+`port/run/` directory: extracted data in `data/`, saves and settings in `save/`,
+and soundtrack files, icons and relative screenshot output alongside them.
+Relative input and output arguments resolve from `port/run/`; use absolute paths
+for files elsewhere. Build output stays in `port/build/`.
+
 ### Build Configurations
 
-| Configuration         | Platform      | Build                               |
-| :-------------------- | :------------ | :---------------------------------- |
-| `ps2-pal`             | PlayStation 2 | PAL executable and disc image       |
-| `ps2-ntsc`            | PlayStation 2 | NTSC 1.02 executable and disc image |
-| `linux-x64-release`   | Linux x64     | Release                             |
-| `linux-x64`           | Linux x64     | Debug                               |
-| `macos-arm64-release` | macOS ARM64   | Release                             |
-| `macos-arm64`         | macOS ARM64   | Debug                               |
-| `windows-x64-release` | Windows x64   | Release                             |
-| `windows-x64`         | Windows x64   | Debug                               |
+| Configuration / task  | Platform        | Build                               |
+| :-------------------- | :-------------- | :---------------------------------- |
+| `ps2-pal`             | PlayStation 2   | PAL executable and disc image       |
+| `ps2-ntsc`            | PlayStation 2   | NTSC 1.02 executable and disc image |
+| `linux-x64-release`   | Linux x64       | Release                             |
+| `linux-x64`           | Linux x64       | Debug                               |
+| `macos-arm64-release` | macOS ARM64     | Release                             |
+| `macos-arm64`         | macOS ARM64     | Debug                               |
+| `windows-x64-release` | Windows x64     | Release                             |
+| `windows-x64`         | Windows x64     | Debug                               |
+| `switch`              | Nintendo Switch | Homebrew `.nro` (see [`docs/SWITCH.md`](docs/SWITCH.md)) |
+| `assembleDebug`       | Android         | Debug APK (experimental)            |
+| `assembleProfile`     | Android         | Profile APK (experimental)          |
+
+Run Android Gradle tasks from `port/android` with `gradlew.bat <task>` on
+Windows; see the [Android build
+documentation](https://github.com/TheMoonPeople/Chronicle/blob/master/port/android/README.md).
 
 ### Build Options
 
-The following environment variables can be used to customise the build:
+The root build scripts accept these environment variables:
 
 | Variable  | Description                                                           |
 | :-------- | :-------------------------------------------------------------------- |
@@ -99,60 +106,3 @@ For example:
 ```bash
 CLEAN=1 JOBS=8 ./build.sh linux-x64-release
 ```
-
-## Nintendo Switch
-
-The port also builds as a homebrew `.nro` for a Switch running Atmosphère, in a container image
-(podman or docker) with devkitPro's toolchain, Mesa's NVK Vulkan driver and SDL3.
-
-```bash
-./build.sh linux-x64-release                                       # the PC build, for dcdata
-port/build/pc-release/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
-tools/switch/build.sh                                              # port/build/switch/darkcloud.nro
-```
-
-Copy `darkcloud.nro`, `lang/` and `glyphs/` from `port/build/switch/`, and the extracted `data/`, to
-`sdmc:/switch/chronicle/`, then start **Chronicle** from the Homebrew Menu with a game's title
-overridden (hold R while starting a game). Saves from PCSX2 or a PS2 memory card dump import with
-`tools/ps2card/ps2card.py`.
-
-[`docs/SWITCH.md`](docs/SWITCH.md) covers building, installing, playing, saves, logs and crash
-reports, testing from a computer, how the port runs on the console and what it changes for it.
-
-## Android build
-
-This fork builds Chronicle as a native Android app for `arm64-v8a` and `x86_64`, named Chronicle. It
-includes a multi-touch PS2 control overlay with separate movement and camera sticks; unused L3/R3 buttons
-are omitted, touches outside the controls do not send game input, and the overlay hides when a hardware
-controller, keyboard, or mouse is connected. Android settings, controller bindings, Foldable display
-changes, 16 KB page-size compatibility, and renderer/performance work are included. The renderer requires
-Vulkan 1.3 and a compatible GPU. Android support remains experimental and device compatibility varies.
-
-The app does not include Dark Cloud game data. On first launch, select your own PAL disc image; the app
-imports it into private storage. Keep disc images and extracted `DATA.DAT`/`DATA.HD2` files out of this
-repository and APK.
-
-### Build on Windows
-
-Install JDK 17 and Android Studio's SDK platform 35, build tools 35.0.0, NDK 27.0.12077973, and CMake
-3.31.6. Clone this fork with its Kazarov submodule:
-
-```powershell
-git clone --recurse-submodules https://github.com/anxiousintrovert/Chronicle-Android.git
-cd Chronicle-Android\android
-.\fetch-deps.ps1
-.\gradlew.bat assembleDebug
-```
-
-The Gradle wrapper pins Gradle 8.13. `fetch-deps.ps1` downloads SDL 3.4.16 and glslang 16.6.0, checking
-their archive SHA-256 values before extraction. The debug APK is written to
-`android/app/build/outputs/apk/debug/app-debug.apk`.
-
-For local device testing, `android/publish-test-apk.ps1` builds and zips a timestamp-labeled package,
-archives previous Chronicle test packages in `DARKCLOUDBUILDS`, and leaves the current ZIP in the chosen
-destination root. Its default destination is the maintainer's mapped `Z:\` Games share; pass
-`-DestinationRoot` to use another folder.
-
-See [`android/README.md`](android/README.md) for prerequisites, setup, and build details. Prebuilt test
-packages, when available, are published on the [GitHub Releases page](https://github.com/anxiousintrovert/Chronicle-Android/releases).
-They contain the app only; users must supply their own compatible PAL disc image.

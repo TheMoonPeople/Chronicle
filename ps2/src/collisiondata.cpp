@@ -828,6 +828,7 @@ int CCollisionData::Set(float *position, int damage, int life, float radius, flo
         }
     }
     // With every record in use nothing is set and no index is returned.
+    PORT_RETURN(-1);
 }
 
 /**

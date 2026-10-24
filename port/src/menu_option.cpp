@@ -124,19 +124,3 @@ void GameOptionsClear(CSaveData &save) {
     reinterpret_cast<CUserStatus *>(save.GetDngStatus())->minimap_status = 0;
     save.GetMenuCursor()->reset_pos = 0;
 }
-
-PORT_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
-    return options::Open(mode, block_no, buffer);
-}
-
-PORT_OVERRIDE int MenuOptionKey() {
-    return options::Run();
-}
-
-PORT_OVERRIDE void DrawMenuOption() {
-    options::Draw();
-}
-
-PORT_OVERRIDE int OptionMenuFadeOutStart() {
-    return options::g_screen.step == OPTION_STEP_FADE_OUT;
-}

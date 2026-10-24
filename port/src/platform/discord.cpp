@@ -4,7 +4,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
-#elif !defined(__SWITCH__)
+#else
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -128,24 +128,6 @@ bool ReadAll(Pipe pipe, void *data, std::size_t size, Clock::time_point deadline
 int ProcessId() {
     return static_cast<int>(GetCurrentProcessId());
 }
-
-#elif defined(__SWITCH__)
-
-// A console runs no Discord client, so there is never a pipe to open.
-using Pipe = int;
-constexpr Pipe kNoPipe = -1;
-
-std::vector<std::string> PipePaths() { return {}; }
-
-Pipe OpenPipe(const std::string &) { return kNoPipe; }
-
-void ClosePipe(Pipe) {}
-
-bool WriteAll(Pipe, const void *, std::size_t) { return false; }
-
-bool ReadAll(Pipe, void *, std::size_t, Clock::time_point) { return false; }
-
-int ProcessId() { return 0; }
 
 #else
 

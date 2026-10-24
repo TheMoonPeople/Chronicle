@@ -1,5 +1,3 @@
-#include "ui_framework/internal.hpp"
-
 #include <algorithm>
 #include <utility>
 #include <vector>
@@ -7,6 +5,7 @@
 #include "gamepad.hpp"
 #include "menu_pointer.hpp"
 #include "snd.hpp"
+#include "ui_framework/internal.hpp"
 
 namespace UI {
 
@@ -69,13 +68,13 @@ void LayerQueue::Flush() {
 
 void DialogBox::Configure(std::string_view title, std::string_view description,
                           std::vector<DialogOption> options,
-                          std::function<void()> on_cancel,
-                          const DialogStyle &style) {
-    m_title       = std::string(title);
+                          std::function<void()>     on_cancel,
+                          const DialogStyle        &style) {
+    m_title = std::string(title);
     m_description = std::string(description);
-    m_options     = std::move(options);
-    m_on_cancel   = std::move(on_cancel);
-    m_style       = style;
+    m_options = std::move(options);
+    m_on_cancel = std::move(on_cancel);
+    m_style = style;
 }
 
 void DialogBox::Open(int default_choice) {
@@ -91,7 +90,7 @@ void DialogBox::SetSelectedIndex(int index) {
         return;
     }
     const int count = static_cast<int>(m_options.size());
-    m_selected      = ((index % count) + count) % count;
+    m_selected = ((index % count) + count) % count;
 }
 
 Rect DialogBox::ComputeBoxRect(std::vector<std::string> &out_lines) const {
@@ -124,7 +123,7 @@ Rect DialogBox::ComputeBoxRect(std::vector<std::string> &out_lines) const {
 
 Rect DialogBox::GetButtonRect(int index) const {
     std::vector<std::string> lines;
-    const Rect               box   = ComputeBoxRect(lines);
+    const Rect               box = ComputeBoxRect(lines);
     const int                btn_x = (Metrics::kScreenWidth - m_style.button_width) / 2;
     const int                btn_y = box.Bottom() + 10 + index * (m_style.button_height + m_style.button_gap);
     return Rect(btn_x, btn_y, m_style.button_width, m_style.button_height);
@@ -152,7 +151,7 @@ bool DialogBox::HandleInput() {
     if (MenuPointerHand(ptr_x, ptr_y)) {
         const float tip_x = ptr_x + 26.0f;
         const float tip_y = ptr_y + 14.0f;
-        const int   hit   = HitTest(tip_x, tip_y);
+        const int   hit = HitTest(tip_x, tip_y);
         if (hit >= 0 && hit != m_selected) {
             m_selected = hit;
             ComMenuSePlay(MENU_SOUND_CURSOR);
@@ -212,7 +211,7 @@ void DialogBox::Draw(int alpha) {
 
     for (size_t i = 0; i < m_options.size(); ++i) {
         const Rect btn_rect = GetButtonRect(static_cast<int>(i));
-        const int  btn_a    = m_options[i].enabled ? alpha : (alpha >> 1);
+        const int  btn_a = m_options[i].enabled ? alpha : (alpha >> 1);
         BevelButton::Draw(btn_rect, m_options[i].label, m_options[i].style, btn_a);
     }
 
@@ -235,7 +234,7 @@ void DialogBox::Draw(int alpha) {
 void ConfirmModal::Draw(std::string_view title, std::string_view description,
                         std::string_view yes_label, std::string_view no_label,
                         int selected_choice, Cursor &cursor, int alpha,
-                        WindowPreset preset) {
+                        WindowPreset preset, int chosen_choice, bool lit) {
     if (alpha <= 0) {
         return;
     }
@@ -272,15 +271,22 @@ void ConfirmModal::Draw(std::string_view title, std::string_view description,
         Label(lines[i], ColorWhite).Draw(box_x + 22, box_y + 12 + static_cast<int>(i) * kModalLineSpacing, alpha);
     }
 
-    constexpr int btn_w  = Metrics::kButtonWidth;
-    constexpr int btn_h  = Metrics::kButtonHeight;
-    constexpr int btn_x  = (Metrics::kScreenWidth - btn_w) / 2;
+    // The game's yes/no plates: their size and spacing, lettered as the weapon menu's buttons are.
+    constexpr int btn_w = 0x60;
+    constexpr int btn_h = 23;
+    constexpr int btn_x = (Metrics::kScreenWidth - btn_w) / 2;
     const int     btn_y0 = box_y + box_h + 10;
-    const int     btn_y1 = btn_y0 + btn_h + Metrics::kButtonGap;
+    const int     btn_y1 = btn_y0 + 0x1C;
 
-    const ButtonStyle btn_style = ButtonStyle::Thick(ButtonPreset::Terracotta);
-    BevelButton::Draw(Rect(btn_x, btn_y0, btn_w, btn_h), yes_label, btn_style, alpha);
-    BevelButton::Draw(Rect(btn_x, btn_y1, btn_w, btn_h), no_label, btn_style, alpha);
+    ButtonStyle yes_style = ButtonStyle::Thin(ButtonPreset::Terracotta);
+    ButtonStyle no_style = yes_style;
+    yes_style.pressed = lit && chosen_choice == 0;
+    no_style.pressed = lit && chosen_choice == 1;
+    BevelButton::Draw(Rect(btn_x, btn_y0, btn_w, btn_h), yes_label, yes_style, alpha);
+    BevelButton::Draw(Rect(btn_x, btn_y1, btn_w, btn_h), no_label, no_style, alpha);
+    if (chosen_choice >= 0) {
+        return;
+    }
 
     const int sel_y = (selected_choice == 0) ? btn_y0 : btn_y1;
     setbilinear(0);
@@ -295,7 +301,7 @@ void ConfirmModal::Draw(std::string_view title, std::string_view description,
 }
 
 void ListView::Reset(int initial_index) {
-    m_selected  = std::max(0, initial_index);
+    m_selected = std::max(0, initial_index);
     m_first_row = 0;
     if (m_cfg.visible_rows > 0 && m_selected >= m_cfg.visible_rows) {
         m_first_row = m_selected - m_cfg.visible_rows + 1;
@@ -307,7 +313,7 @@ void ListView::Reset(int initial_index) {
 
 void ListView::SetSelectedIndex(int index, int total_items) {
     if (total_items <= 0) {
-        m_selected  = 0;
+        m_selected = 0;
         m_first_row = 0;
         return;
     }
@@ -327,7 +333,7 @@ void ListView::EnsureVisible(int total_items) {
         m_first_row = m_selected - vis + 1;
     }
     const int max_first = std::max(0, total_items - vis);
-    m_first_row         = std::clamp(m_first_row, 0, max_first);
+    m_first_row = std::clamp(m_first_row, 0, max_first);
 }
 
 Rect ListView::GetVisibleRowRect(int visible_slot) const {
@@ -347,14 +353,14 @@ int ListView::HitTest(float px, float py, int total_items) const {
     return -1;
 }
 
-bool ListView::HandleInput(int total_items,
+bool ListView::HandleInput(int                             total_items,
                            const std::function<void(int)> &on_confirm,
-                           const std::function<void()> &on_cancel) {
+                           const std::function<void()>    &on_cancel) {
     if (total_items <= 0) {
         return false;
     }
 
-    const int prev_sel   = m_selected;
+    const int prev_sel = m_selected;
     const int prev_first = m_first_row;
 
     float ptr_x = 0.0f;

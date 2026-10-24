@@ -21,19 +21,19 @@ PORT_OVERRIDE void CCharacter::ClothStep(int step) {
 
     sceVu0CopyVector(world_pos, this->pos);
 
-    if (this->frame != NULL) {
+    if (this->frame != nullptr) {
         this->frame->SetPosition(this->pos[0], this->pos[1], this->pos[2]);
         this->frame->SetRotation(this->rotation.x, this->rotation.y, this->rotation.z);
         root = this->frame->parent;
 
-        if (root != NULL) {
+        if (root != nullptr) {
             this->pos[3] = 1.0f;
             root->GetWorldPosition(world_pos, this->pos);
         }
     }
 
     for (i = 0; i < CHARA_CLOTH_MAX; i++) {
-        if (this->cloth[i] != NULL) {
+        if (this->cloth[i] != nullptr) {
             this->cloth[i]->wind = PortImagePointer(this->wind);
             this->cloth[i]->floor_y = world_pos[1];
             this->cloth[i]->Step(step);

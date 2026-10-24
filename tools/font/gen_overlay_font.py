@@ -1,6 +1,5 @@
 ﻿#!/usr/bin/env python3
-"""Rasterises the FPS counter's glyphs from DarkCloudCompendium.ttf (Dark Cloud Compendium Community
-Font by Dayuppy/MoonBunny) into port/src/platform/overlay_font.inc.
+"""Rasterises the FPS counter's glyphs from ChronicleSharp-Bold.ttf into port/src/platform/overlay_font.inc.
 
     python tools/font/gen_overlay_font.py [size]
 """
@@ -10,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 here = Path(__file__).parent
 size = int(sys.argv[1]) if len(sys.argv) > 1 else 11
-font = ImageFont.truetype(str(here / "DarkCloudCompendium.ttf"), size)
+font = ImageFont.truetype(str(here / "ChronicleSharp-Bold.ttf"), size)
 chars = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:;/()+-_%'[]?~"
 ascent, descent = font.getmetrics()
 

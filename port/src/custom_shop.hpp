@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <map>
 #include <string>
 #include <utility>
@@ -45,3 +47,7 @@ int CustomShopBegin(CustomShop shop);
 void CustomShopEnd();
 
 bool CustomShopActive();
+
+s16 *PortGetItemShopList(int shop_no);
+void PortItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name);
+void PortItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name);

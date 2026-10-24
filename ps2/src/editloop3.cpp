@@ -3177,6 +3177,7 @@ static int init_obj_anime(int anime_index, int handle_index, int type, int numbe
     sceVu0CopyVector(anime->from, range);
     sceVu0CopyVector(anime->to, speed);
     InitObjAnime(handle->frames, 12, anime);
+    PORT_RETURN(1);
 }
 
 static void sync_obj_obj(OBJ_HANDLE *source, OBJ_HANDLE *targets) {
@@ -7108,14 +7109,17 @@ static int asq_motion_play(int mode, RS_STACKDATA *stack, int argument_count) {
 
 static int _ASQ_MOTION_PLAY(RS_STACKDATA *stack, int argument_count) {
     asq_motion_play(5, stack, argument_count);
+    PORT_RETURN(1);
 }
 
 static int _ASQ_MOTION_STOP(RS_STACKDATA *stack, int argument_count) {
     asq_motion_play(6, stack, argument_count);
+    PORT_RETURN(1);
 }
 
 static int _ASQ_MOTION_NEXT(RS_STACKDATA *stack, int argument_count) {
     asq_motion_play(7, stack, argument_count);
+    PORT_RETURN(1);
 }
 
 static int _ASQ_ANIME_TRG(RS_STACKDATA *stack, int argument_count) {
@@ -7320,6 +7324,7 @@ static int _SET_WORK_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           flag = GetStackInt(stack);
     SetWorkFlag(flag, GetStackInt(next));
+    PORT_RETURN(1);
 }
 
 static int _GET_WORK_FLAG(RS_STACKDATA *stack, int argument_count) {
@@ -7447,12 +7452,14 @@ static int _SATRA_PARTS_GET(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           georama = GetStackInt(stack) - 1;
     SaveData->AtraPartsGet(georama, GetStackInt(next));
+    PORT_RETURN(1);
 }
 
 static int _SATRA_CHIP_GET(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           georama = GetStackInt(stack) - 1;
     SaveData->AtraChipGet(georama, GetStackInt(next));
+    PORT_RETURN(1);
 }
 
 int _SGET_REQUEST(RS_STACKDATA *stack, int argument_count) {
@@ -7537,16 +7544,19 @@ static int _LOAD_SND_SYNC(RS_STACKDATA *stack, int argument_count) {
 static int _LOAD_SOUND_SET(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
     SndSoundLoadBG(GetStackInt(stack), read_buffer, NULL);
+    PORT_RETURN(1);
 }
 
 static int _LOAD_VOICE_SET(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
     SndVoiceLoadBG(GetStackInt(stack), read_buffer, NULL);
+    PORT_RETURN(1);
 }
 
 static int _LOAD_BGM(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
     SndBgmLoadBG(GetStackInt(stack), read_buffer, NULL);
+    PORT_RETURN(1);
 }
 
 static int _DELETE_BGM(RS_STACKDATA *stack, int argument_count) {

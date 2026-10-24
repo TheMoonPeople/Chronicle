@@ -107,20 +107,20 @@ const char *ItemGetRecord(CRunScript &script) {
     found_in = script.prog;
     found = nullptr;
 
-    char                           *base = reinterpret_cast<char *>(script.prog);
-    char                           *code = script.code;
-    std::vector<const char *>       pending;
+    char                            *base = reinterpret_cast<char *>(script.prog);
+    char                            *code = script.code;
+    std::vector<const char *>        pending;
     std::unordered_set<const char *> seen;
-    const RS_PROGDATA              *entry = reinterpret_cast<const RS_PROGDATA *>(base + script.prog->prog);
+    const RS_PROGDATA               *entry = reinterpret_cast<const RS_PROGDATA *>(base + script.prog->prog);
     for (int i = 0; i < script.prog->prog_num; i++) {
         pending.push_back(base + entry[i].func);
     }
 
     // Each function's instructions run from its address to the first word that is no opcode (its
     // end, a record or a string); a script function is far shorter than the limit.
-    constexpr int kMostInstructions = 20000;
-    constexpr int kFirstOpcode = 1;
-    constexpr int kLastOpcode = 30;
+    constexpr int most_instructions = 20000;
+    constexpr int first_opcode = 1;
+    constexpr int last_opcode = 30;
     while (!pending.empty()) {
         const char *record = pending.back();
         pending.pop_back();
@@ -133,8 +133,8 @@ const char *ItemGetRecord(CRunScript &script) {
             continue;
         }
         const vmcode_t *pc = reinterpret_cast<const vmcode_t *>(code + disc.addr);
-        for (int n = 0; n < kMostInstructions; n++, pc++) {
-            if (pc->op < kFirstOpcode || pc->op > kLastOpcode) {
+        for (int n = 0; n < most_instructions; n++, pc++) {
+            if (pc->op < first_opcode || pc->op > last_opcode) {
                 break;
             }
             if (pc->op == RS_OP_CALL) {
@@ -195,19 +195,19 @@ void RunEvent(CRunScript *script, int program, CDataAlloc2<1> *arena);
 // Retail's body, with the return it leaves to v0: 1 for an event still running, 0 for one that
 // ran to its end and -1 for a program the script does not have. EdEventInit treats the last two
 // as an event with nothing to show.
-PORT_OVERRIDE int EdRunEvent(int program, CDataAlloc2<1> *arena) {
+int PortEdRunEvent(int program, CDataAlloc2<1> *arena) {
     RunEvent(&EdEventScript, program, arena);
     return g_run_result;
 }
 
 PORT_OVERRIDE int CRunScript::run(int no) {
-    if (prog == 0) {
+    if (prog == nullptr) {
         return g_run_result = -1;
     }
 
     sp = stack;
     call_sp = call;
-    func = 0;
+    func = nullptr;
 
     char *base = reinterpret_cast<char *>(prog);
 
@@ -252,7 +252,7 @@ PORT_OVERRIDE int CRunScript::run(int no) {
         }
     }
 
-    if (func == 0) {
+    if (func == nullptr) {
         printf("not found program %d\n", no);
         return g_run_result = -1;
     }
@@ -635,7 +635,7 @@ PORT_OVERRIDE void CRunScript::exe(vmcode_t *entry) {
                 break;
             case RS_OP_END:
                 end = 1;
-                pc = 0;
+                pc = nullptr;
                 return;
             case RS_OP_CALL:
                 pc = call_func(HostFunc(code, code + pc->arg2), pc);
@@ -650,7 +650,7 @@ PORT_OVERRIDE void CRunScript::exe(vmcode_t *entry) {
                 } else {
                     result = value.i;
                     push(value);
-                    pc = 0;
+                    pc = nullptr;
                     end = 1;
                     return;
                 }

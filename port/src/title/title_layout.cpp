@@ -1,5 +1,3 @@
-#include "title_port.hpp"
-
 #include <cstring>
 #include <memory>
 
@@ -13,6 +11,7 @@
 #include "title/op_b.hpp"
 #include "title/op_c.hpp"
 #include "title/rushmovi.hpp"
+#include "title_port.hpp"
 #include "water.hpp"
 
 // The title units declare these with PS2 layouts of their own (op_a.cpp's 144-byte OBJ_ANIME_SEQ,

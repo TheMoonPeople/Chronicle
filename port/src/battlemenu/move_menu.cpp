@@ -16,6 +16,13 @@ UI::Cursor move_cursor;
 int last_move_state = -1;
 
 /**
+ * Frames since the answer was chosen. It is lit for as long as the weapon menu's EQUIP is once a weapon is equipped:
+ * the weapon's hop, WepFrameRate rising to pi by pi/9 a frame.
+ */
+int           chosen_frames = 0;
+constexpr int kChosenLitFrames = 9;
+
+/**
  * Extracts the title and description lines for the active move confirmation prompt.
  */
 void ExtractMovePromptText(std::string &out_title, std::string &out_desc) {
@@ -24,10 +31,10 @@ void ExtractMovePromptText(std::string &out_title, std::string &out_desc) {
 
     if (CommonMenuMes3.buff != nullptr && CommonMenuMes3.mes_made > 0) {
         const std::string decoded = DecodeMesFromBuffer(CommonMenuMes3.buff, CommonMenuMes3.mes_made);
-        const size_t      nl      = decoded.find('\n');
+        const size_t      nl = decoded.find('\n');
         if (nl != std::string::npos) {
             out_title = decoded.substr(0, nl);
-            out_desc  = decoded.substr(nl + 1);
+            out_desc = decoded.substr(nl + 1);
         } else {
             out_title = decoded;
         }
@@ -37,7 +44,7 @@ void ExtractMovePromptText(std::string &out_title, std::string &out_desc) {
         switch (MenuMove.mode) {
             case MENU_MOVE_FIRST_DUNGEON:
                 out_title = LocalizeText("battlemenu.move.enter_dungeon_1", "Enter");
-                out_desc  = LocalizeText("battlemenu.move.enter_dungeon_2", "Divine Beast Cave?");
+                out_desc = LocalizeText("battlemenu.move.enter_dungeon_2", "Divine Beast Cave?");
                 break;
             case MENU_MOVE_INTERIOR_OUT:
                 out_title = LocalizeText("battlemenu.move.go_outside", "Go outside?");
@@ -53,7 +60,7 @@ void ExtractMovePromptText(std::string &out_title, std::string &out_desc) {
 
 } // namespace
 
-PORT_OVERRIDE void DrawMenuMove() {
+void PortDrawMenuMove() {
     if (MenuMove.mode == MENU_MOVE_WORLD_MAP_DIRECT) {
         MenuWorldTrans(&MenuCamera);
         FrameImageDraw(0x40, 0x80);
@@ -77,12 +84,14 @@ PORT_OVERRIDE void DrawMenuMove() {
         }
 
         if (last_move_state != MenuMove.state && MenuMove.state == MENU_MOVE_STATE_OPEN) {
-            constexpr int btn_x  = (640 - 100) / 2;
+            constexpr int btn_x = (640 - 0x60) / 2;
             constexpr int btn_y0 = 164 + 58 + 10;
-            const int     sel_y  = (MenuMove.cursor == 0) ? btn_y0 : (btn_y0 + 26 + 6);
+            const int     sel_y = (MenuMove.cursor == 0) ? btn_y0 : (btn_y0 + 0x1C);
             move_cursor.SnapTo(static_cast<float>(btn_x - 34), static_cast<float>(sel_y + 3));
         }
         last_move_state = MenuMove.state;
+        const bool chosen = MenuMove.state == MENU_MOVE_STATE_CONFIRM || MenuMove.state == MENU_MOVE_STATE_CLOSE;
+        chosen_frames = chosen ? chosen_frames + 1 : 0;
 
         std::string prompt_title;
         std::string prompt_desc;
@@ -95,8 +104,10 @@ PORT_OVERRIDE void DrawMenuMove() {
             LocalizeText("battlemenu.quit.no", "NO"),
             MenuMove.cursor,
             move_cursor,
-            alpha
-        );
+            alpha,
+            UI::WindowPreset::DarkTranslucent,
+            chosen ? MenuMove.cursor : -1,
+            chosen_frames <= kChosenLitFrames);
 
         if (MenuMove.state == MENU_MOVE_STATE_INTERIOR_FADE && GetInteriorOutFlag() != 0) {
             AllFadeForMenu(std::min(0x80, static_cast<int>(MenuMove.counter * 3)));
@@ -110,15 +121,15 @@ PORT_OVERRIDE void DrawMenuMove() {
         return;
     }
 
-    int            x    = 0;
-    int            y    = 0;
+    int            x = 0;
+    int            y = 0;
     WORLD_MAP_POS *next = reinterpret_cast<WORLD_MAP_POS *>(NextWorldPos);
     if (next != nullptr) {
         x = next->x;
         y = next->y;
     } else {
-        x         = 0x150;
-        y         = 0xB2;
+        x = 0x150;
+        y = 0xB2;
         SysCur[0] = static_cast<float>(x);
         SysCur[1] = static_cast<float>(y);
     }
@@ -130,8 +141,7 @@ PORT_OVERRIDE void DrawMenuMove() {
             MenuCharaFrame.SetScale(2.2f, 2.2f, 2.2f);
             MenuCharaFrame.SetPosition(mapo);
             MenuCharaFrame.Step();
-            MenuCharaFrame.Draw();
-        });
+            MenuCharaFrame.Draw(); });
     }
 
     SysCur[0] += (static_cast<float>(x) - SysCur[0]) / 3.0f;
@@ -144,7 +154,7 @@ PORT_OVERRIDE void DrawMenuMove() {
     }
     CommonMenuMes3.stay_frame = false;
 
-    const float width     = static_cast<float>(CommonMenuMes3.GetMesWidth_system(CommonMenuMes3.mes_no[0]));
+    const float width = static_cast<float>(CommonMenuMes3.GetMesWidth_system(CommonMenuMes3.mes_no[0]));
     CommonMenuMes3.text_x = static_cast<int>(static_cast<double>(x) - static_cast<double>(width) / 2.0);
     CommonMenuMes3.text_y = y - 0x22;
 

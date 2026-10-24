@@ -1,6 +1,7 @@
 #include "dataread.hpp"
-#include "dataread_port.hpp"
+#include "language.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <cstdio>
@@ -15,7 +16,7 @@
 #include <vector>
 
 #include "../../tools/dcdata/dcdata.hpp"
-#include "language.h"
+#include "dataread_port.hpp"
 #include "localize.hpp"
 #include "platform/paths.hpp"
 
@@ -24,8 +25,31 @@ namespace fs = std::filesystem;
 namespace {
 
 std::unordered_map<std::string, fs::path> data_index;
-bool                                      data_indexed;
-BG_READ_INFO                              bg_read_info[32];
+
+struct PackCapacity {
+    std::size_t capacity;
+    const void *owner;
+};
+
+std::unordered_map<const void *, PackCapacity> loaded_capacities;
+bool                                          data_indexed;
+BG_READ_INFO                                  bg_read_info[32];
+
+void ForgetPackCapacities(const void *owner) {
+    for (auto at = loaded_capacities.begin(); at != loaded_capacities.end();) {
+        if (at->second.owner == owner) {
+            at = loaded_capacities.erase(at);
+        } else {
+            ++at;
+        }
+    }
+}
+
+void TrackPackCapacity(const void *pack, std::size_t capacity, const void *owner) {
+    if (pack != nullptr) {
+        loaded_capacities[pack] = {capacity, owner};
+    }
+}
 
 // Everything up to the first colon is a device, as retail's LoadFile2 has it; sim: and host:
 // were development devices that reached the same tree, so they are dropped like cdrom0:.
@@ -73,11 +97,11 @@ const fs::path *Lookup(std::string_view path) {
 
 // The drive wrote whole sectors, so up to 2047 bytes past the file were overwritten and callers
 // sized their buffers for that; the tail is zeroed rather than left as whatever was there.
-int ReadWhole(const fs::path &file, void *buffer) {
+int ReadWhole(const fs::path &file, void *buffer, std::size_t *out_capacity = nullptr) {
     std::error_code error;
     std::uintmax_t  size = fs::file_size(file, error);
     std::ifstream   stream(file, std::ios::binary);
-    if (error || !stream || size > INT32_MAX) {
+    if (error || !stream || size > INT32_MAX || buffer == nullptr) {
         std::fprintf(stderr, "cannot read %s\n", PathsDisplay(file).c_str());
         std::abort();
     }
@@ -88,6 +112,9 @@ int ReadWhole(const fs::path &file, void *buffer) {
     }
     std::size_t padded = dcdata::SectorsFor(size) * dcdata::kSector;
     std::memset(static_cast<char *>(buffer) + size, 0, padded - size);
+    if (out_capacity != nullptr) {
+        *out_capacity = padded;
+    }
     return static_cast<int>(size);
 }
 
@@ -105,6 +132,37 @@ bool SameName(const char *name, std::string_view other) {
     return length == other.size() && dcdata::FoldPath(std::string_view(name, length)) == dcdata::FoldPath(other);
 }
 
+PackEntry *PackEntryAt(u_int *pack, std::size_t capacity, int wanted) {
+    if (pack == nullptr || wanted < 0) {
+        return nullptr;
+    }
+    auto       *bytes = reinterpret_cast<unsigned char *>(pack);
+    std::size_t offset = 0;
+    for (int index = 0; offset <= capacity && capacity - offset >= sizeof(PackEntry); index++) {
+        auto *entry = reinterpret_cast<PackEntry *>(bytes + offset);
+        if (entry->name[0] == 0 || std::memchr(entry->name, '\0', sizeof(entry->name)) == nullptr ||
+            entry->next < static_cast<int>(sizeof(PackEntry)) || static_cast<std::size_t>(entry->next) > capacity - offset) {
+            return nullptr;
+        }
+        if (index == wanted) {
+            return entry;
+        }
+        offset += static_cast<std::size_t>(entry->next);
+    }
+    return nullptr;
+}
+
+u_int *PackEntryData(u_int *pack, std::size_t capacity, PackEntry *entry) {
+    auto             *bytes = reinterpret_cast<unsigned char *>(pack);
+    const std::size_t offset = static_cast<std::size_t>(reinterpret_cast<unsigned char *>(entry) - bytes);
+    if (entry->offset < static_cast<int>(sizeof(PackEntry)) || entry->size < 0 ||
+        static_cast<std::size_t>(entry->offset) > capacity - offset ||
+        static_cast<std::size_t>(entry->size) > capacity - offset - static_cast<std::size_t>(entry->offset)) {
+        return nullptr;
+    }
+    return reinterpret_cast<u_int *>(reinterpret_cast<unsigned char *>(entry) + entry->offset);
+}
+
 // Hands a file just read to the localization layer: a message file may be rewritten from the
 // language's JSON in place (it fits the whole sectors ReadWhole zeroed), and a pack is noted so
 // its message entries can be told from GetPackFile.
@@ -119,6 +177,7 @@ PORT_OVERRIDE void InitCDFile() {
     const fs::path &root = PathsDataRoot();
     std::error_code error;
     data_index.clear();
+    loaded_capacities.clear();
     data_indexed = false;
     if (!fs::is_directory(root, error)) {
         NoData(root, "is not a directory");
@@ -169,7 +228,10 @@ PORT_OVERRIDE int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
     if (!file) {
         return 0;
     }
-    int size = ReadWhole(*file, buffer);
+    ForgetPackCapacities(buffer);
+    std::size_t capacity = 0;
+    int         size = ReadWhole(*file, buffer, &capacity);
+    TrackPackCapacity(buffer, capacity, buffer);
     Localized(path, buffer, &size);
     if (out_size) {
         *out_size = size;
@@ -180,10 +242,14 @@ PORT_OVERRIDE int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
 // languages.json is {"release": "...", "languages": [n, ...]}; the numbers in the brackets after
 // "languages" are the languages.
 std::uintmax_t DataFileSize(std::string_view path) {
-    const fs::path *file = Lookup(path);
-    std::error_code error;
+    const fs::path      *file = Lookup(path);
+    std::error_code      error;
     const std::uintmax_t size = file != nullptr ? fs::file_size(*file, error) : 0;
     return error ? 0 : size;
+}
+
+void DataReadClearPackCapacities() {
+    loaded_capacities.clear();
 }
 
 std::vector<s32> DataLanguages() {
@@ -203,7 +269,7 @@ std::vector<s32> DataLanguages() {
     const char *at = text.data() + open + 1;
     const char *end = text.data() + close;
     while (at < end) {
-        s32  language = 0;
+        s32 language = 0;
         auto [next, error] = std::from_chars(at, end, language);
         if (error == std::errc() && language >= LANG_JAPANESE && language < LANG_COUNT) {
             languages.push_back(language);
@@ -257,7 +323,10 @@ PORT_OVERRIDE int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
     if (!file) {
         return 0;
     }
-    int size = ReadWhole(*file, buffer);
+    ForgetPackCapacities(buffer);
+    std::size_t capacity = 0;
+    int         size = ReadWhole(*file, buffer, &capacity);
+    TrackPackCapacity(buffer, capacity, buffer);
     Localized(name, buffer, &size);
     std::snprintf(info->name, sizeof info->name, "%s", name);
     info->busy = true;
@@ -275,9 +344,9 @@ PORT_OVERRIDE int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
 
 PORT_OVERRIDE BG_READ_INFO *GetReadBGFile(int index) {
     if (index < 0 || index >= 32) {
-        return 0;
+        return nullptr;
     }
-    return bg_read_info[index].busy ? &bg_read_info[index] : 0;
+    return bg_read_info[index].busy ? &bg_read_info[index] : nullptr;
 }
 
 PORT_OVERRIDE void ReadBG() {
@@ -302,7 +371,7 @@ PORT_OVERRIDE int WriteFile(char *path, void *buffer, int size) {
     std::string relative(name);
     std::replace(relative.begin(), relative.end(), '\\', '/');
     relative.erase(0, relative.find_first_not_of('/'));
-    if (!dcdata::IsSafeRelative(relative) || size < 0) {
+    if (!dcdata::IsSafeRelative(relative) || size < 0 || (buffer == nullptr && size != 0)) {
         return 0;
     }
     fs::path        target = PathsSaveRoot() / "host0" / fs::path(relative);
@@ -319,24 +388,95 @@ PORT_OVERRIDE int WriteFile(char *path, void *buffer, int size) {
 // A pack is looked up by the last component of a path, as retail does; a message file in it is
 // given as the language's JSON has it.
 PORT_OVERRIDE u_int *GetPackFile(u_int *pack, char *name, int *out_size) {
-    if (!pack) {
-        return 0;
+    if (out_size != nullptr) {
+        *out_size = 0;
     }
-    std::string_view base = name;
-    if (std::size_t slash = base.rfind('/'); slash != std::string_view::npos) {
-        base = base.substr(slash + 1);
+    if (pack == nullptr || name == nullptr) {
+        return nullptr;
     }
-    for (PackEntry *entry = reinterpret_cast<PackEntry *>(pack); entry->name[0];
-         entry = reinterpret_cast<PackEntry *>(reinterpret_cast<char *>(entry) + entry->next)) {
-        if (SameName(entry->name, base)) {
-            u_int *data = reinterpret_cast<u_int *>(reinterpret_cast<char *>(entry) + entry->offset);
-            int    size = entry->size;
-            data = const_cast<u_int *>(LocalizePack(pack, base, data, &size));
+    auto capacity = loaded_capacities.find(pack);
+    if (capacity == loaded_capacities.end()) {
+        return nullptr;
+    }
+    std::string_view basename = name;
+    if (std::size_t slash = basename.rfind('/'); slash != std::string_view::npos) {
+        basename = basename.substr(slash + 1);
+    }
+    for (int index = 0;; index++) {
+        PackEntry *entry = PackEntryAt(pack, capacity->second.capacity, index);
+        if (entry == nullptr) {
+            return nullptr;
+        }
+        if (SameName(entry->name, basename)) {
+            u_int *data = PackEntryData(pack, capacity->second.capacity, entry);
+            if (data == nullptr) {
+                return nullptr;
+            }
+            int size = entry->size;
+            data = const_cast<u_int *>(LocalizePack(pack, basename, data, &size));
+            TrackPackCapacity(data, static_cast<std::size_t>(size), capacity->second.owner);
             if (out_size) {
                 *out_size = size;
             }
             return data;
         }
     }
-    return 0;
+}
+
+PORT_OVERRIDE u_int *GetPackFile(u_int *pack, int index, char **out_name, int *out_size) {
+    if (out_size != nullptr) {
+        *out_size = 0;
+    }
+    auto capacity = loaded_capacities.find(pack);
+    if (capacity == loaded_capacities.end()) {
+        return nullptr;
+    }
+    PackEntry *entry = PackEntryAt(pack, capacity->second.capacity, index);
+    if (entry == nullptr) {
+        return nullptr;
+    }
+    u_int *data = PackEntryData(pack, capacity->second.capacity, entry);
+    if (data == nullptr) {
+        return nullptr;
+    }
+    int size = entry->size;
+    data = const_cast<u_int *>(LocalizePack(pack, entry->name, data, &size));
+    TrackPackCapacity(data, static_cast<std::size_t>(size), capacity->second.owner);
+    if (out_name != nullptr) {
+        *out_name = entry->name;
+    }
+    if (out_size != nullptr) {
+        *out_size = size;
+    }
+    return data;
+}
+
+PORT_OVERRIDE int GetPackFileExt(u_int *pack, char *extension, u_int **files, int max_files, int *sizes, char **names) {
+    if (extension == nullptr || files == nullptr || max_files <= 0) {
+        return 0;
+    }
+    int found = 0;
+    for (int index = 0; found < max_files; index++) {
+        char  *name = nullptr;
+        int    size = 0;
+        u_int *data = GetPackFile(pack, index, &name, &size);
+        if (data == nullptr) {
+            break;
+        }
+        std::string_view       full_name(name);
+        const std::size_t      dot = full_name.rfind('.');
+        const std::string_view found_extension = dot == std::string_view::npos ? full_name : full_name.substr(dot + 1);
+        if (dcdata::FoldPath(found_extension) != dcdata::FoldPath(extension)) {
+            continue;
+        }
+        files[found] = data;
+        if (sizes != nullptr) {
+            sizes[found] = size;
+        }
+        if (names != nullptr) {
+            names[found] = name;
+        }
+        found++;
+    }
+    return found;
 }

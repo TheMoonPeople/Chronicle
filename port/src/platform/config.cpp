@@ -361,11 +361,7 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
         return true;
     }
     if (name == "video.text_font") {
-        if (!value.is_string() || (value.get<std::string>() != "sharp" && value.get<std::string>() != "original")) {
-            return false;
-        }
-        config.font_sharp = value.get<std::string>() == "sharp";
-        return true;
+        return true; // a setting the port no longer has: the text is always Chronicle Sharp
     }
     if (name == "input.glyphs") {
         if (!value.is_string() || (value.get<std::string>() != "new" && value.get<std::string>() != "original")) {
@@ -417,30 +413,6 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "game.debug_mode") {
         return ReadBool(value, config.debug_mode);
     }
-    if (name == "game.aerial_map") {
-        return ReadBool(value, config.aerial_map);
-    }
-    if (name == "game.aerial_map_markers") {
-        return ReadBool(value, config.aerial_map_markers);
-    }
-    if (name == "game.aerial_map_ceiling" || name == "game.aerial_map_zoom" || name == "game.aerial_map_model_scale" ||
-        name == "game.aerial_map_size") {
-        const bool ceiling = name == "game.aerial_map_ceiling";
-        float      number = 0.0f;
-        if (!ReadNumber(value, number) || !std::isfinite(number)) {
-            return false;
-        }
-        const bool model = name == "game.aerial_map_model_scale";
-        const float most = ceiling ? 5000.0f : model ? 40.0f : name == "game.aerial_map_size" ? 1.5f : 8.0f;
-        if (number < (ceiling ? 0.0f : 0.5f) || number > most) {
-            return false;
-        }
-        (ceiling ? config.aerial_map_ceiling
-                 : name == "game.aerial_map_zoom" ? config.aerial_map_zoom
-                 : model                         ? config.aerial_map_model_scale
-                                                 : config.aerial_map_size) = number;
-        return true;
-    }
     if (name == "video.text_shadow" || name == "video.glyph_shadow" || name == "video.name_shadow" ||
         name == "video.floor_shadow" || name == "video.boss_shadow") {
         int &target = name == "video.text_shadow"    ? config.text_shadow
@@ -478,6 +450,17 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
         return ReadBool(value, config.switch_gpu_boost);
     }
 #endif
+    if (name == "video.render_thread") {
+        if (!value.is_string()) {
+            return false;
+        }
+        const auto mode = gfx::ParseRenderThreadMode(value.get<std::string>());
+        if (!mode) {
+            return false;
+        }
+        config.render_thread = *mode;
+        return true;
+    }
     if (name == "video.max_fps") {
         double fps = 0.0;
         if (!ReadNumber(value, fps) || !(fps >= 0.0) || !std::isfinite(fps)) {
@@ -678,12 +661,6 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["element_quick_select"] = config.element_quick_select;
     root["game"]["swap_keeps_lock_on"] = config.swap_keeps_lock_on;
     root["game"]["text_wipe"] = config.text_wipe;
-    root["game"]["aerial_map"] = config.aerial_map;
-    root["game"]["aerial_map_ceiling"] = Shortest(config.aerial_map_ceiling);
-    root["game"]["aerial_map_zoom"] = Shortest(config.aerial_map_zoom);
-    root["game"]["aerial_map_model_scale"] = Shortest(config.aerial_map_model_scale);
-    root["game"]["aerial_map_markers"] = config.aerial_map_markers;
-    root["game"]["aerial_map_size"] = Shortest(config.aerial_map_size);
     root["game"]["language"] = kLanguageNames[config.language >= 2 && config.language <= 6 ? config.language : 0];
     const ConfigGameOptions &options = config.options;
     root["game"]["save_cursor_position"] = options.save_cursor_position;
@@ -695,7 +672,6 @@ std::string ConfigSerialize(const Config &config) {
     root["game"]["player_damage"] = options.player_damage;
     root["game"]["enemy_hp"] = options.enemy_hp;
     root["game"]["names"] = options.names;
-    root["video"]["text_font"] = config.font_sharp ? "sharp" : "original";
     root["video"]["text_shadow"] = config.text_shadow;
     root["video"]["glyph_shadow"] = config.glyph_shadow;
     root["video"]["name_shadow"] = config.name_shadow;
@@ -706,6 +682,8 @@ std::string ConfigSerialize(const Config &config) {
 #ifdef __SWITCH__
     root["video"]["switch_gpu_boost"] = config.switch_gpu_boost;
 #endif
+    root["video"]["render_thread"] = config.render_thread == gfx::RenderThreadMode::Async ? "async" : config.render_thread == gfx::RenderThreadMode::Lockstep ? "lockstep"
+                                                                                                                                                              : "off";
     root["video"]["max_fps"] = config.max_fps;
     root["video"]["width"] = config.window_width;
     root["video"]["height"] = config.window_height;
@@ -723,7 +701,8 @@ std::string ConfigSerialize(const Config &config) {
     root["video"]["anisotropy"] = config.anisotropy;
     root["video"]["soft_focus"] = options.soft_focus;
     root["audio"]["master_volume"] = Shortest(config.master_volume);
-    root["audio"]["sound"] = config.surround ? "surround" : options.stereo ? "stereo" : "mono";
+    root["audio"]["sound"] = config.surround ? "surround" : options.stereo ? "stereo"
+                                                                           : "mono";
     root["audio"]["soundtrack"] = config.soundtrack ? "custom" : "ps2";
     root["input"]["mouse_sensitivity"] = Shortest(config.mouse_sensitivity);
     root["input"]["stick_sensitivity"] = Shortest(config.stick_sensitivity);
@@ -819,5 +798,5 @@ bool ConfigChange(const Config &config) {
 }
 
 bool ConfigAppliesOnRestart(std::string_view key) {
-    return key == "game.debug_mode";
+    return key == "game.debug_mode" || key == "video.render_thread";
 }

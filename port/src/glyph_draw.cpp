@@ -13,9 +13,9 @@
 namespace {
 
 struct Baked {
-    const char     *texture;
-    int             x, y, w, h; // the art's box in the texture
-    glyphs::Button  button;
+    const char    *texture;
+    int            x, y, w, h; // the art's box in the texture
+    glyphs::Button button;
 };
 
 // Boxes found by dumping the textures (DC_TEXTURE_DUMP) and tracing the draws (DC_SPRITE_TRACE).
@@ -67,10 +67,10 @@ bool GlyphDrawSlot(glyphs::Button button, const CRect_i_ &slot, int alpha, float
     // Round buttons are sized by their diameter (the atlas keeps their proportions to the shoulder buttons
     // and the d-pad); keycaps and the mouse by their height, so a short wide key (Tab, Space) is as tall
     // as a letter key. A key may reach into the spaces beside it, not further.
-    float scale = slot_h * (image.key ? (grow > 0.0f ? 1.3f : 0.92f) : (grow > 0.0f ? 1.0f : 0.84f)) /
-                  (image.key ? image.height : glyphs::kReference);
-    float width = image.width * scale;
-    float height = image.height * scale;
+    float       scale = slot_h * (image.key ? (grow > 0.0f ? 1.3f : 0.92f) : (grow > 0.0f ? 1.0f : 0.84f)) /
+                        (image.key ? image.height : glyphs::kReference);
+    float       width = image.width * scale;
+    float       height = image.height * scale;
     const float max_w = slot_w * (grow > 0.0f ? 2.2f : (image.key ? 1.7f : 0.96f));
     if (width > max_w) {
         height *= max_w / width;
@@ -78,7 +78,7 @@ bool GlyphDrawSlot(glyphs::Button button, const CRect_i_ &slot, int alpha, float
     }
     float x = static_cast<float>(slot.x) - grow + (slot_w - width) * 0.5f;
     float y = static_cast<float>(slot.y) - grow + (slot_h - height) * 0.5f;
-    auto a = static_cast<u_char>(alpha);
+    auto  a = static_cast<u_char>(alpha);
     // In text the symbol casts a shadow (text_shadow.hpp) in its own shape, so it lifts off the
     // picture like the words beside it; config glyph_shadow sets how strong, apart from the letters'. Painted over art it has none (the art has its own).
     std::vector<gfx::Vertex2D> quad;

@@ -1,7 +1,9 @@
 #include "memcard.hpp"
 
 #include <cmath>
+#include <string>
 
+#include "caption_text.hpp"
 #include "clsmes.hpp"
 #include "gamepad.hpp"
 #include "memorycardaccess.hpp"
@@ -10,10 +12,28 @@
 #include "menu_save.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
+#include "options/screen.hpp"
 #include "rect.hpp"
 #include "save_slots.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "ui_framework/lang.hpp"
+
+PORT_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
+    return options::Open(mode, block_no, buffer);
+}
+
+PORT_OVERRIDE int MenuOptionKey() {
+    return options::Run();
+}
+
+PORT_OVERRIDE void DrawMenuOption() {
+    options::Draw();
+}
+
+PORT_OVERRIDE int OptionMenuFadeOutStart() {
+    return options::g_screen.step == OPTION_STEP_FADE_OUT;
+}
 
 // The save screens without a memory card: no card is chosen, and the boards are every save of
 // SaveSlots in file order, then on the save screen one "New file" board for a new save. The
@@ -342,62 +362,63 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
             }
 
             if (row < static_cast<int>(SaveSlots.saves.size())) {
-                DrawSaveBoard(&SaveSlots.saves[row], SaveMenuMojiTextbl, (int) board_x, (int) y, bright, alpha);
+                DrawSaveBoard(&SaveSlots.saves[row], SaveMenuMojiTextbl, static_cast<int>(board_x), static_cast<int>(y), bright, alpha);
             } else {
-                DrawNewFileTemplete((int) board_x, (int) y, alpha);
+                DrawNewFileTemplete(static_cast<int>(board_x), static_cast<int>(y), alpha);
             }
         }
     }
 
-    float text_pos[2] = {-20.0f, -20.0f};
+    float text_x = -20.0f;
+    float text_y = -20.0f;
     CommonMenuMes2.auto_pos = MES_POS_NONE;
 
     switch (McAccess.GetFuncNo()) {
         case MC_OPERATION_IDLE:
             switch (SaveMenu.key_no) {
                 case SAVE_KEY_MODE_SELECT:
-                    text_pos[0] = 240.0f;
-                    text_pos[1] = 154.0f;
+                    text_x = 240.0f;
+                    text_y = 154.0f;
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
                     break;
                 case SAVE_KEY_NEW_DIR:
                 case SAVE_KEY_NEW_DIR_SELECT:
                 case SAVE_KEY_MC_SELECT:
                 case SAVE_KEY_FORMAT:
-                    text_pos[0] = 184.0f;
-                    text_pos[1] = 152.0f;
+                    text_x = 184.0f;
+                    text_y = 152.0f;
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
                     break;
                 case SAVE_KEY_SAVE_DECIDE:
                 case SAVE_KEY_LOAD_DECIDE:
-                    text_pos[0] = 246.0f;
-                    text_pos[1] = 156.0f;
+                    text_x = 246.0f;
+                    text_y = 156.0f;
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
                     break;
                 case SAVE_KEY_DIF_VERSION:
-                    text_pos[0] = 196.0f;
-                    text_pos[1] = 140.0f;
+                    text_x = 196.0f;
+                    text_y = 140.0f;
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
                     break;
                 case SAVE_KEY_ALERT:
                 case SAVE_KEY_AFTER_ENDING:
                 case SAVE_KEY_END_SAVE_ENDING:
                 case SAVE_KEY_END_SAVE:
-                    text_pos[0] = 196.0f;
-                    text_pos[1] = 140.0f;
+                    text_x = 196.0f;
+                    text_y = 140.0f;
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
                     break;
             }
 
             break;
         case MC_OPERATION_DELETE:
-            text_pos[0] = 216.0f;
-            text_pos[1] = 180.0f;
+            text_x = 216.0f;
+            text_y = 180.0f;
             CommonMenuMes2.auto_pos = MES_POS_CENTRE;
             break;
         default:
-            text_pos[0] = 184.0f;
-            text_pos[1] = 152.0f;
+            text_x = 184.0f;
+            text_y = 152.0f;
             CommonMenuMes2.auto_pos = MES_POS_CENTRE;
             break;
     }
@@ -413,7 +434,7 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
         CommonMenuMes2.edge_alpha = 0;
     }
 
-    DrawMenuClsMes(&CommonMenuMes2, (int) text_pos[0], (int) text_pos[1]);
+    DrawMenuClsMes(&CommonMenuMes2, static_cast<int>(text_x), static_cast<int>(text_y));
     int hand_x = -1;
     int hand_y = -1;
     CommonMenuMes2.cursor_row = -1;
@@ -434,14 +455,14 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
     if (0 < hand_x && 0 < hand_y) {
         static int ct = 0;
         RECT       hand = {0x160, 0xD6, 0x20, 0x20};
-        float      draw_x = (float) hand_x + 7.0f * cosf(0.0805536583f * ct);
-        float      draw_y = (float) hand_y + 5.0f * sinf(0.116355285f * ct);
+        float      draw_x = static_cast<float>(hand_x) + 7.0f * cosf(0.0805536583f * ct);
+        float      draw_y = static_cast<float>(hand_y) + 5.0f * sinf(0.116355285f * ct);
         CRect_i_   source(0x160, 0xD6, 0x20, 0x20);
-        DrawMenu2DSprite(SaveBoard, CRect_i_((int) (5.0f + draw_x), (int) (3.0f + draw_y), hand.width, hand.height), source, 0, 0, 0, alpha);
-        DrawMenu2DSprite(SaveBoard, CRect_i_((int) draw_x, (int) draw_y, hand.width, hand.height), source, alpha);
+        DrawMenu2DSprite(SaveBoard, CRect_i_(static_cast<int>(5.0f + draw_x), static_cast<int>(3.0f + draw_y), hand.width, hand.height), source, 0, 0, 0, alpha);
+        DrawMenu2DSprite(SaveBoard, CRect_i_(static_cast<int>(draw_x), static_cast<int>(draw_y), hand.width, hand.height), source, alpha);
         ct++;
 
-        if (!((float) ct < 105299.0f)) {
+        if (!(static_cast<float>(ct) < 105299.0f)) {
             ct = 0;
         }
     }
@@ -458,10 +479,18 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
     }
 
     switch (SaveMenu.mode) {
-        case SAVE_MENU_MODE_LOAD:
+        case SAVE_MENU_MODE_LOAD: {
             DrawMenu2DSprite(SaveBoard, CRect_i_(0x46, 0x32, 0x3A, 0x27), CRect_i_(0x110, 0xD8, 0x3A, 0x28), alpha);
+            // LOAD in the menu captions' lettering, over the painted one: its letters from 6 to 72 of the picture, their
+            // capitals from row 5 to 24. The painted LOAD without the font.
+            std::string title, desc, save_word, load_word, prompt;
+            UI::GetLocalizedSaveLoadStrings(title, desc, save_word, load_word, prompt);
+            if (caption::DrawTitle(load_word, 0x86, 0x37, 6, 72, 5, 24, 0.1f, {}, alpha)) {
+                return;
+            }
             DrawMenu2DSprite(SaveBoard, CRect_i_(0x86, 0x37, 0x50, 0x1E), CRect_i_(0x110, 0x100, 0x50, 0x1E), alpha);
             return;
+        }
         case SAVE_MENU_MODE_ENDING:
             DrawMainMenuIcon(0x46, 0x32, 5, 1, 0x80, alpha);
             break;

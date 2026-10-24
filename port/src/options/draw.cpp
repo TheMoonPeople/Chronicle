@@ -18,7 +18,7 @@ namespace options {
 
 namespace {
 
-constexpr int kBarFade = 15;
+constexpr int bar_fade = 15;
 
 static UI::Cursor    s_cursor;
 static UI::Brackets  s_brackets;
@@ -38,7 +38,7 @@ void DrawScrollBar(int alpha) {
     if (!Scrolls(g_screen.page) || g_screen.bar_frames <= 0) {
         return;
     }
-    int bar_alpha = alpha * std::min(g_screen.bar_frames, kBarFade) / kBarFade;
+    int bar_alpha = alpha * std::min(g_screen.bar_frames, bar_fade) / bar_fade;
     int rows = RowCount(g_screen.page);
     MenuTextureReload(g_screen.block_no);
     s_scrollbar.Draw(kBarX, kRowY, kVisibleRows * kRowStep, rows, kVisibleRows, FirstRow(), bar_alpha);
@@ -72,7 +72,7 @@ void DrawSelection(int alpha) {
         s_brackets.Draw(x - 8, x + w + 8, kTabY - 4, kTabY + 22, alpha);
         s_cursor.SetTarget(static_cast<float>(L1X() - 44), static_cast<float>(kTabY + 9));
     } else if (g_screen.row < rows) {
-        const Row &row = CurrentPage().rows[g_screen.row];
+        const Row    &row = CurrentPage().rows[g_screen.row];
         const Config &config = ConfigGet();
 
         std::string val_str;
@@ -87,8 +87,8 @@ void DrawSelection(int alpha) {
         int val_left = val_center - (val_w / 2);
         int val_right = val_left + val_w;
 
-        int choice = row.get(config);
-        int count = row.count(config);
+        int  choice = row.get(config);
+        int  count = row.count(config);
         bool has_prev = (choice > 0);
         bool has_next = (choice < count - 1);
 
@@ -104,10 +104,10 @@ void DrawSelection(int alpha) {
         int box_left = b_left - pad_x;
         int box_right = b_right + pad_x;
 
-        constexpr int kMinBoxWidth = 120;
-        int cur_box_w = box_right - box_left;
-        if (cur_box_w < kMinBoxWidth) {
-            int extra = (kMinBoxWidth - cur_box_w) / 2;
+        constexpr int minimum_box_width = 120;
+        int           cur_box_w = box_right - box_left;
+        if (cur_box_w < minimum_box_width) {
+            int extra = (minimum_box_width - cur_box_w) / 2;
             box_left -= extra;
             box_right += extra;
         }
@@ -134,14 +134,22 @@ void DrawTabs(int alpha) {
     texts.l1.Draw(L1X(), kTabY, alpha);
     texts.r1.Draw(R1X(), kTabY, alpha);
 
-    bool has_left_tabs  = (g_screen.first_tab > 0);
+    bool has_left_tabs = (g_screen.first_tab > 0);
     bool has_right_tabs = (last < static_cast<int>(Pages().size()) - 1);
 
     int active_dir = g_screen.last_tab_dir;
-    if (glyph == Glyph::L1) active_dir = -1;
-    if (glyph == Glyph::R1) active_dir = 1;
-    if (active_dir < 0 && !has_left_tabs)  active_dir = 1;
-    if (active_dir > 0 && !has_right_tabs) active_dir = -1;
+    if (glyph == Glyph::L1) {
+        active_dir = -1;
+    }
+    if (glyph == Glyph::R1) {
+        active_dir = 1;
+    }
+    if (active_dir < 0 && !has_left_tabs) {
+        active_dir = 1;
+    }
+    if (active_dir > 0 && !has_right_tabs) {
+        active_dir = -1;
+    }
 
     if (has_left_tabs) {
         texts.left.SetColor(active_dir < 0 ? UI::ColorYellow : UI::ColorWhite);
@@ -184,10 +192,10 @@ void DrawRows(int alpha) {
 
         if (!val_str.empty()) {
             UI::Label val_lbl(val_str, selected ? UI::ColorYellow : UI::ColorWhite, UI::Alignment::Center);
-            int val_w = val_lbl.GetWidth();
-            int val_center = (kValueX + kValueRight) / 2;
-            int val_left = val_center - (val_w / 2);
-            int val_right = val_left + val_w;
+            int       val_w = val_lbl.GetWidth();
+            int       val_center = (kValueX + kValueRight) / 2;
+            int       val_left = val_center - (val_w / 2);
+            int       val_right = val_left + val_w;
 
             val_lbl.Draw(val_center, y, alpha);
 
@@ -203,8 +211,12 @@ void DrawRows(int alpha) {
                 if (g_screen.pointing && g_screen.pointer_x >= kValueX - 8) {
                     active_dir = (g_screen.pointer_x < val_center) ? -1 : 1;
                 }
-                if (active_dir < 0 && !has_prev) active_dir = 1;
-                if (active_dir > 0 && !has_next) active_dir = -1;
+                if (active_dir < 0 && !has_prev) {
+                    active_dir = 1;
+                }
+                if (active_dir > 0 && !has_next) {
+                    active_dir = -1;
+                }
 
                 if (has_prev) {
                     texts.left.SetColor(active_dir < 0 ? UI::ColorYellow : UI::ColorWhite);
@@ -238,10 +250,10 @@ void DrawHelp(int alpha) {
         text_y = 12;
     }
 
-    MenuHelpWinDraw((int) win_x, (int) win_y, win_w, win_h, alpha);
+    MenuHelpWinDraw(static_cast<int>(win_x), static_cast<int>(win_y), win_w, win_h, alpha);
     CommonMenuMes2.edge_alpha = alpha;
     MenuTextureReload(CommonMenuMes2.tex_block);
-    DrawMenuClsMes(&CommonMenuMes2, (int) (win_x + text_x), (int) (win_y + text_y));
+    DrawMenuClsMes(&CommonMenuMes2, static_cast<int>(win_x + text_x), static_cast<int>(win_y + text_y));
 }
 
 } // namespace
@@ -280,8 +292,7 @@ void Draw() {
         UI::Rect(kExitX, kExitY, kExitWidth, kExitHeight),
         g_screen.texture,
         UI::Rect(452, 224, kExitWidth, kExitHeight),
-        alpha
-    );
+        alpha);
 
     if (g_screen.step == OPTION_STEP_RUN) {
         g_screen.step_count = 0;

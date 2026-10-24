@@ -3,8 +3,8 @@
     // Works with podman ("dev.containers.dockerPath": "podman" in VS Code's settings) or docker.
     "name": "Switch",
     "build": {
-        "dockerfile": "../../tools/switch/Containerfile",
-        "context": "../../tools/switch"
+        "dockerfile": "../../port/switch/Containerfile",
+        "context": "../../port/switch"
     },
     "runArgs": ["--userns=keep-id"],
     "containerUser": "${localEnv:USER}",

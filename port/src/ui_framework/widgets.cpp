@@ -1,10 +1,9 @@
-#include "ui_framework/internal.hpp"
-
 #include <algorithm>
 #include <cmath>
 
 #include "itemdata.hpp"
 #include "menu_pointer.hpp"
+#include "ui_framework/internal.hpp"
 
 namespace UI {
 
@@ -14,7 +13,7 @@ namespace {
  * Gradation color table indices used by progress bars.
  */
 enum class ProgressGradation : int {
-    Active   = 3,
+    Active = 3,
     Complete = 4,
 };
 
@@ -54,8 +53,8 @@ bool ItemIcon::Draw(int item_no, int x, int y, int size, int alpha, bool drop_sh
         ::WepIcon = detail::FindMenuTexture("wepicon");
     }
 
-    int       u       = 0;
-    int       v       = 0;
+    int       u = 0;
+    int       v = 0;
     CTexture *texture = RetCTex(static_cast<short>(item_no), u, v);
     if (texture == nullptr) {
         return false;
@@ -91,7 +90,7 @@ void Cursor::SnapTo(float x, float y) {
 }
 
 void Cursor::SetPointer(float x, float y) {
-    m_pointing  = true;
+    m_pointing = true;
     m_pointer_x = x;
     m_pointer_y = y;
 }
@@ -108,8 +107,8 @@ void Cursor::Draw(int alpha) {
 
     float hand_x = 0.0f;
     float hand_y = 0.0f;
-    float ptr_x  = 0.0f;
-    float ptr_y  = 0.0f;
+    float ptr_x = 0.0f;
+    float ptr_y = 0.0f;
 
     if (m_pointing) {
         hand_x = m_pointer_x - 26.0f;
@@ -148,24 +147,24 @@ void Brackets::Draw(int left, int right, int top, int bottom, int alpha) {
     setbilinear(0);
     m_texture = TexManager.GetTexture(const_cast<char *>("option2"), -1);
     if (m_texture != nullptr) {
-        constexpr int   kBracketBeats = 30;
-        constexpr float kBracketClose = 4.0f;
+        constexpr int   bracket_beats = 30;
+        constexpr float bracket_close = 4.0f;
 
-        const float pulse = kBracketClose * static_cast<float>(m_beat) / static_cast<float>(kBracketBeats - 1);
-        m_beat            = (m_beat + 1) % kBracketBeats;
+        const float pulse = bracket_close * static_cast<float>(m_beat) / static_cast<float>(bracket_beats - 1);
+        m_beat = (m_beat + 1) % bracket_beats;
 
         const int x0 = static_cast<int>(left + pulse);
         const int x1 = static_cast<int>(right - pulse);
         const int y0 = static_cast<int>(top + pulse);
         const int y1 = static_cast<int>(bottom - pulse);
 
-        constexpr int kCornerW = 12;
-        constexpr int kCornerH = 8;
+        constexpr int corner_width = 12;
+        constexpr int corner_height = 8;
 
-        DrawMenu2DSprite(m_texture, CRect_i_(x0, y0, kCornerW, kCornerH), CRect_i_(0xB2, 0xF8, 16, 16), alpha);
-        DrawMenu2DSprite(m_texture, CRect_i_(x1 - kCornerW, y0, kCornerW, kCornerH), CRect_i_(0xC2, 0xF8, 16, 16), alpha);
-        DrawMenu2DSprite(m_texture, CRect_i_(x0, y1 - kCornerH, kCornerW, kCornerH), CRect_i_(0xB2, 0x108, 16, 16), alpha);
-        DrawMenu2DSprite(m_texture, CRect_i_(x1 - kCornerW, y1 - kCornerH, kCornerW, kCornerH), CRect_i_(0xC2, 0x108, 16, 16), alpha);
+        DrawMenu2DSprite(m_texture, CRect_i_(x0, y0, corner_width, corner_height), CRect_i_(0xB2, 0xF8, 16, 16), alpha);
+        DrawMenu2DSprite(m_texture, CRect_i_(x1 - corner_width, y0, corner_width, corner_height), CRect_i_(0xC2, 0xF8, 16, 16), alpha);
+        DrawMenu2DSprite(m_texture, CRect_i_(x0, y1 - corner_height, corner_width, corner_height), CRect_i_(0xB2, 0x108, 16, 16), alpha);
+        DrawMenu2DSprite(m_texture, CRect_i_(x1 - corner_width, y1 - corner_height, corner_width, corner_height), CRect_i_(0xC2, 0x108, 16, 16), alpha);
         return;
     }
 
@@ -189,9 +188,9 @@ ScrollBar::ScrollBar() {
 }
 
 void ScrollBar::Update(bool moved) {
-    constexpr int kBarFrames = 75;
+    constexpr int bar_frames = 75;
     if (moved) {
-        m_bar_frames = kBarFrames;
+        m_bar_frames = bar_frames;
     } else if (m_bar_frames > 0) {
         m_bar_frames--;
     }
@@ -204,17 +203,17 @@ void ScrollBar::Draw(int x, int top_y, int height, int total_rows, int visible_r
 
     int cur_alpha = alpha;
     if (m_bar_frames > 0) {
-        constexpr int kBarFade = 15;
-        cur_alpha              = alpha * std::min(m_bar_frames, kBarFade) / kBarFade;
+        constexpr int bar_fade = 15;
+        cur_alpha = alpha * std::min(m_bar_frames, bar_fade) / bar_fade;
     }
 
     m_track_tex = TexManager.GetTexture(AtoraVibeTextureName, -1);
     m_thumb_tex = TexManager.GetTexture(const_cast<char *>("option2"), -1);
 
-    const int track_top    = top_y + 14;
+    const int track_top = top_y + 14;
     const int track_height = height - 32;
     const int thumb_height = std::max(12, track_height * visible_rows / total_rows);
-    const int thumb_y      = track_top + (track_height - thumb_height) * first_row / (total_rows - visible_rows);
+    const int thumb_y = track_top + (track_height - thumb_height) * first_row / (total_rows - visible_rows);
 
     if (m_track_tex != nullptr) {
         DrawMenu2DSprite(m_track_tex, CRect_i_(x, track_top, 8, track_height), CRect_i_(22, 22, 16, 20), cur_alpha);
@@ -231,13 +230,13 @@ void ScrollBar::Draw(int x, int top_y, int height, int total_rows, int visible_r
 
 void ProgressBar::Draw(const Rect &box, float progress, std::string_view text,
                        const ProgressBarStyle &style, int alpha) {
-    const float clamped  = std::clamp(progress, 0.0f, 1.0f);
+    const float clamped = std::clamp(progress, 0.0f, 1.0f);
     const bool  complete = (clamped >= 1.0f);
 
     TrackerWindow::DrawIndentation(box, true, alpha);
 
     const int max_fill_w = std::max(0, box.w - 6);
-    const int fill_w     = static_cast<int>(std::round(clamped * static_cast<float>(max_fill_w)));
+    const int fill_w = static_cast<int>(std::round(clamped * static_cast<float>(max_fill_w)));
 
     if (fill_w > 0 && box.h > 6) {
         const int grad_idx = static_cast<int>(complete ? ProgressGradation::Complete : ProgressGradation::Active);
@@ -263,11 +262,11 @@ void ProgressBar::Draw(const Rect &box, float progress, std::string_view text,
     if (!text.empty()) {
         MenuTextureReload(detail::kMessageTextureBlock);
         const TextStyle txt_style{
-            .color       = complete ? ColorGold : style.text_color,
+            .color = complete ? ColorGold : style.text_color,
             .drop_shadow = style.drop_shadow,
-            .align       = Alignment::Center,
-            .scale       = style.text_scale,
-            .weight      = style.text_weight,
+            .align = Alignment::Center,
+            .scale = style.text_scale,
+            .weight = style.text_weight,
         };
         Label lbl(text, txt_style);
         lbl.Draw(box.CenterX(), box.y - 2, alpha);
@@ -293,8 +292,8 @@ void MenuHeader::Draw(MenuIconKind icon, std::string_view title,
 
         const int col = slot / 5;
         const int row = slot % 5;
-        const int u   = col * 64;
-        const int v   = row * 40;
+        const int u = col * 64;
+        const int v = row * 40;
 
         const CRect_i_ src(u, v, 64, 40);
         const CRect_i_ dst(x, y, 64, 40);
@@ -303,24 +302,24 @@ void MenuHeader::Draw(MenuIconKind icon, std::string_view title,
 
     if (!title.empty()) {
         const TextStyle txt_style{
-            .drop_shadow    = true,
-            .align          = Alignment::Left,
-            .scale          = style.scale,
-            .xscale         = style.xscale,
-            .yscale         = style.yscale,
-            .weight         = FontWeight::Bold,
+            .drop_shadow = true,
+            .align = Alignment::Left,
+            .scale = style.scale,
+            .xscale = style.xscale,
+            .yscale = style.yscale,
+            .weight = FontWeight::Bold,
             .use_custom_rgb = true,
-            .fill_r         = style.fill_r,
-            .fill_g         = style.fill_g,
-            .fill_b         = style.fill_b,
-            .outline_width  = style.outline_width,
-            .outline_r      = style.outline_r,
-            .outline_g      = style.outline_g,
-            .outline_b      = style.outline_b,
-            .raised_bevel   = style.raised_bevel,
-            .bevel_r        = style.bevel_r,
-            .bevel_g        = style.bevel_g,
-            .bevel_b        = style.bevel_b,
+            .fill_r = style.fill_r,
+            .fill_g = style.fill_g,
+            .fill_b = style.fill_b,
+            .outline_width = style.outline_width,
+            .outline_r = style.outline_r,
+            .outline_g = style.outline_g,
+            .outline_b = style.outline_b,
+            .raised_bevel = style.raised_bevel,
+            .bevel_r = style.bevel_r,
+            .bevel_g = style.bevel_g,
+            .bevel_b = style.bevel_b,
         };
         Label lbl(title, txt_style);
         lbl.Draw(x + 76, y + 10, alpha);

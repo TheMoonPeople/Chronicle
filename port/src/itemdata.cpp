@@ -5,16 +5,16 @@
 #include "itemdata.hpp"
 
 extern COM_ITEM_INFO ComItemInfo[296];
-extern ATTACH_DATA AttachList[50];
-extern ITEM_DATA ITEM_LIST[175];
-extern WEAPON_DATA WeaponList[120];
+extern ATTACH_DATA   AttachList[50];
+extern ITEM_DATA     ITEM_LIST[175];
+extern WEAPON_DATA   WeaponList[120];
 
 /* ComItemInfo holds items 81 to 376. Retail indexes it with no check, and PresetSmallItemNo_Get
    asks about weapons up to 379, which reads the words after the table; the port answers nothing
    for an item the table does not hold. */
 PORT_OVERRIDE COM_ITEM_INFO *GetCommonItemInfo(int item_no) {
     if (item_no <= 0) {
-        return 0;
+        return nullptr;
     }
 
     // Items before slot 81 function as an alias for weapons in the info table.
@@ -25,7 +25,7 @@ PORT_OVERRIDE COM_ITEM_INFO *GetCommonItemInfo(int item_no) {
     }
 
     if (item_no >= 296) {
-        return 0;
+        return nullptr;
     }
 
     return &ComItemInfo[item_no];
@@ -35,12 +35,12 @@ PORT_OVERRIDE COM_ITEM_INFO *GetCommonItemInfo(int item_no) {
    here so an invalid ID or a corrupt table entry cannot address a neighbouring
    item table (or masquerade as an attachment). */
 PORT_OVERRIDE int GetItemTypeInfo(int item_no, s8 *kind) {
-    if (kind == 0) {
+    if (kind == nullptr) {
         return -1;
     }
 
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == 0) {
+    if (info == nullptr) {
         *kind = -1;
         return -1;
     }
@@ -51,8 +51,8 @@ PORT_OVERRIDE int GetItemTypeInfo(int item_no, s8 *kind) {
 
 PORT_OVERRIDE ATTACH_DATA *GetAttachData(int item_no) {
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == 0 || info->kind != ITEMKIND_ATTACH || info->index < 0 || info->index >= 50) {
-        return 0;
+    if (info == nullptr || info->kind != ITEMKIND_ATTACH || info->index < 0 || info->index >= 50) {
+        return nullptr;
     }
 
     return &AttachList[info->index];
@@ -60,8 +60,8 @@ PORT_OVERRIDE ATTACH_DATA *GetAttachData(int item_no) {
 
 PORT_OVERRIDE ITEM_DATA *GetItemData(int item_no) {
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == 0 || info->kind != ITEMKIND_ITEM || info->index < 0 || info->index >= 175) {
-        return 0;
+    if (info == nullptr || info->kind != ITEMKIND_ITEM || info->index < 0 || info->index >= 175) {
+        return nullptr;
     }
 
     return &ITEM_LIST[info->index];
@@ -69,20 +69,9 @@ PORT_OVERRIDE ITEM_DATA *GetItemData(int item_no) {
 
 PORT_OVERRIDE WEAPON_DATA *GetWeaponData(int item_no) {
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == 0 || info->kind != ITEMKIND_WEAPON || info->index < 0 || info->index >= 120) {
-        return 0;
+    if (info == nullptr || info->kind != ITEMKIND_WEAPON || info->index < 0 || info->index >= 120) {
+        return nullptr;
     }
 
     return &WeaponList[info->index];
-}
-
-PORT_OVERRIDE void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *attachment) {
-    if (attachment == 0) {
-        return;
-    }
-
-    ATTACH_DATA *data = GetAttachData(attachment_no);
-    if (data != 0) {
-        memcpy(attachment, data, sizeof(*attachment));
-    }
 }

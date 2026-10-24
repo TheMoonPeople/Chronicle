@@ -124,16 +124,16 @@ Rect DialogRect(int area) {
 
 int ConfirmChoice(float x, float y) {
     // The message starts 16 across and 14 down the window; its lines are 20 high: "Accept?", Yes, No.
-    constexpr int kLeft = 0xD8 + 12;
-    constexpr int kRight = 0xD8 + 0x68;
-    constexpr int kYesTop = 0xB8 + 14 + 20;
-    if (x < kLeft || x >= kRight) {
+    constexpr int left = 0xD8 + 12;
+    constexpr int right = 0xD8 + 0x68;
+    constexpr int yes_top = 0xB8 + 14 + 20;
+    if (x < left || x >= right) {
         return 0;
     }
-    if (y >= kYesTop && y < kYesTop + 20) {
+    if (y >= yes_top && y < yes_top + 20) {
         return 1;
     }
-    if (y >= kYesTop + 20 && y < kYesTop + 40) {
+    if (y >= yes_top + 20 && y < yes_top + 40) {
         return -1;
     }
     return 0;

@@ -20,6 +20,9 @@ s16 GameTextCode(char32_t ch);
 // The character code draws, or 0 where code is not one (a control code, an icon).
 char32_t GameTextChar(s16 code);
 
+// Whether a text layout is keeping the game's random stream unchanged.
+bool GameTextKeepsRandom();
+
 // Appends utf8's codes and MES_CODE_END to out. A control code, one that is not a character, is
 // written in braces by its name ("{page}", "{cyan}...{/color}", "{L1}", "{value3}", "{name1}", "{wait 12}",
 // "{icon 32}"; docs/LOCALIZATION.md lists them) or by its number, "{-253}", the s16 the game stores. "{{" is a '{'. Typographic quotes and dashes
@@ -45,10 +48,10 @@ public:
     short *Data();
 
 private:
-    std::map<int, std::vector<s16>> messages_;
-    std::vector<s16>                data_;
-    size_t                          codes_ = 0;
-    bool                            dirty_ = true;
+    std::map<int, std::vector<s16>> messages;
+    std::vector<s16>                data;
+    size_t                          encoded_count = 0;
+    bool                            dirty = true;
 };
 
 // One piece of port text drawn as the menus draw their help line (CommonMenuMes2 under
@@ -82,25 +85,25 @@ public:
     // shake tables as they were. MakeMesWin fills the tables with 64 rand() calls, so a text laid
     // out where the game does not (the FPS counter, between two ticks) would otherwise change what
     // the game does next, and by when it landed.
-    void KeepGameRandom(bool keep) { keep_random_ = keep; }
+    void KeepGameRandom(bool keep) { keep_random = keep; }
 
     // How wide the widest line draws, in screen pixels; for right-aligning or centring a value.
-    int Width() const { return mes_.text_width; }
+    int Width() const { return mes.text_width; }
 
     // The window itself, for settings the presets above do not cover.
-    ClsMes &Mes() { return mes_; }
+    ClsMes &Mes() { return mes; }
 
 private:
     bool Layout();
 
-    ClsMes       mes_;
-    GameTextFile file_;
-    std::string  text_;
-    u32          colour_;
-    int          missing_ = 0;
-    bool         set_ = false;
-    bool         keep_random_ = false;
-    int          glyph_style_ = -1;
-    int          cell_width_ = 0;
-    int          base_char_width_ = 11;
+    ClsMes       mes;
+    GameTextFile file;
+    std::string  text;
+    u32          colour;
+    int          missing = 0;
+    bool         set = false;
+    bool         keep_random = false;
+    int          glyph_style = -1;
+    int          cell_width = 0;
+    int          base_char_width = 11;
 };

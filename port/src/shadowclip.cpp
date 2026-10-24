@@ -55,9 +55,9 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
     MulMatrix(shadow_to_eye, info->view_scaled, shadow_matrix);
     sceVu0CopyMatrix(clip, info->perspective);
 
-    MDT_HEADER    *model = (MDT_HEADER *) model_data;
-    MDT_SHADOW    *shadow = (MDT_SHADOW *) ((unsigned char *) model + model->mesh_ofs);
-    sceVu0FVECTOR *vertices = (sceVu0FVECTOR *) ((unsigned char *) model + model->vertex_ofs);
+    MDT_HEADER    *model = reinterpret_cast<MDT_HEADER *>(model_data);
+    MDT_SHADOW    *shadow = reinterpret_cast<MDT_SHADOW *>(reinterpret_cast<unsigned char *>(model) + model->mesh_ofs);
+    sceVu0FVECTOR *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<unsigned char *>(model) + model->vertex_ofs);
 
     // Retail keeps both arrays in the scratchpad.
     std::vector<std::array<float, 4>> eye(model->vertex_num);
@@ -69,11 +69,11 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
     }
 
     int          total = 0;
-    MDT_SVERTEX *corner = (MDT_SVERTEX *) shadow->shape;
+    MDT_SVERTEX *corner = reinterpret_cast<MDT_SVERTEX *>(shadow->shape);
 
     for (int shape_index = 0; shape_index < shadow->shape_num; shape_index++) {
-        int index_num = ((MDT_SSHAPE *) corner)->index_num;
-        corner = ((MDT_SSHAPE *) corner)->vertex;
+        int index_num = (reinterpret_cast<MDT_SSHAPE *>(corner))->index_num;
+        corner = (reinterpret_cast<MDT_SSHAPE *>(corner))->vertex;
 
         for (int emitted = 0; emitted < index_num; emitted += 3, corner += 3) {
             int           a = corner[0].index;

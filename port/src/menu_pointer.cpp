@@ -19,7 +19,7 @@ constexpr float kFingerY = 14.0f;
 constexpr std::uint16_t kPadButtons = kInputUp | kInputDown | kInputLeft | kInputRight | kInputCross | kInputCircle |
                                       kInputSquare | kInputTriangle | kInputL1 | kInputR1 | kInputL2 | kInputR2 |
                                       kInputStart;
-constexpr int kStickThreshold = 120;
+constexpr int           kStickThreshold = 120;
 
 int                synthetic = 0;
 const MenuPointer *shown = nullptr;
@@ -56,28 +56,28 @@ void UnitsPerCount(float &across, float &down) {
 } // namespace
 
 void MenuPointer::Open() {
-    open_ = true;
+    open = true;
     pointing = false;
     InputSetMenuMouse(true);
-    buttons_ = InputTakeMenuMouse().buttons;
+    buttons = InputTakeMenuMouse().buttons;
 }
 
 bool MenuPointer::Close() {
     pointing = false;
-    if (!open_) {
+    if (!open) {
         return true;
     }
     if (InputTakeMenuMouse().buttons != 0) {
         return false;
     }
-    open_ = false;
+    open = false;
     InputSetMenuMouse(false);
     return true;
 }
 
 MenuPointerTake MenuPointer::Take(float start_x, float start_y) {
     MenuPointerTake take;
-    if (!open_) {
+    if (!open) {
         return take;
     }
     InputMenuMouse mouse = InputTakeMenuMouse();
@@ -87,11 +87,11 @@ MenuPointerTake MenuPointer::Take(float start_x, float start_y) {
         mouse.dx = mouse.dy = mouse.wheel = 0.0f;
     }
 #endif
-    take.clicked = mouse.buttons & ~buttons_;
-    take.released = buttons_ & ~mouse.buttons;
+    take.clicked = mouse.buttons & ~buttons;
+    take.released = buttons & ~mouse.buttons;
     take.held = mouse.buttons;
     take.wheel = mouse.wheel;
-    buttons_ = mouse.buttons;
+    buttons = mouse.buttons;
     bool motion = mouse.dx != 0.0f || mouse.dy != 0.0f;
     take.moved = motion || take.clicked != 0 || mouse.wheel != 0.0f;
 

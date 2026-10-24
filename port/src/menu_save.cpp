@@ -1,6 +1,7 @@
 #include "menu_save.hpp"
 
 #include <filesystem>
+#include <iterator>
 #include <system_error>
 
 #include "battle_globals.hpp"
@@ -11,9 +12,14 @@
 #include "menu_draw.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
+#include "quest_host.hpp"
 #include "rect.hpp"
 #include "save_slots.hpp"
 #include "texture.hpp"
+
+PORT_OVERRIDE int PlayerAllItemCheck(int item) {
+    return QuestHostPlayerAllItemCheck(item);
+}
 
 // Message numbers of allmenu.mes the save screens show.
 enum SaveMenuMessage {
@@ -126,11 +132,7 @@ PORT_OVERRIDE void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, i
     int i;
     int draw_x;
     int draw_y;
-#ifndef PAL
-    int time[3];
-#endif
-
-    if (info == NULL) {
+    if (info == nullptr) {
         return;
     }
 
@@ -147,9 +149,8 @@ PORT_OVERRIDE void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, i
 
     draw_x = x + 0x54;
 #ifdef PAL
-    s8 number_shift[] = {0, 0, 0, 10, 0, 4, 13};
+    constexpr s8 number_shift[] = {0, 0, 0, 10, 0, 4, 13};
     draw_x += number_shift[GetMenuLangFlag()];
-    int time[3];
 #endif
     draw_y = y + 8;
     RECT number_rect = {0x88, 0xCA, 0xC, 0x10};
@@ -192,7 +193,7 @@ PORT_OVERRIDE void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, i
     bottom.a = end_alpha;
     int name_x = draw_x + 8;
 
-    DrawSaveBoardCharaName2(name_x, draw_y, (short *) info->name, name_texture, top, bottom);
+    DrawSaveBoardCharaName2(name_x, draw_y, reinterpret_cast<short *>(info->name), name_texture, top, bottom);
 
     // Play time, as hours, minutes and seconds.
     RECT time_rect = {0x88, 0xB8, 0xC, 0x12};
@@ -209,12 +210,13 @@ PORT_OVERRIDE void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, i
     }
 
     frames /= 60;
-    time[0] = frames / 3600;
-    time[1] = (frames / 60 - time[0] * 60) % 60;
-    time[2] = frames % 60;
+    const int hours = frames / 3600;
+    const int minutes = (frames / 60 - hours * 60) % 60;
+    const int seconds = frames % 60;
 
     for (int part = 2; part >= 0; part--) {
-        int value = time[part];
+        const int value = part == 2 ? seconds : part == 1 ? minutes
+                                                          : hours;
         DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, time_rect.width, time_rect.height), CRect_i_(time_rect.x + time_rect.width * (value / 10), time_rect.y, time_rect.width, time_rect.height), &top, &top, &bottom, &bottom);
         DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x + time_rect.width, draw_y, time_rect.width, time_rect.height), CRect_i_(time_rect.x + time_rect.width * (value % 10), time_rect.y, time_rect.width, time_rect.height), &top, &top, &bottom, &bottom);
         draw_x -= 0x1E;
@@ -258,28 +260,92 @@ PORT_OVERRIDE void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, i
     }
 
     // Row of each map's name on the board texture; a map from 14 on is in the second block.
-    int map = info->map_no;
-    s16 map_name[62] = {0, 1, 2, 3, 6, 0, 0, 0, 0, 0, 0, 1, 1, 1, 9, 9, 9, 9, 9, 2, 2,
-                        4, 10, 4, 13, 13, 13, 10, 9, 4, 4, 4, 4, 1, 10, 12, 10, 5, 13, 12, 13, 4,
-                        10, 2, 2, 2, 13, 4, 13, 13, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 14};
-    int name_u;
-    int name_v;
+    int                  map = info->map_no;
+    static constexpr s16 map_name[62] = {
+        0,
+        1,
+        2,
+        3,
+        6,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        2,
+        4,
+        10,
+        4,
+        13,
+        13,
+        13,
+        10,
+        9,
+        4,
+        4,
+        4,
+        4,
+        1,
+        10,
+        12,
+        10,
+        5,
+        13,
+        12,
+        13,
+        4,
+        10,
+        2,
+        2,
+        2,
+        13,
+        4,
+        13,
+        13,
+        13,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        14,
+        14,
+    };
+    if (map >= 0 && map < static_cast<int>(std::size(map_name))) {
+        int name_index = map_name[map];
+        int name_u;
+        int name_v;
 
-    if (map_name[map] < 0xE) {
-        name_u = (map_name[map] / 7) * 0x88;
-        name_v = (map_name[map] % 7) * 0x14 + 0xB8;
-    } else {
-        map_name[map] -= 0xE;
-        name_u = (map_name[map] / 7) * 0x88;
-        name_v = (map_name[map] % 7) * 0x14 + 0x144;
+        if (name_index < 0xE) {
+            name_u = (name_index / 7) * 0x88;
+            name_v = (name_index % 7) * 0x14 + 0xB8;
+        } else {
+            name_index -= 0xE;
+            name_u = (name_index / 7) * 0x88;
+            name_v = (name_index % 7) * 0x14 + 0x144;
+        }
+
+        draw_x = x + 0x23;
+        draw_y = y + 0x63;
+        GetSaveBoardAlphaInfo(draw_y, 0x14, start_alpha, end_alpha, alpha);
+        top.a = start_alpha;
+        bottom.a = end_alpha;
+        DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, 0x88, 0x15), CRect_i_(name_u, name_v, 0x88, 0x14), &top, &top, &bottom, &bottom);
     }
-
-    draw_x = x + 0x23;
-    draw_y = y + 0x63;
-    GetSaveBoardAlphaInfo(draw_y, 0x14, start_alpha, end_alpha, alpha);
-    top.a = start_alpha;
-    bottom.a = end_alpha;
-    DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, 0x88, 0x15), CRect_i_(name_u, name_v, 0x88, 0x14), &top, &top, &bottom, &bottom);
 
     // A face for each member of the party, three to a row.
     int face_x = x + 0xCF;

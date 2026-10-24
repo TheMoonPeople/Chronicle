@@ -101,7 +101,7 @@ PORT_OVERRIDE void FishLineDraw(int above_water) {
         draw = false;
     }
 
-    if (UkiFrame != NULL && draw) {
+    if (UkiFrame != nullptr && draw) {
         sceVu0AddVector(center, ukip[1], ukip[2]);
         sceVu0AddVector(center, center, ukip[3]);
         sceVu0ScaleVector(center, center, 0.333333f);
@@ -132,7 +132,7 @@ PORT_OVERRIDE void FishLineDraw(int above_water) {
         draw = false;
     }
 
-    if (HookFrame != NULL && draw) {
+    if (HookFrame != nullptr && draw) {
         sceVu0AddVector(center, hookp[1], hookp[2]);
         sceVu0ScaleVector(center, center, 0.5f);
         sceVu0SubVector(direction, hookp[0], center);
@@ -151,7 +151,7 @@ PORT_OVERRIDE void FishLineDraw(int above_water) {
         HookFrame->SetPosition(hookp[0]);
         MGDraw(HookFrame);
 
-        if (EsaFrame != NULL) {
+        if (EsaFrame != nullptr) {
             sceVu0AddVector(esa_position, hookp[0], hookp[1]);
             sceVu0AddVector(esa_position, esa_position, hookp[2]);
             sceVu0ScaleVector(esa_position, esa_position, 0.3333f);

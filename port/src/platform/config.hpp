@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 
+#include "gfx/gfx.hpp"
 #include "platform/settings.hpp"
 
 enum class ConfigAspect {
@@ -34,29 +35,11 @@ struct ConfigGameOptions {
 };
 
 struct Config : HostSettings {
-    bool              debug_mode = false;
-    bool              qte_always_win = false;
-    bool              element_quick_select = false;
-    bool              swap_keeps_lock_on = false;
-    bool              text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
-    // game.aerial_map: the dungeon map is the live floor seen from above instead of retail's tiles.
-#ifdef __SWITCH__
-    // Off on the Switch: retail's tiles and dots read better on the handheld's screen, and the
-    // floor drawn a second time from above costs its GPU up to a millisecond a frame.
-    bool              aerial_map = false;
-#else
-    bool              aerial_map = true;
-#endif
-    // World units above the player's feet where the aerial map cuts the ceiling away.
-    float             aerial_map_ceiling = 40.0f;
-    // Aerial map magnification over retail's 16 pixels per cell; 1 shows the whole floor as retail does.
-    float             aerial_map_zoom = 1.0f;
-    // Size of monsters, chests and the player on the aerial map relative to the floor.
-    float             aerial_map_model_scale = 8.0f;
-    // Size of the aerial map over retail's 320 pixel square, grown from its top-right corner.
-    float             aerial_map_size = 1.4f;
-    // Coloured rings around monsters (red), chests (gold), atla (blue) and the player (green).
-    bool              aerial_map_markers = false;
+    bool debug_mode = false;
+    bool qte_always_win = false;
+    bool element_quick_select = false;
+    bool swap_keeps_lock_on = false;
+    bool text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
 #ifdef __SWITCH__
     // Off on the Switch: a display frame between ticks costs its GPU as much as a tick's own.
     bool interpolation = false;
@@ -65,39 +48,37 @@ struct Config : HostSettings {
 #else
     bool interpolation = true;
 #endif
-    ConfigAspect      aspect = ConfigAspect::Auto;
-    float             ui_scale = 1.0f;
+    gfx::RenderThreadMode render_thread = gfx::RenderThreadMode::Async;
+    ConfigAspect aspect = ConfigAspect::Auto;
+    float ui_scale = 1.0f;
 #if defined(__ANDROID__)
-    float             render_scale = 0.5f;
-    int               touch_overlay_opacity = 100;
+    float render_scale = 0.5f;
+    int   touch_overlay_opacity = 100;
 #else
-    float             render_scale = 1.0f;
+    float render_scale = 1.0f;
 #endif
-    float             detail_distance = 0.0f;
-    float             shadow_distance = 0.0f;
-    int               anisotropy = 0;
+    float detail_distance = 0.0f;
+    float shadow_distance = 0.0f;
+    int   anisotropy = 0;
     // Third-person vertical return after mouse input: 0 holds height, 1 is retail's rate.
-    float                    mouse_camera_return = 0.2f;
-    ConfigGameOptions        options;
-    bool                     discord_rich_presence = true;
+    float             mouse_camera_return = 0.2f;
+    ConfigGameOptions options;
+    bool              discord_rich_presence = true;
     // game.language: 0 asks at start-up, as retail does; 2 to 6 is the language to start in
     // (LanguageCode: English, Francais, Deutsch, Italiano, Espanol) and skips the language screen.
-    int                           language = 0;
-    // video.text_font: "sharp" draws the message text from the TrueType font (lang/font.ttf, --font),
-    // "original" from the game's own 14x20 bitmaps. Takes effect at once.
-    bool                          font_sharp = true;
+    int language = 0;
     // video.text_shadow and video.glyph_shadow: how strong the shadow under the TrueType message text and
     // under the button symbols in it is, in percent in steps of 5. 0 casts none, 50 is the soft shadow
     // (the letters' default), 100 the deep one. The symbols' is lighter, because a solid shape stacks
     // the shadow where a thin stroke does not.
-    int                           text_shadow = 50;
-    int                           glyph_shadow = 25;
+    int text_shadow = 50;
+    int glyph_shadow = 25;
     // video.name_shadow, video.floor_shadow and video.boss_shadow: the same shadow under the pictures of text the
     // localization draws in place of the disc's (localize_texture.hpp): the area name cards, the dungeon floor
     // labels and the bosses' names. Same scale as text_shadow; they take effect from the next area loaded.
-    int                           name_shadow = 50;
-    int                           floor_shadow = 50;
-    int                           boss_shadow = 50;
+    int name_shadow = 50;
+    int floor_shadow = 50;
+    int boss_shadow = 50;
 
     bool operator==(const Config &) const = default;
 };

@@ -27,7 +27,7 @@ port/
 │       ├── types.hpp                  # Palette constants, Metrics, Alignment, FontWeight, Anchor, Rect, ZLayer, LayerQueue
 │       ├── text.hpp                   # TextStyle, Label, WrapText, DrawTextBox, DrawCounter, DrawStatus*
 │       ├── surfaces.hpp               # WindowPreset, TrackerWindow, PaperWindow, HelpBox, Window, TabPlate, Divider, SubWindow
-│       ├── buttons.hpp                # ButtonPreset, ButtonStyle (Thick/Thin + recessed), BevelButton, TextureButton
+│       ├── buttons.hpp                # ButtonPreset, ButtonStyle (Thick recessed / Thin painted), BevelButton, TextureButton
 │       ├── widgets.hpp                # ItemIcon, Cursor, Brackets, ScrollBar, ProgressBar
 │       └── dialogs.hpp                # DialogOption, DialogStyle, DialogBox, ConfirmModal, ListViewConfig, ListView
 └── src/
@@ -59,8 +59,8 @@ port/
 
 |**Slot**|**Font Asset (tools/font/ -> lang/)**|**UI::FontWeight**|**Primary Usage**|
 |---|---|---|---|
-|**Slot 0**|`DarkCloudCompendium.ttf` (`lang/font.ttf`)|`FontWeight::Normal`, `FontWeight::Thin`, `FontWeight::Bold`|Standard game messages, window titles, `YES`/`NO` confirmation buttons, and Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, etc.).|
-|**Slot 1**|`DarkCloudCompendiumThin.ttf` (`lang/font_thin.ttf`)|_(Optional thin variant)_|Loaded via `capfont::LoadVariant` when explicitly requested.|
+|**Slot 0**|`ChronicleSharp-Bold.ttf` (`lang/font.ttf`)|`FontWeight::Normal`, `FontWeight::Bold`|Standard game messages, window titles and `YES`/`NO` confirmation buttons.|
+|**Slot 1**|`ChronicleSharp-Regular.ttf` (`lang/font_thin.ttf`)|`FontWeight::Thin`|Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, etc.), the area cards and the floor select's boss names.|
 |**Slot 2**|`SourceSansProSemibold.ttf` (`lang/SourceSansProSemibold.ttf`)|`FontWeight::Status`|Weapon Status UI (`At`, `Ed`, `Sp`, `Mp`, element tags `Fl`/`Ch`/`Th`/`Wi`/`Ho`, and status/bar numbers `12/28`, `67/98`, `22`, `34`, `72`, `13`).|
 
 - **Flatpak & Sandbox Resilience**: `port/CMakeLists.txt` copies and installs `tools/font/SourceSansProSemibold.ttf` into `lang/SourceSansProSemibold.ttf`. In addition, `port/src/caption_text.cpp` embeds `SourceSansProSemibold.ttf` at compile time via C++26 `#embed` (`capfont::LoadStatusFontMemory`) as an automatic fallback.
@@ -76,7 +76,7 @@ port/
 
 ### A. Recessed / Engraved Button Text (`recessed = true`)
 
-Used on `BevelButton` (`ButtonStyle::Thick` and `ButtonStyle::Thin`) in place of a traditional drop shadow so text looks stamped/carved into the button surface:
+Used on `BevelButton` (`ButtonStyle::Thick`) in place of a traditional drop shadow so text looks stamped/carved into the button surface:
 
   
 
@@ -150,7 +150,7 @@ Used by `UI::DrawStatusText` for Weapon Status abbreviations (`At`, `Ed`, `Sp`, 
     
       
     
-- **`UI::ButtonStyle::Thin(preset, brightness)`**: Uses `FontWeight::Thin`, `text_scale = 1.14f`, `text_xscale = 1.06f`, `recessed_text = true`. Used for Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, `ATTRIBUTE`, `REPAIR`, `UPGRADE`, `SYNTHESIZE`, `BUILD-UP`, `DISCARD`).
+- **`UI::ButtonStyle::Thin(preset, brightness)`**: Lettered as the painted weapon buttons are (`painted_text`): the English words letter by letter where the painting has them (`caption::DrawButtonWord`), others fitted in the narrower font with a soft brown glow. Used for Weapon Menu action buttons (`EQUIP`, `CUSTOMIZE`, `ATTRIBUTE`, `REPAIR`, `UPGRADE`, `STATUS BREAK`, `BUILD-UP`, `DISCARD`).
     
       
     

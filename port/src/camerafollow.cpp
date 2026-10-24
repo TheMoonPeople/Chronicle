@@ -22,15 +22,15 @@ PORT_OVERRIDE void CCameraFollow::AddAngle(float delta) {
         return;
     }
 
-    constexpr float kTurn = 2.0f * std::numbers::pi_v<float>;
-    float           turn = std::remainder(mouse, kTurn);
+    constexpr float k_turn = 2.0f * std::numbers::pi_v<float>;
+    float           turn = std::remainder(mouse, k_turn);
     float           c = std::cos(turn);
     float           s = std::sin(turn);
     float           x = this->pos[0] - this->ref[0];
     float           z = this->pos[2] - this->ref[2];
 
     this->next_angle += delta - mouse + turn;
-    this->angle = std::remainder(this->angle + turn, kTurn);
+    this->angle = std::remainder(this->angle + turn, k_turn);
     this->pos[0] = this->ref[0] + x * c + z * s;
     this->pos[2] = this->ref[2] + z * c - x * s;
 }

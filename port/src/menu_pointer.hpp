@@ -36,11 +36,11 @@ public:
     // a held button would be a press of the next screen. Call every tick until it returns true.
     bool Close();
 
-    bool IsOpen() const { return open_; }
+    bool IsOpen() const { return open; }
 
     // Another screen took the mouse over: forget it without handing it back.
     void Abandon() {
-        open_ = false;
+        open = false;
         pointing = false;
     }
 
@@ -49,8 +49,8 @@ public:
     MenuPointerTake Take(float start_x, float start_y);
 
 private:
-    bool          open_ = false;
-    std::uint32_t buttons_ = 0;
+    bool          open = false;
+    std::uint32_t buttons = 0;
 };
 
 // Pad buttons (InputButton bits, the game's PAD_*) the mouse presses this tick.

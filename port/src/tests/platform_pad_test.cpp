@@ -4,16 +4,17 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <span>
 #include <string_view>
 
 #include "../gameloop.hpp"
+#include "gamepad.hpp"
+#include "mainselect.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 #include "platform/input_script.hpp"
-#include "gamepad.hpp"
-#include "mainselect.hpp"
 
 // CGamePad::Init waits on sceGsSyncV, which lives in the libgraph stub, so
 // these tests do what Init does to the library themselves (scePadInit and
@@ -22,12 +23,17 @@
 
 namespace {
 
-unsigned char g_dma_buffer[2][1024];
+struct alignas(64) PadDmaBuffer {
+    std::array<unsigned char, 1024> bytes;
+};
+
+std::array<std::unique_ptr<PadDmaBuffer>, 2> g_dma_buffer = {
+    std::make_unique<PadDmaBuffer>(), std::make_unique<PadDmaBuffer>()};
 
 void OpenPads() {
     ASSERT_TRUE(scePadInit(0) == 1);
-    ASSERT_TRUE(scePadPortOpen(0, 0, g_dma_buffer[0]) == 1);
-    ASSERT_TRUE(scePadPortOpen(1, 0, g_dma_buffer[1]) == 1);
+    ASSERT_TRUE(scePadPortOpen(0, 0, g_dma_buffer[0]->bytes.data()) == 1);
+    ASSERT_TRUE(scePadPortOpen(1, 0, g_dma_buffer[1]->bytes.data()) == 1);
 }
 
 void SetPad(int pad, std::uint16_t buttons, int lx = 128, int ly = 128, int rx = 128, int ry = 128) {
@@ -92,8 +98,8 @@ TEST(PlatformPad, DefaultMouseAndKeyboardCombatBindings) {
 TEST(PlatformPad, ReadFillsDualshockLayout) {
     OpenPads();
     SetPad(0, kInputCross | kInputUp | kInputL2, 255, 0, 10, 200);
-    unsigned char data[32];
-    ASSERT_TRUE(scePadRead(0, 0, data) == 8);
+    auto data = std::make_unique<unsigned char[]>(32);
+    ASSERT_TRUE(scePadRead(0, 0, data.get()) == 8);
     ASSERT_TRUE(data[0] == 0);
     ASSERT_TRUE(data[1] == 0x73);
     ASSERT_TRUE((((data[2] << 8) | data[3]) ^ 0xFFFF) == (PAD_CROSS | PAD_UP | PAD_L2));
@@ -133,10 +139,10 @@ TEST(PlatformPad, SetupReachesReady) {
 TEST(PlatformPad, UnopenedPortReadsNothing) {
     ASSERT_TRUE(scePadInit(0) == 1);
     SetPad(1, PAD_CROSS);
-    unsigned char data[32];
+    auto data = std::make_unique<unsigned char[]>(32);
     ASSERT_TRUE(scePadGetState(1, 0) == scePadStateDiscon);
-    ASSERT_TRUE(scePadRead(1, 0, data) == 0);
-    ASSERT_TRUE(scePadPortOpen(1, 0, g_dma_buffer[1]) == 1);
+    ASSERT_TRUE(scePadRead(1, 0, data.get()) == 0);
+    ASSERT_TRUE(scePadPortOpen(1, 0, g_dma_buffer[1]->bytes.data()) == 1);
     ASSERT_TRUE(scePadGetState(1, 0) == scePadStateStable);
     ASSERT_TRUE(scePadInfoMode(1, 0, InfoModeCurID, 0) == PAD_TERMINAL_DUALSHOCK);
     ASSERT_TRUE(scePadInfoMode(1, 0, InfoModeCurExID, 0) == 0);

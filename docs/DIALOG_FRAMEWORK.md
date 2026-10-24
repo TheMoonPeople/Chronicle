@@ -136,6 +136,9 @@ The framework's strings follow the port's convention for its own text: English i
 | `dialog.hub.default_prompt` | Is there something you need? (not shown by default: an NPC's menu is its choices alone, unless `NpcContext::hub_greeting_key` names a greeting such as this one) |
 | `dialog.hub.anything_else` | Was there anything else? |
 
+`Dialog::Strings()` lists these for `OptionStrings()`, so the text export carries them and the
+language-file test checks each language has them.
+
 `Dialog::SetExternalLocalizeLookup` lets a mod answer keys first.
 
 ---

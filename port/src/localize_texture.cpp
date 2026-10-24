@@ -9,7 +9,7 @@
 
 #include "localize.hpp"
 #include "platform/config.hpp"
-#include "platform/imagefile.hpp"
+#include "platform/png_image.hpp"
 #include "texture_port.hpp"
 
 namespace fs = std::filesystem;
@@ -197,7 +197,7 @@ bool LocalizeTexture(const char *name, PortDecodedTexture &texture) {
     int                  width = 0;
     int                  height = 0;
     std::vector<uint8_t> rgba;
-    if (!imagefile::LoadPng(path, width, height, rgba)) {
+    if (!PngLoadRgba(path, width, height, rgba)) {
         std::fprintf(stderr, "localize: cannot read picture %s\n", path.string().c_str());
         return false;
     }
@@ -222,7 +222,7 @@ bool LocalizeTexture(const char *name, PortDecodedTexture &texture) {
             int                  mask_width = 0;
             int                  mask_height = 0;
             std::vector<uint8_t> mask_rgba;
-            if (!mask_path.empty() && imagefile::LoadPng(mask_path, mask_width, mask_height, mask_rgba)) {
+            if (!mask_path.empty() && PngLoadRgba(mask_path, mask_width, mask_height, mask_rgba)) {
                 std::vector<uint8_t> fitted = mask_width == width && mask_height == height
                                                   ? mask_rgba
                                                   : LocalizeResample(mask_rgba.data(), mask_width, mask_height, width, height);

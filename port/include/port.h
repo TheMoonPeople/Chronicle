@@ -43,7 +43,8 @@ extern "C" [[noreturn]] void exit__2(int status);
 /**
  * Makes a temporary an lvalue, for the non-const reference parameters MWCC binds temporaries to.
  */
-template <class T> T &Ps2Lvalue(T &&value) {
+template <class T>
+T &Ps2Lvalue(T &&value) {
     return static_cast<T &>(value);
 }
 

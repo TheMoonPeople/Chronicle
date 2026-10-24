@@ -1,17 +1,20 @@
 #include "texture.hpp"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <limits>
+#include <memory>
 #include <string>
 
 #include "caption_text.hpp"
 #include "dataalloc.hpp"
 #include "localize_texture.hpp"
 #include "mglib.hpp"
-#include "texture_assets.hpp"
 #include "texture_port.hpp"
 #include "tim2.hpp"
 
@@ -26,8 +29,9 @@ enum class EnterMode {
 };
 
 u_long Tex0(unsigned tbp, int tbw, int psm, int tw, int th, unsigned cbp, int cld) {
-    return (u_long) tbp | ((u_long) tbw << 14) | ((u_long) psm << 20) | ((u_long) tw << 26) | ((u_long) th << 30) |
-           ((u_long) 1 << 34) | ((u_long) cbp << 37) | ((u_long) cld << 61);
+    return static_cast<u_long>(tbp) | (static_cast<u_long>(tbw) << 14) | (static_cast<u_long>(psm) << 20) |
+           (static_cast<u_long>(tw) << 26) | (static_cast<u_long>(th) << 30) | (static_cast<u_long>(1) << 34) |
+           (static_cast<u_long>(cbp) << 37) | (static_cast<u_long>(cld) << 61);
 }
 
 int CeilLog2(int value) {
@@ -98,7 +102,8 @@ uint32_t BlendColors(uint32_t first, uint32_t second, unsigned first_weight, uns
         unsigned first_channel = (first >> shift) & 0xff;
         unsigned second_channel = (second >> shift) & 0xff;
         unsigned channel = (first_channel * first_weight + second_channel * (total_weight - first_weight) +
-                            total_weight / 2) / total_weight;
+                            total_weight / 2) /
+                           total_weight;
         blended |= channel << shift;
     }
     return blended;
@@ -134,7 +139,7 @@ void DumpTexture(const char *name, const PortDecodedTexture &texture) {
         return ~c;
     };
     std::vector<uint8_t> out = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-    auto put32 = [&](std::vector<uint8_t> &v, uint32_t x) {
+    auto                 put32 = [&](std::vector<uint8_t> &v, uint32_t x) {
         for (int s = 24; s >= 0; s -= 8) {
             v.push_back(static_cast<uint8_t>(x >> s));
         }
@@ -194,11 +199,11 @@ void MakeGroundPeriodic(const char *name, PortDecodedTexture &texture) {
         return;
     }
 
-    const unsigned horizontal_band = std::strcmp(name, "d02b05") == 0 ? 32 : 8;
-    const unsigned vertical_band = std::strcmp(name, "d02b06") == 0 ? 32 : 8;
+    const unsigned        horizontal_band = std::strcmp(name, "d02b05") == 0 ? 32 : 8;
+    const unsigned        vertical_band = std::strcmp(name, "d02b06") == 0 ? 32 : 8;
     std::vector<uint8_t> &pixels = texture.levels[0];
-    const unsigned width = texture.width;
-    const unsigned height = texture.height;
+    const unsigned        width = texture.width;
+    const unsigned        height = texture.height;
 
     for (unsigned y = 0; y < height; y++) {
         for (unsigned offset = 0; offset < horizontal_band; offset++) {
@@ -243,7 +248,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
         return;
     }
     CTexture *tex = manager.SearchTexture(name);
-    if (image == 0 || mip1 == 0) {
+    if (image == nullptr || mip1 == nullptr) {
         mipmap = false;
     }
     int psm = Psm(bpp);
@@ -271,11 +276,11 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
             fix_blocks += 32 - fix_blocks % 32;
         }
         manager.vram_fix -= fix_blocks;
-        if (image == 0 ? psm != SCE_GS_PSMCT32 : indexed) {
+        if (image == nullptr ? psm != SCE_GS_PSMCT32 : indexed) {
             manager.vram_fix -= 32;
         }
-        if (image != 0 && !indexed) {
-            tex->clut = 0;
+        if (image != nullptr && !indexed) {
+            tex->clut = nullptr;
         }
     } else {
         CTextureBlock &entry = manager.blocks[block];
@@ -285,15 +290,15 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
         if (!staged) {
             entry.extend = true;
         }
-        if (image == 0) {
+        if (image == nullptr) {
             vram_top += image_blocks;
             if (indexed) {
                 vram_top += 4;
             }
             vram_end = vram_top;
         } else {
-            auto stage = [&](const u_char *source, int bytes, int blocks) -> u_int * {
-                u_int *destination = (u_int *) (manager.buffer + manager.buffer_used);
+            auto stage = [&](u_char *source, int bytes, int blocks) -> u_int * {
+                u_int *destination = reinterpret_cast<u_int *>(manager.buffer + manager.buffer_used);
                 if (staged) {
                     // A picture with fewer levels than the block asks for leaves the last one null,
                     // which retail copies from all the same.
@@ -303,7 +308,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
                     manager.buffer_used += blocks * 16;
                 }
                 vram_end += blocks;
-                return staged ? destination : (u_int *) source;
+                return staged ? destination : reinterpret_cast<u_int *>(source);
             };
             tex->image[0] = stage(image, image_size, image_blocks);
             if (mipmap) {
@@ -311,15 +316,15 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
                 tex->image[2] = stage(mip2, image_size >> 4, (image_blocks >> 2) >> 2);
             }
             if (indexed) {
-                u_int *staged_clut = (u_int *) (manager.buffer + manager.buffer_used);
+                u_int *staged_clut = reinterpret_cast<u_int *>(manager.buffer + manager.buffer_used);
                 if (staged) {
                     std::memcpy(staged_clut, clut, clut_bytes);
                     manager.buffer_used += 64;
                 }
-                tex->clut = staged ? staged_clut : (u_int *) clut;
+                tex->clut = staged ? staged_clut : reinterpret_cast<u_int *>(clut);
                 vram_end += 4;
             } else {
-                tex->clut = 0;
+                tex->clut = nullptr;
             }
             tex->swizzled = staged ? indexed : swizzled;
         }
@@ -342,7 +347,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
 
     unsigned tbp;
     unsigned cbp = 0;
-    if (image == 0) {
+    if (image == nullptr) {
         tbp = PortCreatePlaceholder(name, width, height, bpp, PortTextureOwner::Manager, &cbp);
     } else {
         const u_char      *levels[3] = {image, mipmap ? mip1 : nullptr, mipmap ? mip2 : nullptr};
@@ -351,9 +356,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
                                indexed && swizzled != 0, decoded)) {
             return;
         }
-        if (!LocalizeTexture(name, decoded)) {
-            TextureAssetApply(name, decoded);
-        }
+        LocalizeTexture(name, decoded);
         caption::PreparePainted(name, decoded);
         MakeGroundPeriodic(name, decoded);
         DumpTexture(name, decoded);
@@ -370,7 +373,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
     if (bpp > 0 && mipmap) {
         tex->tex1 = SCE_GS_SET_TEX1(0, 2, 1, 5, 1, 0, -120);
         if (tex1 != 0) {
-            sceGsTex1 *lod = (sceGsTex1 *) &tex1;
+            sceGsTex1 *lod = reinterpret_cast<sceGsTex1 *>(&tex1);
             tex->tex1 = SCE_GS_SET_TEX1(0, 2, 1, 5, 1, lod->L, lod->K);
         }
     }
@@ -383,7 +386,7 @@ PORT_OVERRIDE void CTextureManager::Initialize(int size) {
     PortReleaseOwner(PortTextureOwner::Manager);
 
     TextureData.used = 0;
-    SetBuffer((u_long128 *) (TextureData.base + TextureData.used * 16), TextureData.limit);
+    SetBuffer(reinterpret_cast<u_long128 *>(TextureData.base + TextureData.used * 16), TextureData.limit);
 
     for (int i = 0; i < 72; i++) {
         blocks[i].Initialize();
@@ -409,22 +412,22 @@ PORT_OVERRIDE void CTextureManager::Initialize(int size) {
 }
 
 PORT_OVERRIDE void CTextureManager::EnterTexture(int block, char *name, u_char *image, int width, int height, int bpp,
-                                               u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
-                                               u_char *mip3, u_long tex1, int swizzled) {
+                                                 u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
+                                                 u_char *mip3, u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Block, block, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1, mip2,
           tex1, swizzled);
 }
 
 PORT_OVERRIDE void CTextureManager::EnterTextureEX(int block, char *name, u_char *image, int width, int height, int bpp,
-                                                 u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
-                                                 u_char *mip3, u_long tex1, int swizzled) {
+                                                   u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
+                                                   u_char *mip3, u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Extended, block, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1,
           mip2, tex1, swizzled);
 }
 
 PORT_OVERRIDE void CTextureManager::EnterFixTexture(char *name, u_char *image, int width, int height, int bpp, u_char *clut,
-                                                  int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3,
-                                                  u_long tex1, int swizzled) {
+                                                    int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3,
+                                                    u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Fixed, -1, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1, mip2,
           tex1, swizzled);
 }
@@ -433,9 +436,9 @@ PORT_OVERRIDE void CTextureManager::EnterFixTexture(char *name, u_char *image, i
 // bytes of the Z buffer as PSMT8H. Here it is an index texture like any other; the menus reach it
 // by name and draw pieces of it with set2DSprite.
 PORT_OVERRIDE void CTextureManager::EnterFixTextureZ(u_char *buffer) {
-    char        *name = (char *) (buffer + 16);
-    TM2_head    *head = (TM2_head *) (buffer + *(int *) (buffer + 48));
-    TM2_picture *picture = (TM2_picture *) ((u_char *) head + 16);
+    char        *name = reinterpret_cast<char *>(buffer + 16);
+    TM2_head    *head = reinterpret_cast<TM2_head *>(buffer + *reinterpret_cast<int *>(buffer + 48));
+    TM2_picture *picture = reinterpret_cast<TM2_picture *>(reinterpret_cast<u_char *>(head) + 16);
     int          width = head->image_width;
     int          height = head->image_height;
 
@@ -443,7 +446,7 @@ PORT_OVERRIDE void CTextureManager::EnterFixTextureZ(u_char *buffer) {
         return;
     }
 
-    u_char   *image = (u_char *) picture + picture->header_size;
+    u_char   *image = reinterpret_cast<u_char *>(picture) + picture->header_size;
     u_char   *clut = image + picture->image_size;
     CTexture *tex = SearchTexture(name);
     std::strcpy(tex->name, name);
@@ -513,7 +516,7 @@ PORT_OVERRIDE int CTextureManager::DeleteTextureBlock(int block) {
 }
 
 PORT_OVERRIDE int LoadImage(u_int *packet, int dbp, int dpsm, int dbw, u_long128 *source, int qwc, int dsax, int dsay, int rrw,
-                          int rrh) {
+                            int rrh) {
     return 0;
 }
 
@@ -522,5 +525,164 @@ PORT_OVERRIDE int CTextureManager::CleanUpTextureList() {
     // index (Draw3DStrip::texture) where retail's packet holds a baked TEX0, so a move would
     // retarget it. Entries stay where they are: SearchTexture already fills empty ones, so a
     // reloaded block fills the first available holes rather than being appended after compaction.
+    return 1;
+}
+
+// Retail's buffer arithmetic with the pointers kept whole: it went through int, which only holds
+// an address below 2 GiB.
+
+PORT_OVERRIDE void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
+    if (size < 0 || (buffer == nullptr && size != 0)) {
+        buffer = nullptr;
+        size = 0;
+    }
+    this->buffer = buffer;
+    buffer_size = size;
+    const int misalignment = buffer == nullptr ? 0 : static_cast<int>(reinterpret_cast<std::uintptr_t>(buffer) & 0x7f);
+    if (misalignment != 0) {
+        const int skipped_quads = (128 - misalignment) >> 4;
+        if (skipped_quads > buffer_size) {
+            this->buffer = nullptr;
+            buffer_size = 0;
+        } else {
+            this->buffer += skipped_quads;
+            buffer_size -= skipped_quads;
+        }
+    }
+
+    buffer_used = 0;
+}
+
+PORT_OVERRIDE int CTextureManager::CleanUpBuffer() {
+    constexpr int block_count = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
+    auto          block_start = std::make_unique<u_long128 *[]>(block_count);
+    auto          block_order = std::make_unique<int[]>(block_count);
+    auto          block_quads = std::make_unique<int[]>(block_count);
+    int           i;
+    int           j;
+
+    for (i = 0; i < block_count; i++) {
+        block_start[i] = blocks[i].buffer;
+        block_order[i] = i;
+    }
+
+    for (i = 0; i < block_count - 1; i++) {
+        for (j = i + 1; j < block_count; j++) {
+            u_long128 **lower = &block_start[i];
+            u_long128 **upper = &block_start[j];
+            int        *lower_block = &block_order[i];
+            int        *upper_block = &block_order[j];
+
+            if (reinterpret_cast<std::uintptr_t>(*lower) > reinterpret_cast<std::uintptr_t>(*upper)) {
+                u_long128 *swap_start = *lower;
+                int        swap_block = *lower_block;
+                *lower = *upper;
+                *lower_block = *upper_block;
+                *upper = swap_start;
+                *upper_block = swap_block;
+            }
+        }
+    }
+
+    buffer_used = 0;
+    if (buffer == nullptr || buffer_size < 0) {
+        return 0;
+    }
+
+    const std::uintptr_t buffer_address = reinterpret_cast<std::uintptr_t>(buffer);
+    const std::uintptr_t buffer_bytes = static_cast<std::uintptr_t>(buffer_size) * sizeof(u_long128);
+    if (buffer_bytes > std::numeric_limits<std::uintptr_t>::max() - buffer_address) {
+        return 0;
+    }
+    const std::uintptr_t buffer_end = buffer_address + buffer_bytes;
+    int                  required = 0;
+    for (i = 0; i < block_count; i++) {
+        const int block_no = block_order[i];
+        if (block_no <= 0 || block_start[i] == nullptr) {
+            continue;
+        }
+        const std::uintptr_t start = reinterpret_cast<std::uintptr_t>(blocks[block_no].buffer);
+        const std::uintptr_t end = reinterpret_cast<std::uintptr_t>(blocks[block_no].buffer_end);
+        if (start < buffer_address || end < start || end > buffer_end || (end - start) % sizeof(u_long128) != 0) {
+            return 0;
+        }
+        const std::uintptr_t quads = (end - start) / sizeof(u_long128);
+        if (quads > static_cast<std::uintptr_t>(buffer_size - required)) {
+            return 0;
+        }
+        block_quads[block_no] = static_cast<int>(quads);
+        required += static_cast<int>(quads);
+        const int padding = (8 - required % 8) % 8;
+        if (padding > buffer_size - required) {
+            return 0;
+        }
+        required += padding;
+    }
+    for (i = 0; i < block_count; i++) {
+        int            block_no = block_order[i];
+        u_long128     *destination;
+        u_long128     *source;
+        int            k;
+        int            misalignment;
+        std::ptrdiff_t shift;
+
+        if (block_no <= 0) {
+            continue;
+        }
+
+        source = block_start[i];
+
+        if (source == nullptr) {
+            continue;
+        }
+
+        const int block_size = block_quads[block_no];
+        destination = buffer + buffer_used;
+        shift = (source - destination) * static_cast<std::ptrdiff_t>(sizeof(u_long128));
+        blocks[block_no].buffer = destination;
+        blocks[block_no].buffer_end = destination + block_size;
+
+        for (k = 0; k < block_size; k++) {
+            *destination = *source;
+            source++;
+            destination++;
+        }
+
+        for (j = 0; j < 196 && shift != 0; j++) {
+            CTexture *tex = &textures[j];
+            int       level;
+
+            if (tex->block != block_no) {
+                continue;
+            }
+
+            for (level = 0; level < 4; level++) {
+                u_int **images = tex->image;
+                u_int **slot = &images[level];
+
+                if (tex->image[level] == nullptr) {
+                    continue;
+                }
+
+                *slot = reinterpret_cast<u_int *>(reinterpret_cast<char *>(*slot) - shift);
+            }
+
+            if (tex->clut != nullptr) {
+                tex->clut = reinterpret_cast<u_int *>(reinterpret_cast<char *>(tex->clut) - shift);
+            }
+        }
+
+        buffer_used += block_size;
+        misalignment = block_size % 8;
+
+        if (misalignment != 0) {
+            const int padding = 8 - misalignment;
+            if (padding > buffer_size - buffer_used) {
+                return 0;
+            }
+            buffer_used += padding;
+        }
+    }
+
     return 1;
 }

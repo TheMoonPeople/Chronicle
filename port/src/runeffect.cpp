@@ -36,25 +36,25 @@ public:
                 return;
             }
         }
-        previous_ = gfx::CurrentRenderTarget();
+        previous = gfx::CurrentRenderTarget();
         gfx::SetRenderTarget(ref.binding.texture);
-        bound_ = true;
+        bound = true;
     }
 
     ~TargetScope() {
-        if (bound_) {
-            gfx::SetRenderTarget(previous_);
+        if (bound) {
+            gfx::SetRenderTarget(previous);
         }
     }
 
     TargetScope(const TargetScope &) = delete;
     TargetScope &operator=(const TargetScope &) = delete;
 
-    bool Bound() const { return bound_; }
+    bool Bound() const { return bound; }
 
 private:
-    gfx::TextureHandle previous_ = gfx::kMainTarget;
-    bool               bound_ = false;
+    gfx::TextureHandle previous = gfx::kMainTarget;
+    bool               bound = false;
 };
 
 // The current registers as a draw on the bound target: the window scissor follows the target's
@@ -117,8 +117,8 @@ void RestoreRegisters() {
 // UVs, the bottom one taken from x, sample nothing), the first texture blended over it with the
 // ALPHA the caller left, then the second added as Cs + Cd * As.
 PORT_OVERRIDE void blendTextuer(sceVif1Packet *packet, int destination, int width, int format, CTexture *first_texture,
-                              const CRect_i_ &first_destination, const CRect_i_ &first_source, CTexture *second_texture,
-                              const CRect_i_ &second_destination, const CRect_i_ &second_source) {
+                                const CRect_i_ &first_destination, const CRect_i_ &first_source, CTexture *second_texture,
+                                const CRect_i_ &second_destination, const CRect_i_ &second_source) {
     const draw2d::Services &services = draw2d::Get();
 
     {
@@ -161,8 +161,8 @@ PORT_OVERRIDE void blendTextuer(sceVif1Packet *packet, int destination, int widt
 // (the shimmer), then the texture's alpha over them with ALPHA (0 - 0) * FIX + Cd, which keeps the
 // colour and leaves the texture's alpha behind as the strips' coverage.
 PORT_OVERRIDE void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int format, const CRect_i_ &source,
-                                  CTexture *texture, const CRect_i_ &texture_destination, const CRect_i_ &texture_source,
-                                  float depth, float phase) {
+                                    CTexture *texture, const CRect_i_ &texture_destination, const CRect_i_ &texture_source,
+                                    float depth, float phase) {
     const draw2d::Services &services = draw2d::Get();
     sceGsTex0               frame;
     MGGetFBuffTex(&frame);
@@ -262,7 +262,7 @@ PORT_OVERRIDE void CRunEffect::Draw() {
     CTexture *first = TexManager.GetTexture(const_cast<char *>("fx_foot"), -1);
     CTexture *second = TexManager.GetTexture(const_cast<char *>("fx_foot2"), -1);
 
-    if (first == NULL || second == NULL) {
+    if (first == nullptr || second == nullptr) {
         return;
     }
 
@@ -287,9 +287,9 @@ PORT_OVERRIDE void CRunEffect::Draw() {
     spRGBA colour;
 
     if (lighting != 0) {
-        colour.r = (int) light[0];
-        colour.g = (int) light[1];
-        colour.b = (int) light[2];
+        colour.r = static_cast<int>(light[0]);
+        colour.g = static_cast<int>(light[1]);
+        colour.b = static_cast<int>(light[2]);
         colour.a = 0x80;
     } else {
         colour.r = 0x80;

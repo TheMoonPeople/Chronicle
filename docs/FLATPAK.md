@@ -121,7 +121,33 @@ from its release archive, for the build alone:
   `-g`, none of which the game is built with elsewhere.
 
 The app module's source is the working tree (`type: dir`); CI swaps it for a
-`git` source at the commit under test. Vulkan validation layers are not
-shipped. The bundle carries no Vulkan driver of its own: the runtime's Mesa
-(`org.freedesktop.Platform.GL.default`) or the host's NVIDIA driver extension
-provides it.
+`git` source at the commit under test. The working tree includes
+`tools/kazarov` as it is checked out, so after pulling, `git submodule update
+--init tools/kazarov` first, or the build mixes the new code with the old
+Kazarov. Vulkan validation layers are not shipped. The bundle carries no Vulkan
+driver of its own: the runtime's Mesa (`org.freedesktop.Platform.GL.default`)
+or the host's NVIDIA driver extension provides it.
+
+### Dependencies
+
+The build sandbox has no network, so everything Kazarov's CMake would
+download for the port is one of the app module's sources instead, at the hash
+Kazarov declares, which flatpak-builder fetches and checks before the sandbox
+starts:
+
+- each single file `_kz_port_vendor` takes (`dr_wav.h`, `stb_truetype.h`...),
+  in `audio_decoders/` or `stb_truetype/`, the `KZ_PORT_VENDOR_DIRS` of
+  `port/CMakeLists.txt`;
+- each library a `FetchContent_Declare` in Kazarov's `cmake/KazarovPort.cmake`
+  or a module it includes names (simdjson and fastgltf, for
+  `KazarovGltf.cmake`), as an archive in `flatpak-deps/<name>`, which
+  `port/CMakeLists.txt` hands FetchContent as `FETCHCONTENT_SOURCE_DIR_<NAME>`.
+  nlohmann/json, declared with `FIND_PACKAGE_ARGS`, is a module of its own and
+  is found installed.
+
+The module configures with `FETCHCONTENT_FULLY_DISCONNECTED`, so a library the
+manifest leaves out stops the configure at once, naming it, instead of after
+the download's retries. A Kazarov pin that adds a download or changes a hash
+needs the manifest to follow: `python3 scripts/port/flatpak_sources.py`
+compares the two, prints the entry to add for anything missing, and fails the
+Linux CI job until they agree.

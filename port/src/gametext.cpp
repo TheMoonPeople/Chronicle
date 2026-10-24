@@ -1,8 +1,5 @@
 #include "gametext.hpp"
 
-#include "platform/config.hpp"
-#include "platform/input.hpp"
-
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -11,6 +8,8 @@
 #include "gameutil.hpp"
 #include "main.hpp"
 #include "menu_draw.hpp"
+#include "platform/config.hpp"
+#include "platform/input.hpp"
 
 namespace {
 
@@ -257,7 +256,7 @@ bool ControlFromName(std::string_view token, s16 &code) {
         if (family.spaced != (rest.front() == ' ')) {
             continue;
         }
-        const int number = ParseNumber(family.spaced ? rest.substr(1) : rest);
+        const int  number = ParseNumber(family.spaced ? rest.substr(1) : rest);
         const bool downwards = prefix == "value";
         const int  value = downwards ? family.last - (number - family.origin) : family.first + (number - family.origin);
         if (number >= 0 && value >= family.first && value <= family.last) {
@@ -280,7 +279,7 @@ bool ControlFromName(std::string_view token, s16 &code) {
 // "{N}" or "{name}" at utf8[at]: the code into code and at past the '}'.
 bool ReadEscape(std::string_view utf8, size_t &at, s16 &code) {
     if (const size_t close = utf8.find('}', at); close != std::string_view::npos && close - at <= 24 &&
-                                                  ControlFromName(utf8.substr(at + 1, close - at - 1), code)) {
+                                                 ControlFromName(utf8.substr(at + 1, close - at - 1), code)) {
         at = close + 1;
         return true;
     }
@@ -311,6 +310,10 @@ bool ReadEscape(std::string_view utf8, size_t &at, s16 &code) {
 }
 
 } // namespace
+
+bool GameTextKeepsRandom() {
+    return g_keep_random > 0;
+}
 
 s16 GameTextCode(char32_t ch) {
     switch (ch) {
@@ -422,130 +425,105 @@ int GameTextFile::Set(int id, std::string_view utf8) {
     std::vector<s16> codes;
     const int        missing = GameTextEncode(utf8, codes);
 
-    const auto   found = messages_.find(id);
-    const bool   added = found == messages_.end();
-    const size_t count = messages_.size() + (added ? 1 : 0);
-    const size_t total = codes_ - (added ? 0 : found->second.size()) + codes.size();
+    const auto   found = messages.find(id);
+    const bool   added = found == messages.end();
+    const size_t count = messages.size() + (added ? 1 : 0);
+    const size_t total = encoded_count - (added ? 0 : found->second.size()) + codes.size();
     size_t       last = codes.size();
 
-    if (!messages_.empty() && messages_.rbegin()->first > id) {
-        last = messages_.rbegin()->second.size();
+    if (!messages.empty() && messages.rbegin()->first > id) {
+        last = messages.rbegin()->second.size();
     }
     if (1 + count + total - last > INT16_MAX) {
         return -1;
     }
 
-    codes_ = total;
-    messages_[id] = std::move(codes);
-    dirty_ = true;
+    encoded_count = total;
+    messages[id] = std::move(codes);
+    dirty = true;
     return missing;
 }
 
 short *GameTextFile::Data() {
-    if (dirty_) {
-        const size_t count = messages_.size();
+    if (dirty) {
+        const size_t count = messages.size();
 
-        data_.assign(2 + count * 2, 0);
-        data_.reserve(data_.size() + codes_);
-        data_[0] = static_cast<s16>(count);
+        data.assign(2 + count * 2, 0);
+        data.reserve(data.size() + encoded_count);
+        data[0] = static_cast<s16>(count);
 
         size_t entry = 0;
-        for (const auto &[id, codes] : messages_) {
-            data_[2 + entry * 2] = static_cast<s16>(id);
-            data_[3 + entry * 2] = static_cast<s16>(data_.size() - (1 + count));
-            data_.insert(data_.end(), codes.begin(), codes.end());
+        for (const auto &[id, codes] : messages) {
+            data[2 + entry * 2] = static_cast<s16>(id);
+            data[3 + entry * 2] = static_cast<s16>(data.size() - (1 + count));
+            data.insert(data.end(), codes.begin(), codes.end());
             entry++;
         }
 
-        dirty_ = false;
+        dirty = false;
     }
 
-    return data_.data();
+    return data.data();
 }
 
-GameText::GameText() : colour_(FONT_COLOR_WHITE) {
-    mes_.Preset(MES_PRESET_SYSTEM);
-    mes_.char_width = 11;
-    mes_.char_height = 0x14;
-    mes_.narrow_gaiji_set = 2;
-    mes_.tex_block = 0x1A;
-    mes_.auto_pos = MES_POS_NONE;
-    mes_.tail_on = false;
-    mes_.value_show = false;
-    mes_.centre_rows = false;
-}
-
-// Retail's, but for the tables of a layout that keeps the game's random numbers: those stay as
-// they were, and no rand() is called.
-extern float RandTbl[64];
-extern float RandTbl2[64];
-
-PORT_OVERRIDE void MakeRandTbl(float lo, float hi) {
-    if (g_keep_random > 0) {
-        return;
-    }
-    for (int i = 0; i < 64; i++) {
-        RandTbl[i] = ((hi - lo) * (float) rand()) / 2147483648.0f;
-        RandTbl[i] += lo;
-    }
-}
-
-PORT_OVERRIDE void MakeRandTbl2(float lo, float hi) {
-    if (g_keep_random > 0) {
-        return;
-    }
-    for (int i = 0; i < 64; i++) {
-        RandTbl2[i] = ((hi - lo) * (float) rand()) / 2147483648.0f;
-        RandTbl2[i] += lo;
-    }
+GameText::GameText() : colour(FONT_COLOR_WHITE) {
+    mes.Preset(MES_PRESET_SYSTEM);
+    mes.char_width = 11;
+    mes.char_height = 0x14;
+    mes.narrow_gaiji_set = 2;
+    mes.tex_block = 0x1A;
+    mes.auto_pos = MES_POS_NONE;
+    mes.tail_on = false;
+    mes.value_show = false;
+    mes.centre_rows = false;
 }
 
 int GameText::Set(std::string_view utf8) {
-    if (!set_ || utf8 != text_ || mes_.mes_made < 0) {
-        set_ = true;
-        text_ = utf8;
-        missing_ = file_.Set(0, utf8);
-        if (missing_ >= 0 && !Layout()) {
-            missing_ = -1;
+    if (!set || utf8 != text || mes.mes_made < 0) {
+        set = true;
+        text = utf8;
+        missing = file.Set(0, utf8);
+        if (missing >= 0 && !Layout()) {
+            missing = -1;
         }
     }
 
-    if (cell_width_ > 0) {
-        FitWidth(cell_width_);
+    if (cell_width > 0) {
+        FitWidth(cell_width);
     }
 
-    return missing_;
+    return missing;
 }
 
-void GameText::SetColour(u32 colour) {
-    if (colour != colour_) {
-        colour_ = colour;
-        if (mes_.mes_made >= 0 && !Layout()) {
-            missing_ = -1;
+void GameText::SetColour(u32 new_colour) {
+    if (new_colour != colour) {
+        colour = new_colour;
+        if (mes.mes_made >= 0 && !Layout()) {
+            missing = -1;
         }
     }
 }
 
 void GameText::FitWidth(int width) {
-    cell_width_ = width;
-    if (mes_.mes_made >= 0 && width > 0 && mes_.text_width > width) {
+    cell_width = width;
+    if (mes.mes_made >= 0 && width > 0 && mes.text_width > width) {
         Layout();
-    } else if (mes_.mes_made >= 0 && width > 0 && mes_.char_width != base_char_width_) {
+    } else if (mes.mes_made >= 0 && width > 0 && mes.char_width != base_char_width) {
         Layout();
     }
 }
 
 void GameText::RefreshGlyphs() {
     const Config &config = ConfigGet();
-    int style = static_cast<int>(config.glyphs_new) * 32 + static_cast<int>(config.glyph_device) * 2 +
-                static_cast<int>(InputActiveGlyphFamily());
+    int           style = static_cast<int>(config.glyphs_new) * 32 + static_cast<int>(config.glyph_device) * 2 +
+                          static_cast<int>(InputActiveGlyphFamily());
     // Original glyph mode still uses the PS2 font atlas, so the selected device does not affect it.
     if (!config.glyphs_new) {
         style = 0;
     }
-    if (style != glyph_style_) {
-        glyph_style_ = style;
-        if (mes_.mes_made >= 0) {
+    if (style != glyph_style) {
+        glyph_style = style;
+        if (mes.mes_made >= 0) {
             Layout();
         }
     }
@@ -553,48 +531,48 @@ void GameText::RefreshGlyphs() {
 
 bool GameText::Layout() {
     struct Keep {
-        explicit Keep(bool on) : on_(on) { g_keep_random += on ? 1 : 0; }
+        explicit Keep(bool on) : enabled(on) { g_keep_random += on ? 1 : 0; }
 
-        ~Keep() { g_keep_random -= on_ ? 1 : 0; }
+        ~Keep() { g_keep_random -= enabled ? 1 : 0; }
 
-        bool on_;
-    } keep(keep_random_);
+        bool enabled;
+    } keep(keep_random);
 
-    mes_.char_width = base_char_width_;
-    mes_.SetBuff(file_.Data());
+    mes.char_width = base_char_width;
+    mes.SetBuff(file.Data());
     if (SystemMes != nullptr) {
-        mes_.SetBuff_system(SystemMes);
+        mes.SetBuff_system(SystemMes);
     }
-    mes_.clut_default = Color2Clut(colour_) & 0xFF;
-    mes_.clut_now = mes_.clut_default;
-    mes_.mes_made = -1;
-    mes_.MakeMesWin(0);
+    mes.clut_default = Color2Clut(colour) & 0xFF;
+    mes.clut_now = mes.clut_default;
+    mes.mes_made = -1;
+    mes.MakeMesWin(0);
 
-    if (cell_width_ > 0 && mes_.text_width > cell_width_) {
-        int fitted = std::max(1, static_cast<int>(base_char_width_ * cell_width_ /
-                                                 static_cast<float>(mes_.text_width)));
-        if (fitted < mes_.char_width) {
-            mes_.char_width = fitted;
-            mes_.mes_made = -1;
-            mes_.MakeMesWin(0);
+    if (cell_width > 0 && mes.text_width > cell_width) {
+        int fitted = std::max(1, static_cast<int>(base_char_width * cell_width /
+                                                  static_cast<float>(mes.text_width)));
+        if (fitted < mes.char_width) {
+            mes.char_width = fitted;
+            mes.mes_made = -1;
+            mes.MakeMesWin(0);
         }
     }
 
-    if (mes_.win_line_num > 0 && mes_.win_line[mes_.win_line_num - 1].code == MES_CODE_END) {
+    if (mes.win_line_num > 0 && mes.win_line[mes.win_line_num - 1].code == MES_CODE_END) {
         return true;
     }
 
-    mes_.mes_made = -1;
-    mes_.text_len = 0;
-    mes_.text_width = 0;
+    mes.mes_made = -1;
+    mes.text_len = 0;
+    mes.text_width = 0;
     return false;
 }
 
 void GameText::Draw(int x, int y, int alpha) {
-    if (mes_.mes_made < 0) {
+    if (mes.mes_made < 0) {
         return;
     }
 
-    mes_.edge_alpha = alpha;
-    DrawMenuClsMes(&mes_, x, y);
+    mes.edge_alpha = alpha;
+    DrawMenuClsMes(&mes, x, y);
 }

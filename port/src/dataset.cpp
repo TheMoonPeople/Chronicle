@@ -1,7 +1,10 @@
 #include "dataset.hpp"
 
+#include <limits>
+
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataread_port.hpp"
 #include "mglib.hpp"
 #include "platform/arena.hpp"
 
@@ -12,6 +15,9 @@ namespace {
 constexpr std::size_t kReadBufferLead = 0x180000;
 
 void Carve(CDataAlloc2<1> *arena, int quads) {
+    if (arena == nullptr || quads <= 0 || quads > std::numeric_limits<int>::max() / kArenaHeadroom) {
+        ArenaOverflow(arena, quads, std::numeric_limits<int>::max() / kArenaHeadroom);
+    }
     arena->base = ArenaBlock(arena, static_cast<std::size_t>(quads) * 16 * kArenaHeadroom);
     arena->limit = quads * kArenaHeadroom;
     arena->used = 0;
@@ -24,10 +30,16 @@ void CarveWorkBuffer(int quads) {
 
 u_long128 *CarvePackets(int quads, int which) {
     static const char keys[2] = {};
+    if (which < 0 || which >= 2 || quads <= 0 || quads > std::numeric_limits<int>::max() / kArenaHeadroom) {
+        ArenaOverflow("VIF packet buffer", quads, std::numeric_limits<int>::max() / kArenaHeadroom);
+    }
     return reinterpret_cast<u_long128 *>(ArenaBlock(&keys[which], static_cast<std::size_t>(quads) * 16 * kArenaHeadroom));
 }
 
 void CarveReadBuffer(int quads) {
+    if (quads <= 0 || quads > std::numeric_limits<int>::max() / kArenaHeadroom) {
+        ArenaOverflow("file read buffer", quads, std::numeric_limits<int>::max() / kArenaHeadroom);
+    }
     read_buffer = reinterpret_cast<u_int *>(ArenaBlock(&read_buffer, static_cast<std::size_t>(quads) * 16 * kArenaHeadroom, kReadBufferLead));
 }
 
@@ -35,6 +47,7 @@ void CarveReadBuffer(int quads) {
 
 void InitializeDataBuffer() {
     ArenaClearAll();
+    DataReadClearPackCapacities();
     GlobalDataBuffer.used = 0;
     Carve(&WaterData, 10);
     Carve(&ActiveData0, 25000);
@@ -42,10 +55,12 @@ void InitializeDataBuffer() {
 }
 
 PORT_OVERRIDE void SetDataBuffer(CDataAlloc2<1> *arena, int quads) {
+    DataReadClearPackCapacities();
     Carve(arena, quads);
 }
 
 PORT_OVERRIDE void SetPacketReadBuffer(int packet_quads, int read_quads) {
+    DataReadClearPackCapacities();
     CarveReadBuffer(read_quads);
     MGInitVif1Packet(CarvePackets(packet_quads, 0), CarvePackets(packet_quads, 1));
     CarveWorkBuffer(2048);
@@ -53,6 +68,7 @@ PORT_OVERRIDE void SetPacketReadBuffer(int packet_quads, int read_quads) {
 
 void BufferAllClear() {
     ArenaClearAll();
+    DataReadClearPackCapacities();
     GlobalDataBuffer.used = 0;
     Carve(&VisualData, 600000);
     Carve(&MotionData, 200000);
@@ -64,6 +80,3 @@ void BufferAllClear() {
     CarveWorkBuffer(4096);
     MGInitVif1Packet(CarvePackets(50000, 0), CarvePackets(50000, 1));
 }
-
-// The renderer builds no VIF packets; nothing reads the packet builders.
-PORT_OVERRIDE void MGInitVif1Packet(u_long128 *buffer0, u_long128 *buffer1) {}

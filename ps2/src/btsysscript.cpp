@@ -869,6 +869,7 @@ int _RESET_MAIN_CHR(RS_STACKDATA *stack, int argument_count) {
     selectChrUnit(BtEventInfo.script_main_chr, 0);
     BtEventInfo.script_main_chr = -1;
     // Past the early exit the result is whatever selectChrUnit left behind.
+    PORT_RETURN(1);
 }
 
 int _SET_LIMMIT_ZONE(RS_STACKDATA *stack, int argument_count) {

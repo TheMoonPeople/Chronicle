@@ -20,6 +20,7 @@ struct ITEM_MONEY_ENTRY {
     s16 buy_price;
     s16 sell_price;
 };
+
 extern ITEM_MONEY_ENTRY PriceList[296];
 
 namespace {
@@ -64,14 +65,14 @@ s16 kRetailGoods[kRetailShops][kShopGoods] = {
 
 // ItemShopGetPacFileName's and ItemShopGetImgFileName's shopkeepers, by shop kind and number.
 const char *const kRetailKeeperPacs[2][kRetailShops] = {
-        {"p13", "p31", "p39", "p54", "p74", "c03", NULL,  NULL,  NULL,  NULL,  NULL,  NULL,  NULL,  NULL,  NULL,  NULL,  NULL, NULL },
+        {"p13", "p31", "p39", "p54", "p74", "c03", nullptr,  nullptr,  nullptr,  nullptr,  nullptr,  nullptr,  nullptr,  nullptr,  nullptr,  nullptr,  nullptr, nullptr },
         {"p02", "p32", "p35", "p36", "p36", "p36", "p36", "p37", "p49", "p55", "p75", "c03", "p41", "p02", "p32", "p38",
          "c03",                                                                                                                "c03"}
     };
 
 const char *const kRetailKeeperImages[2][kRetailShops] = {
-        {"p13a", "p31a", "p39a", "p54a", "p74a", "c03c", "",     NULL,   NULL,   NULL,   NULL,   NULL,   NULL,   NULL,   NULL, NULL,   NULL,
-         NULL                                                                                                                                        },
+        {"p13a", "p31a", "p39a", "p54a", "p74a", "c03c", "",     nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr, nullptr,   nullptr,
+         nullptr                                                                                                                                        },
         {"p02a", "p32a", "p35a", "p36a", "p36a", "p36a", "p36a", "p37a", "p49a", "p55a", "p75a", "c03c", "p41a", "p02a",
          "p32a",                                                                                                               "p38a", "c03c", "c03c"}
     };
@@ -90,14 +91,22 @@ std::optional<Open> g_open;
 std::vector<int> LineNumbers(CustomShopLine line, int look) {
     const int base = kLinesBase + look * 100;
     switch (line) {
-        case CustomShopLine::Greeting:       return {base};
-        case CustomShopLine::Browsing:       return {base + 0x14};
-        case CustomShopLine::Selling:        return {base + 0x1E};
-        case CustomShopLine::NotEnoughMoney: return {base + 0x34};
-        case CustomShopLine::NoRoom:         return {base + 0x37};
-        case CustomShopLine::Confirm:        return {base + 70, base + 71, base + 72};
-        case CustomShopLine::Thanks:         return {base + 0x4B};
-        case CustomShopLine::Goodbye:        return {base + 0x5B};
+        case CustomShopLine::Greeting:
+            return {base};
+        case CustomShopLine::Browsing:
+            return {base + 0x14};
+        case CustomShopLine::Selling:
+            return {base + 0x1E};
+        case CustomShopLine::NotEnoughMoney:
+            return {base + 0x34};
+        case CustomShopLine::NoRoom:
+            return {base + 0x37};
+        case CustomShopLine::Confirm:
+            return {base + 70, base + 71, base + 72};
+        case CustomShopLine::Thanks:
+            return {base + 0x4B};
+        case CustomShopLine::Goodbye:
+            return {base + 0x5B};
     }
     return {};
 }
@@ -175,7 +184,7 @@ bool CustomShopActive() {
     return g_open.has_value();
 }
 
-PORT_OVERRIDE s16 *GetItemShopList(int shop_no) {
+s16 *PortGetItemShopList(int shop_no) {
     if (g_open) {
         return g_open->goods;
     }
@@ -183,30 +192,26 @@ PORT_OVERRIDE s16 *GetItemShopList(int shop_no) {
     return kRetailGoods[shop_no >= 0 && shop_no < kRetailShops ? shop_no : 0];
 }
 
-PORT_OVERRIDE void ItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name) {
+void PortItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name) {
     if (shop_kind == SHOP_KIND_ITEM && g_open && !g_open->shop.keeper.empty()) {
         std::strcpy(file_name, g_open->shop.keeper.c_str());
         return;
     }
 
-    char file[32];
-
-    strcpy(file, kRetailKeeperPacs[shop_kind][shop_no]);
-    strcat(file, "a.pac");
-    {
-        char path[64] = "commenu/shopchara/";
-
-        strcat(path, file);
-        strcpy(file_name, path);
-    }
+    const int         kind = shop_kind >= 0 && shop_kind < 2 ? shop_kind : 0;
+    const int         shop = shop_no >= 0 && shop_no < kRetailShops ? shop_no : 0;
+    const std::string path = std::string("commenu/shopchara/") + kRetailKeeperPacs[kind][shop] + "a.pac";
+    std::strcpy(file_name, path.c_str());
 }
 
-PORT_OVERRIDE void ItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name) {
+void PortItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name) {
     if (shop_kind == SHOP_KIND_ITEM && g_open && !g_open->shop.keeper.empty()) {
         std::strcpy(file_name, g_open->keeper_image.c_str());
         return;
     }
 
-    strcpy(file_name, kRetailKeeperImages[shop_kind][shop_no]);
-    strcat(file_name, "01.img");
+    const int         kind = shop_kind >= 0 && shop_kind < 2 ? shop_kind : 0;
+    const int         shop = shop_no >= 0 && shop_no < kRetailShops ? shop_no : 0;
+    const std::string path = std::string(kRetailKeeperImages[kind][shop]) + "01.img";
+    std::strcpy(file_name, path.c_str());
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -59,6 +59,68 @@ std::optional<CaptionBounds> PaintedBounds(int icon);
 bool Draw(int icon, int x, int y, int box_width, int alpha, int bright = 0x80);
 
 /**
+ * Draws a title in the menu captions' painted look over a painted one (the name entry's REGISTER NAME, the load screen's
+ * LOAD): its letters stretched over the painted letters' fill, which runs from left to right of the picture at x, y and
+ * from its capitals' top to bottom, a space space ems, after[i] pixels more after letter i and letter i narrow[i] times
+ * as wide (spaces not counted). False with no font.
+ */
+bool DrawTitle(std::string_view utf8, int x, int y, float left, float right, float top, float bottom, float space,
+               std::span<const float> after, int alpha, int bright = 0x80, std::span<const float> narrow = {});
+
+/**
+ * Draws one of the weapon menu's button words (EQUIP, CUSTOMIZE...) as the painted buttons letter it, each letter where
+ * the painting has it in the 96 by 23 button at x, y, tinted by bright (0x80 as painted); pressed, in a light glow
+ * instead of the dark one. False for a word it has no painting of (another language's), or no font.
+ */
+bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alpha, bool pressed = false);
+
+// A floor label's letter (counted from 0, spaces not counted) drawn widen pixels wider, the letters after it moved along
+// with it, it and the letters after it moved by move, and it alone raised by raise.
+struct FloorAdjust {
+    int   letter;
+    float widen = 0;
+    float move = 0;
+    float raise = 0;
+};
+
+/**
+ * Draws a dungeon-entry floor label ("Floor", "Territory"...) as the game paints them: bold warm yellow letters nearly
+ * touching, outlined in navy as one word with the outline swept down and right for depth, the letters' ink stretched
+ * to the box (left to right, top to bottom; with by_capitals, the capitals standing from top to the baseline at bottom
+ * instead; with squeeze, its letters that many times as wide as tall as the font has them, from left); rows outside
+ * clip_top to clip_bottom are left out. False with no font.
+ */
+bool DrawFloorLabel(std::string_view utf8, float left, float top, float right, float bottom, float clip_top, float clip_bottom,
+                    int alpha, std::span<const FloorAdjust> adjust = {}, bool by_capitals = false, float squeeze = 0.0f);
+
+/**
+ * Draws a cell of the name alphabet's sheet (the 22-pixel cell at u, v; the game cuts it 21 to 23 rows tall) stretched
+ * to the screen rectangle as the game draws it, its character drawn from the font in the painted alphabet's look, the
+ * game's colour (0x80 as painted) and alpha over it. False for a cell it has no character for, or no font.
+ */
+bool DrawAlphabetCell(int u, int v, int texel_width, int texel_height, float x, float y, float width, float height, int r,
+                      int g, int b, int alpha);
+
+/**
+ * Draws a name as the floor-select board's painted names look (the boss floors'): pale yellow letters of the narrower
+ * set in a thin navy outline, each as wide as the painting has that letter and spaced as it spaces them (the stretch
+ * made before it is outlined), the whole squeezed by squeeze as the painting squeezes a long name, from left_x, the
+ * caps from cap_top; adjust changes how far a letter reaches either side, and where the rest of its word goes, in
+ * this name alone. Only what lies between clip_top and clip_bottom is drawn (a row the board's list has scrolled
+ * part way out). False when there is no
+ * font to draw it with.
+ */
+struct BoardAdjust {
+    char32_t ch;
+    float    left, right; // added to how far every ch in the name reaches past its place either side
+    float    advance = 0; // added to where the rest of its word goes (a space's: the rest of the name)
+    float    move = 0;    // how far it is drawn right of its place, the letters after it staying put
+    int      nth = -1;    // which ch (from 0) advance and move are for, or every one; left and right are every one's
+};
+bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
+                   float clip_top, float clip_bottom, int alpha);
+
+/**
  * RGB ink colors extended across a width-by-height field for glyph sampling.
  */
 struct FillField {
@@ -81,6 +143,7 @@ struct LineStyle {
 
     float letter = 0.0f, word = 0.0f, xscale = 1.0f, yscale = 1.0f, dx = 0.0f, dy = 0.0f;
     float weight = 0.0f, opacity = 1.0f;
+    float alpha = 1.0f; // how opaque the line is drawn (opacity darkens it instead)
 
     bool ink_fit = false;
     bool thin = false;

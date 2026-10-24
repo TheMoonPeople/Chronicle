@@ -58,6 +58,9 @@ modules:
       - -DCMAKE_PREFIX_PATH=/app
       - -DCMAKE_CXX_COMPILER=/usr/lib/sdk/llvm22/bin/clang++
       - -DDC_BUILD_TESTS=OFF
+      # The sandbox has no network: a library left out of the sources below stops the configure at once,
+      # naming it, rather than after FetchContent's download retries.
+      - -DFETCHCONTENT_FULLY_DISCONNECTED=ON
     # post-install runs in the build directory, not the source.
     post-install:
       - install -Dm644 -t ${FLATPAK_DEST}/share/applications ${FLATPAK_BUILDER_BUILDDIR}/port/flatpak/${FLATPAK_ID}.desktop
@@ -83,7 +86,21 @@ modules:
           - .private
           - chronicle.flatpak
       # chronicle-source-end
-      # flatpak-builder downloads these before entering its network-restricted build sandbox.
+      # flatpak-builder downloads these before entering its network-restricted build sandbox. They are
+      # what Kazarov's CMake would download, at the same hashes: a library its FetchContent_Declare
+      # names goes to flatpak-deps/<name>, which port/CMakeLists.txt hands FetchContent, and a single
+      # file _kz_port_vendor takes goes to a KZ_PORT_VENDOR_DIRS directory. A Kazarov pin that adds or
+      # bumps one needs it here too; scripts/port/flatpak_sources.py (CI) checks, and prints the entry.
+      - type: archive
+        url: https://codeload.github.com/simdjson/simdjson/tar.gz/refs/tags/v4.6.11
+        sha256: 61d948fc24f0d793829ad658058e7597d064988a89b4607ea02e401a82df98ff
+        archive-type: tar-gzip
+        dest: flatpak-deps/simdjson
+      - type: archive
+        url: https://codeload.github.com/spnda/fastgltf/tar.gz/refs/tags/v0.9.1
+        sha256: d8705a496deb2831775baeef5009be36d24bf3d10f8d29ab016e977d0119c872
+        archive-type: tar-gzip
+        dest: flatpak-deps/fastgltf
       - type: file
         url: https://raw.githubusercontent.com/mackron/dr_libs/dfe8377631000664666519fdb83da193fd8037f4/dr_wav.h
         sha256: 03e70c1a2d9787cd7ed3e966c075bea7bac6373f759db9cd7ca9ccdfc4ec4493

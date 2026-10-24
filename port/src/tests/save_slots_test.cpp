@@ -1,20 +1,22 @@
 #include <gtest/gtest.h>
 #include <libpad.h>
 
+#include <array>
 #include <climits>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "platform/input.hpp"
 #include "gameloop.hpp"
 #include "gamepad.hpp"
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_save.hpp"
+#include "platform/input.hpp"
 #include "platform/paths.hpp"
 #include "platform/save_state.hpp"
 #include "platform_fixture.hpp"
@@ -39,7 +41,11 @@ constexpr int kSaveDataSize = 0x131C0;
 constexpr int kChecksumOffset = 0x131E0;
 constexpr int kSaveMapNoOffset = 0x1C8;
 
-alignas(64) char g_menu_buffer[0x30000];
+struct alignas(64) SaveMenuBuffer {
+    std::array<char, 0x30000> bytes;
+};
+
+std::unique_ptr<SaveMenuBuffer> g_menu_buffer = std::make_unique<SaveMenuBuffer>();
 alignas(64) CSaveData g_save;
 CMemoryCardAccess g_mc;
 
@@ -119,16 +125,21 @@ void PrepareSave() {
     g_save.QuestDungeon(6, 3);
     MapNoOf(g_save) = 42;
     ASSERT_TRUE(g_mc.InitForMC() == 0);
-    g_mc.SetBuff(g_menu_buffer);
+    g_mc.SetBuff(g_menu_buffer->bytes.data());
 }
 
-unsigned char g_pad_buffer[2][1024];
+struct alignas(64) PadDmaBuffer {
+    std::array<unsigned char, 1024> bytes;
+};
+
+std::array<std::unique_ptr<PadDmaBuffer>, 2> g_pad_buffer = {
+    std::make_unique<PadDmaBuffer>(), std::make_unique<PadDmaBuffer>()};
 
 // As CGamePad::Init leaves the pads, past its wait on sceGsSyncV (platform_pad_test.cpp).
 void OpenPads() {
     ASSERT_TRUE(scePadInit(0) == 1);
-    ASSERT_TRUE(scePadPortOpen(0, 0, g_pad_buffer[0]) == 1);
-    ASSERT_TRUE(scePadPortOpen(1, 0, g_pad_buffer[1]) == 1);
+    ASSERT_TRUE(scePadPortOpen(0, 0, g_pad_buffer[0]->bytes.data()) == 1);
+    ASSERT_TRUE(scePadPortOpen(1, 0, g_pad_buffer[1]->bytes.data()) == 1);
     InputPadState released;
     released.connected = true;
     InputSetOverride(0, &released);
@@ -380,7 +391,7 @@ TEST(SaveSlots, LoadingAnOlderSaveKeepsEndingState) {
     fs::path root = UseTempSaveRoot();
     PrepareSave();
     ConfigWord(kGameClear) = 0;
-    g_mc.SetBuff(g_menu_buffer);
+    g_mc.SetBuff(g_menu_buffer->bytes.data());
     ASSERT_EQ(SaveNew(2), 1);
     std::vector<char> image = ReadSave(root, 2);
 
@@ -429,7 +440,7 @@ TEST(SaveSlots, LoadCursorFallsBackToPreLoadSessionState) {
     fs::path root = UseTempSaveRoot();
     PrepareSave();
     ConfigWord(kGameClear) = 0;
-    g_mc.SetBuff(g_menu_buffer);
+    g_mc.SetBuff(g_menu_buffer->bytes.data());
     ASSERT_EQ(SaveNew(0), 1);
     g_mc.file_no = 0;
 
@@ -475,7 +486,7 @@ TEST(SaveSlots, UnusableFilesStayAndKeepTheirNumbers) {
     MapNoOf(g_save) = 0x7fffffff;
     g_save.QuestDungeon(0, -8);
     g_save.QuestDungeon(6, INT_MIN);
-    g_mc.SetBuff(g_menu_buffer);
+    g_mc.SetBuff(g_menu_buffer->bytes.data());
     ASSERT_TRUE(SaveNew(5) == 1);
 
     fs::create_directories(SlotOf(root, 7));

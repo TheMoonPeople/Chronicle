@@ -62,6 +62,7 @@ struct MAP_INFO {
 
 #include "gamemode.hpp"
 #include "main.hpp"
+#include "mainselect.hpp"
 #include "memcard.hpp"
 #include "mglib.hpp"
 #include "objanime.hpp"
@@ -76,11 +77,10 @@ struct MAP_INFO {
 #include "title/script.hpp"
 #include "title/title.hpp"
 #include "title/titleloop.hpp"
+#include "title_port.hpp"
 #include "vutext.hpp"
 #include "water.hpp"
 #include "wind.hpp"
-#include "mainselect.hpp"
-#include "title_port.hpp"
 
 // The bodies are retail's, which pass string literals as char * and brace-elide their tables.
 #pragma clang diagnostic ignored "-Wwritable-strings"
@@ -98,66 +98,66 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst
 void DepthOfField(float *dist, int level, int alpha, int blur);
 void WaterProcess();
 
-static void InitProcA();
-static void InitProcB();
-static void AtraLight();
-static void InitProcC();
-static void InitProcD();
-static void InitProcE();
-static void InitProcF();
-static void InitProcG();
-static void InitProcH();
-static void InitProcI();
-static void InitProcTitle();
+namespace {
+void InitProcA();
+void InitProcB();
+void AtraLight();
+void InitProcC();
+void InitProcD();
+void InitProcE();
+void InitProcF();
+void InitProcG();
+void InitProcH();
+void InitProcI();
+void InitProcTitle();
 
 // title.cpp's own CFireOmni had this inline; fireomni.hpp's has no counterpart.
-static void SetFirePosition(CFireOmni &fire, float x, float y, float z) {
+void SetFirePosition(CFireOmni &fire, float x, float y, float z) {
     fire.pos[0] = 10.0f * x;
     fire.pos[1] = 10.0f * y;
     fire.pos[2] = 10.0f * z;
     fire.pos[3] = 1.0f;
 }
+} // namespace
 
 PORT_OVERRIDE void DataLoad() {
     if (CScript.load_no != RUSH_SCENE_NONE) {
-    load_wait:
-        if (ReadBGSync()) {
-            goto load_wait;
+        while (ReadBGSync()) {
         }
     }
 
     switch (CScript.load_no) {
         case RUSH_SCENE_A: {
             void *buffer = read_buffer;
-            LoadFile("rmdat/rmdat1.pak", buffer, 0);
+            LoadFile("rmdat/rmdat1.pak", buffer, nullptr);
             break;
         }
         case RUSH_SCENE_B:
-            LoadFileBG("rmdat/rmdat2.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat2.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_C:
-            LoadFileBG("rmdat/rmdat3.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat3.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_D:
-            LoadFileBG("rmdat/rmdat4.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat4.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_E:
-            LoadFileBG("rmdat/rmdat5.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat5.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_F:
-            LoadFileBG("rmdat/rmdat6.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat6.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_G:
-            LoadFileBG("rmdat/rmdat7.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat7.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_H:
-            LoadFileBG("rmdat/rmdat8.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat8.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_I:
-            LoadFileBG("rmdat/rmdat9.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/rmdat9.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
         case RUSH_SCENE_TITLE:
-            LoadFileBG("rmdat/title.pak", (u_long128 *) read_buffer, 0);
+            LoadFileBG("rmdat/title.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
             break;
     }
 
@@ -214,60 +214,61 @@ PORT_OVERRIDE void DataLoad() {
  * @size 0x82C
  * @unknownret
  */
-static void InitProcA() {
+namespace {
+void InitProcA() {
     wait_now_loading_vsync();
 
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
-        {0,                                               20, 0},
-        {0,                                               0,  0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               3,  0},
-        {0,                                               4,  0},
-        {0,                                               5,  0},
-        {0,                                               10, 0},
-        {0,                                               10, 0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         0,  0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         3,  0},
+        {nullptr,                                         4,  0},
+        {nullptr,                                         5,  0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         10, 0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[2].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[2].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[3].name = (char *) GetPackFile(read_buffer, "effect.img", 0);
-    textures[4].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "c12a01.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "c08a01.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c09a01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "e04a01.img", 0);
-    textures[9].name = (char *) GetPackFile(read_buffer, "s1401.img", 0);
-    textures[10].name = (char *) GetPackFile(read_buffer, "e01s01.img", 0);
+    textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "effect.img", nullptr));
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c12a01.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c08a01.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c09a01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e04a01.img", nullptr));
+    textures[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s1401.img", nullptr));
+    textures[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s01.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -288,7 +289,7 @@ static void InitProcA() {
     CharaDataBuffer.Reset();
 
     for (int i = 0; i < 4; i++) {
-        Chara__3[i].LoadPackData(read_buffer, chara[i], &CharaDataBuffer, 0);
+        Chara__3[i].LoadPackData(read_buffer, chara[i], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -302,11 +303,11 @@ static void InitProcA() {
 
     Chara__3[2].motion_type.state.time = 10.0f;
     Chara__3[3].motion_type.state.time = 10.0f;
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     Chara__3[1].FootSoundEnable(0);
 
     for (int j = 4; j < 9; j++) {
-        Chara__3[j].LoadPackData(read_buffer, chara[4], &CharaDataBuffer, 0);
+        Chara__3[j].LoadPackData(read_buffer, chara[4], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -315,7 +316,7 @@ static void InitProcA() {
         Chara__3[j].motion_type.state.blend_step = 0.05f;
         Chara__3[j].motion_type.state.motion_no = 0;
         Chara__3[j].motion_type.state.playing_no = 0;
-        Chara__3[j].SetScale(5.0f, (float) (j - j + 5), 5.0f);
+        Chara__3[j].SetScale(5.0f, static_cast<float>(j - j + 5), 5.0f);
     }
 
     Chara__3[4].motion_type.state.time = 1.0f;
@@ -336,7 +337,7 @@ static void InitProcA() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s1402.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s1402.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -382,7 +383,7 @@ static void InitProcA() {
     anime_step[2] = 0.0f;
     SetObjAnime("inazuma", map, anime_start, anime_step);
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s1401.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s1401.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
     object = OP_BuildingMap.SetObject(map, 0, 0);
@@ -397,7 +398,7 @@ static void InitProcA() {
     char *campath[4] = {"0201cp.cfg", "0202cp.cfg", "0203cp.cfg", "0204cp.cfg"};
 
     for (int k = 0; k < 4; k++) {
-        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, 0);
+        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, nullptr);
         Cam[k].motion_type.state.time = 1.0f;
         Cam[k].motion_type.state.blend_step = 1.0f;
         Cam[k].motion_type.state.motion_no = 0;
@@ -409,6 +410,8 @@ static void InitProcA() {
     OPAnalyz("sim:rmdat/rmdat1.cfg");
     OPMdsLoad();
 }
+
+} // namespace
 
 PORT_OVERRIDE void DrawProcA() {
     sceVu0FMATRIX flash = {
@@ -447,28 +450,28 @@ PORT_OVERRIDE void DrawProcA() {
     }
 
     for (int i = 0; i < 4; i++) {
-        if (lightcolor[i][0] < (float) col) {
-            scene_color[i][0] = (float) col;
+        if (lightcolor[i][0] < static_cast<float>(col)) {
+            scene_color[i][0] = static_cast<float>(col);
         }
 
-        if (lightcolor[i][1] < (float) col) {
-            scene_color[i][1] = (float) col;
+        if (lightcolor[i][1] < static_cast<float>(col)) {
+            scene_color[i][1] = static_cast<float>(col);
         }
 
-        if (lightcolor[i][2] < (float) col) {
-            scene_color[i][2] = (float) col;
+        if (lightcolor[i][2] < static_cast<float>(col)) {
+            scene_color[i][2] = static_cast<float>(col);
         }
 
-        if (flash[i][0] < (float) col) {
-            chara_color[i][0] = (float) col;
+        if (flash[i][0] < static_cast<float>(col)) {
+            chara_color[i][0] = static_cast<float>(col);
         }
 
-        if (flash[i][1] < (float) col) {
-            chara_color[i][1] = (float) col;
+        if (flash[i][1] < static_cast<float>(col)) {
+            chara_color[i][1] = static_cast<float>(col);
         }
 
-        if (flash[i][2] < (float) col) {
-            chara_color[i][2] = (float) col;
+        if (flash[i][2] < static_cast<float>(col)) {
+            chara_color[i][2] = static_cast<float>(col);
         }
 
         if (col > 2) {
@@ -477,7 +480,7 @@ PORT_OVERRIDE void DrawProcA() {
     }
 
     if (CScript.camera_start == 2) {
-        Chara__3[6].SetScale((float) (col - col + 2), 2.0f, 2.0f);
+        Chara__3[6].SetScale(static_cast<float>(col - col + 2), 2.0f, 2.0f);
         Chara__3[8].SetScale(2.0f, 2.0f, 2.0f);
     }
 
@@ -504,7 +507,7 @@ PORT_OVERRIDE void DrawProcA() {
         object->FrameObjectOnOff("inazuma", 1);
     } else {
         object->FrameObjectOnOff("inazuma", 0);
-        OP_AnimeSeq[OP_AnimeSeqRot - 1].step[0] = (float) (rand() % 10) / 10.0f;
+        OP_AnimeSeq[OP_AnimeSeqRot - 1].step[0] = static_cast<float>(rand() % 10) / 10.0f;
         ObjAnimePlay(&OP_AnimeSeq[OP_AnimeSeqRot - 1]);
     }
 
@@ -567,60 +570,61 @@ PORT_OVERRIDE void DrawProcA() {
  * @size 0x7B0
  * @unknownret
  */
-static void InitProcB() {
+namespace {
+void InitProcB() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
         {"#water_buff#640#" HALF_BUFFER_HEIGHT_STR "#4",  21, 0},
-        {0,                                               20, 0},
-        {0,                                               0,  0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               3,  0},
-        {0,                                               4,  0},
-        {0,                                               8,  0},
-        {0,                                               9,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         0,  0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         3,  0},
+        {nullptr,                                         4,  0},
+        {nullptr,                                         8,  0},
+        {nullptr,                                         9,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[5].name = (char *) GetPackFile(read_buffer, "effect.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "d01m01.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "e01a01.img", 0);
-    textures[9].name = (char *) GetPackFile(read_buffer, "saget.img", 0);
-    textures[10].name = (char *) GetPackFile(read_buffer, "d01etc.img", 0);
-    textures[11].name = (char *) GetPackFile(read_buffer, "rm04ex.img", 0);
-    textures[12].name = (char *) GetPackFile(read_buffer, "c01w03.img", 0);
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "effect.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d01m01.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01a01.img", nullptr));
+    textures[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "saget.img", nullptr));
+    textures[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d01etc.img", nullptr));
+    textures[11].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "rm04ex.img", nullptr));
+    textures[12].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01w03.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -641,11 +645,11 @@ static void InitProcB() {
 
     Chara__3[3].InitializeTexAnime(TexAnimeDataMovie, 30);
     Chara__3[3].TexAnimeOn(0);
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
-    Chara__3[0].LoadPackData(read_buffer, "rm04c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
+    Chara__3[0].LoadPackData(read_buffer, "rm04c01d.cfg", &CharaDataBuffer, nullptr);
 
     for (int j = 0; j < 4; j++) {
-        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, 0);
+        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -659,9 +663,9 @@ static void InitProcB() {
 
     Chara__3[1].motion_type.state.time = 10.0f;
     Chara__3[2].motion_type.state.time = 30.0f;
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
-    Chara__3[7].LoadPackData(read_buffer, "rm04ex.cfg", &CharaDataBuffer, 0);
-    Chara__3[8].LoadPackData(read_buffer, "c01w03.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
+    Chara__3[7].LoadPackData(read_buffer, "rm04ex.cfg", &CharaDataBuffer, nullptr);
+    Chara__3[8].LoadPackData(read_buffer, "c01w03.cfg", &CharaDataBuffer, nullptr);
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -671,7 +675,7 @@ static void InitProcB() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4201.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4201.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -682,7 +686,7 @@ static void InitProcB() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4202.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4202.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
     object = OP_BuildingMap.SetObject(map, 0, 0);
@@ -695,7 +699,7 @@ static void InitProcB() {
     char *campath[4] = {"rm03cam.cfg", "rm04cam.cfg", "rm05cam.cfg"};
 
     for (int k = 0; k < 3; k++) {
-        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, 0);
+        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, nullptr);
         Cam[k].motion_type.state.time = 1.0f;
         Cam[k].motion_type.state.blend_step = 1.0f;
         Cam[k].motion_type.state.motion_no = 0;
@@ -726,6 +730,8 @@ static void InitProcB() {
     Water__2.SetColor(100, 110, 120, 128);
 }
 
+} // namespace
+
 PORT_OVERRIDE void DrawProcB() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
@@ -736,7 +742,7 @@ PORT_OVERRIDE void DrawProcB() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -779,7 +785,7 @@ PORT_OVERRIDE void DrawProcB() {
         sceVu0CopyVector(position, Chara__3[0].frame->position);
         CRunFx.Lighting(1);
 
-        int frame = (int) Chara__3[0].motion_type.state.time;
+        int frame = static_cast<int>(Chara__3[0].motion_type.state.time);
 
         if ((frame >= 73 && frame < 74) || (frame >= 83 && frame < 84)) {
             CRunFx.Set(position);
@@ -822,7 +828,8 @@ PORT_OVERRIDE void DrawProcB() {
  * @size 0x28C
  * @unknownret
  */
-static void AtraLight() {
+namespace {
+void AtraLight() {
     if (Chara__3[2].motion_type.state.time >= 40.0f) {
         CFrame *frame = Chara__3[2].frame->SearchFrame("light01");
 
@@ -884,56 +891,56 @@ static void AtraLight() {
  * @size 0x67C
  * @unknownret
  */
-static void InitProcC() {
+void InitProcC() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
         {"#water_buff#640#" HALF_BUFFER_HEIGHT_STR "#4",  21, 0},
-        {0,                                               20, 0},
-        {0,                                               0,  0},
-        {0,                                               10, 0},
-        {0,                                               10, 0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               9,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         0,  0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         9,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[4].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[4].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[5].name = (char *) GetPackFile(read_buffer, "effect.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "s04b01.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "s04b02.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "s04w01.img", 0);
-    textures[9].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[10].name = (char *) GetPackFile(read_buffer, "pat.img", 0);
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "effect.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s04b01.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s04b02.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s04w01.img", nullptr));
+    textures[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pat.img", nullptr));
     TexManager.DeleteTextureBlock(0);
     TexManager.CleanUpBuffer();
     TexManager.Initialize(16352);
@@ -943,7 +950,7 @@ static void InitProcC() {
     CharaTex[8] = 9;
 
     CharaDataBuffer.Reset();
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
 
     CFrameAttr attr;
 
@@ -954,9 +961,9 @@ static void InitProcC() {
     Chara__3[0].motion_type.state.motion_no = 0;
     Chara__3[0].motion_type.state.playing_no = 0;
     Chara__3[0].FootSoundEnable(0);
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
-    Chara__3[8].LoadPackData(read_buffer, "pat.cfg", &CharaDataBuffer, 0);
+    Chara__3[8].LoadPackData(read_buffer, "pat.cfg", &CharaDataBuffer, nullptr);
     attr.clip_enable = false;
     Chara__3[8].frame->SetAttr(attr, 1, 4);
     Chara__3[8].motion_type.state.time = 1.0f;
@@ -1001,7 +1008,7 @@ static void InitProcC() {
     CFrameVu1 *map;
 
     for (int i = 0; i < 26; i++) {
-        map = LoadMDSFile(GetPackFile(read_buffer, norn[i].name, 0), &MapDataBuffer, 2, 0, 0);
+        map = LoadMDSFile(GetPackFile(read_buffer, norn[i].name, nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
         map_attr.fog_enable = true;
         map->SetAttr(map_attr, 1, 64);
@@ -1014,7 +1021,7 @@ static void InitProcC() {
         OP_NornMapObj[i].handle = 0;
         OP_NornMapObj[i].category_no = 0;
         object.SetPosition(CVector3_f_(norn[i].position[0], norn[i].position[1], norn[i].position[2]));
-        object.SetRotation(CVector3_f_(0.0f, (float) (PI_D * norn[i].rotation / 180), 0.0f));
+        object.SetRotation(CVector3_f_(0.0f, static_cast<float>(PI_D * norn[i].rotation / 180), 0.0f));
     }
 
     PathDataBuffer.Reset();
@@ -1023,7 +1030,7 @@ static void InitProcC() {
     char *campath[4] = {"rm06cam.cfg"};
 
     for (int j = 0; j < 1; j++) {
-        Cam[j].LoadPackData(read_buffer, campath[j], &PathDataBuffer, 0);
+        Cam[j].LoadPackData(read_buffer, campath[j], &PathDataBuffer, nullptr);
         Cam[j].motion_type.state.time = 1.0f;
         Cam[j].motion_type.state.blend_step = 1.0f;
         Cam[j].motion_type.state.motion_no = 0;
@@ -1042,11 +1049,13 @@ static void InitProcC() {
     sceVu0FVECTOR corner3 = {-120.0f, 0.0f, 120.0f, 1.0f};
 
     Water__2.SetVertex(corner0, corner1, corner2, corner3);
-    Water__2.frame.SetPosition((float) (OP_FireList & 0), 0.0f, 0.0f);
+    Water__2.frame.SetPosition(static_cast<float>(OP_FireList & 0), 0.0f, 0.0f);
     Water__2.SetSize(32, 32, &WaterBuffer);
     Water__2.SetParam(0.1f, 0.015f, 0.0f, 2.0f);
     Water__2.SetColor(128, 128, 128, 128);
 }
+
+} // namespace
 
 PORT_OVERRIDE void DrawProcC() {
     TexManager.ReloadTexture(Vif1Packet, 10);
@@ -1062,7 +1071,7 @@ PORT_OVERRIDE void DrawProcC() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -1119,53 +1128,54 @@ PORT_OVERRIDE void DrawProcC() {
  * @size 0x614
  * @unknownret
  */
-static void InitProcD() {
+namespace {
+void InitProcD() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               20, 0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               9,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         9,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[4].name = (char *) GetPackFile(read_buffer, "d02i01.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "c01d01an.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "e54a01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "c01w11.img", 0);
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d02i01.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e54a01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01w11.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -1183,10 +1193,10 @@ static void InitProcD() {
     }
 
     Chara__3[0].InitializeTexAnime(TexAnimeDataMovie, 30);
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
 
     for (int j = 0; j < 3; j++) {
-        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, 0);
+        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -1201,9 +1211,9 @@ static void InitProcD() {
     Chara__3[0].motion_type.state.time = 10.0f;
     Chara__3[1].motion_type.state.time = 10.0f;
     Chara__3[2].motion_type.state.time = 10.0f;
-    Chara__3[8].LoadPackData(read_buffer, "c01w11.cfg", &CharaDataBuffer, 0);
+    Chara__3[8].LoadPackData(read_buffer, "c01w11.cfg", &CharaDataBuffer, nullptr);
     Chara__3[0].TexAnimeOn(2);
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -1214,7 +1224,7 @@ static void InitProcD() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s44g01_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s44g01_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -1225,7 +1235,7 @@ static void InitProcD() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s44g02_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s44g02_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
     object = OP_BuildingMap.SetObject(map, 0, 0);
@@ -1238,7 +1248,7 @@ static void InitProcD() {
     char *campath[1] = {"rm07cam.cfg"};
 
     for (int k = 0; k < 1; k++) {
-        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, 0);
+        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, nullptr);
         Cam[k].motion_type.state.time = 10.0f;
         Cam[k].motion_type.state.blend_step = 1.0f;
         Cam[k].motion_type.state.motion_no = 0;
@@ -1252,6 +1262,8 @@ static void InitProcD() {
     OPMdsLoad();
 }
 
+} // namespace
+
 PORT_OVERRIDE void DrawProcD() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
@@ -1260,7 +1272,7 @@ PORT_OVERRIDE void DrawProcD() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -1296,53 +1308,54 @@ PORT_OVERRIDE void DrawProcD() {
  * @size 0x538
  * @unknownret
  */
-static void InitProcE() {
+namespace {
+void InitProcE() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               20, 0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               2,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         2,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[4].name = (char *) GetPackFile(read_buffer, "s4501.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "c01d01an.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c04b01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "c04b01an.img", 0);
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s4501.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c04b01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c04b01an.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -1359,10 +1372,10 @@ static void InitProcE() {
 
     Chara__3[0].InitializeTexAnime(TexAnimeDataMovie, 30);
     Chara__3[1].InitializeTexAnime(TexAnimeDataMovie, 30);
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
 
     for (int j = 0; j < 2; j++) {
-        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, 0);
+        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -1376,7 +1389,7 @@ static void InitProcE() {
 
     Chara__3[0].TexAnimeOn(2);
     Chara__3[1].TexAnimeOn(1);
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -1387,7 +1400,7 @@ static void InitProcE() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4501.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4501.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -1405,7 +1418,7 @@ static void InitProcE() {
     char *campath[4] = {"rm08cam.cfg", "rm09cam.cfg"};
 
     for (int k = 0; k < 2; k++) {
-        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, 0);
+        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, nullptr);
         Cam[k].motion_type.state.time = 1.0f;
         Cam[k].motion_type.state.blend_step = 1.0f;
         Cam[k].motion_type.state.motion_no = 0;
@@ -1419,6 +1432,8 @@ static void InitProcE() {
     OPMdsLoad();
 }
 
+} // namespace
+
 PORT_OVERRIDE void DrawProcE() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
@@ -1430,7 +1445,7 @@ PORT_OVERRIDE void DrawProcE() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -1460,55 +1475,56 @@ PORT_OVERRIDE void DrawProcE() {
  * @size 0x690
  * @unknownret
  */
-static void InitProcF() {
+namespace {
+void InitProcF() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               20, 0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               3,  0},
-        {0,                                               9,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         3,  0},
+        {nullptr,                                         9,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[4].name = (char *) GetPackFile(read_buffer, "d02b01.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "c01d01an.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c14a01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "rm11rock.img", 0);
-    textures[9].name = (char *) GetPackFile(read_buffer, "c01w01.img", 0);
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d02b01.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c14a01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "rm11rock.img", nullptr));
+    textures[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01w01.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -1531,10 +1547,10 @@ static void InitProcF() {
     }
 
     Chara__3[0].InitializeTexAnime(TexAnimeDataMovie, 30);
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
 
     for (int j = 0; j < 6; j++) {
-        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, 0);
+        Chara__3[j].LoadPackData(read_buffer, chara[j], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -1547,8 +1563,8 @@ static void InitProcF() {
     }
 
     Chara__3[0].TexAnimeOn(4);
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
-    Chara__3[8].LoadPackData(read_buffer, "c01w01.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
+    Chara__3[8].LoadPackData(read_buffer, "c01w01.cfg", &CharaDataBuffer, nullptr);
     Chara__3[0].motion_type.state.time = 150.0f;
     Chara__3[1].motion_type.state.time = 135.0f;
     Chara__3[2].motion_type.state.time = 135.0f;
@@ -1564,7 +1580,7 @@ static void InitProcF() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4601.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4601.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -1575,7 +1591,7 @@ static void InitProcF() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4602.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4602.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
     object = OP_BuildingMap.SetObject(map, 0, 0);
@@ -1589,7 +1605,7 @@ static void InitProcF() {
     char *campath[4] = {"rm10cam.cfg", "rm11cam.cfg"};
 
     for (int k = 0; k < 2; k++) {
-        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, 0);
+        Cam[k].LoadPackData(read_buffer, campath[k], &PathDataBuffer, nullptr);
         Cam[k].motion_type.state.time = 1.0f;
         Cam[k].motion_type.state.blend_step = 1.0f;
         Cam[k].motion_type.state.motion_no = 0;
@@ -1602,6 +1618,8 @@ static void InitProcF() {
     OPAnalyz("sim:rmdat/rmdat6.cfg");
     OPMdsLoad();
 }
+
+} // namespace
 
 PORT_OVERRIDE void DrawProcF() {
     TexManager.ReloadTexture(Vif1Packet, 10);
@@ -1617,7 +1635,7 @@ PORT_OVERRIDE void DrawProcF() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (i != 5) {
@@ -1657,57 +1675,58 @@ PORT_OVERRIDE void DrawProcF() {
  * @size 0x5D0
  * @unknownret
  */
-static void InitProcG() {
+namespace {
+void InitProcG() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               20, 0},
-        {0,                                               10, 0},
-        {0,                                               10, 0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               2,  0},
-        {0,                                               2,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         2,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[4].name = (char *) GetPackFile(read_buffer, "s4701.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "e02s01.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "e02s06.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "c06a01.img", 0);
-    textures[9].name = (char *) GetPackFile(read_buffer, "c06a01an.img", 0);
-    textures[10].name = (char *) GetPackFile(read_buffer, "c06w01.img", 0);
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s4701.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e02s01.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e02s06.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c06a01.img", nullptr));
+    textures[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c06a01an.img", nullptr));
+    textures[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c06w01.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -1718,10 +1737,10 @@ static void InitProcG() {
     char *chara[3] = {"rm14ebc01d.cfg", "rm14ebc06a.cfg", "rm13c06a.cfg"};
 
     CharaDataBuffer.Reset();
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
 
     for (int i = 0; i < 3; i++) {
-        Chara__3[i].LoadPackData(read_buffer, chara[i], &CharaDataBuffer, 0);
+        Chara__3[i].LoadPackData(read_buffer, chara[i], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -1736,9 +1755,9 @@ static void InitProcG() {
     Chara__3[0].motion_type.state.time = 10.0f;
     Chara__3[1].motion_type.state.time = 10.0f;
     Chara__3[2].motion_type.state.time = 82.0f;
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
-    Chara__3[1].wind = (int) (intptr_t) &Wind__4;
-    Chara__3[2].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
+    Chara__3[1].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
+    Chara__3[2].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -1749,7 +1768,7 @@ static void InitProcG() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4701.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4701.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -1760,7 +1779,7 @@ static void InitProcG() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "e02s01_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "e02s01_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
     object = OP_BuildingMap.SetObject(map, 0, 0);
@@ -1773,7 +1792,7 @@ static void InitProcG() {
     char *campath[3] = {"rm12cam.cfg", "rm13cam.cfg", "rm14cam.cfg"};
 
     for (int j = 0; j < 3; j++) {
-        Cam[j].LoadPackData(read_buffer, campath[j], &PathDataBuffer, 0);
+        Cam[j].LoadPackData(read_buffer, campath[j], &PathDataBuffer, nullptr);
         Cam[j].motion_type.state.time = 1.0f;
         Cam[j].motion_type.state.blend_step = 1.0f;
         Cam[j].motion_type.state.motion_no = 0;
@@ -1787,6 +1806,8 @@ static void InitProcG() {
     OPMdsLoad();
 }
 
+} // namespace
+
 PORT_OVERRIDE void DrawProcG() {
     TexManager.ReloadTexture(Vif1Packet, 10);
     OP_GroundMap.Draw();
@@ -1795,7 +1816,7 @@ PORT_OVERRIDE void DrawProcG() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -1830,57 +1851,58 @@ PORT_OVERRIDE void DrawProcG() {
  * @size 0x9E8
  * @unknownret
  */
-static void InitProcH() {
+namespace {
+void InitProcH() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               20, 0},
-        {0,                                               0,  0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
-        {0,                                               3,  0},
-        {0,                                               4,  0},
-        {0,                                               9,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         0,  0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
+        {nullptr,                                         3,  0},
+        {nullptr,                                         4,  0},
+        {nullptr,                                         9,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[4].name = (char *) GetPackFile(read_buffer, "fire.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "d01b01.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "c12a01.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "f_boll_2.img", 0);
-    textures[9].name = (char *) GetPackFile(read_buffer, "rm16yuka.img", 0);
-    textures[10].name = (char *) GetPackFile(read_buffer, "c01w01.img", 0);
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d01b01.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c12a01.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "f_boll_2.img", nullptr));
+    textures[9].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "rm16yuka.img", nullptr));
+    textures[10].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01w01.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -1890,7 +1912,7 @@ static void InitProcH() {
     CharaTex[3] = 4;
     CharaTex[8] = 9;
 
-    Chara__3[0].LoadPackData(read_buffer, "rm15c12a.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "rm15c12a.cfg", &CharaDataBuffer, nullptr);
 
     CFrameAttr attr;
 
@@ -1902,7 +1924,7 @@ static void InitProcH() {
     Chara__3[0].motion_type.state.playing_no = 0;
     Chara__3[0].FootSoundEnable(0);
 
-    Chara__3[1].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[1].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
     attr.clip_enable = false;
     Chara__3[1].frame->SetAttr(attr, 1, 4);
     Chara__3[1].motion_type.state.time = 70.0f;
@@ -1910,7 +1932,7 @@ static void InitProcH() {
     Chara__3[1].motion_type.state.motion_no = 0;
     Chara__3[1].motion_type.state.playing_no = 0;
 
-    Chara__3[2].LoadPackData(read_buffer, "f_boll_2.cfg", &CharaDataBuffer, 0);
+    Chara__3[2].LoadPackData(read_buffer, "f_boll_2.cfg", &CharaDataBuffer, nullptr);
     attr.clip_enable = false;
     Chara__3[2].frame->SetAttr(attr, 1, 4);
     Chara__3[2].motion_type.state.time = 20.0f;
@@ -1918,7 +1940,7 @@ static void InitProcH() {
     Chara__3[2].motion_type.state.motion_no = 0;
     Chara__3[2].motion_type.state.playing_no = 0;
 
-    Chara__3[3].LoadPackData(read_buffer, "rm16yuka.cfg", &CharaDataBuffer, 0);
+    Chara__3[3].LoadPackData(read_buffer, "rm16yuka.cfg", &CharaDataBuffer, nullptr);
     attr.clip_enable = false;
     Chara__3[3].frame->SetAttr(attr, 1, 4);
     Chara__3[3].motion_type.state.time = 2.0f;
@@ -1926,8 +1948,8 @@ static void InitProcH() {
     Chara__3[3].motion_type.state.motion_no = 0;
     Chara__3[3].motion_type.state.playing_no = 0;
 
-    Chara__3[8].LoadPackData(read_buffer, "c01w01.cfg", &CharaDataBuffer, 0);
-    Chara__3[1].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[8].LoadPackData(read_buffer, "c01w01.cfg", &CharaDataBuffer, nullptr);
+    Chara__3[1].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -1938,7 +1960,7 @@ static void InitProcH() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4801.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s4801.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -1949,7 +1971,7 @@ static void InitProcH() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4802.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4802.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -1957,7 +1979,7 @@ static void InitProcH() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4803.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4803.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -1965,7 +1987,7 @@ static void InitProcH() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4804.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4804.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -1973,7 +1995,7 @@ static void InitProcH() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4805.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4805.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -1981,7 +2003,7 @@ static void InitProcH() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s4806.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s4806.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -1995,7 +2017,7 @@ static void InitProcH() {
     char *campath[2] = {"rm15cam.cfg", "rm16cam.cfg"};
 
     for (int i = 0; i < 2; i++) {
-        Cam[i].LoadPackData(read_buffer, campath[i], &PathDataBuffer, 0);
+        Cam[i].LoadPackData(read_buffer, campath[i], &PathDataBuffer, nullptr);
         Cam[i].motion_type.state.time = 1.0f;
         Cam[i].motion_type.state.blend_step = 1.0f;
         Cam[i].motion_type.state.motion_no = 0;
@@ -2008,6 +2030,8 @@ static void InitProcH() {
     OPAnalyz("sim:rmdat/rmdat8.cfg");
     OPMdsLoad();
 }
+
+} // namespace
 
 PORT_OVERRIDE void DrawProcH() {
     TexManager.ReloadTexture(Vif1Packet, 10);
@@ -2024,7 +2048,7 @@ PORT_OVERRIDE void DrawProcH() {
     TexManager.ReloadTexture(Vif1Packet, 23);
     CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-    MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -2081,53 +2105,54 @@ PORT_OVERRIDE void DrawProcH() {
  * @size 0x814
  * @unknownret
  */
-static void InitProcI() {
+namespace {
+void InitProcI() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               20, 0},
-        {0,                                               3,  0},
-        {0,                                               10, 0},
-        {0,                                               10, 0},
-        {0,                                               1,  0},
-        {0,                                               2,  0},
+        {nullptr,                                         20, 0},
+        {nullptr,                                         3,  0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         10, 0},
+        {nullptr,                                         1,  0},
+        {nullptr,                                         2,  0},
         {"",                                              0,  0}
     };
 
 #ifdef PAL
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_US:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_ENGLISH_UK:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
             break;
         case LANG_FRENCH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_f.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
             break;
         case LANG_GERMAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_g.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
             break;
         case LANG_ITALIAN:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_i.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
             break;
         case LANG_SPANISH:
-            textures[3].name = (char *) GetPackFile(read_buffer, "start_s.img", 0);
+            textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
             break;
     }
 
 #else
     textures[3].name = (char *) GetPackFile(read_buffer, "start.img", 0);
 #endif
-    textures[4].name = (char *) GetPackFile(read_buffer, "e305ex2.img", 0);
-    textures[5].name = (char *) GetPackFile(read_buffer, "s1202.img", 0);
-    textures[6].name = (char *) GetPackFile(read_buffer, "s2401.img", 0);
-    textures[7].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
-    textures[8].name = (char *) GetPackFile(read_buffer, "m18ashiba.img", 0);
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e305ex2.img", nullptr));
+    textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s1202.img", nullptr));
+    textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s2401.img", nullptr));
+    textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
+    textures[8].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "m18ashiba.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 
@@ -2138,10 +2163,10 @@ static void InitProcI() {
     char *chara[3] = {"rm18c01d.cfg", "rm18ashiba.cfg", "info2.cfg"};
 
     CharaDataBuffer.Reset();
-    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, 0);
+    Chara__3[0].LoadPackData(read_buffer, "c01d.cfg", &CharaDataBuffer, nullptr);
 
     for (int i = 0; i < 3; i++) {
-        Chara__3[i].LoadPackData(read_buffer, chara[i], &CharaDataBuffer, 0);
+        Chara__3[i].LoadPackData(read_buffer, chara[i], &CharaDataBuffer, nullptr);
 
         CFrameAttr attr;
 
@@ -2154,7 +2179,7 @@ static void InitProcI() {
     }
 
     Chara__3[1].motion_type.state.time = 23.0f;
-    Chara__3[0].wind = (int) (intptr_t) &Wind__4;
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     Chara__3[2].SetScale(20.0f, 20.0f, 20.0f);
 
     OP_FireList = 0;
@@ -2166,7 +2191,7 @@ static void InitProcI() {
 
     CFrameAttr map_attr;
 
-    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s24g01_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, "s24g01_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
@@ -2177,7 +2202,7 @@ static void InitProcI() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s24g02_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s24g02_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -2185,7 +2210,7 @@ static void InitProcI() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s24g03_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s24g03_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -2193,7 +2218,7 @@ static void InitProcI() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "ship.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "ship.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -2201,7 +2226,7 @@ static void InitProcI() {
     object->SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     object->SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
 
-    map = LoadMDSFile(GetPackFile(read_buffer, "s24g04_0.mds", 0), &MapDataBuffer, 2, 0, 0);
+    map = LoadMDSFile(GetPackFile(read_buffer, "s24g04_0.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     map_attr.fog_enable = true;
     map->SetAttr(map_attr, 1, 64);
     SetFrameAttr(map, 1);
@@ -2215,7 +2240,7 @@ static void InitProcI() {
     char *campath[4] = {"rm17cam.cfg", "rm18cam.cfg"};
 
     for (int j = 0; j < 2; j++) {
-        Cam[j].LoadPackData(read_buffer, campath[j], &PathDataBuffer, 0);
+        Cam[j].LoadPackData(read_buffer, campath[j], &PathDataBuffer, nullptr);
         Cam[j].motion_type.state.time = 1.0f;
         Cam[j].motion_type.state.blend_step = 1.0f;
         Cam[j].motion_type.state.motion_no = 0;
@@ -2228,6 +2253,8 @@ static void InitProcI() {
     OPAnalyz("sim:rmdat/rmdat9.cfg");
     OPMdsLoad();
 }
+
+} // namespace
 
 PORT_OVERRIDE void DrawProcI() {
     TexManager.ReloadTexture(Vif1Packet, 10);
@@ -2262,7 +2289,7 @@ PORT_OVERRIDE void DrawProcI() {
         TexManager.ReloadTexture(Vif1Packet, 23);
         CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
 
-        MGBeginDrawShadow(*(sceGsTex0 *) &texture->tex0);
+        MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
         Chara__3[0].ShadowStep();
         Chara__3[0].DrawShadow();
         MGEndDrawShadow(52);
@@ -2292,19 +2319,22 @@ PORT_OVERRIDE void DrawProcI() {
  * @size 0x9C
  * @unknownret
  */
-static void InitProcTitle() {
+namespace {
+void InitProcTitle() {
     LOADTEXTURE_INFO2 textures[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     0,  0},
         {"#frame_image#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0},
         {"#shadow_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 23, 0},
-        {0,                                               1,  0},
+        {nullptr,                                         1,  0},
         {"",                                              0,  0}
     };
 
-    textures[3].name = (char *) GetPackFile(read_buffer, "title.img", 0);
+    textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "title.img", nullptr));
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, textures);
 }
+
+} // namespace
 
 PORT_OVERRIDE void DrawProcTitle() {
     TexManager.ReloadTexture(Vif1Packet, 1);

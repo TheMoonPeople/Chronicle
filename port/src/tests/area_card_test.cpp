@@ -35,7 +35,7 @@ void CheckTranslatedCard(const char *text) {
     if (std::strstr(gfx::detail::g.properties.deviceName, "Paravirtual") != nullptr) {
         GTEST_SKIP() << "the CI runner's virtual GPU misreads the card";
     }
-    CardFiles            files;
+    CardFiles files;
     std::filesystem::create_directories(files.dir / "textures" / "plates");
     LocalizeReset();
     LocalizeSetDirectories({files.dir});
@@ -46,7 +46,7 @@ void CheckTranslatedCard(const char *text) {
     const uint8_t black[] = {0, 0, 0, 255};
     ASSERT_TRUE(gfx::WritePng(files.dir / "textures" / "plates" / "mt01.png", black, 1, 1));
     const auto font = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() /
-                      "tools" / "font" / "DarkCloudCompendium.ttf";
+                      "tools" / "font" / "ChronicleSharp-Bold.ttf";
     ASSERT_TRUE(capfont::Load(font));
     ASSERT_TRUE(caption::Ready());
 
@@ -107,7 +107,7 @@ TEST(AreaCard, TranslatedWordsKeepTheRetailBoxAlignment) {
 TEST(CaptionLine, PaintedSlotsKeepTheirWidthsAndFractionalHeight) {
     dc::test::GfxFixture fixture(640, 480, 1.0f, dc::test::GfxOptions{.offscreen = true});
     const auto           font = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() /
-                                "tools" / "font" / "DarkCloudCompendium.ttf";
+                                "tools" / "font" / "ChronicleSharp-Bold.ttf";
     ASSERT_TRUE(capfont::Load(font));
     caption::LineStyle style;
     style.edge_width = 0;

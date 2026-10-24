@@ -326,6 +326,7 @@ int _CHK_USER_INNER_PRODUCT(RS_STACKDATA *stack, int argc) {
     }
 
     SetStack(stack, in_view);
+    PORT_RETURN(1);
 }
 
 int _GET_VECTOR(RS_STACKDATA *stack, int argc) {
@@ -1414,6 +1415,7 @@ int _GET_NEAR_MONSTER(RS_STACKDATA *stack, int argc) {
     SetStack(stack++, found_position[1]);
     SetStack(stack++, found_position[2]);
     SetStack(stack, found);
+    PORT_RETURN(1);
 }
 
 int _BOSS_FADE_OUT(RS_STACKDATA *stack, int argc) {

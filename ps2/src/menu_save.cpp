@@ -347,6 +347,7 @@ static int SaveMenuKeyNewDir() {
 
     McAccess.SetFuncNo(MC_OPERATION_MAKE_DIR);
     SaveMenu.key_no = SAVE_KEY_SAVE;
+    PORT_RETURN(1);
 }
 
 /**

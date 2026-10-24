@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -242,6 +243,22 @@ TEST_F(DialogFramework, CursorSkipsDisabledChoicesAndWraps) {
     EXPECT_EQ(View().selected_choice, 0);
     ASSERT_TRUE(Dialog::InputMoveUp());
     EXPECT_EQ(View().selected_choice, 3);
+}
+
+TEST_F(DialogFramework, WheelLargeDeltasWrapAcrossEnabledChoices) {
+    Dialog::RegisterOptionProvider([](const Dialog::NpcContext &, std::vector<Dialog::ChoiceItem> &out) {
+        out.push_back(Item("Locked", false));
+        out.push_back(Item("Open"));
+    });
+    ASSERT_TRUE(Dialog::TryInterceptOpen(Villager(), {}));
+
+    // Talk, Open, and Never mind are enabled; the locked choice is skipped.
+    EXPECT_TRUE(Dialog::InputScrollWheel(3));
+    EXPECT_EQ(View().selected_choice, 0);
+    EXPECT_TRUE(Dialog::InputScrollWheel(INT32_MIN));
+    EXPECT_EQ(View().selected_choice, 3);
+    EXPECT_TRUE(Dialog::InputScrollWheel(INT32_MAX));
+    EXPECT_EQ(View().selected_choice, 2);
 }
 
 TEST_F(DialogFramework, LongListsScrollWithTheCursor) {

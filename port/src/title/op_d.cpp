@@ -47,6 +47,8 @@ public:
     }
 };
 
+namespace {
+
 struct FACE_INFO {
     char *plate;
     char *strip;
@@ -61,6 +63,8 @@ struct FACE_INFO {
     int   unk_28;
 };
 
+} // namespace
+
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw,
                    int dpsm, int dsax, int dsay, int dir);
 
@@ -69,27 +73,27 @@ void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRec
 // The texture-cache flushes around the transfers are gone: the copies are ordered on the renderer.
 PORT_OVERRIDE void FaceChangeD(int actor_no) {
     static FACE_INFO face[21] = {
-        {0,        0,            42, 40, 87, 35, 0, 0, 256, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            32, 40, 84, 35, 0, 0, 448, 3, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 256, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      32, 40, 84, 35, 0, 0, 448, 3, 0},
         {"c09a01", "c09a01an",   10, 40, 73, 35, 0, 0, 448, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            8,  40, 76, 35, 0, 0, 256, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      8,  40, 76, 35, 0, 0, 256, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
         {"p09a01", "p09a01an_3", 44, 40, 92, 32, 0, 0, 192, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
         {"c01d01", "c01d01an_3", 27, 48, 78, 44, 0, 0, 512, 3, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {0,        0,            42, 40, 87, 35, 0, 0, 320, 2, 0}
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
+        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0}
     };
     CTexture *plate;
     CTexture *strip;
@@ -98,14 +102,18 @@ PORT_OVERRIDE void FaceChangeD(int actor_no) {
     int       sbw;
     int       dbw;
 
-    if (face[actor_no].plate == 0) {
+    if (actor_no < 0 || actor_no >= 21) {
+        return;
+    }
+
+    if (face[actor_no].plate == nullptr) {
         return;
     }
 
     plate = TexManager.GetTexture(face[actor_no].plate, -1);
     strip = TexManager.GetTexture(face[actor_no].strip, -1);
 
-    if (plate == 0 || strip == 0) {
+    if (plate == nullptr || strip == nullptr) {
         return;
     }
 
@@ -125,7 +133,7 @@ PORT_OVERRIDE void FaceChangeD(int actor_no) {
             CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
             if (CScript__2.obj[actor_no].talk) {
-                if ((int) (100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
+                if (static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
                     CScript__2.obj[actor_no].mouth = rand() % 4;
                 }
             }
@@ -141,6 +149,8 @@ PORT_OVERRIDE void FaceChangeD(int actor_no) {
 
     MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, mouth, dbp, dbw, SCE_GS_PSMT8, 0, 128 - face[actor_no].mouth_height - face[actor_no].mouth_bottom, 0);
 }
+
+namespace {
 
 // clang-format off
 enum OpDSprite {
@@ -161,6 +171,8 @@ struct MAPOBJ_INFO {
     float position[3];
     float rotation[3];
 };
+
+} // namespace
 
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
 void DepthOfField(float *dist, int level, int alpha, int blur);
@@ -196,45 +208,45 @@ PORT_OVERRIDE void OpD_InitProcess() {
 
     LOADTEXTURE_INFO2 tex[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 0,  0},
-        {0,                                           11, 0},
-        {0,                                           11, 0},
-        {0,                                           4,  0},
-        {0,                                           4,  0},
-        {0,                                           4,  0},
-        {0,                                           4,  0},
-        {0,                                           4,  0},
-        {0,                                           0,  0}
+        {nullptr,                                     11, 0},
+        {nullptr,                                     11, 0},
+        {nullptr,                                     4,  0},
+        {nullptr,                                     4,  0},
+        {nullptr,                                     4,  0},
+        {nullptr,                                     4,  0},
+        {nullptr,                                     4,  0},
+        {nullptr,                                     0,  0}
     };
 
-    tex[1].name = (char *) GetPackFile(read_buffer, "b0401.img", 0);
-    tex[2].name = (char *) GetPackFile(read_buffer, "b0402.img", 0);
-    tex[3].name = (char *) GetPackFile(read_buffer, "eef01.img", 0);
-    tex[4].name = (char *) GetPackFile(read_buffer, "eef02.img", 0);
-    tex[5].name = (char *) GetPackFile(read_buffer, "eef03.img", 0);
-    tex[6].name = (char *) GetPackFile(read_buffer, "eef04.img", 0);
-    tex[7].name = (char *) GetPackFile(read_buffer, "eef05.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "b0401.img", nullptr));
+    tex[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "b0402.img", nullptr));
+    tex[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "eef01.img", nullptr));
+    tex[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "eef02.img", nullptr));
+    tex[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "eef03.img", nullptr));
+    tex[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "eef04.img", nullptr));
+    tex[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "eef05.img", nullptr));
 
     TexManager.LoadTextureBlock(-1, tex);
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "c01d01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
     tex[0].block_no = 1;
     tex[0].mipmap = false;
-    tex[1].name = (char *) GetPackFile(read_buffer, "c01d01an.img", 0);
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
     tex[1].block_no = 1;
     tex[1].mipmap = false;
-    tex[2].name = 0;
+    tex[2].name = nullptr;
 
     TexManager.LoadTextureBlock(1, tex);
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "c03c01.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c03c01.img", nullptr));
     tex[0].block_no = 2;
     tex[0].mipmap = false;
-    tex[1].name = 0;
+    tex[1].name = nullptr;
 
     TexManager.LoadTextureBlock(2, tex);
     MapDataBuffer.used = 0;
 
-    CFrameVu1  *frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, "b0401.mds", 0), &MapDataBuffer, 2, 0, 0);
+    CFrameVu1  *frame = LoadMDSFile(GetPackFile(read_buffer, "b0401.mds", nullptr), &MapDataBuffer, 2, nullptr, nullptr);
     CMapObject &hall = OP_NornMapObj[0];
 
     hall.Initialize();
@@ -243,7 +255,7 @@ PORT_OVERRIDE void OpD_InitProcess() {
     OP_NornMapObj[0].category_no = 0;
     hall.SetPosition(CVector3_f_(0.0f, 0.0f, 0.0f));
     hall.SetRotation(CVector3_f_(0.0f, 0.0f, 0.0f));
-    Hamon[0] = LoadMDSFile((u_int *) GetPackFile(read_buffer, "b0402.mds", 0), &CharaDataBuffer__2[6], 2, 0, 0);
+    Hamon[0] = LoadMDSFile(GetPackFile(read_buffer, "b0402.mds", nullptr), &CharaDataBuffer__2[6], 2, nullptr, nullptr);
     Hamon[1] = Hamon[2] = Hamon[3] = Hamon[0];
     HScale[0] = 0.0f;
     HScale[1] = -0.8f;
@@ -254,7 +266,7 @@ PORT_OVERRIDE void OpD_InitProcess() {
     OPAnalyz("opdat/seirei.cfg");
     OPMdsLoad();
     CharaDataBuffer__2[6].used = 0;
-    Chara__3[8].LoadPackData(read_buffer, "05c01d.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[8].LoadPackData(read_buffer, "05c01d.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr8;
 
@@ -265,7 +277,7 @@ PORT_OVERRIDE void OpD_InitProcess() {
     Chara__3[8].motion_type.state.motion_no = 0;
     Chara__3[8].motion_type.state.playing_no = 0;
     CharaTex__2[8] = 1;
-    Chara__3[11].LoadPackData(read_buffer, "05c01e.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[11].LoadPackData(read_buffer, "05c01e.cfg", &CharaDataBuffer__2[6], nullptr);
     attr8.clip_enable = false;
     Chara__3[11].frame->SetAttr(attr8, 1, 4);
     Chara__3[11].motion_type.state.time = 75.0f;
@@ -273,7 +285,7 @@ PORT_OVERRIDE void OpD_InitProcess() {
     Chara__3[11].motion_type.state.motion_no = 1;
     Chara__3[11].motion_type.state.playing_no = 1;
     CharaTex__2[11] = 1;
-    Chara__3[21].LoadPackData(read_buffer, "05c03c.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[21].LoadPackData(read_buffer, "05c03c.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr21;
 
@@ -284,7 +296,7 @@ PORT_OVERRIDE void OpD_InitProcess() {
     Chara__3[21].motion_type.state.motion_no = 0;
     Chara__3[21].motion_type.state.playing_no = 0;
     CharaTex__2[21] = 2;
-    Effect.LoadPackData(read_buffer, "atrpeff1.cfg", &CharaDataBuffer__2[6], 0);
+    Effect.LoadPackData(read_buffer, "atrpeff1.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr effect_attr;
 
@@ -308,16 +320,16 @@ PORT_OVERRIDE void OpD_InitProcess() {
         {"opdat/norn4/i00022.img", 6, 0},
         {"opdat/norn4/0519.img",   7, 0},
         {"opdat/norn4/0519p.img",  7, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0},
-        {0,                        0, 0}
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0},
+        {nullptr,                  0, 0}
     };
 
     TexManager.LoadTextureBlock(-1, img, read_buffer);
@@ -331,39 +343,39 @@ PORT_OVERRIDE void OpD_InitProcess2() {
         ;
 
     LOADTEXTURE_INFO2 tex[] = {
-        {0, 10, 0},
-        {0, 10, 0},
-        {0, 10, 0},
-        {0, 10, 0},
-        {0, 10, 0},
-        {0, 10, 0},
-        {0, 3,  0},
-        {0, 10, 0},
-        {0, 0,  0}
+        {nullptr, 10, 0},
+        {nullptr, 10, 0},
+        {nullptr, 10, 0},
+        {nullptr, 10, 0},
+        {nullptr, 10, 0},
+        {nullptr, 10, 0},
+        {nullptr, 3,  0},
+        {nullptr, 10, 0},
+        {nullptr, 0,  0}
     };
 
-    tex[0].name = (char *) GetPackFile(read_buffer, "b0403.img", 0);
-    tex[1].name = (char *) GetPackFile(read_buffer, "e01b01.img", 0);
-    tex[2].name = (char *) GetPackFile(read_buffer, "t0401.img", 0);
-    tex[3].name = (char *) GetPackFile(read_buffer, "e01s01.img", 0);
-    tex[4].name = (char *) GetPackFile(read_buffer, "e01s06.img", 0);
-    tex[5].name = (char *) GetPackFile(read_buffer, "t0402.img", 0);
-    tex[6].name = (char *) GetPackFile(read_buffer, "buterfly.img", 0);
-    tex[7].name = (char *) GetPackFile(read_buffer, "lensfler.img", 0);
+    tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "b0403.img", nullptr));
+    tex[1].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b01.img", nullptr));
+    tex[2].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0401.img", nullptr));
+    tex[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s01.img", nullptr));
+    tex[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01s06.img", nullptr));
+    tex[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0402.img", nullptr));
+    tex[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "buterfly.img", nullptr));
+    tex[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "lensfler.img", nullptr));
 
     TexManager.LoadTextureBlock(-1, tex);
 
     MAPOBJ_INFO map[] = {
-        {"b0403.mds",    0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01g02_0.mds", 0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01g03_0.mds", 0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01g04_0.mds", 0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01h06_2.mds", 0, {0.0f, 4.7424f, 79.274f},      {0.0f, 0.0f, 0.0f}},
-        {"e01a02_2.mds", 0, {0.0f, 0.0f, 59.965f},         {0.0f, 0.0f, 0.0f}},
-        {"flower.mds",   0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01s05_0.mds", 0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01s01_0.mds", 0, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
-        {"e01s01_1.mds", 0, {104.195f, 3.399f, -150.395f}, {0.0f, 0.0f, 0.0f}}
+        {"b0403.mds",    nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01g02_0.mds", nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01g03_0.mds", nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01g04_0.mds", nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01h06_2.mds", nullptr, {0.0f, 4.7424f, 79.274f},      {0.0f, 0.0f, 0.0f}},
+        {"e01a02_2.mds", nullptr, {0.0f, 0.0f, 59.965f},         {0.0f, 0.0f, 0.0f}},
+        {"flower.mds",   nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01s05_0.mds", nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01s01_0.mds", nullptr, {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}},
+        {"e01s01_1.mds", nullptr, {104.195f, 3.399f, -150.395f}, {0.0f, 0.0f, 0.0f}}
     };
     CFrameAttr attr;
     CFrameVu1 *frame;
@@ -372,7 +384,7 @@ PORT_OVERRIDE void OpD_InitProcess2() {
     attr.fog_enable = true;
 
     for (i = 1; i < 11; i++) {
-        frame = LoadMDSFile((u_int *) GetPackFile(read_buffer, map[i - 1].name, 0), &MapDataBuffer, 2, 0, 0);
+        frame = LoadMDSFile(GetPackFile(read_buffer, map[i - 1].name, nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
         if (i == 7) {
             attr.use_color = true;
@@ -404,10 +416,10 @@ PORT_OVERRIDE void OpD_InitProcess2() {
         }
 
         object.SetPosition(CVector3_f_(10.0f * map[i - 1].position[0], 10.0f * map[i - 1].position[1], 10.0f * map[i - 1].position[2]));
-        object.SetRotation(CVector3_f_((float) (PI_D * map[i - 1].rotation[0] / 180), (float) (PI_D * map[i - 1].rotation[1] / 180), (float) (PI_D * map[i - 1].rotation[2] / 180)));
+        object.SetRotation(CVector3_f_(static_cast<float>(PI_D * map[i - 1].rotation[0] / 180), static_cast<float>(PI_D * map[i - 1].rotation[1] / 180), static_cast<float>(PI_D * map[i - 1].rotation[2] / 180)));
     }
 
-    Chara__3[22].LoadPackData(read_buffer, "buterfly.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[22].LoadPackData(read_buffer, "buterfly.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr attr22;
 
@@ -418,7 +430,7 @@ PORT_OVERRIDE void OpD_InitProcess2() {
     Chara__3[22].motion_type.state.motion_no = 0;
     Chara__3[22].motion_type.state.playing_no = 0;
     CharaTex__2[22] = 3;
-    Chara__3[5].LoadPackData(read_buffer, "buterfly.cfg", &CharaDataBuffer__2[6], 0);
+    Chara__3[5].LoadPackData(read_buffer, "buterfly.cfg", &CharaDataBuffer__2[6], nullptr);
     attr22.clip_enable = false;
     Chara__3[5].frame->SetAttr(attr22, 1, 4);
     Chara__3[5].motion_type.state.time = 1.0f;
@@ -472,7 +484,7 @@ PORT_OVERRIDE void OpD_DrawProcess() {
         sceVu0FVECTOR ambient;
 
         sceVu0CopyVector(ambient, ambientlight);
-        ambient[3] = (float) amb3;
+        ambient[3] = static_cast<float>(amb3);
         MGSetAmbient(ambient);
 
         CMapObject &hall = OP_NornMapObj[0];
@@ -534,7 +546,7 @@ PORT_OVERRIDE void OpD_DrawProcess() {
     for (int i = 0; i < 23; i++) {
         if (i != 22 && i != 5 && CScript__2.obj[i].disp) {
             TexManager.ReloadTexture(Vif1Packet, 23);
-            MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buff", -1)->tex0);
+            MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
 
             if (!Pause) {
                 Chara__3[i].ShadowStep();
@@ -617,17 +629,17 @@ PORT_OVERRIDE void OpD_DrawProcess() {
 
     if (fade1) {
         TexManager.ReloadTexture(Vif1Packet, 5);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00002", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), (u_char) fade1);
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00002", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), static_cast<u_char>(fade1));
     }
 
     if (fade2) {
         TexManager.ReloadTexture(Vif1Packet, 5);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00006", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), (u_char) fade2);
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00006", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), static_cast<u_char>(fade2));
     }
 
     if (fade3) {
         TexManager.ReloadTexture(Vif1Packet, 6);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00022", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), (u_char) fade3);
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00022", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), static_cast<u_char>(fade3));
     }
 
     switch (CScript__2.sprite) {

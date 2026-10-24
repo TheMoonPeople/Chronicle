@@ -449,14 +449,14 @@ struct Rect {
  */
 enum class ZLayer : int {
     Background = 0,
-    Window     = 10,
-    Recess     = 20,
-    Content    = 30,
-    Widgets    = 40,
-    Brackets   = 50,
-    Modal      = 60,
-    Overlay    = 70,
-    Cursor     = 80,
+    Window = 10,
+    Recess = 20,
+    Content = 30,
+    Widgets = 40,
+    Brackets = 50,
+    Modal = 60,
+    Overlay = 70,
+    Cursor = 80,
 };
 
 /**

@@ -1,8 +1,11 @@
 #include "common.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <vector>
 
 #include "dungeonparts.hpp"
 #include "editmenu.hpp"
@@ -10,6 +13,13 @@
 
 extern s16 *ItemSetRateTbl[7];
 extern int  floorNum[7];
+
+namespace {
+
+// The pointers cover the retail lists at dungeonparts.cpp's end: only the first normal list has four rows.
+constexpr int kItemPutListCounts[14] = {4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+
+} // namespace
 
 /* The chance out of a hundred that each item is turned down when a treasure box draws it, one
    list per dungeon. Retail copies 380 bytes from the address of the dungeon's slot in
@@ -19,27 +29,36 @@ extern int  floorNum[7];
    depends on the executable's layout and the floor, and differs between the NTSC and PAL discs.
    The port reads the dungeon's list, as GetPieroItem does for the clown's boxes. */
 PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
-    int           candidate[144];
-    s16           rate[400];
-    ITEM_PUT_SET *list = ItemPutListPtr[map_no + special * 7];
-    int           held;
-    int           count;
-    int           item_no;
-    float         roll;
-    int           scan;
-    int           wanted;
-    int           i;
-    s16          *table;
-    int           tries;
-    int           pick;
-    int           list_no;
-    int           chance;
+    if (map_no < 0 || map_no >= 7 || special < 0 || special > 1) {
+        return -1;
+    }
 
-    memset(rate, 0, sizeof(rate));
-    memcpy(rate, ItemSetRateTbl[map_no], 385 * sizeof(s16));
+    std::vector<int> candidate;
+    auto             rate = std::make_unique<s16[]>(385);
+    ITEM_PUT_SET    *list = ItemPutListPtr[map_no + special * 7];
+    const int        list_count = kItemPutListCounts[map_no + special * 7];
+    int              held;
+    int              count;
+    int              item_no;
+    float            roll;
+    int              scan;
+    int              wanted;
+    int              i;
+    s16             *table;
+    int              tries;
+    int              pick;
+    int              list_no;
+    int              chance;
+
+    if (list == nullptr || ItemSetRateTbl[map_no] == nullptr) {
+        return -1;
+    }
+
+    std::fill_n(rate.get(), 385, 0);
+    memcpy(rate.get(), ItemSetRateTbl[map_no], 385 * sizeof(s16));
 
     // Weapons the player already holds come up less often.
-    for (i = ITEM_WEAPON_START; i < ITEM_WEAPON_START + 0x7B; i++) {
+    for (i = ITEM_WEAPON_START; i < ITEM_WEAPON_START + 0x7B && i <= 385; i++) {
         held = GetNumHowManyItemsHave(i);
 
         if (held > 0) {
@@ -60,7 +79,7 @@ PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, i
     scan = 0;
     wanted = -1;
 
-    for (;; scan++) {
+    for (scan = 0; scan < list_count; scan++) {
         item_no = list[scan].floor;
 
         if (item_no == -1) {
@@ -70,6 +89,10 @@ PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, i
         if (floor_no + 1 == item_no) {
             wanted = floor_no + 1;
         }
+    }
+
+    if (scan == list_count) {
+        return -1;
     }
 
     if (wanted == -1) {
@@ -89,32 +112,39 @@ PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, i
 
         list_no++;
 
-        if (list_no >= 128) {
+        if (list_no >= list_count) {
             printf("err itembox list \n");
             return -1;
         }
     } while (1);
 
-    if (small != 0) {
-        int j = 0;
-        count = 0;
+    if (list[list_no].item_count < 0 || list[list_no].item_count > 128) {
+        return -1;
+    }
 
-        for (; list[list_no].item[j] != -1; j++) {
+    candidate.reserve(128);
+    if (small != 0) {
+        for (int j = 0; j < list[list_no].item_count; j++) {
             item_no = list[list_no].item[j];
 
             if (item_no >= ITEM_ATTACH_START && item_no < ITEM_WEAPON_START) {
-                candidate[count++] = item_no;
+                candidate.push_back(item_no);
             }
         }
 
-        table = rate;
+        count = static_cast<int>(candidate.size());
+        if (count == 0) {
+            return -1;
+        }
+
+        table = rate.get();
         tries = 0;
 
         do {
-            roll = ((float) count * (float) rand()) / 2.1474836e9f;
-            pick = (int) roll;
+            roll = (static_cast<float>(count) * static_cast<float>(rand())) / 2.1474836e9f;
+            pick = static_cast<int>(roll);
 
-            if (roll - (float) pick > 0.0f) {
+            if (roll - static_cast<float>(pick) > 0.0f) {
                 pick++;
             }
 
@@ -122,9 +152,13 @@ PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, i
                 pick = 0;
             }
 
-            chance = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
+            chance = static_cast<int>((100.0f * static_cast<float>(rand())) / 2.1474836e9f);
             item_no = candidate[pick];
 
+            if (item_no <= 0 || item_no > 385) {
+                item_no = -1;
+                break;
+            }
             if (table[item_no - 1] < chance) {
                 break;
             }
@@ -140,29 +174,28 @@ PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, i
         return item_no;
     }
 
-    int j = 0;
-    count = 0;
-
-    for (; list[list_no].item[j] != -1; j++) {
+    for (int j = 0; j < list[list_no].item_count; j++) {
         item_no = list[list_no].item[j];
 
         if (item_no >= ITEM_WEAPON_START) {
-            candidate[count++] = item_no;
+            candidate.push_back(item_no);
         }
     }
+
+    count = static_cast<int>(candidate.size());
 
     if (count == 0) {
         return -1;
     }
 
-    table = rate;
+    table = rate.get();
     tries = 0;
 
     do {
-        roll = ((float) count * (float) rand()) / 2.1474836e9f;
-        pick = (int) roll;
+        roll = (static_cast<float>(count) * static_cast<float>(rand())) / 2.1474836e9f;
+        pick = static_cast<int>(roll);
 
-        if (roll - (float) pick > 0.0f) {
+        if (roll - static_cast<float>(pick) > 0.0f) {
             pick++;
         }
 
@@ -170,9 +203,13 @@ PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, i
             pick = 0;
         }
 
-        chance = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
+        chance = static_cast<int>((100.0f * static_cast<float>(rand())) / 2.1474836e9f);
         item_no = candidate[pick];
 
+        if (item_no <= 0 || item_no > 385) {
+            item_no = -1;
+            break;
+        }
         if (table[item_no - 1] < chance) {
             break;
         }
