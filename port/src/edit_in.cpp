@@ -3,6 +3,7 @@
 #include <libvu0.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -146,8 +147,9 @@ namespace {
 /** Phase the interior loop is in. */
 static int GameMode;
 
-/** Camera marker whose box the player last stood in. */
-static INTERIOR_CAMERA *active_camera;
+/** Camera marker whose box the player last stood in, by its place in the list SetCameraPos builds each
+ * frame, or -1 for none. */
+static int active_camera = -1;
 
 /** Frames the player may stand outside the active camera marker before the camera switches. */
 static int camera_change_count;
@@ -468,7 +470,7 @@ PORT_OVERRIDE int EditInInit(float time, char *name) {
     }
 
     EdMoveCharaInit();
-    active_camera = nullptr;
+    active_camera = -1;
     camera_change_count = 0;
     EdIn_MainCamera.FollowOff();
     EdIn_NowCamera = &EdIn_MainCamera;
@@ -1410,8 +1412,8 @@ PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *char
     if (camera_capacity == 0) {
         return;
     }
-    auto          cameras = std::make_unique<INTERIOR_CAMERA[]>(static_cast<std::size_t>(camera_capacity));
-    sceVu0FMATRIX matrix;
+    std::array<INTERIOR_CAMERA, 8> cameras;
+    sceVu0FMATRIX                  matrix;
     count = 0;
 
     for (i = 0; i < func_num; i++, point++) {
@@ -1445,14 +1447,16 @@ PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *char
         return;
     }
 
-    INTERIOR_CAMERA *inside = nullptr;
-    static int       cnt = 0;
+    // Retail kept the active camera as a pointer into this list from one frame to the next, which only
+    // held because its list sat on the stack at the same address every frame; it is kept by its place.
+    int        inside = -1;
+    static int cnt = 0;
 
     for (i = 0; i < count; i++) {
         entry = &cameras[i];
 
         if (entry->link_id == 0) {
-            inside = entry;
+            inside = i;
             continue;
         }
 
@@ -1461,7 +1465,7 @@ PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *char
         sceVu0ApplyMatrix(local, inverse, position);
 
         if (!(local[0] < entry->min[0]) && !(local[1] < entry->min[1]) && !(local[2] < entry->min[2]) && local[0] <= entry->max[0] && local[1] <= entry->max[1] && local[2] <= entry->max[2]) {
-            inside = entry;
+            inside = i;
             break;
         }
     }
@@ -1472,11 +1476,11 @@ PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *char
         cnt = 0;
     }
 
-    if (active_camera == nullptr) {
+    if (active_camera < 0 || active_camera >= count) {
         active_camera = inside;
     }
 
-    if (inside == nullptr) {
+    if (inside < 0) {
         return;
     }
 
@@ -1491,9 +1495,9 @@ PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *char
         camera_change_count--;
     }
 
-    if (active_camera != nullptr) {
+    if (active_camera >= 0) {
         sceVu0FVECTOR eye = {0.0f, 0.0f, 0.0f, 1.0f};
-        active_camera->frame.GetWorldPosition(eye, eye);
+        cameras[active_camera].frame.GetWorldPosition(eye, eye);
         position[1] += 17.0f;
         camera->SetPos(eye);
         camera->SetRef(position);
