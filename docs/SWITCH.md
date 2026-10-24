@@ -214,9 +214,14 @@ What a console needed that a PC did not, roughly in the order it came up:
   alone, and the setting ends with the game.
 - **Render targets at the screen's scale**: the render scale is the screen's height over 480 (1.5
   handheld) rather than rounded up to 2.
-- **No per-draw branches in `draw.frag`.** NAK compiles a uniform branch into a sync and padding,
-  and on the Tegra X1 a fragment costs about its instruction count; the shader selects between each
-  draw's choices instead of branching on them, and draws the same pixels.
+- **`draw.frag` cut down for the Tegra X1**, where a fragment costs about its instruction count.
+  NAK compiles a uniform branch into a sync and padding, so the shader selects between each draw's
+  choices instead of branching on them; the CPU works out once a draw what the shader would
+  otherwise decode from packed bits every pixel (fog colour, blend factor, TA0, the alpha test's
+  verdicts), which Maxwell's integer conversions made slow; and the fog that stays continuous
+  across clipped edges takes its per-draw terms from push constants, so a vertex passes three fog
+  values instead of eight and only fogged draws work it out. In Norune the GPU's render of a tick
+  went from 17 to 18.5 ms back to about 11.8.
   For the same reason the draw shader leaves out the smooth-motion debugging tint
   (`KZ_PORT_INTERPOLATION_TINT`, on for PC builds), which made Norune's frames 3 ms slower.
 - **Palette textures expanded** to RGBA on the CPU (Kazarov's `RendererConfig::expand_palettes`),
