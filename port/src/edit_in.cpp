@@ -1410,8 +1410,10 @@ PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *char
     if (camera_capacity == 0) {
         return;
     }
-    auto          cameras = std::make_unique<INTERIOR_CAMERA[]>(static_cast<std::size_t>(camera_capacity));
-    sceVu0FMATRIX matrix;
+    /* active_camera keeps pointing at an entry between calls. The original's stack array sat at the
+       same address every frame, so that entry was the one rebuilt here; the storage must outlive the call. */
+    static INTERIOR_CAMERA cameras[8];
+    sceVu0FMATRIX          matrix;
     count = 0;
 
     for (i = 0; i < func_num; i++, point++) {
