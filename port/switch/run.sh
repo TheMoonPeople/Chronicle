@@ -6,7 +6,10 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-builder=${BUILDER:-docker}
+builder=${BUILDER:-}
+if [ -z "$builder" ]; then
+    if command -v podman > /dev/null; then builder=podman; else builder=docker; fi
+fi
 nro=$root/port/build/switch/darkcloud.nro
 path=chronicle/darkcloud.nro
 while [ $# -gt 0 ]; do

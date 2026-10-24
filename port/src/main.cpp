@@ -455,6 +455,9 @@ int Run(int argc, const char **argv) {
     ConfigLoad();
     audio::SoundtrackEnsure();
     const Config &config = ConfigGet();
+#ifdef __SWITCH__
+    SwitchApplyGpuBoost(config.switch_gpu_boost);
+#endif
 
     DisplaySetOverrides(options.width, options.height, options.headless);
     WindowConfig window = DisplayWindowConfig(config);
@@ -500,6 +503,11 @@ int Run(int argc, const char **argv) {
     renderer.render_scale = config.render_scale;
 #endif
     renderer.validation = renderer.validation || SettingsEnv("VULKAN_VALIDATION") != nullptr;
+#ifdef __SWITCH__
+    // Index textures drawn from RGBA expansions: the palette lookup was the largest cost of the
+    // Switch GPU's frames.
+    renderer.expand_palettes = true;
+#endif
     gfx::RendererInit(WindowHandle(), renderer);
     DC_ANDROID_TRACE("Run: renderer initialized");
     gfx::SetAnisotropy(config.anisotropy);

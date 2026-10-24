@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Builds the Nintendo Switch homebrew port (docs/SWITCH.md) in port/switch/Containerfile
 # describes, building that image first when this checkout's Containerfile has no image yet.
-# Docker by default; BUILDER can select another OCI-compatible runtime. The arguments go to the
-# build (targets, -v); `port/switch/build.sh shell` opens a shell in the image instead.
+# podman when it is installed, else docker; BUILDER selects another OCI-compatible runtime. The
+# arguments go to the build (targets, -v); `port/switch/build.sh shell` opens a shell in the image
+# instead.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-builder=${BUILDER:-docker}
+builder=${BUILDER:-}
+if [ -z "$builder" ]; then
+    if command -v podman > /dev/null; then builder=podman; else builder=docker; fi
+fi
 [ -f "$root/tools/kazarov/include/kazarov/port.h" ] || git -C "$root" submodule update --init tools/kazarov
 
 preset=${SWITCH_PRESET:-switch}

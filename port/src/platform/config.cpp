@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "platform/display.hpp"
+#include "platform/files.hpp"
 #include "platform/paths.hpp"
 
 namespace {
@@ -445,6 +446,11 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "video.interpolation") {
         return ReadBool(value, config.interpolation);
     }
+#ifdef __SWITCH__
+    if (name == "video.switch_gpu_boost") {
+        return ReadBool(value, config.switch_gpu_boost);
+    }
+#endif
     if (name == "video.render_thread") {
         if (!value.is_string()) {
             return false;
@@ -571,25 +577,10 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     return false;
 }
 
+// Through Kazarov's FilesWrite, which replaces a file even where rename cannot (Horizon's never
+// replaces, so a temporary file renamed onto config.json saved it once and never again).
 bool WriteReplacing(const std::filesystem::path &path, std::string_view text) {
-    std::filesystem::path temp = path;
-    temp += ".tmp";
-    std::error_code error;
-    {
-        std::ofstream file(temp, std::ios::binary | std::ios::trunc);
-        file << text;
-        file.close();
-        if (!file) {
-            std::filesystem::remove(temp, error);
-            return false;
-        }
-    }
-    std::filesystem::rename(temp, path, error);
-    if (error) {
-        std::filesystem::remove(temp, error);
-        return false;
-    }
-    return true;
+    return FilesWrite(path, text.data(), text.size(), true) == FilesResult::kWritten;
 }
 
 } // namespace
@@ -674,6 +665,9 @@ std::string ConfigSerialize(const Config &config) {
     root["video"]["boss_shadow"] = config.boss_shadow;
     root["video"]["present_mode"] = PresentModeName(config.present_mode);
     root["video"]["interpolation"] = config.interpolation;
+#ifdef __SWITCH__
+    root["video"]["switch_gpu_boost"] = config.switch_gpu_boost;
+#endif
     root["video"]["render_thread"] = config.render_thread == gfx::RenderThreadMode::Async ? "async" : config.render_thread == gfx::RenderThreadMode::Lockstep ? "lockstep"
                                                                                                                                                               : "off";
     root["video"]["max_fps"] = config.max_fps;

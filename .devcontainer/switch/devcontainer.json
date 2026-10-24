@@ -1,0 +1,27 @@
+{
+    // The Nintendo Switch homebrew toolchain (docs/SWITCH.md): devkitPro with NVK and SDL3 built in.
+    // Works with podman ("dev.containers.dockerPath": "podman" in VS Code's settings) or docker.
+    "name": "Switch",
+    "build": {
+        "dockerfile": "../../port/switch/Containerfile",
+        "context": "../../port/switch"
+    },
+    "runArgs": ["--userns=keep-id"],
+    "containerUser": "${localEnv:USER}",
+    "updateRemoteUserUID": false,
+    "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind,Z",
+    "workspaceFolder": "${localWorkspaceFolder}",
+    "containerEnv": {
+        "HOME": "/tmp"
+    },
+    "postCreateCommand": "git submodule update --init tools/kazarov",
+    "customizations": {
+        "vscode": {
+            "extensions": ["ms-vscode.cmake-tools", "llvm-vs-code-extensions.vscode-clangd"],
+            "settings": {
+                "cmake.configureOnOpen": false,
+                "clangd.arguments": ["--compile-commands-dir=port/build/switch", "--query-driver=/opt/devkitpro/devkitA64/bin/aarch64-none-elf-*"]
+            }
+        }
+    }
+}

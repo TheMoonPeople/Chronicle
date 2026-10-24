@@ -1,4 +1,4 @@
 [submodule "tools/kazarov"]
 	path = tools/kazarov
-	url = https://github.com/TheMoonPeople/Kazarov.git
-	branch = master
+	url = https://github.com/columna1/Kazarov-switch.git
+	branch = switch-port

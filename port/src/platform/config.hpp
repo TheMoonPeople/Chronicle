@@ -40,7 +40,14 @@ struct Config : HostSettings {
     bool element_quick_select = false;
     bool swap_keeps_lock_on = false;
     bool text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
+#ifdef __SWITCH__
+    // Off on the Switch: a display frame between ticks costs its GPU as much as a tick's own.
+    bool interpolation = false;
+    // Handheld with the GPU at 460.8 MHz, an official configuration, rather than homebrew's 307.2.
+    bool switch_gpu_boost = true;
+#else
     bool interpolation = true;
+#endif
     gfx::RenderThreadMode render_thread = gfx::RenderThreadMode::Async;
     ConfigAspect aspect = ConfigAspect::Auto;
     float ui_scale = 1.0f;

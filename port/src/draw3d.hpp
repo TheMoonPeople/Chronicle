@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -48,6 +49,10 @@ gfx::TextureHandle Draw3DFramePicture();
 // Shadow passes 1 and 2 draw only between MGBeginDrawShadow and MGEndDrawShadow, into the target
 // the former picked; with no target they are dropped rather than brightening the frame.
 bool Draw3DShadowTargetActive();
+// Notes that shadow volume vertices (eye space, drawn through eye_to_clip, a row per column as
+// MeshConstants::mvp takes it) went into the shadow target, so MGEndDrawShadow composites only the
+// part of the frame they can reach.
+void Draw3DShadowCover(const float eye_to_clip[4][4], std::span<const gfx::Vertex3D> vertices);
 
 // The shadow microprogram the running MGDrawShadow* call stands for. All three extrude caster
 // triangles into prisms down to the shadow plane: Vu_shadow (MGDrawShadowFast) every triangle of

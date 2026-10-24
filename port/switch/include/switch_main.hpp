@@ -19,3 +19,9 @@ int SwitchMain(int argc, const char **argv, SwitchRunFunction run);
  * The game keeps its logical PAL resolution while using the display's available pixels.
  */
 void SwitchConfigureRenderer(gfx::RendererConfig &config);
+
+/**
+ * Asks for the handheld configuration with the GPU at 460.8 MHz, or puts back the one the title
+ * started with. Docked is left alone; the system drops the setting when the title exits.
+ */
+void SwitchApplyGpuBoost(bool on);

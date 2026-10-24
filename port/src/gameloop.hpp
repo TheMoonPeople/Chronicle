@@ -108,6 +108,12 @@ void GamePresentTickEnd();
  */
 void GameStopPresentation();
 
+/**
+ * Waits until the worker has rendered the last tick's canonical image, where it renders them (async
+ * on the Switch), so a frame drawn outside the ticks or a readback comes after it.
+ */
+void GameWaitForTickRender();
+
 struct GamePresentStats {
     std::uint64_t ticks;
     std::uint64_t display_frames;

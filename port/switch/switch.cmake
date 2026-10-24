@@ -25,7 +25,7 @@ add_compile_options(-fsigned-char)
 function(dc_switch_host target)
     set_source_files_properties(${KZ_PORT_ROOT}/platform/memory.cpp PROPERTIES HEADER_FILE_ONLY ON)
     target_sources(${target} PRIVATE ${DC_SWITCH_DIR}/src/memory.cpp ${DC_SWITCH_DIR}/src/ucontext.cpp
-        ${DC_SWITCH_DIR}/src/nxlink.cpp)
+        ${DC_SWITCH_DIR}/src/nxlink.cpp ${DC_SWITCH_DIR}/src/clocks.cpp)
 endfunction()
 
 function(dc_switch_port target)
