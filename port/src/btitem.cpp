@@ -75,10 +75,9 @@ std::pair<std::string, std::string> ItemPaths(int item_no) {
         const int offset = item_no - first_weapons[chara];
         model_path = "dun/item/main_wep/";
         model_path += prefixes[chara];
+        /* The original's "%2d" never pads here: offsets below ten already took the leading zero. */
         if (offset < 10) {
             model_path += '0';
-        } else if (offset < 100) {
-            model_path += ' ';
         }
         model_path += std::to_string(offset);
     } else {

@@ -74,10 +74,9 @@ std::pair<std::string, std::string> WeaponNames(int chara, int weapon_index) {
         return {};
     }
     std::string number = std::to_string(weapon_index);
+    /* The original's "%2d" never pads here: indices below ten already took the leading zero. */
     if (weapon_index < 10) {
         number.insert(0, "0");
-    } else if (weapon_index < 100) {
-        number.insert(0, " ");
     }
     const std::string base = std::string(prefixes[chara]) + number;
     return {base + ".chr", base + ".cfg"};
