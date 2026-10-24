@@ -203,6 +203,8 @@ Presence is off: there is no client to talk to.
 
 What a console needed that a PC did not, roughly in the order it came up:
 
+- **Settings saved** through Kazarov's `FilesWrite` (`port/src/platform/config.cpp`): Horizon's
+  `rename` never replaces a file, so `config.json` was written once and every later change was lost.
 - **Plain `char` is signed** (`-fsigned-char`), as on the PS2 and x64. AArch64's is unsigned, and
   `ps2/include/types.h` makes `s8` a `char`: a sound table's -128 terminator read as 128 and
   `SndInitSeTable` wrote past it, which crashed the game entering a dungeon.
@@ -223,9 +225,11 @@ What a console needed that a PC did not, roughly in the order it came up:
   volumes' screen bounds, a frame's later shadow groups clearing only what the earlier ones drew,
   the shadow volumes drawn as indexed corners, and each depth-of-field band in one premultiplied draw where the GS needed two.
 - **The render thread on the second CPU core.** Kazarov's render thread (`video.render_thread`,
-  `async` by default) renders and presents while the game runs the next tick. libnx starts every
-  thread on the process's core, where the game runs, so on the Switch the worker moves itself to
-  core 1. Kazarov keeps four submissions (two ticks) in flight and answers the game's depth queries
+  `async` by default) presents while the game runs the next tick, and on the Switch it renders each
+  tick's canonical image too (`port/src/gameloop.cpp`, `kTickOnWorker`): rendered on the game thread,
+  the render and the game's work came one after the other and the opening drew 20 to 25 frames a
+  second; on the worker it draws 40 to 50. libnx starts every thread on the process's core, where
+  the game runs, so on the Switch the worker moves itself to core 1. Kazarov keeps four submissions (two ticks) in flight and answers the game's depth queries
   (the sun's lens flare, pick-Z) without waiting for the GPU.
 
 ## Performance

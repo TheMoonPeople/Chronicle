@@ -146,6 +146,8 @@ void PresentLoadingFrame() {
         return;
     }
     textwipe::Update();
+    // The worker may still be rendering the last tick.
+    GameWaitForTickRender();
     if (gfx::BeginFrame()) {
         const uint8_t black[4] = {0, 0, 0, 0x80};
         gfx::Clear(true, black, true, 0.0f);

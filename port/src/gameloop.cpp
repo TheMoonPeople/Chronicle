@@ -10,6 +10,7 @@
 #include <cstring>
 #include <format>
 #include <memory>
+#include <condition_variable>
 #include <mutex>
 #include <string_view>
 #include <thread>
@@ -100,7 +101,19 @@ struct PublishedFrame {
     PresentClock::time_point start;
     PresentClock::duration   length;
     std::uint64_t            serial = 0;
+    // The worker renders list as the canonical image before presenting it (kTickOnWorker).
+    bool canonical = false;
 };
+
+// Async on the Switch: the worker renders each tick's canonical image too, not only its display
+// frames, so the render runs on the second core while the game runs the next tick. Rendered on the
+// game thread, the render and the game's work came one after the other, about 16 ms of CPU a tick
+// together in the opening, which then drew 20 to 25 frames a second.
+#ifdef __SWITCH__
+constexpr bool kTickOnWorker = true;
+#else
+constexpr bool kTickOnWorker = false;
+#endif
 
 std::mutex                 g_publish_mutex;
 PublishedFrame             g_published;
@@ -111,6 +124,9 @@ OverlayRate                g_render_rate;
 PresentClock::time_point   g_render_last_present;
 std::uint64_t              g_render_serial = 0;
 bool                       g_render_tick_shown = false;
+// The newest serial whose canonical image the worker has rendered, under g_publish_mutex.
+std::uint64_t              g_rendered_serial = 0;
+std::condition_variable    g_rendered;
 
 bool PresentAsync() {
     return gfx::ActiveRenderThreadMode() == gfx::RenderThreadMode::Async;
@@ -129,6 +145,14 @@ PresentClock::duration PresentRenderIdle(void *) {
     if (frame.serial != g_render_serial) {
         g_render_serial = frame.serial;
         g_render_tick_shown = false;
+        if (frame.canonical) {
+            gfx::RenderList(*frame.list, 1.0f, {.canonical = true});
+            {
+                std::lock_guard lock(g_publish_mutex);
+                g_rendered_serial = frame.serial;
+            }
+            g_rendered.notify_all();
+        }
     }
     if (!frame.settings.interpolation && g_render_tick_shown) {
         return std::chrono::milliseconds(2);
@@ -785,9 +809,15 @@ void GameSetPresentSettings(const GamePresentSettings &settings) {
 }
 
 void GameRenderTick(gfx::DisplayListRef list) {
-    PresentClock::time_point start = PresentClock::now();
-    gfx::RenderList(*list, 1.0f, {.canonical = true});
-    g_stats.canonical_seconds += SecondsSince(start);
+    const bool on_worker = kTickOnWorker && PresentAsync();
+    if (on_worker) {
+        // One tick in hand at most: the last must be rendered before this one is published.
+        GameWaitForTickRender();
+    } else {
+        PresentClock::time_point start = PresentClock::now();
+        gfx::RenderList(*list, 1.0f, {.canonical = true});
+        g_stats.canonical_seconds += SecondsSince(start);
+    }
     g_stats.ticks++;
     gfx::DisplayListStats counts = gfx::ListStats(*list);
     g_stats.mesh_draws += counts.mesh_draws;
@@ -814,6 +844,7 @@ void GameRenderTick(gfx::DisplayListRef list) {
             g_published.settings = g_present;
             g_published.start = PresentClock::now() - elapsed;
             g_published.length = length;
+            g_published.canonical = on_worker;
             ++g_published.serial;
         }
         gfx::WakeRenderThread();
@@ -885,8 +916,19 @@ GamePresentStats GamePresentStatistics() {
 void GameStopPresentation() {
     gfx::SetRenderIdleHook(nullptr, nullptr);
     gfx::RenderLease lease;
-    std::lock_guard  lock(g_publish_mutex);
-    g_published = {};
+    {
+        std::lock_guard lock(g_publish_mutex);
+        g_published = {};
+    }
+    g_rendered.notify_all();
+}
+
+void GameWaitForTickRender() {
+    if (!kTickOnWorker || !PresentAsync()) {
+        return;
+    }
+    std::unique_lock lock(g_publish_mutex);
+    g_rendered.wait(lock, [] { return !g_published.canonical || g_rendered_serial >= g_published.serial; });
 }
 
 bool GameShowingFps() {
@@ -907,6 +949,7 @@ std::string GameFpsText() {
 // kPreviousFrame outside a frame is the newest main image: the canonical render, or the loading
 // screen's frame after it. ReadbackFrame would read a display frame, overlay and all.
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {
+    GameWaitForTickRender();
     return gfx::ReadbackTexture(gfx::kPreviousFrame, rgba, width, height);
 }
 
