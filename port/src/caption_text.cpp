@@ -1,6 +1,7 @@
 #include "caption_text.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -10,6 +11,7 @@
 
 #include "captionfont.hpp"
 #include "draw2d_port.hpp"
+#include "editmenu.hpp"
 #include "gametext.hpp"
 #include "gfx/gfx.hpp"
 #include "localize.hpp"
@@ -158,6 +160,14 @@ char32_t Upper(char32_t ch) {
 }
 
 std::string HelpTitle(int icon) {
+    static std::array<std::string, kIcons> last_titles;
+    static int                             last_language = -1;
+    // The town menu draws its icons for a few frames before it reads allmenu.mes. Until then
+    // CommonMenuMes2 still points at the previous menu's messages, whose memory the town may have
+    // built an event's models over since, so those frames take the titles read last.
+    if (EditSwitch == EDIT_MENU_START && EdMenuTextureReadEndFlag == 0) {
+        return LanguageCode == last_language ? last_titles[icon] : std::string{};
+    }
     const MENU_ICON_INFO *info = GetMenuIconInfo(icon);
     if (info == nullptr || CommonMenuMes2.buff == nullptr) {
         return {};
@@ -177,6 +187,11 @@ std::string HelpTitle(int icon) {
     while (!text.empty() && (text.back() == '"' || text.back() == ' ')) {
         text.pop_back();
     }
+    if (last_language != LanguageCode) {
+        last_titles = {};
+        last_language = LanguageCode;
+    }
+    last_titles[icon] = text;
     return text;
 }
 
