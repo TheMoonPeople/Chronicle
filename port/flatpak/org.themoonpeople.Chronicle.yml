@@ -35,16 +35,89 @@ modules:
         url: https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
         sha256: 42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
 
+  # dcdata links Kazarov's Rust extractor, which links FFmpeg. These flags are tools/kazarov/tools/ffmpeg/kz-ffmpeg's
+  # for Linux, so the Flatpak extracts with the same LGPL build the other configurations use; for the build alone.
+  - name: ffmpeg
+    buildsystem: autotools
+    config-opts:
+      - --disable-everything
+      - --disable-programs
+      - --enable-ffmpeg
+      - --disable-doc
+      - --disable-network
+      - --disable-autodetect
+      - --enable-avformat
+      - --enable-avfilter
+      - --enable-swscale
+      - --enable-swresample
+      - --disable-avdevice
+      - --enable-decoder=mpeg2video,h264,alac,aac,pcm_s16le
+      - --enable-parser=mpegvideo,h264,aac
+      - --enable-encoder=alac
+      - --enable-demuxer=mpegps,mov,wav
+      - --enable-muxer=mp4
+      - --enable-protocol=file
+      - --enable-filter=aresample,aformat,anull,abuffer,abuffersink
+      - --enable-pic
+      - --disable-shared
+      - --enable-static
+    cleanup:
+      - /include
+      - /lib/*.a
+      - /lib/pkgconfig
+      - /share
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+        sha256: 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+
+  # The Rust tools/kazarov/rust-toolchain.toml and image/Dockerfile pin, newer than the SDK's rust-stable
+  # extension; for the build alone.
+  - name: rust
+    buildsystem: simple
+    # Stripping rustc's own libLLVM leaves it unloadable, here and in the next module.
+    build-options:
+      strip: false
+      no-debuginfo: true
+    build-commands:
+      - ./install.sh --prefix=/app/rust --disable-ldconfig --components=rustc,cargo,rust-std-x86_64-unknown-linux-gnu
+    cleanup:
+      - '*'
+    sources:
+      - type: archive
+        url: https://static.rust-lang.org/dist/2026-10-01/rust-1.99.0-x86_64-unknown-linux-gnu.tar.xz
+        sha256: 891c6366d7100feda0bca4c03ce63f3c9ac827cbebbc283e7433061d42c6a376
+
+  # Corrosion runs the cxxbridge it finds on PATH when its version is cxx's, and otherwise tries to download
+  # one; for the build alone.
+  - name: cxxbridge
+    buildsystem: simple
+    build-options:
+      strip: false
+      no-debuginfo: true
+      append-path: /app/rust/bin
+      env:
+        CARGO_HOME: /run/build/cxxbridge/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - cargo install --offline --path cargo/vendor/cxxbridge-cmd-1.0.205 --root /app/tools
+    cleanup:
+      - '*'
+    sources:
+      - cargo-sources.json
+
   - name: chronicle
     buildsystem: cmake-ninja
     builddir: true
     build-options:
-      append-path: /usr/lib/sdk/llvm22/bin
+      append-path: /usr/lib/sdk/llvm22/bin:/app/rust/bin:/app/tools/bin
       prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
       env:
         CC: clang
         CXX: clang++
         LD: ld.lld
+        CARGO_HOME: /run/build/chronicle/cargo
+        CARGO_NET_OFFLINE: 'true'
       # The SDK's default flags turn on _GLIBCXX_ASSERTIONS, -Werror=format-security and -g, none of
       # which the game's code is built with anywhere else; Release supplies the optimisation.
       cflags: ''
@@ -58,6 +131,7 @@ modules:
       - -DCMAKE_PREFIX_PATH=/app
       - -DCMAKE_CXX_COMPILER=/usr/lib/sdk/llvm22/bin/clang++
       - -DDC_BUILD_TESTS=OFF
+      - -DKZ_FFMPEG_DIR=/app
       # The sandbox has no network: a library left out of the sources below stops the configure at once,
       # naming it, rather than after FetchContent's download retries.
       - -DFETCHCONTENT_FULLY_DISCONNECTED=ON
@@ -66,6 +140,10 @@ modules:
       - install -Dm644 -t ${FLATPAK_DEST}/share/applications ${FLATPAK_BUILDER_BUILDDIR}/port/flatpak/${FLATPAK_ID}.desktop
       - install -Dm644 -t ${FLATPAK_DEST}/share/metainfo ${FLATPAK_BUILDER_BUILDDIR}/port/flatpak/${FLATPAK_ID}.metainfo.xml
       - install -Dm644 ${FLATPAK_BUILDER_BUILDDIR}/port/icon/chronicle-512.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png
+    cleanup:
+      # Kazarov installs its gameplay seed archive beside the programs. Chronicle has no gameplay documents, so the
+      # seed is empty, and a data.zip beside darkcloud would make the read-only /app/bin/data its data root.
+      - /bin/data.zip
     sources:
       # chronicle-source: the CI job swaps this for a git source at the commit under test.
       - type: dir
@@ -91,6 +169,12 @@ modules:
       # names goes to flatpak-deps/<name>, which port/CMakeLists.txt hands FetchContent, and a single
       # file _kz_port_vendor takes goes to a KZ_PORT_VENDOR_DIRS directory. A Kazarov pin that adds or
       # bumps one needs it here too; scripts/port/flatpak_sources.py (CI) checks, and prints the entry.
+      # cargo-sources.json is every crate tools/kazarov/Cargo.lock names (port/flatpak/cargo_sources.py writes it).
+      - cargo-sources.json
+      - type: archive
+        url: https://github.com/corrosion-rs/corrosion/archive/refs/tags/v0.6.1.zip
+        sha256: 5c1c5c6ab7196fe4466321c14e9698ec2d0a977c89fd9f1639a37fcffdf604f2
+        dest: flatpak-deps/corrosion
       - type: archive
         url: https://codeload.github.com/simdjson/simdjson/tar.gz/refs/tags/v4.6.11
         sha256: 61d948fc24f0d793829ad658058e7597d064988a89b4607ea02e401a82df98ff

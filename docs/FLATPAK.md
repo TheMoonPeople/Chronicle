@@ -138,16 +138,29 @@ starts:
 - each single file `_kz_port_vendor` takes (`dr_wav.h`, `stb_truetype.h`...),
   in `audio_decoders/` or `stb_truetype/`, the `KZ_PORT_VENDOR_DIRS` of
   `port/CMakeLists.txt`;
-- each library a `FetchContent_Declare` in Kazarov's `cmake/KazarovPort.cmake`
-  or a module it includes names (simdjson and fastgltf, for
-  `KazarovGltf.cmake`), as an archive in `flatpak-deps/<name>`, which
-  `port/CMakeLists.txt` hands FetchContent as `FETCHCONTENT_SOURCE_DIR_<NAME>`.
-  nlohmann/json, declared with `FIND_PACKAGE_ARGS`, is a module of its own and
-  is found installed.
+- each library a `FetchContent_Declare` names in a Kazarov module Chronicle
+  includes (`cmake/KazarovPort.cmake` for the game, `cmake/KazarovRust.cmake`
+  for `dcdata`) or a module those include (simdjson and fastgltf, for
+  `KazarovGltf.cmake`; Corrosion, for `KazarovRust.cmake`), as an archive in
+  `flatpak-deps/<name>`, which `port/CMakeLists.txt` hands FetchContent as
+  `FETCHCONTENT_SOURCE_DIR_<NAME>`. nlohmann/json, declared with
+  `FIND_PACKAGE_ARGS`, is a module of its own and is found installed;
+- every crate Kazarov's `Cargo.lock` names, for the Rust extractor `dcdata`
+  links, from `port/flatpak/cargo-sources.json`. `python3
+  port/flatpak/cargo_sources.py` writes it from the lock.
+
+`dcdata` also needs a Rust toolchain, `cxxbridge` and FFmpeg, which are
+modules of their own, for the build alone: Rust at the version
+`tools/kazarov/rust-toolchain.toml` pins, `cxxbridge-cmd` built from the
+vendored crates, and FFmpeg with the LGPL configuration of Kazarov's
+`tools/ffmpeg/kz-ffmpeg`, linked statically. Kazarov installs an empty gameplay
+seed, `bin/data.zip`, which the module's cleanup removes: a `data.zip` beside
+`darkcloud` would make `/app/bin/data` the data root.
 
 The module configures with `FETCHCONTENT_FULLY_DISCONNECTED`, so a library the
 manifest leaves out stops the configure at once, naming it, instead of after
 the download's retries. A Kazarov pin that adds a download or changes a hash
 needs the manifest to follow: `python3 scripts/port/flatpak_sources.py`
-compares the two, prints the entry to add for anything missing, and fails the
-Linux CI job until they agree.
+compares the two, prints the entry to add for anything missing, checks
+`cargo-sources.json` against `Cargo.lock`, and fails the Linux CI job until
+they agree.
