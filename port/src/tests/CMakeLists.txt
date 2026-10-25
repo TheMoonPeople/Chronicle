@@ -36,12 +36,13 @@ target_sources(darkcloud_tests PRIVATE $<TARGET_OBJECTS:dc_test_main_overrides>)
 # cases measure short sleeps, which the parallel gfx cases skew, so they run on their own.
 set(DC_TEST_TIMEOUT 30 CACHE STRING "Seconds a test case may run before it is cut off")
 # The cases that need a Vulkan device have the gpu label, so a machine without one runs ctest -LE gpu. They are
-# Kazarov's suites named GfxGpu* (its src/cpp/gfx/README.md, "Shared device test classification") and its older
-# GfxMisc and GfxTim2, and every suite in a Chronicle test file that includes gfx_fixture.hpp or tex_fixture.hpp,
+# Kazarov's suites named GfxGpu* (its src/cpp/gfx/README.md, "Shared device test classification") and the ones
+# that start a device under another name (GfxMisc, GfxTim2, GfxCachedTarget and the parameterised GfxColorWriteMask,
+# as ChronicleTwo lists them), and every suite in a Chronicle test file that includes gfx_fixture.hpp or tex_fixture.hpp,
 # found here so that a new one is labeled without a list to keep. Some start several renderers, seconds apiece on
 # a software driver such as lavapipe, so they have their own limit.
 set(DC_GPU_TEST_TIMEOUT ${DC_TEST_TIMEOUT} CACHE STRING "Seconds a test case that needs a Vulkan device may run")
-set(device_suites GfxMisc GfxTim2)
+set(device_suites GfxMisc GfxTim2 GfxCachedTarget)
 foreach(source IN LISTS TEST_SOURCES)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${source})
     file(STRINGS ${source} fixture REGEX "^#include \"(gfx|tex)_fixture\\.hpp\"")
@@ -54,7 +55,7 @@ endforeach()
 list(REMOVE_DUPLICATES device_suites)
 list(TRANSFORM device_suites APPEND ".*")
 list(JOIN device_suites ":" device_filter)
-set(device_filter "*GfxGpu*.*:${device_filter}")
+set(device_filter "*GfxGpu*.*:*/GfxColorWriteMask.*:${device_filter}")
 gtest_discover_tests(darkcloud_tests
     DISCOVERY_MODE PRE_TEST
     TEST_FILTER -PlatformClock.*:${device_filter}
