@@ -161,6 +161,29 @@ void ForgetPackCapacities(const void *owner) {
     }
 }
 
+// A read writes over whatever earlier loads left at those addresses, whichever buffer they were
+// read into. A record starting inside the new bytes no longer describes anything; one starting
+// before them keeps only the bytes in front of them.
+void ForgetOverwrittenCapacities(const void *bytes, std::size_t size) {
+    const auto start = reinterpret_cast<std::uintptr_t>(bytes);
+    const auto end = start + size;
+    for (auto at = loaded_capacities.begin(); at != loaded_capacities.end();) {
+        PackCapacity &range = at->second;
+        const auto    base = reinterpret_cast<std::uintptr_t>(at->first);
+        if (base >= end || base + std::max(range.capacity, range.source_size) <= start) {
+            ++at;
+        } else if (base >= start) {
+            ForgetCopiedCapacity(at->first, range);
+            at = loaded_capacities.erase(at);
+        } else {
+            const std::size_t kept = static_cast<std::size_t>(start - base);
+            range.capacity = std::min(range.capacity, kept);
+            range.source_size = std::min(range.source_size, kept);
+            ++at;
+        }
+    }
+}
+
 void TrackPackCapacity(const void *pack, std::size_t capacity, const void *owner,
                        std::string_view logical_path = {}, std::string_view member = {},
                        std::size_t source_offset = 0, std::size_t source_size = 0,
@@ -580,6 +603,7 @@ PORT_OVERRIDE int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
     ForgetPackCapacities(buffer);
     std::size_t capacity = 0;
     int         size = ReadWhole(*file, buffer, &capacity);
+    ForgetOverwrittenCapacities(buffer, capacity);
     TrackPackCapacity(buffer, capacity, buffer, IndexedPath(*file), {}, 0, static_cast<std::size_t>(size));
     Localized(path, buffer, &size);
     if (out_size) {
@@ -761,23 +785,9 @@ bool DataReadRegisterCopiedSource(const void *destination, std::size_t size, con
         size > static_cast<std::size_t>(arena->used) * 16 - (start - arena_start)) {
         return false;
     }
-    const auto end = start + size;
-    for (auto at = loaded_capacities.begin(); at != loaded_capacities.end();) {
-        const auto existing_start = reinterpret_cast<std::uintptr_t>(at->first);
-        const auto existing_end = existing_start + at->second.source_size;
-        if (at->second.copied && at->second.owner == owner && start < existing_end && existing_start < end) {
-            ForgetCopiedCapacity(at->first, at->second);
-            at = loaded_capacities.erase(at);
-        } else {
-            ++at;
-        }
-    }
+    // The copy overwrote whatever was recorded there, from this arena or any other that shares the memory.
+    ForgetOverwrittenCapacities(destination, size);
     const std::size_t arena_end = static_cast<std::size_t>(start - arena_start) + size;
-    auto              previous = loaded_capacities.find(destination);
-    if (previous != loaded_capacities.end()) {
-        ForgetCopiedCapacity(destination, previous->second);
-        loaded_capacities.erase(previous);
-    }
     loaded_capacities[destination] = {size, owner, source.path, source.member, source.member_offsets,
                                       source.member_source_offsets, source.member_sizes,
                                       static_cast<std::size_t>(source.offset), size, true, arena->base, arena_end};
@@ -943,6 +953,7 @@ PORT_OVERRIDE int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
     ForgetPackCapacities(buffer);
     std::size_t capacity = 0;
     int         size = ReadWhole(*file, buffer, &capacity);
+    ForgetOverwrittenCapacities(buffer, capacity);
     TrackPackCapacity(buffer, capacity, buffer, IndexedPath(*file), {}, 0, static_cast<std::size_t>(size));
     Localized(name, buffer, &size);
     std::snprintf(info->name, sizeof info->name, "%s", name);

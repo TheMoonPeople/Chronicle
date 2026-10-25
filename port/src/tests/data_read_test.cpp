@@ -793,6 +793,99 @@ TEST(DataRead, NestedPackLookupUsesEachMembersExactCapacity) {
     fs::remove_all(dir);
 }
 
+TEST(DataRead, ReadOverAnotherBuffersMemberReplacesItsSource) {
+    fs::path dir = InstallStandardData("read_over_member");
+    Bytes    head = Pattern(64, 30);
+    Bytes    lead = Pattern(128, 31);
+    Bytes    weapon = Pattern(300, 32);
+    // Larger than the member it covers, so a stale member record would be the tighter match.
+    Bytes    portrait = Pattern(600, 33);
+    WriteBytes(dir / "data/menu.pac", MakePack({{"head.bin", head}, {"lead.bin", lead}, {"weapon.chr", weapon}}));
+    WriteBytes(dir / "data/portrait.bin", portrait);
+    InitCDFile();
+
+    Clear();
+    int   size = 0;
+    auto *pack = reinterpret_cast<u_int *>(buffer);
+    ASSERT_EQ(LoadFile2(Mutable("menu.pac"), buffer, &size, 0), 1);
+    auto *head_file = reinterpret_cast<unsigned char *>(GetPackFile(pack, Mutable("head.bin"), &size));
+    auto *lead_file = reinterpret_cast<unsigned char *>(GetPackFile(pack, Mutable("lead.bin"), &size));
+    auto *weapon_file = reinterpret_cast<unsigned char *>(GetPackFile(pack, Mutable("weapon.chr"), &size));
+    ASSERT_NE(head_file, nullptr);
+    ASSERT_NE(lead_file, nullptr);
+    ASSERT_NE(weapon_file, nullptr);
+    ASSERT_LE(head_file + head.size(), lead_file);
+    ASSERT_LE(lead_file + lead.size(), weapon_file);
+    DataReadSource source;
+    ASSERT_TRUE(DataReadSourceRange(weapon_file, weapon.size(), source));
+    EXPECT_EQ(source.member, "weapon.chr");
+
+    // A read into another buffer, starting inside one member and covering the next: those bytes
+    // now come from that file, as the shop's portrait does over the weapon menu's pack.
+    unsigned char *portrait_file = lead_file + 64;
+    ASSERT_LE(weapon_file + weapon.size(), portrait_file + portrait.size());
+    ASSERT_EQ(LoadFile2(Mutable("portrait.bin"), portrait_file, &size, 0), 1);
+    ASSERT_TRUE(DataReadSourceRange(weapon_file, weapon.size(), source));
+    EXPECT_EQ(source.path, "portrait.bin");
+    EXPECT_TRUE(source.member.empty());
+    EXPECT_EQ(source.offset, static_cast<std::size_t>(weapon_file - portrait_file));
+
+    // The pack keeps the bytes in front of the read, and only those.
+    ASSERT_TRUE(DataReadSourceRange(lead_file, 64, source));
+    EXPECT_EQ(source.member, "lead.bin");
+    EXPECT_FALSE(DataReadSourceRange(lead_file, lead.size(), source));
+    EXPECT_NE(GetPackFile(pack, Mutable("head.bin"), &size), nullptr);
+    EXPECT_EQ(GetPackFile(pack, Mutable("lead.bin"), &size), nullptr);
+    EXPECT_EQ(GetPackFile(pack, Mutable("weapon.chr"), &size), nullptr);
+    fs::remove_all(dir);
+}
+
+TEST(DataRead, CopyIntoOneArenaReplacesAnotherArenasCopyBeneathIt) {
+    fs::path dir = InstallStandardData("read_copy_over_copy");
+    Bytes    weapon = Pattern(96, 40);
+    Bytes    atla = Pattern(400, 41);
+    WriteBytes(dir / "data/menu.pac", MakePack({{"weapon.img", weapon}, {"atla.img", atla}}));
+    InitCDFile();
+
+    Clear();
+    int   size = 0;
+    auto *pack = reinterpret_cast<u_int *>(buffer);
+    ASSERT_EQ(LoadFile2(Mutable("menu.pac"), buffer, &size, 0), 1);
+    auto          *weapon_file = GetPackFile(pack, Mutable("weapon.img"), &size);
+    auto          *atla_file = GetPackFile(pack, Mutable("atla.img"), &size);
+    DataReadSource weapon_source;
+    DataReadSource atla_source;
+    ASSERT_TRUE(DataReadSourceRange(weapon_file, weapon.size(), weapon_source));
+    ASSERT_TRUE(DataReadSourceRange(atla_file, atla.size(), atla_source));
+
+    // Two arenas over the same memory, as the weapon menu's and the Atla pickup's both lie in read_buffer.
+    std::array<u_long128, 64> shared{};
+    CDataAlloc2<1>            menu_arena;
+    CDataAlloc2<1>            pickup_arena;
+    for (CDataAlloc2<1> *arena : {&menu_arena, &pickup_arena}) {
+        arena->base = reinterpret_cast<u_char *>(shared.data());
+        arena->buffer = arena->base;
+        arena->used = 0;
+        arena->limit = static_cast<int>(shared.size());
+    }
+    menu_arena.Alloc(4);
+    auto *weapon_copy = menu_arena.Alloc((static_cast<int>(weapon.size()) >> 4) + 1);
+    std::memcpy(weapon_copy, weapon_file, weapon.size());
+    ASSERT_TRUE(DataReadRegisterCopiedSource(weapon_copy, weapon.size(), &menu_arena, weapon_source));
+
+    // The pickup's larger copy starts in front of the menu's and covers it.
+    auto *atla_copy = pickup_arena.Alloc((static_cast<int>(atla.size()) >> 4) + 1);
+    ASSERT_LT(atla_copy, weapon_copy);
+    std::memcpy(atla_copy, atla_file, atla.size());
+    ASSERT_TRUE(DataReadRegisterCopiedSource(atla_copy, atla.size(), &pickup_arena, atla_source));
+
+    DataReadSource source;
+    ASSERT_TRUE(DataReadSourceRange(weapon_copy, 16, source));
+    EXPECT_EQ(source.member, "atla.img");
+    EXPECT_EQ(source.offset, atla_source.offset + static_cast<std::size_t>(weapon_copy - atla_copy));
+    fs::remove_all(dir);
+}
+
 TEST(DataRead, SoundLoadsPackMembersAboveFourGiBWithoutPointerNarrowing) {
     fs::path   dir = InstallStandardData("sound_pointer_width");
     Bytes      listing = {'s', 'e', 'q', '0', '0', 'a', '.', 's', 'q', '\n'};
