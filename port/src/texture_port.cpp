@@ -380,6 +380,12 @@ bool ResolveSide(unsigned tbp, unsigned psm, Side &side) {
 } // namespace
 
 bool PortLegacyTexturePath() {
+    // An image the game read from its data was read through DataRead, which indexed it first. Before that
+    // there are only images of the program's own (the texture tests' synthetic ones), which have no baked
+    // document, and listing the files would stop the program when there is no data.
+    if (!DataReadIndexed()) {
+        return true;
+    }
     static const bool legacy = [] {
         const std::vector<std::string> files = DataReadListFiles();
         const bool has_baked = std::any_of(files.begin(), files.end(), [](const std::string &path) {

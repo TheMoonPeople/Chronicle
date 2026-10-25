@@ -20,6 +20,10 @@ std::vector<s32> SupportedLanguages();
 // one the data does not have.
 std::uintmax_t DataFileSize(std::string_view path);
 
+// Whether the data has been indexed. Unlike the readers it never indexes, which stops the program
+// when there is no data.
+bool DataReadIndexed();
+
 // Lists logical asset paths and reads a file before in-memory localization is applied.
 std::vector<std::string> DataReadListFiles();
 bool                     DataReadReadFile(std::string_view path, std::vector<std::uint8_t> &bytes);

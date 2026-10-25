@@ -595,6 +595,10 @@ std::uintmax_t DataFileSize(std::string_view path) {
     return file != nullptr ? file->size : 0;
 }
 
+bool DataReadIndexed() {
+    return data_indexed;
+}
+
 std::vector<std::string> DataReadListFiles() {
     if (!data_indexed) {
         InitCDFile();
