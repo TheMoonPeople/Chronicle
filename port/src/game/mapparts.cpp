@@ -31,13 +31,10 @@ void CMapParts::SetRotation(float x, float y, float z) {
 }
 
 void CMapParts::SetRotY(int direction) {
-    float angle;
-    float zero = 0.0f;
-
     // A part faces one of four directions, so each step is a quarter turn.
     this->rot_y = direction;
-    angle = 0.5f * (PI * direction);
-    SetRotation(zero, angle, 0.0f);
+    const float angle = 0.5f * (PI * direction);
+    SetRotation(0.0f, angle, 0.0f);
 }
 
 int CMapParts::GetRotY() {
@@ -45,13 +42,11 @@ int CMapParts::GetRotY() {
 }
 
 void CMapParts::Initialize() {
-    int i;
-
     CMapObject::Initialize();
-    this->info = NULL;
+    this->info = nullptr;
     this->preview_frame = 0;
     this->blocked_preview_frame = 0;
-    this->ripple_frame = NULL;
+    this->ripple_frame = nullptr;
     this->unk_1D4 = 0;
     this->unit_size = 0.0f;
     this->rot_y = 0;
@@ -61,9 +56,9 @@ void CMapParts::Initialize() {
     this->lift = 0.0f;
     this->draw_distance = -1.0f;
 
-    for (i = 0; i < MAP_PARTS_EFFECT_MAX; i++) {
+    for (int i = 0; i < MAP_PARTS_EFFECT_MAX; i++) {
         this->effect_on[i] = 0;
-        this->effect[i] = NULL;
+        this->effect[i] = nullptr;
     }
 
     this->func_count = 0;
@@ -75,30 +70,26 @@ CMapParts::CMapParts() {
 }
 
 void CMapParts::FrameObjectOnOff(char *name, int on) {
-    CFrame *found;
-
     CMapObject::FrameObjectOnOff(name, on);
 
-    if (this->ripple_frame != NULL) {
-        found = this->ripple_frame->SearchFrame(name);
+    if (this->ripple_frame != nullptr) {
+        CFrame *found = this->ripple_frame->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             found->attr.draw_on = on;
         }
     }
 }
 
 int CMapParts::GetWidth() {
-    EDITPARTS_INFO *parts_info;
+    const EDITPARTS_INFO *parts_info = this->info;
 
-    parts_info = this->info;
-
-    if (parts_info == NULL) {
+    if (parts_info == nullptr) {
         return 1;
     }
 
     // A part that faces east or west covers the grid the other way round.
-    if (this->rot_y % 2) {
+    if (this->rot_y % 2 != 0) {
         return parts_info->height;
     }
 
@@ -106,15 +97,13 @@ int CMapParts::GetWidth() {
 }
 
 int CMapParts::GetHeight() {
-    EDITPARTS_INFO *parts_info;
+    const EDITPARTS_INFO *parts_info = this->info;
 
-    parts_info = this->info;
-
-    if (parts_info == NULL) {
+    if (parts_info == nullptr) {
         return 1;
     }
 
-    if (this->rot_y % 2) {
+    if (this->rot_y % 2 != 0) {
         return parts_info->width;
     }
 
@@ -122,17 +111,13 @@ int CMapParts::GetHeight() {
 }
 
 int CMapParts::GetInfoData(int x, int y) {
-    int width;
-    int height;
-    int value;
-
-    if (this->info == NULL) {
+    if (this->info == nullptr) {
         return 0;
     }
 
-    value = 0;
-    width = GetWidth();
-    height = GetHeight();
+    int       value = 0;
+    const int width = GetWidth();
+    const int height = GetHeight();
 
     // Every direction reads the same grid, from the corner that the direction
     // puts first and along the axis that it puts first.
@@ -149,25 +134,24 @@ int CMapParts::GetInfoData(int x, int y) {
         case 2:
             value = this->info->header->cell[(width - x) + width * (height - y - 1) - 1];
             break;
+        default:
+            break;
     }
 
     return value;
 }
 
 int CMapParts::ChangeAltData() {
-    int   i;
-    short cell;
-
-    if (this->info == NULL) {
+    if (this->info == nullptr) {
         return 0;
     }
 
-    if (this->info->header == NULL) {
+    if (this->info->header == nullptr) {
         return 0;
     }
 
-    for (i = 0; i < this->info->width * this->info->height; i++) {
-        cell = this->info->header->cell[i];
+    for (int i = 0; i < this->info->width * this->info->height; i++) {
+        const short cell = this->info->header->cell[i];
 
         if (cell != 0 && cell < 0x80) {
             return 1;
@@ -178,21 +162,18 @@ int CMapParts::ChangeAltData() {
 }
 
 int CMapParts::ChangeDigData() {
-    int   i;
-    short cell;
-
-    if (this->info == NULL) {
+    if (this->info == nullptr) {
         return 0;
     }
 
-    if (this->info->header == NULL) {
+    if (this->info->header == nullptr) {
         return 0;
     }
 
-    for (i = 0; i < this->info->width * this->info->height; i++) {
-        cell = this->info->header->cell[i];
+    for (int i = 0; i < this->info->width * this->info->height; i++) {
+        const short cell = this->info->header->cell[i];
 
-        if (cell != 0 && cell == 0x81) {
+        if (cell == 0x81) {
             return 1;
         }
     }
@@ -282,41 +263,36 @@ int CMapParts::CheckBox2(CBoxVu0 *box) {
 }
 
 void CMapParts::DrawParts(float time, float *distance, int lowest, int highest, int *out_level) {
-    sceVu0FVECTOR     ambient;
-    sceVu0FVECTOR     saved_ambient;
-    float             light_direction[4][4];
-    float             light_colour[4][4];
-    float             saved_light_colour[4][4];
-    float             saved_light_direction[4][4];
-    sceVu0FVECTOR     part_pos;
-    sceVu0FVECTOR     part_rotation;
-    float             parts_distance[4];
-    sceVu0FVECTOR     effect_pos;
-    sceVu0FVECTOR     direction;
-    int               lit;
-    int               light;
-    int               i;
-    EDIT_EFFECT_INFO *effect_info;
-    float             extent;
+    sceVu0FVECTOR ambient;
+    sceVu0FVECTOR saved_ambient;
+    float         light_direction[4][4];
+    float         light_colour[4][4];
+    float         saved_light_colour[4][4];
+    float         saved_light_direction[4][4];
+    sceVu0FVECTOR part_pos;
+    sceVu0FVECTOR part_rotation;
+    float         parts_distance[4];
+    sceVu0FVECTOR effect_pos;
+    sceVu0FVECTOR direction;
 
     if (this->draw_on == 0) {
         return;
     }
 
-    lit = 0;
-    light = 3;
+    bool lit = false;
+    int  light = 3;
 
     // A part that covers more ground goes to a coarser level of detail later,
     // so that its size rather than its distance decides.
-    extent = this->bound.max[0] - this->bound.min[0];
+    float extent = this->bound.max[0] - this->bound.min[0];
     extent += this->bound.max[2] - this->bound.min[2];
     extent *= 0.25f;
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         parts_distance[i] = extent + distance[i];
     }
 
-    for (i = 0; i < MAP_PARTS_EFFECT_MAX; i++) {
+    for (int i = 0; i < MAP_PARTS_EFFECT_MAX; i++) {
         if (this->effect_on[i] < 0) {
             break;
         }
@@ -325,9 +301,9 @@ void CMapParts::DrawParts(float time, float *distance, int lowest, int highest, 
             continue;
         }
 
-        effect_info = this->effect[i];
+        EDIT_EFFECT_INFO *effect_info = this->effect[i];
 
-        if (effect_info == NULL) {
+        if (effect_info == nullptr) {
             continue;
         }
 
@@ -339,7 +315,7 @@ void CMapParts::DrawParts(float time, float *distance, int lowest, int highest, 
             continue;
         }
 
-        if (effect_info->frame == NULL) {
+        if (effect_info->frame == nullptr) {
             continue;
         }
 
@@ -352,14 +328,14 @@ void CMapParts::DrawParts(float time, float *distance, int lowest, int highest, 
             sceVu0CopyMatrix(saved_light_direction, light_direction);
             sceVu0CopyVector(saved_ambient, ambient);
             sceVu0CopyVector(part_pos, this->pos);
-            sceVu0CopyVector(part_rotation, (float *) &this->rotation);
+            sceVu0CopyVector(part_rotation, reinterpret_cast<float *>(&this->rotation));
 
-            if (this->frame[0] != NULL) {
+            if (this->frame[0] != nullptr) {
                 this->frame[0]->SetPosition(part_pos);
                 this->frame[0]->SetRotation(part_rotation[0], part_rotation[1], part_rotation[2]);
             }
 
-            lit = 1;
+            lit = true;
         }
 
         effect_info->frame->GetWorldPosition(effect_pos, effect_info->offset);
@@ -393,10 +369,8 @@ void CMapParts::DrawParts(float time, float *distance, int lowest, int highest, 
 }
 
 void CMapParts::DrawEffect(CCamera *camera, float time, CEffectGroup *group) {
-    sceVu0FVECTOR     part_pos;
-    sceVu0FVECTOR     part_rotation;
-    int               i;
-    EDIT_EFFECT_INFO *effect_info;
+    sceVu0FVECTOR part_pos;
+    sceVu0FVECTOR part_rotation;
 
     if (this->handle < 0) {
         return;
@@ -406,7 +380,7 @@ void CMapParts::DrawEffect(CCamera *camera, float time, CEffectGroup *group) {
         return;
     }
 
-    for (i = 0; i < MAP_PARTS_EFFECT_MAX; i++) {
+    for (int i = 0; i < MAP_PARTS_EFFECT_MAX; i++) {
         if (this->effect_on[i] < 0) {
             break;
         }
@@ -415,9 +389,9 @@ void CMapParts::DrawEffect(CCamera *camera, float time, CEffectGroup *group) {
             continue;
         }
 
-        effect_info = this->effect[i];
+        EDIT_EFFECT_INFO *effect_info = this->effect[i];
 
-        if (effect_info == NULL) {
+        if (effect_info == nullptr) {
             continue;
         }
 
@@ -426,9 +400,9 @@ void CMapParts::DrawEffect(CCamera *camera, float time, CEffectGroup *group) {
         }
 
         sceVu0CopyVector(part_pos, this->pos);
-        sceVu0CopyVector(part_rotation, (float *) &this->rotation);
+        sceVu0CopyVector(part_rotation, reinterpret_cast<float *>(&this->rotation));
 
-        if (this->frame[0] != NULL) {
+        if (this->frame[0] != nullptr) {
             this->frame[0]->SetPosition(part_pos);
             this->frame[0]->SetRotation(part_rotation[0], part_rotation[1], part_rotation[2]);
         }

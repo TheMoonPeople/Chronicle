@@ -8,11 +8,11 @@
 
 CFrame *CMapObject::GetCollisionFrame() {
     if (this->draw_on == 0) {
-        return NULL;
+        return nullptr;
     }
 
-    if (this->collision_frame == NULL) {
-        return NULL;
+    if (this->collision_frame == nullptr) {
+        return nullptr;
     }
 
     this->collision_frame->SetPosition(this->pos);
@@ -22,51 +22,48 @@ CFrame *CMapObject::GetCollisionFrame() {
 }
 
 void CMapObject::FrameObjectOnOff(char *name, int on) {
-    int     i;
-    CFrame *found;
-
-    if (name == NULL) {
+    if (name == nullptr) {
         return;
     }
 
-    for (i = 0; i < 4; i++) {
-        if (this->frame[i] != NULL) {
-            found = this->frame[i]->SearchFrame(name);
+    for (CFrameVu1 *lod_frame : this->frame) {
+        if (lod_frame != nullptr) {
+            CFrame *found = lod_frame->SearchFrame(name);
 
-            if (found != NULL) {
+            if (found != nullptr) {
                 found->attr.draw_on = on;
             }
         }
     }
 
-    if (this->shadow_frame != NULL) {
-        found = this->shadow_frame->SearchFrame(name);
+    if (this->shadow_frame != nullptr) {
+        CFrame *found = this->shadow_frame->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             found->attr.draw_on = on;
         }
     }
 
-    if (this->shade_frame != NULL) {
-        found = this->shade_frame->SearchFrame(name);
+    if (this->shade_frame != nullptr) {
+        CFrame *found = this->shade_frame->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             found->attr.draw_on = on;
         }
     }
 
-    if (this->collision_frame != NULL) {
-        found = this->collision_frame->SearchFrame(name);
+    if (this->collision_frame != nullptr) {
+        CFrame *found = this->collision_frame->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             found->flags = on;
         }
     }
 
-    if (this->camera_frame != NULL) {
-        found = this->camera_frame->SearchFrame(name);
+    if (this->camera_frame != nullptr) {
+        CFrame *found = this->camera_frame->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             found->flags = on;
         }
     }
@@ -97,7 +94,7 @@ void CMapObject::DrawLOD(float *distance, int lowest, int highest, int *out_leve
 
     CObjectFrame::DrawLOD(distance, lowest, highest, &level);
 
-    if (out_level != NULL) {
+    if (out_level != nullptr) {
         *out_level = level;
     }
 }
@@ -109,26 +106,23 @@ void CMapObject::DrawShadow(int fast) {
         return;
     }
 
-    if (this->shadow_frame == NULL) {
+    if (this->shadow_frame == nullptr) {
         return;
     }
 
-    // The shadow takes the angle and the position of the object, then drops by
-    // the offset so that it lies on the ground rather than inside the model.
     sceVu0FVECTOR light = {0.0f, 1.0f, 0.0f, 0.0f};
 
     GetRotation(transform);
-
-    CFrame *shadow = this->shadow_frame;
-    shadow->SetRotation(transform[0], transform[1], transform[2]);
+    this->shadow_frame->SetRotation(transform[0], transform[1], transform[2]);
     sceVu0CopyVector(transform, this->pos);
     this->shadow_frame->SetPosition(transform);
 
+    // The shadow drops by the offset so that it lies on the ground rather than inside the model.
+    transform[1] += this->shadow_offset;
+
     if (fast) {
-        transform[1] += this->shadow_offset;
         MGDrawShadowFast2(this->shadow_frame, transform, light);
     } else {
-        transform[1] += this->shadow_offset;
         MGDrawShadow(this->shadow_frame, transform, light);
     }
 }
@@ -140,7 +134,7 @@ void CMapObject::DrawShade() {
         return;
     }
 
-    if (this->shade_frame == NULL) {
+    if (this->shade_frame == nullptr) {
         return;
     }
 
@@ -152,12 +146,12 @@ void CMapObject::DrawShade() {
 }
 
 void CMapObject::Initialize() {
-    CObjectFrame::Initialize(NULL);
+    CObjectFrame::Initialize(nullptr);
     this->category_no = this->handle = -1;
-    this->shadow_frame = NULL;
-    this->shade_frame = NULL;
-    this->collision_frame = NULL;
-    this->camera_frame = NULL;
+    this->shadow_frame = nullptr;
+    this->shade_frame = nullptr;
+    this->collision_frame = nullptr;
+    this->camera_frame = nullptr;
     this->shadow_offset = -8.0f;
 }
 

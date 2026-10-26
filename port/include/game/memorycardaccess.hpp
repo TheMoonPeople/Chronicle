@@ -80,17 +80,17 @@ STATIC_ASSERT(sizeof(SAVEDATA_INFO) == 0x38);
 /**
  * Slots the library reads cards from.
  */
-#define MC_CARD_MAX 2
+constexpr int MC_CARD_MAX = 2;
 
 /**
  * Saves one card holds.
  */
-#define MC_SAVE_FILE_MAX 12
+constexpr int MC_SAVE_FILE_MAX = 12;
 
 /**
  * Entries CMemoryCardAccess::dir_table holds.
  */
-#define MC_DIR_ENTRY_MAX 99
+constexpr int MC_DIR_ENTRY_MAX = 99;
 
 /**
  * One entry that sceMcGetDir writes into CMemoryCardAccess::dir_table.
@@ -170,259 +170,151 @@ public:
     u8            unk_7BC[4];
 
     /**
-     * Fills the class with its starting values and names the save directory
-     * after the menu language.
-     *
-     * @mangled Initialize__17CMemoryCardAccessFv
-     * @address 0x2135D0
-     * @size 0x17C
+     * Fills the class with its starting values, the save directory name and
+     * the version string.
      */
     void Initialize();
 
     /**
      * Starts the memory card library and the class, and returns one if the
      * library fails to start.
-     *
-     * @mangled InitForMC__17CMemoryCardAccessFv
-     * @address 0x213750
-     * @size 0xF4
      */
     int InitForMC();
 
     /**
      * Builds the save image in the given buffer out of the save data, the
      * version string and one checksum byte for every 64 bytes of save data.
-     *
-     * @mangled SetBuff__17CMemoryCardAccessFPc
-     * @address 0x213850
-     * @size 0x138
      */
     void SetBuff(char *buffer);
 
     /**
      * Sets the file descriptors for the save directory's browser icons.
-     *
-     * @mangled SetIconData__17CMemoryCardAccessFP12MC_ICON_DATA
-     * @address 0x213990
-     * @size 0x68
      */
-    void SetIconData(MC_ICON_DATA *icon);
+    void SetIconData(const MC_ICON_DATA *icon);
 
     /**
      * Fills the icon.sys image that MakeDir writes into the save directory.
-     *
-     * @mangled MakeMcIconSysInfo__17CMemoryCardAccessFv
-     * @address 0x213A00
-     * @size 0x188
      */
     void MakeMcIconSysInfo();
 
     /**
      * Starts the given operation from its first step and polls the memory
      * card library once.
-     *
-     * @mangled SetFuncNo__17CMemoryCardAccessFi
-     * @address 0x213B90
-     * @size 0x48
      */
     void SetFuncNo(int func_no);
 
     /**
      * Returns the operation that the class is running.
-     *
-     * @mangled GetFuncNo__17CMemoryCardAccessFv
-     * @address 0x213BE0
-     * @size 0xC
      */
     int GetFuncNo();
 
     /**
      * Runs one step of the current operation and returns its result.
-     *
-     * @mangled Step__17CMemoryCardAccessFv
-     * @address 0x213BF0
-     * @size 0x1C0
      */
     int Step();
 
     /**
      * Copies the given version string into the class.
-     *
-     * @mangled SetVersion__17CMemoryCardAccessFPc
-     * @address 0x213DB0
-     * @size 0x24
      */
-    void SetVersion(char *version);
+    void SetVersion(const char *version);
 
     /**
      * Returns the version string that every save file carries after its data.
-     *
-     * @mangled GetVersion__17CMemoryCardAccessFv
-     * @address 0x213DE0
-     * @size 0xC
      */
     char *GetVersion();
 
     /**
      * Reads the type, the free space and the format of the card in the current
      * port.
-     *
-     * @mangled SearchMcType__17CMemoryCardAccessFv
-     * @address 0x213DF0
-     * @size 0x29C
      */
     int SearchMcType();
 
     /**
      * Enters the save directory of the card and reads its entries into the
      * directory table.
-     *
-     * @mangled GetDir__17CMemoryCardAccessFv
-     * @address 0x214090
-     * @size 0x294
      */
     int GetDir();
 
     /**
      * Reads the configuration file of the save directory and applies it to
      * the save data.
-     *
-     * @mangled LoadSysConfig__17CMemoryCardAccessFv
-     * @address 0x214330
-     * @size 0x298
      */
     int LoadSysConfig();
 
     /**
      * Writes the configuration of the save data to the configuration file of
      * the save directory.
-     *
-     * @mangled SaveSysConfig__17CMemoryCardAccessFv
-     * @address 0x2145D0
-     * @size 0x310
      */
     int SaveSysConfig();
 
     /**
      * Writes a test file of 0x76F800 bytes into the root directory of the card.
-     *
-     * @mangled Write__17CMemoryCardAccessFv
-     * @address 0x2148E0
-     * @size 0x100
      */
     int Write();
 
     /**
      * Creates the save directory and copies the save files of the
      * BASCUS-97112dkcloud directory into it.
-     *
-     * @mangled Convert__17CMemoryCardAccessFv
-     * @address 0x2149E0
-     * @size 0x340
      */
     int Convert();
 
     /**
      * Creates the save directory and writes a default configuration file,
      * icon.sys and the icon files into it.
-     *
-     * @mangled MakeDir__17CMemoryCardAccessFv
-     * @address 0x214D20
-     * @size 0x778
      */
     int MakeDir();
 
     /**
      * Reads the save file with the given number and fills its entry of the
      * save file table from it.
-     *
-     * @mangled GetSaveFileInfoFromMc__17CMemoryCardAccessFi
-     * @address 0x2154A0
-     * @size 0x584
      */
     int GetSaveFileInfoFromMc(int file_no);
 
     /**
      * Reads the twelve save files of the card in turn into the save file table.
-     *
-     * @mangled GetAllSaveFileInfo__17CMemoryCardAccessFv
-     * @address 0x215A30
-     * @size 0xD8
      */
     int GetAllSaveFileInfo();
 
     /**
      * Returns one when the directory table already holds the save file with
      * the given number.
-     *
-     * @mangled CheckFileNo__17CMemoryCardAccessFi
-     * @address 0x215B10
-     * @size 0x80
      */
     int CheckFileNo(int file_no);
 
     /**
      * Writes the save image to the save file with the given number and the
      * configuration to the configuration file.
-     *
-     * @mangled SaveToMc__17CMemoryCardAccessFi
-     * @address 0x215B90
-     * @size 0x6B0
      */
     int SaveToMc(int file_no);
 
     /**
      * Reads the save file with the given number into the save data.
-     *
-     * @mangled LoadFromMc__17CMemoryCardAccessFi
-     * @address 0x216240
-     * @size 0x410
      */
     int LoadFromMc(int file_no);
 
     /**
      * Formats the card in the current port.
-     *
-     * @mangled FormatForMc__17CMemoryCardAccessFv
-     * @address 0x216650
-     * @size 0x1D0
      */
     int FormatForMc();
 
     /**
      * Deletes the save file with the given number.
-     *
-     * @mangled DeleteFile__17CMemoryCardAccessFi
-     * @address 0x216820
-     * @size 0x160
      */
     int DeleteFile(int file_no);
 
     /**
      * Records the kind of the given error and the operation, file and step that
      * it stopped.
-     *
-     * @mangled McError__17CMemoryCardAccessFi
-     * @address 0x216A50
-     * @size 0x19C
      */
     int McError(int result);
 
     /**
      * Waits until the memory card library has no command left to finish.
-     *
-     * @mangled DmySync__17CMemoryCardAccessFv
-     * @address 0x216BF0
-     * @size 0x44
      */
     void DmySync();
 
     /**
      * Unformats the card in the current port.
-     *
-     * @mangled McUnFormatForDebug__17CMemoryCardAccessFv
-     * @address 0x216C40
-     * @size 0x110
      */
     int McUnFormatForDebug();
 };
@@ -431,10 +323,6 @@ STATIC_ASSERT(sizeof(CMemoryCardAccess) == 0x7C0);
 
 /**
  * Clears the table of save file information.
- *
- * @mangled InitSaveFileInfoTbl__Fv
- * @address 0x2134C0
- * @size 0x74
  */
 void InitSaveFileInfoTbl();
 

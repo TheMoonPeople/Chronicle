@@ -121,9 +121,6 @@ enum OptionCursorArea {
 
 // clang-format on
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CEditPartsInfo;
 class CMemoryCardAccess;
 struct EDITPARTS_INFO;
@@ -177,155 +174,91 @@ STATIC_ASSERT(sizeof(MENU_ATORA_SEL) == 0x1AC);
 /**
  * Returns one when a card is present in the port and is a PlayStation 2 memory
  * card.
- *
- * @mangled McCheckMCPs2__FP12MC_CARD_INFO
- * @address 0x216D50
- * @size 0x34
  */
 int McCheckMCPs2(MC_CARD_INFO *card);
 
 /**
  * Draws a menu sprite that sways a few pixels around a position in time with
  * the cursor animation.
- *
- * @mangled DrawObjectVibe__FiiP8CTexture8CRect_i_Uci
- * @address 0x216D90
- * @size 0x134
  */
 void DrawObjectVibe(int x, int y, CTexture *texture, CRect_i_ src_rect, unsigned char alpha, int flag);
 
 /**
  * Draws a swaying menu sprite from a source rectangle given as a RECT.
- *
- * @mangled DrawObjectVibe__FiiP8CTexture4RECTUci
- * @address 0x216ED0
- * @size 0x68
  */
 void DrawObjectVibe(int x, int y, CTexture *texture, RECT src_rect, unsigned char alpha, int flag);
 
 /**
  * Draws one swaying 32-pixel icon of the common menu texture, with a shadow
  * beneath it when asked.
- *
- * @mangled DrawMenuObjectVibe__Fiiii
- * @address 0x216F40
- * @size 0xD0
  */
 void DrawMenuObjectVibe(int x, int y, int shadow, int icon_u);
 
 /**
  * Draws a help window of the given size from its nine-patch texture.
- *
- * @mangled DrawMenuHelpWindow__FP8CTextureiiiffi
- * @address 0x217010
- * @size 0x388
  */
 void DrawMenuHelpWindow(CTexture *texture, int style, int x, int y, float width, float height, int alpha);
 
 /**
  * Draws a nine-piece help window from the tiles at a texture position,
  * stretching its middle by a width and a height in tile units.
- *
- * @mangled MenuHelpWinDraw__FiiffiiiP8CTexture
- * @address 0x2173A0
- * @size 0x368
  */
 void MenuHelpWinDraw(int x, int y, float width, float height, int alpha, int u, int v, CTexture *texture);
 
 /**
  * Draws the same help window as MenuHelpWinDraw with the width and height of
  * its middle in pixels.
- *
- * @mangled MenuHelpWinDraw2__FiiffiiiP8CTexture
- * @address 0x217710
- * @size 0x34C
  */
 void MenuHelpWinDraw2(int x, int y, float width, float height, int alpha, int u, int v, CTexture *texture);
 
 /**
  * Draws a help window from the common menu texture.
- *
- * @mangled MenuHelpWinDraw__Fiiffi
- * @address 0x217A60
- * @size 0x9C
  */
 void MenuHelpWinDraw(int x, int y, float width, float height, int alpha);
 
 /**
  * Draws the four corners of a selection frame around a rectangle, drawn in by
  * an offset that cycles every 30 frames.
- *
- * @mangled DrawMenuWaku__FffiiiP8CTexturei
- * @address 0x217B00
- * @size 0x2BC
  */
 void DrawMenuWaku(float x, float y, int width, int height, int type, CTexture *texture, int alpha);
 
 /**
  * Draws a number right-aligned to a position, clipped to the height of the
  * screen, and returns the left edge of its leading digit.
- *
- * @mangled DrawMenuNumber__FiiiP8CTexture4RECTii
- * @address 0x217DC0
- * @size 0x58
  */
 int DrawMenuNumber(int number, int x, int y, CTexture *texture, RECT rect, int overlap, int flag);
 
 /**
  * Draws a number right-aligned to a position in a tint colour, and returns the
  * left edge of its leading digit.
- *
- * @mangled DrawMenuNumber__Fiii4RECTP8CTextureiUcUcUci
- * @address 0x217E20
- * @size 0x1AC
  */
 int DrawMenuNumber(int number, int x, int y, RECT rect, CTexture *texture, int overlap, unsigned char r, unsigned char g, unsigned char b, int flag);
 
 /**
  * Draws a number right-aligned to a position, clipped to a band of the screen,
  * and returns the left edge of its leading digit.
- *
- * @mangled DrawMenuNumber__Fiii4RECTP8CTextureiiii
- * @address 0x217FD0
- * @size 0x1A0
  */
 int DrawMenuNumber(int number, int x, int y, RECT rect, CTexture *texture, int overlap, int top, int bottom, int flag);
 
 /**
  * Returns how many codes the first line of a system message holds, or zero when
  * the message is missing.
- *
- * @mangled GetMsgLengthMenu__FP6ClsMesi
- * @address 0x218170
- * @size 0x64
  */
 int GetMsgLengthMenu(ClsMes *mes, int mes_no);
 
 /**
  * Draws the icon of a georama chip with a drop shadow, clipped to a band of the
  * screen and skipped outside the board.
- *
- * @mangled DrawAtoraParts__Fiiiiii
- * @address 0x2182C0
- * @size 0x1A8
  */
 void DrawAtoraParts(int x, int y, int tip_no, int top, int bottom, int alpha);
 
 /**
  * Returns the message number describing a georama element.
- *
- * @mangled GetAtraMsgNo__Fii
- * @address 0x218CC0
- * @size 0xE0
  */
 int GetAtraMsgNo(int map_no, int element);
 
 /**
  * Draws how many of a georama part have been built, over its total.
- *
- * @mangled DrawAtraBuildNum__FP14EDITPARTS_INFOiii
- * @address 0x2192F0
- * @size 0x164
  */
 void DrawAtraBuildNum(EDITPARTS_INFO *info, int x, int y, int alpha);
 
@@ -333,66 +266,38 @@ void DrawAtraBuildNum(EDITPARTS_INFO *info, int x, int y, int alpha);
  * Draws the plate of one georama part with its picture, placement gauge and
  * chip sockets, or a pulsing completion sprite once the part is ready for its
  * completion event.
- *
- * @mangled DrawAtora__Fiiii
- * @address 0x219460
- * @size 0x85C
  */
 void DrawAtora(int x, int y, int parts_index, int alpha);
 
 /**
  * Returns whether the georama menu is running an event.
- *
- * @mangled GetMenuAtraEventFlag__Fv
- * @address 0x21A090
- * @size 0x10
  */
 int GetMenuAtraEventFlag();
 
 /**
  * Sets up the georama menu's state, message windows and drawing buffer.
- *
- * @mangled InitMenuAtora1__FiiPiP1
- * @address 0x21A130
- * @size 0x310
  */
 void InitMenuAtora1(int open_mode, int edit_map, int *texture_blocks, u_long128 *buffer);
 
 /**
  * Opens the board for the given georama, queueing its textures when they are
  * not loaded yet, picking its part records and placing the cursor.
- *
- * @mangled InitMenuAtoraSelect__Fi
- * @address 0x21A440
- * @size 0x44C
  */
 void InitMenuAtoraSelect(int map_no);
 
 /**
  * Draws one frame of the georama board screen.
- *
- * @mangled DrawMenuAtoraSelect__Fv
- * @address 0x21AA80
- * @size 0x3FC
  */
 void DrawMenuAtoraSelect();
 
 /**
  * Steps the georama board screen and returns what the player did. @see AtoraSelectResult.
- *
- * @mangled MenuAtoraSelectKey__Fv
- * @address 0x21C2E0
- * @size 0x7A4
  */
 int MenuAtoraSelectKey();
 
 /**
  * Draws the names of the parts in the three board slots around the cursor, and
  * the board's edge fade.
- *
- * @mangled AtoraNameDraw__Fi
- * @address 0x21DC60
- * @size 0x3BC
  */
 void AtoraNameDraw(int unused);
 
@@ -400,66 +305,38 @@ void AtoraNameDraw(int unused);
  * Starts the option screen, queueing option.pac and copying the current
  * settings into its rows, and returns zero when the loader reports no size for
  * the file.
- *
- * @mangled InitMenuOption__FiiP1
- * @address 0x21E4D0
- * @size 0x2A8
  */
 int InitMenuOption(int mode, int block_no, u_long128 *buffer);
 
 /**
  * Steps the option screen and returns one on the frame it closes and stores the
  * settings, zero otherwise.
- *
- * @mangled MenuOptionKey__Fv
- * @address 0x21E9B0
- * @size 0x8F8
  */
 int MenuOptionKey();
 
 /**
  * Draws one frame of the option screen.
- *
- * @mangled DrawMenuOption__Fv
- * @address 0x21F2B0
- * @size 0x82C
  */
 void DrawMenuOption();
 
 /**
  * Returns whether the option screen has started to close.
- *
- * @mangled OptionMenuFadeOutStart__Fv
- * @address 0x21FAE0
- * @size 0x24
  */
 int OptionMenuFadeOutStart();
 
 /**
  * Starts the save screen in the given mode, queueing savetex.pak and starting
  * the memory card library, and returns zero if the library fails to start.
- *
- * @mangled InitMenuSave__FiiP1
- * @address 0x21FB10
- * @size 0x268
  */
 int InitMenuSave(int mode, int block_no, u_long128 *buffer);
 
 /**
  * Steps the save screen and reports whether it runs or how it closed. @see MenuSaveResult.
- *
- * @mangled MenuSaveKey__Fv
- * @address 0x21FED0
- * @size 0x4F8
  */
 int MenuSaveKey();
 
 /**
  * Draws one frame of the save screen.
- *
- * @mangled DrawMenuSave__FPc
- * @address 0x2203D0
- * @size 0x9C0
  */
 void DrawMenuSave(char *frame_name);
 
@@ -558,7 +435,9 @@ extern CTexture *ItemIcon2;
  */
 extern CTexture *AttachIcon;
 
-/** The texture that the save screen's file boards draw from. */
+/**
+ * The texture that the save screen's file boards draw from.
+ */
 extern CTexture *SaveBoard;
 
 /**
