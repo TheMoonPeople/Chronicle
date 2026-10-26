@@ -1,6 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-
 #include "objectframe.hpp"
 
 void CObjectFrame::SetMoment(CVector3_f_ moment) {

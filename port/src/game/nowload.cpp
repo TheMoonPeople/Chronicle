@@ -1,5 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
 #include "common.h"
 
 #include <eekernel.h>
@@ -20,28 +18,17 @@
 
 int end_flag = 1;
 
-u_int         now_load[2000] __attribute__((aligned(64)));
-sceGsDBuff    nowloadDB;
-sceVif1Packet nlPacket;
-CTexture      nl_tex;
-CTexture      nl_tex2;
+CTexture nl_tex;
+CTexture nl_tex2;
 
 int   now_loding_flag;
 int   nl_start_cnt;
 float col_cnt;
 float col_add;
 int   logo_count;
-/**
- * Frames the fade holds at full or zero brightness before it moves again.
- */
-static int count;
 int        map_title_no;
 int        now_loding_off;
 int        now_loading_vsync_end;
-/**
- * Field parity the loading screen's vertical-sync callback last read from the GS.
- */
-static int VSyncField;
 
 int check_now_loading();
 

@@ -101,18 +101,6 @@ void LoadTexture(TM2_head *image, CTexture *texture, int image_address, int pale
  */
 extern int end_flag;
 /**
- * VIF1 packet buffer the loading screen builds each frame's sprites in.
- */
-extern u_int now_load[2000];
-/**
- * Double-buffered GS environment the loading screen draws with.
- */
-extern sceGsDBuff nowloadDB;
-/**
- * Packet builder writing into now_load.
- */
-extern sceVif1Packet nlPacket;
-/**
  * Loading-screen image, or the first logo on the boot logo screen.
  */
 extern CTexture nl_tex;
