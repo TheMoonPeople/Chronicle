@@ -31,6 +31,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 
 FETCH = re.compile(r"FetchContent_Declare\(\s*(\w+)(.*?)\)", re.S)
 VENDOR = re.compile(r"_kz_port_vendor\(\s*\w+\s+(\S+)\s+(\S+)\s+([0-9a-f]{64})\s*\)")
@@ -114,18 +115,10 @@ def vendor_dirs(cmake_path):
 
 def locked_crates(lock_path):
     """{dest: sha256} for each crates.io package in Cargo.lock, as cargo_sources.py stages it."""
-    crates, package = {}, {}
-    with open(lock_path, encoding="utf-8") as stream:
-        for line in list(stream) + ["[[package]]"]:
-            line = line.strip()
-            if line == "[[package]]":
-                if package.get("source") == REGISTRY:
-                    crates["cargo/vendor/%s-%s" % (package["name"], package["version"])] = package["checksum"]
-                package = {}
-            elif " = " in line:
-                key, value = line.split(" = ", 1)
-                package[key] = value.strip('"')
-    return crates
+    with open(lock_path, "rb") as stream:
+        packages = tomllib.load(stream)["package"]
+    return {"cargo/vendor/%s-%s" % (p["name"], p["version"]): p["checksum"]
+            for p in packages if p.get("source") == REGISTRY}
 
 
 def staged_crates(json_path):
