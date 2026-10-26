@@ -1,14 +1,13 @@
 #include "runscript.hpp"
 
-#include <cmath>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
+#include <print>
 
 #include "battle_globals.hpp"
 
 void runerror(const char *message) {
-    fprintf(stderr, "RUNTIME ERROR: %s\n", message);
+    std::println(stderr, "RUNTIME ERROR: {}", message);
     exit__2(-1);
 }
 
@@ -16,10 +15,8 @@ void stkoverflow() {
     runerror("stack overflow");
 }
 
-int chk_int(RS_STACKDATA data, funcdata *function);
-
 int is_true(RS_STACKDATA data) {
-    return !(data.type == RS_INT && data.i == 0);
+    return data.type != RS_INT || data.i != 0;
 }
 
 void divby0error() {
@@ -31,16 +28,18 @@ void modby0error() {
 }
 
 void print(RS_STACKDATA *data, int count) {
-    for (int index = 0; index < count; index++, data++) {
-        if (data->type == RS_INT) {
-            printf("%d", data->i);
-        } else if (data->type == RS_STR) {
-            printf("%s", data->s);
-        } else if (data->type == RS_FLOAT) {
-            printf("%f", data->f);
+    for (int index = 0; index < count; index++) {
+        const RS_STACKDATA &value = data[index];
+        // printf rather than std::print: script strings are Shift-JIS and must reach stdout as raw bytes.
+        if (value.type == RS_INT) {
+            std::printf("%d", value.i);
+        } else if (value.type == RS_STR) {
+            std::printf("%s", value.s);
+        } else if (value.type == RS_FLOAT) {
+            std::printf("%f", value.f);
         }
 
-        fflush(stdout);
+        std::fflush(stdout);
     }
 }
 
@@ -49,7 +48,7 @@ CRunScript::CRunScript() {
     stack_end = stack;
     call_sp = call;
     call_end = call;
-    pc = 0;
+    pc = nullptr;
     ext_func_num = 0;
     stack_num = 0;
     call_num = 0;
@@ -95,12 +94,13 @@ RS_STACKDATA CRunScript::pop() {
     return *--sp;
 }
 
-/* A call takes its arguments from the operand stack in place: the new frame starts where the
-   caller left them, so nothing is copied and only the locals past them have to be cleared. */
+// A call takes its arguments from the operand stack in place: the new frame starts where the
+// caller left them, so nothing is copied and only the locals past them have to be cleared.
 vmcode_t *CRunScript::call_func(funcdata *callee, vmcode_t *return_pc) {
     if (call_sp >= call_end) {
-        printf("\202\261\202\352\210\310\217\343\212\326\220\224\214\304\202\321\217\157\202\265"
-               "\202\252\202\305\202\253\202\334\202\271\202\361\201\102\n");
+        std::fputs("\202\261\202\352\210\310\217\343\212\326\220\224\214\304\202\321\217\157\202\265"
+                   "\202\252\202\305\202\253\202\334\202\271\202\361\201\102\n",
+                   stdout);
         exit__2(-2);
     }
 
@@ -111,9 +111,9 @@ vmcode_t *CRunScript::call_func(funcdata *callee, vmcode_t *return_pc) {
     sp = frame + callee->local;
     func = callee;
     call_sp++;
-    memset(frame + func->arg, 0, (func->local - func->arg) * sizeof(RS_STACKDATA));
+    std::memset(frame + func->arg, 0, (func->local - func->arg) * sizeof(RS_STACKDATA));
     check_stack();
-    return (vmcode_t *) (code + (int) callee->addr);
+    return reinterpret_cast<vmcode_t *>(code + callee->addr);
 }
 
 vmcode_t *CRunScript::ret_func() {
@@ -124,18 +124,17 @@ vmcode_t *CRunScript::ret_func() {
 }
 
 void CRunScript::ext(RS_STACKDATA *args, int argc) {
-    if (args->i < 0 || args->i >= ext_func_num) {
-        printf("not found ext %d\n", args->i);
-    } else if (ext_func_table[args->i] == 0) {
-        printf("not found ext %d\n", args->i);
-    } else if ((*ext_func_table[args->i])(args + 1, argc - 1) == 0) {
-        printf("illegal function call ext %d\n", args->i);
+    const int index = args[0].i;
+    if (index < 0 || index >= ext_func_num || ext_func_table[index] == nullptr) {
+        std::println("not found ext {}", index);
+    } else if (ext_func_table[index](&args[1], argc - 1) == 0) {
+        std::println("illegal function call ext {}", index);
     }
 }
 
 void CRunScript::reload(RS_PROG_HEADER *prog) {
     this->prog = prog;
-    code = (char *) prog + prog->code;
+    code = reinterpret_cast<char *>(prog) + prog->code;
 }
 
 void CRunScript::ext_func(int (**table)(RS_STACKDATA *, int), int count) {
@@ -144,21 +143,16 @@ void CRunScript::ext_func(int (**table)(RS_STACKDATA *, int), int count) {
 }
 
 void CRunScript::resume() {
-    if (pc) {
+    if (pc != nullptr) {
         exe(pc);
     }
 }
 
 int CRunScript::check_program(int no) {
-    RS_PROGDATA    *entry;
-    int             i;
-    RS_PROG_HEADER *header;
+    const auto *entries = reinterpret_cast<const RS_PROGDATA *>(reinterpret_cast<const char *>(prog) + prog->prog);
 
-    header = prog;
-    entry = (RS_PROGDATA *) ((char *) header + header->prog);
-
-    for (i = 0; i < header->prog_num; i++, entry++) {
-        if (entry->no == no) {
+    for (int index = 0; index < prog->prog_num; index++) {
+        if (entries[index].no == no) {
             return 1;
         }
     }
@@ -170,9 +164,3 @@ void CRunScript::skip() {
     skip_wait = 1;
     resume();
 }
-
-/* The loop runs on pc rather than on the argument, because three of the opcodes leave the
-   machine suspended and the only thing that makes a later resume possible is the program counter
-   being in the object when they return. Every case that does not redirect control falls out of
-   the switch to the step at the bottom, so an opcode that jumps writes pc and continues. */
-

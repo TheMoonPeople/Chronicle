@@ -3,9 +3,9 @@
 #include <libvu0.h>
 
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <print>
 
 #include "battlemenu.hpp"
 #include "camera.hpp"
@@ -38,6 +38,52 @@
 /** Number of goods on each charge shop's board. */
 s16 ChargeShopMax[3] = {60, 30, 30};
 
+/** Shared UI state for the charge shop and item shop screens. */
+ShopMenuWork ShopMenu;
+
+/** Texture the shop board frame, tags and tickets are drawn from. */
+CTexture *ShopBoard;
+
+/** Stock inventory the shop currently open is reading and writing. */
+CStockItem *ShopStockPt;
+
+IHAVEITEM   *ShopHaveItemPt;
+WEAPON_HAVE *ShopHaveWepPt;
+ATTACH_LIST *ShopHaveAttachPt;
+
+/** Which shop is open. @see ShopKind */
+s16 ChargeOrShopFlag;
+
+/**
+ * State of the fishing prize exchange screen.
+ */
+struct FishMenuWork {
+    s16        tex_block;  /**< Texture block the exchange's textures are entered into. */
+    s16        tex_block2; /**< Second texture block lent to the exchange. */
+    s16        ready;      /**< Nonzero once the exchange's contents may be drawn. */
+    s16        warning;    /**< Which refusal the exchange shows, as an offset from its first refusal message. */
+    s32        point;      /**< Fishing points the player has left to spend. */
+    s32        cursor_y;   /**< Screen Y of the cursor, eased toward its row. */
+    s16        mode;       /**< How the exchange was opened. */
+    s16        confirm;    /**< Choice the confirmation window's cursor is on: 0 yes, 1 no. */
+    s16        cursor;     /**< Prize the cursor is on. */
+    s16        fade_mode;  /**< What the exchange is doing. @see FishExchangeMode */
+    s16        top;        /**< Prize the list shows first. */
+    u8         unk_1A[6];
+    s32        fade_count; /**< Frames the current fade has run for. */
+    u_long128 *buffer;     /**< Buffer the exchange's files are read into. */
+};
+
+STATIC_ASSERT(sizeof(FishMenuWork) == 0x28);
+
+/** State of the fishing prize exchange screen. */
+FishMenuWork FishMenu;
+
+/** Texture the fishing exchange's fish icons are drawn from. */
+CTexture *FishMenuTex;
+
+namespace {
+
 /** Arena the shopkeeper's model and the item shop's board tables are read into. */
 CDataAlloc2<1> ShopCashBuffer(-1);
 
@@ -46,20 +92,11 @@ CDataAlloc2<1> ShopCashBuffer(-1);
  */
 CDataAlloc2<1> ShopCashBuffer2(-1);
 
-/** Shared UI state for the charge shop and item shop screens. */
-ShopMenuWork ShopMenu;
-
 /** The icon being carried between the shop's board and the player's. */
 ShopIconMove ShopDataMove;
 
 /** Player status the shop currently open is reading and writing. */
 CUserStatus *ShopUserStatusPt;
-
-/** Texture the shop board frame, tags and tickets are drawn from. */
-CTexture *ShopBoard;
-
-/** Stock inventory the shop currently open is reading and writing. */
-CStockItem *ShopStockPt;
 
 /** Per-slot state of the charge shop's personal board. */
 s32 *ShopBoardInfo;
@@ -88,40 +125,6 @@ float ShopHelpWinH;
 /** Width of the shop's help window. */
 float ShopHelpWinW;
 
-IHAVEITEM   *ShopHaveItemPt;
-WEAPON_HAVE *ShopHaveWepPt;
-ATTACH_LIST *ShopHaveAttachPt;
-
-/** Which shop is open. @see ShopKind */
-s16 ChargeOrShopFlag;
-
-static int ChargeSelectKey();
-
-/**
- * State of the fishing prize exchange screen.
- */
-struct FishMenuWork {
-    s16        tex_block;  /**< Texture block the exchange's textures are entered into. */
-    s16        tex_block2; /**< Second texture block lent to the exchange. */
-    s16        ready;      /**< Nonzero once the exchange's contents may be drawn. */
-    s16        warning;    /**< Which refusal the exchange shows, as an offset from its first refusal message. */
-    s32        point;      /**< Fishing points the player has left to spend. */
-    s32        cursor_y;   /**< Screen Y of the cursor, eased toward its row. */
-    s16        mode;       /**< How the exchange was opened. */
-    s16        confirm;    /**< Choice the confirmation window's cursor is on: 0 yes, 1 no. */
-    s16        cursor;     /**< Prize the cursor is on. */
-    s16        fade_mode;  /**< What the exchange is doing. @see FishExchangeMode */
-    s16        top;        /**< Prize the list shows first. */
-    u8         unk_1A[6];
-    s32        fade_count; /**< Frames the current fade has run for. */
-    u_long128 *buffer;     /**< Buffer the exchange's files are read into. */
-};
-
-STATIC_ASSERT(sizeof(FishMenuWork) == 0x28);
-
-/** State of the fishing prize exchange screen. */
-FishMenuWork FishMenu;
-
 /**
  * State of the fishing record screen.
  */
@@ -142,15 +145,16 @@ STATIC_ASSERT(sizeof(FishRecordMenuWork) == 0x24);
 /** State of the fishing record screen. */
 FishRecordMenuWork FishRecordMenu;
 
-/** Texture the fishing exchange's fish icons are drawn from. */
-CTexture *FishMenuTex;
+int ChargeSelectKey();
 
 /**
  * Gives the dungeon item pack a player status carries.
  */
-static inline ITEM_PACK *ShopUserItemPack(CUserStatus *user_status) {
+ITEM_PACK *ShopUserItemPack(CUserStatus *user_status) {
     return &user_status->item_pack;
 }
+
+} // namespace
 
 /** An item's buy and sell price. */
 struct ITEM_MONEY_ENTRY {
@@ -458,46 +462,22 @@ ITEM_MONEY_ENTRY PriceList[296] = {
     {1000, 250 },
 };
 
-/**
- * Gives the goods list one item shop sells from.
- *
- * One shop's twenty-item goods list, eighteen shops long, each ended by -1.
- */
-static s16 ItemShopList2[18][20] = {
-    {ITEM_BREAD, ITEM_REGULAR_WATER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_ESCAPE_POWDER, ITEM_STAND_IN_POWDER, ITEM_REVIVAL_POWDER, ITEM_ANTIDOTE_DRINK, ITEM_SOAP, ITEM_BOMB, ITEM_DRAN_S_FEATHER, ITEM_ATTACH_ATTACK, ITEM_ATTACH_ENDURANCE, ITEM_ATTACH_FIRE, ITEM_ATTACH_ICE, ITEM_ATTACH_THUNDER, ITEM_ATTACH_WIND, ITEM_ATTACH_HOLY, ITEM_ATTACH_DINOSLAYER, ITEM_GOLD_BULLION},
-    {ITEM_BREAD, ITEM_CHEESE, ITEM_TASTY_WATER, ITEM_REVIVAL_POWDER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_STAND_IN_POWDER, ITEM_ESCAPE_POWDER, ITEM_ATTACH_PLANT_BUSTER, ITEM_ANTIDOTE_DRINK, ITEM_SOAP, ITEM_DRAN_S_FEATHER, ITEM_GOLD_BULLION, ITEM_WEAPON_WISE_OWL_SWORD, ITEM_MIMI, ITEM_PRICKLY, -1},
-    {ITEM_FLAPPING_FISH, ITEM_FLAPPING_FISH, ITEM_FLAPPING_FISH, ITEM_EVY, ITEM_EVY, ITEM_PETITE_FISH, ITEM_PETITE_FISH, ITEM_ICE_BLOCK, ITEM_ICE_BLOCK, ITEM_ICE_BLOCK, ITEM_REGULAR_WATER, ITEM_TASTY_WATER, ITEM_PREMIUM_WATER, ITEM_STAND_IN_POWDER, -1},
-    {ITEM_REGULAR_WATER, ITEM_TASTY_WATER, ITEM_PREMIUM_WATER, ITEM_STAMINA_DRINK, ITEM_ANTIDOTE_DRINK, ITEM_HOLY_WATER, -1},
-    {ITEM_REGULAR_WATER, ITEM_TASTY_WATER, ITEM_PREMIUM_WATER, ITEM_BREAD, ITEM_STAMINA_DRINK, ITEM_ATTACH_ATTACK, ITEM_ATTACH_ENDURANCE, ITEM_ATTACH_SPEED, ITEM_ATTACH_MAGICAL_POWER, -1},
-    {ITEM_REGULAR_WATER, ITEM_TASTY_WATER, ITEM_PREMIUM_WATER, ITEM_STAMINA_DRINK, ITEM_CHEESE, ITEM_ATTACH_FIRE, ITEM_ATTACH_ICE, ITEM_ATTACH_THUNDER, ITEM_ATTACH_WIND, ITEM_ATTACH_HOLY, -1},
-    {ITEM_REGULAR_WATER, ITEM_TASTY_WATER, ITEM_PREMIUM_WATER, ITEM_STAMINA_DRINK, ITEM_PREMIUM_CHICKEN, ITEM_BOMB, ITEM_ATTACH_SEA_KILLER, ITEM_ATTACH_MAGE_SLAYER, ITEM_ATTACH_UNDEAD_BUSTER, -1},
-    {ITEM_THROBBING_CHERRY, ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS, ITEM_POISONOUS_APPLE, ITEM_MELLOW_BANANA, ITEM_REPAIR_POWDER, ITEM_REVIVAL_POWDER, ITEM_STAND_IN_POWDER, -1},
-    {ITEM_WEAPON_KITCHEN_KNIFE, ITEM_WEAPON_GLADIUS, ITEM_WEAPON_BONE_SLINGSHOT, ITEM_WEAPON_BIG_BUCKS_HAMMER, ITEM_WEAPON_PLATINUM_RING, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_STAND_IN_POWDER, ITEM_REVIVAL_POWDER, ITEM_ESCAPE_POWDER, ITEM_DRAN_S_FEATHER, ITEM_GOLD_BULLION, -1},
-    {ITEM_PREMIUM_WATER, ITEM_CHEESE, ITEM_PREMIUM_CHICKEN, ITEM_MIGHTY_HEALING, ITEM_BOMB, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_STAND_IN_POWDER, ITEM_REVIVAL_POWDER, ITEM_ESCAPE_POWDER, ITEM_ATTACH_WIND, ITEM_ATTACH_STONE_BREAKER, ITEM_ATTACH_SKY_HUNTER, ITEM_DRAN_S_FEATHER, ITEM_GOLD_BULLION, ITEM_POTATO_CAKE, -1},
-    {ITEM_REGULAR_WATER, ITEM_TASTY_WATER, ITEM_PREMIUM_WATER, ITEM_PREMIUM_CHICKEN, ITEM_BOMB, ITEM_ATTACH_BEAST_BUSTER, ITEM_STAND_IN_POWDER, ITEM_REVIVAL_POWDER, ITEM_ESCAPE_POWDER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_DRAN_S_FEATHER, ITEM_WEAPON_JACKAL, ITEM_WEAPON_SNAIL, ITEM_GOLD_BULLION, -1},
-    {ITEM_PREMIUM_WATER, ITEM_PREMIUM_CHICKEN, ITEM_MIGHTY_HEALING, ITEM_STAND_IN_POWDER, ITEM_REVIVAL_POWDER, ITEM_ESCAPE_POWDER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_DRAN_S_FEATHER, ITEM_GOLD_BULLION, -1},
-    {ITEM_FIRE_GEM, ITEM_ICE_GEM, ITEM_THUNDER_GEM, ITEM_WIND_GEM, ITEM_HOLY_GEM, ITEM_ATTACH_FIRE, ITEM_ATTACH_ICE, ITEM_ATTACH_THUNDER, ITEM_ATTACH_WIND, ITEM_ATTACH_HOLY, ITEM_ATTACH_SEA_KILLER, ITEM_ATTACH_MAGE_SLAYER, ITEM_GOLD_BULLION, -1},
-    {ITEM_BREAD, ITEM_REGULAR_WATER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_REVIVAL_POWDER, ITEM_STAND_IN_POWDER, ITEM_ESCAPE_POWDER, ITEM_ANTIDOTE_DRINK, ITEM_GOLD_BULLION, -1},
-    {ITEM_BREAD, ITEM_CHEESE, ITEM_TASTY_WATER, ITEM_REVIVAL_POWDER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_STAND_IN_POWDER, ITEM_ESCAPE_POWDER, ITEM_ATTACH_PLANT_BUSTER, ITEM_ANTIDOTE_DRINK, ITEM_SOAP, ITEM_DRAN_S_FEATHER, ITEM_GOLD_BULLION, -1},
-    {ITEM_PREMIUM_WATER, ITEM_CHEESE, ITEM_HOLY_WATER, ITEM_SOAP, ITEM_MIGHTY_HEALING, ITEM_BOMB, ITEM_STAND_IN_POWDER, ITEM_REVIVAL_POWDER, ITEM_ESCAPE_POWDER, ITEM_REPAIR_POWDER, ITEM_AUTO_REPAIR_POWDER, ITEM_DRAN_S_FEATHER, ITEM_GOLD_BULLION, -1},
-    {ITEM_ATTACH_GARNET, ITEM_ATTACH_AMETHYST, ITEM_ATTACH_AQUAMARINE, ITEM_ATTACH_DIAMOND, ITEM_ATTACH_EMERALD, ITEM_ATTACH_PEARL, ITEM_ATTACH_RUBY, ITEM_ATTACH_PERIDOT, ITEM_ATTACH_SAPPHIRE, ITEM_ATTACH_OPAL, ITEM_ATTACH_TOPAZ, ITEM_ATTACH_TURQUOISE, -1},
-    {ITEM_ATTACH_ATTACK, ITEM_ATTACH_ENDURANCE, ITEM_ATTACH_SPEED, ITEM_ATTACH_MAGICAL_POWER, ITEM_ATTACH_DINOSLAYER, ITEM_ATTACH_UNDEAD_BUSTER, ITEM_ATTACH_SEA_KILLER, ITEM_ATTACH_STONE_BREAKER, ITEM_ATTACH_PLANT_BUSTER, ITEM_ATTACH_BEAST_BUSTER, ITEM_ATTACH_SKY_HUNTER, ITEM_ATTACH_MAGE_SLAYER, -1},
-};
+namespace {
 
-static void DrawSellTicket_2(int x, int y, int clip_top, int clip_bottom, int alpha);
+void DrawSellTicket_2(int x, int y, int clip_top, int clip_bottom, int alpha);
 
-static void SetShopTalkMsgPos();
+void SetShopTalkMsgPos();
 
-static void DrawCheckButton(int x, int y, int alpha);
+void DrawCheckButton(int x, int y, int alpha);
 
-static void ItemShopGoodInitialize(int shop_no);
+void ItemShopGoodInitialize(int shop_no);
 
-static void ShopCancelGoodReturn2();
+void ShopCancelGoodReturn2();
 
-s16 *GetItemShopList(int shop_no);
+} // namespace
 
 void InitShopItemListData(SHOP_ITEMLIST *item_list) {
-    if (item_list != NULL) {
+    if (item_list != nullptr) {
         item_list->item_no = 0;
         memset(&item_list->data, 0, sizeof(item_list->data));
     }
@@ -536,17 +516,17 @@ int ShopIconMove::IconAutoMove(int item_shop, int force_arrive) {
         target_y = row_y + 0x90;
     }
 
-    pos_x += (float) (target_x - (int) pos_x) / 4.0f;
-    pos_y += (float) (target_y - (int) pos_y) / 4.0f;
+    pos_x += static_cast<float>(target_x - static_cast<int>(pos_x)) / 4.0f;
+    pos_y += static_cast<float>(target_y - static_cast<int>(pos_y)) / 4.0f;
 
     int arrived = false;
 
-    if (force_arrive || (float) abs((int) (pos_x - (float) target_x)) < 4.0f) {
+    if (force_arrive || static_cast<float>(abs(static_cast<int>(pos_x - static_cast<float>(target_x)))) < 4.0f) {
         pos_x = target_x;
         arrived++;
     }
 
-    if (force_arrive || (float) abs((int) (pos_y - (float) target_y)) < 4.0f) {
+    if (force_arrive || static_cast<float>(abs(static_cast<int>(pos_y - static_cast<float>(target_y)))) < 4.0f) {
         pos_y = target_y;
         arrived++;
     }
@@ -632,20 +612,20 @@ void ShopIconMove::IconAutoMoveDraw() {
     }
 }
 
+namespace {
+
 /**
  * Returns an item's price, buying or selling, from the item table.
- *
- * @mangled GetItemMoney__Fii
- * @address 0x1E6EF0
- * @size 0x44
  */
-static s16 GetItemMoney(int item_no, int sell) {
+s16 GetItemMoney(int item_no, int sell) {
     if (sell != 0) {
         return PriceList[item_no - ITEM_ATTACH_START].sell_price;
     }
 
     return PriceList[item_no - ITEM_ATTACH_START].buy_price;
 }
+
+} // namespace
 
 int ShopNoInput(int *tex_block, int shop_no, int mode) {
     if (shop_no < 0 || shop_no > 200) {
@@ -680,16 +660,12 @@ void InitAllHaveData() {
     ShopHaveItemPt->slot_state = SHOP_SLOT_EMPTY;
 }
 
-int CommonShopLoop();
+namespace {
 
 /**
  * Places, scales and turns the shopkeeper's model for one shop.
- *
- * @mangled ShopPolySetInit__Fii
- * @address 0x1E7080
- * @size 0x150
  */
-static void ShopPolySetInit(int shop_kind, int shop_no) {
+void ShopPolySetInit(int shop_kind, int shop_no) {
     float place[2][18][3] = {
         {
          {-7.84f, -15.5f, 0.9f},
@@ -796,12 +772,8 @@ static void ShopPolySetInit(int shop_kind, int shop_no) {
 
 /**
  * Records the line the shopkeeper is to say and how it is to be shown.
- *
- * @mangled SetItemShopTalkMode__Fii
- * @address 0x1E71D0
- * @size 0x50
  */
-static void SetItemShopTalkMode(int talk_mode, int msg_mode) {
+void SetItemShopTalkMode(int talk_mode, int msg_mode) {
     if (talk_mode >= 0) {
         ShopMenu.talk_mode = talk_mode;
     }
@@ -817,36 +789,9 @@ static void SetItemShopTalkMode(int talk_mode, int msg_mode) {
 }
 
 /**
- * Draws the icons of one shop board row.
- *
- * @mangled ShopIconDraw__FPsPUciiiiii
- * @address 0x1E7220
- * @size 0xFC
- */
-static void ShopIconDraw(short *item_no, unsigned char *value, int count, int x, int y, int clip_top, int clip_bottom, int alpha) {
-    int draw_x = x;
-    int draw_y = y;
-    int i;
-
-    for (i = 0; i < count; i++) {
-        DrawIconParts(item_no[i], draw_x, draw_y, clip_top, clip_bottom, alpha, value[i]);
-        draw_x += 0x28;
-
-        if (i % 5 == 4) {
-            draw_x = x;
-            draw_y += 0x28;
-        }
-    }
-}
-
-/**
  * Draws the left and right arrows of the recharge shop.
- *
- * @mangled ChargeShopLRDraw__Fi
- * @address 0x1E7320
- * @size 0x1AC
  */
-static void ChargeShopLRDraw(int alpha) {
+void ChargeShopLRDraw(int alpha) {
     int x = -1;
     int gap = x;
 
@@ -873,12 +818,8 @@ static void ChargeShopLRDraw(int alpha) {
 
 /**
  * Draws the shop cursor over the slot it stands on.
- *
- * @mangled ShopCurDraw__Fiiiiiii
- * @address 0x1E74D0
- * @size 0x2FC
  */
-static void ShopCurDraw(int x, int y, int pos, int top, int mode, int select, int alpha) {
+void ShopCurDraw(int x, int y, int pos, int top, int mode, int select, int alpha) {
     float cur_x;
     float cur_y;
     int   frame_x;
@@ -909,15 +850,15 @@ static void ShopCurDraw(int x, int y, int pos, int top, int mode, int select, in
                 cur_y = y + 0x8C;
             }
 
-            frame_x = (int) cur_x + 0x1E;
-            frame_y = (int) cur_y - 0xA;
+            frame_x = static_cast<int>(cur_x) + 0x1E;
+            frame_y = static_cast<int>(cur_y) - 0xA;
             break;
         }
         case 1:
             cur_x = x + 0x90;
             cur_y = y + 0x9E;
-            frame_x = (int) cur_x + 0x1E;
-            frame_y = (int) cur_y - 0xA;
+            frame_x = static_cast<int>(cur_x) + 0x1E;
+            frame_y = static_cast<int>(cur_y) - 0xA;
             width = 0x64;
             break;
     }
@@ -946,12 +887,8 @@ static void ShopCurDraw(int x, int y, int pos, int top, int mode, int select, in
 
 /**
  * Draws one shop icon at a position.
- *
- * @mangled DrawShopIcon__Fiiii
- * @address 0x1E77D0
- * @size 0x6C
  */
-static void DrawShopIcon(int x, int y, int selected, int alpha) {
+void DrawShopIcon(int x, int y, int selected, int alpha) {
     int v = 0x50;
     int width = 0xA2;
 
@@ -965,12 +902,8 @@ static void DrawShopIcon(int x, int y, int selected, int alpha) {
 
 /**
  * Reports whether an item may be recharged.
- *
- * @mangled IsEnableCharge__Fi
- * @address 0x1E7840
- * @size 0x10C
  */
-static int IsEnableCharge(int item_no) {
+int IsEnableCharge(int item_no) {
     int enable = false;
 
     if (item_no >= ITEM_WEAPON_START) {
@@ -1008,22 +941,18 @@ static int IsEnableCharge(int item_no) {
 
 /**
  * Starts a shop menu up: its buffers, its textures, its board mode and the gamepad.
- *
- * @mangled ShopMenuInit__FPiii
- * @address 0x1E7950
- * @size 0x248
  */
-static void ShopMenuInit(int *tex_block, int shop_no, int mode) {
+void ShopMenuInit(int *tex_block, int shop_no, int mode) {
     u_long128 *buffer;
     int        limit;
 
     buffer = BtlMenuBufferSet(mode);
     buffer = MenuCalcBufAlignment(buffer);
     limit = EdMenuBuffer.limit >> 1;
-    ShopCashBuffer.base = (u_char *) buffer;
+    ShopCashBuffer.base = reinterpret_cast<u_char *>(buffer);
     ShopCashBuffer.limit = limit;
     ShopCashBuffer.used = 0;
-    ShopUserStatusPt = (CUserStatus *) SaveData->GetDngStatus();
+    ShopUserStatusPt = SaveData->GetDngStatus();
     ShopMenu.lang = GetMenuLangFlag();
     StartReadBG();
     ShopCashBuffer.Alloc((LoadFileBGMenuData("itemshop.pak", buffer) >> 4) + 0x102);
@@ -1059,12 +988,8 @@ static void ShopMenuInit(int *tex_block, int shop_no, int mode) {
 
 /**
  * Tears a shop menu down: its textures, its messages and the gamepad.
- *
- * @mangled ShopMenuExit__Fv
- * @address 0x1E7BA0
- * @size 0x12C
  */
-static void ShopMenuExit() {
+void ShopMenuExit() {
     ITEM_PACK *pack = ShopUserItemPack(ShopUserStatusPt);
     int        i;
     int        j;
@@ -1073,7 +998,7 @@ static void ShopMenuExit() {
 
     for (i = 0; i < 3; i++) {
         if (pack->quick_item_slot[i] >= ITEM_DUNGEON_START) {
-            pack->item_count += (s8) pack->quick_item_qty[i];
+            pack->item_count += static_cast<s8>(pack->quick_item_qty[i]);
         }
     }
 
@@ -1093,17 +1018,19 @@ static void ShopMenuExit() {
     GamePad.MenuModeOff();
 }
 
+} // namespace
+
 void ShopTextureLoadFix() {
     LOADTEXTURE_INFO2 info[3] = {
         {"#frame_imageshop#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-        {NULL,                                           0, 0},
-        {NULL,                                           0, 0},
+        {nullptr,                                        0, 0},
+        {nullptr,                                        0, 0},
     };
 
     info[0].block_no = ShopMenu.tex_block;
     info[1].block_no = ShopMenu.tex_block;
     BG_READ_INFO *file = GetReadBGFile(0);
-    info[1].name = (char *) GetPackFile((u_int *) file->buffer, "itemshop.img", NULL);
+    info[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "itemshop.img", nullptr));
     TexManager.DeleteTextureBlock(ShopMenu.tex_block);
     TexManager.CleanUpTextureList();
     TexManager.LoadTextureBlockEX(-1, info);
@@ -1112,20 +1039,18 @@ void ShopTextureLoadFix() {
     WepIcon = TexManager.GetTexture("wepicon", ShopMenu.tex_block);
     ItemIcon = TexManager.GetTexture("itemicon", ShopMenu.tex_block);
     ShopMenu.ready = 1;
-    s16 *shop_messages = (s16 *) GetPackFile((u_int *) file->buffer, "itemshop.bin", NULL);
-    s16 *keeper_messages = (s16 *) GetPackFile((u_int *) file->buffer, "shopman.bin", NULL);
+    auto *shop_messages = reinterpret_cast<s16 *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "itemshop.bin", nullptr));
+    auto *keeper_messages = reinterpret_cast<s16 *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "shopman.bin", nullptr));
     InitMenuMesSet(MENU_MES_SET_SHOP, shop_messages);
     CommonMenuMes3.SetBuff(keeper_messages);
 }
 
+namespace {
+
 /**
  * Draws the fade that covers the shop while it opens and closes.
- *
- * @mangled ShopFadeoutDraw__Fv
- * @address 0x1E7EA0
- * @size 0xF8
  */
-static void ShopFadeoutDraw() {
+void ShopFadeoutDraw() {
     int alpha = 0;
 
     switch (ShopMenu.talk_mode) {
@@ -1163,23 +1088,19 @@ static void ShopFadeoutDraw() {
 
 /**
  * Starts reading a shopkeeper's model in the background.
- *
- * @mangled ShopPersonReadStart__Fii
- * @address 0x1E7FA0
- * @size 0x98
  */
-static int ShopPersonReadStart(int shop_kind, int shop_no) {
+int ShopPersonReadStart(int shop_kind, int shop_no) {
     char       file_name[76];
     int        size;
     u_long128 *buffer;
 
     ItemShopGetPacFileName(shop_kind, shop_no, file_name);
-    buffer = (u_long128 *) (ShopCashBuffer.base + ShopCashBuffer.used * 16);
+    buffer = reinterpret_cast<u_long128 *>(ShopCashBuffer.base + ShopCashBuffer.used * 16);
     buffer = MenuCalcBufAlignment(buffer);
     StartReadBG();
 
     if (!LoadFileBG(file_name, buffer, &size)) {
-        printf("load is failed\n");
+        std::println("load is failed");
         return 0;
     }
 
@@ -1191,23 +1112,19 @@ static int ShopPersonReadStart(int shop_kind, int shop_no) {
 /**
  * Sets the shopkeeper's model direction toward the menu camera.
  */
-static void ShopMasterVectorSet(int mode);
+void ShopMasterVectorSet(int mode);
 
 /**
  * Stores in @p rest how many quadwords of a @p total quadword buffer are left once @p used are taken.
  */
-static inline void GetRestSize(int &rest, int total, int used) {
+void GetRestSize(int &rest, int total, int used) {
     rest = total - used;
 }
 
 /**
  * Builds the shopkeeper's model using the current shop data.
- *
- * @mangled ShopPersonBuild__Fii
- * @address 0x1E8040
- * @size 0x268
  */
-static int ShopPersonBuild(int shop_kind, int shop_no) {
+int ShopPersonBuild(int shop_kind, int shop_no) {
     char name[64];
     int  size;
 
@@ -1217,16 +1134,16 @@ static int ShopPersonBuild(int shop_kind, int shop_no) {
 
     ItemShopGetImgFileName(shop_kind, shop_no, name);
     BG_READ_INFO     *file = GetReadBGFile(0);
-    u_int            *pack = (u_int *) file->buffer;
-    u_char           *model_area = (u_char *) pack + ((file->size >> 4) + 1) * 16;
+    auto             *pack = reinterpret_cast<u_int *>(file->buffer);
+    auto             *model_area = reinterpret_cast<u_char *>(pack) + ((file->size >> 4) + 1) * 16;
     LOADTEXTURE_INFO2 texture[3] = {
         {"#frame_menushop_model#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-        {NULL,                                                0, 0},
-        {NULL,                                                0, 0},
+        {nullptr,                                             0, 0},
+        {nullptr,                                             0, 0},
     };
     texture[0].block_no = ShopMenu.person_tex_block;
     texture[1].block_no = ShopMenu.person_tex_block;
-    texture[1].name = (char *) GetPackFile(pack, name, &size);
+    texture[1].name = reinterpret_cast<char *>(GetPackFile(pack, name, &size));
     TexManager.DeleteTextureBlock(ShopMenu.person_tex_block);
     TexManager.LoadTextureBlockEX(-1, texture);
     GetRestSize(size, EdMenuBuffer.limit, ShopCashBuffer.limit);
@@ -1235,13 +1152,13 @@ static int ShopPersonBuild(int shop_kind, int shop_no) {
     ShopCashBuffer2.limit = limit;
     ShopCashBuffer2.used = 0;
     MenuCharaFrame.Initialize();
-    MenuCharaFrame.LoadPackData(pack, "info.cfg", &ShopCashBuffer2, &ShopCashBuffer2, NULL);
+    MenuCharaFrame.LoadPackData(pack, "info.cfg", &ShopCashBuffer2, &ShopCashBuffer2, nullptr);
     sceVu0FVECTOR position = {-7.0f, -17.0f, 0.0f, 1.0f};
     MenuCharaFrame.SetPosition(position);
     ShopPolySetInit(shop_kind, shop_no);
 
-    if (MenuCharaFrame.frame == NULL) {
-        printf("Frame is NULL\n");
+    if (MenuCharaFrame.frame == nullptr) {
+        std::println("Frame is NULL");
         return 0;
     }
 
@@ -1257,12 +1174,8 @@ static int ShopPersonBuild(int shop_kind, int shop_no) {
 
 /**
  * Draws the shopkeeper and points the menu camera at them.
- *
- * @mangled LocalShopPersonDraw__Fv
- * @address 0x1E82B0
- * @size 0xB8
  */
-static void LocalShopPersonDraw() {
+void LocalShopPersonDraw() {
     float ref[4] = {0.0f, 0.0f, -30.0f, 1.0f};
     float pos[4] = {0.0f, 0.0f, 30.0f, 1.0f};
 
@@ -1280,25 +1193,16 @@ static void LocalShopPersonDraw() {
 
 /**
  * Draws the shopkeeper.
- *
- * @mangled ShopPersonDraw__Fi
- * @address 0x1E8370
- * @size 0x3C
  */
-static void ShopPersonDraw(int shop_no) {
+void ShopPersonDraw(int /*shop_no*/) {
     MenuTextureReload(ShopMenu.person_tex_block);
     MenuPolygonDraw(0x80, LocalShopPersonDraw);
 }
 
 /**
- * Points the shopkeeper's model at the camera.
- *
- * @mangled ShopMasterVectorSet__Fi
- * @address 0x1E83B0
- * @size 0xD8
- * Turns the shopkeeper to face the menu camera.
+ * Turns the shopkeeper's model to face the menu camera.
  */
-static void ShopMasterVectorSet(int mode) {
+void ShopMasterVectorSet(int mode) {
     float camera_pos[4];
     float pos[4];
     float rotation[4];
@@ -1320,6 +1224,8 @@ static void ShopMasterVectorSet(int mode) {
     rotation[1] = AngleInterpolate(rotation[1], angle, 0.1f, INTERPOLATE_STEP);
     MenuCharaFrame.SetRotation(rotation);
 }
+
+} // namespace
 
 void InitChargeShop(int *tex_block, int shop_no, int mode) {
     int rows;
@@ -1385,9 +1291,13 @@ void ChargeShopLimmitCheck() {
     }
 }
 
-static void ExitChargeShop() {
+namespace {
+
+void ExitChargeShop() {
     ShopMenuExit();
 }
+
+} // namespace
 
 int ChargeShopLoop() {
     int done;
@@ -1403,7 +1313,9 @@ int ChargeShopLoop() {
     return done;
 }
 
-static inline void ShopDataMoveClear() {
+namespace {
+
+void ShopDataMoveClear() {
     ShopDataMove.spare = -1;
     ShopDataMove.slot_no = -1;
     ShopDataMove.icon_no = -1;
@@ -1413,16 +1325,18 @@ static inline void ShopDataMoveClear() {
     memset(&ShopDataMove.data, 0, sizeof(WEAPON_HAVE));
 }
 
-static inline void ShopDataMoveFinish() {
+void ShopDataMoveFinish() {
     if (ShopDataMove.icon_no >= 0) {
         ShopDataMove.IconAutoMove(ChargeOrShopFlag, 1);
         ShopDataMoveClear();
     }
 }
 
-static inline WEAPON_HAVE *ShopWeaponRow(CUserStatus *status, int chara) {
+WEAPON_HAVE *ShopWeaponRow(CUserStatus *status, int chara) {
     return status->chara_weapons[chara];
 }
+
+} // namespace
 
 int ChargeShopKey() {
     int           result = 0;
@@ -1434,7 +1348,7 @@ int ChargeShopKey() {
     if (ShopMenu.ready == 0) {
         if (ReadBGSync() == 0) {
             ShopTextureLoadFix();
-            printf("Model Read Start\n");
+            std::println("Model Read Start");
             ShopPersonReadStart(SHOP_KIND_CHARGE, ShopMenu.shop_no);
         }
     } else {
@@ -1508,13 +1422,13 @@ int ChargeShopKey() {
                             ITEM_PACK *pack = &ShopUserStatusPt->item_pack;
                             item_no = pack->item[cursor];
                             record.volume = pack->item_vol[cursor];
-                            printf("charge vol = %d\n", record.volume);
+                            std::println("charge vol = {}", record.volume);
                             pack->item[cursor] = -1;
                             pack->item_vol[cursor] = 0;
                             break;
                         }
                         case BOARD_PAGE_ATTACH: {
-                            ATTACH_LIST *list = &((ATTACH_LIST *) ShopUserStatusPt->consumable_items)[cursor];
+                            ATTACH_LIST *list = &(reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items))[cursor];
                             item_no = list->item_no;
                             memcpy(&record, list, sizeof(ATTACH_LIST));
                             memset(list, 0, sizeof(ATTACH_LIST));
@@ -1679,7 +1593,7 @@ int ChargeShopKey() {
                                     SetMenuTrushMark(&ShopUserStatusPt->item_pack);
                                     break;
                                 case BOARD_PAGE_ATTACH:
-                                    SeitonAttachBoard((ATTACH_LIST *) ShopUserStatusPt->consumable_items);
+                                    SeitonAttachBoard(reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items));
                                     break;
                             }
 
@@ -1867,7 +1781,7 @@ int ChargeShopKey() {
         if (ShopHaveItemPt->item_no >= ITEM_ATTACH_START) {
             item = ShopHaveItemPt->item_no;
             COM_ITEM_INFO *info = GetCommonItemInfo(item);
-            mes_no = info != NULL ? info->msg + 500 : mes_no;
+            mes_no = info != nullptr ? info->msg + 500 : mes_no;
             value = GetAttachVolumeForMsg(ShopHaveAttachPt);
 
             if (ShopHaveItemPt->item_no == ITEM_ATTACH_SYNTHESIS_SPHERE) {
@@ -1884,7 +1798,7 @@ int ChargeShopKey() {
                     case BOARD_PAGE_WEAPON: {
                         COM_ITEM_INFO *info = GetCommonItemInfo(ShopStockPt->weapons[cursor].item_no);
 
-                        if (info != NULL) {
+                        if (info != nullptr) {
                             item = info->msg;
                         } else {
                             item = -1;
@@ -1930,7 +1844,7 @@ int ChargeShopKey() {
                         WEAPON_HAVE   *have = &row[cursor % 10];
                         COM_ITEM_INFO *info = GetCommonItemInfo(have->item_no);
 
-                        if (info != NULL) {
+                        if (info != nullptr) {
                             item = info->msg;
                         } else {
                             item = -1;
@@ -1944,7 +1858,7 @@ int ChargeShopKey() {
                         break;
                     }
                     case BOARD_PAGE_ATTACH: {
-                        ATTACH_LIST *list = &((ATTACH_LIST *) ShopUserStatusPt->consumable_items)[cursor];
+                        ATTACH_LIST *list = &(reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items))[cursor];
                         item = list->item_no;
 
                         if (item >= ITEM_ATTACH_START) {
@@ -1983,7 +1897,7 @@ int ChargeShopKey() {
                 mes_no = 0;
             }
 
-            printf("msgno = %d\n", mes_no);
+            std::println("msgno = {}", mes_no);
             CommonMenuMes2.mes_made = -1;
             CommonMenuMes2.MakeMesWin(mes_no);
         }
@@ -1992,14 +1906,12 @@ int ChargeShopKey() {
     return result;
 }
 
+namespace {
+
 /**
  * Moves the cursor across the recharge shop's list.
- *
- * @mangled ChargeSelectKey__Fv
- * @address 0x1E9EE0
- * @size 0x8C0
  */
-static int ChargeSelectKey() {
+int ChargeSelectKey() {
     if (ShopHaveItemPt->item_no < ITEM_ATTACH_START && BoardModeChangeKey()) {
         PersonalBoardLimmitCheck();
         ChargeShopLimmitCheck();
@@ -2242,7 +2154,9 @@ static int ChargeSelectKey() {
 /**
  * Runs the shopkeeper's speech and the model's reaction to it.
  */
-static void ShopModelMsgFunc(int shop_kind);
+void ShopModelMsgFunc(int shop_kind);
+
+} // namespace
 
 void DrawChargeShop() {
     int text_x;
@@ -2355,10 +2269,10 @@ void DrawChargeShop() {
             CommonMenuMes1.stay_frame = false;
         }
 
-        MenuHelpWinDraw((int) ShopHelpWinPos[0], (int) ShopHelpWinPos[1], ShopHelpWinW, ShopHelpWinH, 0x80);
+        MenuHelpWinDraw(static_cast<int>(ShopHelpWinPos[0]), static_cast<int>(ShopHelpWinPos[1]), ShopHelpWinW, ShopHelpWinH, 0x80);
         GetMainMenuRightHelpMsgLangOffset(text_x, text_y);
-        CommonMenuMes2.text_x = (int) (ShopHelpWinPos[0] + text_x);
-        CommonMenuMes2.text_y = (int) (ShopHelpWinPos[1] + text_y);
+        CommonMenuMes2.text_x = static_cast<int>(ShopHelpWinPos[0] + text_x);
+        CommonMenuMes2.text_y = static_cast<int>(ShopHelpWinPos[1] + text_y);
     }
 
     if (ShopMenu.person_state == 2) {
@@ -2372,7 +2286,7 @@ void DrawChargeShop() {
 
         if (ShopHaveItemPt->item_no < ITEM_ATTACH_START) {
             int mes_no = 0x519;
-            u8 plate_x[7][2] = {
+            u8  plate_x[7][2] = {
                 {0xA2, 0xB4},
                 {0xB4, 0xB4},
                 {0xB4, 0xB4},
@@ -2404,67 +2318,12 @@ void DrawChargeShop() {
     setbilinear(1);
 }
 
-/**
- * Draws the charge shop's capacity plate: how many slots the board has and how many hold a good.
- *
- * @mangled ChargeShopMaxDraw__Fiiii
- * @address 0x1EAD50
- * @size 0x1EC
- */
-static void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
-    int left = x + 0xD2;
-    int top = y - 0x28;
-
-    DrawMenu2DSprite(ShopBoard, CRect_i_(left, top + 1, 0x30, 0x2F), CRect_i_(0x100, 0x90, 0x30, 0x30), alpha);
-    RECT digits = {0x90, 0xDC, 12, 13};
-    left = x + 0xF7;
-    top = y - 0xE;
-    DrawMenuNumber(max, left, top, ShopBoard, digits, 1, alpha);
-    left = x + 0xF2;
-    top = y - 0x22;
-    int count = 0;
-    int i;
-
-    switch (ShopMenu.board.page) {
-        case BOARD_PAGE_ITEM:
-            for (i = 0; i < 60; i++) {
-                if (ShopStockPt->dungeon_items[i] >= ITEM_DUNGEON_START) {
-                    count++;
-                }
-            }
-
-            break;
-        case BOARD_PAGE_WEAPON:
-            for (i = 0; i < 30; i++) {
-                if (ShopStockPt->weapons[i].item_no >= ITEM_WEAPON_START) {
-                    count++;
-                }
-            }
-
-            break;
-        case BOARD_PAGE_ATTACH:
-            for (i = 0; i < 30; i++) {
-                if (ShopStockPt->attachments[i].item_no >= ITEM_ATTACH_START) {
-                    count++;
-                }
-            }
-
-            break;
-    }
-
-    DrawMenuNumber(count, left, top, ShopBoard, digits, 1, alpha);
-}
-
-void ChargeShopBoardDraw(int x, int y, int alpha);
+namespace {
 
 /**
  * Returns the shop price of one item, which is zero for the item numbers below ITEM_ATTACH_START.
- *
- * @mangled CalItemMoney__Fii
- * @address 0x1EB2D0
- * @size 0x40
  */
-static int CalItemMoney(int item_no, int sell) {
+int CalItemMoney(int item_no, int sell) {
     if (item_no < ITEM_ATTACH_START) {
         return 0;
     }
@@ -2474,16 +2333,12 @@ static int CalItemMoney(int item_no, int sell) {
 
 /**
  * Totals the shop price of the attachments fitted to a weapon.
- *
- * @mangled WeaponCalMoney__FP11WEAPON_HAVEi
- * @address 0x1EB310
- * @size 0x84
  */
-static int WeaponCalMoney(WEAPON_HAVE *weapon, int sell) {
+int WeaponCalMoney(WEAPON_HAVE *weapon, int sell) {
     int total;
     int i;
 
-    if (weapon == NULL) {
+    if (weapon == nullptr) {
         return 0;
     }
 
@@ -2492,7 +2347,7 @@ static int WeaponCalMoney(WEAPON_HAVE *weapon, int sell) {
     for (i = 0; i < 6; i++) {
         ATTACH_LIST *attach = &weapon->attach[i];
 
-        if (attach != NULL && attach->item_no >= ITEM_ATTACH_START) {
+        if (attach != nullptr && attach->item_no >= ITEM_ATTACH_START) {
             total += CalItemMoney(attach->item_no, sell);
         }
     }
@@ -2502,12 +2357,8 @@ static int WeaponCalMoney(WEAPON_HAVE *weapon, int sell) {
 
 /**
  * Totals the prices of goods currently marked for purchase.
- *
- * @mangled BuyMoneyCheck2__Fv
- * @address 0x1EB3A0
- * @size 0x1A0
  */
-static int BuyMoneyCheck2() {
+int BuyMoneyCheck2() {
     int        total = 0;
     int        board_max[3] = {100, 60, 40};
     int        i;
@@ -2522,7 +2373,7 @@ static int BuyMoneyCheck2() {
     for (int chara = 0; chara < 6; chara++) {
         for (i = 0; i < 10; i++) {
             if (WeaponBoardInfo[chara][i] == SHOP_SLOT_SHOP_GOOD) {
-                WEAPON_HAVE *weapon = &((WEAPON_HAVE *) ((CUserStatus *) ShopUserStatusPt)->chara_weapons[chara])[i];
+                WEAPON_HAVE *weapon = &ShopUserStatusPt->chara_weapons[chara][i];
                 total += CalItemMoney(weapon->item_no, 0);
                 total += WeaponCalMoney(weapon, 0);
             }
@@ -2542,12 +2393,8 @@ static int BuyMoneyCheck2() {
 
 /**
  * Totals what the goods currently marked for sale fetch.
- *
- * @mangled SellMoneyCheck2__Fv
- * @address 0x1EB540
- * @size 0xB4
  */
-static int SellMoneyCheck2() {
+int SellMoneyCheck2() {
     int total = 0;
     int i;
 
@@ -2572,12 +2419,8 @@ static int SellMoneyCheck2() {
 
 /**
  * Settles which goods are marked for purchase against what may be afforded.
- *
- * @mangled IncludeBuyItem2__Fv
- * @address 0x1EB600
- * @size 0x1A4
  */
-static void IncludeBuyItem2() {
+void IncludeBuyItem2() {
     int          buy = BuyMoneyCheck2();
     int          balance = SellMoneyCheck2() - buy;
     CUserStatus *status;
@@ -2626,12 +2469,8 @@ static void IncludeBuyItem2() {
 
 /**
  * Reports the bit flags that prevent the marked item purchase.
- *
- * @mangled CheckBuyItemFunc2__Fv
- * @address 0x1EB7B0
- * @size 0x1C4
  */
-static int CheckBuyItemFunc2() {
+int CheckBuyItemFunc2() {
     int flags = 1;
     int shop_slot;
 
@@ -2685,21 +2524,17 @@ static int CheckBuyItemFunc2() {
 
 /**
  * Leaves the item shop, returning the goods not bought and recording the shop game flag.
- *
- * @mangled ExitItemShop2__Fv
- * @address 0x1EB980
- * @size 0x9C
  */
-static void ExitItemShop2() {
+void ExitItemShop2() {
     CDngStatusData *dng_status;
 
     ShopCancelGoodReturn2();
     ShopMenuExit();
 
-    if (SaveData != NULL && ShopMenu.shop_no == 1 && !SaveData->GetGameFlag(0xC8)) {
+    if (SaveData != nullptr && ShopMenu.shop_no == 1 && !SaveData->GetGameFlag(0xC8)) {
         dng_status = SaveData->GetDngStatus();
 
-        if (dng_status != NULL && dng_status->SearchItemIndexNo(5) >= 0) {
+        if (dng_status != nullptr && dng_status->SearchItemIndexNo(5) >= 0) {
             SaveData->SetGameFlag(0xC8, 1);
         }
     }
@@ -2707,12 +2542,8 @@ static void ExitItemShop2() {
 
 /**
  * Drops the shop special good from the stock once the player already carries one.
- *
- * @mangled ShopSpecialFunc__Fv
- * @address 0x1EBA20
- * @size 0x128
  */
-static void ShopSpecialFunc() {
+void ShopSpecialFunc() {
     int          found;
     int          i;
     WEAPON_HAVE *weapons;
@@ -2744,6 +2575,8 @@ static void ShopSpecialFunc() {
     }
 }
 
+} // namespace
+
 s32 sort_table[9] = {9, 0, 1, 2, 3, 4, 5, 6, 7};
 s32 asort_table[5] = {5, 1, 2, 3, 4};
 s32 sort_top_type = ITEM_SORT_FOOD;
@@ -2755,11 +2588,11 @@ int CompItem1(int first_item_no, int second_item_no) {
     int        first_priority = 0;
     int        second_priority = 0;
 
-    if (first != NULL) {
+    if (first != nullptr) {
         first_priority = sort_table[first->sort_key];
     }
 
-    if (second != NULL) {
+    if (second != nullptr) {
         second_priority = sort_table[second->sort_key];
     }
 
@@ -2821,17 +2654,15 @@ int SeitonShopItemBoardSub(ITEM_PACK *pack) {
     return moved;
 }
 
+namespace {
+
 /**
  * Sorts the item board, trying each ordering until one changes it.
- *
- * @mangled SeitonShopItemBoard__FP9ITEM_PACK
- * @address 0x1EBDB0
- * @size 0x88
  */
-static void SeitonShopItemBoard(ITEM_PACK *pack) {
+void SeitonShopItemBoard(ITEM_PACK *pack) {
     int i;
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return;
     }
 
@@ -2847,6 +2678,8 @@ static void SeitonShopItemBoard(ITEM_PACK *pack) {
         }
     }
 }
+
+} // namespace
 
 int CompAttach1(ATTACH_LIST *first, ATTACH_LIST *second) {
     int first_priority = asort_table[GetAttachKind(first->item_no)];
@@ -2916,17 +2749,15 @@ int SeitonShopAttachBoardSub(ATTACH_LIST *attachments) {
     return moved;
 }
 
+namespace {
+
 /**
  * Sorts the attachment board, trying each ordering until one changes it.
- *
- * @mangled SeitonShopAttachBoard__FP11ATTACH_LIST
- * @address 0x1EC080
- * @size 0x94
  */
-static int SeitonShopAttachBoard(ATTACH_LIST *list) {
+int SeitonShopAttachBoard(ATTACH_LIST *list) {
     int i;
 
-    if (list == NULL) {
+    if (list == nullptr) {
         return 0;
     }
 
@@ -2944,6 +2775,8 @@ static int SeitonShopAttachBoard(ATTACH_LIST *list) {
 
     return 1;
 }
+
+} // namespace
 
 int ItemShopLoop2() {
     int done;
@@ -3017,21 +2850,19 @@ int CheckSideKey2() {
     return 0;
 }
 
+namespace {
+
 /**
  * Draws the item shop's board with its goods and their prices.
- *
- * @mangled DrawItemShopBoard2__Fiii
- * @address 0x1EC370
- * @size 0x2C4
  */
-static void DrawItemShopBoard2(int x, int y, int alpha) {
+void DrawItemShopBoard2(int x, int y, int alpha) {
     int top = y + 9;
     int bottom = y + 0xA9;
     int board_y;
     int left = x + 0x14;
 
     board_y = y + 6 - ShopMenu.stock_top_row * 0x28;
-    ShopMenu.stock_y += ((float) board_y - ShopMenu.stock_y) / 4.0f;
+    ShopMenu.stock_y += (static_cast<float>(board_y) - ShopMenu.stock_y) / 4.0f;
     board_y = ShopMenu.stock_y;
     DrawPerBoardDraw(0, 0x1E, left, board_y, top, bottom, ShopBoard, 0x80);
 
@@ -3076,12 +2907,8 @@ static void DrawItemShopBoard2(int x, int y, int alpha) {
 
 /**
  * Draws the running total the purchase will come to.
- *
- * @mangled DrawMoneyCheckBoard2__Fiii
- * @address 0x1EC640
- * @size 0x18C
  */
-static void DrawMoneyCheckBoard2(int x, int y, int alpha) {
+void DrawMoneyCheckBoard2(int x, int y, int alpha) {
     DrawMenu2DSprite(ShopBoard, CRect_i_(x, y + 1, 0x60, 0x1B), CRect_i_(0xD0, 0xC0, 0x60, 0x1C), alpha);
     int  buy = BuyMoneyCheck2();
     int  balance = SellMoneyCheck2() - buy;
@@ -3101,8 +2928,8 @@ static void DrawMoneyCheckBoard2(int x, int y, int alpha) {
         v = 0xF4;
     }
 
-    x = (int) (x + 0x54);
-    y = (int) (y + 7);
+    x += 0x54;
+    y += 7;
     x = DrawMenuNumber(abs(balance), x, y, ShopBoard, digits, 1, alpha);
 
     if (balance != 0) {
@@ -3112,12 +2939,8 @@ static void DrawMoneyCheckBoard2(int x, int y, int alpha) {
 
 /**
  * Draws the shop's confirmation button.
- *
- * @mangled DrawCheckButton__Fiii
- * @address 0x1EC7D0
- * @size 0x9C
  */
-static void DrawCheckButton(int x, int y, int alpha) {
+void DrawCheckButton(int x, int y, int alpha) {
     int u = 0x130;
 
     switch (ShopMenu.talk_mode) {
@@ -3136,12 +2959,8 @@ static void DrawCheckButton(int x, int y, int alpha) {
 
 /**
  * Draws the small price ticket, clipped to the digits it has to show.
- *
- * @mangled DrawSmallSellTicket__Fiiiiii
- * @address 0x1EC870
- * @size 0xE0
  */
-static void DrawSmallSellTicket(int selected, int x, int y, int clip_top, int clip_bottom, int alpha) {
+void DrawSmallSellTicket(int selected, int x, int y, int clip_top, int clip_bottom, int alpha) {
     int draw_x = x + 0x16;
     int draw_y = y + 0x18;
     int v = 0xB0;
@@ -3161,12 +2980,8 @@ static void DrawSmallSellTicket(int selected, int x, int y, int clip_top, int cl
 
 /**
  * Draws the large price ticket of the shop slot under the cursor.
- *
- * @mangled DrawBigSellTicket__Fiiiii
- * @address 0x1EC950
- * @size 0xE0
  */
-static void DrawBigSellTicket(int selected, int money, int x, int y, int alpha) {
+void DrawBigSellTicket(int selected, int money, int x, int y, int alpha) {
     int  draw_x = x + 0x12;
     int  draw_y = y + 0x14;
     int  u = 0x1A0;
@@ -3183,12 +2998,8 @@ static void DrawBigSellTicket(int selected, int money, int x, int y, int alpha) 
 
 /**
  * Draws the selling price ticket of one shop slot.
- *
- * @mangled DrawSellTicket_2__Fiiiii
- * @address 0x1ECA30
- * @size 0x184
  */
-static void DrawSellTicket_2(int x, int y, int clip_top, int clip_bottom, int alpha) {
+void DrawSellTicket_2(int x, int y, int clip_top, int clip_bottom, int alpha) {
     int draw_x = x;
     int draw_y = y;
     int visible;
@@ -3239,12 +3050,8 @@ static void DrawSellTicket_2(int x, int y, int clip_top, int clip_bottom, int al
 
 /**
  * Draws the price ticket of one shop slot, small or large according to the price.
- *
- * @mangled DrawLocalTicket__Fiiiiiii
- * @address 0x1ECBC0
- * @size 0x14C
  */
-static void DrawLocalTicket(int x, int y, int clip_top, int clip_bottom, int slot, int item_no, int alpha) {
+void DrawLocalTicket(int x, int y, int clip_top, int clip_bottom, int slot, int item_no, int alpha) {
     int money;
     int ticket_x;
     int ticket_y;
@@ -3268,6 +3075,8 @@ static void DrawLocalTicket(int x, int y, int clip_top, int clip_bottom, int slo
         DrawSmallSellTicket(0, ticket_x, ticket_y, clip_top, clip_bottom, alpha);
     }
 }
+
+} // namespace
 
 void DrawSellTicket22(int x, int y, int clip_top, int clip_bottom, int alpha) {
     int             page = ShopMenu.board.page;
@@ -3294,7 +3103,7 @@ void DrawSellTicket22(int x, int y, int clip_top, int clip_bottom, int alpha) {
             break;
         case BOARD_PAGE_WEAPON:
             for (i = 0; i < 6; i++) {
-                weapons = (WEAPON_HAVE *) ((char *) ShopUserStatusPt + i * sizeof(ShopUserStatusPt->chara_weapons[0]) + 0x450C);
+                weapons = ShopUserStatusPt->chara_weapons[i];
 
                 for (j = 0; j < 10; j++) {
                     if (WeaponBoardInfo[i][j] == SHOP_SLOT_SHOP_GOOD) {
@@ -3323,18 +3132,16 @@ void DrawSellTicket22(int x, int y, int clip_top, int clip_bottom, int alpha) {
     }
 }
 
+namespace {
+
 /**
  * Puts every marked good back where it came from.
- *
- * @mangled ShopCancelGoodReturn2__Fv
- * @address 0x1ECF90
- * @size 0x4E0
  */
-static void ShopCancelGoodReturn2() {
+void ShopCancelGoodReturn2() {
     int          count = -1;
     int          page = BOARD_PAGE_NONE;
     s32         *info;
-    ATTACH_LIST *attach = (ATTACH_LIST *) ShopUserStatusPt->consumable_items;
+    auto        *attach = reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items);
     ITEM_PACK   *pack = ShopUserItemPack(ShopUserStatusPt);
     WEAPON_HAVE *weapon;
     int          space;
@@ -3372,7 +3179,7 @@ static void ShopCancelGoodReturn2() {
     }
 
     for (int i = 0; i < 40; i++) {
-        if (AttachBoardInfo[i] == SHOP_SLOT_SHOP_GOOD && attach != NULL) {
+        if (AttachBoardInfo[i] == SHOP_SLOT_SHOP_GOOD && attach != nullptr) {
             count++;
             ATTACH_LIST *list = &attach[i];
             ShopWorkBuf[count].item_no = list->item_no;
@@ -3400,7 +3207,7 @@ static void ShopCancelGoodReturn2() {
                         case BOARD_PAGE_WEAPON: {
                             chara_no = space / 10;
                             slot_no = space % 10;
-                            WEAPON_HAVE *row = ((CUserStatus *) ShopUserStatusPt)->chara_weapons[chara_no];
+                            WEAPON_HAVE *row = ShopUserStatusPt->chara_weapons[chara_no];
                             weapon = &row[slot_no];
                             memcpy(weapon, &ShopListPt[i].data, sizeof(WEAPON_HAVE));
                             weapon->item_no = item_no;
@@ -3443,12 +3250,8 @@ static void ShopCancelGoodReturn2() {
 
 /**
  * Chooses the line the shopkeeper says for the shop's current state.
- *
- * @mangled GetNowMasterMsgNo2__Fii
- * @address 0x1ED470
- * @size 0x268
  */
-static int GetNowMasterMsgNo2(int shop_kind, int shop_no) {
+int GetNowMasterMsgNo2(int shop_kind, int shop_no) {
     int mes_no;
     int base = shop_kind * 2000;
 
@@ -3538,12 +3341,8 @@ static int GetNowMasterMsgNo2(int shop_kind, int shop_no) {
 
 /**
  * Runs the shopkeeper's speech and the model's reaction to it.
- *
- * @mangled ShopModelMsgFunc__Fi
- * @address 0x1ED6E0
- * @size 0x2D8
  */
-static void ShopModelMsgFunc(int shop_kind) {
+void ShopModelMsgFunc(int shop_kind) {
     if (ShopMenu.person_state == 2) {
         int motion = ShopMenu.motion;
 
@@ -3633,13 +3432,8 @@ static void ShopModelMsgFunc(int shop_kind) {
 
 /**
  * Places the shopkeeper's speech bubble above their model.
- *
- * @mangled SetShopTalkMsgPos__Fv
- * @address 0x1ED9C0
- * @size 0xB4
- * Places the shopkeeper's message window over the shopkeeper.
  */
-static void SetShopTalkMsgPos() {
+void SetShopTalkMsgPos() {
     float pos[4];
     int   screen[6];
     int   msg_pos[2];
@@ -3656,22 +3450,20 @@ static void SetShopTalkMsgPos() {
     CommonMenuMes3.AutoSet(msg_pos);
 }
 
-void ItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name);
-
-void ItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name);
+} // namespace
 
 void ItemShopMemoryAlloc() {
-    ShopBoardInfo = (s32 *) ShopCashBuffer.Alloc(0x78);
-    ItemBoardInfo = (s32 *) ShopCashBuffer.Alloc(0x190);
-    WeaponBoardInfo = (s32(*)[10]) ShopCashBuffer.Alloc(0xF0);
-    AttachBoardInfo = (s32 *) ShopCashBuffer.Alloc(0xA0);
+    ShopBoardInfo = reinterpret_cast<s32 *>(ShopCashBuffer.Alloc(0x78));
+    ItemBoardInfo = reinterpret_cast<s32 *>(ShopCashBuffer.Alloc(0x190));
+    WeaponBoardInfo = reinterpret_cast<s32(*)[10]>(ShopCashBuffer.Alloc(0xF0));
+    AttachBoardInfo = reinterpret_cast<s32 *>(ShopCashBuffer.Alloc(0xA0));
     memset(ShopBoardInfo, 0, 0x78);
     memset(ItemBoardInfo, 0, 0x190);
     memset(WeaponBoardInfo, 0, 0xF0);
     memset(AttachBoardInfo, 0, 0xA0);
-    ShopListPt = (SHOP_ITEMLIST *) ShopCashBuffer.Alloc(0x1D88);
+    ShopListPt = reinterpret_cast<SHOP_ITEMLIST *>(ShopCashBuffer.Alloc(0x1D88));
     memset(ShopListPt, 0, 0x1D88);
-    ShopWorkBuf = (SHOP_ITEMLIST *) ShopCashBuffer.Alloc(0x1D88);
+    ShopWorkBuf = reinterpret_cast<SHOP_ITEMLIST *>(ShopCashBuffer.Alloc(0x1D88));
 }
 
 void ItemPosInfoInit() {
@@ -3684,7 +3476,7 @@ void ItemPosInfoInit() {
             ItemBoardInfo[i] = SHOP_SLOT_PLAYER_ITEM;
 
             if (DebugMode) {
-                printf("%d,  item exist is %d\n", i, pack->item[i]);
+                std::println("{},  item exist is {}", i, pack->item[i]);
             }
         } else {
             ItemBoardInfo[i] = SHOP_SLOT_EMPTY;
@@ -3702,7 +3494,7 @@ void ItemPosInfoInit() {
                 WeaponBoardInfo[i][j] = SHOP_SLOT_PLAYER_ITEM;
 
                 if (DebugMode) {
-                    printf("%d,  wep exist is %d\n", i * 10 + j, item_no);
+                    std::println("{},  wep exist is {}", i * 10 + j, item_no);
                 }
             } else {
                 WeaponBoardInfo[i][j] = SHOP_SLOT_EMPTY;
@@ -3717,7 +3509,7 @@ void ItemPosInfoInit() {
             AttachBoardInfo[i] = SHOP_SLOT_PLAYER_ITEM;
 
             if (DebugMode) {
-                printf("%d,  attach exist is %d\n", i, attach[i].id);
+                std::println("{},  attach exist is {}", i, attach[i].id);
             }
         } else {
             AttachBoardInfo[i] = SHOP_SLOT_EMPTY;
@@ -3725,15 +3517,12 @@ void ItemPosInfoInit() {
     }
 }
 
+namespace {
+
 /**
  * Fills the goods board from one shop's list.
- *
- * @mangled ItemShopGoodInitialize__Fi
- * @address 0x1EDEA0
- * @size 0x24C
- * Fills the shop stock from the goods list of the shop number it is given.
  */
-static void ItemShopGoodInitialize(int shop_no) {
+void ItemShopGoodInitialize(int shop_no) {
     s16 *list = GetItemShopList(shop_no);
 
     for (int i = 0; i < 20; i++) {
@@ -3777,6 +3566,8 @@ static void ItemShopGoodInitialize(int shop_no) {
     InitAllHaveData();
 }
 
+} // namespace
+
 void InitItemShop2(int *tex_block, int shop_no, int mode) {
     ShopMenuInit(tex_block, shop_no, mode);
     ItemShopMemoryAlloc();
@@ -3796,14 +3587,12 @@ void InitItemShop2(int *tex_block, int shop_no, int mode) {
     GetMainMenuRightHelpWinLangOffset(ShopHelpWinPos[0], ShopHelpWinPos[1], ShopHelpWinW, ShopHelpWinH);
 }
 
+namespace {
+
 /**
  * Moves the cursor across the item shop's board and swaps or buys the good under it.
- *
- * @mangled ItemShopSelectKey2__Fv
- * @address 0x1EE280
- * @size 0xAF0
  */
-static void ItemShopSelectKey2() {
+void ItemShopSelectKey2() {
     int           i;
     MENU_ITEMDATA swap_data[2];
     int           swap_item[2];
@@ -3873,7 +3662,7 @@ static void ItemShopSelectKey2() {
             if (item_no >= ITEM_DUNGEON_START) {
                 ITEM_DATA *data = GetItemData(item_no);
 
-                if (data != NULL) {
+                if (data != nullptr) {
                     if (data->kind_flags & ITEMKINDF_THROWABLE) {
                         enable = false;
                     }
@@ -4106,21 +3895,21 @@ static void ItemShopSelectKey2() {
 
     // Debug shortcut: dumps the held item.
     if (DebugMode && GamePad.Down2(PAD_UP)) {
-        printf("------nowHaveData---------\n");
-        printf("flag   = %d\n", ShopHaveItemPt->slot_state);
-        printf("mode = %d\n", ShopHaveItemPt->from_page);
-        printf("listno = %d\n", ShopHaveItemPt->item_no);
-        printf("select = %d\n", ShopHaveItemPt->from_slot);
-        printf("pos = %d\n", ShopHaveItemPt->last_slot);
-        printf("listno = %d\n", ShopHaveItemPt->item_no);
+        std::println("------nowHaveData---------");
+        std::println("flag   = {}", ShopHaveItemPt->slot_state);
+        std::println("mode = {}", ShopHaveItemPt->from_page);
+        std::println("listno = {}", ShopHaveItemPt->item_no);
+        std::println("select = {}", ShopHaveItemPt->from_slot);
+        std::println("pos = {}", ShopHaveItemPt->last_slot);
+        std::println("listno = {}", ShopHaveItemPt->item_no);
 
         if (0 <= ShopHaveItemPt->item_no && ShopHaveItemPt->item_no < ITEM_ATTACH_START) {
-            printf("wepIndex = %d\n", ShopHaveWepPt->item_no);
+            std::println("wepIndex = {}", ShopHaveWepPt->item_no);
         }
     }
 }
 
-static inline void ShopSwapHeldGood(SHOP_ITEMLIST *good) {
+void ShopSwapHeldGood(SHOP_ITEMLIST *good) {
     MENU_ITEMDATA swap_data[2];
 
     memset(swap_data, 0, sizeof(swap_data));
@@ -4178,14 +3967,15 @@ static inline void ShopSwapHeldGood(SHOP_ITEMLIST *good) {
     }
 }
 
-static inline int ShopHeldInfo() {
+int ShopHeldInfo() {
     return ShopHaveItemPt->slot_state;
 }
 
+} // namespace
+
 int ItemShopKey2() {
-    // Declared ahead of result so the personal-board cancel path keeps retail's callee-saved registers.
-    int  held_info;
-    s32 *slot;
+    int           held_info;
+    s32          *slot;
     int           result = 0;
     MENU_ITEMDATA record;
 
@@ -4238,7 +4028,7 @@ int ItemShopKey2() {
                             break;
                         }
                         case BOARD_PAGE_ATTACH: {
-                            ATTACH_LIST *list = &((ATTACH_LIST *) ShopUserStatusPt->consumable_items)[cursor];
+                            ATTACH_LIST *list = &(reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items))[cursor];
                             item_no = list->item_no;
                             memset(list, 0, sizeof(ATTACH_LIST));
                             info = AttachBoardInfo;
@@ -4368,7 +4158,7 @@ int ItemShopKey2() {
                     } else {
                         CUserStatus *status = ShopUserStatusPt;
                         ITEM_PACK   *pack = &status->item_pack;
-                        ATTACH_LIST *attach = (ATTACH_LIST *) status->consumable_items;
+                        auto        *attach = reinterpret_cast<ATTACH_LIST *>(status->consumable_items);
 
                         switch (page) {
                             case BOARD_PAGE_ITEM:
@@ -4571,7 +4361,7 @@ int ItemShopKey2() {
                                     if (target <= ITEM_WEAPON_START && target >= ITEM_DUNGEON_START) {
                                         ITEM_DATA *data = GetItemData(target);
 
-                                        if (data != NULL && ((data->kind_flags & 0x10) || ShopHaveItemPt->item_no == ITEM_FISHING_ROD)) {
+                                        if (data != nullptr && ((data->kind_flags & 0x10) || ShopHaveItemPt->item_no == ITEM_FISHING_ROD)) {
                                             enable = false;
                                             SetItemShopTalkMode(SHOP_TALK_CANNOT_SELL, SHOP_MSG_TALKING);
                                         }
@@ -4742,7 +4532,7 @@ int ItemShopKey2() {
                             break;
                         }
                         case BOARD_PAGE_ATTACH:
-                            SeitonShopAttachBoard((ATTACH_LIST *) ShopUserStatusPt->consumable_items);
+                            SeitonShopAttachBoard(reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items));
                             break;
                     }
 
@@ -4774,7 +4564,7 @@ int ItemShopKey2() {
 
                 if (GamePad.Down2(PAD_R1)) {
                     for (int i = 0; i < 30; i++) {
-                        printf(" %d \tis \t\t%d\n", i, ShopBoardInfo[i]);
+                        std::println(" {} \tis \t\t{}", i, ShopBoardInfo[i]);
                     }
                 }
 
@@ -4805,7 +4595,7 @@ int ItemShopKey2() {
 
                 if (ShopHaveItemPt->item_no >= ITEM_ATTACH_START) {
                     COM_ITEM_INFO *item_info = GetCommonItemInfo(ShopHaveItemPt->item_no);
-                    mes_no = item_info != NULL ? item_info->msg + 500 : mes_no;
+                    mes_no = item_info != nullptr ? item_info->msg + 500 : mes_no;
                     value = GetAttachVolumeForMsg(ShopHaveAttachPt);
 
                     if (ShopHaveItemPt->item_no == ITEM_ATTACH_SYNTHESIS_SPHERE) {
@@ -4855,9 +4645,9 @@ int ItemShopKey2() {
                                 break;
                             }
                             case BOARD_PAGE_ATTACH: {
-                                list = &((ATTACH_LIST *) ShopUserStatusPt->consumable_items)[pos];
+                                list = &(reinterpret_cast<ATTACH_LIST *>(ShopUserStatusPt->consumable_items))[pos];
 
-                                if (list != NULL) {
+                                if (list != nullptr) {
                                     item_no = list->item_no;
 
                                     if (item_no > 0) {
@@ -4879,7 +4669,7 @@ int ItemShopKey2() {
                 if (item_no >= ITEM_ATTACH_START) {
                     COM_ITEM_INFO *item_info = GetCommonItemInfo(item_no);
 
-                    if (item_info != NULL) {
+                    if (item_info != nullptr) {
                         mes_no = item_info->msg + 500;
                     }
                 }
@@ -4945,9 +4735,9 @@ void ItemShopDraw2() {
         MenuTextureReload(ShopMenu.tex_block);
         count = PersonalRetMax(ShopMenu.board.page);
         pos_y = 0x7F - ShopMenu.board.top_row * 0x28;
-        ShopMenu.board.y += ((float) pos_y - ShopMenu.board.y) / 4.0f;
+        ShopMenu.board.y += (static_cast<float>(pos_y) - ShopMenu.board.y) / 4.0f;
         cur_x = 0x168;
-        pos_y = (int) ShopMenu.board.y;
+        pos_y = static_cast<int>(ShopMenu.board.y);
         int mark = 0;
 
         if (ShopMenu.board.page == BOARD_PAGE_WEAPON) {
@@ -5032,7 +4822,7 @@ void ItemShopDraw2() {
                     int money = CalItemMoney(item_no, selling);
 
                     if (item_no >= ITEM_WEAPON_START) {
-                        money += WeaponCalMoney((WEAPON_HAVE *) &ShopListPt[cursor].data, selling);
+                        money += WeaponCalMoney(&ShopListPt[cursor].data.weapon, selling);
                     }
 
                     if (money < 0) {
@@ -5040,7 +4830,7 @@ void ItemShopDraw2() {
                     }
 
                     cur_x = cursor % 5 * 0x28 + 0x4A;
-                    pos_y = (int) (6.0f + ShopMenu.stock_y + (float) (cursor / 5 * 0x28));
+                    pos_y = static_cast<int>(6.0f + ShopMenu.stock_y + static_cast<float>(cursor / 5 * 0x28));
                     DrawBigSellTicket(selling, money, cur_x, pos_y, 0x80);
                 }
 
@@ -5072,7 +4862,7 @@ void ItemShopDraw2() {
                         }
                     }
 
-                    int ticket_y = (int) (6.0f + ShopMenu.board.y);
+                    int ticket_y = static_cast<int>(6.0f + ShopMenu.board.y);
                     int money = CalItemMoney(item_no, 1);
 
                     if (item_no >= ITEM_WEAPON_START) {
@@ -5092,11 +4882,11 @@ void ItemShopDraw2() {
                 break;
         }
 
-        DrawSellTicket22(0x16A, (int) (6.0f + ShopMenu.board.y), 0x81, 0x121, 0x80);
-        MenuHelpWinDraw((int) ShopHelpWinPos[0], (int) ShopHelpWinPos[1], ShopHelpWinW, ShopHelpWinH, 0x80);
+        DrawSellTicket22(0x16A, static_cast<int>(6.0f + ShopMenu.board.y), 0x81, 0x121, 0x80);
+        MenuHelpWinDraw(static_cast<int>(ShopHelpWinPos[0]), static_cast<int>(ShopHelpWinPos[1]), ShopHelpWinW, ShopHelpWinH, 0x80);
         GetMainMenuRightHelpMsgLangOffset(text_x, text_y);
-        CommonMenuMes2.text_x = (int) (ShopHelpWinPos[0] + text_x);
-        CommonMenuMes2.text_y = (int) (ShopHelpWinPos[1] + text_y);
+        CommonMenuMes2.text_x = static_cast<int>(ShopHelpWinPos[0] + text_x);
+        CommonMenuMes2.text_y = static_cast<int>(ShopHelpWinPos[1] + text_y);
     }
 
     if (ShopMenu.person_state == 2) {
@@ -5173,10 +4963,6 @@ void ItemShopDraw2() {
 
 /**
  * Returns one prize the fishing exchange offers.
- *
- * @mangled GetExchangeItemList__Fi
- * @address 0x1F1250
- * @size 0x18
  */
 FISH_EXCHANGE_ITEM exitemlst[35] = {
     {ITEM_ANTIDOTE_DRINK,        5   },
@@ -5216,9 +5002,13 @@ FISH_EXCHANGE_ITEM exitemlst[35] = {
     {ITEM_POISONOUS_APPLE,       2   },
 };
 
-static FISH_EXCHANGE_ITEM *GetExchangeItemList(int index) {
+namespace {
+
+FISH_EXCHANGE_ITEM *GetExchangeItemList(int index) {
     return &exitemlst[index];
 }
+
+} // namespace
 
 int GetMardanGareyanFlag() {
     return SaveData->GetMardanGareyanFlag();
@@ -5240,7 +5030,7 @@ void SetFishMardanGarayanNum(int count) {
     }
 
     SaveData->SetGameIntFlag(0x14, total);
-    printf("now mardan num(IntFlag):\t%d\n", GetFishMardanGarayanNum());
+    std::println("now mardan num(IntFlag):\t{}", GetFishMardanGarayanNum());
 }
 
 int GetFishMardanGarayanNum() {
@@ -5251,15 +5041,13 @@ void ClearFishMardanGarayanNum() {
     SaveData->SetGameIntFlag(0x14, 0);
 }
 
+namespace {
+
 /**
  * Reports whether the Mardan Garayan weapon has been handed over: zero once game flag 0xCA
  * marks it taken, one or two otherwise according to the Mardan Garayan flag.
- *
- * @mangled AlreadyGetMardanWeapon__Fv
- * @address 0x1F13A0
- * @size 0x70
  */
-static int AlreadyGetMardanWeapon() {
+int AlreadyGetMardanWeapon() {
     int flag = SaveData->GetGameFlag(0xCA);
 
     if (flag == 0) {
@@ -5277,8 +5065,10 @@ static int AlreadyGetMardanWeapon() {
     return flag;
 }
 
+} // namespace
+
 void InitFishingExchange(u_long128 *buffer, int *tex_block, int mode) {
-    FishMenu.buffer = (u_long128 *) (EdMenuBuffer.base + EdMenuBuffer.used * 16);
+    FishMenu.buffer = reinterpret_cast<u_long128 *>(EdMenuBuffer.base + EdMenuBuffer.used * 16);
     FishMenu.buffer = MenuCalcBufAlignment(FishMenu.buffer);
     FishMenu.tex_block = tex_block[0];
     FishMenu.tex_block2 = tex_block[1];
@@ -5310,96 +5100,28 @@ void InitFishingExchange(u_long128 *buffer, int *tex_block, int mode) {
 
 char FishFrameImage[] __attribute__((section(".rodata"))) = "#frame_image#640#" SCREEN_HEIGHT_STR "#4";
 
-/**
- * Enters the fishing menu's textures once they have been read.
- *
- * @mangled FishMenuTextureLoad__Fv
- * @address 0x1F15D0
- * @size 0x2AC
- */
-static int FishMenuTextureLoad() {
-    int done = 0;
-
-    if (FishMenu.ready == 0) {
-        if (ReadBGSync() == 0) {
-            BG_READ_INFO     *file = GetReadBGFile(0);
-            LOADTEXTURE_INFO2 texture[3] = {
-                {FishFrameImage, 0, 0},
-                {NULL,           0, 0},
-                {NULL,           0, 0},
-            };
-            texture[0].block_no = FishMenu.tex_block;
-            texture[1].block_no = FishMenu.tex_block;
-            texture[1].name = (char *) GetPackFile((u_int *) file->buffer, "fishing.img", NULL);
-            TexManager.DeleteTextureBlock(FishMenu.tex_block);
-            TexManager.CleanUpTextureList();
-            TexManager.LoadTextureBlockEX(-1, texture);
-            FishMenuTex = TexManager.GetTexture("fishbrd", -1);
-            WepIcon = TexManager.GetTexture("wepicon", -1);
-            ItemIcon = TexManager.GetTexture("itemicon", -1);
-            InitMenuMesSet(MENU_MES_SET_ALLMENU, (short *) GetPackFile((u_int *) file->buffer, FishMessageFile, NULL));
-            CommonMenuMes2.mes_made = -1;
-            AtoraNameMes.Preset(MES_PRESET_SYSTEM);
-
-            for (int i = 0; i < 5; i++) {
-                AtoraNameMes.mes_no[i] = GetExchangeItemList(i)->item_no + 100;
-            }
-
-            AtoraNameMes.narrow_gaiji = true;
-            AtoraNameMes.style = MES_EDGE_DOUBLE;
-            AtoraNameMes.value_signed = false;
-            AtoraNameMes.value_show = true;
-            AtoraNameMes.mes_made = -1;
-            AtoraNameMes.MakeMesWin(0xC8);
-            AtoraNameMes.Step();
-            FishMenu.ready = 1;
-            CommonMenuMes3.value_signed = false;
-            CommonMenuMes3.value_show = true;
-            CommonMenuMes3.stay_frame = true;
-            CommonMenuMes3.value = 0;
-            int digits = GetNumberKeta(0);
-            CommonMenuMes3.mes_made = -1;
-            CommonMenuMes3.MakeMesWin(digits + 0xCD);
-            FishMenu.cursor_y = 0x7E;
-            done = 1;
-        }
-    } else {
-        done = 1;
-    }
-
-    return done;
-}
-
 char FishMessageFile[] __attribute__((section(".rodata"))) = "fishmes.bin";
 
-int FishingExchangeKey();
+namespace {
 
 /**
  * Draws one fish icon.
- *
- * @mangled FishImageIconDraw__Fiiii
- * @address 0x1F2420
- * @size 0x54
  */
-static void FishImageIconDraw(int x, int y, int width, int alpha) {
+void FishImageIconDraw(int x, int y, int width, int alpha) {
     DrawMenu2DSprite(FishMenuTex, CRect_i_(x, y, width, 0x28), CRect_i_(0, 0xD0, width, 0x28), alpha);
 }
 
 /**
  * Returns @p base moved by @p offset.
  */
-static inline float AddOffset(float base, float offset) {
+float AddOffset(float base, float offset) {
     return base + offset;
 }
 
 /**
  * Draws the fishing exchange's goods, their prices and its help window.
- *
- * @mangled FishExchangeItemDraw__Fiii
- * @address 0x1F2480
- * @size 0x788
  */
-static void FishExchangeItemDraw(int x, int y, int alpha) {
+void FishExchangeItemDraw(int x, int y, int alpha) {
     int   last_prize;
     int   pos_y;
     float win_x;
@@ -5429,15 +5151,15 @@ static void FishExchangeItemDraw(int x, int y, int alpha) {
     float rows = last_prize;
     int   bar_x = x + 0x144;
     float step = 126.0f / rows;
-    pos_y = (int) AddOffset((float) (y + 0x28), FishMenu.top * step);
+    pos_y = static_cast<int>(AddOffset(static_cast<float>(y + 0x28), FishMenu.top * step));
     float    length = 630.0f / rows - 8.0f;
     CRect_i_ source(0xF0, 0xD0, 8, 4);
     DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, pos_y, 8, 4), source, alpha);
     source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, pos_y + 4, 8, (int) length), source, alpha);
+    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, pos_y + 4, 8, static_cast<int>(length)), source, alpha);
     source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, (int) ((float) (pos_y + 4) + length), 8, 4), source, alpha);
-    x = (int) (x + 0x16);
+    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, static_cast<int>(static_cast<float>(pos_y + 4) + length), 8, 4), source, alpha);
+    x += 0x16;
     pos_y = y + 0x14;
 
     for (i = 0; i < 5; i++, pos_y += 0x22) {
@@ -5467,7 +5189,7 @@ static void FishExchangeItemDraw(int x, int y, int alpha) {
         target_y = (FishMenu.confirm << 5) + 0x102;
     }
 
-    FishMenu.cursor_y += (int) ((float) (target_y - FishMenu.cursor_y) / 4.0f);
+    FishMenu.cursor_y += static_cast<int>(static_cast<float>(target_y - FishMenu.cursor_y) / 4.0f);
 
     if (abs(FishMenu.cursor_y - target_y) < 2) {
         FishMenu.cursor_y = target_y;
@@ -5476,11 +5198,11 @@ static void FishExchangeItemDraw(int x, int y, int alpha) {
     int cursor_y = FishMenu.cursor_y;
     MenuTextureReload(CommonMenuMes2.tex_block);
     GetMainMenuRightHelpWinLangOffset(win_x, win_y, win_w, win_h);
-    MenuHelpWinDraw((int) win_x, (int) win_y, win_w, win_h, 0x80);
+    MenuHelpWinDraw(static_cast<int>(win_x), static_cast<int>(win_y), win_w, win_h, 0x80);
     GetMainMenuRightHelpMsgLangOffset(text_x, text_y);
     CommonMenuMes2.edge_alpha = alpha;
-    CommonMenuMes2.text_x = (int) (win_x + text_x);
-    CommonMenuMes2.text_y = (int) (win_y + text_y);
+    CommonMenuMes2.text_x = static_cast<int>(win_x + text_x);
+    CommonMenuMes2.text_y = static_cast<int>(win_y + text_y);
     CommonMenuMes2.Step();
     CommonMenuMes2.DrawMesWin();
     AtoraNameMes.edge_alpha = alpha;
@@ -5529,6 +5251,8 @@ static void FishExchangeItemDraw(int x, int y, int alpha) {
         DrawMenuObjectVibe(cursor_x, cursor_y, 1, 0x40);
     }
 }
+
+} // namespace
 
 void FishingExchangeDraw() {
     int frame_alpha;
@@ -5614,8 +5338,8 @@ SV_FISH_DATA *GetFishingRankData(int rank_index) {
 void InitFishRecordView(u_long128 *buffer, int *tex_block, int mode) {
     u_long128 *load_buffer = buffer;
 
-    if (buffer == NULL) {
-        load_buffer = (u_long128 *) (EdMenuBuffer.base + EdMenuBuffer.used * 16);
+    if (buffer == nullptr) {
+        load_buffer = reinterpret_cast<u_long128 *>(EdMenuBuffer.base + EdMenuBuffer.used * 16);
     }
 
     load_buffer = MenuCalcBufAlignment(load_buffer);
@@ -5634,19 +5358,19 @@ void InitFishRecordView(u_long128 *buffer, int *tex_block, int mode) {
     GamePad.MenuModeOn(0x78);
 }
 
+namespace {
+
 /**
  * Leaves the fishing record view and releases its texture block.
- *
- * @mangled ExitFishRecord__Fv
- * @address 0x1F2FA0
- * @size 0x60
  */
-static void ExitFishRecord() {
+void ExitFishRecord() {
     TexManager.DeleteTextureBlock(FishRecordMenu.tex_block);
     TexManager.CleanUpTextureList();
     GamePad.AutoRepeatOff();
     GamePad.MenuModeOff();
 }
+
+} // namespace
 
 void FishRecordTextureEnter() {
     if (ReadBGSync() != 0) {
@@ -5656,25 +5380,25 @@ void FishRecordTextureEnter() {
     BG_READ_INFO     *file = GetReadBGFile(0);
     LOADTEXTURE_INFO2 texture[3] = {
         {FishFrameImage, 0, 0},
-        {NULL,           0, 0},
-        {NULL,           0, 0},
+        {nullptr,        0, 0},
+        {nullptr,        0, 0},
     };
     texture[0].block_no = FishRecordMenu.tex_block;
     texture[1].block_no = FishRecordMenu.tex_block;
-    texture[1].name = (char *) GetPackFile((u_int *) file->buffer, "fishrec.img", NULL);
+    texture[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "fishrec.img", nullptr));
     TexManager.DeleteTextureBlock(FishRecordMenu.tex_block);
     TexManager.CleanUpTextureList();
     TexManager.LoadTextureBlockEX(-1, texture);
     FishMenuTex = TexManager.GetTexture("fprecbrd", -1);
-    InitMenuMesSet(MENU_MES_SET_ALLMENU, (short *) GetPackFile((u_int *) file->buffer, FishMessageFile, NULL));
+    InitMenuMesSet(MENU_MES_SET_ALLMENU, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), FishMessageFile, nullptr)));
     CommonMenuMes2.mes_made = -1;
     AtoraNameMes.mes_made = -1;
 
     for (int i = 0; i < 5; i++) {
         SV_FISH_DATA *rank = GetFishingRankData(FishRecordMenu.top + i);
 
-        if (rank != NULL) {
-            AtoraNameMes.mes_no[i] = GetFishMsgNo(*(int *) rank);
+        if (rank != nullptr) {
+            AtoraNameMes.mes_no[i] = GetFishMsgNo(rank->fish_id);
         } else {
             AtoraNameMes.mes_no[i] = 0;
         }
@@ -5685,14 +5409,12 @@ void FishRecordTextureEnter() {
     FishRecordMenu.ready = 1;
 }
 
+namespace {
+
 /**
  * Handles one frame of fishing record input and returns the mode it leaves the view in.
- *
- * @mangled FishRecordViewKey__Fv
- * @address 0x1F31E0
- * @size 0x410
  */
-static int FishRecordViewKey() {
+int FishRecordViewKey() {
     ReadBG();
     int ret = 0;
 
@@ -5793,7 +5515,7 @@ static int FishRecordViewKey() {
                 for (int i = 0; i < 5; i++) {
                     SV_FISH_DATA *fish = GetFishingRankData(FishRecordMenu.top + i);
 
-                    if (fish != NULL) {
+                    if (fish != nullptr) {
                         AtoraNameMes.mes_no[i] = GetFishMsgNo(fish->fish_id);
                     } else {
                         AtoraNameMes.mes_no[i] = 0;
@@ -5813,12 +5535,8 @@ static int FishRecordViewKey() {
 
 /**
  * Draws the fishing record board: each rank, its fish and its size.
- *
- * @mangled FishRecordViewBoard__Fiii
- * @address 0x1F35F0
- * @size 0x648
  */
-static void FishRecordViewBoard(int x, int y, int alpha) {
+void FishRecordViewBoard(int x, int y, int alpha) {
     int pos_x;
     int pos_y;
 
@@ -5840,13 +5558,13 @@ static void FishRecordViewBoard(int x, int y, int alpha) {
 
     int      bar_x = x + 0x144;
     float    length = 23.5f;
-    int      bar_y = (int) ((float) (y + 0x2A) + 6.3f * FishRecordMenu.top);
+    int      bar_y = static_cast<int>(static_cast<float>(y + 0x2A) + 6.3f * FishRecordMenu.top);
     CRect_i_ source(0x110, 0xD0, 8, 4);
     DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, bar_y, 8, 4), source, alpha);
     source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, bar_y + 4, 8, (int) length), source, alpha);
+    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, bar_y + 4, 8, static_cast<int>(length)), source, alpha);
     source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, (int) ((float) (bar_y + 4) + length), 8, 4), source, alpha);
+    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, static_cast<int>(static_cast<float>(bar_y + 4) + length), 8, 4), source, alpha);
     pos_x = x + 0x12;
     pos_y = y + 6;
 
@@ -5880,8 +5598,8 @@ static void FishRecordViewBoard(int x, int y, int alpha) {
         DrawMenuNumber(rank_no + 1, number_x, pos_y + 0x18, FishMenuTex, digits, 1, alpha);
         int size = 0;
 
-        if (record != NULL) {
-            size = (int) record->rank;
+        if (record != nullptr) {
+            size = static_cast<int>(record->rank);
         }
 
         if (size > 0) {
@@ -5903,9 +5621,8 @@ static void FishRecordViewBoard(int x, int y, int alpha) {
 
     int row = FishRecordMenu.cursor - FishRecordMenu.top;
     pos_y = y + 0x14 + row * 0x22;
-    pos_x = x + 0x16;
-    pos_x = (int) (pos_x - 0x1C);
-    FishRecordMenu.cursor_y += (int) ((float) (pos_y - FishRecordMenu.cursor_y) / 4.0f);
+    pos_x = x + 0x16 - 0x1C;
+    FishRecordMenu.cursor_y += static_cast<int>(static_cast<float>(pos_y - FishRecordMenu.cursor_y) / 4.0f);
 
     if (abs(FishRecordMenu.cursor_y - pos_y) < 2) {
         FishRecordMenu.cursor_y = pos_y;
@@ -5921,12 +5638,8 @@ static void FishRecordViewBoard(int x, int y, int alpha) {
 
 /**
  * Draws one frame of the fishing record view.
- *
- * @mangled FishRecordViewDraw__Fv
- * @address 0x1F3C40
- * @size 0x11C
  */
-static void FishRecordViewDraw() {
+void FishRecordViewDraw() {
     int frame_alpha;
     int alpha;
 
@@ -5969,6 +5682,8 @@ static void FishRecordViewDraw() {
         setbilinear(1);
     }
 }
+
+} // namespace
 
 int FishRecordViewLoop() {
     int done;

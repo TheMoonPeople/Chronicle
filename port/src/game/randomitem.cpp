@@ -3,6 +3,7 @@
 #include <libvu0.h>
 
 #include <cmath>
+#include <numbers>
 
 #include "character.hpp"
 #include "dngstatusdata.hpp"
@@ -23,8 +24,8 @@ void CRandomItem::Draw() {
         }
 
         sceVu0FVECTOR draw_position;
-        int           texel_x;
-        int           texel_y;
+        int           texel_x = 0;
+        int           texel_y = 0;
         sceVu0CopyVector(draw_position, position[i]);
         draw_position[1] += 8.0f * sinf(phase[i]);
 
@@ -77,19 +78,19 @@ void CRandomItem::MapSymbolDraw() {
 
     for (int i = 0; i < 32; i++) {
         if (id[i] != -1 && amount[i] == -1) {
-            int x = (int) (0.1f * (position[i][0] - 80.0f));
-            int y = (int) (0.1f * (position[i][2] - 80.0f));
+            int x = static_cast<int>(0.1f * (position[i][0] - 80.0f));
+            int y = static_cast<int>(0.1f * (position[i][2] - 80.0f));
             set2DSprite(Vif1Packet, texture, CRect_i_(x + 0x184, y + 0x48, 8, 8), CRect_i_(0x50, 0x68, 8, 8));
         }
     }
 }
 
 int CRandomItem::checkEvent() {
-    for (int i = 0; i < 32; i++) {
-        int event = pickup_event[i];
+    for (s32 &slot_event : pickup_event) {
+        int event = slot_event;
 
         if (event != -1) {
-            pickup_event[i] = -1;
+            slot_event = -1;
             return event;
         }
     }
@@ -98,9 +99,9 @@ int CRandomItem::checkEvent() {
 }
 
 int CRandomItem::checkErr() {
-    for (int i = 0; i < 32; i++) {
-        if (pickup_blocked[i] > 0 && pickup_blocked[i] < 3) {
-            pickup_blocked[i] = 3;
+    for (s32 &blocked : pickup_blocked) {
+        if (blocked > 0 && blocked < 3) {
+            blocked = 3;
             return 1;
         }
     }
@@ -115,7 +116,7 @@ int CRandomItem::CheckPosition() {
     sceVu0CopyVector(player_position, CharaMain.pos);
 
     for (int i = 0; i < 32; i++) {
-        if (id[i] == -1 || state[i] != RANDOM_ITEM_WAITING) {
+        if (id[i] == -1 || state[i] != RandomItemState::WAITING) {
             continue;
         }
 
@@ -130,7 +131,7 @@ int CRandomItem::CheckPosition() {
         }
 
         if (amount[i] == -1 && item_no[i] != -1) {
-            int blocked = ((CDngStatusData *) UserStatus)->CheckItemGet(item_no[i]);
+            int blocked = static_cast<CDngStatusData *>(UserStatus)->CheckItemGet(item_no[i]);
 
             if (blocked == 0) {
                 pickup_event[i] = item_no[i];
@@ -139,7 +140,7 @@ int CRandomItem::CheckPosition() {
                 pickup_blocked[i] = blocked;
             }
         } else {
-            state[i] = RANDOM_ITEM_TAKEN;
+            state[i] = RandomItemState::TAKEN;
 
             if (item_no[i] == -1) {
                 SndSePlay(SE_ITEM_GET, -1, 0);
@@ -147,7 +148,7 @@ int CRandomItem::CheckPosition() {
 
             gold += amount[i];
             position[i][1] += 5.0f;
-            HitValueEntry(NowHitValue, position[i], gold, HIT_VALUE_GOLD, NULL);
+            HitValueEntry(NowHitValue, position[i], gold, HIT_VALUE_GOLD, nullptr);
             position[i][1] -= 5.0f;
         }
     }
@@ -165,7 +166,7 @@ void CRandomItem::Set(float *drop_position, int slot_id, int gold, int item) {
         amount[slot] = gold;
         item_no[slot] = item;
         pickup_event[slot] = -1;
-        state[slot] = RANDOM_ITEM_RISING;
+        state[slot] = RandomItemState::RISING;
         phase[slot] = 0.0f;
         pickup_blocked[slot] = 0;
     }
@@ -195,8 +196,8 @@ int CRandomItem::CheckItemNo(int item) {
 void CRandomItem::Step() {
     bob_phase += 0.05235988f;
 
-    if (bob_phase > PI) {
-        bob_phase -= PI;
+    if (bob_phase > std::numbers::pi_v<float>) {
+        bob_phase -= std::numbers::pi_v<float>;
     }
 
     for (int i = 0; i < 32; i++) {
@@ -205,11 +206,11 @@ void CRandomItem::Step() {
         }
 
         switch (state[i]) {
-            case RANDOM_ITEM_RISING:
+            case RandomItemState::RISING:
                 phase[i] += 0.10471976f;
 
-                if (phase[i] > PI) {
-                    state[i] = RANDOM_ITEM_WAITING;
+                if (phase[i] > std::numbers::pi_v<float>) {
+                    state[i] = RandomItemState::WAITING;
                     phase[i] = 0.0f;
 
                     if (item_no[i] == -1) {
@@ -220,9 +221,9 @@ void CRandomItem::Step() {
                 }
 
                 break;
-            case RANDOM_ITEM_WAITING:
+            case RandomItemState::WAITING:
                 break;
-            case RANDOM_ITEM_TAKEN:
+            case RandomItemState::TAKEN:
                 phase[i] += 0.10471976f;
 
                 if (phase[i] > 2.5132742f) {

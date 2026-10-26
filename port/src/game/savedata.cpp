@@ -2,6 +2,13 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstring>
+#include <span>
+#include <utility>
+
 #include "editatra.hpp"
 #include "object.hpp"
 
@@ -9,23 +16,16 @@ void CObject::SetPosition(float *position) {
     sceVu0CopyVector(this->pos, position);
 }
 
-/**
- * Contains one entry of the Georama building definition table.
- *
- * Only the two fields that AtraPartsGet() reads are known.
- */
-struct SV_ATRA_PARTS_DEF {
-    s32 max_stock; /**< Most copies of the building the player can hold. */
-    s32 stackable; /**< Greater than zero where each pickup adds five copies up to max_stock. */
-};
+namespace {
 
-/**
- * Returns the definition table entry of a Georama plot.
- *
- * @mangled GetEditAtraPartsData__Fii
- * @address 0x158E00
- * @size 0x74
- */
+// Maps that keep their NPC slots in CSaveData::special_npc, in slot order.
+constexpr std::array<s32, 6> SUB_MAPS = {14, 23, 11, 19, 42, 38};
+
+constexpr u32 FlagMask(int flag_no) {
+    return 1U << (flag_no & 0x1F);
+}
+
+} // namespace
 
 void *CSaveData::GetConfigData() {
     return this->config;
@@ -37,7 +37,7 @@ CMenuCursor *CSaveData::GetMenuCursor() {
 
 s16 *CSaveData::GetCharaName(int chara_no) {
     if (chara_no < 0 || chara_no >= 6) {
-        return NULL;
+        return nullptr;
     }
 
     return this->chara_name[chara_no];
@@ -60,13 +60,11 @@ float CSaveData::GetNowTime() {
 }
 
 void CSaveData::AddNowTime(float add) {
-    float old_time = this->now_time;
+    const float old_time = this->now_time;
     this->now_time += add;
 
-    if (old_time < 8.5f) {
-        if (this->now_time >= 8.5) {
-            this->AddDay(1);
-        }
+    if (old_time < 8.5f && this->now_time >= 8.5) {
+        this->AddDay(1);
     }
 
     if (this->now_time >= 12.0f) {
@@ -79,15 +77,7 @@ void CSaveData::AddNowTime(float add) {
 }
 
 void CSaveData::SetDay(int day) {
-    this->day = day;
-
-    if (this->day > 9998) {
-        this->day = 9998;
-    }
-
-    if (this->day < 0) {
-        this->day = 0;
-    }
+    this->day = std::clamp(day, 0, 9998);
 }
 
 int CSaveData::GetDay() {
@@ -100,35 +90,19 @@ void CSaveData::AddDay(int add) {
 }
 
 void CSaveData::AddFishingPoint(int add) {
-    this->fishing_point += add;
-
-    if (this->fishing_point > 0x270F) {
-        this->fishing_point = 0x270F;
-    }
-
-    if (this->fishing_point < 0) {
-        this->fishing_point = 0;
-    }
+    this->fishing_point = std::clamp(this->fishing_point + add, 0, 9999);
 }
 
 void CSaveData::SetFishingPoint(int value) {
-    this->fishing_point = value;
-
-    if (this->fishing_point > 0x270F) {
-        this->fishing_point = 0x270F;
-    }
-
-    if (this->fishing_point < 0) {
-        this->fishing_point = 0;
-    }
+    this->fishing_point = std::clamp(value, 0, 9999);
 }
 
 void CSaveData::SetFishingRank(int fish_id, float score) {
     float lowest_score = -1.0f;
     int   lowest_index = -1;
-    int   i;
+    int   i = 0;
 
-    for (i = 0; i < 64; i++) {
+    for (; i < 64; i++) {
         if (this->fish_data[i].rank <= 0.0f) {
             this->fish_data[i].rank = score;
             this->fish_data[i].fish_id = fish_id;
@@ -146,12 +120,10 @@ void CSaveData::SetFishingRank(int fish_id, float score) {
         this->fish_data[lowest_index].fish_id = fish_id;
     }
 
-    for (i = 0; i < 63; i++) {
-        for (int k = i + 1; k < 64; k++) {
-            if (this->fish_data[i].rank < this->fish_data[k].rank) {
-                SV_FISH_DATA swapped = this->fish_data[i];
-                this->fish_data[i] = this->fish_data[k];
-                this->fish_data[k] = swapped;
+    for (int j = 0; j < 63; j++) {
+        for (int k = j + 1; k < 64; k++) {
+            if (this->fish_data[j].rank < this->fish_data[k].rank) {
+                std::swap(this->fish_data[j], this->fish_data[k]);
             }
         }
     }
@@ -159,11 +131,11 @@ void CSaveData::SetFishingRank(int fish_id, float score) {
 
 SV_FISH_DATA *CSaveData::GetFishingRank(int rank_index) {
     if (rank_index < 0 || rank_index >= 64) {
-        return NULL;
+        return nullptr;
     }
 
     if (this->fish_data[rank_index].rank <= 0.0f || this->fish_data[rank_index].fish_id < 0) {
-        return NULL;
+        return nullptr;
     }
 
     return &this->fish_data[rank_index];
@@ -171,7 +143,7 @@ SV_FISH_DATA *CSaveData::GetFishingRank(int rank_index) {
 
 SV_GEORAMA_DATA *CSaveData::GetGrdData(int georama_no) {
     if (georama_no < 0 || georama_no >= 6) {
-        return NULL;
+        return nullptr;
     }
 
     return &this->georama[georama_no];
@@ -179,27 +151,25 @@ SV_GEORAMA_DATA *CSaveData::GetGrdData(int georama_no) {
 
 SV_EDIT_PARTS_INFO *CSaveData::GetEditPartsInfo(int georama_no, int plot_no) {
     if (georama_no < 0 || georama_no >= 6) {
-        return NULL;
+        return nullptr;
     }
 
     if (plot_no < 0 || plot_no >= 24) {
-        return NULL;
+        return nullptr;
     }
 
     return &this->georama[georama_no].parts_info[plot_no];
 }
 
 SV_GRD_PART *CSaveData::GetParts(int georama_no, int *out_count) {
-    SV_GRD_PART *parts;
-    int          count;
-
     if (georama_no < 0 || georama_no >= 6) {
-        return NULL;
+        return nullptr;
     }
 
-    parts = this->georama[georama_no].placed_parts;
+    SV_GRD_PART *parts = this->georama[georama_no].placed_parts;
 
-    for (count = 0; count < 130; count++) {
+    int count = 0;
+    for (; count < 130; count++) {
         if (parts[count].part_id < 0) {
             break;
         }
@@ -210,27 +180,22 @@ SV_GRD_PART *CSaveData::GetParts(int georama_no, int *out_count) {
 }
 
 SV_GRD_NPC *CSaveData::GetGrdNPCData(int map_no, int npc_no) {
-    static s32 sub_map[] = {14, 23, 11, 19, 42, 38, -1};
-    int        i;
-
     if (map_no >= 11) {
-        for (i = 0;; i++) {
-            if (sub_map[i] < 0) {
-                return NULL;
-            }
-
-            if (map_no == sub_map[i]) {
-                return (SV_GRD_NPC *) (this->special_npc + i * 12);
+        for (std::size_t slot = 0; slot < SUB_MAPS.size(); slot++) {
+            if (map_no == SUB_MAPS[slot]) {
+                return reinterpret_cast<SV_GRD_NPC *>(&this->special_npc[slot * sizeof(SV_GRD_NPC)]);
             }
         }
+
+        return nullptr;
     }
 
     if (map_no < 0 || map_no >= 6) {
-        return NULL;
+        return nullptr;
     }
 
     if (npc_no < 0 || npc_no >= 20) {
-        return NULL;
+        return nullptr;
     }
 
     return &this->georama[map_no].npc[npc_no];
@@ -238,7 +203,7 @@ SV_GRD_NPC *CSaveData::GetGrdNPCData(int map_no, int npc_no) {
 
 s16 *CSaveData::GetElemData(int georama_no) {
     if (georama_no < 0 || georama_no >= 6) {
-        return NULL;
+        return nullptr;
     }
 
     return this->elem_data[georama_no];
@@ -253,51 +218,34 @@ CStockItem *CSaveData::GetStockItem() {
 }
 
 int CSaveData::GetGameFlag(int flag_no) {
-    int bit_idx;
-
     if (flag_no < 0) {
         return 0;
     }
 
-    if (flag_no >> 5 >= 256) {
-        return 0;
-    }
-
-    bit_idx = flag_no & 0x1F;
-
-    if (flag_no < 0 && bit_idx != 0) {
-        bit_idx -= 32;
-    }
-
-    u32 mask = 1 << bit_idx;
-    return (this->game_flags[flag_no >> 5] & mask) != 0;
-}
-
-int CSaveData::SetGameFlag(int flag_no, int value) {
-    int bit_idx;
-    int word_idx;
-    u32 mask;
-
-    if (flag_no < 0) {
-        return 0;
-    }
-
-    word_idx = flag_no >> 5;
+    const int word_idx = flag_no >> 5;
 
     if (word_idx >= 256) {
         return 0;
     }
 
-    bit_idx = flag_no & 0x1F;
+    return static_cast<int>((this->game_flags[word_idx] & FlagMask(flag_no)) != 0);
+}
 
-    if (flag_no < 0 && bit_idx != 0) {
-        bit_idx -= 32;
+int CSaveData::SetGameFlag(int flag_no, int value) {
+    if (flag_no < 0) {
+        return 0;
     }
 
-    mask = 1 << bit_idx;
+    const int word_idx = flag_no >> 5;
+
+    if (word_idx >= 256) {
+        return 0;
+    }
+
+    const u32 mask = FlagMask(flag_no);
     this->game_flags[word_idx] &= ~mask;
 
-    if (value) {
+    if (value != 0) {
         this->game_flags[word_idx] |= mask;
     }
 
@@ -322,11 +270,7 @@ int CSaveData::SetGameIntFlag(int flag_no, int value) {
 }
 
 int CSaveData::GetMapFlag(int map_no, int flag_no) {
-    int word_idx;
-    int bit_idx;
-    u32 mask;
-
-    if (map_no < 0 || map_no >= 0x50) {
+    if (map_no < 0 || map_no >= 80) {
         return 0;
     }
 
@@ -334,28 +278,17 @@ int CSaveData::GetMapFlag(int map_no, int flag_no) {
         return 0;
     }
 
-    word_idx = flag_no >> 5;
+    const int word_idx = flag_no >> 5;
 
     if (word_idx >= 16) {
         return 0;
     }
 
-    bit_idx = flag_no & 0x1F;
-
-    if (flag_no < 0 && bit_idx != 0) {
-        bit_idx -= 32;
-    }
-
-    mask = 1 << bit_idx;
-    return (this->map_flags[map_no][word_idx] & mask) != 0;
+    return static_cast<int>((this->map_flags[map_no][word_idx] & FlagMask(flag_no)) != 0);
 }
 
 int CSaveData::SetMapFlag(int map_no, int flag_no, int value) {
-    int word_idx;
-    int bit_idx;
-    u32 mask;
-
-    if (map_no < 0 || map_no >= 0x50) {
+    if (map_no < 0 || map_no >= 80) {
         return 0;
     }
 
@@ -363,22 +296,16 @@ int CSaveData::SetMapFlag(int map_no, int flag_no, int value) {
         return 0;
     }
 
-    word_idx = flag_no >> 5;
+    const int word_idx = flag_no >> 5;
 
     if (word_idx >= 16) {
         return 0;
     }
 
-    bit_idx = flag_no & 0x1F;
-
-    if (flag_no < 0 && bit_idx != 0) {
-        bit_idx -= 32;
-    }
-
-    mask = 1 << bit_idx;
+    const u32 mask = FlagMask(flag_no);
     this->map_flags[map_no][word_idx] &= ~mask;
 
-    if (value) {
+    if (value != 0) {
         this->map_flags[map_no][word_idx] |= mask;
     }
 
@@ -386,11 +313,7 @@ int CSaveData::SetMapFlag(int map_no, int flag_no, int value) {
 }
 
 int CSaveData::GetMapInitFlag(int map_no, int flag_no) {
-    int word_idx;
-    int bit_idx;
-    u32 mask;
-
-    if (map_no < 0 || map_no >= 0x50) {
+    if (map_no < 0 || map_no >= 80) {
         return 0;
     }
 
@@ -398,28 +321,17 @@ int CSaveData::GetMapInitFlag(int map_no, int flag_no) {
         return 0;
     }
 
-    word_idx = flag_no >> 5;
+    const int word_idx = flag_no >> 5;
 
     if (word_idx >= 16) {
         return 0;
     }
 
-    bit_idx = flag_no & 0x1F;
-
-    if (flag_no < 0 && bit_idx != 0) {
-        bit_idx -= 32;
-    }
-
-    mask = 1 << bit_idx;
-    return (this->map_init_flags[map_no][word_idx] & mask) != 0;
+    return static_cast<int>((this->map_init_flags[map_no][word_idx] & FlagMask(flag_no)) != 0);
 }
 
 int CSaveData::SetMapInitFlag(int map_no, int flag_no, int value) {
-    int word_idx;
-    int bit_idx;
-    u32 mask;
-
-    if (map_no < 0 || map_no >= 0x50) {
+    if (map_no < 0 || map_no >= 80) {
         return 0;
     }
 
@@ -427,22 +339,16 @@ int CSaveData::SetMapInitFlag(int map_no, int flag_no, int value) {
         return 0;
     }
 
-    word_idx = flag_no >> 5;
+    const int word_idx = flag_no >> 5;
 
     if (word_idx >= 16) {
         return 0;
     }
 
-    bit_idx = flag_no & 0x1F;
-
-    if (flag_no < 0 && bit_idx != 0) {
-        bit_idx -= 32;
-    }
-
-    mask = 1 << bit_idx;
+    const u32 mask = FlagMask(flag_no);
     this->map_init_flags[map_no][word_idx] &= ~mask;
 
-    if (value) {
+    if (value != 0) {
         this->map_init_flags[map_no][word_idx] |= mask;
     }
 
@@ -450,18 +356,15 @@ int CSaveData::SetMapInitFlag(int map_no, int flag_no, int value) {
 }
 
 int CSaveData::AtraPartsGet(int georama_no, int plot_no) {
-    SV_EDIT_PARTS_INFO *info;
-    SV_ATRA_PARTS_DEF  *atra;
+    SV_EDIT_PARTS_INFO *info = this->GetEditPartsInfo(georama_no, plot_no);
 
-    info = this->GetEditPartsInfo(georama_no, plot_no);
-
-    if (info == NULL) {
+    if (info == nullptr) {
         return 0;
     }
 
-    atra = (SV_ATRA_PARTS_DEF *) GetEditAtraPartsData(georama_no, plot_no);
+    const EDIT_PARTS_ATRA *atra = GetEditAtraPartsData(georama_no, plot_no);
 
-    if (atra == NULL) {
+    if (atra == nullptr) {
         return 0;
     }
 
@@ -471,9 +374,7 @@ int CSaveData::AtraPartsGet(int georama_no, int plot_no) {
         } else {
             info->stock += 5;
 
-            if (info->stock > atra->max_stock) {
-                info->stock = (s16) atra->max_stock;
-            }
+            info->stock = static_cast<s16>(std::min<s32>(info->stock, atra->max));
         }
 
         info->obtained = 1;
@@ -489,25 +390,19 @@ int CSaveData::AtraPartsGet(int georama_no, int plot_no) {
 }
 
 int CSaveData::AtraChipGet(int georama_no, int chip_id) {
-    s16 *chips;
-    s16 *slot;
-    int  i;
-
-    chips = this->GetElemData(georama_no);
+    s16 *chips = this->GetElemData(georama_no);
 
     if (chip_id < 0) {
         return 0;
     }
 
-    if (chips == NULL) {
+    if (chips == nullptr) {
         return 0;
     }
 
-    slot = chips;
-
-    for (i = 0; i < 128; i++, slot++) {
-        if (*slot < 0) {
-            *slot = chip_id;
+    for (s16 &slot : std::span(chips, 128)) {
+        if (slot < 0) {
+            slot = static_cast<s16>(chip_id);
             return 1;
         }
     }
@@ -516,15 +411,13 @@ int CSaveData::AtraChipGet(int georama_no, int chip_id) {
 }
 
 int CSaveData::VisitMap(int map_no, int add) {
-    if (map_no < 0 || map_no >= 0x50) {
+    if (map_no < 0 || map_no >= 80) {
         return 0;
     }
 
     this->visit_map[map_no] += add;
 
-    if (this->visit_map[map_no] > 0x270F) {
-        this->visit_map[map_no] = 0x270F;
-    }
+    this->visit_map[map_no] = std::min<s16>(this->visit_map[map_no], 9999);
 
     return this->visit_map[map_no];
 }
@@ -533,9 +426,7 @@ int CSaveData::QuestDungeon(int dungeon_no, int add) {
     if (dungeon_no == 6) {
         this->quest_dungeon_total += add;
 
-        if (this->quest_dungeon_total > 0x270F) {
-            this->quest_dungeon_total = 0x270F;
-        }
+        this->quest_dungeon_total = std::min(this->quest_dungeon_total, 9999);
 
         return this->quest_dungeon_total;
     }
@@ -546,54 +437,41 @@ int CSaveData::QuestDungeon(int dungeon_no, int add) {
 
     this->quest_dungeon[dungeon_no] += add;
 
-    if (this->quest_dungeon[dungeon_no] > 0x270F) {
-        this->quest_dungeon[dungeon_no] = 0x270F;
-    }
+    this->quest_dungeon[dungeon_no] = std::min<s16>(this->quest_dungeon[dungeon_no], 9999);
 
     return this->quest_dungeon[dungeon_no];
 }
 
 void CSaveData::ConvertConfig(SV_CONFIG_SYS *out) {
-    char *src;
-    char *dst;
-    int   copy;
-    int   value_no;
-
-    dst = (char *) out;
-
     this->config[16] = this->menu_cursor.reset_pos;
     this->config[15] = this->dng_status.minimap_status;
 
-    src = (char *) this->config;
-    memset(dst, 0, sizeof(SV_CONFIG_SYS));
+    *out = {};
 
-    for (copy = 0; copy < 3; copy++) {
-        for (value_no = 0; value_no < 18; value_no++) {
-            *(dst + copy * 18 + value_no) = *(src + value_no * 4);
+    // Each value keeps only its low byte on the card.
+    for (char *copy : {out->values, out->values_copy1, out->values_copy2}) {
+        for (int value_no = 0; value_no < 18; value_no++) {
+            copy[value_no] = static_cast<char>(this->config[value_no]);
         }
     }
 }
 
 int CSaveData::InvertConfig(SV_CONFIG_SYS *in) {
-    int i;
-    int j;
-
-    for (j = 0; j < 18; j++) {
-        if (in->values[j] != in->values_copy1[j]) {
+    for (int value_no = 0; value_no < 18; value_no++) {
+        if (in->values[value_no] != in->values_copy1[value_no]) {
             return 0;
         }
 
-        if (in->values[j] != in->values_copy2[j]) {
+        if (in->values[value_no] != in->values_copy2[value_no]) {
             return 0;
         }
     }
 
-    for (i = 0; i < 18; i++) {
-        this->config[i] = in->values[i];
+    for (int value_no = 0; value_no < 18; value_no++) {
+        this->config[value_no] = in->values[value_no];
     }
 
-    s32 saved_reset_pos = this->config[16];
-    this->menu_cursor.reset_pos = (s16) saved_reset_pos;
+    this->menu_cursor.reset_pos = static_cast<s16>(this->config[16]);
 
     if (this->menu_cursor.reset_pos != 0) {
         this->menu_cursor.InitPos();
@@ -605,16 +483,8 @@ int CSaveData::InvertConfig(SV_CONFIG_SYS *in) {
 }
 
 void CMenuCursor::InitPos() {
-    int i;
-    int j;
-
-    for (i = 0; i < 10; i++) {
-        this->pos[i] = 0;
-    }
-
-    for (j = 0; j < 10; j++) {
-        this->mode[j] = -1;
-    }
+    std::ranges::fill(this->pos, 0);
+    std::ranges::fill(this->mode, -1);
 
     this->mode[0] = 4;
     this->mode[2] = 6;
@@ -623,44 +493,26 @@ void CMenuCursor::InitPos() {
 }
 
 void CSaveData::Initialize() {
-    int i;
-    int j;
-    int k;
-
-    memset(this, 0, sizeof(CSaveData));
+    std::memset(static_cast<void *>(this), 0, sizeof(CSaveData));
     this->unk_1CC = -1;
     this->now_time = 0.0f;
 
-    for (j = 0; j < 6; j++) {
-        for (k = 0; k < 128; k++) {
-            this->elem_data[j][k] = -1;
-        }
+    for (auto &town_chips : this->elem_data) {
+        std::ranges::fill(town_chips, -1);
     }
 
-    SV_GEORAMA_DATA *town = this->georama;
-
-    for (i = 0; i < 6; i++, town++) {
-        memset(town, 0, sizeof(SV_GEORAMA_DATA));
-
-        for (j = 0; j < 24; j++) {
-            SV_EDIT_PARTS_INFO *info = &town->parts_info[j];
-
-            for (k = 0; k < 6; k++) {
-                info->element_enabled[k] = 0;
-            }
-        }
-
-        for (j = 0; j < 130; j++) {
-            town->placed_parts[j].part_id = -1;
+    for (SV_GEORAMA_DATA &town : this->georama) {
+        for (SV_GRD_PART &part : town.placed_parts) {
+            part.part_id = -1;
         }
     }
 
     this->dng_status.Initialize();
     this->stock_item.Initialize();
 
-    memset(this, 0, sizeof(this->config));
-    memset(this->game_flags, 0, sizeof(this->game_flags));
-    memset(this->map_flags, 0, 4);
+    std::ranges::fill(this->config, 0);
+    std::ranges::fill(this->game_flags, 0U);
+    this->map_flags[0][0] = 0;
 }
 
 CSaveData::CSaveData() {

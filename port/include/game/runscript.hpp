@@ -84,6 +84,9 @@ struct RS_STACKDATA {
     };
 };
 
+/**
+ * Value representations an RS_STACKDATA::type can hold.
+ */
 enum {
     RS_INT = 0,
     RS_FLOAT = 1,
@@ -169,190 +172,96 @@ public:
 
     /**
      * Makes an interpreter with no program, stack or external functions.
-     *
-     * @mangled __ct__10CRunScriptFv
-     * @address 0x23D940
-     * @size 0x40
      */
     CRunScript();
 
     /**
      * Stops the game when the operand stack is full.
-     *
-     * @mangled check_stack__10CRunScriptFv
-     * @address 0x23D980
-     * @size 0x34
-     * @unknownret
      */
     void check_stack();
 
     /**
      * Pushes one value onto the operand stack.
-     *
-     * @mangled push__10CRunScriptF12RS_STACKDATA
-     * @address 0x23D9C0
-     * @size 0x50
-     * @unknownret
      */
     void push(RS_STACKDATA value);
 
     /**
      * Pushes an integer onto the operand stack.
-     *
-     * @mangled push_int__10CRunScriptFi
-     * @address 0x23DA10
-     * @size 0x50
-     * @unknownret
      */
     void push_int(int value);
 
     /**
      * Pushes a string onto the operand stack.
-     *
-     * @mangled push_str__10CRunScriptFPc
-     * @address 0x23DA60
-     * @size 0x54
-     * @unknownret
      */
     void push_str(char *string);
 
     /**
      * Pushes a reference to a stack slot onto the operand stack.
-     *
-     * @mangled push_ptr__10CRunScriptFP12RS_STACKDATA
-     * @address 0x23DAC0
-     * @size 0x54
-     * @unknownret
      */
     void push_ptr(RS_STACKDATA *pointer);
 
     /**
      * Pushes a float onto the operand stack.
-     *
-     * @mangled push_float__10CRunScriptFf
-     * @address 0x23DB20
-     * @size 0x54
-     * @unknownret
      */
     void push_float(float value);
 
     /**
      * Pops the top value off the operand stack.
-     *
-     * @mangled pop__10CRunScriptFv
-     * @address 0x23DB80
-     * @size 0x24
-     * @unknownret
      */
     RS_STACKDATA pop();
 
     /**
      * Enters a script function, and gives back its first instruction.
-     *
-     * @mangled call_func__10CRunScriptFP8funcdataP8vmcode_t
-     * @address 0x23DBB0
-     * @size 0x108
-     * @unknownret
      */
     vmcode_t *call_func(funcdata *callee, vmcode_t *return_pc);
 
     /**
      * Leaves the current script function, and gives back the caller's instruction.
-     *
-     * @mangled ret_func__10CRunScriptFv
-     * @address 0x23DCC0
-     * @size 0x34
-     * @unknownret
      */
     vmcode_t *ret_func();
 
     /**
      * Calls the external function the first argument names.
-     *
-     * @mangled ext__10CRunScriptFP12RS_STACKDATAi
-     * @address 0x23DD00
-     * @size 0xB4
-     * @unknownret
      */
     void ext(RS_STACKDATA *args, int argc);
 
     /**
      * Gives the interpreter a program and the stacks to run it on.
-     *
-     * @mangled load__10CRunScriptFP14RS_PROG_HEADERP12RS_STACKDATAiP11RS_CALLDATAi
-     * @address 0x23DDC0
-     * @size 0x50
-     * @unknownret
      */
     void load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, int stack_num, RS_CALLDATA *call, int call_num);
 
     /**
      * Swaps in another program, keeping the stacks.
-     *
-     * @mangled reload__10CRunScriptFP14RS_PROG_HEADER
-     * @address 0x23DE10
-     * @size 0x18
-     * @unknownret
      */
     void reload(RS_PROG_HEADER *prog);
 
     /**
      * Registers the table of external functions scripts can call.
-     *
-     * @mangled ext_func__10CRunScriptFPPFP12RS_STACKDATAi_ii
-     * @address 0x23DE30
-     * @size 0x10
-     * @unknownret
      */
     void ext_func(int (**table)(RS_STACKDATA *, int), int count);
 
     /**
      * Continues a suspended script where it stopped.
-     *
-     * @mangled resume__10CRunScriptFv
-     * @address 0x23DE40
-     * @size 0x2C
-     * @unknownret
      */
     void resume();
 
     /**
      * Starts a numbered program, or the main function for a negative number.
-     *
-     * @mangled run__10CRunScriptFi
-     * @address 0x23DE70
-     * @size 0x180
-     * @unknownret
      */
     int run(int no);
 
     /**
      * Reports whether the program has a numbered entry.
-     *
-     * @mangled check_program__10CRunScriptFi
-     * @address 0x23DFF0
-     * @size 0x54
-     * @unknownret
      */
     int check_program(int no);
 
     /**
      * Resumes the script, running through its waits.
-     *
-     * @mangled skip__10CRunScriptFv
-     * @address 0x23E050
-     * @size 0x28
-     * @unknownret
      */
     void skip();
 
     /**
      * Runs instructions from one until the script ends or waits.
-     *
-     * @mangled exe__10CRunScriptFP8vmcode_t
-     * @address 0x23E080
-     * @size 0x1508
-     * @unknownret
      */
     void exe(vmcode_t *entry);
 };

@@ -24,10 +24,6 @@ public:
 
     /**
      * Sets all menu positions and modes to their default values.
-     *
-     * @mangled InitPos__11CMenuCursorFv
-     * @address 0x158AE0
-     * @size 0x74
      */
     void InitPos();
 };
@@ -123,377 +119,227 @@ class CSaveData {
     s32             fishing_point; /**< Contains the fishing points. */
     SV_FISH_DATA    fish_data[64]; /**< Contains the fishing leaderboard. */
     char            unk_5E0[112];
-    CMenuCursor     menu_cursor;       /**< Contains the menu positions. */
-    SV_GEORAMA_DATA georama[6];        /**< Contains the Georama data of each town. */
-    s16             elem_data[6][128]; /**< Contains the chips of each town. */
-    char            special_npc[320];  /**< Contains the NPC slots that the sub-maps share. */
-
-    // ConvertConfig and InvertConfig reach dng_status.minimap_status at 0x9748
-    // from `this`. Only a direct member access at a >0x7FFF offset emits
-    // retail's `lui at,0x1; addu at,<this>,at; lw/sw reg,-0x68b8(at)` idiom.
-    CDngStatusData dng_status;             /**< Contains the dungeon status data. */
-    CStockItem     stock_item;             /**< Contains the stock inventory. */
-    u32            game_flags[256];        /**< Contains the game flag bits. */
-    s32            game_int_flag[32];      /**< Contains the game integer flags. */
-    u32            map_flags[80][16];      /**< Contains the map flag bits of each map. */
-    u32            map_init_flags[80][16]; /**< Contains the map initialization flag bits of each map. */
-    s16            visit_map[80];          /**< Contains the visit count of each map. */
-    s16            quest_dungeon[6];       /**< Contains the quest count of each dungeon. */
-    s32            mardan_garayan_caught;  /**< Number of Mardan Garayan caught. */
-    s32            quest_dungeon_total;    /**< Contains the quest count of all the dungeons. */
-    char           unk_12F9C[548];
+    CMenuCursor     menu_cursor;            /**< Contains the menu positions. */
+    SV_GEORAMA_DATA georama[6];             /**< Contains the Georama data of each town. */
+    s16             elem_data[6][128];      /**< Contains the chips of each town. */
+    char            special_npc[320];       /**< Contains the NPC slots that the sub-maps share. */
+    CDngStatusData  dng_status;             /**< Contains the dungeon status data. */
+    CStockItem      stock_item;             /**< Contains the stock inventory. */
+    u32             game_flags[256];        /**< Contains the game flag bits. */
+    s32             game_int_flag[32];      /**< Contains the game integer flags. */
+    u32             map_flags[80][16];      /**< Contains the map flag bits of each map. */
+    u32             map_init_flags[80][16]; /**< Contains the map initialization flag bits of each map. */
+    s16             visit_map[80];          /**< Contains the visit count of each map. */
+    s16             quest_dungeon[6];       /**< Contains the quest count of each dungeon. */
+    s32             mardan_garayan_caught;  /**< Number of Mardan Garayan caught. */
+    s32             quest_dungeon_total;    /**< Contains the quest count of all the dungeons. */
+    char            unk_12F9C[548];
 
 public:
     /**
      * Sets all save data fields to their initial state.
-     *
-     * @mangled __ct__9CSaveDataFv
-     * @address 0x158D30
-     * @size 0x44
      */
     CSaveData();
 
     /**
      * Sets all save data fields to their initial state.
-     *
-     * @mangled Initialize__9CSaveDataFv
-     * @address 0x158B60
-     * @size 0x1C8
      */
     void Initialize();
 
     /**
      * Returns the configuration values.
-     *
-     * @mangled GetConfigData__9CSaveDataFv
-     * @address 0x157B30
-     * @size 0xC
      */
     void *GetConfigData();
 
     /**
      * Returns the menu cursor.
-     *
-     * @mangled GetMenuCursor__9CSaveDataFv
-     * @address 0x157B40
-     * @size 0xC
      */
     CMenuCursor *GetMenuCursor();
 
     /**
-     * Returns the name of a character, or NULL if the character number is not valid.
-     *
-     * @mangled GetCharaName__9CSaveDataFi
-     * @address 0x157B50
-     * @size 0x34
+     * Returns the name of a character, or nullptr if the character number is not valid.
      */
     s16 *GetCharaName(int chara_no);
 
     /**
      * Adds a value to the play time.
-     *
-     * @mangled AddPlayTime__9CSaveDataFi
-     * @address 0x157B90
-     * @size 0x14
      */
     void AddPlayTime(int time);
 
     /**
      * Returns the play time.
-     *
-     * @mangled GetPlayTime__9CSaveDataFv
-     * @address 0x157BB0
-     * @size 0xC
      */
     int GetPlayTime();
 
     /**
      * Sets the time of day.
-     *
-     * @mangled SetNowTime__9CSaveDataFf
-     * @address 0x157BC0
-     * @size 0xC
      */
     void SetNowTime(float time);
 
     /**
      * Returns the time of day.
-     *
-     * @mangled GetNowTime__9CSaveDataFv
-     * @address 0x157BD0
-     * @size 0xC
      */
     float GetNowTime();
 
     /**
      * Adds a value to the time of day and starts a new day if necessary.
-     *
-     * @mangled AddNowTime__9CSaveDataFf
-     * @address 0x157BE0
-     * @size 0xDC
      */
     void AddNowTime(float add);
 
     /**
      * Sets the day count and keeps the count in the permitted range.
-     *
-     * @mangled SetDay__9CSaveDataFi
-     * @address 0x157CC0
-     * @size 0x34
      */
     void SetDay(int day);
 
     /**
      * Returns the day count.
-     *
-     * @mangled GetDay__9CSaveDataFv
-     * @address 0x157D00
-     * @size 0xC
      */
     int GetDay();
 
     /**
      * Adds a value to the day count.
-     *
-     * @mangled AddDay__9CSaveDataFi
-     * @address 0x157D10
-     * @size 0x30
      */
     void AddDay(int add);
 
     /**
      * Adds a value to the fishing points and keeps the points in the permitted range.
-     *
-     * @mangled AddFishingPoint__9CSaveDataFi
-     * @address 0x157D40
-     * @size 0x3C
      */
     void AddFishingPoint(int add);
 
     /**
      * Sets the fishing points and keeps the points in the permitted range.
-     *
-     * @mangled SetFishingPoint__9CSaveDataFi
-     * @address 0x157D80
-     * @size 0x34
      */
     void SetFishingPoint(int value);
 
     /**
      * Puts a fish score in the leaderboard and sorts the leaderboard again.
-     *
-     * @mangled SetFishingRank__9CSaveDataFif
-     * @address 0x157DC0
-     * @size 0x180
      */
     void SetFishingRank(int fish_id, float score);
 
     /**
-     * Returns a leaderboard entry, or NULL if the entry is empty.
-     *
-     * @mangled GetFishingRank__9CSaveDataFi
-     * @address 0x157F40
-     * @size 0x68
+     * Returns a leaderboard entry, or nullptr if the entry is empty.
      */
     SV_FISH_DATA *GetFishingRank(int rank_index);
 
     /**
-     * Returns the Georama data of a town, or NULL if the town number is not valid.
-     *
-     * @mangled GetGrdData__9CSaveDataFi
-     * @address 0x157FB0
-     * @size 0x38
+     * Returns the Georama data of a town, or nullptr if the town number is not valid.
      */
     SV_GEORAMA_DATA *GetGrdData(int georama_no);
 
     /**
-     * Returns the state of a Georama plot, or NULL if a number is not valid.
-     *
-     * @mangled GetEditPartsInfo__9CSaveDataFii
-     * @address 0x157FF0
-     * @size 0x68
+     * Returns the state of a Georama plot, or nullptr if a number is not valid.
      */
     SV_EDIT_PARTS_INFO *GetEditPartsInfo(int georama_no, int plot_no);
 
     /**
      * Returns the Georama parts of a town and gives the number of parts that the town has.
-     *
-     * @mangled GetParts__9CSaveDataFiPi
-     * @address 0x158060
-     * @size 0x6C
      */
     SV_GRD_PART *GetParts(int georama_no, int *out_count);
 
     /**
-     * Returns an NPC slot of a map, or NULL if a number is not valid.
-     *
-     * @mangled GetGrdNPCData__9CSaveDataFii
-     * @address 0x1580D0
-     * @size 0xD0
+     * Returns an NPC slot of a map, or nullptr if a number is not valid.
      */
     SV_GRD_NPC *GetGrdNPCData(int map_no, int npc_no);
 
     /**
-     * Returns the chips of a town, or NULL if the town number is not valid.
-     *
-     * @mangled GetElemData__9CSaveDataFi
-     * @address 0x1581A0
-     * @size 0x34
+     * Returns the chips of a town, or nullptr if the town number is not valid.
      */
     s16 *GetElemData(int georama_no);
 
     /**
      * Returns the dungeon status data.
-     *
-     * @mangled GetDngStatus__9CSaveDataFv
-     * @address 0x1581E0
-     * @size 0xC
      */
     CDngStatusData *GetDngStatus();
 
     /**
      * Returns the stock inventory.
-     *
-     * @mangled GetStockItem__9CSaveDataFv
-     * @address 0x1581F0
-     * @size 0x10
      */
     CStockItem *GetStockItem();
 
     /**
      * Returns the value of a game flag, or zero if the flag number is not valid.
-     *
-     * @mangled GetGameFlag__9CSaveDataFi
-     * @address 0x158200
-     * @size 0x74
      */
     int GetGameFlag(int flag_no);
 
     /**
      * Sets a game flag and returns the new value.
-     *
-     * @mangled SetGameFlag__9CSaveDataFii
-     * @address 0x158280
-     * @size 0x94
      */
     int SetGameFlag(int flag_no, int value);
 
     /**
      * Returns the value of a game integer flag, or zero if the flag number is not valid.
-     *
-     * @mangled GetGameIntFlag__9CSaveDataFi
-     * @address 0x158320
-     * @size 0x38
      */
     int GetGameIntFlag(int flag_no);
 
     /**
      * Sets a game integer flag and returns the new value.
-     *
-     * @mangled SetGameIntFlag__9CSaveDataFii
-     * @address 0x158360
-     * @size 0x38
      */
     int SetGameIntFlag(int flag_no, int value);
 
     /**
      * Returns the value of a map flag, or zero if a number is not valid.
-     *
-     * @mangled GetMapFlag__9CSaveDataFii
-     * @address 0x1583A0
-     * @size 0x9C
      */
     int GetMapFlag(int map_no, int flag_no);
 
     /**
      * Sets a map flag and returns the new value.
-     *
-     * @mangled SetMapFlag__9CSaveDataFiii
-     * @address 0x158440
-     * @size 0xBC
      */
     int SetMapFlag(int map_no, int flag_no, int value);
 
     /**
      * Returns the value of a map initialization flag, or zero if a number is not valid.
-     *
-     * @mangled GetMapInitFlag__9CSaveDataFii
-     * @address 0x158500
-     * @size 0x9C
      */
     int GetMapInitFlag(int map_no, int flag_no);
 
     /**
      * Sets a map initialization flag and returns the new value.
-     *
-     * @mangled SetMapInitFlag__9CSaveDataFiii
-     * @address 0x1585A0
-     * @size 0xBC
      */
     int SetMapInitFlag(int map_no, int flag_no, int value);
 
     /**
      * Gives the player a Georama building and returns one if the state changed.
-     *
-     * @mangled AtraPartsGet__9CSaveDataFii
-     * @address 0x158660
-     * @size 0x100
      */
     int AtraPartsGet(int georama_no, int plot_no);
 
     /**
      * Puts a chip in the first empty chip slot of a town and returns one if a slot was empty.
-     *
-     * @mangled AtraChipGet__9CSaveDataFii
-     * @address 0x158760
-     * @size 0x94
      */
     int AtraChipGet(int georama_no, int chip_id);
 
     /**
      * Adds a value to the visit count of a map and returns the new count.
-     *
-     * @mangled VisitMap__9CSaveDataFii
-     * @address 0x158800
-     * @size 0x68
      */
     int VisitMap(int map_no, int add);
 
     /**
      * Adds a value to the quest count of a dungeon and returns the new count.
-     *
-     * @mangled QuestDungeon__9CSaveDataFii
-     * @address 0x158870
-     * @size 0xCC
      */
     int QuestDungeon(int dungeon_no, int add);
 
     /**
      * Writes the configuration values in the format that the memory card uses.
-     *
-     * @mangled ConvertConfig__9CSaveDataFP13SV_CONFIG_SYS
-     * @address 0x158940
-     * @size 0xB8
      */
     void ConvertConfig(SV_CONFIG_SYS *out);
 
     /**
      * Reads the configuration values from the memory card and returns zero if the copies do not agree.
-     *
-     * @mangled InvertConfig__9CSaveDataFP13SV_CONFIG_SYS
-     * @address 0x158A00
-     * @size 0xDC
      */
     int InvertConfig(SV_CONFIG_SYS *in);
 
-    /** Returns the fishing points the player holds. */
+    /**
+     * Returns the fishing points the player holds.
+     */
     s32 GetFishingPoint() const { return fishing_point; }
 
-    /** Returns the state of the Mardan Garayan fishing quest. */
+    /**
+     * Returns the state of the Mardan Garayan fishing quest.
+     */
     s32 GetMardanGareyanFlag() const { return mardan_garayan_caught; }
 };
 
-/** Points to the save data of the game. */
+/**
+ * Points to the save data of the game.
+ */
 extern CSaveData *SaveData;
 
 STATIC_ASSERT(sizeof(CSaveData) == 78272);

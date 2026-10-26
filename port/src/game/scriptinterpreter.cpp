@@ -1,11 +1,44 @@
 #include "scriptinterpreter.hpp"
 
-#include <cstdio>
+#include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
+#include <print>
+#include <string>
+#include <string_view>
+
+namespace {
+
+// Script text may contain NUL bytes; a token compares and converts only up to the first one.
+std::string_view CStringView(const std::string &text) {
+    return std::string_view(text).substr(0, text.find('\0'));
+}
+
+int ArgumentCount(const int *argument_types) {
+    int count = 0;
+
+    while (argument_types[count] >= 0) {
+        count++;
+    }
+
+    return count;
+}
+
+template <typename T>
+void StoreValue(void *destination, T value) {
+    std::memcpy(destination, &value, sizeof(value));
+}
+
+void StoreString(char *destination, std::string_view text) {
+    std::ranges::copy(text, destination);
+    destination[text.size()] = '\0';
+}
+
+} // namespace
 
 int CScriptInterpreter::GetNextTAG() {
-    if (tag_table == NULL) {
+    if (tag_table == nullptr) {
         return -1;
     }
 
@@ -20,15 +53,15 @@ int CScriptInterpreter::GetNextTAG() {
     } while (current_tag >= tag_count || current_tag < 0);
 
     if (tag_table[current_tag].argument_types[0] >= 0) {
-        int status = GetArg(tag_table[current_tag].argument_types);
+        const int status = GetArg(tag_table[current_tag].argument_types);
 
         if (status == 0) {
             return -1;
         }
 
         if (status < 0) {
-            printf("error at ");
-            printf("%s\n", tag_table[current_tag].name);
+            std::print("error at ");
+            std::println("{}", tag_table[current_tag].name);
 
             for (;;) {
             }
@@ -57,15 +90,10 @@ void CScriptInterpreter::SetScript(char *script, int script_size) {
     PreProcess__FR9input_str__2(*this);
 }
 
-CScriptInterpreter::CScriptInterpreter() {
-    data = NULL;
-    data = NULL;
+CScriptInterpreter::CScriptInterpreter() : current_tag(-1), argument_data_used(0), tag_table(nullptr), function_table(nullptr) {
+    data = nullptr;
     size = 0;
     pos = 0;
-    argument_data_used = 0;
-    current_tag = -1;
-    tag_table = NULL;
-    function_table = NULL;
 }
 
 int CScriptInterpreter::ControlCode() {
@@ -73,18 +101,13 @@ int CScriptInterpreter::ControlCode() {
         return 0;
     }
 
-    int control_type = 1;
-
-    if (memcmp(data + pos, "if", 2) == 0) {
-        control_type = 2;
-        printf("if\n");
-    }
-
-    if (control_type == 1) {
+    if (std::string_view(&data[pos], 2) != "if") {
         return 1;
     }
 
-    int c;
+    std::println("if");
+
+    int c = 0;
 
     do {
         if (get(&c) == 0) {
@@ -92,7 +115,7 @@ int CScriptInterpreter::ControlCode() {
         }
     } while (c != '(');
 
-    int condition;
+    int condition = 0;
 
     if (!CallFunction(&condition)) {
         return 0;
@@ -106,22 +129,20 @@ int CScriptInterpreter::ControlCode() {
         } while (c != '}');
     }
 
-    return control_type;
+    return 2;
 }
 
 int CScriptInterpreter::CallFunction(int *result) {
-    char  call_text[512];
-    void *call_arguments[24];
-
     if (!SkipSpace__FR9input_str__3(*this)) {
         return 0;
     }
 
-    int length = 0;
-    int argc = 0;
-    int c;
+    // The command name followed by its argument words, each ended by a NUL.
+    std::string call_text;
+    int         argc = 0;
+    int         c = 0;
 
-    while (1) {
+    for (;;) {
         if (get(&c) == 0) {
             return 0;
         }
@@ -131,95 +152,88 @@ int CScriptInterpreter::CallFunction(int *result) {
         }
 
         if (c == '(' || c == ',') {
-            call_text[length++] = 0;
+            call_text += '\0';
             argc++;
-        } else if (CheckChar__Fc__3(c)) {
-            call_text[length++] = c;
+        } else if (CheckChar__Fc__3(static_cast<char>(c))) {
+            call_text += static_cast<char>(c);
         }
     }
 
-    call_text[length] = 0;
-    call_text[length + 1] = 0;
+    call_text.append(2, '\0');
 
-    if (function_table == NULL) {
+    if (function_table == nullptr) {
         return -1;
     }
 
-    SPI_FUNC_PARAM *command = NULL;
+    const std::string_view name = CStringView(call_text);
+    SPI_FUNC_PARAM        *command = nullptr;
 
-    for (length = 0; length < function_count; length++) {
-        if (strcmp(function_table[length].name, call_text) == 0) {
-            command = &function_table[length];
+    for (int index = 0; index < function_count; index++) {
+        if (std::string_view(function_table[index].name) == name) {
+            command = &function_table[index];
             break;
         }
     }
 
-    if (command == NULL) {
+    if (command == nullptr) {
         return -1;
     }
 
-    for (length = 0; command->argument_types[length] >= 0; length++) {
-    }
-
-    if (length != argc || argc >= 24) {
+    if (ArgumentCount(command->argument_types) != argc || argc >= 24) {
         return -1;
     }
 
-    int   used = 0;
-    u8   *value_out = &function_argument_data[argument_data_used];
-    char *word = call_text;
+    std::array<void *, 24> call_arguments{};
+    std::size_t            word_start = 0;
+    int                    offset = argument_data_used;
 
-    for (length = 0; length < argc; length++) {
-        int value_size = 0;
+    for (int index = 0; index < argc; index++) {
+        word_start = call_text.find('\0', word_start) + 1;
 
-        while (*word++ != 0) {
-        }
+        const char *word = &call_text[word_start];
+        u8         *value_out = &function_argument_data[offset];
+        int         value_size = 0;
 
-        call_arguments[length] = value_out;
+        call_arguments[index] = value_out;
 
-        switch (command->argument_types[length]) {
-            case SCRIPT_ARGUMENT_STRING:
-                strcpy((char *) value_out, word);
-                value_size = strlen(word);
-                value_size = ((value_size >> 2) + 1) << 2;
+        switch (command->argument_types[index]) {
+            case SCRIPT_ARGUMENT_STRING: {
+                const std::string_view text = word;
+                StoreString(reinterpret_cast<char *>(value_out), text);
+                value_size = ((static_cast<int>(text.size()) >> 2) + 1) << 2;
                 break;
+            }
             case SCRIPT_ARGUMENT_INTEGER:
-                *(int *) value_out = atoi(word);
+                StoreValue(value_out, std::atoi(word));
                 value_size = 4;
                 break;
             case SCRIPT_ARGUMENT_FLOAT:
-                *(float *) value_out = atof(word);
+                StoreValue(value_out, static_cast<float>(std::atof(word)));
                 value_size = 4;
+                break;
+            default:
                 break;
         }
 
-        value_out += value_size;
-        used += value_size;
+        offset += value_size;
     }
 
-    *result = command->function(call_arguments);
+    *result = command->function(call_arguments.data());
     return 1;
 }
 
 int CScriptInterpreter::GetArg(int *argument_types) {
-    char token[256];
-
     if (!SkipSpace__FR9input_str__3(*this)) {
         return 0;
     }
 
-    int argc;
+    const int argc = ArgumentCount(argument_types);
+    int       c = 0;
+    int       used = 0;
 
-    for (argc = 0; argument_types[argc] >= 0; argc++) {
-    }
-
-    int c;
-    int i;
-    int used = 0;
-
-    for (i = 0; i < argc; i++) {
-        arguments[i] = &argument_text[used];
-        int length = 0;
+    for (int index = 0; index < argc; index++) {
+        char *destination = &argument_text[used];
+        arguments[index] = destination;
 
         if (!SkipSpace__FR9input_str__3(*this)) {
             return 0;
@@ -229,68 +243,61 @@ int CScriptInterpreter::GetArg(int *argument_types) {
             return 0;
         }
 
+        std::string token;
+
         if (c != ',') {
-            token[length++] = c;
+            token += static_cast<char>(c);
         } else if (!SkipSpace__FR9input_str__3(*this)) {
             return 0;
         }
 
-        while (1) {
+        for (;;) {
             if (get(&c) == 0) {
                 return 0;
             }
 
-            if (c == ',' || !CheckChar__Fc__3(c)) {
+            if (c == ',' || !CheckChar__Fc__3(static_cast<char>(c))) {
                 break;
             }
 
-            token[length++] = c;
+            token += static_cast<char>(c);
         }
 
-        token[length] = 0;
+        const std::string_view text = CStringView(token);
 
-        switch (argument_types[i]) {
-            case SCRIPT_ARGUMENT_STRING:
-                if (token[0] != '"') {
+        switch (argument_types[index]) {
+            case SCRIPT_ARGUMENT_STRING: {
+                if (text.empty() || text[0] != '"') {
                     return -1;
                 }
 
-                for (length = 1;; length++) {
-                    if (token[length] == '"') {
-                        token[length] = 0;
-                        break;
-                    }
+                const std::size_t closing_quote = text.find('"', 1);
 
-                    if (token[length] == 0) {
-                        return -1;
-                    }
+                if (closing_quote == std::string_view::npos) {
+                    return -1;
                 }
 
-                strcpy((char *) arguments[i], token + 1);
-                used += ((((int) strlen((char *) arguments[i]) + 1) >> 2) + 1) << 2;
+                const std::string_view contents = text.substr(1, closing_quote - 1);
+                StoreString(destination, contents);
+                used += (((static_cast<int>(contents.size()) + 1) >> 2) + 1) << 2;
                 break;
+            }
             case SCRIPT_ARGUMENT_INTEGER:
-                for (length = 0; token[length] != 0; length++) {
-                    char digit = token[length];
-
-                    if ((digit < '0' || digit > '9') && digit != '-') {
-                        return -1;
-                    }
+                if (!std::ranges::all_of(text, [](char digit) { return (digit >= '0' && digit <= '9') || digit == '-'; })) {
+                    return -1;
                 }
 
-                *(int *) arguments[i] = atoi(token);
+                StoreValue(destination, std::atoi(token.c_str()));
                 used += 4;
                 break;
             case SCRIPT_ARGUMENT_FLOAT:
-                for (length = 0; token[length] != 0; length++) {
-                    char digit = token[length];
-
-                    if ((digit < '0' || digit > '9') && digit != '.' && digit != '-') {
-                        return -1;
-                    }
+                if (!std::ranges::all_of(text, [](char digit) {
+                        return (digit >= '0' && digit <= '9') || digit == '.' || digit == '-';
+                    })) {
+                    return -1;
                 }
 
-                *(float *) arguments[i] = atof(token);
+                StoreValue(destination, static_cast<float>(std::atof(token.c_str())));
                 used += 4;
                 break;
             default:
@@ -302,42 +309,40 @@ int CScriptInterpreter::GetArg(int *argument_types) {
 }
 
 int CScriptInterpreter::SearchCommand(int *tag_index) {
-    char command[256];
-
     if (!SkipSpace__FR9input_str__3(*this)) {
         return 0;
     }
 
-    int length = 0;
-    int c;
+    std::string word;
+    int         c = 0;
 
-    while (1) {
+    for (;;) {
         if (get(&c) == 0) {
             return 0;
         }
 
-        if (!CheckChar__Fc__3(c)) {
+        if (!CheckChar__Fc__3(static_cast<char>(c))) {
             break;
         }
 
-        command[length++] = c;
+        word += static_cast<char>(c);
     }
 
-    command[length] = 0;
+    const std::string_view command = CStringView(word);
 
-    if (command[0] < 'A' || command[0] > 'Z') {
+    if (command.empty() || command[0] < 'A' || command[0] > 'Z') {
         *tag_index = -1;
         return 1;
     }
 
-    for (int i = 0; i < tag_count; i++) {
-        if (strcmp(tag_table[i].name, command) == 0) {
-            *tag_index = i;
+    for (int index = 0; index < tag_count; index++) {
+        if (std::string_view(tag_table[index].name) == command) {
+            *tag_index = index;
             return 1;
         }
     }
 
-    if (strcmp(command, "end") == 0) {
+    if (command == "end") {
         return 0;
     }
 
