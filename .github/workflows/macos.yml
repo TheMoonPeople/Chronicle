@@ -50,8 +50,11 @@ jobs:
 
       # The runner's Apple Paravirtual GPU draws black for two of Kazarov's prog0 cases that pass on Apple
       # silicon, and filters alpha across a texel edge differently from the GPUs GEqualFiltersAroundQuantized-
-      # References was written against.
+      # References was written against. Compiling every pipeline up front takes the paravirtual GPU up to 30 s
+      # per test context, so they compile on first use.
       - name: Test
+        env:
+          KZ_PIPELINES_LAZY: 1
         run: >-
           ctest --preset macos-arm64
           -E '^GfxGpuMeshDc2[.](RefSphere|Prog0CullModeFollowsFlagAndMirror)$|GEqualFiltersAroundQuantizedReferences'
