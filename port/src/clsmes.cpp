@@ -679,7 +679,7 @@ gfx::TextureHandle BubbleTarget(CTexture *texture) {
 
 } // namespace
 
-PORT_OVERRIDE void MakeRandTbl(float lo, float hi) {
+void MakeRandTbl(float lo, float hi) {
     if (GameTextKeepsRandom()) {
         return;
     }
@@ -689,7 +689,7 @@ PORT_OVERRIDE void MakeRandTbl(float lo, float hi) {
     }
 }
 
-PORT_OVERRIDE void MakeRandTbl2(float lo, float hi) {
+void MakeRandTbl2(float lo, float hi) {
     if (GameTextKeepsRandom()) {
         return;
     }
@@ -704,7 +704,7 @@ void GetPos_AbsPosSet(int x, int y, int width, int height, int win_width, int wi
 void MyMenuHelpWinDraw(int x, int y, int width, int height, int shade, int u, int v, CTexture *texture);
 
 // Named the other way round from set2DSprite: src is where the sprite lands, dst the texels.
-PORT_OVERRIDE void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
+void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
                                  u8 g, u8 b, u8 a) {
     if (texture == nullptr) {
         return;
@@ -735,7 +735,7 @@ PORT_OVERRIDE void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const
     draw2d::Get().set_zbuf(nullptr);
 }
 
-PORT_OVERRIDE void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
+void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
                             int prim) {
     float across;
     float down;
@@ -811,7 +811,7 @@ PORT_OVERRIDE void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int 
     ShapePoint(px, py);
 }
 
-PORT_OVERRIDE void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
+void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
     float grown_width;
     float grown_height;
     int   x;
@@ -1022,7 +1022,7 @@ PORT_OVERRIDE void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
 // retail's: fans written through the current ALPHA, tiles blended over them, alpha 0 outside.
 // Lost: the antialiased fan edges, and retail's tiles writing Z=0 into the frame's own Z buffer at
 // the target's coordinates.
-PORT_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
+void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
     const draw2d::Services &services = draw2d::Get();
 
     g_shapes.clear();
@@ -1093,7 +1093,7 @@ PORT_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
 }
 
 // Keep the message layout within the fixed character table.
-PORT_OVERRIDE int ClsMes::SetMesWinTbl(int code, int mode, short x, short y) {
+int ClsMes::SetMesWinTbl(int code, int mode, short x, short y) {
     if (code >= -0x200 && code <= -0x101) {
         if (this->win_line_num > 0 && this->win_line_num <= MES_WIN_LINE_MAX) {
             this->win_line[this->win_line_num - 1].space += code + 0x200;
@@ -1198,7 +1198,7 @@ bool DrawPadGlyph(int code, const CRect_i_ &screen, int alpha) {
 
 // Read a colour only for a palette entry FontColorTbl has. Retail looks up the red text's 0xFF too,
 // 240 entries past the table, and then sets that colour itself.
-PORT_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen,
+void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen,
                                          int wide, int dark) {
     u8  r;
     u8  g;
@@ -1405,7 +1405,7 @@ PORT_OVERRIDE void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRe
                      this->edge_alpha < alpha ? this->edge_alpha : alpha);
 }
 
-PORT_OVERRIDE void ClsMes::DrawMesWin() {
+void ClsMes::DrawMesWin() {
     CTexture *texture;
     int       offset_x;
     int       offset_y;
@@ -1729,7 +1729,7 @@ void ClsMesSetMessageOverlay(const ClsMes *mes, short *file) {
     g_overlay_file = g_overlay_mes != nullptr ? file : nullptr;
 }
 
-PORT_OVERRIDE short *ClsMes::GetTextLineDataTop(int line) {
+short *ClsMes::GetTextLineDataTop(int line) {
     if (this == g_overlay_mes) {
         if (short *text = FindMessage(g_overlay_file, line)) {
             return text;

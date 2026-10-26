@@ -148,7 +148,7 @@ bool IsMultiPageManualEntry() {
 
 } // namespace
 
-PORT_OVERRIDE int MenuManualKey() {
+int MenuManualKey() {
     ReadBG();
     int closed = 0;
 
@@ -315,7 +315,7 @@ PORT_OVERRIDE int MenuManualKey() {
     return closed;
 }
 
-PORT_OVERRIDE void MenuManualDraw() {
+void MenuManualDraw() {
     if (ManualMenu.mode == MANUAL_MODE_SELECT) {
         DrawCategoryMenu();
         if (ManualMenu.selection_level == -2) {

@@ -114,7 +114,7 @@ bool ReadImage(int file_no, const char *version) {
 
 } // namespace
 
-PORT_OVERRIDE void CMemoryCardAccess::MakeMcIconSysInfo() {
+void CMemoryCardAccess::MakeMcIconSysInfo() {
     int bg_color[4][4] = {
         {0x80, 0,    0x40, 0},
         {0,    0x80, 0,    0},
@@ -153,13 +153,13 @@ PORT_OVERRIDE void CMemoryCardAccess::MakeMcIconSysInfo() {
     strcpy(this->icon_sys.fname_del, this->icon.del.name);
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::InitForMC() {
+int CMemoryCardAccess::InitForMC() {
     this->Initialize();
     InitSaveFileInfoTbl();
     return 0;
 }
 
-PORT_OVERRIDE void CMemoryCardAccess::SetBuff(char *buffer) {
+void CMemoryCardAccess::SetBuff(char *buffer) {
     buffer = PastNext64(buffer);
     this->save_buffer = reinterpret_cast<CSaveData *>(buffer);
     BuildImage(buffer, this->version);
@@ -168,7 +168,7 @@ PORT_OVERRIDE void CMemoryCardAccess::SetBuff(char *buffer) {
     this->load_buffer = this->read_buffer;
 }
 
-PORT_OVERRIDE void CMemoryCardAccess::SetFuncNo(int func_no) {
+void CMemoryCardAccess::SetFuncNo(int func_no) {
     this->func_no = func_no;
     this->step = 0;
 
@@ -177,7 +177,7 @@ PORT_OVERRIDE void CMemoryCardAccess::SetFuncNo(int func_no) {
     }
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::SearchMcType() {
+int CMemoryCardAccess::SearchMcType() {
     MC_CARD_INFO *card = &this->card[this->port];
 
     card->present = 1;
@@ -189,7 +189,7 @@ PORT_OVERRIDE int CMemoryCardAccess::SearchMcType() {
     return 1;
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::GetDir() {
+int CMemoryCardAccess::GetDir() {
     MC_CARD_INFO *card = &this->card[this->port];
 
     InitSaveFileInfoTbl();
@@ -201,7 +201,7 @@ PORT_OVERRIDE int CMemoryCardAccess::GetDir() {
 // Retail took the card's whole configuration; state.json gives the last save and the game clear
 // flag, the options being config.json's. Without the file the game keeps its own, as it did
 // without a save directory.
-PORT_OVERRIDE int CMemoryCardAccess::LoadSysConfig() {
+int CMemoryCardAccess::LoadSysConfig() {
     SaveState state = CurrentState();
 
     if (SaveStateRead(SaveStatePath(), state)) {
@@ -212,27 +212,27 @@ PORT_OVERRIDE int CMemoryCardAccess::LoadSysConfig() {
     return 1;
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::SaveSysConfig() {
+int CMemoryCardAccess::SaveSysConfig() {
     return SaveStateWrite(SaveStatePath(), CurrentState()) ? 1 : -1;
 }
 
 // The card's write test and the copy out of the NTSC 1.0 directory have nothing to work on.
-PORT_OVERRIDE int CMemoryCardAccess::Write() {
+int CMemoryCardAccess::Write() {
     return 1;
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::Convert() {
+int CMemoryCardAccess::Convert() {
     return 1;
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::MakeDir() {
+int CMemoryCardAccess::MakeDir() {
     this->card[this->port].dir_exists = 1;
     return 1;
 }
 
 // Adds the file to SaveSlots when it is a whole save of this version. Any other file is left as
 // it is, unlisted: retail deleted a save of another version once its message was dismissed.
-PORT_OVERRIDE int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
+int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
     if (!ReadImage(file_no, this->GetVersion())) {
         return 1;
     }
@@ -264,7 +264,7 @@ PORT_OVERRIDE int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
 }
 
 // The load screen lists the autosave first; the save screen cannot write it.
-PORT_OVERRIDE int CMemoryCardAccess::GetAllSaveFileInfo() {
+int CMemoryCardAccess::GetAllSaveFileInfo() {
     memset(this->file_info, 0, sizeof(this->file_info));
     SaveSlots.files = SaveSlotFiles();
     SaveSlots.saves.clear();
@@ -281,7 +281,7 @@ PORT_OVERRIDE int CMemoryCardAccess::GetAllSaveFileInfo() {
 }
 
 // A new save has nothing to confirm: it never replaces one.
-PORT_OVERRIDE int CMemoryCardAccess::CheckFileNo(int file_no) {
+int CMemoryCardAccess::CheckFileNo(int file_no) {
     std::error_code error;
     return !SaveSlotNew && file_no >= 0 && fs::exists(SaveSlotDirectory(file_no), error);
 }
@@ -289,7 +289,7 @@ PORT_OVERRIDE int CMemoryCardAccess::CheckFileNo(int file_no) {
 // A new save takes its folder by creating it, which fails when anything has that name: one taken by
 // another copy of the game or by hand since the list was read sends the save to the next free
 // folder instead, and file_no is then the file written.
-PORT_OVERRIDE int CMemoryCardAccess::SaveToMc(int file_no) {
+int CMemoryCardAccess::SaveToMc(int file_no) {
     if (file_no < 0 || file_no >= 999999999) {
         return -1;
     }
@@ -329,7 +329,7 @@ PORT_OVERRIDE int CMemoryCardAccess::SaveToMc(int file_no) {
     return SaveStateWrite(SaveStatePath(), CurrentState()) ? 1 : -1;
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::LoadFromMc(int file_no) {
+int CMemoryCardAccess::LoadFromMc(int file_no) {
     if (!ReadImage(file_no, this->GetVersion())) {
         return -1;
     }
@@ -356,13 +356,13 @@ PORT_OVERRIDE int CMemoryCardAccess::LoadFromMc(int file_no) {
     return 1;
 }
 
-PORT_OVERRIDE int CMemoryCardAccess::FormatForMc() {
+int CMemoryCardAccess::FormatForMc() {
     this->card[this->port].formatted = 1;
     return 1;
 }
 
 // A save already gone counts as deleted; its folder goes with it once nothing else is in it.
-PORT_OVERRIDE int CMemoryCardAccess::DeleteFile(int file_no) {
+int CMemoryCardAccess::DeleteFile(int file_no) {
     std::error_code error;
     fs::remove(SaveSlotPath(file_no), error);
 
@@ -375,9 +375,9 @@ PORT_OVERRIDE int CMemoryCardAccess::DeleteFile(int file_no) {
     return 1;
 }
 
-PORT_OVERRIDE void CMemoryCardAccess::DmySync() {}
+void CMemoryCardAccess::DmySync() {}
 
-PORT_OVERRIDE int CMemoryCardAccess::McUnFormatForDebug() {
+int CMemoryCardAccess::McUnFormatForDebug() {
     return 1;
 }
 

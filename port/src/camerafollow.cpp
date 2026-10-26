@@ -5,7 +5,7 @@
 
 #include "camera_port.hpp"
 
-PORT_OVERRIDE void CCameraFollow::AddHeight(float delta) {
+void CCameraFollow::AddHeight(float delta) {
     this->height += MouseLookHeightDelta(this, delta);
 }
 
@@ -14,7 +14,7 @@ PORT_OVERRIDE void CCameraFollow::AddHeight(float delta) {
 // the eye looks at at once. The angle stays within half a turn, so Step's interpolation still sees
 // only the stick's share as the way left to go.
 
-PORT_OVERRIDE void CCameraFollow::AddAngle(float delta) {
+void CCameraFollow::AddAngle(float delta) {
     float mouse = MouseLookTakeTurn(this, delta);
 
     if (mouse == 0.0f || !this->follow_on || CCamera::StopCamera) {

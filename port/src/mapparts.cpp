@@ -8,7 +8,7 @@
 constexpr float kPartsLiftDepth = 0.1f;
 constexpr float kRoadLiftDepth = 0.5f;
 
-PORT_OVERRIDE void CMapParts::DrawLOD(float *distance, int lowest, int highest, int *out_level) {
+void CMapParts::DrawLOD(float *distance, int lowest, int highest, int *out_level) {
     sceVu0FVECTOR saved_pos;
     sceVu0FVECTOR lifted_pos;
 

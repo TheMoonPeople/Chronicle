@@ -830,7 +830,7 @@ int func_01DD2220() {
 }
 
 #ifndef DC_NO_ENTRYPOINT
-PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
+int main(int argc, const char **argv, const char **envp) {
 #if defined(__SWITCH__)
     return SwitchMain(argc, argv, Run);
 #else
@@ -862,23 +862,23 @@ int wmain(int argc, wchar_t **wide_argv) {
 #endif
 #endif
 
-PORT_OVERRIDE extern "C" void *__ct__10CCharacterFv(void *self) {
+extern "C" void *__ct__10CCharacterFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PORT_OVERRIDE extern "C" void *__ct__13CTextureAnimeFv(void *self) {
+extern "C" void *__ct__13CTextureAnimeFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PORT_OVERRIDE extern "C" void *__ct__7CObjectFv(void *self) {
+extern "C" void *__ct__7CObjectFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PORT_OVERRIDE extern "C" void *__ct__8CHitMarkFv(void *self) {
+extern "C" void *__ct__8CHitMarkFv(void *self) {
     PS2_UNIMPLEMENTED();
 }
 
-PORT_OVERRIDE void LoadOverlay(int mode) {
+void LoadOverlay(int mode) {
     enum class Overlay {
         None,
         Title,
@@ -898,7 +898,7 @@ PORT_OVERRIDE void LoadOverlay(int mode) {
     }
 }
 
-PORT_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
+u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
     if (quads < 0 || used < 0 || used > 6000 || quads > 6000 - used) {
         ArenaOverflow(this, -1, 6000);
     }
@@ -907,7 +907,7 @@ PORT_OVERRIDE u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
     return run;
 }
 
-PORT_OVERRIDE void SetEnv(sceVif1Packet *packet) {
+void SetEnv(sceVif1Packet *packet) {
     MGSetGsTEST(nullptr);
     MGSetGsZBUF(nullptr);
     MGSetGsALPHA(nullptr);

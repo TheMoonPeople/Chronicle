@@ -28,7 +28,7 @@ constexpr int kItemPutListCounts[14] = {4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
    array, every weapon's rate among them, as whatever the stack held. What a box then turns down
    depends on the executable's layout and the floor, and differs between the NTSC and PAL discs.
    The port reads the dungeon's list, as GetPieroItem does for the clown's boxes. */
-PORT_OVERRIDE int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
+int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
     if (map_no < 0 || map_no >= 7 || special < 0 || special > 1) {
         return -1;
     }

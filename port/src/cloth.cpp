@@ -47,7 +47,7 @@ void ClothDrawMatrix(CFrame *frame, sceVu0FMATRIX matrix) {
 // polygon_divide says so, all with the fixed cloth material and the model's texture. The vertices
 // are relative to the attachment frame, so display frames carry them with the body's rotation
 // while interpolating the simulated deformation separately.
-PORT_OVERRIDE int CCloth::CreateVUData(u_int *packet) {
+int CCloth::CreateVUData(u_int *packet) {
     if (packet == nullptr) {
         return kDraw3DBlockQuads;
     }
@@ -113,7 +113,7 @@ PORT_OVERRIDE int CCloth::CreateVUData(u_int *packet) {
     return kDraw3DBlockQuads;
 }
 
-PORT_OVERRIDE int CCloth::DrawVu1(u_int *packet, float (* /*matrix*/)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state,
+int CCloth::DrawVu1(u_int *packet, float (* /*matrix*/)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state,
                                   int unknown1, int unknown2) {
     CreateVUData(vu_block[DBuffID]);
     vu_data = vu_block[DBuffID];
@@ -126,7 +126,7 @@ PORT_OVERRIDE int CCloth::DrawVu1(u_int *packet, float (* /*matrix*/)[4], Render
     return 0;
 }
 
-PORT_OVERRIDE int CCloth::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+int CCloth::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                   u_long128 *draw_state, int unknown1, int unknown2) {
     return CCloth::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }

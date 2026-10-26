@@ -9,9 +9,9 @@
 #include "mglib.hpp"
 #include "texture.hpp"
 
-PORT_OVERRIDE void openGiftag(sceVif1Packet *packet) {}
+void openGiftag(sceVif1Packet *packet) {}
 
-PORT_OVERRIDE void closeGiftag(sceVif1Packet *packet) {}
+void closeGiftag(sceVif1Packet *packet) {}
 
 namespace {
 
@@ -35,7 +35,7 @@ bool IsDeveloperMenu(const char *texture_name) {
 // the cells and each cell straight from ankfnt24 with the same TEXA, through the same mapping of
 // width x height texels onto (width - 1) x (height - 1) pixels. Glyphs sample nearest: retail
 // filtered the composed texture by setbilinear's flag, which only blurred cell edges.
-PORT_OVERRIDE void CDebugFont::Draw() {
+void CDebugFont::Draw() {
     const draw2d::Services &services = draw2d::Get();
     CTexture               *font = services.find_texture("ankfnt24");
     CTexture               *target = services.find_texture(this->texture_name);

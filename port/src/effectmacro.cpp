@@ -159,7 +159,7 @@ void AppendStrip(std::vector<gfx::Vertex2D> &triangles, const std::vector<gfx::V
 // object takes up as much of the wobble as its depth gives, and the background haze blends into the
 // foreground rather than starting at a line partway up the view. The two outermost columns do not
 // wander past the edges of the image.
-PORT_OVERRIDE void DepthOfField(float *focus, int level, int alpha, int blur) {
+void DepthOfField(float *focus, int level, int alpha, int blur) {
     int phase;
     int i;
     int j;

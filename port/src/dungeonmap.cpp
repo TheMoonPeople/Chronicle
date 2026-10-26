@@ -35,7 +35,7 @@ constexpr int kItemFreeAreaCounts[7] = {27, 15, 27, 27, 27, 15, 28};
 
 // Retail's, with the cell picked for a character's key door addressed on the whole pointer.
 
-PORT_OVERRIDE void CDungeonMap::BuildCharaSpecialParts() {
+void CDungeonMap::BuildCharaSpecialParts() {
     auto           list = std::make_unique<int[]>(2 * 0x40);
     int            roll;
     int            num;
@@ -266,7 +266,7 @@ PORT_OVERRIDE void CDungeonMap::BuildCharaSpecialParts() {
     }
 }
 
-PORT_OVERRIDE int CDungeonMap::SetCharaDoor(int chara_no) {
+int CDungeonMap::SetCharaDoor(int chara_no) {
     auto           list = std::make_unique<int[]>(2 * 0x40);
     int            num;
     int            pick;
@@ -347,7 +347,7 @@ PORT_OVERRIDE int CDungeonMap::SetCharaDoor(int chara_no) {
     return num;
 }
 
-PORT_OVERRIDE void CDungeonMap::DrawMap(CCameraFollow *camera, CFrameVu1 *player) {
+void CDungeonMap::DrawMap(CCameraFollow *camera, CFrameVu1 *player) {
     float           cam_pos[4];
     float           cam_ref[4];
     float           view_delta[4];
@@ -590,7 +590,7 @@ PORT_OVERRIDE void CDungeonMap::DrawMap(CCameraFollow *camera, CFrameVu1 *player
     }
 }
 
-PORT_OVERRIDE void CDungeonMap::DrawDummyModel(CCamera *camera) {
+void CDungeonMap::DrawDummyModel(CCamera *camera) {
     float pos[4];
 
     if (this->dummy_num <= 0 || this->dummy_num > 8 || this->dummy_frame_num < 0 || this->dummy_frame_num > 3) {
@@ -612,7 +612,7 @@ PORT_OVERRIDE void CDungeonMap::DrawDummyModel(CCamera *camera) {
 }
 
 // Moon Sea places Atla across an open field, so distance from the player does not hide them.
-PORT_OVERRIDE void CDungeonMap::DrawAtraBoll(float *pos) {
+void CDungeonMap::DrawAtraBoll(float *pos) {
     float draw_pos[4];
 
     if (this->atra_model == nullptr) {

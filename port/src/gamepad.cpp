@@ -26,7 +26,7 @@ void PadHoldDown(int mask) {
     g_held_down = mask;
 }
 
-PORT_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
+int pad_button_read(PAD_STATUS *status, int port, int slot) {
     static thread_local auto data = std::make_unique<unsigned char[]>(32);
     InputLatchPad(port);
     if (port == 0) {
@@ -50,17 +50,17 @@ PORT_OVERRIDE int pad_button_read(PAD_STATUS *status, int port, int slot) {
     return mode;
 }
 
-PORT_OVERRIDE int CGamePad::GetLX() {
+int CGamePad::GetLX() {
     InputNoteLeftStickRead();
     return AxisCalibration(pad[0].input.status.left_x);
 }
 
-PORT_OVERRIDE int CGamePad::GetLY() {
+int CGamePad::GetLY() {
     InputNoteLeftStickRead();
     return AxisCalibration(pad[0].input.status.left_y);
 }
 
-PORT_OVERRIDE int CGamePad::On(int mask) {
+int CGamePad::On(int mask) {
     if (key_lock) {
         return 0;
     }
@@ -73,11 +73,11 @@ PORT_OVERRIDE int CGamePad::On(int mask) {
     return (pad[0].input.status.button & mask) != 0;
 }
 
-PORT_OVERRIDE int CGamePad::On2(int mask) {
+int CGamePad::On2(int mask) {
     return DebugMode && (pad[0].input.status.button & kDebugButtonsModifier) == kDebugButtonsModifier && On(mask);
 }
 
-PORT_OVERRIDE int CGamePad::Down(int mask) {
+int CGamePad::Down(int mask) {
     if (key_lock) {
         return 0;
     }
@@ -116,7 +116,7 @@ PORT_OVERRIDE int CGamePad::Down(int mask) {
     return (mask & (pad[0].input.status.button & ~previous_pad[0].input.status.button)) != 0;
 }
 
-PORT_OVERRIDE int CGamePad::Down2(int mask) {
+int CGamePad::Down2(int mask) {
     if (key_lock || !DebugMode || (pad[0].input.status.button & kDebugButtonsModifier) != kDebugButtonsModifier) {
         return 0;
     }
@@ -124,17 +124,17 @@ PORT_OVERRIDE int CGamePad::Down2(int mask) {
     return (mask & (pad[0].input.status.button & ~previous_pad[0].input.status.button)) != 0;
 }
 
-PORT_OVERRIDE void CGamePad::KeyLock(int mask) {
+void CGamePad::KeyLock(int mask) {
     key_lock = mask;
     InputSetMovementLocked(mask != 0);
 }
 
-PORT_OVERRIDE void CGamePad::MenuModeOn(int threshold) {
+void CGamePad::MenuModeOn(int threshold) {
     axis_threshold[0] = threshold;
     InputSetMenuNavigation(true);
 }
 
-PORT_OVERRIDE void CGamePad::MenuModeOff() {
+void CGamePad::MenuModeOff() {
     axis_threshold[0] = 0;
     InputSetMenuNavigation(false);
 }

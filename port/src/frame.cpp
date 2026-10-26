@@ -113,7 +113,7 @@ Draw3DIdentityScope::~Draw3DIdentityScope() {
 // the current register shadows the visual's draw reads. The screen-bound test runs on an
 // unsqueezed view, so its vertical limits are the frame's full half-height (retail's quarter on
 // the squeezed field), and its limits are what the target shows: past a 4:3 window, the sides.
-PORT_OVERRIDE int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
+int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     sceVu0FMATRIX matrix;
     sceVu0FMATRIX screen_matrix;
     sceVu0FMATRIX turn;
@@ -329,7 +329,7 @@ PORT_OVERRIDE int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     return 0;
 }
 
-PORT_OVERRIDE int CFrameVu1::DrawVu1(sceVif1Packet *, RenderInfo *info) {
+int CFrameVu1::DrawVu1(sceVif1Packet *, RenderInfo *info) {
     return DrawVu1(static_cast<unsigned int *>(nullptr), info);
 }
 
@@ -418,10 +418,10 @@ void trance_normal(float *p0, float *p1, float *p2, float *plane) {
     vu0::Copy(plane, n);
 }
 
-PORT_OVERRIDE void *operator new(size_t size, u_long128 *block) {
+void *operator new(size_t size, u_long128 *block) {
     return PlaceDataAllocObject(size, block);
 }
 
-PORT_OVERRIDE void *operator new[](size_t size, u_long128 *block) {
+void *operator new[](size_t size, u_long128 *block) {
     return PlaceDataAllocObject(size, block);
 }

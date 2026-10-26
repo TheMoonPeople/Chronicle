@@ -140,38 +140,38 @@ void Sprite3D(CTexture *texture, const CRect_i_ &source, int *top_left, int *bot
 } // namespace
 
 // Retail aligns through a 32-bit int, which truncates a buffer above 4 GiB.
-PORT_OVERRIDE void SndSetReadBuffer(unsigned int *buffer) {
+void SndSetReadBuffer(unsigned int *buffer) {
     const auto address = reinterpret_cast<std::uintptr_t>(buffer);
     const auto misalign = address % 64;
     snd_read_buf = misalign != 0 ? reinterpret_cast<unsigned int *>(address + 64 - misalign) : buffer;
 }
 
-PORT_OVERRIDE void setbilinear(int on) { g_linear = on; }
+void setbilinear(int on) { g_linear = on; }
 
 int PortBilinear() { return g_linear; }
 
-PORT_OVERRIDE void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha) { draw2d::Get().set_alpha(alpha); }
+void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha) { draw2d::Get().set_alpha(alpha); }
 
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, int u, int v) {
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, int u, int v) {
     RectSprite(texture, screen, CRect_i_(u, v, screen.width, screen.height), {0x80, 0x80, 0x80, 0x80});
 }
 
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel) {
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel) {
     RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, 0x80});
 }
 
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                unsigned char alpha) {
     RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, alpha});
 }
 
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
     RectSprite(texture, screen, texel, {red, green, blue, alpha});
 }
 
 // A gouraud strip, so the corner order decides the diagonal the colours interpolate across.
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
     if (texture == nullptr) {
         return;
@@ -198,7 +198,7 @@ PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const C
     draw2d::RestoreTestZbuf();
 }
 
-PORT_OVERRIDE void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
+void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
                                   spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
                                   spRGBA *bottom_right_colour) {
     std::array<gfx::Vertex2D, 4> strip = {
@@ -210,7 +210,7 @@ PORT_OVERRIDE void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top
     draw2d::DrawUntextured(gfx::Primitive::TriangleStrip, strip, CurrentState(false));
 }
 
-PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
                                int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     spRGBA colour = {0x80, 0x80, 0x80, 0};
 
@@ -218,7 +218,7 @@ PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const C
     set3DSprite(packet, texture, source, top_left, top_right, bottom_left, bottom_right, &colour);
 }
 
-PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
                                int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
@@ -227,7 +227,7 @@ PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const C
     Sprite3D(texture, source, top_left, top_right, bottom_left, bottom_right, ToColour(colour), false);
 }
 
-PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
                                int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
@@ -236,7 +236,7 @@ PORT_OVERRIDE void set3DSprite(sceVif1Packet *packet, CTexture *texture, const C
     Sprite3D(texture, source, top_left, bottom_right, ToColour(colour), false);
 }
 
-PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
                                   int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     if (texture == nullptr) {
         return;
@@ -246,7 +246,7 @@ PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, cons
              true);
 }
 
-PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
+void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
                                   int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
@@ -255,7 +255,7 @@ PORT_OVERRIDE void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, cons
     Sprite3D(texture, source, top_left, bottom_right, ToColour(colour), true);
 }
 
-PORT_OVERRIDE void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
+void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
                                 unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
     const Colour                 colour = {red, green, blue, alpha};
     std::array<gfx::Vertex2D, 4> strip = {
@@ -267,7 +267,7 @@ PORT_OVERRIDE void setColSprite(sceVif1Packet *packet, int *top_left, int *top_r
     draw2d::DrawUntextured(gfx::Primitive::TriangleStrip, strip, CurrentState(false));
 }
 
-PORT_OVERRIDE void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
+void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
                                  spRGBA *bottom_left, spRGBA *bottom_right) {
     const float x0 = static_cast<float>(screen.x);
     const float y0 = static_cast<float>(screen.y);
@@ -290,7 +290,7 @@ PORT_OVERRIDE void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, 
 // axes swapped at angle 0. Retail truncates each turned corner to a pixel, so a slow turn (the
 // title's backdrop, half a milliradian a tick) moves the corners one at a time; they are kept as
 // turned here.
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                int pivot_x, int pivot_y, float angle) {
     draw2d::TurnedSprite(texture, screen, texel, pivot_x, pivot_y, angle, 1.0f);
 }
@@ -337,7 +337,7 @@ void draw2d::TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect
 
 // Retail's rotation in 12.4 units: the far edges a sixteenth short, mirrored about the pivot at
 // angle 0, y halved for the field after turning.
-PORT_OVERRIDE void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                   int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
                                   unsigned char blue, unsigned char alpha) {
     if (texture == nullptr) {
@@ -377,7 +377,7 @@ PORT_OVERRIDE void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, cons
     draw2d::RestoreTestZbuf();
 }
 
-PORT_OVERRIDE void set2DSprite(sceVif1Packet *packet, CTexture *texture, RECT *screen, RECT *texel, unsigned char alpha) {
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, RECT *screen, RECT *texel, unsigned char alpha) {
     set2DSprite(packet, texture, CRect_i_(screen->x, screen->y, screen->width, screen->height),
                 CRect_i_(texel->x, texel->y, texel->width, texel->height), alpha);
 }

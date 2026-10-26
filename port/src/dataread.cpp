@@ -358,7 +358,7 @@ void Localized(std::string_view path, void *buffer, int *size) {
 
 } // namespace
 
-PORT_OVERRIDE void InitCDFile() {
+void InitCDFile() {
     const fs::path &root = PathsDataRoot();
     std::error_code error;
     data_index.clear();
@@ -467,7 +467,7 @@ PORT_OVERRIDE void InitCDFile() {
     CheckAgainstIndex(root);
 }
 
-PORT_OVERRIDE int LoadFile(char *path, void *buffer, int *out_size) {
+int LoadFile(char *path, void *buffer, int *out_size) {
     if (!LoadFile2(path, buffer, out_size, 0)) {
         printf("File open error \"%s\"\n \n \n", path);
         __assert("etc.cpp", 753, "FALSE");
@@ -476,7 +476,7 @@ PORT_OVERRIDE int LoadFile(char *path, void *buffer, int *out_size) {
     return 1;
 }
 
-PORT_OVERRIDE int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
+int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
     if (out_size) {
         *out_size = 0;
     }
@@ -790,23 +790,23 @@ std::vector<s32> SupportedLanguages() {
     return DataLanguages();
 }
 
-PORT_OVERRIDE void InitReadBG() {
+void InitReadBG() {
     for (BG_READ_INFO &info : bg_read_info) {
         info.busy = false;
     }
 }
 
-PORT_OVERRIDE void StartReadBG() {
+void StartReadBG() {
     InitReadBG();
 }
 
-PORT_OVERRIDE void BreakReadBG() {
+void BreakReadBG() {
     InitReadBG();
 }
 
 // The read happens here rather than a vertical sync later, so the slot is handed out already
 // complete: issued (id) and done, as retail's ReadBG leaves it.
-PORT_OVERRIDE int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
+int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
     if (out_size) {
         *out_size = 0;
     }
@@ -849,17 +849,17 @@ PORT_OVERRIDE int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
     return 1;
 }
 
-PORT_OVERRIDE BG_READ_INFO *GetReadBGFile(int index) {
+BG_READ_INFO *GetReadBGFile(int index) {
     if (index < 0 || index >= 32) {
         return nullptr;
     }
     return bg_read_info[index].busy ? &bg_read_info[index] : nullptr;
 }
 
-PORT_OVERRIDE void ReadBG() {
+void ReadBG() {
 }
 
-PORT_OVERRIDE int ReadBGSync() {
+int ReadBGSync() {
     for (const BG_READ_INFO &info : bg_read_info) {
         if (info.busy && (info.id == 0 || info.done == 0)) {
             return 1;
@@ -870,7 +870,7 @@ PORT_OVERRIDE int ReadBGSync() {
 
 // Only development builds wrote files, to the host PC's drive; the device and any drive letter
 // after it are dropped so the path lands under save/host0/.
-PORT_OVERRIDE int WriteFile(char *path, void *buffer, int size) {
+int WriteFile(char *path, void *buffer, int size) {
     std::string_view name = path;
     if (std::size_t colon = name.rfind(':'); colon != std::string_view::npos) {
         name = name.substr(colon + 1);
@@ -894,7 +894,7 @@ PORT_OVERRIDE int WriteFile(char *path, void *buffer, int size) {
 
 // A pack is looked up by the last component of a path, as retail does; a message file in it is
 // given as the language's JSON has it.
-PORT_OVERRIDE u_int *GetPackFile(u_int *pack, char *name, int *out_size) {
+u_int *GetPackFile(u_int *pack, char *name, int *out_size) {
     if (out_size != nullptr) {
         *out_size = 0;
     }
@@ -931,7 +931,7 @@ PORT_OVERRIDE u_int *GetPackFile(u_int *pack, char *name, int *out_size) {
     }
 }
 
-PORT_OVERRIDE u_int *GetPackFile(u_int *pack, int index, char **out_name, int *out_size) {
+u_int *GetPackFile(u_int *pack, int index, char **out_name, int *out_size) {
     if (out_size != nullptr) {
         *out_size = 0;
     }
@@ -960,7 +960,7 @@ PORT_OVERRIDE u_int *GetPackFile(u_int *pack, int index, char **out_name, int *o
     return data;
 }
 
-PORT_OVERRIDE int GetPackFileExt(u_int *pack, char *extension, u_int **files, int max_files, int *sizes, char **names) {
+int GetPackFileExt(u_int *pack, char *extension, u_int **files, int max_files, int *sizes, char **names) {
     if (extension == nullptr || files == nullptr || max_files <= 0) {
         return 0;
     }

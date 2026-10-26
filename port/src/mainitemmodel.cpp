@@ -11,7 +11,7 @@
 #include "mglib.hpp"
 #include "texture.hpp"
 
-PORT_OVERRIDE int CMainItemModel::SetCashModel(int item_no, unsigned int *model_data, unsigned int *texture_data,
+int CMainItemModel::SetCashModel(int item_no, unsigned int *model_data, unsigned int *texture_data,
                                                int texture_size) {
     int slot = GetFreeCashNo();
     if (slot == -1) {

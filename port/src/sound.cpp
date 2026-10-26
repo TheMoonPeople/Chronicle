@@ -299,15 +299,15 @@ void StartSequence(int port, int seq_no, const int *volume) {
 
 } // namespace
 
-PORT_OVERRIDE MIDI_STATE *CSound::GetMidiState() {
+MIDI_STATE *CSound::GetMidiState() {
     return &midi_state;
 }
 
-PORT_OVERRIDE short *CSound::GetSeInfTbl() {
+short *CSound::GetSeInfTbl() {
     return reinterpret_cast<short *>(&se_inf_tbl);
 }
 
-PORT_OVERRIDE int CSound::GetSeNo(int bank, int program) {
+int CSound::GetSeNo(int bank, int program) {
     for (int i = 0; i < se_inf_tbl.count; i++) {
         if (bank == se_inf_tbl.entry[i].bank && program == se_inf_tbl.entry[i].program) {
             return i;
@@ -316,27 +316,27 @@ PORT_OVERRIDE int CSound::GetSeNo(int bank, int program) {
     return -1;
 }
 
-PORT_OVERRIDE void CSound::StopVoice(int core) {
+void CSound::StopVoice(int core) {
     audio::Trace("StopVoice core %d", core);
     Player().KeyOffCore(core);
 }
 
-PORT_OVERRIDE void CSound::SetReverb(int core, int mode, int depth) {
+void CSound::SetReverb(int core, int mode, int depth) {
     audio::Trace("SetReverb core %d mode %d depth %d", core, mode, depth);
     Player().SetReverb(core, mode, depth);
 }
 
-PORT_OVERRIDE void set_spu(int mode0, int mode1, int depth0, int depth1) {
+void set_spu(int mode0, int mode1, int depth0, int depth1) {
     Player().SetReverb(0, mode0, depth0);
     Player().SetReverb(1, mode1, depth1);
 }
 
-PORT_OVERRIDE int TransHdBd(int, int, int, int) {
+int TransHdBd(int, int, int, int) {
     // The retail ABI cannot carry host pointers; LoadSoundFileFromPack uses full pointers directly.
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
+int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
     int size = 0;
     std::printf("SND_INF= %s \n", name);
     const char *list = reinterpret_cast<const char *>(GetPackFile(pack, name, &size));
@@ -461,7 +461,7 @@ int Number(const std::string &token) {
 
 } // namespace
 
-PORT_OVERRIDE int CSound::LoadSqInf(char *name, unsigned int *buffer) {
+int CSound::LoadSqInf(char *name, unsigned int *buffer) {
     int        size;
     const auto tokens = ReadTable(name, buffer, size);
     for (std::size_t i = 0; i + 1 < tokens.size() && sq_inf_tbl.count < 400; i += 2) {
@@ -474,7 +474,7 @@ PORT_OVERRIDE int CSound::LoadSqInf(char *name, unsigned int *buffer) {
     return size;
 }
 
-PORT_OVERRIDE int CSound::LoadSeInf(char *name, unsigned int *buffer) {
+int CSound::LoadSeInf(char *name, unsigned int *buffer) {
     int        size;
     const auto tokens = ReadTable(name, buffer, size);
     se_inf_tbl.count = 0;
@@ -488,7 +488,7 @@ PORT_OVERRIDE int CSound::LoadSeInf(char *name, unsigned int *buffer) {
     return size;
 }
 
-PORT_OVERRIDE int CSound::Init(int mode0, int mode1, int depth0, int depth1) {
+int CSound::Init(int mode0, int mode1, int depth0, int depth1) {
     static bool output_started = false;
     if (!output_started) {
         output_started = true;
@@ -514,20 +514,20 @@ PORT_OVERRIDE int CSound::Init(int mode0, int mode1, int depth0, int depth1) {
     return 0;
 }
 
-PORT_OVERRIDE void CSound::SQ_Play(int port, int seq_no) {
+void CSound::SQ_Play(int port, int seq_no) {
     StartSequence(port, seq_no, nullptr);
 }
 
-PORT_OVERRIDE void CSound::SQ_Play(int port, int seq_no, int volume) {
+void CSound::SQ_Play(int port, int seq_no, int volume) {
     StartSequence(port, seq_no, &volume);
 }
 
-PORT_OVERRIDE void CSound::SQ_RePlay(int port) {
+void CSound::SQ_RePlay(int port) {
     audio::Trace("SQ_RePlay port %d", port);
     Player().Play(port);
 }
 
-PORT_OVERRIDE void CSound::SE_Play(int port, int bank, int program, int pan, int velocity, int volume, int voice) {
+void CSound::SE_Play(int port, int bank, int program, int pan, int velocity, int volume, int voice) {
     audio::Trace("SE_Play port %d bank %d program %d pan %d velocity %d volume %d voice %d", port, bank,
                  program, pan, velocity, volume, voice);
     QueueProgram(port, bank);
@@ -537,7 +537,7 @@ PORT_OVERRIDE void CSound::SE_Play(int port, int bank, int program, int pan, int
                          static_cast<std::uint8_t>(velocity), 0});
 }
 
-PORT_OVERRIDE void CSound::SE_Play(int port, int se_no, int voice) {
+void CSound::SE_Play(int port, int se_no, int voice) {
     if (se_no < 0 || se_no >= se_inf_tbl.count) {
         return;
     }
@@ -545,15 +545,15 @@ PORT_OVERRIDE void CSound::SE_Play(int port, int se_no, int voice) {
     SE_Play(port, entry.bank, entry.program, 0x40, 0x7F, entry.volume, voice);
 }
 
-PORT_OVERRIDE void CSound::SE_Play(int port, int bank, int program, int volume, int voice) {
+void CSound::SE_Play(int port, int bank, int program, int volume, int voice) {
     SE_Play(port, bank, program, 0x40, 0x7F, volume, voice);
 }
 
-PORT_OVERRIDE void CSound::SE_Play(int port, int bank, int program, int voice) {
+void CSound::SE_Play(int port, int bank, int program, int voice) {
     SE_Play(port, bank, program, 0x40, 0x7F, 0x7F, voice);
 }
 
-PORT_OVERRIDE void CSound::SE_SetVol(int port, int bank, int program, int volume, int voice) {
+void CSound::SE_SetVol(int port, int bank, int program, int volume, int voice) {
     audio::Trace("SE_SetVol port %d bank %d program %d volume %d voice %d", port, bank, program, volume,
                  voice);
     QueueProgram(port, bank);
@@ -561,27 +561,27 @@ PORT_OVERRIDE void CSound::SE_SetVol(int port, int bank, int program, int volume
                          static_cast<std::uint8_t>(volume), 0});
 }
 
-PORT_OVERRIDE void CSound::SE_SetPan(int port, int bank, int program, int pan, int voice) {
+void CSound::SE_SetPan(int port, int bank, int program, int pan, int voice) {
     audio::Trace("SE_SetPan port %d bank %d program %d pan %d voice %d", port, bank, program, pan, voice);
     QueueProgram(port, bank);
     QueueExtended(port, {0xFD, 1, 0, static_cast<std::uint8_t>(program), static_cast<std::uint8_t>(voice),
                          static_cast<std::uint8_t>(pan), 0});
 }
 
-PORT_OVERRIDE void CSound::SE_SetPan(int port, int se_no, int pan, int voice) {
+void CSound::SE_SetPan(int port, int se_no, int pan, int voice) {
     if (se_no < 0 || se_no >= se_inf_tbl.count) {
         return;
     }
     SE_SetPan(port, se_inf_tbl.entry[se_no].bank, se_inf_tbl.entry[se_no].program, pan, voice);
 }
 
-PORT_OVERRIDE void CSound::SE_Stop(int port, int bank, int program, int voice) {
+void CSound::SE_Stop(int port, int bank, int program, int voice) {
     audio::Trace("SE_Stop port %d bank %d program %d voice %d", port, bank, program, voice);
     QueueProgram(port, bank);
     QueueExtended(port, {0xFD, 0x10, 0, static_cast<std::uint8_t>(program), static_cast<std::uint8_t>(voice), 0, 0});
 }
 
-PORT_OVERRIDE void CSound::Fade(int port, float step, int volume) {
+void CSound::Fade(int port, float step, int volume) {
     audio::Trace("Fade port %d step %g to %d", port, step, volume);
     for (const FadeRoute &route : kFadeRoutes) {
         if (route.port == port) {
@@ -595,7 +595,7 @@ PORT_OVERRIDE void CSound::Fade(int port, float step, int volume) {
     }
 }
 
-PORT_OVERRIDE void CSound::Step() {
+void CSound::Step() {
     for (const FadeRoute &route : kFadeRoutes) {
         MIDI_FADE &fade = midi_state.port[route.slot].fade[route.fade];
         if (!fade.active) {
@@ -623,12 +623,12 @@ PORT_OVERRIDE void CSound::Step() {
     g_effect_queue.clear();
 }
 
-PORT_OVERRIDE void CSound::Stop(int port) {
+void CSound::Stop(int port) {
     audio::Trace("Stop port %d", port);
     Player().Stop(port);
 }
 
-PORT_OVERRIDE void CSound::SetVol(int port, int volume) {
+void CSound::SetVol(int port, int volume) {
     if (Player().Volume(port) != volume) {
         audio::Trace("SetVol port %d volume %d", port, volume);
     }
@@ -636,53 +636,53 @@ PORT_OVERRIDE void CSound::SetVol(int port, int volume) {
 }
 
 // The stereo option is config.json's audio.sound, not the one the load screen reads out of a save.
-PORT_OVERRIDE void CSound::SetStereoMode(int mode) {
+void CSound::SetStereoMode(int mode) {
     audio::Trace("SetStereoMode %d", mode);
     Player().SetStereo(ConfigGet().options.stereo);
 }
 
 // These retail entry points carry pointers in 32-bit integers and have no host callers: the port's
 // LoadSoundFileFromPack passes pointers directly to the loaders above.
-PORT_OVERRIDE int CSound::LoadHdBd_A(int, int, int, int) {
+int CSound::LoadHdBd_A(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_C(int, int, int, int) {
+int CSound::LoadHdBd_C(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_E(int, int, int, int) {
+int CSound::LoadHdBd_E(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_G(int, int, int, int) {
+int CSound::LoadHdBd_G(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_I(int, int, int, int) {
+int CSound::LoadHdBd_I(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_M(int, int, int, int) {
+int CSound::LoadHdBd_M(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_Q(int, int, int, int) {
+int CSound::LoadHdBd_Q(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadHdBd_S(int, int, int, int) {
+int CSound::LoadHdBd_S(int, int, int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSeq_A(int, int) {
+int CSound::LoadSeq_A(int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSeq_E(int, int) {
+int CSound::LoadSeq_E(int, int) {
     return -1;
 }
 
-PORT_OVERRIDE int CSound::LoadSeq_I(int, int) {
+int CSound::LoadSeq_I(int, int) {
     return -1;
 }

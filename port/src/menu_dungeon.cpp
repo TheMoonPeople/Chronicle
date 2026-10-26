@@ -28,13 +28,13 @@
 /* The debug item preview (EnterItemPolygonView) copies a whole vector into each of these, one float
    more than retail declares. MWCC gave every one of them a 16-byte slot, so on the PS2 the fourth
    float lands in padding; the port gives them the fourth float, as zero, the padding's value. */
-PORT_OVERRIDE float menudebugrot[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+float menudebugrot[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
-PORT_OVERRIDE float menudebugrscale[4] = {3.0f, 3.0f, 3.0f, 0.0f};
+float menudebugrscale[4] = {3.0f, 3.0f, 3.0f, 0.0f};
 
 /* A save/menu slot is caller supplied. Reject bad attachment IDs and slot
    indices before looking up data or forming a pointer into the inventory. */
-PORT_OVERRIDE int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST *unused) {
+int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST *unused) {
     (void) unused;
 
     if (slot < 0 || slot >= 43 || GetAttachData(item_no) == nullptr) {
@@ -74,7 +74,7 @@ PORT_OVERRIDE int SetAttachMentValue(int item_no, int slot, short level, ATTACH_
     return 0;
 }
 
-PORT_OVERRIDE int GetAttachVolumeForMsg(ATTACH_LIST *attach) {
+int GetAttachVolumeForMsg(ATTACH_LIST *attach) {
     if (attach == nullptr || GetAttachData(attach->item_no) == nullptr) {
         return 0;
     }

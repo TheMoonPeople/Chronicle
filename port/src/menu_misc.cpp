@@ -87,7 +87,7 @@ void SetWepEffectMenuReadBuf(u_long128 *buffer) {
 
 } // namespace
 
-PORT_OVERRIDE int EnterWeaponModel(int chara, int texture_block, int weapon_slot) {
+int EnterWeaponModel(int chara, int texture_block, int weapon_slot) {
     if (chara < 0 || chara >= 6) {
         return 1;
     }
@@ -162,7 +162,7 @@ PORT_OVERRIDE int EnterWeaponModel(int chara, int texture_block, int weapon_slot
     return 1;
 }
 
-PORT_OVERRIDE void WeaponModelBuildFunc(int chara, int texture_block) {
+void WeaponModelBuildFunc(int chara, int texture_block) {
     if (chara < 0 || chara >= 6 || BtlMenuStatusPt == nullptr) {
         return;
     }
@@ -252,7 +252,7 @@ PORT_OVERRIDE void WeaponModelBuildFunc(int chara, int texture_block) {
     printf("WepMenuEffectReadBuf = %p\n", WepMenuEffectReadBuf);
 }
 
-PORT_OVERRIDE int DngWeaponEquipModelBuild(int chara, int texture_block, u_long128 *read_buffer) {
+int DngWeaponEquipModelBuild(int chara, int texture_block, u_long128 *read_buffer) {
     if (chara < 0 || chara >= 6) {
         return 0;
     }

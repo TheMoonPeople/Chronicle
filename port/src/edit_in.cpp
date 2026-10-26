@@ -401,7 +401,7 @@ static void InitWorkBuffer() {
  * @address 0x19BE30
  * @size 0x478
  */
-PORT_OVERRIDE int EditInInit(float time, char *name) {
+int EditInInit(float time, char *name) {
     if (name == nullptr || std::strlen(name) >= sizeof(EdInInfo->name)) {
         return 0;
     }
@@ -498,7 +498,7 @@ PORT_OVERRIDE int EditInInit(float time, char *name) {
  * @address 0x19C2B0
  * @size 0x1014
  */
-PORT_OVERRIDE int EditInLoop() {
+int EditInLoop() {
     sceVu0FMATRIX view;
     sceVu0FVECTOR position;
 
@@ -1108,7 +1108,7 @@ static void MainDraw() {
  */
 } // namespace
 
-PORT_OVERRIDE void DrawWaterSurface(CCamera *camera) {
+void DrawWaterSurface(CCamera *camera) {
     sceVu0FVECTOR eye;
     sceVu0FVECTOR position;
     sceVu0FVECTOR dir;
@@ -1325,7 +1325,7 @@ static void MoveCamera(CCameraFollow *camera) {
  */
 } // namespace
 
-PORT_OVERRIDE EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
+EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
     sceVu0FVECTOR     world;
     int               i;
     EPARTS_FUNC_DATA *point = func_point;
@@ -1353,7 +1353,7 @@ PORT_OVERRIDE EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) 
  * @address 0x19E2F0
  * @size 0x12C
  */
-PORT_OVERRIDE void GetMapJumpPos(CCharacter *chara) {
+void GetMapJumpPos(CCharacter *chara) {
     EPARTS_FUNC_DATA *point = func_point;
 
     for (int i = 0; i < func_num; i++, point++) {
@@ -1399,7 +1399,7 @@ static int GetDoorPos(int door_no, float *position, float *rotation, int *door_s
  */
 } // namespace
 
-PORT_OVERRIDE void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
+void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
     sceVu0FVECTOR     position;
     sceVu0FVECTOR     local;
     int               i;
@@ -1696,7 +1696,7 @@ static void LoadChara() {
  */
 } // namespace
 
-PORT_OVERRIDE void LoadData() {
+void LoadData() {
     func_point = new (reinterpret_cast<u_long128 *>(EdNPCBuffer.Alloc(0x600))) EPARTS_FUNC_DATA[128];
 
     for (int i = 0; i < 128; i++) {
@@ -2323,7 +2323,7 @@ static void CommandWATER_SHAKE(void **arguments) {
 // Retail's GetFuncPoint copies each interior part's function records with the host's EPARTS_FUNC_DATA
 // stride and words; the disc's are the PS2's (eparts_port.hpp). parts carries the part's index, which
 // LoadData turns into its frame.
-PORT_OVERRIDE int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points) {
+int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points) {
     const char      *definition = reinterpret_cast<char *>(archive) + archive[1];
     EPartsDiscHeader header = EPartsReadHeader(definition);
     int              i;

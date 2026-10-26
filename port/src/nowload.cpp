@@ -210,14 +210,14 @@ void PresentLoadingFrame() {
 
 } // namespace
 
-PORT_OVERRIDE int check_now_loading() {
+int check_now_loading() {
     if (end_flag == 0) {
         ClockSyncV();
     }
     return end_flag;
 }
 
-PORT_OVERRIDE void wait_now_loading_vsync() {
+void wait_now_loading_vsync() {
     if (end_flag == 0) {
         clear_now_loading_vsync_end();
 
@@ -227,11 +227,11 @@ PORT_OVERRIDE void wait_now_loading_vsync() {
     }
 }
 
-PORT_OVERRIDE void now_loading_off() {
+void now_loading_off() {
     now_loding_off = 1;
 }
 
-PORT_OVERRIDE void init_now_loading(int title_number) {
+void init_now_loading(int title_number) {
     end_flag = 1;
 
     if (now_loding_off != 0) {
@@ -312,7 +312,7 @@ int Hold(int ticks) {
 
 } // namespace
 
-PORT_OVERRIDE int VSyncCallBack_Load(int field) {
+int VSyncCallBack_Load(int field) {
     if (end_flag) {
         now_loading_vsync_end = 1;
         return 0;
@@ -407,12 +407,12 @@ PORT_OVERRIDE int VSyncCallBack_Load(int field) {
     return 0;
 }
 
-PORT_OVERRIDE void LoadTexture(char *name, u_char *archive, CTexture *texture, int image_address, int palette_address) {
+void LoadTexture(char *name, u_char *archive, CTexture *texture, int image_address, int palette_address) {
     SetTextureInfo(texture, name, archive);
     Upload(texture);
 }
 
-PORT_OVERRIDE void LoadTexture(TM2_head *image, CTexture *texture, int image_address, int palette_address) {
+void LoadTexture(TM2_head *image, CTexture *texture, int image_address, int palette_address) {
     char name[] = "maptitle";
     SetTextureInfo(texture, name, image);
     Upload(texture);

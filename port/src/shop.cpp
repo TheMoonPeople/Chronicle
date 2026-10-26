@@ -209,7 +209,7 @@ void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
 } // namespace
 
 // Draws the 60 cells it fills; retail drew 128 from 120-cell arrays.
-PORT_OVERRIDE void ChargeShopBoardDraw(int x, int y, int alpha) {
+void ChargeShopBoardDraw(int x, int y, int alpha) {
     auto items = std::make_unique<s16[]>(60);
     auto values = std::make_unique<u8[]>(60);
     int  top = y + 9;
@@ -283,7 +283,7 @@ PORT_OVERRIDE void ChargeShopBoardDraw(int x, int y, int alpha) {
     ChargeShopMaxDraw(ChargeShopMax[board_mode], x, y, alpha);
 }
 
-PORT_OVERRIDE int FishingExchangeKey() {
+int FishingExchangeKey() {
     int result = 0;
 
     ReadBG();
@@ -648,7 +648,7 @@ PORT_OVERRIDE int FishingExchangeKey() {
 }
 
 // Cross and triangle wait a frame when that frame's press moves the cursor off the stock board (#109).
-PORT_OVERRIDE int CommonShopLoop() {
+int CommonShopLoop() {
     int done = 0;
 
     ShopMenu.key_used = 0;
@@ -676,14 +676,14 @@ PORT_OVERRIDE int CommonShopLoop() {
     return done;
 }
 
-PORT_OVERRIDE s16 *GetItemShopList(int shop_no) {
+s16 *GetItemShopList(int shop_no) {
     return PortGetItemShopList(shop_no);
 }
 
-PORT_OVERRIDE void ItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name) {
+void ItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name) {
     PortItemShopGetPacFileName(shop_kind, shop_no, file_name);
 }
 
-PORT_OVERRIDE void ItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name) {
+void ItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name) {
     PortItemShopGetImgFileName(shop_kind, shop_no, file_name);
 }

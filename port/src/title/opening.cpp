@@ -163,7 +163,7 @@ static int    BgmVol;
 static int    BgmNo;
 } // namespace
 
-PORT_OVERRIDE void OpeningInit() {
+void OpeningInit() {
     wait_now_loading_vsync();
     InitializeDataBuffer();
     SetDataBuffer(&VisualData, 7500);
@@ -294,7 +294,7 @@ static void LoadScene() {
 }
 } // namespace
 
-PORT_OVERRIDE void LoadSceneBG() {
+void LoadSceneBG() {
     CDataAlloc2<1> *buffer;
     int             slot;
     char           *files[126][2] = {
@@ -466,7 +466,7 @@ PORT_OVERRIDE void LoadSceneBG() {
     }
 }
 
-PORT_OVERRIDE int OpeningLoop() {
+int OpeningLoop() {
     ReadBG();
     PauseProcess();
 
@@ -1125,7 +1125,7 @@ static void DrawMess() {
 }
 } // namespace
 
-PORT_OVERRIDE void OpBgmPlay() {
+void OpBgmPlay() {
     int volumes[8] = {82, 106, 64, 69, 91, 92, 95, 108};
 
     if (BgmOff == 0) {
@@ -1329,7 +1329,7 @@ struct AlignedBufferDeleter {
    arguments are checked into the buffers at the next level, and the level moves on. A line naming
    no command at all is fatal, because a definition file the loader half-understands would place
    half a scene. */
-PORT_OVERRIDE void OPAnalyz(char *name) {
+void OPAnalyz(char *name) {
     std::unique_ptr<char[], AlignedBufferDeleter> definition_buffer;
     char                                         *buffer;
     int                                           i;
@@ -1880,7 +1880,7 @@ PORT_OVERRIDE void OPAnalyz(char *name) {
    command as often as it likes and the last one to run wins. The frame attribute the loader builds
    as it goes is what every model it places is given, which is why the two commands that place a
    whole building save it and put it back: what they set is theirs alone. */
-PORT_OVERRIDE void OPMdsLoad() {
+void OPMdsLoad() {
     CFrameAttr                 saved_attr;
     CFrameAttr                 attr;
     std::array<std::string, 4> path;

@@ -1,13 +1,9 @@
 # The x64 port: the game's code built with clang as C++26 for the host.
 #
-# ps2/src holds only the game's code as the PS2 build compiles it. A definition
-# port/src tags PORT_OVERRIDE replaces the one ps2/src gives the same name: the
-# port compiles a copy of each unit without those definitions
-# (tools/kazarov/scripts/port_override.py) and links it with port/src. That is how the
-# PS2-only parts are replaced: the SDK, the Metrowerks runtime, the functions
-# that touch the hardware directly and those written in assembly.
-#
-# The port is always the PAL release.
+# port/src/game and port/include/game are the port's own copy of the game's
+# code, forked from ps2/src and ps2/include; the rest of port/src is the
+# platform layer it runs on. ps2/ is the matching decompilation alone and the
+# port does not compile it.
 
 if(NOT CMAKE_CXX_COMPILER)
     set(CMAKE_CXX_COMPILER clang++)
@@ -65,83 +61,15 @@ endif()
 # semantic audio API; every host and game unit must see the same class definitions.
 target_include_directories(dc_host BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/port/include)
 
-set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
+set(GAME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/game)
 set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
-file(GLOB_RECURSE PS2_SOURCES CONFIGURE_DEPENDS RELATIVE ${PS2_DIR} ${PS2_DIR}/*.cpp)
+file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS ${GAME_DIR}/*.cpp)
 file(GLOB_RECURSE PORT_SOURCES CONFIGURE_DEPENDS ${PORT_DIR}/*.cpp)
-list(FILTER PORT_SOURCES EXCLUDE REGEX "/tests/")
+list(FILTER PORT_SOURCES EXCLUDE REGEX "/tests/|^${GAME_DIR}/")
 if(NINTENDO_SWITCH)
-    list(FILTER PORT_SOURCES EXCLUDE REGEX "/platform/(discord|firstrun)\\.cpp$")
+    list(FILTER PORT_SOURCES EXCLUDE REGEX "/platform/(discord|firstrun)\.cpp$")
 endif()
-# Temporary files beside a source are not units.
-list(FILTER PS2_SOURCES EXCLUDE REGEX "(^|/)tmp[^/]*$")
-
-set(PS2_UNITS "")
-# What both halves are compiled with (dc_options below). PORT leaves out the
-# functions ps2/src writes in MIPS assembly.
 set(PORT_DEFINITIONS PORT PAL)
-list(TRANSFORM PORT_DEFINITIONS PREPEND --define= OUTPUT_VARIABLE port_override_defines)
-# The names port/src's PORT_OVERRIDE definitions link under. The list is rewritten
-# only when it changes, so other edits to port/src rebuild nothing of ps2/src.
-# PORT_OVERRIDE_SOURCES changes when a unit or a stub header comes or goes, which no
-# timestamp shows.
-if(EXISTS "${KZ_ROOT}/scripts/build/port_override.py")
-    set(PORT_OVERRIDE_SCRIPT ${KZ_ROOT}/scripts/build/port_override.py)
-else()
-    set(PORT_OVERRIDE_SCRIPT ${KZ_ROOT}/scripts/port_override.py)
-endif()
-set(PORT_OVERRIDES ${CMAKE_BINARY_DIR}/port_overrides.txt)
-set(PORT_OVERRIDE_SOURCES ${CMAKE_BINARY_DIR}/port_override_sources.txt)
-file(GLOB_RECURSE PORT_OVERRIDE_STUBS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/port/include/stubs/*.hpp)
-string(JOIN "\n" port_override_sources ${PORT_SOURCES} ${PS2_SOURCES} ${PORT_OVERRIDE_STUBS})
-file(CONFIGURE OUTPUT ${PORT_OVERRIDE_SOURCES} CONTENT "${port_override_sources}\n" @ONLY)
-add_custom_command(OUTPUT ${PORT_OVERRIDES}
-    COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} list ${PORT_DIR} -o ${PORT_OVERRIDES}
-    DEPENDS ${PORT_SOURCES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT}
-    COMMENT "Listing port/src's PORT_OVERRIDE definitions"
-    VERBATIM)
-# What is compiled of a unit is its copy without the definitions of those names.
-# port/include/stubs/<unit>.hpp, if it exists, is included ahead of that unit
-# of ps2/src: it declares what the port defines in place of code PORT leaves
-# out, and supplies or renames what the unit takes from MWCC alone.
-foreach(unit IN LISTS PS2_SOURCES)
-    set(private_overrides "")
-    if(unit STREQUAL "editloop3.cpp" OR unit STREQUAL "chararead.cpp" OR unit STREQUAL "itemdata.cpp")
-        set(private_overrides --private-variables --private-functions)
-    endif()
-    set(copy ${CMAKE_BINARY_DIR}/ps2_src/${unit})
-    string(REGEX REPLACE "\\.cpp$" ".hpp" header ${CMAKE_SOURCE_DIR}/port/include/stubs/${unit})
-    if(EXISTS ${header})
-        set(stubs --stubs ${header})
-    else()
-        set(stubs "")
-        set(header "")
-    endif()
-    add_custom_command(OUTPUT ${copy}
-        COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} strip --overrides ${PORT_OVERRIDES} ${stubs}
-            ${private_overrides} ${port_override_defines} ${PS2_DIR}/${unit} ${copy}
-        DEPENDS ${PS2_DIR}/${unit} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT} ${header}
-        COMMENT "Removing overridden definitions from ps2/src/${unit}"
-        VERBATIM)
-    list(APPEND PS2_UNITS ${copy})
-    list(APPEND PS2_ORIGINALS ${PS2_DIR}/${unit} ${header})
-    if(header)
-        set_property(SOURCE ${copy} APPEND PROPERTY COMPILE_OPTIONS -include ${header})
-        set_property(SOURCE ${copy} APPEND PROPERTY OBJECT_DEPENDS ${header})
-    endif()
-endforeach()
-# A tag that names no definition in ps2/src stops the build: its replacement
-# would be unused wherever the two signatures differ.
-set(PORT_OVERRIDES_CHECKED ${CMAKE_BINARY_DIR}/port_overrides.checked)
-add_custom_command(OUTPUT ${PORT_OVERRIDES_CHECKED}
-    COMMAND ${Python3_EXECUTABLE} ${PORT_OVERRIDE_SCRIPT} check --overrides ${PORT_OVERRIDES}
-        --private-variables --private-functions --private-function-unit editloop3.cpp
-        --private-function-unit chararead.cpp --private-function-unit itemdata.cpp
-        --stubs ${CMAKE_SOURCE_DIR}/port/include/stubs ${port_override_defines} ${PS2_DIR}
-        -o ${PORT_OVERRIDES_CHECKED}
-    DEPENDS ${PS2_ORIGINALS} ${PORT_OVERRIDES} ${PORT_OVERRIDE_SOURCES} ${PORT_OVERRIDE_SCRIPT}
-    COMMENT "Checking that every PORT_OVERRIDE definition replaces one of ps2/src's"
-    VERBATIM)
 
 # What both halves are compiled with. The game was written for MWCC, which
 # accepts constructs clang rejects by default: pointers truncated to 32-bit
@@ -149,7 +77,7 @@ add_custom_command(OUTPUT ${PORT_OVERRIDES_CHECKED}
 add_library(dc_options INTERFACE)
 target_compile_definitions(dc_options INTERFACE ${PORT_DEFINITIONS})
 target_include_directories(dc_options INTERFACE
-    ${CMAKE_SOURCE_DIR}/port/include ${KZ_ROOT}/include ${CMAKE_SOURCE_DIR}/ps2/include ${CMAKE_SOURCE_DIR}/ps2/include/sce)
+    ${CMAKE_SOURCE_DIR}/port/include ${KZ_ROOT}/include ${CMAKE_SOURCE_DIR}/port/include/game ${CMAKE_SOURCE_DIR}/port/include/game/sce)
 target_compile_options(dc_options INTERFACE
     "SHELL:-include \"${CMAKE_SOURCE_DIR}/port/include/port.h\""
     -fms-extensions -ffunction-sections -fdata-sections -Wno-register)
@@ -170,7 +98,7 @@ if(WIN32 AND (NOT MINGW OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
     message(FATAL_ERROR "The Windows build requires clang/llvm-mingw")
 endif()
 
-add_library(dc_ps2 OBJECT ${PS2_UNITS} ${PORT_OVERRIDES_CHECKED})
+add_library(dc_ps2 OBJECT ${GAME_SOURCES})
 target_link_libraries(dc_ps2 PRIVATE dc_options)
 # Retail's code reads locals it never set and falls off the end of functions
 # that return a value, and ps2/src keeps both because the match depends on

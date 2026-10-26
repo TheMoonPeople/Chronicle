@@ -89,10 +89,10 @@ namespace {
 CDispFade DispFade;
 }
 
-PORT_OVERRIDE CFireOmni CFire__4;
+CFireOmni CFire__4;
 extern class CScript    CScript;
 extern CWind            Wind__4;
-PORT_OVERRIDE CWater    Water__2;
+CWater    Water__2;
 extern char             CharaTex[9];
 extern CDataAlloc2<1>   CharaDataBuffer;
 
@@ -176,7 +176,7 @@ void DrawProcTitle();
    texture, and a tick copies the current frame of each over the actor's face plate. This scene's
    eye strip is three columns of ten frames rather than one column, so the eye number the script
    holds picks the column as well as the row. */
-PORT_OVERRIDE void FaceChangeMovie(int actor_no) {
+void FaceChangeMovie(int actor_no) {
     static FACE_INFO face = {"c01d01", "c01d01an_4", 27, 48, 78, 44, 0, 0, 512, 3, 0};
     CTexture        *plate;
     CTexture        *strip;
@@ -227,7 +227,7 @@ PORT_OVERRIDE void FaceChangeMovie(int actor_no) {
     MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, mouth, dbp, dbw, SCE_GS_PSMT8, 0, 128 - face.mouth_height - face.mouth_bottom, 0);
 }
 
-PORT_OVERRIDE void RushInit() {
+void RushInit() {
     wait_now_loading_vsync();
     InitializeDataBuffer();
     SetDataBuffer(&CharaDataBuffer, 490000);
@@ -273,7 +273,7 @@ PORT_OVERRIDE void RushInit() {
     StartLightning = 0;
 }
 
-PORT_OVERRIDE int RushLoop() {
+int RushLoop() {
     ReadBG();
     CScript.Step();
     DataLoad();
@@ -1083,7 +1083,7 @@ void SoundProcess() {
 }
 } // namespace
 
-PORT_OVERRIDE void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step) {
+void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step) {
     OBJ_ANIME_SEQ &sequence = OP_AnimeSeq[OP_AnimeSeqRot];
     sequence.Initialize();
     sequence.property = OBJ_ANIME_PROPERTY_ROTATION;
@@ -1099,7 +1099,7 @@ PORT_OVERRIDE void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float
     OP_AnimeSeqRot++;
 }
 
-PORT_OVERRIDE void WaterProcess() {
+void WaterProcess() {
     sceGsTex0 frame_tex;
     sceGsTex0 water_tex;
     sceGsZbuf zbuf;

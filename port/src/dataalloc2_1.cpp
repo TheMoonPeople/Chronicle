@@ -63,7 +63,7 @@ void *PlaceDataAllocObject(std::size_t size, u_long128 *block) {
     return Place(size, block);
 }
 
-PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
+u_char *CDataAlloc2<1>::Alloc(int quads) {
     CheckAllocation(this, used, quads, limit);
     DataReadInvalidateCopiedSources(this, static_cast<std::size_t>(quads));
     u_char *block = base + used * 16;
@@ -72,7 +72,7 @@ PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc(int quads) {
     return block;
 }
 
-PORT_OVERRIDE u_char *CDataAlloc2<1>::Alloc64(int quads) {
+u_char *CDataAlloc2<1>::Alloc64(int quads) {
     if (quads < 0) {
         ArenaOverflow(this, -1, limit);
     }
@@ -105,7 +105,7 @@ u_char *CDataAlloc<1, 1690000>::Alloc(int quads) {
     return allocation;
 }
 
-PORT_OVERRIDE u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
+u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
     constexpr int limit = kGlobalQuads * kArenaHeadroom;
     if (quads < 0) {
         ArenaOverflow(this, -1, limit);

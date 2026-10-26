@@ -4,7 +4,7 @@
 #include "mainselect.hpp"
 
 // Retail opens with a VU1 program call; the renderer has no programs.
-PORT_OVERRIDE int LangsetLoop() {
+int LangsetLoop() {
     switch (Proc) {
         case LANGSET_FADE_IN:
             if (Fade.In() != 0) {

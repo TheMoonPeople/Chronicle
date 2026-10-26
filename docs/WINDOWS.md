@@ -145,14 +145,14 @@ both (`/opt/kazarov/ffmpeg`); on macOS outside the container run
 
 ### Linking
 
-`port/src`'s `PORT_OVERRIDE` definitions replace `ps2/src`'s as on Linux and
-macOS (`docs/PC.md`, "How `port/src` takes precedence"). Two things are there
+`port/src`'s replacements link with `port/src/game` as on Linux and
+macOS (`docs/PC.md`, "The game's code in the port"). Two things are there
 for COFF:
 
 - lld's MinGW driver has no `--defsym`, so the aliases `draw_rect` and
   `WorkBuffer__2` are `/alternatename` directives in `port/src/linknames.cpp`.
 - lld resolves every name a COFF object uses before it drops the sections
-  nothing reaches, so `port/src/runtime.cpp` replaces `ps2/src`'s stand-ins
+  nothing reaches, so `port/src/runtime.cpp` replaces `port/src/game`'s stand-ins
   for the PS2 runtime, which use names only the PS2 link defines
   (`docs/PC.md`, "What is still a stub").
 

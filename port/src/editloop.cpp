@@ -188,7 +188,7 @@ bool TreantChestFlag(int flag_no) {
 }
 } // namespace
 
-PORT_OVERRIDE int EdGetMapFlag(int flag_no) {
+int EdGetMapFlag(int flag_no) {
     if (flag_no <= 0) {
         return 0;
     }
@@ -200,7 +200,7 @@ PORT_OVERRIDE int EdGetMapFlag(int flag_no) {
     return SaveData->GetMapFlag(MapNo, flag_no);
 }
 
-PORT_OVERRIDE int EdSetMapFlag(int flag_no, int value) {
+int EdSetMapFlag(int flag_no, int value) {
     if (flag_no <= 0) {
         return 0;
     }
@@ -220,7 +220,7 @@ PORT_OVERRIDE int EdSetMapFlag(int flag_no, int value) {
  * @address 0x1797E0
  * @size 0x1FE8
  */
-PORT_OVERRIDE int EditLoop() {
+int EditLoop() {
     goto_return_menu = 0;
 
     // Pausing is a walking action: a cutscene/event must not open the pause menu over itself.
@@ -1686,7 +1686,7 @@ void EditMainDraw() {
 } // namespace
 
 // Retail's MoveCamera, the georama view's, with the mouse turning it beside the right stick.
-PORT_OVERRIDE void MoveCamera(CCameraFollow *camera) {
+void MoveCamera(CCameraFollow *camera) {
     float horizontal = MouseLookTurn(camera, 0.03f, GamePad.GetRXf());
     camera->AddHeight(-GamePad.GetRYf());
 
@@ -1710,7 +1710,7 @@ PORT_OVERRIDE void MoveCamera(CCameraFollow *camera) {
 // Retail's EdDrawClock, kept in the window's top right corner.
 // DrawSysGra with the pause sprite not drawn from a null handle when an event left the texture
 // block without "pause" loaded (#113).
-PORT_OVERRIDE void DrawSysGra() {
+void DrawSysGra() {
     if (EdDebugParamDrawOff == 0) {
         TexManager.ReloadTexture(Vif1Packet, 20);
         EdDrawSysCursor(EditMapInfo->work.events.points, 256);
@@ -1748,7 +1748,7 @@ PORT_OVERRIDE void DrawSysGra() {
     }
 }
 
-PORT_OVERRIDE void EdDrawClock(int x, int y) {
+void EdDrawClock(int x, int y) {
     if (draw_clock != 0 && EditMapInfo->time_stop == 0) {
         gfx::UiAnchorScope anchor(gfx::UiAnchor::Side(1, -1));
 
@@ -1785,7 +1785,7 @@ PORT_OVERRIDE void EdDrawClock(int x, int y) {
     }
 }
 
-PORT_OVERRIDE int LoadTexture() {
+int LoadTexture() {
     if (EditMapInfo == nullptr) {
         return 0;
     }
@@ -2077,7 +2077,7 @@ int EditInitRunEvent(int event_no, CCamera *camera) {
 
 } // namespace
 
-PORT_OVERRIDE int EditInit(void *param) {
+int EditInit(void *param) {
     std::string map_path;
     std::string save_path;
     int         size;
@@ -2500,7 +2500,7 @@ PORT_OVERRIDE int EditInit(void *param) {
 }
 
 // Retail's, with the 64-byte rounding of the work arena's start done on the whole pointer.
-PORT_OVERRIDE void InitWorkBuffer() {
+void InitWorkBuffer() {
     int     quads = EdNPCBuffer.used;
     u_char *free_start = EdNPCBuffer.base + quads * 16;
     quads = EdNPCBuffer.limit - quads;
@@ -2618,7 +2618,7 @@ int AddTreantChests(CMapParts *parts, EPARTS_FUNC_DATA *functions, int function_
 
 } // namespace
 
-PORT_OVERRIDE EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime,
+EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime,
                                           EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points,
                                           CMapParts *shared) {
     EPARTS_ARCHIVE     *record = reinterpret_cast<EPARTS_ARCHIVE *>(archive);
@@ -2792,7 +2792,7 @@ PORT_OVERRIDE EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archiv
 
 // The editor's own rotation in 12.4 units: offsets turned with the axes swapped at angle 0, the far
 // edges a sixteenth short, y halved for the field after turning. Always point-sampled.
-PORT_OVERRIDE void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                   int pivot_x, int pivot_y, float angle, unsigned char alpha) {
     if (texture == nullptr) {
         return;

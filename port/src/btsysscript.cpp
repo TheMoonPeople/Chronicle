@@ -31,7 +31,7 @@ int GetStackInt(RS_STACKDATA *argument) {
 
 } // namespace
 
-PORT_OVERRIDE void BtSystemScriptLoad(int floor) {
+void BtSystemScriptLoad(int floor) {
     auto  path = std::make_unique<char[]>(128);
     auto  mes_path = std::make_unique<char[]>(128);
     int   read_size;
@@ -53,13 +53,13 @@ PORT_OVERRIDE void BtSystemScriptLoad(int floor) {
     AddSystemEventScript();
 }
 
-PORT_OVERRIDE int BtSystemScriptRun(int event, CDataAlloc2<1> *arena) {
+int BtSystemScriptRun(int event, CDataAlloc2<1> *arena) {
     return EdEventInit(event, arena, g_event_data);
 }
 
 // Retail stores the slot's address in BtEventInfo.item_select_result, an s32, for
 // BtMiniItemSelect_Loop to write the choice through; the s32 now only says that a slot is pending.
-PORT_OVERRIDE int _ITEM_USE_WINDOW(RS_STACKDATA *stack, int argument_count) {
+int _ITEM_USE_WINDOW(RS_STACKDATA *stack, int argument_count) {
     if (stack == nullptr || argument_count < 1 || argument_count > 17 || stack->type != RS_PTR) {
         return 0;
     }

@@ -935,7 +935,7 @@ std::optional<unsigned> PortTextureEntryIndexFromSource(const DataReadSource &so
     return Dc1ImgEntryIndex(source);
 }
 
-PORT_OVERRIDE void CTextureManager::Initialize(int size) {
+void CTextureManager::Initialize(int size) {
     PortReleaseOwner(PortTextureOwner::Manager);
 
     TextureData.used = 0;
@@ -964,21 +964,21 @@ PORT_OVERRIDE void CTextureManager::Initialize(int size) {
     last_block = -1;
 }
 
-PORT_OVERRIDE void CTextureManager::EnterTexture(int block, char *name, u_char *image, int width, int height, int bpp,
+void CTextureManager::EnterTexture(int block, char *name, u_char *image, int width, int height, int bpp,
                                                  u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
                                                  u_char *mip3, u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Block, block, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1, mip2,
           tex1, swizzled);
 }
 
-PORT_OVERRIDE void CTextureManager::EnterTextureEX(int block, char *name, u_char *image, int width, int height, int bpp,
+void CTextureManager::EnterTextureEX(int block, char *name, u_char *image, int width, int height, int bpp,
                                                    u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
                                                    u_char *mip3, u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Extended, block, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1,
           mip2, tex1, swizzled);
 }
 
-PORT_OVERRIDE void CTextureManager::EnterFixTexture(char *name, u_char *image, int width, int height, int bpp, u_char *clut,
+void CTextureManager::EnterFixTexture(char *name, u_char *image, int width, int height, int bpp, u_char *clut,
                                                     int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3,
                                                     u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Fixed, -1, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1, mip2,
@@ -1028,7 +1028,7 @@ void EnterRawFixTextureZ(CTextureManager &manager, u_char *buffer) {
 // Retail parks "stayframe", the menus' 640-wide 8-bit sheet of frames and digits, in the upper
 // bytes of the Z buffer as PSMT8H. Here it is an index texture like any other; the menus reach it
 // by name and draw pieces of it with set2DSprite.
-PORT_OVERRIDE void CTextureManager::EnterFixTextureZ(u_char *buffer) {
+void CTextureManager::EnterFixTextureZ(u_char *buffer) {
     if (PortLegacyTexturePath()) {
         EnterRawFixTextureZ(*this, buffer);
         return;
@@ -1072,7 +1072,7 @@ PORT_OVERRIDE void CTextureManager::EnterFixTextureZ(u_char *buffer) {
 
 // Native textures occupy independent storage, so simulated PS2 VRAM overlap does not overwrite
 // either image. Keep the staging bounds and block finalization without retail's overlap loop.
-PORT_OVERRIDE void CTextureManager::EndEnterTextureBlock(int block) {
+void CTextureManager::EndEnterTextureBlock(int block) {
     if (block < 0 || block >= 72) {
         return;
     }
@@ -1089,7 +1089,7 @@ PORT_OVERRIDE void CTextureManager::EndEnterTextureBlock(int block) {
 
 // Every texture is resident on the renderer from the moment it is entered, so a block never needs
 // uploading; only the bookkeeping retail keeps for it remains.
-PORT_OVERRIDE void CTextureManager::ReloadTexture(sceVif1Packet *packet, int block) {
+void CTextureManager::ReloadTexture(sceVif1Packet *packet, int block) {
     if (block < 0 || block >= 72) {
         last_block = -1;
         return;
@@ -1098,7 +1098,7 @@ PORT_OVERRIDE void CTextureManager::ReloadTexture(sceVif1Packet *packet, int blo
     blocks[block].loaded = true;
 }
 
-PORT_OVERRIDE int CTextureManager::DeleteTextureBlock(int block) {
+int CTextureManager::DeleteTextureBlock(int block) {
     if (block >= 72) {
         return 0;
     }
@@ -1117,12 +1117,12 @@ PORT_OVERRIDE int CTextureManager::DeleteTextureBlock(int block) {
     return 1;
 }
 
-PORT_OVERRIDE int LoadImage(u_int *packet, int dbp, int dpsm, int dbw, u_long128 *source, int qwc, int dsax, int dsay, int rrw,
+int LoadImage(u_int *packet, int dbp, int dpsm, int dbw, u_long128 *source, int qwc, int dsax, int dsay, int rrw,
                             int rrh) {
     return 0;
 }
 
-PORT_OVERRIDE int CTextureManager::CleanUpTextureList() {
+int CTextureManager::CleanUpTextureList() {
     // Retail closes the table's holes by moving later entries down. A native visual keeps a table
     // index (Draw3DStrip::texture) where retail's packet holds a baked TEX0, so a move would
     // retarget it. Entries stay where they are: SearchTexture already fills empty ones, so a
@@ -1133,7 +1133,7 @@ PORT_OVERRIDE int CTextureManager::CleanUpTextureList() {
 // Retail's buffer arithmetic with the pointers kept whole: it went through int, which only holds
 // an address below 2 GiB.
 
-PORT_OVERRIDE void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
+void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
     if (size < 0 || (buffer == nullptr && size != 0)) {
         buffer = nullptr;
         size = 0;
@@ -1155,7 +1155,7 @@ PORT_OVERRIDE void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
     buffer_used = 0;
 }
 
-PORT_OVERRIDE int CTextureManager::CleanUpBuffer() {
+int CTextureManager::CleanUpBuffer() {
     constexpr int block_count = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
     auto          block_start = std::make_unique<u_long128 *[]>(block_count);
     auto          block_order = std::make_unique<int[]>(block_count);

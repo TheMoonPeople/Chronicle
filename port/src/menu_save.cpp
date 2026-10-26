@@ -17,7 +17,7 @@
 #include "save_slots.hpp"
 #include "texture.hpp"
 
-PORT_OVERRIDE int PlayerAllItemCheck(int item) {
+int PlayerAllItemCheck(int item) {
     return QuestHostPlayerAllItemCheck(item);
 }
 
@@ -40,7 +40,7 @@ enum SaveMenuMessage {
 // frame after the one that starts them and show nothing; the save after the ending asks "Want to
 // save?" where retail asked to save the cleared data to the card; the alerts only a card raised
 // say the save or the load failed.
-PORT_OVERRIDE int GetSaveMenuMsgNo() {
+int GetSaveMenuMsgNo() {
     if (McAccess.GetFuncNo() != MC_OPERATION_IDLE) {
         return SAVE_MES_NONE;
     }
@@ -84,7 +84,7 @@ PORT_OVERRIDE int GetSaveMenuMsgNo() {
 
 // Retail's looked for a card holding the save directory and its configuration. Data exists once
 // state.json or a save folder does.
-PORT_OVERRIDE int InitExistData() {
+int InitExistData() {
     if (McAccess.InitForMC() != 0) {
         return 0;
     }
@@ -128,7 +128,7 @@ void GetSaveBoardAlphaInfo(int x, int width, int &start_alpha, int &end_alpha, i
 } // namespace
 
 // Retail's, with the autosave's board labelled in place of a number.
-PORT_OVERRIDE void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int unused, int alpha) {
+void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int unused, int alpha) {
     int i;
     int draw_x;
     int draw_y;

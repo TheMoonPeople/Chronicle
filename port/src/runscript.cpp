@@ -158,7 +158,7 @@ void EventScriptSetItemGet(int item) {
     g_item_get_item = item;
 }
 
-PORT_OVERRIDE int chk_int(RS_STACKDATA data, funcdata *function) {
+int chk_int(RS_STACKDATA data, funcdata *function) {
     if (data.type == RS_INT) {
         return data.i;
     }
@@ -168,7 +168,7 @@ PORT_OVERRIDE int chk_int(RS_STACKDATA data, funcdata *function) {
     return 0;
 }
 
-PORT_OVERRIDE void CRunScript::load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, int stack_num, RS_CALLDATA *call, int call_num) {
+void CRunScript::load(RS_PROG_HEADER *prog, RS_STACKDATA *stack, int stack_num, RS_CALLDATA *call, int call_num) {
     (void) stack;
     (void) call;
     HostStacks &host = Stacks()[this];
@@ -200,7 +200,7 @@ int PortEdRunEvent(int program, CDataAlloc2<1> *arena) {
     return g_run_result;
 }
 
-PORT_OVERRIDE int CRunScript::run(int no) {
+int CRunScript::run(int no) {
     if (prog == nullptr) {
         return g_run_result = -1;
     }
@@ -269,7 +269,7 @@ PORT_OVERRIDE int CRunScript::run(int no) {
 }
 
 // Retail's interpreter, opcode for opcode; only CALL's record and the diagnostics' names differ.
-PORT_OVERRIDE void CRunScript::exe(vmcode_t *entry) {
+void CRunScript::exe(vmcode_t *entry) {
     RS_STACKDATA value;
     RS_STACKDATA rhs;
     RS_STACKDATA lhs;

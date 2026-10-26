@@ -158,7 +158,7 @@ CFrame       *TaimatsuFrame[12];
 OBJ_ANIME_SEQ Taimatsu[12];
 } // namespace
 
-PORT_OVERRIDE CWater Water;
+CWater Water;
 
 namespace {
 CMapObject   OP_NornMapObj3[4];
@@ -185,7 +185,7 @@ int   SndCnt;
    for. The cache is flushed on both sides of the two transfers because the plate is a texture the
    previous tick drew from and the next one will. */
 // op_c's FaceChange, under the name op_b's scene calls it by (FaceChange__Fi__2 in the PS2 build).
-PORT_OVERRIDE void FaceChangeC(int actor_no) {
+void FaceChangeC(int actor_no) {
     static FACE_INFO face[21] = {
         {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 256, 2, 0},
         {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
@@ -266,7 +266,7 @@ PORT_OVERRIDE void FaceChangeC(int actor_no) {
    from a configuration file rather than a table of this file's own, and its images filled into a
    manifest whose first six rows are the registry's fixed surfaces. The second manifest is the same
    array written over again, because the second pack is read only once the first block is entered. */
-PORT_OVERRIDE void OpC_InitProcess() {
+void OpC_InitProcess() {
     while (ReadBGSync())
         ;
 
@@ -554,7 +554,7 @@ PORT_OVERRIDE void OpC_InitProcess() {
 /* The dancers, which is a texture load rather than a scene: the shadow model all sixteen actors
    share, then the five villagers who join the dance, each loaded straight after the block its
    images went into. */
-PORT_OVERRIDE void OpC_InitProcess2() {
+void OpC_InitProcess2() {
     while (ReadBGSync())
         ;
 
@@ -672,7 +672,7 @@ PORT_OVERRIDE void OpC_InitProcess2() {
 /* The demon's arrival: the two halves of it the scene animates, the beam it fires, and the four
    pieces of sky and moonlight the rest of the scene is drawn against. The sky is given an attribute
    mask of its own because it is drawn behind everything rather than lit with it. */
-PORT_OVERRIDE void OpC_InitProcess3() {
+void OpC_InitProcess3() {
     while (ReadBGSync())
         ;
 
@@ -812,7 +812,7 @@ PORT_OVERRIDE void OpC_InitProcess3() {
 
 /* The burning village: the ruined map, the smoke pool the fires feed, and the five actors who walk
    through it. The cloth Toan carries is driven by this file's own wind rather than the scene's. */
-PORT_OVERRIDE void OpC_InitProcess5() {
+void OpC_InitProcess5() {
     while (ReadBGSync())
         ;
 
@@ -1506,7 +1506,7 @@ void MapLoad2() {
    The last camera of the scene is the one the fire and the windmill are timed against: while it
    runs, the motion step drops to a twentieth and the camera shakes by a random amount whose spread
    narrows as the shot goes on. */
-PORT_OVERRIDE void OpC_MotionProcess() {
+void OpC_MotionProcess() {
     for (int i = 0; i < 23; i++) {
         if (CScript__2.obj[i].disp) {
             if (CScript__2.obj[i].motion_end != -1) {
@@ -1723,7 +1723,7 @@ void LoadCharaMajin() {
    with a wait behind them, so a motion that stalls inside a window plays the step once. Which of
    the two footfall samples the first actor takes is decided by which camera is running and how far
    its motion has gone, because the ground under him changes part way through the scene. */
-PORT_OVERRIDE void OpC_SoundProcess() {
+void OpC_SoundProcess() {
     [[maybe_unused]] static float vol = 40.0f;
     static int                    cnt = 0;
 
@@ -1944,7 +1944,7 @@ PORT_OVERRIDE void OpC_SoundProcess() {
    the fires, the beam and the explosions. The light and the ambient colour are saved on the way in
    and put back on the way out, because every object in the scene is lit from its own position by
    LightSet rather than from one light for the whole frame. */
-PORT_OVERRIDE void OpC_DrawProcess() {
+void OpC_DrawProcess() {
     sceVu0FMATRIX light_save;
     sceVu0FVECTOR ambient_save;
     float         far_fog;

@@ -8,11 +8,11 @@
 #include "stubs/cloth.hpp"
 #include "vu0_ops.hpp"
 
-PORT_OVERRIDE CDataAlloc2<1> *img_buffer;
-PORT_OVERRIDE u_int          *pack_data;
-PORT_OVERRIDE u_int          *load_img[4];
+CDataAlloc2<1> *img_buffer;
+u_int          *pack_data;
+u_int          *load_img[4];
 
-PORT_OVERRIDE void CommandIMG(void **argv) {
+void CommandIMG(void **argv) {
     if (img_buffer == nullptr) {
         return;
     }

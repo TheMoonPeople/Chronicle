@@ -105,7 +105,7 @@ CFrame *PreviewFrame(CMapParts *parts, s32 truncated) {
 
 } // namespace
 
-PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float *model_pos, int rot_y, float *rotation, int area_no) {
+void CEditGround::DrawPartsCursor(int plot, float *position, float *model_pos, int rot_y, float *rotation, int area_no) {
     [[maybe_unused]] static int old_parts = -1;
     CVector3_f_                 cell;
     CVector3_i_                 grid;
@@ -272,7 +272,7 @@ PORT_OVERRIDE void CEditGround::DrawPartsCursor(int plot, float *position, float
 // Retail's Draw, whose parts step down a level of detail at 50, 300, 500 and 800 from the eye.
 // None of those distances is nearer than video.detail_distance, so a part within it draws the
 // finest level the caller allows.
-PORT_OVERRIDE void CEditGround::Draw(float time, int pass, int lowest, int highest, int fixed_lowest, int fixed_highest) {
+void CEditGround::Draw(float time, int pass, int lowest, int highest, int fixed_lowest, int fixed_highest) {
     sceVu0FVECTOR lod_distance = {50.0f, 300.0f, 500.0f, 800.0f};
     sceVu0FVECTOR position;
     sceVu0FVECTOR ambient;
@@ -431,7 +431,7 @@ void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float
 // program and whatever its draw_distance, so its shadow is as dark and as exact as up close; those
 // of them deeper than shadow_near are left out of the near band here and cast by
 // EdGroundDrawShadowBeyondNear. The overhead view of georama mode (pass 1) keeps its own.
-PORT_OVERRIDE void CEditGround::DrawShadow(int pass, float near_distance, float far_distance) {
+void CEditGround::DrawShadow(int pass, float near_distance, float far_distance) {
     float full = pass == 0 ? ConfigShadowDistance() : 0.0f;
 
     if (near_distance < 1.0f) {

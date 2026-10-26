@@ -16,11 +16,11 @@
 //   0x8010 allocate stream input buffer  0x8090+p is playing  0x80E0+p port volume
 //   0x9050+p bind bank     0x9070 copy bank body to sound memory
 
-PORT_OVERRIDE int ezMidiInit() {
+int ezMidiInit() {
     return 1;
 }
 
-PORT_OVERRIDE int ezMidi(int command, int argument) {
+int ezMidi(int command, int argument) {
     audio::Mixer &mixer = audio::DefaultMixer();
     const int     port = command & 0x0F;
     audio::Trace("ezMidi 0x%X 0x%X", command, argument);
@@ -54,7 +54,7 @@ PORT_OVERRIDE int ezMidi(int command, int argument) {
     }
 }
 
-PORT_OVERRIDE int ezTransToIOP(void *iop_address, void *ee_address, int size) {
+int ezTransToIOP(void *iop_address, void *ee_address, int size) {
     std::memcpy(iop_address, ee_address, size);
     return 0;
 }
@@ -207,7 +207,7 @@ std::vector<gfx::Vertex2D> g_batch;
 
 // The batch draws when it closes, which is where retail's packet reaches the GS: nothing else may
 // write to the packet between Start and End.
-PORT_OVERRIDE void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
+void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
     g_batch.clear();
     g_batch_open = texture != nullptr;
     if (texture != nullptr) {
@@ -215,7 +215,7 @@ PORT_OVERRIDE void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
     }
 }
 
-PORT_OVERRIDE void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
                                     u8 red, u8 green, u8 blue, u8 alpha) {
     if (texture == nullptr || !g_batch_open) {
         return;
@@ -245,7 +245,7 @@ PORT_OVERRIDE void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, co
     g_batch.push_back(draw2d::Vertex(x0, y1, 0.0f, u0, v1, red, green, blue, alpha));
 }
 
-PORT_OVERRIDE void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
+void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
     if (!g_batch_open) {
         return;
     }
@@ -256,7 +256,7 @@ PORT_OVERRIDE void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
     g_batch.clear();
 }
 
-PORT_OVERRIDE void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut) {
+void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut) {
     if (texture == nullptr || clut == nullptr) {
         return;
     }

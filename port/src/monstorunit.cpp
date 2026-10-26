@@ -11,7 +11,7 @@
 // Retail's DrawShadowMonstor, which casts the shadows of the monsters taking part. A dormant
 // monster within video.detail_distance of the player draws its model (DrawMonstorDetail,
 // dun/gameloop.cpp), so it casts its shadow here too.
-PORT_OVERRIDE void CMonstorUnit::DrawShadowMonstor() {
+void CMonstorUnit::DrawShadowMonstor() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR rotation;
     sceVu0FVECTOR light = {0.0f, 1.0f, 0.0f, 0.0f};
@@ -40,7 +40,7 @@ PORT_OVERRIDE void CMonstorUnit::DrawShadowMonstor() {
    item) though most of them have a money chance and a rare item set. Here they drop as the others
    do. Wine Keg and Gacious keep 0: they are MONSTER_KIND_NO_LOCK_ON, which never drops. */
 // clang-format off
-PORT_OVERRIDE MONSTOR_MODEL MonstorTable[167] = {
+MONSTOR_MODEL MonstorTable[167] = {
     // 0: Master Jacket
     {{"e01a", "", "", ""}, "e01a", 75, MONSTER_FAMILY_UNDEAD, {110, 80, 100, 80, 130}, 6.0f, 3, 0, {-1, -1}, 5, {0, 0}, 7, 50, MONSTER_KIND_NORMAL, {0, 0}, 1, {0, 0}, ITEM_REPAIR_POWDER, 1, 100, 80, ITEM_STAMINA_DRINK, {100, 100, 100, 100, 100, 100}, {0, 0}, 1.0f},
     // 1: Skeleton Soldier

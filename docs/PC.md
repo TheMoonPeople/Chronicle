@@ -1611,7 +1611,7 @@ eekernel (`FlushCache` and friends do nothing, `Exit` exits), libcdvd's
 The Metrowerks runtime calls are in `port/src/runtime.cpp`: `mwInit` does
 nothing; `LoadOverlay` reconstructs selected title objects when switching to
 the title overlay; `mwLoadOverlay` succeeds, `__assert` prints and exits with
-status 4, `exit__2` exits. The same file replaces the stand-ins in `ps2/src`
+status 4, `exit__2` exits. The same file replaces the stand-ins in `port/src/game`
 for what the PS2 runtime generated that use names only the PS2 link defines:
 four constructors and `__unexpected` become functions that call
 `PS2_UNIMPLEMENTED()`, and `std::exception`'s virtual table and the overlay
@@ -1625,11 +1625,6 @@ disassemble `port/build/pc/darkcloud` (`llvm-objdump -d`), collect the functions
 with a `call` to a stub's address and map them to their source with
 `llvm-addr2line`; static helpers inlined into a caller show under that
 caller.
-
-At the last count `port/src` tagged 330 definitions `PORT_OVERRIDE`, each
-replacing one of `ps2/src`'s, and the final link held 4,145 of the game's own
-(`llvm-nm` of the `dc_ps2` objects' external definitions against the
-executable's symbols).
 
 ## Known gaps
 
@@ -1701,7 +1696,7 @@ reader's state) and op_d's `OpD_InitProcess`, `OpD_InitProcess2` and
 gives them. The smoke pools are sized from the host `CEffect` (288 bytes,
 where retail asked for fifty 256-byte ones).
 
-The port's definitions of those objects are tagged `PORT_OVERRIDE`, so the
+The port defines those objects itself and the forked title units leave them out, so the
 title units' own are left out and only the port's constructors run over them
 at start-up, never the title units' at the PS2 strides. `LoadOverlay`
 (`port/src/runtime.cpp`) does what retail's overlay loader did when a mode
@@ -1713,93 +1708,42 @@ initialises the maps, as op_a's constructor did).
 
 The root `CMakeLists.txt` only picks the platform:
 
-- `ps2/src` is the game's code, exactly as the PS2 build compiles it, and
-  nothing else. Port accommodations never live in `ps2/src` or `ps2/include`;
-  the one exception is the `#ifndef PORT` around functions written in
-  assembly (below).
-  `ps2/CMakeLists.txt` (with `ps2/cmake/`) is the PS2 build.
-- `port/src` is code only the port compiles. `port/CMakeLists.txt` is the
-  port's build. `main.cpp` and `gameloop.cpp` start the game;
-  `platform/`, `gfx/` and `audio/` are the host side; `sce/` implements the
-  SDK; `stubs/sce/` holds the stubs left; `<unit>.cpp` (and `dun/`) replace
-  functions of `ps2/src/<unit>.cpp`, sometimes split as `<unit>_math.cpp`,
+- `ps2/src` and `ps2/include` are the matching decompilation, built only by
+  `ps2/CMakeLists.txt` (with `ps2/cmake/`). The port does not compile them.
+- `port/src/game` and `port/include/game` are the port's own copy of the
+  game's code and headers, forked from `ps2/src` and `ps2/include`. Changes
+  the port needs are made there directly; nothing is shared with the PS2
+  build and nothing in them has to stay byte-identical to retail.
+  `port/include/game/sce` holds the SDK headers Kazarov's `sce` sources
+  implement.
+- The rest of `port/src` is the platform layer and the port's own game
+  code. `port/CMakeLists.txt` is the port's build. `main.cpp` and
+  `gameloop.cpp` start the game; `platform/`, `gfx/` and `audio/` are the
+  host side; `<unit>.cpp` (and `dun/`) hold the port's replacements for
+  functions of `game/<unit>.cpp`, sometimes split as `<unit>_math.cpp`,
   `<unit>_draw.cpp` or `<unit>_port.cpp`; `linknames.cpp` supplies link-time
   names (below); `tests/` is `darkcloud_tests`, GoogleTest cases that ctest
   runs one process each.
 - `tools/dcdata` is the data extraction tool.
-- `ps2/include` holds the game's headers and, under `ps2/include/sce` and
-  `ps2/include/std`, the SDK and standard headers MWCC compiles against. Both
-  builds use them.
-- `port/include` holds headers only the port uses: `port.h`, included ahead
-  of every unit it compiles, and `stubs/` (below).
+- `port/include` holds `port.h`, included ahead of every unit the port
+  compiles, and `stubs/` (below).
 
-## How `port/src` takes precedence
+## The game's code in the port
 
-`port/src` tags every definition that replaces one of `ps2/src`'s with
-`PORT_OVERRIDE`, which `port/include/port.h` defines as nothing:
-
-```cpp
-PORT_OVERRIDE void MGClearScreen(u_char r) {
-```
-
-`ps2/src` carries no mark of it. `port/CMakeLists.txt` builds the two halves
-like this, on every platform:
-
-1. `tools/kazarov/scripts/port_override.py list` reads the tags in `port/src` and writes
-   the name each tagged definition links under to
-   `port/build/pc/port_overrides.txt`: a function's qualified name and
-   parameter types, or the name alone for a variable and for a function with
-   C linkage.
-2. `port_override.py strip` writes a copy of every unit in `ps2/src` under
-   `port/build/pc/ps2_src` without its definitions of those names. A function
-   becomes its declaration, a member function is removed (its class declares
-   it; an explicit specialization keeps its declaration) and a variable
-   becomes an `extern` declaration. Lines keep their numbers and a `#line`
-   directive names the original, so diagnostics and debug information point
-   into `ps2/src`.
-3. `port_override.py check` stops the build if a listed name is defined by no
-   unit of `ps2/src`.
-4. The copies are compiled, with `PORT` defined.
-5. The units in `port/src` are compiled and linked with them.
-
-Each name then has one definition. A replacement without a tag leaves the
-`ps2/src` definition in, and the link fails on the duplicate symbol, unless
-that definition is `inline` or Apple's linker drops it as dead code first. A tag
-whose signature `ps2/src` does not have fails the check: the two would be
-different symbols, both would link, and the game would go on calling
-`ps2/src`'s.
-
-To replace a function, define it in `port/src` with `PORT_OVERRIDE` in front and
-the signature `ps2/src` gives it: the parameter types are compared as they are
-spelled, names and default arguments aside. By convention it goes in the file
-that mirrors its unit: `port/src/mglib.cpp` holds the replacements for
-`ps2/src/mglib.cpp`. A name the unit's stub header renames (below) is tagged
-under its new name. What is replaced has to be a function with its body or a
-variable without constructor arguments (a pointer to a function, or an array
-of them, by the name inside its declarator), at file scope of a unit, with no
-preprocessor directive before its body, and an `#if` block in its body has to
-lie wholly inside it with every branch leaving the same braces open. It has to
-be one the port compiles: under `#ifdef` or `#ifndef` of `PORT` or `PAL`, in
-the branch the port takes; under any other condition, in every branch. The
-script stops the build on a definition it cannot take out whole, on an
-`inline` one it cannot read, which the link would not catch, and on a unit
-with a line continued by a backslash outside a preprocessor directive. A
-`static` function cannot be replaced this way; it keeps the body `ps2/src`
-gives it. Nor can one defined in a class body, a namespace or a header: the
-check finds nothing to replace. A variable takes one name per declaration,
-and its declaration has no comma outside `()`, `[]` and `{}`: angle brackets do not
-count, so a template type with a comma (`std::pair<int, int>`, or
-`make<int, int>()` in its initialiser) needs a `using` alias, and the script
-stops on one rather than guess. A replaced definition has to spell out its own
-boundaries: a macro that expands to a comma or a semicolon in it is not
-supported, and the script does not notice one.
-
+`port/src/game/<unit>.cpp` is what the port compiles of `ps2/src/<unit>.cpp`.
+It was forked from the copy the old override build compiled: the definitions
+`port/src` replaced are left out (a function keeps its declaration, a
+variable becomes `extern`), the conditionals on `PORT`, `PAL`, `PAL_TIMING`
+and `NON_MATCHING` are resolved for the PC (PAL, without PAL timing) and
+`PORT_RETURN`, `PORT_INIT` and `PORT_FIX` are expanded. Each replacement in
+`port/src` is an ordinary definition; the two halves are compiled as
+`dc_ps2` and `dc_port` and linked together, so a name defined in both fails
+the link on the duplicate symbol.
 
 ## Per-unit adjustments
 
-`port/include/stubs/<unit>.hpp`, if it exists, is included ahead of
-`ps2/src/<unit>.cpp`, after `port.h`, and nothing else. Only the port's build
-sees `port/include`; the PS2 build compiles nothing differently. It declares
+`port/include/stubs/<unit>.hpp`, if it exists, is the first include of
+`port/src/game/<unit>.cpp`, after `port.h`. It declares
 what the port defines in place of code `PORT` leaves out, and supplies or
 renames what the unit takes from MWCC or from the PS2 link alone:
 

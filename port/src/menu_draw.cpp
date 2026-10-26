@@ -197,7 +197,7 @@ bool DrawAlphabetCell(CTexture *texture, const CRect_i_ &screen, const CRect_i_ 
 
 } // namespace
 
-PORT_OVERRIDE void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *attachment) {
+void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *attachment) {
     if (attachment == nullptr) {
         return;
     }
@@ -208,13 +208,13 @@ PORT_OVERRIDE void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *atta
     }
 }
 
-PORT_OVERRIDE u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
+u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
     // Align the buffer address to a 64-byte boundary across the full 64-bit address space.
     auto address = reinterpret_cast<std::uintptr_t>(buffer);
     return reinterpret_cast<u_long128 *>((address + 63) & ~std::uintptr_t{63});
 }
 
-PORT_OVERRIDE void PersonalBoardDrawWaku(int x, int y, CTexture *texture, int alpha) {
+void PersonalBoardDrawWaku(int x, int y, CTexture *texture, int alpha) {
     // Draw the top strip at 1:1 texel height so the frame border meets the clipped grid at y=129.
     DrawMenu2DSprite(texture, CRect_i_(x, y + 1, 0x14, 0xBF), CRect_i_(0, 0, 0x14, 0xC0), alpha);
     DrawMenu2DSprite(texture, CRect_i_(x + 0x14, y + 1, 0xC8, 0x14), CRect_i_(0x14, 0, 0xC8, 0x14), alpha);
@@ -222,7 +222,7 @@ PORT_OVERRIDE void PersonalBoardDrawWaku(int x, int y, CTexture *texture, int al
     DrawMenu2DSprite(texture, CRect_i_(x + 0x14, y + 0xA1, 0xC8, 0x1F), CRect_i_(0x14, 0xA0, 0xC8, 0x20), alpha);
 }
 
-PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha) {
+void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha) {
     if (texture == nullptr) {
         return;
     }
@@ -231,7 +231,7 @@ PORT_OVERRIDE void DrawFullSizePicture(CTexture *texture, int x, int y, int alph
                      CRect_i_(0, 0, 640, 448), alpha);
 }
 
-PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
+void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int alpha) {
     if (DrawAlphabetCell(texture, screen, texel, 0x80, 0x80, 0x80, alpha) || DrawBoardName(texture, screen, texel, alpha) ||
         DrawFloorLabels(texture, screen, texel, alpha) || DrawNameTitle(texture, screen, texel, alpha) ||
         DrawPaintedTitle(texture, screen, texel, alpha)) {
@@ -240,7 +240,7 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
     set2DSprite(GetVif1Packet(), texture, screen, texel, alpha);
 }
 
-PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, unsigned char r, unsigned char g,
+void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, unsigned char r, unsigned char g,
                                     unsigned char b, int alpha) {
     // Clamp 1:1 sprite source heights so adjacent atlas rows are not sampled when scaled.
     if (screen.width > 0 && screen.height > 0 &&
@@ -261,7 +261,7 @@ PORT_OVERRIDE void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_
     set2DSprite(GetVif1Packet(), texture, screen, texel, r, g, b, alpha);
 }
 
-PORT_OVERRIDE void DrawMainMenuIcon(int x, int y, int icon, int selected, int bright, int alpha) {
+void DrawMainMenuIcon(int x, int y, int icon, int selected, int bright, int alpha) {
     if (StayTex == nullptr) {
         StayTex = TexManager.GetTexture(const_cast<char *>("stayframe"), -1);
         if (StayTex == nullptr) {
@@ -311,7 +311,7 @@ PORT_OVERRIDE void DrawMainMenuIcon(int x, int y, int icon, int selected, int br
     painted(StayTex);
 }
 
-PORT_OVERRIDE void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, int alpha) {
+void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, int alpha) {
     float pointer_x = 0.0f;
     float pointer_y = 0.0f;
 

@@ -19,19 +19,19 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
-PORT_OVERRIDE int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
+int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
     return options::Open(mode, block_no, buffer);
 }
 
-PORT_OVERRIDE int MenuOptionKey() {
+int MenuOptionKey() {
     return options::Run();
 }
 
-PORT_OVERRIDE void DrawMenuOption() {
+void DrawMenuOption() {
     options::Draw();
 }
 
-PORT_OVERRIDE int OptionMenuFadeOutStart() {
+int OptionMenuFadeOutStart() {
     return options::g_screen.step == OPTION_STEP_FADE_OUT;
 }
 
@@ -250,7 +250,7 @@ int SaveMenuKeyEndSaveEnding() {
 
 } // namespace
 
-PORT_OVERRIDE int (*SaveMenuFunc[26])() = {
+int (*SaveMenuFunc[26])() = {
     SaveMenuKeyFadeIn,
     SaveMenuKeyFadeOut,
     SaveMenuKeyModeSelect,
@@ -282,7 +282,7 @@ PORT_OVERRIDE int (*SaveMenuFunc[26])() = {
 // Retail's, with the boards of SaveSlots: the chosen one sits where retail's did and the rest
 // scroll past above and below it, only those on screen drawn. The boards stay up while the
 // list is read again after a save, which no longer takes long enough to show.
-PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
+void DrawMenuSave(char *frame_name) {
     if (SaveMenu.texture_ready == 0) {
         return;
     }
@@ -498,7 +498,7 @@ PORT_OVERRIDE void DrawMenuSave(char *frame_name) {
 }
 
 // The menus' hand follows the mouse while a screen has taken it as a pointer (port/src/menu_mouse.cpp).
-PORT_OVERRIDE void DrawMenuObjectVibe(int x, int y, int shadow, int icon_u) {
+void DrawMenuObjectVibe(int x, int y, int shadow, int icon_u) {
     CTexture *texture = TexManager.GetTexture(AtoraVibeTextureName, -1);
     CRect_i_  src(icon_u, 0x28, 0x20, 0x20);
     float     pointer_x = 0.0f;

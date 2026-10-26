@@ -138,7 +138,7 @@ void KeepNearVillagers(CCamera *camera, CCharacter *player) {
 // added for walking villagers. The editable grid's flat polygons alone can place them above the
 // sculpted Muska Racka terrain. A villager the detail distance keeps past retail's choice walks
 // silently.
-PORT_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
+void EdMoveVillager(VILLAGER_INFO *villagers) {
     CEditGround *ground = EdExchangeInfo.ground;
     CCharacter  *player = EdExchangeInfo.player;
     CCamera     *camera = EdExchangeInfo.camera;
@@ -274,7 +274,7 @@ PORT_OVERRIDE void EdMoveVillager(VILLAGER_INFO *villagers) {
 
 // Retail's EdMoveVillagerSubMap, with KeepNearVillagers in place of GetNearVill and the choice of
 // the two nearest.
-PORT_OVERRIDE void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
+void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
     CCharacter *player = EdExchangeInfo.player;
     CCamera    *camera = EdExchangeInfo.camera;
     int         i;
@@ -307,7 +307,7 @@ PORT_OVERRIDE void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
 // Retail's EdInitToEPInfo lays the cell map and names out 0x78 bytes in, past its own header; the
 // host header is 0xA0 bytes, so 0x78 lands on its element names and function table. They start past
 // the host's header instead.
-PORT_OVERRIDE int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header) {
+int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header) {
     constexpr size_t cell_capacity = sizeof(init->cell) / sizeof(init->cell[0][0]);
     if (init == nullptr || header == nullptr || init->width < 0 || init->height < 0 || init->width > cell_capacity ||
         init->height > cell_capacity || init->width * init->height > cell_capacity) {
@@ -398,7 +398,7 @@ static int TalkMesNo;
 static TalkDialog talk_dialog = TALK_DIALOG_RETAIL;
 } // namespace
 
-PORT_OVERRIDE int EdTalkModeInit(CNPCharacter *villager, int character_info_id) {
+int EdTalkModeInit(CNPCharacter *villager, int character_info_id) {
     if (villager->villager_id < 0) {
         return 0;
     }
@@ -430,11 +430,11 @@ PORT_OVERRIDE int EdTalkModeInit(CNPCharacter *villager, int character_info_id) 
     return 1;
 }
 
-PORT_OVERRIDE CNPCharacter *EdNowTalkChara() {
+CNPCharacter *EdNowTalkChara() {
     return talk_villager__2;
 }
 
-PORT_OVERRIDE int EdNowTalkCharaInfoID() {
+int EdNowTalkCharaInfoID() {
     return talk_chara_info_id;
 }
 
@@ -499,7 +499,7 @@ void EdCloseTalkMes() {
  * @address 0x199090
  * @size 0xEBC
  */
-PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selection) {
+int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selection) {
     /**
      * Camera offsets from the speakers' midpoint for each of the three talk-camera views.
      */
@@ -841,16 +841,16 @@ PORT_OVERRIDE int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode
 }
 
 // Starts the event interpreter held by this translation unit.
-PORT_OVERRIDE int EdRunEvent(int program, CDataAlloc2<1> *arena) {
+int EdRunEvent(int program, CDataAlloc2<1> *arena) {
     return PortEdRunEvent(program, arena);
 }
 
-PORT_OVERRIDE int PortEventMenuMode = ED_MENU_NONE;
+int PortEventMenuMode = ED_MENU_NONE;
 
 /**
  * Opens the world map while retaining the script result pointer at native width.
  */
-PORT_OVERRIDE int PortWorldMapCommand(RS_STACKDATA *stack, int argument_count) {
+int PortWorldMapCommand(RS_STACKDATA *stack, int argument_count) {
     if (stack->type != RS_PTR) {
         return 0;
     }

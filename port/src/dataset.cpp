@@ -56,11 +56,11 @@ void InitializeDataBuffer() {
     Carve(&ActiveData1, 25000);
 }
 
-PORT_OVERRIDE void SetDataBuffer(CDataAlloc2<1> *arena, int quads) {
+void SetDataBuffer(CDataAlloc2<1> *arena, int quads) {
     Carve(arena, quads);
 }
 
-PORT_OVERRIDE void SetPacketReadBuffer(int packet_quads, int read_quads) {
+void SetPacketReadBuffer(int packet_quads, int read_quads) {
     CarveReadBuffer(read_quads);
     MGInitVif1Packet(CarvePackets(packet_quads, 0), CarvePackets(packet_quads, 1));
     CarveWorkBuffer(2048);

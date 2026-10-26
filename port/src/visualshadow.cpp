@@ -451,7 +451,7 @@ void DrawVolume(const Volume &volume, const Projection &projection, const Render
 } // namespace
 
 // The shadow mesh's triangles, three model-space corners each, for the fast programs to extrude.
-PORT_OVERRIDE int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_data) {
+int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_data) {
     if (block == nullptr || model_data == nullptr) {
         return 0;
     }
@@ -494,7 +494,7 @@ PORT_OVERRIDE int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_d
     return vu_size;
 }
 
-PORT_OVERRIDE int CVisualShadow::RemakeData(u_int *block) {
+int CVisualShadow::RemakeData(u_int *block) {
     if (data == nullptr) {
         return 0;
     }
@@ -503,7 +503,7 @@ PORT_OVERRIDE int CVisualShadow::RemakeData(u_int *block) {
 
 // This frame's volume of the selected triangles, in eye space: the faces both passes draw, those
 // only subtracted and the near-plane sections, as the record's three strips.
-PORT_OVERRIDE int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, RenderInfo *info, float (*matrix)[4]) {
+int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, RenderInfo *info, float (*matrix)[4]) {
     if (model_data == nullptr) {
         return 0;
     }
@@ -553,7 +553,7 @@ PORT_OVERRIDE int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *mod
     return vu_size;
 }
 
-PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                          u_long128 *draw_state, int unknown1, int unknown2) {
     if (info->shadow_pass != 1 && info->shadow_pass != 2) {
         return CVisualMDTVu1::DrawVu1(packet, matrix, info, program, draw_state, unknown1, unknown2);
@@ -645,7 +645,7 @@ PORT_OVERRIDE int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], Rend
     return 0;
 }
 
-PORT_OVERRIDE int CVisualShadow::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+int CVisualShadow::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
                                          u_long128 *draw_state, int unknown1, int unknown2) {
     return CVisualShadow::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }

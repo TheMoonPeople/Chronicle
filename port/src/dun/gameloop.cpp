@@ -193,7 +193,7 @@ void HitBlowVelocity(int hit_no, float *velocity) {
     velocity[2] = away_z / length;
 }
 
-PORT_OVERRIDE void DunMainDraw() {
+void DunMainDraw() {
     sceVu0FMATRIX camera;
     sceVu0FVECTOR eye;
     sceVu0FMATRIX view;
@@ -747,7 +747,7 @@ extern LOADTEXTURE_INFO2 texdata__2[];
 
 // Retail formats the floor's gate key image over the third name in texdata__2, a string literal the
 // PS2 left writable and a host need not; the port formats it into a buffer of its own.
-PORT_OVERRIDE void LoadBaseTexture() {
+void LoadBaseTexture() {
     std::size_t info_count = 0;
     while (texdata__2[info_count].name != nullptr) {
         info_count++;
@@ -821,7 +821,7 @@ PORT_OVERRIDE void LoadBaseTexture() {
     TexManager.LoadTextureBlock(-1, mes_info);
 }
 
-PORT_OVERRIDE int LoaderLoop() {
+int LoaderLoop() {
     int        i;
     int        chosen = 0;
     static int nowCursor = 0;
@@ -887,7 +887,7 @@ PORT_OVERRIDE int LoaderLoop() {
     return chosen;
 }
 
-PORT_OVERRIDE int BtCheckDamageProc() {
+int BtCheckDamageProc() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR from;
     sceVu0FVECTOR blow;
@@ -1256,7 +1256,7 @@ PORT_OVERRIDE int BtCheckDamageProc() {
     return taken;
 }
 
-PORT_OVERRIDE void EyeCamera() {
+void EyeCamera() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR ref;
     sceVu0FMATRIX rotation;
