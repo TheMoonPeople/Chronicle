@@ -1,13 +1,15 @@
 #include "npcharacter.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
 
 #include "collision.hpp"
 #include "mathutil.hpp"
 #include "mglib.hpp"
 
 void CNPCharacter::Step() {
-    if (!initialized || frame == NULL) {
+    if (!initialized || frame == nullptr) {
         return;
     }
 
@@ -18,16 +20,16 @@ void CNPCharacter::Step() {
     int fade_step = alpha_step;
     int override_step = alpha_step_override;
 
-    if (!(float(override_step) <= 0.0f)) {
+    if (!(static_cast<float>(override_step) <= 0.0f)) {
         fade_step = override_step;
     }
 
     alpha_step_override = -1;
 
     if (near_camera) {
-        ambient_offset[3] += float(fade_step);
+        ambient_offset[3] += static_cast<float>(fade_step);
     } else {
-        ambient_offset[3] -= float(fade_step);
+        ambient_offset[3] -= static_cast<float>(fade_step);
     }
 
     if (ambient_offset[3] < 0.0f) {
@@ -42,7 +44,7 @@ void CNPCharacter::Step() {
 }
 
 void CNPCharacter::ShadowStep() {
-    if (!initialized || frame == NULL) {
+    if (!initialized || frame == nullptr) {
         return;
     }
 
@@ -65,7 +67,7 @@ void CNPCharacter::PlaySeq() {
     GetPosition(position);
 
     switch (sequence->operation) {
-        case NP_SEQUENCE_MOVE: {
+        case NP_SEQUENCE_OPERATION::MOVE: {
             sceVu0SubVector(movement, sequence->destination, position);
             movement[1] = 0;
             sceVu0Normalize(movement, movement);
@@ -87,7 +89,7 @@ void CNPCharacter::PlaySeq() {
             SetMotion(1, 0);
             return;
         }
-        case NP_SEQUENCE_WAIT:
+        case NP_SEQUENCE_OPERATION::WAIT:
             sequence->wait_frames--;
 
             if (sequence->wait_frames < 0) {
@@ -95,6 +97,8 @@ void CNPCharacter::PlaySeq() {
             }
 
             SetMotion(0, 0);
+            break;
+        case NP_SEQUENCE_OPERATION::UNUSED:
             break;
     }
 }
@@ -104,14 +108,14 @@ void CNPCharacter::ClearSeq() {
     write_index = 0;
     sequence_enabled = 1;
 
-    for (int index = 0; index < 8; index++) {
-        sequences[index].operation = NP_SEQUENCE_UNUSED;
+    for (NP_SEQUENCE &sequence : sequences) {
+        sequence.operation = NP_SEQUENCE_OPERATION::UNUSED;
     }
 }
 
 int CNPCharacter::SetSeq(float *destination, float speed) {
     NP_SEQUENCE *sequence = GetNextSeq();
-    sequence->operation = NP_SEQUENCE_MOVE;
+    sequence->operation = NP_SEQUENCE_OPERATION::MOVE;
     sceVu0CopyVector(sequence->destination, destination);
     sequence->speed[0] = speed;
     sequence->speed[1] = speed;
@@ -121,7 +125,7 @@ int CNPCharacter::SetSeq(float *destination, float speed) {
 
 int CNPCharacter::SetWait(int frames) {
     NP_SEQUENCE *sequence = GetNextSeq();
-    sequence->operation = NP_SEQUENCE_WAIT;
+    sequence->operation = NP_SEQUENCE_OPERATION::WAIT;
     sequence->wait_frames = frames;
     return 1;
 }
@@ -134,7 +138,7 @@ NP_SEQUENCE *CNPCharacter::GetNextSeq() {
     NP_SEQUENCE *sequence = &sequences[write_index];
     write_index++;
 
-    if (write_index >= 8) {
+    if (write_index >= std::ssize(sequences)) {
         write_index = 0;
     }
 
@@ -146,12 +150,12 @@ NP_SEQUENCE *CNPCharacter::GetNowSeq() {
 }
 
 void CNPCharacter::NextSeq() {
-    GetNowSeq()->operation = NP_SEQUENCE_UNUSED;
+    GetNowSeq()->operation = NP_SEQUENCE_OPERATION::UNUSED;
 
     if (CheckSeq()) {
         read_index++;
 
-        if (read_index >= 8) {
+        if (read_index >= std::ssize(sequences)) {
             read_index = 0;
         }
     }
@@ -161,7 +165,7 @@ void CNPCharacter::Draw() {
     sceVu0FVECTOR saved_ambient;
     sceVu0FVECTOR ambient;
 
-    if (!initialized || frame == NULL) {
+    if (!initialized || frame == nullptr) {
         return;
     }
 
@@ -179,7 +183,7 @@ void CNPCharacter::Draw() {
 }
 
 void CNPCharacter::DrawShadow() {
-    if (!initialized || frame == NULL) {
+    if (!initialized || frame == nullptr) {
         return;
     }
 
@@ -189,7 +193,7 @@ void CNPCharacter::DrawShadow() {
 }
 
 int CNPCharacter::CheckDraw() {
-    if (!initialized || frame == NULL) {
+    if (!initialized || frame == nullptr) {
         return 0;
     }
 
@@ -217,11 +221,7 @@ int CCharacter::PickUpPoly(float *position, CCPoly *polygons) {
     sceVu0FVECTOR lower_left;
     sceVu0FVECTOR lower_right;
     GetPosition(origin);
-    float radius = body_width;
-
-    if (radius < 2.0f) {
-        radius = 2.0f;
-    }
+    float radius = std::max(body_width, 2.0f);
 
     sceVu0SubVector(direction, position, origin);
     direction[1] = 0;

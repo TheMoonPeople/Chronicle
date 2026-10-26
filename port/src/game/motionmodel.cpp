@@ -1,18 +1,17 @@
 #include "motionmodel.hpp"
 
-#include <cstdio>
+#include <array>
 #include <cstdlib>
-#include <cstring>
+#include <print>
+#include <string>
 
 #include "btmisc.hpp"
 #include "dataread.hpp"
 #include "frame.hpp"
+#include "framevu1.hpp"
 #include "hitvalue.hpp"
 #include "mglib.hpp"
 
-/**
- * Returns the attribute bit for a weapon element, or zero for an invalid element.
- */
 int GetWeaponElementAttr(int element) {
     if (element < 0 || element > 5) {
         element = 5;
@@ -21,62 +20,46 @@ int GetWeaponElementAttr(int element) {
     return element_tbl[element];
 }
 
-void CMotionModel::LoadPack(unsigned int *pack, char *base_name, CDataAlloc2<1> *model_arena, CDataAlloc2<1> *motion_arena, MOTION_INFO *motion_info, int initialize_frames) {
-    MOTION_FILE_INFO files[3];
-    char             model_name[64];
-    char             bone_name[64];
-    char             motion_name[64];
-    char             weight_name[76];
-    int              model_size;
-    unsigned int    *model_data;
-    int              model_flags;
-
-    strcpy(model_name, base_name);
-    strcpy(bone_name, base_name);
-    strcpy(motion_name, base_name);
-    strcpy(weight_name, base_name);
-    strcat(model_name, ".mds");
-    strcat(bone_name, ".bbp");
-    strcat(motion_name, ".mot");
-    strcat(weight_name, ".wgt");
-    model_flags = 0;
+void CMotionModel::LoadPack(unsigned int *pack, const char *base_name, CDataAlloc2<1> *model_arena, CDataAlloc2<1> *motion_arena, MOTION_INFO *motion_info, int initialize_frames) {
+    std::array<MOTION_FILE_INFO, 3> files{};
+    const std::string               base(base_name);
+    std::string                     model_name = base + ".mds";
+    std::string                     bone_name = base + ".bbp";
+    std::string                     motion_name = base + ".mot";
+    std::string                     weight_name = base + ".wgt";
+    int                             model_size = 0;
+    int                             model_flags = 0;
 
     if (initialize_frames != 0) {
         model_flags = 6;
     }
 
-    model_data = GetPackFile(pack, model_name, &model_size);
+    unsigned int *model_data = GetPackFile(pack, model_name.data(), &model_size);
 
-    if (model_data == NULL) {
-        printf("Model NotFound!! %s\n", model_name);
+    if (model_data == nullptr) {
+        std::println("Model NotFound!! {}", model_name);
         exit__2(-1);
     }
 
-    frame = (CFrame *) LoadMDSFile(model_data, model_arena, model_flags, NULL, NULL);
-    printf("pack = %s\n", model_name);
-    files[1].name = motion_name;
-    files[0].name = bone_name;
-    files[2].name = weight_name;
+    frame = LoadMDSFile(model_data, model_arena, model_flags, nullptr, nullptr);
+    std::println("pack = {}", model_name);
+    files[1].name = motion_name.data();
+    files[0].name = bone_name.data();
+    files[2].name = weight_name.data();
     files[0].size = 0;
     files[1].size = 0;
     files[2].size = 0;
-    files[0].data = GetPackFile(pack, bone_name, &files[0].size);
-    files[1].data = GetPackFile(pack, motion_name, &files[1].size);
-    files[2].data = GetPackFile(pack, weight_name, &files[2].size);
+    files[0].data = GetPackFile(pack, bone_name.data(), &files[0].size);
+    files[1].data = GetPackFile(pack, motion_name.data(), &files[1].size);
+    files[2].data = GetPackFile(pack, weight_name.data(), &files[2].size);
 
-    if (files[0].size == 0) {
-        files[0].name = NULL;
+    for (MOTION_FILE_INFO &file : files) {
+        if (file.size == 0) {
+            file.name = nullptr;
+        }
     }
 
-    if (files[1].size == 0) {
-        files[1].name = NULL;
-    }
-
-    if (files[2].size == 0) {
-        files[2].name = NULL;
-    }
-
-    CreateAnimeDataEX(&motion, motion_arena, files);
+    CreateAnimeDataEX(&motion, motion_arena, files.data());
 
     if (initialize_frames != 0) {
         AnimeDataInit(frame, &motion, model_arena, &motion.frame_info);
@@ -102,7 +85,7 @@ void CMotionModel::Step() {
 }
 
 void CMotionModel::Draw() {
-    if (frame != NULL) {
+    if (frame != nullptr) {
         MGDraw(frame);
     }
 }

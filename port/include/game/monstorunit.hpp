@@ -12,14 +12,11 @@
 /**
  * What CMonstorUnit::CheckDmg reports.
  */
-// clang-format off
-enum MonsterDamageResult {
-    MONSTER_DMG_NONE   = 0, /**< Not hit. */
-    MONSTER_DMG_HIT    = 1, /**< Hit. */
-    MONSTER_DMG_KILLED = 2, /**< Killed. */
+enum class MonsterDamageResult : int {
+    None = 0,   /**< Not hit. */
+    Hit = 1,    /**< Hit. */
+    Killed = 2, /**< Killed. */
 };
-
-// clang-format on
 
 /**
  * Kinds of monster model, as MONSTOR_MODEL::kind holds them.
@@ -156,7 +153,7 @@ STATIC_ASSERT(sizeof(MONSTOR) == 0x190);
 /**
  * The characters one monster draws with: its model and up to two attachments.
  */
-typedef CCharacter CMonstorChara[3];
+using CMonstorChara = CCharacter[3];
 
 STATIC_ASSERT(sizeof(CMonstorChara) == 0x3510);
 
@@ -458,13 +455,13 @@ public:
     int SelectAttachi();
 
     /**
-     * Applies the hits a monster gives and takes this step. @see MonsterDamageResult.
+     * Applies the hits a monster gives and takes this step.
      *
      * @mangled CheckDmg__12CMonstorUnitFv
      * @address 0x1D9F10
      * @size 0x2904
      */
-    int CheckDmg();
+    MonsterDamageResult CheckDmg();
 
     /**
      * Stops the player's movement where it would run into a monster.
@@ -548,10 +545,10 @@ STATIC_ASSERT(sizeof(BEE_STATE) == 8);
 extern BEE_STATE BeeTbl[800];
 
 /** Number of floors in each dungeon. */
-extern "C" int maxFloorTbl__3[7];
+extern int maxFloorTbl__3[7];
 
 /** Texture animations shared by every monster model. */
-extern "C" CTexAnimeData MonsterTexAnim[320];
+extern CTexAnimeData MonsterTexAnim[320];
 
 /**
  * Names one monster of a floor's enemy layout.

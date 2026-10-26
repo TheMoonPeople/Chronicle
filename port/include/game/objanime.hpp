@@ -81,9 +81,6 @@ enum EditEffectKind {
 
 // clang-format on
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCamera;
 class CEffectGroup;
 class CFrame;
@@ -115,8 +112,6 @@ STATIC_ASSERT(sizeof(EPARTS_FUNC_DATA) == 0xC0);
 
 /**
  * Plays one animation of a map object.
- *
- * 0x1B00 bytes hold 48 of them at `FrameObjAnim`.
  */
 struct OBJ_ANIME_SEQ {
     char          frame_name[0x10]; /**< Frame the animation drives; empty for the frame it is given. */
@@ -133,27 +128,21 @@ struct OBJ_ANIME_SEQ {
 
     /**
      * Clears one object-animation sequence.
-     *
-     * @mangled Initialize__13OBJ_ANIME_SEQFv
-     * @address 0x165C90
-     * @size 0x14
      */
     void Initialize();
 
     /**
      * Constructs an object-animation sequence.
-     *
-     * @mangled __ct__13OBJ_ANIME_SEQFv
-     * @address 0x165CB0
-     * @size 0x30
      */
     OBJ_ANIME_SEQ();
 };
 
 STATIC_ASSERT(sizeof(OBJ_ANIME_SEQ) == 0x90);
 
-/** Frame animations the map parts declare, defined with the item-definition parser. */
-extern "C" OBJ_ANIME_SEQ FrameObjAnim[48];
+/**
+ * Frame animations the map parts declare, filled by the item-definition parser.
+ */
+extern OBJ_ANIME_SEQ FrameObjAnim[48];
 
 /**
  * Describes one effect that an edited map places on a part, and the frame
@@ -181,123 +170,65 @@ STATIC_ASSERT(sizeof(EDIT_EFFECT_INFO) == 0x70);
 
 /**
  * Stops every object animation.
- *
- * @mangled ObjAnimeAllStop__Fv
- * @address 0x165CE0
- * @size 0x10
  */
 void ObjAnimeAllStop();
 
 /**
  * Starts every object animation.
- *
- * @mangled ObjAnimeAllStart__Fv
- * @address 0x165CF0
- * @size 0xC
  */
 void ObjAnimeAllStart();
 
 /**
  * Attaches an object animation to one frame.
- *
- * @mangled InitObjAnime__FP6CFrameP13OBJ_ANIME_SEQ
- * @address 0x165D00
- * @size 0xC4
  */
 int InitObjAnime(CFrame *frame, OBJ_ANIME_SEQ *sequence);
 
 /**
  * Attaches an object animation to a list of frames.
- *
- * @mangled InitObjAnime__FPP6CFrameP13OBJ_ANIME_SEQ
- * @address 0x165DD0
- * @size 0xFC
  */
 int InitObjAnime(CFrame **frames, OBJ_ANIME_SEQ *sequence);
 
 /**
  * Attaches an object animation to a counted list of frames.
- *
- * @mangled InitObjAnime__FPP6CFrameiP13OBJ_ANIME_SEQ
- * @address 0x165ED0
- * @size 0x138
  */
 int InitObjAnime(CFrame **frames, int count, OBJ_ANIME_SEQ *sequence);
 
 /**
  * Attaches an object animation to the frames one function point names.
- *
- * @mangled InitObjAnime__FPP6CFrameiP16EPARTS_FUNC_DATAP13OBJ_ANIME_SEQ
- * @address 0x166010
- * @size 0x160
  */
 int InitObjAnime(CFrame **frames, int count, EPARTS_FUNC_DATA *func, OBJ_ANIME_SEQ *sequence);
 
 /**
  * Advances one object animation by a frame.
- *
- * @mangled ObjAnimePlay__FP13OBJ_ANIME_SEQ
- * @address 0x1661E0
- * @size 0x78C
  */
 void ObjAnimePlay(OBJ_ANIME_SEQ *sequence);
 
 /**
  * Selects the frame that carries an edited map effect.
- *
- * @mangled InitEditEffect__FP6CFrameP16EDIT_EFFECT_INFO
- * @address 0x166970
- * @size 0x60
  */
 void InitEditEffect(CFrame *frame, EDIT_EFFECT_INFO *effect);
 
 /**
  * Attaches an editor effect to the frame a function point names.
- *
- * @mangled InitEditEffect__FP6CFrameP16EPARTS_FUNC_DATAP16EDIT_EFFECT_INFO
- * @address 0x1669D0
- * @size 0x1E0
  */
 int InitEditEffect(CFrame *frame, EPARTS_FUNC_DATA *func, EDIT_EFFECT_INFO *effect);
 
 /**
- * Gives back 1 while an effect is one that the time of day and the map flags
- * let draw.
- *
- * @mangled CheckEditEffect__FP16EDIT_EFFECT_INFOf
- * @address 0x166BB0
- * @size 0x160
+ * Gives back 1 while the time of day, the map flags and its frames let an effect draw.
  */
 int CheckEditEffect(EDIT_EFFECT_INFO *effect, float time);
 
 /**
  * Advances the editor's shared fire, candle and flame effects.
- *
- * @mangled EditEffectStep__Fv
- * @address 0x166D10
- * @size 0xC4
  */
 void EditEffectStep();
 
 /**
  * Rebuilds the editor's fire texture for the frame.
- *
- * @mangled EditEffectStep2__Fv
- * @address 0x166DE0
- * @size 0x28
  */
 void EditEffectStep2();
 
 /**
  * Draws one editor effect, choosing the kind from its record.
- *
- * @mangled DrawEditEffect__FP16EDIT_EFFECT_INFOP7CCameraP12CEffectGroup
- * @address 0x166E10
- * @size 0x24C
  */
 void DrawEditEffect(EDIT_EFFECT_INFO *effect, CCamera *camera, CEffectGroup *group);
-
-/**
- * Whether all object animations are stopped.
- */
-extern int all_stop;

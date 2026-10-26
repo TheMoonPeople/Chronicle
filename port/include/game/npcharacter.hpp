@@ -4,17 +4,14 @@
 
 #include "character.hpp"
 
-// clang-format off
 /**
  * Selects the movement or wait operation in an NPC sequence record.
  */
-enum NP_SEQUENCE_OPERATION {
-    NP_SEQUENCE_UNUSED = 0,
-    NP_SEQUENCE_MOVE = 1,
-    NP_SEQUENCE_WAIT = 2
+enum class NP_SEQUENCE_OPERATION : s32 {
+    UNUSED = 0,
+    MOVE = 1,
+    WAIT = 2
 };
-
-// clang-format on
 
 /**
  * Stores the destination and timing of one queued NPC action.
@@ -58,150 +55,88 @@ public:
 
     /**
      * Advances the character, its fade, and its movement sequence.
-     *
-     * @mangled Step__12CNPCharacterFv
-     * @address 0x155FB0
-     * @size 0x134
      */
     virtual void Step();
 
     /**
      * Advances the shadow while the NPC is visible.
-     *
-     * @mangled ShadowStep__12CNPCharacterFv
-     * @address 0x1560F0
-     * @size 0x4C
      */
     virtual void ShadowStep();
 
     /**
      * Advances the current movement or wait action.
-     *
-     * @mangled PlaySeq__12CNPCharacterFv
-     * @address 0x156140
-     * @size 0x210
      */
     void PlaySeq();
 
     /**
      * Clears the action ring and enables sequence playback.
-     *
-     * @mangled ClearSeq__12CNPCharacterFv
-     * @address 0x156350
-     * @size 0x48
      */
     void ClearSeq();
 
     /**
      * Queues movement to a destination at the specified speed.
-     *
-     * @mangled SetSeq__12CNPCharacterFPff
-     * @address 0x1563A0
-     * @size 0x6C
      */
     int SetSeq(float *destination, float speed);
 
     /**
      * Queues a wait lasting the specified frame count.
-     *
-     * @mangled SetWait__12CNPCharacterFi
-     * @address 0x156410
-     * @size 0x3C
      */
     int SetWait(int frames);
 
     /**
      * Reports whether the action ring contains pending entries.
-     *
-     * @mangled CheckSeq__12CNPCharacterFv
-     * @address 0x156450
-     * @size 0x18
      */
     int CheckSeq();
 
     /**
      * Returns the next writable action record and advances the write index.
-     *
-     * @mangled GetNextSeq__12CNPCharacterFv
-     * @address 0x156470
-     * @size 0x3C
      */
     NP_SEQUENCE *GetNextSeq();
 
     /**
      * Returns the current action record.
-     *
-     * @mangled GetNowSeq__12CNPCharacterFv
-     * @address 0x1564B0
-     * @size 0x20
      */
     NP_SEQUENCE *GetNowSeq();
 
     /**
      * Releases the current action and advances the read index.
-     *
-     * @mangled NextSeq__12CNPCharacterFv
-     * @address 0x1564D0
-     * @size 0x64
      */
     void NextSeq();
 
     /**
      * Draws the NPC with its ambient colour and alpha overrides.
-     *
-     * @mangled Draw__12CNPCharacterFv
-     * @address 0x156540
-     * @size 0xD8
      */
     virtual void Draw();
 
     /**
      * Draws the shadow while the NPC is visible.
-     *
-     * @mangled DrawShadow__12CNPCharacterFv
-     * @address 0x156620
-     * @size 0x4C
      */
     virtual void DrawShadow();
 
     /**
      * Reports whether the enabled NPC has a model and positive alpha.
-     *
-     * @mangled CheckDraw__12CNPCharacterFv
-     * @address 0x156670
-     * @size 0x58
      */
     int CheckDraw();
 
     /**
      * Builds collision polygons for the NPC when enabled.
-     *
-     * @mangled PickUpPoly__12CNPCharacterFPfP6CCPoly
-     * @address 0x1566D0
-     * @size 0x38
      */
     virtual int PickUpPoly(float *position, CCPoly *polygons);
 
     /**
      * Initializes the NPC state and clears queued actions.
-     *
-     * @mangled Initialize__12CNPCharacterFv
-     * @address 0x1569E0
-     * @size 0x8C
      */
     virtual void Initialize();
 
     /**
      * Constructs a non-player character.
-     *
-     * @mangled __ct__12CNPCharacterFv
-     * @address 0x156A70
-     * @size 0xEC
      */
     CNPCharacter();
 };
 
 STATIC_ASSERT(sizeof(CNPCharacter) == 0x14A0);
 
-/** Runtime character objects for the ten villagers selected for the current period. */
+/**
+ * Runtime character objects for the ten villagers selected for the current period.
+ */
 extern CNPCharacter EdVillager[10];
