@@ -1,6 +1,11 @@
 #include "editarea.hpp"
 
-#include <cstring>
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
+#include <span>
 
 #include "collision.hpp"
 #include "editground.hpp"
@@ -13,45 +18,84 @@
 #include "vector3.hpp"
 #include "visualvu1.hpp"
 
-/**
- * Identifies map-part attributes used by connection queries.
- */
-// clang-format off
-enum MapConnectionAttribute {
-    MAP_CONNECTION_ROAD = 1,
-    MAP_CONNECTION_RIVER = 2
-};
-
-// clang-format on
+namespace {
 
 /**
  * Identifies the shape encoded by connected map-part neighbors.
  */
-// clang-format off
-enum MapConnectionShape {
-    MAP_CONNECTION_CORNER = 1,
-    MAP_CONNECTION_STRAIGHT = 2,
-    MAP_CONNECTION_THREE_WAY = 3,
-    MAP_CONNECTION_FOUR_WAY = 4,
-    MAP_CONNECTION_ISOLATED = 5,
-    MAP_CONNECTION_END = 6
+enum class MapConnectionShape : int {
+    CORNER = 1,
+    STRAIGHT = 2,
+    THREE_WAY = 3,
+    FOUR_WAY = 4,
+    ISOLATED = 5,
+    END = 6,
 };
-
-// clang-format on
 
 /**
- * Views the metadata of a grid collision triangle as the surface attributes it holds.
+ * Lays out the metadata of a grid collision triangle as the surface attributes it holds.
  */
-union GridPolyInfo {
-    CCPolyInfo info; /**< Metadata as the collision triangle stores it. */
-
-    struct {
-        s16 ground_kind; /**< What the surface is made of. */
-        s16 foot_sound;  /**< Sound the character's feet play on it. */
-    } attr;              /**< Surface attributes at the start of the metadata. */
+struct GridSurfaceAttributes {
+    s16                                              ground_kind; /**< What the surface is made of. */
+    s16                                              foot_sound;  /**< Sound the character's feet play on it. */
+    std::array<std::uint8_t, sizeof(CCPolyInfo) - 4> unk_04;
 };
 
-void CEditArea::SetSize(s32 width, s32 height, float unit_size, float unit_alt) {
+static_assert(sizeof(GridSurfaceAttributes) == sizeof(CCPolyInfo));
+
+/** Foot sound of the grid floor, indexed by map number. */
+constexpr std::array<s16, 5> kGridFootSounds = {0, 1, 0, 14, 2};
+
+constexpr int EncodeConnection(MapConnectionShape shape, int direction) {
+    return ((static_cast<int>(shape) << 4) & 0xFF0) | (direction & 0xF);
+}
+
+/**
+ * Encodes the shape and direction of a connected cell from its four neighbors.
+ *
+ * Neighbors are ordered -Z, +X, +Z, -X. three_way_directions is indexed by the
+ * missing neighbor; corner_directions by the first neighbor of the connected
+ * pair (k, k + 1 mod 4).
+ */
+int EncodeNeighbors(const std::array<bool, 4> &neighbors, const std::array<int, 4> &three_way_directions,
+                    const std::array<int, 4> &corner_directions) {
+    constexpr std::array<int, 4> end_directions = {2, 1, 0, 3};
+
+    switch (std::ranges::count(neighbors, true)) {
+        case 4:
+            return EncodeConnection(MapConnectionShape::FOUR_WAY, 0);
+        case 3: {
+            const auto missing = std::ranges::find(neighbors, false) - neighbors.begin();
+            return EncodeConnection(MapConnectionShape::THREE_WAY, three_way_directions[missing]);
+        }
+        case 2: {
+            if ((neighbors[0] && neighbors[2]) || (neighbors[1] && neighbors[3])) {
+                return EncodeConnection(MapConnectionShape::STRAIGHT, neighbors[1] ? 1 : 0);
+            }
+
+            std::size_t first = 3;
+
+            for (std::size_t side = 0; side < 3; side++) {
+                if (neighbors[side] && neighbors[side + 1]) {
+                    first = side;
+                    break;
+                }
+            }
+
+            return EncodeConnection(MapConnectionShape::CORNER, corner_directions[first]);
+        }
+        case 1: {
+            const auto connected = std::ranges::find(neighbors, true) - neighbors.begin();
+            return EncodeConnection(MapConnectionShape::END, end_directions[connected]);
+        }
+        default:
+            return EncodeConnection(MapConnectionShape::ISOLATED, 0);
+    }
+}
+
+} // namespace
+
+void CEditArea::SetSize(int width, int height, float unit_size, float unit_alt) {
     this->width = width;
     this->height = height;
     this->unit_size = unit_size;
@@ -64,15 +108,15 @@ void CEditArea::GetPos(CVector3_i_ *position, float x, float y, float z) {
     z -= offset_z;
     x += 0.1f;
     z += 0.1f;
-    position->x = (int) (x / unit_size);
-    position->y = (int) (y / unit_alt);
-    position->z = (int) (z / unit_size);
+    position->x = static_cast<int>(x / unit_size);
+    position->y = static_cast<int>(y / unit_alt);
+    position->z = static_cast<int>(z / unit_size);
 }
 
-void CEditArea::GetPos(CVector3_f_ *position, s32 x, s32 y, s32 z) {
-    position->x = this->offset_x + ((float) x * this->unit_size);
-    position->y = this->offset_y + ((float) y * this->unit_alt);
-    position->z = this->offset_z + ((float) z * this->unit_size);
+void CEditArea::GetPos(CVector3_f_ *position, int x, int y, int z) {
+    position->x = offset_x + (static_cast<float>(x) * unit_size);
+    position->y = offset_y + (static_cast<float>(y) * unit_alt);
+    position->z = offset_z + (static_cast<float>(z) * unit_size);
 }
 
 void CEditArea::SetPartsNo(int x, int y, int parts_no) {
@@ -156,15 +200,7 @@ void CEditArea::SetAlt(int x, int y, int altitude) {
         return;
     }
 
-    if (altitude < 0) {
-        altitude = 0;
-    }
-
-    if (altitude >= 128) {
-        altitude = 127;
-    }
-
-    grid[x][y].altitude = altitude;
+    grid[x][y].altitude = std::clamp(altitude, 0, 127);
 }
 
 int CEditArea::GetAlt_i(int x, int y) {
@@ -192,52 +228,41 @@ float CEditArea::GetAlt(int x, int y) {
 }
 
 float CEditArea::GetAlt(float x, float y, float z) {
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
     return GetAlt(position.x, position.z);
 }
 
 int CEditArea::GetAlt_i(float x, float y, float z) {
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
     return GetAlt_i(position.x, position.z);
 }
 
 int CEditArea::GetPartsExtra(int x, int y) {
-    switch (map_no) {
-        case TOWN_MATATAKI:
-            switch (area_id) {
-                case 0:
-                    if (x == 5 && y == -1) {
-                        return MAP_CONNECTION_RIVER;
-                    }
+    if (map_no == TOWN_MATATAKI) {
+        switch (area_id) {
+            case 0:
+                if ((x == 5 && y == -1) || (x == 2 && y == 8)) {
+                    return MAP_PARTS_SUBTYPE_RIVER;
+                }
 
-                    if (x == 2 && y == 8) {
-                        return MAP_CONNECTION_RIVER;
-                    }
+                break;
+            case 1:
+                if ((x == 3 && y == 6) || (x == 12 && y == 3)) {
+                    return MAP_PARTS_SUBTYPE_RIVER;
+                }
 
-                    break;
-                case 1:
-                    if (x == 3 && y == 6) {
-                        return MAP_CONNECTION_RIVER;
-                    }
+                break;
+            case 2:
+                if ((x == 4 && y == -1) || (x == 3 && y == 8)) {
+                    return MAP_PARTS_SUBTYPE_RIVER;
+                }
 
-                    if (x == 12 && y == 3) {
-                        return MAP_CONNECTION_RIVER;
-                    }
-
-                    break;
-                case 2:
-                    if (x == 4 && y == -1) {
-                        return MAP_CONNECTION_RIVER;
-                    }
-
-                    if (x == 3 && y == 8) {
-                        return MAP_CONNECTION_RIVER;
-                    }
-
-                    break;
-            }
+                break;
+            default:
+                break;
+        }
     }
 
     if (x < 0 || x >= width) {
@@ -252,33 +277,31 @@ int CEditArea::GetPartsExtra(int x, int y) {
 }
 
 int CEditArea::SetMapParts(int parts_id, CMapParts *parts, float x, float y, float z, int rot_y) {
-    CVector3_i_ position;
-    int         i;
-    int         j;
+    CVector3_i_ position{};
     CMapParts  *target = &parts[parts_id];
     target->unit_size = unit_size;
-    int parts_width = target->GetWidth();
-    int parts_height = target->GetHeight();
+    const int parts_width = target->GetWidth();
+    const int parts_height = target->GetHeight();
     GetPos(&position, x, y, z);
 
-    for (i = 0; i < parts_width; i++) {
-        for (j = 0; j < parts_height; j++) {
-            int half_width = parts_width >> 1;
-            int cell_x = i + (position.x - half_width);
-            int half_height = parts_height >> 1;
-            int cell_y = j + (position.z - half_height);
-            int cell_code = target->GetInfoData(i, j);
+    for (int i = 0; i < parts_width; i++) {
+        for (int j = 0; j < parts_height; j++) {
+            const int cell_x = i + (position.x - (parts_width >> 1));
+            const int cell_y = j + (position.z - (parts_height >> 1));
+            const int cell_code = target->GetInfoData(i, j);
 
-            if (cell_code != 0) {
-                SetCode(cell_x, cell_y, cell_code);
+            if (cell_code == 0) {
+                continue;
+            }
 
-                if (cell_code < 0x80) {
-                    AddAlt(cell_x, cell_y, cell_code);
-                } else {
-                    SetPartsNo(cell_x, cell_y, target->handle);
-                    SetPartsID(cell_x, cell_y, parts_id);
-                    SetPartsExtra(cell_x, cell_y, target->subtype);
-                }
+            SetCode(cell_x, cell_y, cell_code);
+
+            if (cell_code < 0x80) {
+                AddAlt(cell_x, cell_y, cell_code);
+            } else {
+                SetPartsNo(cell_x, cell_y, target->handle);
+                SetPartsID(cell_x, cell_y, parts_id);
+                SetPartsExtra(cell_x, cell_y, target->subtype);
             }
         }
     }
@@ -288,7 +311,7 @@ int CEditArea::SetMapParts(int parts_id, CMapParts *parts, float x, float y, flo
 }
 
 int CEditArea::DeleteMapParts(int parts_no, CMapParts *parts, float x, float y, float z) {
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
 
     if (parts_no < 0) {
@@ -296,35 +319,35 @@ int CEditArea::DeleteMapParts(int parts_no, CMapParts *parts, float x, float y, 
     }
 
     CMapParts *target = &parts[parts_no];
-    int        parts_width = target->GetWidth();
-    int        parts_height = target->GetHeight();
+    const int  parts_width = target->GetWidth();
+    const int  parts_height = target->GetHeight();
 
     for (int i = 0; i < parts_width; i++) {
         for (int j = 0; j < parts_height; j++) {
-            int half_width = parts_width >> 1;
-            int cell_x = i + (position.x - half_width);
-            int half_height = parts_height >> 1;
-            int cell_y = j + (position.z - half_height);
-            s16 cell_code = target->GetInfoData(i, j);
+            const int cell_x = i + (position.x - (parts_width >> 1));
+            const int cell_y = j + (position.z - (parts_height >> 1));
+            const s16 cell_code = static_cast<s16>(target->GetInfoData(i, j));
 
-            if (cell_code != 0) {
-                if (cell_code < 0x80) {
-                    int occupant = GetPartsID(cell_x, cell_y);
-                    AddAlt(cell_x, cell_y, -cell_code);
+            if (cell_code == 0) {
+                continue;
+            }
 
-                    if (occupant >= 0) {
-                        CMapParts    *occupant_parts = &parts[occupant];
-                        sceVu0FVECTOR occupant_position;
-                        occupant_parts->GetPosition(occupant_position);
-                        occupant_position[1] = GetAlt(cell_x, cell_y);
-                        occupant_parts->SetPosition(occupant_position);
-                    }
-                } else {
-                    SetPartsNo(cell_x, cell_y, -1);
-                    SetPartsID(cell_x, cell_y, -1);
-                    SetPartsExtra(cell_x, cell_y, -1);
-                    SetCode(cell_x, cell_y, -1);
+            if (cell_code < 0x80) {
+                const int occupant = GetPartsID(cell_x, cell_y);
+                AddAlt(cell_x, cell_y, -cell_code);
+
+                if (occupant >= 0) {
+                    CMapParts    *occupant_parts = &parts[occupant];
+                    sceVu0FVECTOR occupant_position;
+                    occupant_parts->GetPosition(occupant_position);
+                    occupant_position[1] = GetAlt(cell_x, cell_y);
+                    occupant_parts->SetPosition(occupant_position);
                 }
+            } else {
+                SetPartsNo(cell_x, cell_y, -1);
+                SetPartsID(cell_x, cell_y, -1);
+                SetPartsExtra(cell_x, cell_y, -1);
+                SetCode(cell_x, cell_y, -1);
             }
         }
     }
@@ -334,310 +357,107 @@ int CEditArea::DeleteMapParts(int parts_no, CMapParts *parts, float x, float y, 
 }
 
 int CEditArea::SetRiverParts(int x, int y) {
-    int neighbors[4];
-    int negative_z, positive_x, positive_z, negative_x;
-    int count, shape, direction, i;
-
-    if ((x < 0) || (x >= this->width)) {
+    if (x < 0 || x >= width) {
         return -1;
     }
 
-    if ((y < 0) || (y >= this->height)) {
+    if (y < 0 || y >= height) {
         return -1;
     }
 
-    if (GetPartsExtra(x, y) != MAP_CONNECTION_RIVER) {
+    if (GetPartsExtra(x, y) != MAP_PARTS_SUBTYPE_RIVER) {
         return -1;
     }
 
-    negative_z = GetPartsExtra(x, y - 1);
-    positive_x = GetPartsExtra(x + 1, y);
-    positive_z = GetPartsExtra(x, y + 1);
-    negative_x = GetPartsExtra(x - 1, y);
-    neighbors[0] = negative_z == MAP_CONNECTION_RIVER;
-    neighbors[1] = positive_x == MAP_CONNECTION_RIVER;
-    neighbors[2] = positive_z == MAP_CONNECTION_RIVER;
-    neighbors[3] = negative_x == MAP_CONNECTION_RIVER;
-    neighbors[0] = neighbors[0] || negative_z == MAP_PARTS_SUBTYPE_BRIDGE;
-    neighbors[1] = neighbors[1] || positive_x == MAP_PARTS_SUBTYPE_BRIDGE;
-    neighbors[2] = neighbors[2] || positive_z == MAP_PARTS_SUBTYPE_BRIDGE;
-    neighbors[3] = neighbors[3] || negative_x == MAP_PARTS_SUBTYPE_BRIDGE;
-    neighbors[0] = neighbors[0] || negative_z == MAP_PARTS_SUBTYPE_ON_RIVER;
-    neighbors[1] = neighbors[1] || positive_x == MAP_PARTS_SUBTYPE_ON_RIVER;
-    neighbors[2] = neighbors[2] || positive_z == MAP_PARTS_SUBTYPE_ON_RIVER;
-    neighbors[3] = neighbors[3] || negative_x == MAP_PARTS_SUBTYPE_ON_RIVER;
-    count = 0;
+    const auto connects = [](int extra) {
+        return extra == MAP_PARTS_SUBTYPE_RIVER || extra == MAP_PARTS_SUBTYPE_BRIDGE ||
+               extra == MAP_PARTS_SUBTYPE_ON_RIVER;
+    };
 
-    for (i = 0; i < 4; i++) {
-        count += neighbors[i];
-    }
-
-    shape = -1;
-    direction = 0;
-
-    if (count == 4) {
-        shape = MAP_CONNECTION_FOUR_WAY;
-    }
-
-    if (count == 3) {
-        shape = MAP_CONNECTION_THREE_WAY;
-
-        if (neighbors[0] == 0) {
-            direction = 3;
-        }
-
-        if (neighbors[1] == 0) {
-            direction = 2;
-        }
-
-        if (neighbors[2] == 0) {
-            direction = 1;
-        }
-
-        if (neighbors[3] == 0) {
-            direction = 0;
-        }
-    }
-
-    if (count == 2) {
-        if (((neighbors[0] != 0) && (neighbors[2] != 0)) || ((neighbors[1] != 0) && (neighbors[3] != 0))) {
-            shape = MAP_CONNECTION_STRAIGHT;
-
-            if (neighbors[0] != 0) {
-                direction = 0;
-            }
-
-            if (neighbors[1] != 0) {
-                direction = 1;
-            }
-        } else {
-            shape = MAP_CONNECTION_CORNER;
-
-            if ((neighbors[1] != 0) && (neighbors[2] != 0)) {
-                direction = 3;
-            }
-
-            if ((neighbors[2] != 0) && (neighbors[3] != 0)) {
-                direction = 2;
-            }
-
-            if ((neighbors[3] != 0) && (neighbors[0] != 0)) {
-                direction = 1;
-            }
-
-            if ((neighbors[0] != 0) && (neighbors[1] != 0)) {
-                direction = 0;
-            }
-        }
-    }
-
-    if (count == 1) {
-        shape = MAP_CONNECTION_END;
-
-        if (neighbors[0] != 0) {
-            direction = 2;
-        }
-
-        if (neighbors[1] != 0) {
-            direction = 1;
-        }
-
-        if (neighbors[2] != 0) {
-            direction = 0;
-        }
-
-        if (neighbors[3] != 0) {
-            direction = 3;
-        }
-    }
-
-    if (count == 0) {
-        shape = MAP_CONNECTION_ISOLATED;
-    }
-
-    if (shape < 0) {
-        return -1;
-    }
-
-    shape = (shape << 4) & 0xFF0;
-    return shape | (direction & 0xF);
+    const int negative_z = GetPartsExtra(x, y - 1);
+    const int positive_x = GetPartsExtra(x + 1, y);
+    const int positive_z = GetPartsExtra(x, y + 1);
+    const int negative_x = GetPartsExtra(x - 1, y);
+    return EncodeNeighbors({connects(negative_z), connects(positive_x), connects(positive_z), connects(negative_x)},
+                           {3, 2, 1, 0}, {0, 3, 2, 1});
 }
 
 int CEditArea::SetRoadParts(int x, int y) {
-    int neighbors[4];
-    int count;
-    int shape;
-    int direction;
-    int i;
-
-    if ((x < 0) || (x >= this->width)) {
+    if (x < 0 || x >= width) {
         return -1;
     }
 
-    if ((y < 0) || (y >= this->height)) {
+    if (y < 0 || y >= height) {
         return -1;
     }
 
-    if (GetPartsExtra(x, y) != MAP_CONNECTION_ROAD) {
+    if (GetPartsExtra(x, y) != MAP_PARTS_SUBTYPE_ROAD) {
         return -1;
     }
 
-    neighbors[0] = GetPartsExtra(x, y - 1) == MAP_CONNECTION_ROAD;
-    neighbors[1] = GetPartsExtra(x + 1, y) == MAP_CONNECTION_ROAD;
-    neighbors[2] = GetPartsExtra(x, y + 1) == MAP_CONNECTION_ROAD;
-    neighbors[3] = GetPartsExtra(x - 1, y) == MAP_CONNECTION_ROAD;
-    count = 0;
-
-    for (i = 0; i < 4; i++) {
-        count += neighbors[i];
-    }
-
-    shape = -1;
-    direction = 0;
-
-    if (count == 4) {
-        shape = MAP_CONNECTION_FOUR_WAY;
-    }
-
-    if (count == 3) {
-        shape = MAP_CONNECTION_THREE_WAY;
-
-        if (neighbors[0] == 0) {
-            direction = 0;
-        }
-
-        if (neighbors[1] == 0) {
-            direction = 3;
-        }
-
-        if (neighbors[2] == 0) {
-            direction = 2;
-        }
-
-        if (neighbors[3] == 0) {
-            direction = 1;
-        }
-    }
-
-    if (count == 2) {
-        if (((neighbors[0] != 0) && (neighbors[2] != 0)) || ((neighbors[1] != 0) && (neighbors[3] != 0))) {
-            shape = MAP_CONNECTION_STRAIGHT;
-
-            if (neighbors[0] != 0) {
-                direction = 0;
-            }
-
-            if (neighbors[1] != 0) {
-                direction = 1;
-            }
-        } else {
-            shape = MAP_CONNECTION_CORNER;
-
-            if ((neighbors[1] != 0) && (neighbors[2] != 0)) {
-                direction = 0;
-            }
-
-            if ((neighbors[2] != 0) && (neighbors[3] != 0)) {
-                direction = 3;
-            }
-
-            if ((neighbors[3] != 0) && (neighbors[0] != 0)) {
-                direction = 2;
-            }
-
-            if ((neighbors[0] != 0) && (neighbors[1] != 0)) {
-                direction = 1;
-            }
-        }
-    }
-
-    if (count == 1) {
-        shape = MAP_CONNECTION_END;
-
-        if (neighbors[0] != 0) {
-            direction = 2;
-        }
-
-        if (neighbors[1] != 0) {
-            direction = 1;
-        }
-
-        if (neighbors[2] != 0) {
-            direction = 0;
-        }
-
-        if (neighbors[3] != 0) {
-            direction = 3;
-        }
-    }
-
-    if (count == 0) {
-        shape = MAP_CONNECTION_ISOLATED;
-    }
-
-    if (shape < 0) {
-        return -1;
-    }
-
-    shape = (shape << 4) & 0xFF0;
-    return shape | (direction & 0xF);
+    const bool negative_z = GetPartsExtra(x, y - 1) == MAP_PARTS_SUBTYPE_ROAD;
+    const bool positive_x = GetPartsExtra(x + 1, y) == MAP_PARTS_SUBTYPE_ROAD;
+    const bool positive_z = GetPartsExtra(x, y + 1) == MAP_PARTS_SUBTYPE_ROAD;
+    const bool negative_x = GetPartsExtra(x - 1, y) == MAP_PARTS_SUBTYPE_ROAD;
+    return EncodeNeighbors({negative_z, positive_x, positive_z, negative_x}, {0, 3, 2, 1}, {1, 0, 3, 2});
 }
 
 int CEditArea::SearchPartsID(float x, float y, float z) {
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
     return grid[position.x][position.z].parts_id;
 }
 
 int CEditArea::SearchPartsExtra(float x, float y, float z) {
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
     return GetPartsExtra(position.x, position.z);
 }
 
 void CEditArea::GetGrid(CVector3_f_ *snapped, float x, float y, float z) {
-    CVector3_i_ cell;
+    CVector3_i_ cell{};
     GetPos(&cell, x, y, z);
     GetPos(snapped, cell.x, cell.y, cell.z);
 }
 
 void CEditArea::RemakeGrid() {
-    if (grid_frame == NULL) {
+    if (grid_frame == nullptr) {
         return;
     }
 
     CVisualVu1 *visual = grid_frame->GetVisual();
 
-    if (visual == NULL) {
+    if (visual == nullptr) {
         return;
     }
 
-    MDT_HEADER *model = (MDT_HEADER *) visual->GetMDTDataAddress();
+    auto *model = reinterpret_cast<MDT_HEADER *>(visual->GetMDTDataAddress());
 
-    if (model == NULL) {
+    if (model == nullptr) {
         return;
     }
 
-    sceVu0FVECTOR *vertices = (sceVu0FVECTOR *) ((char *) model + model->vertex_ofs);
-    int            y;
-    int            x;
+    // Each cell owns four consecutive overlay vertices, cells laid out row by row.
+    auto                          *first_vertex = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<std::byte *>(model) + model->vertex_ofs);
+    const std::span<sceVu0FVECTOR> vertices(first_vertex,
+                                            static_cast<std::size_t>(std::max(width * height, 0)) * 4);
 
-    for (x = 0; x < width; x++) {
-        for (y = 0; y < height; y++) {
-            int index = x + y * width;
-            index *= 4;
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            const auto     index = static_cast<std::size_t>(x + y * width) * 4;
+            sceVu0FVECTOR &origin = vertices[index];
 
             if (GetCode(x, y) == 0x81) {
-                sceVu0CopyVector(vertices[index + 1], vertices[index]);
-                sceVu0CopyVector(vertices[index + 2], vertices[index]);
-                sceVu0CopyVector(vertices[index + 3], vertices[index]);
+                sceVu0CopyVector(vertices[index + 1], origin);
+                sceVu0CopyVector(vertices[index + 2], origin);
+                sceVu0CopyVector(vertices[index + 3], origin);
             } else {
-                vertices[index + 1][0] = 1.002f * unit_size + vertices[index][0];
-                vertices[index + 1][2] = vertices[index][2];
-                vertices[index + 2][0] = vertices[index][0];
-                vertices[index + 2][2] = 1.002f * unit_size + vertices[index][2];
-                vertices[index + 3][0] = 1.002f * unit_size + vertices[index][0];
-                vertices[index + 3][2] = 1.002f * unit_size + vertices[index][2];
+                vertices[index + 1][0] = 1.002f * unit_size + origin[0];
+                vertices[index + 1][2] = origin[2];
+                vertices[index + 2][0] = origin[0];
+                vertices[index + 2][2] = 1.002f * unit_size + origin[2];
+                vertices[index + 3][0] = 1.002f * unit_size + origin[0];
+                vertices[index + 3][2] = 1.002f * unit_size + origin[2];
             }
         }
     }
@@ -646,34 +466,19 @@ void CEditArea::RemakeGrid() {
 }
 
 void CEditArea::GetPartsBox(CBoxVu0 *box) {
-    memcpy(box, &this->parts_box, sizeof(CBoxVu0));
+    *box = parts_box;
 }
 
 void CEditArea::MakePartsBox() {
-    CVector3_f_ position;
-    int         min_x = 0;
+    CVector3_f_ position{};
     int         max_x = 0;
     int         max_z = 0;
-    int         min_z = 0;
 
     for (int x = 0; x < width; x++) {
         for (int z = 0; z < height; z++) {
             if (grid[x][z].parts_no >= 0 && grid[x][z].parts_id >= 0) {
-                if (max_x < x) {
-                    max_x = x;
-                }
-
-                if (max_z < z) {
-                    max_z = z;
-                }
-
-                if (min_x > x) {
-                    max_x = x;
-                }
-
-                if (z < min_z) {
-                    min_z = z;
-                }
+                max_x = std::max(max_x, x);
+                max_z = std::max(max_z, z);
             }
         }
     }
@@ -683,7 +488,8 @@ void CEditArea::MakePartsBox() {
     parts_box.max[1] = position.y;
     parts_box.max[2] = position.z + unit_size;
     parts_box.max[3] = 1.0f;
-    GetPos(&position, 0, 0, min_z);
+    // The minimum corner never moves off the grid origin cell.
+    GetPos(&position, 0, 0, 0);
     parts_box.min[0] = position.x;
     parts_box.min[1] = position.y;
     parts_box.min[2] = position.z;
@@ -711,24 +517,18 @@ int CEditArea::CheckArea(float x, float y, float z) {
 }
 
 int CEditArea::CheckAreaRect(float x, float y, float z, int rect_width, int rect_height) {
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
-    int bottom;
-    int right;
-    int left;
-    int top;
-    int half_width = rect_width >> 1;
-    left = position.x - half_width;
-    right = rect_width + left - 1;
-    int half_height = rect_height >> 1;
-    top = position.z - half_height;
-    bottom = rect_height + top - 1;
+    const int left = position.x - (rect_width >> 1);
+    const int right = rect_width + left - 1;
+    const int top = position.z - (rect_height >> 1);
+    const int bottom = rect_height + top - 1;
 
     if (left < 0 || top < 0) {
         return 0;
     }
 
-    if (right >= this->width || bottom >= this->height) {
+    if (right >= width || bottom >= height) {
         return 0;
     }
 
@@ -736,11 +536,11 @@ int CEditArea::CheckAreaRect(float x, float y, float z, int rect_width, int rect
 }
 
 int CEditArea::CheckParts(CMapParts *parts, float x, float y, float z, int rotation) {
-    if (parts->info == NULL) {
+    if (parts->info == nullptr) {
         return 0;
     }
 
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
 
     if (parts->subtype == MAP_PARTS_SUBTYPE_ON_RIVER) {
@@ -752,32 +552,31 @@ int CEditArea::CheckParts(CMapParts *parts, float x, float y, float z, int rotat
     }
 
     parts->SetRotY(rotation);
-    int i;
-    int j;
-    int part_width = parts->GetWidth();
-    int part_height = parts->GetHeight();
+    const int part_width = parts->GetWidth();
+    const int part_height = parts->GetHeight();
+    const int left = position.x - (part_width >> 1);
+    const int top = position.z - (part_height >> 1);
 
-    for (i = 0; i < part_width; i++) {
-        for (j = 0; j < part_height; j++) {
-            int half_width = part_width >> 1;
-            int cell_x = i + (position.x - half_width);
-            int half_height = part_height >> 1;
-            int cell_y = j + (position.z - half_height);
+    for (int i = 0; i < part_width; i++) {
+        for (int j = 0; j < part_height; j++) {
+            const int cell_x = i + left;
+            const int cell_y = j + top;
 
-            if (cell_x < 0 || cell_x >= this->width) {
+            if (cell_x < 0 || cell_x >= width) {
                 return 0;
             }
 
-            if (cell_y < 0 || cell_y >= this->height) {
+            if (cell_y < 0 || cell_y >= height) {
                 return 0;
             }
 
-            s16 cell_code = parts->GetInfoData(i, j);
+            const s16 cell_code = static_cast<s16>(parts->GetInfoData(i, j));
 
             if (cell_code != 0) {
-                int occupant = grid[cell_x][cell_y].parts_no;
-                int extra = GetPartsExtra(cell_x, cell_y);
+                const int occupant = grid[cell_x][cell_y].parts_no;
+                const int extra = GetPartsExtra(cell_x, cell_y);
 
+                // A non-road part may overlap an occupied road cell.
                 if ((parts->subtype == MAP_PARTS_SUBTYPE_ROAD || extra != MAP_PARTS_SUBTYPE_ROAD) && occupant >= 0) {
                     return 0;
                 }
@@ -790,30 +589,20 @@ int CEditArea::CheckParts(CMapParts *parts, float x, float y, float z, int rotat
             return 0;
         }
 
-        int neighbors[4];
-        neighbors[0] = GetPartsExtra(position.x + 1, position.z);
-        neighbors[1] = GetPartsExtra(position.x - 1, position.z);
-        neighbors[2] = GetPartsExtra(position.x, position.z - 1);
-        neighbors[3] = GetPartsExtra(position.x, position.z + 1);
+        const std::array neighbors = {
+            GetPartsExtra(position.x + 1, position.z),
+            GetPartsExtra(position.x - 1, position.z),
+            GetPartsExtra(position.x, position.z - 1),
+            GetPartsExtra(position.x, position.z + 1),
+        };
 
-        for (int i = 0; i < 4; i++) {
-            int extra = neighbors[i];
+        const bool blocked = std::ranges::any_of(neighbors, [](int extra) {
+            return extra == MAP_PARTS_SUBTYPE_BRIDGE || extra == MAP_PARTS_SUBTYPE_LAKE ||
+                   extra == MAP_PARTS_SUBTYPE_ON_RIVER;
+        });
 
-            if (extra == MAP_PARTS_SUBTYPE_BRIDGE) {
-                return 0;
-            }
-
-            if (extra == MAP_PARTS_SUBTYPE_LAKE) {
-                return 0;
-            }
-
-            if (extra == MAP_PARTS_SUBTYPE_ON_RIVER) {
-                return 0;
-            }
-
-            if (extra == MAP_PARTS_SUBTYPE_ON_RIVER) {
-                return 0;
-            }
+        if (blocked) {
+            return 0;
         }
     }
 
@@ -824,19 +613,10 @@ int CEditArea::CheckParts(CMapParts *parts, float x, float y, float z, int rotat
 
         for (int i = -1; i < part_width + 1; i++) {
             for (int j = -1; j < part_height + 1; j++) {
-                int half_width = part_width >> 1;
-                int cell_x = i + (position.x - half_width);
-                int extra = GetPartsExtra(cell_x, j + (position.z - (part_height >> 1)));
+                const int extra = GetPartsExtra(i + left, j + top);
 
-                if (extra == MAP_PARTS_SUBTYPE_BRIDGE) {
-                    return 0;
-                }
-
-                if (extra == MAP_PARTS_SUBTYPE_RIVER) {
-                    return 0;
-                }
-
-                if (extra == MAP_PARTS_SUBTYPE_ON_RIVER) {
+                if (extra == MAP_PARTS_SUBTYPE_BRIDGE || extra == MAP_PARTS_SUBTYPE_RIVER ||
+                    extra == MAP_PARTS_SUBTYPE_ON_RIVER) {
                     return 0;
                 }
             }
@@ -847,60 +627,62 @@ int CEditArea::CheckParts(CMapParts *parts, float x, float y, float z, int rotat
 }
 
 int CEditArea::PickUpPoly(CCPoly *polygons, float x, float y, float z) {
-    CVector3_i_ position;
-
     if (CheckArea(x, y, z) == 0) {
         return 0;
     }
 
+    CVector3_i_ position{};
     GetPos(&position, x, y, z);
-    CRect_i_ rect(position.x - 1, position.z - 1, 2, 2);
+    const CRect_i_ rect(position.x - 1, position.z - 1, 2, 2);
     return PickUpPoly(polygons, rect);
 }
 
 int CEditArea::PickUpPoly(CCPoly *polygons, CRect_i_ rect) {
-    static int sound[] = {0, 1, 0, 14, 2};
-    int        count = 0;
+    int count = 0;
 
     for (int x = rect.x; x < rect.x + rect.width; x++) {
         for (int y = rect.y; y < rect.y + rect.height; y++) {
-            if (x >= 0 && x < width && y >= 0 && y < height && GetCode(x, y) != 0x81) {
-                CVector3_f_   position;
-                sceVu0FVECTOR corner[4];
-                sceVu0FVECTOR normal;
-                GridPolyInfo  surface;
-                GetPos(&position, x, 0, y);
-                memset(&surface, 0, sizeof(surface));
-                surface.attr.foot_sound = sound[map_no];
-                corner[0][0] = position.x - 0.01f * unit_size;
-                corner[0][1] = position.y;
-                corner[0][2] = position.z - 0.01f * unit_size;
-                corner[0][3] = 1.0f;
-                sceVu0CopyVector(corner[1], corner[0]);
-                sceVu0CopyVector(corner[2], corner[0]);
-                sceVu0CopyVector(corner[3], corner[0]);
-                corner[1][0] = 0.02f * unit_size + (corner[0][0] + unit_size);
-                corner[2][2] = 0.02f * unit_size + (corner[0][2] + unit_size);
-                corner[3][0] = 0.02f * unit_size + (corner[0][0] + unit_size);
-                corner[3][2] = 0.02f * unit_size + (corner[0][2] + unit_size);
-                normal[0] = 0.0f;
-                normal[1] = 1.0f;
-                normal[2] = 0.0f;
-                normal[3] = 0.0f;
-                sceVu0CopyVector(polygons->vertex[0], corner[0]);
-                sceVu0CopyVector(polygons->vertex[1], corner[1]);
-                sceVu0CopyVector(polygons->vertex[2], corner[2]);
-                sceVu0CopyVector(polygons->normal, normal);
-                polygons->info = surface.info;
-                polygons++;
-                sceVu0CopyVector(polygons->vertex[0], corner[2]);
-                sceVu0CopyVector(polygons->vertex[1], corner[1]);
-                sceVu0CopyVector(polygons->vertex[2], corner[3]);
-                sceVu0CopyVector(polygons->normal, normal);
-                polygons->info = surface.info;
-                polygons++;
-                count += 2;
+            if (x < 0 || x >= width || y < 0 || y >= height || GetCode(x, y) == 0x81) {
+                continue;
             }
+
+            CVector3_f_           position{};
+            sceVu0FVECTOR         corner[4];
+            sceVu0FVECTOR         normal;
+            GridSurfaceAttributes surface{};
+            GetPos(&position, x, 0, y);
+            surface.foot_sound = kGridFootSounds[map_no];
+            const auto info = std::bit_cast<CCPolyInfo>(surface);
+            corner[0][0] = position.x - 0.01f * unit_size;
+            corner[0][1] = position.y;
+            corner[0][2] = position.z - 0.01f * unit_size;
+            corner[0][3] = 1.0f;
+            sceVu0CopyVector(corner[1], corner[0]);
+            sceVu0CopyVector(corner[2], corner[0]);
+            sceVu0CopyVector(corner[3], corner[0]);
+            corner[1][0] = 0.02f * unit_size + (corner[0][0] + unit_size);
+            corner[2][2] = 0.02f * unit_size + (corner[0][2] + unit_size);
+            corner[3][0] = 0.02f * unit_size + (corner[0][0] + unit_size);
+            corner[3][2] = 0.02f * unit_size + (corner[0][2] + unit_size);
+            normal[0] = 0.0f;
+            normal[1] = 1.0f;
+            normal[2] = 0.0f;
+            normal[3] = 0.0f;
+
+            CCPoly &first = polygons[count];
+            sceVu0CopyVector(first.vertex[0], corner[0]);
+            sceVu0CopyVector(first.vertex[1], corner[1]);
+            sceVu0CopyVector(first.vertex[2], corner[2]);
+            sceVu0CopyVector(first.normal, normal);
+            first.info = info;
+
+            CCPoly &second = polygons[count + 1];
+            sceVu0CopyVector(second.vertex[0], corner[2]);
+            sceVu0CopyVector(second.vertex[1], corner[1]);
+            sceVu0CopyVector(second.vertex[2], corner[3]);
+            sceVu0CopyVector(second.normal, normal);
+            second.info = info;
+            count += 2;
         }
     }
 
@@ -908,50 +690,30 @@ int CEditArea::PickUpPoly(CCPoly *polygons, CRect_i_ rect) {
 }
 
 int CEditArea::PickUpPoly(CCPoly *polygons, CBoxVu0 box) {
-    int         left, top;
-    CVector3_i_ position;
+    CVector3_i_ position{};
     GetPos(&position, box.min[0], box.min[1], box.min[2]);
-    left = position.x;
-    top = position.z;
+    const int left = position.x;
+    const int top = position.z;
     GetPos(&position, box.max[0], box.max[1], box.max[2]);
-    int      right = position.x;
-    int      bottom = position.z;
-    CRect_i_ rect;
-    rect.x = left - 1;
-    rect.y = top - 1;
-    rect.width = right - left + 2;
-    rect.height = bottom - top + 2;
+    const int      right = position.x;
+    const int      bottom = position.z;
+    const CRect_i_ rect(left - 1, top - 1, right - left + 2, bottom - top + 2);
     return PickUpPoly(polygons, rect);
 }
 
 int CEditArea::GetPartsRect(CRect_i_ &rect, int *parts_ids, int capacity) {
-    int x, y;
     int count = 0;
 
-    for (x = rect.x; x < rect.x + rect.width; x++) {
-        for (y = rect.y; y < rect.y + rect.height; y++) {
+    for (int x = rect.x; x < rect.x + rect.width; x++) {
+        for (int y = rect.y; y < rect.y + rect.height; y++) {
             if (count >= capacity) {
-                break;
+                return count;
             }
 
-            int parts_id = GetPartsID(x, y);
+            const int parts_id = GetPartsID(x, y);
 
-            if (parts_id >= 0) {
-                if (count == 0) {
-                    parts_ids[count++] = parts_id;
-                } else {
-                    int found = 0;
-
-                    for (int i = 0; i < count; i++) {
-                        if (parts_id == parts_ids[i]) {
-                            found = 1;
-                        }
-                    }
-
-                    if (!found) {
-                        parts_ids[count++] = parts_id;
-                    }
-                }
+            if (parts_id >= 0 && !std::ranges::contains(std::span(parts_ids, static_cast<std::size_t>(count)), parts_id)) {
+                parts_ids[count++] = parts_id;
             }
         }
     }
@@ -960,10 +722,8 @@ int CEditArea::GetPartsRect(CRect_i_ &rect, int *parts_ids, int capacity) {
 }
 
 void CEditArea::ChainWorkClear() {
-    for (int x = 0; x < 16; x++) {
-        for (int y = 0; y < 16; y++) {
-            chain_work[x][y] = 0;
-        }
+    for (auto &column : chain_work) {
+        std::ranges::fill(column, 0);
     }
 }
 
@@ -977,10 +737,9 @@ int CEditArea::CheckRiverChain(int x, int y, int target_x, int target_y) {
     }
 
     chain_work[x][y] = 1;
-    static int ext = 0;
-    ext = GetPartsExtra(x, y);
+    const int extra = GetPartsExtra(x, y);
 
-    if (ext != MAP_CONNECTION_RIVER && ext != MAP_PARTS_SUBTYPE_BRIDGE && ext != MAP_PARTS_SUBTYPE_ON_RIVER) {
+    if (extra != MAP_PARTS_SUBTYPE_RIVER && extra != MAP_PARTS_SUBTYPE_BRIDGE && extra != MAP_PARTS_SUBTYPE_ON_RIVER) {
         return 0;
     }
 
@@ -988,19 +747,10 @@ int CEditArea::CheckRiverChain(int x, int y, int target_x, int target_y) {
         return 1;
     }
 
-    if (CheckRiverChain(x - 1, y, target_x, target_y)) {
-        return 1;
-    }
-
-    if (CheckRiverChain(x + 1, y, target_x, target_y)) {
-        return 1;
-    }
-
-    if (CheckRiverChain(x, y - 1, target_x, target_y)) {
-        return 1;
-    }
-
-    return CheckRiverChain(x, y + 1, target_x, target_y) ? 1 : 0;
+    const bool connected =
+        CheckRiverChain(x - 1, y, target_x, target_y) != 0 || CheckRiverChain(x + 1, y, target_x, target_y) != 0 ||
+        CheckRiverChain(x, y - 1, target_x, target_y) != 0 || CheckRiverChain(x, y + 1, target_x, target_y) != 0;
+    return connected ? 1 : 0;
 }
 
 void CEditArea::DrawGrid() {
@@ -1015,20 +765,16 @@ void CEditArea::DrawGrid() {
     if (grid_redraw_count > 0) {
         RemakeGrid();
 
-        if (grid_frame != NULL) {
+        if (grid_frame != nullptr) {
             grid_frame->attr.cull_enable = false;
         }
-    } else {
-        if (grid_frame != NULL) {
-            grid_frame->attr.cull_enable = true;
-        }
+    } else if (grid_frame != nullptr) {
+        grid_frame->attr.cull_enable = true;
     }
 
     grid_redraw = 0;
 
-    if (grid_redraw_count < 0) {
-        grid_redraw_count = 0;
-    }
+    grid_redraw_count = std::max(grid_redraw_count, 0);
 
     position[0] = offset_x;
     position[1] = offset_y;
@@ -1040,13 +786,14 @@ void CEditArea::DrawGrid() {
 void CEditArea::Clear() {
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {
-            grid[x][y].parts_no = -1;
-            grid[x][y].altitude = 0;
-            grid[x][y].spare = 0;
-            grid[x][y].parts_id = -1;
-            grid[x][y].code = -1;
-            grid[x][y].parts_extra = -1;
-            grid[x][y].spare_index = -1;
+            CEditAreaCell &cell = grid[x][y];
+            cell.parts_no = -1;
+            cell.altitude = 0;
+            cell.spare = 0;
+            cell.parts_id = -1;
+            cell.code = -1;
+            cell.parts_extra = -1;
+            cell.spare_index = -1;
         }
     }
 
@@ -1055,40 +802,39 @@ void CEditArea::Clear() {
 }
 
 void CEditArea::Initialize() {
-    float zero = 0.0f;
-    SetOffset(zero, zero, zero);
+    SetOffset(0.0f, 0.0f, 0.0f);
     SetSize(16, 16, 1.0f, 1.0f);
-    grid_frame = NULL;
+    grid_frame = nullptr;
     Clear();
     map_no = 0;
     area_id = 0;
 }
 
-void CEditArea::SetMapInfo(s32 map_no, s32 area_id) {
+void CEditArea::SetMapInfo(int map_no, int area_id) {
     this->map_no = map_no;
     this->area_id = area_id;
 }
 
 int CEditArea::GetMapNo() {
-    return this->map_no;
+    return map_no;
 }
 
 int CEditArea::GetAreaID() {
-    return this->area_id;
+    return area_id;
 }
 
 void CEditArea::SetGridFrame(CFrameVu1 *frame) {
-    this->grid_frame = frame;
+    grid_frame = frame;
 }
 
 CFrameVu1 *CEditArea::GetGridFrame() {
-    return this->grid_frame;
+    return grid_frame;
 }
 
 void CEditArea::SetOffset(float x, float y, float z) {
-    this->offset_x = x;
-    this->offset_y = y;
-    this->offset_z = z;
+    offset_x = x;
+    offset_y = y;
+    offset_z = z;
 }
 
 void CEditArea::GetOffset(float *offset) {
@@ -1098,11 +844,11 @@ void CEditArea::GetOffset(float *offset) {
 }
 
 int CEditArea::GetWidth() {
-    return this->width;
+    return width;
 }
 
 int CEditArea::GetHeight() {
-    return this->height;
+    return height;
 }
 
 void CEditArea::AddAlt(int x, int y, int altitude_delta) {
@@ -1110,11 +856,11 @@ void CEditArea::AddAlt(int x, int y, int altitude_delta) {
 }
 
 float CEditArea::GetUnitSize() {
-    return this->unit_size;
+    return unit_size;
 }
 
 float CEditArea::GetUnitAlt() {
-    return this->unit_alt;
+    return unit_alt;
 }
 
 CEditArea::CEditArea() {

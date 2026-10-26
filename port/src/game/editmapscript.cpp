@@ -2,10 +2,17 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <print>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "boxvu0.hpp"
 #include "camera.hpp"
@@ -20,22 +27,26 @@
 #include "dngstatusdata.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
+#include "edit_in.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
+#include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "effect.hpp"
 #include "effectgroup.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
+#include "gameutil.hpp"
 #include "mainselect.hpp"
 #include "mapparts.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
 #include "menu_misc.hpp"
+#include "menuetc.hpp"
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
 #include "npcharacter.hpp"
@@ -47,10 +58,16 @@
 #include "scriptinterpreter.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "weaponlevelup.hpp"
 
-/* Retail editloop.cpp: town-script parsing, map construction and pre-event editor state. */
+/**
+ * Assigns an image whose script-provided slot is also its image number.
+ */
+void CommandIMG(void **arguments);
 
-/* Every villager the editor can place, one record each. */
+namespace {
+
+using EDIT_SCRIPT_COMMAND = void (*)(void **arguments);
 
 /** One default villager entry stored for each map and list position. */
 struct EDIT_CHARA_DATA_ENTRY {
@@ -64,17 +81,6 @@ struct EDIT_CHARA_DATA_ENTRY {
 };
 
 STATIC_ASSERT(sizeof(EDIT_CHARA_DATA_ENTRY) == 0x14);
-
-#include "edit_in.hpp"
-#include "editmenu.hpp"
-#include "gameutil.hpp"
-#include "menuetc.hpp"
-#include "weaponlevelup.hpp"
-
-/* editloop's own functions, in the order the unit defines them; the prototypes
- * let each call ahead of its definition. */
-
-typedef void (*EDIT_SCRIPT_COMMAND)(void **arguments);
 
 void CommandSCN(void **arguments);
 void CommandLIGHT_NO(void **arguments);
@@ -92,14 +98,12 @@ void CommandSUN_IMG(void **arguments);
 void CommandWATER_IMG(void **arguments);
 void CommandFIRE_IMG(void **arguments);
 void CommandFLER_IMG(void **arguments);
-void CommandIMG(void **arguments);
 void CommandSKY(void **arguments);
 void CommandSUN(void **arguments);
 void CommandGROUND(void **arguments);
 void CommandBUILD(void **arguments);
 void CommandWATER(void **arguments);
 void CommandWATER_SURFACE(void **arguments);
-void CommandWATER_SHAKE(void **arguments);
 void CommandEDITAREA(void **arguments);
 void CommandBLD_PARTS(void **arguments);
 void CommandGRD_PARTS(void **arguments);
@@ -139,7 +143,7 @@ void CommandTALK_DIR(void **arguments);
 void CommandPEOPLE_LIST(void **arguments);
 
 /** Default direction of each of the twelve map lights. */
-float def_light[12][4] = {
+constexpr float def_light[12][4] = {
     {0.47f,   0.79f, 0.46f, 0.0f},
     {0.0f,    0.89f, 0.46f, 0.0f},
     {-0.47f,  0.79f, 0.41f, 0.0f},
@@ -291,7 +295,7 @@ EDIT_CHARA_DATA_ENTRY EditCharaData[6][20] = {
 };
 
 /** Tags the map script recognises and the arguments each one takes. */
-static TAG_PARAM Command[61] = {
+TAG_PARAM Command[61] = {
     {"SCN",            {SCRIPT_ARGUMENT_STRING, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   },
     {"LIGHT_NO",       {SCRIPT_ARGUMENT_INTEGER, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  },
     {"AMBIENT",        {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                      },
@@ -356,7 +360,7 @@ static TAG_PARAM Command[61] = {
 };
 
 /** Handler of each map-script tag, in the order of Command. */
-static EDIT_SCRIPT_COMMAND CommandExe[61] = {
+constexpr std::array<EDIT_SCRIPT_COMMAND, 61> CommandExe = {
     CommandSCN,
     CommandLIGHT_NO,
     CommandAMBIENT,
@@ -420,17 +424,64 @@ static EDIT_SCRIPT_COMMAND CommandExe[61] = {
     CommandPEOPLE_LIST,
 };
 
+/** Directory prefixed to every file the map script names. */
+std::string CurrentDir;
+/** Destination named by the last MAPJUMP tag. */
+std::string mapjump_name;
+
+void CopyToBuffer(std::string_view text, char *buffer) {
+    std::ranges::copy(text, buffer);
+    buffer[text.size()] = '\0';
+}
+
+bool EqualsIgnoreCase(std::string_view left, std::string_view right) {
+    return std::ranges::equal(left, right, [](char left_char, char right_char) {
+        return std::tolower(static_cast<unsigned char>(left_char)) == std::tolower(static_cast<unsigned char>(right_char));
+    });
+}
+
+/**
+ * Sets the directory prefix used while parsing the current map script.
+ */
+void CommandCD(void **arguments) {
+    CurrentDir = static_cast<char *>(arguments[0]);
+}
+
+/**
+ * Clears the editor-map description and resets every reusable work record.
+ */
+void InitInfo() {
+    std::memset(edit_info, 0, sizeof(EDIT_MAP_INFO));
+
+    for (OBJ_ANIME_SEQ &anime : edit_info->work.obj_anime) {
+        anime.property = OBJ_ANIME_PROPERTY_NONE;
+    }
+
+    for (auto &effect : edit_info->work.effects.second) {
+        effect.kind = EDIT_EFFECT_NONE;
+    }
+
+    for (auto &effect : edit_info->work.effects.first) {
+        effect.kind = EDIT_EFFECT_NONE;
+    }
+
+    for (auto &timer : edit_info->work.object_timers.timers) {
+        timer.name[0] = 0;
+    }
+
+    for (ED_EVENT_POINT &point : edit_info->work.events.points) {
+        point.event_type = ED_EVENT_POINT_NONE;
+    }
+}
+
+} // namespace
+
 SPI_FUNC_PARAM func_table = {
     "test", {SCRIPT_ARGUMENT_INTEGER, -1},
      test
 };
 
 int GameMode = ED_MODE_WALK;
-
-/** Directory prefixed to every file the map script names. */
-static char CurrentDir[0x40];
-/** Destination named by the last MAPJUMP tag. */
-char mapjump_name[0x80];
 
 EDIT_MAP_INFO   *edit_info;
 int              texture_list;
@@ -457,94 +508,33 @@ int              edit_rect_list;
 int              motion_parts_list;
 
 /**
- * Sets the directory prefix used while parsing the current map script.
- */
-void CommandCD(void **arguments) {
-    strcpy(CurrentDir, (char *) arguments[0]);
-}
-
-/**
  * Returns the integer value addressed by a script argument slot.
  */
 int test(void **argument) {
-    return *(int *) *argument;
-}
-
-/**
- * Clears the editor-map description and resets every reusable work record.
- */
-void InitInfo() {
-    memset(edit_info, 0, sizeof(EDIT_MAP_INFO));
-
-    edit_info->work.obj_anime[0].property = OBJ_ANIME_PROPERTY_NONE;
-
-    for (int i = 0; i < 128; i++) {
-        edit_info->work.obj_anime[i].property = OBJ_ANIME_PROPERTY_NONE;
-    }
-
-    edit_info->work.effects.second[0].kind = EDIT_EFFECT_NONE;
-
-    for (int i = 0; i < 64; i++) {
-        edit_info->work.effects.second[i].kind = EDIT_EFFECT_NONE;
-    }
-
-    edit_info->work.effects.first[0].kind = EDIT_EFFECT_NONE;
-
-    for (int i = 0; i < 64; i++) {
-        edit_info->work.effects.first[i].kind = EDIT_EFFECT_NONE;
-    }
-
-    edit_info->work.object_timers.timers[0].name[0] = 0;
-
-    for (int i = 0; i < 128; i++) {
-        edit_info->work.object_timers.timers[i].name[0] = 0;
-    }
-
-    edit_info->work.events.points[0].event_type = ED_EVENT_POINT_NONE;
-
-    for (int i = 0; i < 256; i++) {
-        edit_info->work.events.points[i].event_type = ED_EVENT_POINT_NONE;
-    }
+    return *static_cast<int *>(argument[0]);
 }
 
 /**
  * Reads one editor map's description through the script interpreter.
- *
- * @mangled LoadEditMapData__FP13EDIT_MAP_INFOPci
- * @address 0x174390
- * @size 0x74C
  */
 int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
-    int   file_size;
-    int   cache_buffer[16000];
-    char *extension;
-    char *script;
-    int  *cache;
-    int   command;
-    char  c;
+    int file_size = 0;
 
     edit_info = info;
-    extension = name;
 
-    while ((c = *extension) != '\0') {
-        if (c == '.') {
-            extension++;
-            break;
-        }
+    const std::string_view name_view(name);
+    const std::size_t      dot = name_view.find('.');
+    const std::size_t      extension_at = dot == std::string_view::npos ? name_view.size() : dot + 1;
 
-        extension++;
-    }
-
-    if (!LoadFile2(name, (void *) read_buffer, &file_size, 0)) {
+    if (!LoadFile2(name, read_buffer, &file_size, 0)) {
         // No compiled script: read the text one beside it.
-        extension[2] = 'g';
-        LoadFile(name, (void *) read_buffer, &file_size);
+        name[extension_at + 2] = 'g';
+        LoadFile(name, read_buffer, &file_size);
     }
 
-    script = (char *) read_buffer;
-    cache = cache_buffer;
+    char *script = reinterpret_cast<char *>(read_buffer);
     light_no = 0;
-    CurrentDir[0] = '\0';
+    CurrentDir.clear();
     binary = 0;
     InitInfo();
     texture_list = 0;
@@ -557,18 +547,18 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
     event_list = 1;
     water_list = 0;
     people_list = 0;
-    objframe = NULL;
-    mapobj = NULL;
-    now_villinfo = NULL;
+    objframe = nullptr;
+    mapobj = nullptr;
+    now_villinfo = nullptr;
     now_parts_no = -1;
     mapjump_id = 0;
-    mapjump_name[0] = '\0';
+    mapjump_name.clear();
     week_no = 0;
-    water_info = NULL;
+    water_info = nullptr;
     edit_rect_list = 0;
     motion_parts_list = 0;
 
-    strcpy(edit_info->scene_name, "scene.scn");
+    CopyToBuffer("scene.scn", edit_info->scene_name);
     edit_info->sky_follow[0] = 1;
     edit_info->sky_follow[1] = 0;
     edit_info->sky_follow[2] = 1;
@@ -589,20 +579,21 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
     edit_info->wind[2] = 0.1f;
     edit_info->wind[3] = 0.4f;
 
-    for (int i = 0; i < 16; i++) {
-        edit_info->people_list[i] = -1;
+    for (int &villager : edit_info->people_list) {
+        villager = -1;
     }
 
-    if (strcmp(extension, "cfb") == 0) {
+    if (std::string_view(name).substr(extension_at) == "cfb") {
         // A compiled script: each command is its number and a typed argument list.
-        void *arguments[32];
-        char *cursor;
+        constexpr int          word_size = sizeof(int);
+        std::array<void *, 32> arguments{};
+        int                    offset = 0;
 
         binary = 1;
 
-        for (cursor = script; cursor - script < file_size;) {
-            command = *(int *) cursor;
-            cursor += sizeof(int);
+        while (offset < file_size) {
+            const int command = *reinterpret_cast<int *>(&script[offset]);
+            offset += word_size;
 
             if (command < 0) {
                 break;
@@ -611,34 +602,35 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
             int count = 0;
 
             for (;;) {
-                int type = *(int *) cursor;
-                cursor += sizeof(int);
+                const int type = *reinterpret_cast<int *>(&script[offset]);
+                offset += word_size;
 
                 if (type < 0) {
                     break;
                 }
 
-                arguments[count++] = cursor;
+                arguments[count++] = &script[offset];
 
-                if (type == 0) {
-                    cursor += ((strlen(cursor) + 4) / 4) * 4;
+                if (type == SCRIPT_ARGUMENT_STRING) {
+                    offset += static_cast<int>(((std::strlen(&script[offset]) + 4) / 4) * 4);
                 } else {
-                    cursor += sizeof(int);
+                    offset += word_size;
                 }
             }
 
-            CommandExe[command](arguments);
+            CommandExe[command](arguments.data());
         }
     } else {
         // A text script: run it, keeping a compiled copy of each command as it goes.
         CScriptInterpreter interpreter;
+        std::vector<int>   cache;
 
         interpreter.SetScript(script, file_size);
-        interpreter.SetTAG((TAG_PARAM *) Command, 61);
+        interpreter.SetTAG(Command, 61);
         interpreter.SetFunction(&func_table, 1);
 
         for (;;) {
-            command = interpreter.GetNextTAG();
+            const int command = interpreter.GetNextTAG();
 
             if (command < 0) {
                 break;
@@ -646,36 +638,31 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
 
             void **arguments = interpreter.arguments;
             CommandExe[command](arguments);
-            *cache++ = command;
-            int *type = Command[command].argument_types;
-            int  argument = 0;
+            cache.push_back(command);
 
-            for (;;) {
-                int kind = *type++;
+            for (int argument = 0;; argument++) {
+                const int kind = Command[command].argument_types[argument];
 
                 if (kind < 0) {
                     break;
                 }
 
-                *cache++ = kind;
+                cache.push_back(kind);
 
-                if (kind == 0) {
-                    void **text = &arguments[argument];
-                    int    words = (int) (strlen((char *) *text) + 4) >> 2;
-                    memset(cache, 0, words * 4);
-                    strcpy((char *) cache, (char *) *text);
-                    cache += words;
+                if (kind == SCRIPT_ARGUMENT_STRING) {
+                    const std::string_view text = static_cast<char *>(arguments[argument]);
+                    const std::size_t      start = cache.size();
+                    cache.resize(start + ((text.size() + 4) / 4), 0);
+                    std::ranges::copy(text, reinterpret_cast<char *>(&cache[start]));
                 } else {
-                    *cache++ = *(int *) arguments[argument];
+                    cache.push_back(*static_cast<int *>(arguments[argument]));
                 }
-
-                argument++;
             }
 
-            *cache++ = -1;
+            cache.push_back(-1);
         }
 
-        *cache = -1;
+        cache.push_back(-1);
     }
 
     edit_info->images[texture_list].name[0] = '\0';
@@ -694,7 +681,7 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
         for (int i = 0; i < 16; i++) {
             VILLAGER_INFO         *villager = &edit_info->villagers[i];
             EDIT_CHARA_DATA_ENTRY *defaults = &EditCharaData[map_no][i];
-            strcpy(villager->name, defaults->name);
+            CopyToBuffer(defaults->name, villager->name);
             villager->index = i;
             villager->character_no = defaults->character_no;
             villager->model_no = defaults->model_no;
@@ -717,36 +704,29 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no) {
     return 1;
 }
 
+namespace {
+
 /**
  * Sets the scene resource used by the current editor map.
  */
 void CommandSCN(void **arguments) {
-    strcpy(edit_info->scene_name, (char *) arguments[0]);
+    CopyToBuffer(static_cast<char *>(arguments[0]), edit_info->scene_name);
 }
 
 /**
  * Selects a zero-based light index from a one-based script value.
  */
 void CommandLIGHT_NO(void **arguments) {
-    light_no = *(int *) arguments[0];
-    light_no--;
-
-    if (light_no < 0) {
-        light_no = 0;
-    }
-
-    if (light_no >= 12) {
-        light_no = 11;
-    }
+    light_no = std::clamp(*static_cast<int *>(arguments[0]) - 1, 0, 11);
 }
 
 /**
  * Stores the ambient light colour for the selected light preset.
  */
 void CommandAMBIENT(void **arguments) {
-    edit_info->ambient[light_no][0] = *(float *) arguments[0];
-    edit_info->ambient[light_no][1] = *(float *) arguments[1];
-    edit_info->ambient[light_no][2] = *(float *) arguments[2];
+    edit_info->ambient[light_no][0] = *static_cast<float *>(arguments[0]);
+    edit_info->ambient[light_no][1] = *static_cast<float *>(arguments[1]);
+    edit_info->ambient[light_no][2] = *static_cast<float *>(arguments[2]);
     edit_info->ambient[light_no][3] = 128.0f;
 }
 
@@ -755,20 +735,19 @@ void CommandAMBIENT(void **arguments) {
  */
 void CommandLIGHT_C(void **arguments) {
     sceVu0FVECTOR direction;
-    int           light = *(int *) arguments[6];
-    int           index;
-    direction[0] = *(float *) arguments[0];
-    direction[1] = *(float *) arguments[1];
-    direction[2] = *(float *) arguments[2];
+    const int     index = *static_cast<int *>(arguments[6]) - 1;
+    direction[0] = *static_cast<float *>(arguments[0]);
+    direction[1] = *static_cast<float *>(arguments[1]);
+    direction[2] = *static_cast<float *>(arguments[2]);
     direction[3] = 0.0f;
     sceVu0Normalize(direction, direction);
-    edit_info->light_direction[light_no][0][index = light - 1] = direction[0];
+    edit_info->light_direction[light_no][0][index] = direction[0];
     edit_info->light_direction[light_no][1][index] = direction[1];
     edit_info->light_direction[light_no][2][index] = direction[2];
     edit_info->light_direction[light_no][3][index] = direction[3];
-    edit_info->light_colour[light_no][index][0] = *(float *) arguments[3];
-    edit_info->light_colour[light_no][index][1] = *(float *) arguments[4];
-    edit_info->light_colour[light_no][index][2] = *(float *) arguments[5];
+    edit_info->light_colour[light_no][index][0] = *static_cast<float *>(arguments[3]);
+    edit_info->light_colour[light_no][index][1] = *static_cast<float *>(arguments[4]);
+    edit_info->light_colour[light_no][index][2] = *static_cast<float *>(arguments[5]);
     edit_info->light_colour[light_no][index][3] = 128.0f;
 }
 
@@ -776,22 +755,22 @@ void CommandLIGHT_C(void **arguments) {
  * Stores fog distances, colour and falloff for the selected light preset.
  */
 void CommandFOG(void **arguments) {
-    edit_info->fog[light_no].near_distance = *(float *) arguments[0];
-    edit_info->fog[light_no].far_distance = *(float *) arguments[1];
-    edit_info->fog[light_no].red = *(int *) arguments[2];
-    edit_info->fog[light_no].green = *(int *) arguments[3];
-    edit_info->fog[light_no].blue = *(int *) arguments[4];
-    edit_info->fog[light_no].intensity = *(float *) arguments[5];
-    edit_info->fog[light_no].exponent = *(float *) arguments[6];
+    edit_info->fog[light_no].near_distance = *static_cast<float *>(arguments[0]);
+    edit_info->fog[light_no].far_distance = *static_cast<float *>(arguments[1]);
+    edit_info->fog[light_no].red = *static_cast<int *>(arguments[2]);
+    edit_info->fog[light_no].green = *static_cast<int *>(arguments[3]);
+    edit_info->fog[light_no].blue = *static_cast<int *>(arguments[4]);
+    edit_info->fog[light_no].intensity = *static_cast<float *>(arguments[5]);
+    edit_info->fog[light_no].exponent = *static_cast<float *>(arguments[6]);
 }
 
 /**
  * Stores the primary background colour for the selected light preset.
  */
 void CommandBG_COL(void **arguments) {
-    edit_info->background_colour[light_no][0] = *(float *) arguments[0];
-    edit_info->background_colour[light_no][1] = *(float *) arguments[1];
-    edit_info->background_colour[light_no][2] = *(float *) arguments[2];
+    edit_info->background_colour[light_no][0] = *static_cast<float *>(arguments[0]);
+    edit_info->background_colour[light_no][1] = *static_cast<float *>(arguments[1]);
+    edit_info->background_colour[light_no][2] = *static_cast<float *>(arguments[2]);
     edit_info->background_colour[light_no][3] = 128.0f;
 }
 
@@ -799,9 +778,9 @@ void CommandBG_COL(void **arguments) {
  * Stores the secondary background colour for the selected light preset.
  */
 void CommandBG_COL2(void **arguments) {
-    edit_info->background_colour_2[light_no][0] = *(float *) arguments[0];
-    edit_info->background_colour_2[light_no][1] = *(float *) arguments[1];
-    edit_info->background_colour_2[light_no][2] = *(float *) arguments[2];
+    edit_info->background_colour_2[light_no][0] = *static_cast<float *>(arguments[0]);
+    edit_info->background_colour_2[light_no][1] = *static_cast<float *>(arguments[1]);
+    edit_info->background_colour_2[light_no][2] = *static_cast<float *>(arguments[2]);
     edit_info->background_colour_2[light_no][3] = 128.0f;
 }
 
@@ -809,13 +788,13 @@ void CommandBG_COL2(void **arguments) {
  * Stores the map's time-bounded depth-of-field settings.
  */
 void CommandDOF(void **arguments) {
-    edit_info->dof_start_time = ConvertTime(*(float *) arguments[0]);
-    edit_info->dof_end_time = ConvertTime(*(float *) arguments[1]);
-    edit_info->dof_near_level = *(int *) arguments[2];
-    edit_info->dof_near = *(float *) arguments[3];
-    edit_info->dof_far = *(float *) arguments[4];
-    edit_info->dof_far_level = *(int *) arguments[5];
-    edit_info->dof_alpha = *(int *) arguments[6];
+    edit_info->dof_start_time = ConvertTime(*static_cast<float *>(arguments[0]));
+    edit_info->dof_end_time = ConvertTime(*static_cast<float *>(arguments[1]));
+    edit_info->dof_near_level = *static_cast<int *>(arguments[2]);
+    edit_info->dof_near = *static_cast<float *>(arguments[3]);
+    edit_info->dof_far = *static_cast<float *>(arguments[4]);
+    edit_info->dof_far_level = *static_cast<int *>(arguments[5]);
+    edit_info->dof_alpha = *static_cast<int *>(arguments[6]);
 }
 
 /**
@@ -824,7 +803,7 @@ void CommandDOF(void **arguments) {
 void CommandIMGSub(int image_type, int image_number, char *name) {
     edit_info->images[texture_list].type = image_type;
     edit_info->images[texture_list].number = image_number;
-    sprintf(edit_info->images[texture_list].name, "%s%s", CurrentDir, name);
+    CopyToBuffer(CurrentDir + name, edit_info->images[texture_list].name);
     texture_list++;
 }
 
@@ -832,183 +811,139 @@ void CommandIMGSub(int image_type, int image_number, char *name) {
  * Assigns a ground image from a parsed map-script command.
  */
 void CommandGRD_IMG(void **arguments) {
-    CommandIMGSub(1, *(int *) arguments[1], (char *) arguments[0]);
+    CommandIMGSub(1, *static_cast<int *>(arguments[1]), static_cast<char *>(arguments[0]));
 }
 
 /**
  * Assigns a building image from a parsed map-script command.
  */
 void CommandBLD_IMG(void **arguments) {
-    CommandIMGSub(2, *(int *) arguments[1], (char *) arguments[0]);
+    CommandIMGSub(2, *static_cast<int *>(arguments[1]), static_cast<char *>(arguments[0]));
 }
 
 /**
  * Assigns a sky image to a one-based sky layer from a parsed map-script command.
  */
 void CommandSKY_IMG(void **arguments) {
-    int index = *(int *) arguments[0] - 1;
+    int index = *static_cast<int *>(arguments[0]) - 1;
 
     if (index < 0 || index > 3) {
         return;
     }
 
-    CommandIMGSub(index + 3, *(int *) arguments[2], (char *) arguments[1]);
+    CommandIMGSub(index + 3, *static_cast<int *>(arguments[2]), static_cast<char *>(arguments[1]));
 }
 
 /**
  * Assigns a sun image from a parsed map-script command.
  */
 void CommandSUN_IMG(void **arguments) {
-    CommandIMGSub(7, *(int *) arguments[1], (char *) arguments[0]);
+    CommandIMGSub(7, *static_cast<int *>(arguments[1]), static_cast<char *>(arguments[0]));
 }
 
 /**
  * Assigns a water image from a parsed map-script command.
  */
 void CommandWATER_IMG(void **arguments) {
-    CommandIMGSub(21, *(int *) arguments[1], (char *) arguments[0]);
+    CommandIMGSub(21, *static_cast<int *>(arguments[1]), static_cast<char *>(arguments[0]));
 }
 
 /**
  * Assigns a fire image from a parsed map-script command.
  */
 void CommandFIRE_IMG(void **arguments) {
-    CommandIMGSub(24, *(int *) arguments[1], (char *) arguments[0]);
+    CommandIMGSub(24, *static_cast<int *>(arguments[1]), static_cast<char *>(arguments[0]));
 }
 
 /**
  * Assigns a flare image from a parsed map-script command.
  */
 void CommandFLER_IMG(void **arguments) {
-    CommandIMGSub(23, *(int *) arguments[1], (char *) arguments[0]);
+    CommandIMGSub(23, *static_cast<int *>(arguments[1]), static_cast<char *>(arguments[0]));
 }
-
-/**
- * Assigns an image whose script-provided slot is also its image number.
- */
-void CommandIMG(void **arguments);
 
 /**
  * Selects a sky scene layer from a one-based script slot.
  */
 void CommandSKY(void **arguments) {
-    int index = **(int **) arguments;
+    int index = *static_cast<int *>(arguments[0]);
     index--;
 
     if (index < 0 || index > 4) {
         return;
     }
 
-    sprintf(edit_info->sky_layers[index].name, "%s%s", CurrentDir, (char *) arguments[1]);
+    CopyToBuffer(CurrentDir + static_cast<char *>(arguments[1]), edit_info->sky_layers[index].name);
     objframe = edit_info->sky_layers[index].name;
-    mapobj = NULL;
-    mapparts = NULL;
+    mapobj = nullptr;
+    mapparts = nullptr;
 }
 
 /**
  * Selects a sun scene layer from a one-based script slot.
  */
 void CommandSUN(void **arguments) {
-    int index = *(int *) arguments[0] - 1;
+    int index = *static_cast<int *>(arguments[0]) - 1;
 
     if (index < 0 || index > 3) {
         return;
     }
 
-    sprintf(edit_info->sun_layers[index].name, "%s%s", CurrentDir, (char *) arguments[1]);
+    CopyToBuffer(CurrentDir + static_cast<char *>(arguments[1]), edit_info->sun_layers[index].name);
     objframe = edit_info->sun_layers[index].name;
-    mapobj = NULL;
-    mapparts = NULL;
+    mapobj = nullptr;
+    mapparts = nullptr;
+}
+
+/**
+ * Places one map object of the given kind, with its models, position and orientation.
+ */
+void PlaceMapObject(void **arguments, int kind) {
+    MAP_PARTS_INFO *object = &edit_info->map_objects[mapobj_list];
+    object->kind = kind;
+
+    // The ninth name slot reads the first position argument as text.
+    for (int i = 0; i < 9; i++) {
+        char *name = static_cast<char *>(arguments[i]);
+
+        if (*name != '\0') {
+            CopyToBuffer(CurrentDir + name, object->name[i]);
+        } else {
+            object->name[i][0] = '\0';
+        }
+    }
+
+    object->position[0] = *static_cast<float *>(arguments[8]);
+    object->position[1] = *static_cast<float *>(arguments[9]);
+    object->position[2] = *static_cast<float *>(arguments[10]);
+    object->rotation[0] = PI * *static_cast<float *>(arguments[11]) / 180.0f;
+    object->rotation[1] = PI * *static_cast<float *>(arguments[12]) / 180.0f;
+    object->rotation[2] = PI * *static_cast<float *>(arguments[13]) / 180.0f;
+    objframe = nullptr;
+    mapobj = reinterpret_cast<CMapObject *>(object);
+    mapparts = nullptr;
+    mapobj_list++;
 }
 
 /**
  * Places one ground object, with its models, position and orientation.
  */
 void CommandGROUND(void **arguments) {
-    int             i;
-    MAP_PARTS_INFO *object = &edit_info->map_objects[mapobj_list];
-    object->kind = 1;
-
-    for (i = 0; i < 9; i++) {
-        char *name = (char *) arguments[i];
-
-        if (*name != '\0') {
-            sprintf(object->name[i], "%s%s", CurrentDir, name);
-        } else {
-            object->name[i][0] = '\0';
-        }
-    }
-
-    object->position[0] = *(float *) arguments[8];
-    object->position[1] = *(float *) arguments[9];
-    object->position[2] = *(float *) arguments[10];
-    object->rotation[0] = PI * *(float *) arguments[11] / 180.0f;
-    object->rotation[1] = PI * *(float *) arguments[12] / 180.0f;
-    object->rotation[2] = PI * *(float *) arguments[13] / 180.0f;
-    objframe = NULL;
-    mapobj = (CMapObject *) object;
-    mapparts = NULL;
-    mapobj_list++;
+    PlaceMapObject(arguments, 1);
 }
 
 /**
  * Places one building object, with its models, position and orientation.
  */
 void CommandBUILD(void **arguments) {
-    int             i;
-    MAP_PARTS_INFO *object = &edit_info->map_objects[mapobj_list];
-    object->kind = 2;
-
-    for (i = 0; i < 9; i++) {
-        char *name = (char *) arguments[i];
-
-        if (*name != '\0') {
-            sprintf(object->name[i], "%s%s", CurrentDir, name);
-        } else {
-            object->name[i][0] = '\0';
-        }
-    }
-
-    object->position[0] = *(float *) arguments[8];
-    object->position[1] = *(float *) arguments[9];
-    object->position[2] = *(float *) arguments[10];
-    object->rotation[0] = PI * *(float *) arguments[11] / 180.0f;
-    object->rotation[1] = PI * *(float *) arguments[12] / 180.0f;
-    object->rotation[2] = PI * *(float *) arguments[13] / 180.0f;
-    objframe = NULL;
-    mapobj = (CMapObject *) object;
-    mapparts = NULL;
-    mapobj_list++;
+    PlaceMapObject(arguments, 2);
 }
 
 /**
  * Places one water object, with its models, position and orientation.
  */
 void CommandWATER(void **arguments) {
-    int             i;
-    MAP_PARTS_INFO *object = &edit_info->map_objects[mapobj_list];
-    object->kind = 0x15;
-
-    for (i = 0; i < 9; i++) {
-        char *name = (char *) arguments[i];
-
-        if (*name != '\0') {
-            sprintf(object->name[i], "%s%s", CurrentDir, name);
-        } else {
-            object->name[i][0] = '\0';
-        }
-    }
-
-    object->position[0] = *(float *) arguments[8];
-    object->position[1] = *(float *) arguments[9];
-    object->position[2] = *(float *) arguments[10];
-    object->rotation[0] = PI * *(float *) arguments[11] / 180.0f;
-    object->rotation[1] = PI * *(float *) arguments[12] / 180.0f;
-    object->rotation[2] = PI * *(float *) arguments[13] / 180.0f;
-    objframe = NULL;
-    mapobj = (CMapObject *) object;
-    mapparts = NULL;
-    mapobj_list++;
+    PlaceMapObject(arguments, 0x15);
 }
 
 /**
@@ -1018,99 +953,83 @@ void CommandWATER_SURFACE(void **arguments) {
     if (water_list < 8) {
         EDIT_WATER_INFO *surface = &edit_info->water_surfaces[water_list];
         water_list++;
-        strcpy(surface->name, (char *) arguments[0]);
-        surface->grid_rows = *(int *) arguments[1];
-        surface->grid_columns = *(int *) arguments[2];
-        surface->corner_a[0] = *(float *) arguments[3];
-        surface->corner_a[1] = *(float *) arguments[4];
-        surface->corner_a[2] = *(float *) arguments[5];
+        CopyToBuffer(static_cast<char *>(arguments[0]), surface->name);
+        surface->grid_rows = *static_cast<int *>(arguments[1]);
+        surface->grid_columns = *static_cast<int *>(arguments[2]);
+        surface->corner_a[0] = *static_cast<float *>(arguments[3]);
+        surface->corner_a[1] = *static_cast<float *>(arguments[4]);
+        surface->corner_a[2] = *static_cast<float *>(arguments[5]);
         surface->corner_a[3] = 1.0f;
-        surface->corner_b[0] = *(float *) arguments[6];
-        surface->corner_b[1] = *(float *) arguments[7];
-        surface->corner_b[2] = *(float *) arguments[8];
+        surface->corner_b[0] = *static_cast<float *>(arguments[6]);
+        surface->corner_b[1] = *static_cast<float *>(arguments[7]);
+        surface->corner_b[2] = *static_cast<float *>(arguments[8]);
         surface->corner_b[3] = 1.0f;
-        surface->corner_c[0] = *(float *) arguments[9];
-        surface->corner_c[1] = *(float *) arguments[10];
-        surface->corner_c[2] = *(float *) arguments[11];
+        surface->corner_c[0] = *static_cast<float *>(arguments[9]);
+        surface->corner_c[1] = *static_cast<float *>(arguments[10]);
+        surface->corner_c[2] = *static_cast<float *>(arguments[11]);
         surface->corner_c[3] = 1.0f;
-        surface->ripple_params[0] = *(float *) arguments[12];
-        surface->ripple_params[1] = *(float *) arguments[13];
-        surface->ripple_params[2] = *(float *) arguments[14];
-        surface->ripple_params[3] = *(float *) arguments[15];
-        surface->red = *(int *) arguments[16];
-        surface->green = *(int *) arguments[17];
-        surface->blue = *(int *) arguments[18];
-        surface->follow[0] = *(int *) arguments[19];
-        surface->follow[1] = *(int *) arguments[20];
-        surface->follow[2] = *(int *) arguments[21];
+        surface->ripple_params[0] = *static_cast<float *>(arguments[12]);
+        surface->ripple_params[1] = *static_cast<float *>(arguments[13]);
+        surface->ripple_params[2] = *static_cast<float *>(arguments[14]);
+        surface->ripple_params[3] = *static_cast<float *>(arguments[15]);
+        surface->red = *static_cast<int *>(arguments[16]);
+        surface->green = *static_cast<int *>(arguments[17]);
+        surface->blue = *static_cast<int *>(arguments[18]);
+        surface->follow[0] = *static_cast<int *>(arguments[19]);
+        surface->follow[1] = *static_cast<int *>(arguments[20]);
+        surface->follow[2] = *static_cast<int *>(arguments[21]);
         surface->parts_no = now_parts_no;
         water_info = surface;
     }
 }
 
 /**
- * Adds one water-wave parameter set to the first unused wave slot.
- */
-void CommandWATER_SHAKE(void **arguments);
-
-/**
  * Stores one editable-area resource and its placement parameters.
  */
 void CommandEDITAREA(void **arguments) {
-    EDIT_AREA_INFO *area = &edit_info->parts_work.edit_areas[*(int *) arguments[0]];
-    char           *name = (char *) arguments[1];
+    EDIT_AREA_INFO *area = &edit_info->parts_work.edit_areas[*static_cast<int *>(arguments[0])];
+    char           *name = static_cast<char *>(arguments[1]);
 
     if (*name != '\0') {
-        sprintf(area->name, "%s%s", CurrentDir, name);
+        CopyToBuffer(CurrentDir + name, area->name);
     } else {
         area->name[0] = '\0';
     }
 
-    area->width = *(int *) arguments[2];
-    area->height = *(int *) arguments[3];
-    area->unit_size = *(float *) arguments[4];
-    area->unit_alt = *(float *) arguments[5];
-    area->origin_x = *(float *) arguments[6];
-    area->origin_y = *(float *) arguments[7];
-    area->origin_z = *(float *) arguments[8];
+    area->width = *static_cast<int *>(arguments[2]);
+    area->height = *static_cast<int *>(arguments[3]);
+    area->unit_size = *static_cast<float *>(arguments[4]);
+    area->unit_alt = *static_cast<float *>(arguments[5]);
+    area->origin_x = *static_cast<float *>(arguments[6]);
+    area->origin_y = *static_cast<float *>(arguments[7]);
+    area->origin_z = *static_cast<float *>(arguments[8]);
 }
 
 /**
  * Expands a map-part resource name into the seven model files the loader reads,
  * or keeps it as it stands when the script named a part-definition file.
  */
-void GenMdsName(MAP_PARTS_INFO *info, char *name) {
-    char *c = name;
-    c += strlen(name) - 3;
-
-    if (c[0] == 'p' && c[1] == 't' && c[2] == 's') {
-        char letter;
-
-        for (c = name; (letter = *c) != '\0'; c++) {
-            if (letter == '.') {
-                *c = '\0';
-            }
-        }
-
-        sprintf(info->name[0], "%s", name);
+void GenMdsName(MAP_PARTS_INFO *info, const std::string &name) {
+    if (name.ends_with("pts")) {
+        CopyToBuffer(std::string_view(name).substr(0, name.find('.')), info->name[0]);
         return;
     }
 
-    sprintf(info->name[0], "%s0.mds", name);
-    sprintf(info->name[1], "%s1.mds", name);
-    sprintf(info->name[2], "%s2.mds", name);
-    sprintf(info->name[3], "%sm.mds", name);
-    sprintf(info->name[4], "%ss.mds", name);
-    sprintf(info->name[5], "%sa.mds", name);
-    sprintf(info->name[6], "%sk.mds", name);
-    sprintf(info->name[7], "");
+    CopyToBuffer(name + "0.mds", info->name[0]);
+    CopyToBuffer(name + "1.mds", info->name[1]);
+    CopyToBuffer(name + "2.mds", info->name[2]);
+    CopyToBuffer(name + "m.mds", info->name[3]);
+    CopyToBuffer(name + "s.mds", info->name[4]);
+    CopyToBuffer(name + "a.mds", info->name[5]);
+    CopyToBuffer(name + "k.mds", info->name[6]);
+    info->name[7][0] = '\0';
 }
 
 /**
  * Defines one building map part from a parsed script command.
  */
 void CommandBLD_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1118,30 +1037,28 @@ void CommandBLD_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 2;
     parts->subtype = MAP_PARTS_SUBTYPE_NONE;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
  * Defines one ordinary ground map part from a parsed script command.
  */
 void CommandGRD_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1149,23 +1066,21 @@ void CommandGRD_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_NONE;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
@@ -1179,19 +1094,19 @@ void CommandPARTS_INFO(void **arguments) {
     }
 
     EDIT_PARTS_DEF *def = &edit_info->parts_work.parts_defs.defs[index];
-    def->width = *(int *) arguments[0];
-    def->height = *(int *) arguments[1];
+    def->width = *static_cast<int *>(arguments[0]);
+    def->height = *static_cast<int *>(arguments[1]);
     int   at = 0;
     int   count = 0;
-    char *shape = (char *) arguments[2];
+    char *shape = static_cast<char *>(arguments[2]);
 
-    for (int i = 0; i < 32; i++) {
-        def->cells[i] = 0;
+    for (auto &cell : def->cells) {
+        cell = 0;
     }
 
-    char c;
+    while (shape[at] != '\0') {
+        const char c = shape[at];
 
-    while ((c = shape[at]) != '\0') {
         if (c >= '0' && c <= '9') {
             def->cells[count] = c - '0';
             count++;
@@ -1205,6 +1120,8 @@ void CommandPARTS_INFO(void **arguments) {
                     def->cells[count] = 0x80;
                     count++;
                     break;
+                default:
+                    break;
             }
         }
 
@@ -1215,12 +1132,12 @@ void CommandPARTS_INFO(void **arguments) {
         at++;
     }
 
-    def->kind = *(int *) arguments[3];
+    def->kind = *static_cast<int *>(arguments[3]);
     int argument = 4;
 
     for (int i = 0; i < 6; i++) {
-        def->element_ids[i] = *(int *) arguments[argument++];
-        strcpy(def->element_names[i], (char *) arguments[argument++]);
+        def->element_ids[i] = *static_cast<int *>(arguments[argument++]);
+        CopyToBuffer(static_cast<char *>(arguments[argument++]), def->element_names[i]);
     }
 }
 
@@ -1228,7 +1145,7 @@ void CommandPARTS_INFO(void **arguments) {
  * Defines a road-classified map part in the general part table.
  */
 void CommandROAD_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1236,60 +1153,56 @@ void CommandROAD_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_ROAD;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
  * Defines one road map part in the dedicated road table.
  */
 void CommandROAD(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 6) {
         return;
     }
 
     MAP_PARTS_INFO *parts = &edit_info->parts_work.roads.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_ROAD;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
  * Defines a river-classified map part in the general part table.
  */
 void CommandRIVER_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1297,48 +1210,44 @@ void CommandRIVER_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_RIVER;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
  * Defines one river, bridge or lake part in the dedicated river table.
  */
 void CommandRIVER(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 16) {
         return;
     }
 
     MAP_PARTS_INFO *parts = &edit_info->parts_work.rivers.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
 
     if (index == 7) {
@@ -1352,17 +1261,17 @@ void CommandRIVER(void **arguments) {
     }
 
     if (index + 8 < 16) {
-        char *second_name = (char *) arguments[4];
+        char *second_name = static_cast<char *>(arguments[4]);
 
         if (*second_name != '\0') {
-            sprintf(parts->name[7], "%s%s", CurrentDir, second_name);
+            CopyToBuffer(CurrentDir + second_name, parts->name[7]);
         } else {
             parts->name[7][0] = '\0';
         }
 
-        objframe = NULL;
-        mapobj = NULL;
-        mapparts = (CMapParts *) parts;
+        objframe = nullptr;
+        mapobj = nullptr;
+        mapparts = reinterpret_cast<CMapParts *>(parts);
     }
 }
 
@@ -1370,7 +1279,7 @@ void CommandRIVER(void **arguments) {
  * Defines a bridge-classified map part in the general part table.
  */
 void CommandBRIDGE_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1378,30 +1287,28 @@ void CommandBRIDGE_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
+        GenMdsName(parts, CurrentDir + source_name);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_BRIDGE;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
  * Defines a lake-classified map part and its secondary resource.
  */
 void CommandLAKE_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1409,31 +1316,29 @@ void CommandLAKE_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
-        sprintf(parts->name[7], "%s%s", CurrentDir, (char *) arguments[4]);
+        GenMdsName(parts, CurrentDir + source_name);
+        CopyToBuffer(CurrentDir + static_cast<char *>(arguments[4]), parts->name[7]);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_LAKE;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
  * Defines an on-river map part and its secondary resource.
  */
 void CommandON_RIVER_PARTS(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
 
     if (index < 0 || index >= 24) {
         return;
@@ -1441,24 +1346,22 @@ void CommandON_RIVER_PARTS(void **arguments) {
 
     now_parts_no = index;
     MAP_PARTS_INFO *parts = &edit_info->parts_work.general.parts[index];
-    char           *source_name = (char *) arguments[1];
+    char           *source_name = static_cast<char *>(arguments[1]);
 
     if (*source_name != '\0') {
-        char name[0x80];
-        sprintf(name, "%s%s", CurrentDir, source_name);
-        GenMdsName(parts, name);
-        sprintf(parts->name[7], "%s%s", CurrentDir, (char *) arguments[4]);
+        GenMdsName(parts, CurrentDir + source_name);
+        CopyToBuffer(CurrentDir + static_cast<char *>(arguments[4]), parts->name[7]);
     } else {
         parts->name[0][0] = '\0';
     }
 
-    parts->parts_no = *(int *) arguments[2];
-    parts->lift = *(float *) arguments[3];
+    parts->parts_no = *static_cast<int *>(arguments[2]);
+    parts->lift = *static_cast<float *>(arguments[3]);
     parts->kind = 1;
     parts->subtype = MAP_PARTS_SUBTYPE_ON_RIVER;
-    objframe = NULL;
-    mapobj = NULL;
-    mapparts = (CMapParts *) parts;
+    objframe = nullptr;
+    mapobj = nullptr;
+    mapparts = reinterpret_cast<CMapParts *>(parts);
 }
 
 /**
@@ -1466,40 +1369,40 @@ void CommandON_RIVER_PARTS(void **arguments) {
  */
 void CommandOBJ_ANIME(void **arguments) {
     if (objanime_list >= 128) {
-        printf("obj_anime over!!!\n");
+        std::println("obj_anime over!!!");
         return;
     }
 
     OBJ_ANIME_SEQ *anime = &edit_info->work.obj_anime[objanime_list];
     s16           *slots;
-    anime->property = *(int *) arguments[0];
+    anime->property = *static_cast<int *>(arguments[0]);
 
     if (anime->property < 0 || anime->property >= 4) {
         return;
     }
 
-    anime->mode = *(int *) arguments[1];
-    strcpy(anime->frame_name, (char *) arguments[2]);
-    anime->from[0] = *(float *) arguments[3];
-    anime->from[1] = *(float *) arguments[4];
-    anime->from[2] = *(float *) arguments[5];
-    anime->step[0] = *(float *) arguments[6];
-    anime->step[1] = *(float *) arguments[7];
-    anime->step[2] = *(float *) arguments[8];
-    anime->to[0] = *(float *) arguments[9];
-    anime->to[1] = *(float *) arguments[10];
-    anime->to[2] = *(float *) arguments[11];
+    anime->mode = *static_cast<int *>(arguments[1]);
+    CopyToBuffer(static_cast<char *>(arguments[2]), anime->frame_name);
+    anime->from[0] = *static_cast<float *>(arguments[3]);
+    anime->from[1] = *static_cast<float *>(arguments[4]);
+    anime->from[2] = *static_cast<float *>(arguments[5]);
+    anime->step[0] = *static_cast<float *>(arguments[6]);
+    anime->step[1] = *static_cast<float *>(arguments[7]);
+    anime->step[2] = *static_cast<float *>(arguments[8]);
+    anime->to[0] = *static_cast<float *>(arguments[9]);
+    anime->to[1] = *static_cast<float *>(arguments[10]);
+    anime->to[2] = *static_cast<float *>(arguments[11]);
 
-    if (objframe != NULL) {
-        slots = (s16 *) (objframe + 0x98);
+    if (objframe != nullptr) {
+        slots = reinterpret_cast<EDIT_SCENE_LAYER_INFO *>(objframe)->obj_anime;
     }
 
-    if (mapobj != NULL) {
-        slots = ((MAP_PARTS_INFO *) mapobj)->anime;
+    if (mapobj != nullptr) {
+        slots = reinterpret_cast<MAP_PARTS_INFO *>(mapobj)->anime;
     }
 
-    if (mapparts != NULL) {
-        slots = ((MAP_PARTS_INFO *) mapparts)->anime;
+    if (mapparts != nullptr) {
+        slots = reinterpret_cast<MAP_PARTS_INFO *>(mapparts)->anime;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -1515,25 +1418,25 @@ void CommandOBJ_ANIME(void **arguments) {
 /**
  * Accepts the legacy fire command, which has no runtime effect.
  */
-void CommandFIRE(void **arguments) {
+void CommandFIRE(void ** /*arguments*/) {
 }
 
 /**
  * Accepts the legacy flame command, which has no runtime effect.
  */
-void CommandFLAME(void **arguments) {
+void CommandFLAME(void ** /*arguments*/) {
 }
 
 /**
  * Accepts the legacy brightness command, which has no runtime effect.
  */
-void CommandBRIGHT(void **arguments) {
+void CommandBRIGHT(void ** /*arguments*/) {
 }
 
 /**
  * Accepts the legacy object-timer command, which has no runtime effect.
  */
-void CommandOBJECT_TIMER(void **arguments) {
+void CommandOBJECT_TIMER(void ** /*arguments*/) {
 }
 
 /**
@@ -1542,7 +1445,7 @@ void CommandOBJECT_TIMER(void **arguments) {
  */
 void CommandENTRANCE(void **arguments) {
     if (event_list >= 256) {
-        printf("event over!!!\n");
+        std::println("event over!!!");
         return;
     }
 
@@ -1550,8 +1453,8 @@ void CommandENTRANCE(void **arguments) {
     ED_EVENT_POINT *point = &edit_info->work.events.points[event_list];
     s16            *slots;
     point->event_type = ED_EVENT_POINT_DOOR;
-    char *side = (char *) arguments[0];
-    strcpy(point->destination, mapjump_name);
+    char *side = static_cast<char *>(arguments[0]);
+    CopyToBuffer(mapjump_name, point->destination);
     point->map_no = mapjump_id;
     point->side = 0;
 
@@ -1564,25 +1467,27 @@ void CommandENTRANCE(void **arguments) {
         case 'L':
             point->side = -1;
             break;
+        default:
+            break;
     }
 
-    point->position[0] = *(float *) arguments[1];
-    point->position[1] = *(float *) arguments[2];
-    point->position[2] = *(float *) arguments[3];
-    point->rotation[0] = *(float *) arguments[4];
-    point->rotation[1] = *(float *) arguments[5];
-    point->rotation[2] = *(float *) arguments[6];
-    point->trigger_range[0] = *(float *) arguments[7];
-    point->trigger_range[1] = *(float *) arguments[8];
-    point->trigger_range[2] = *(float *) arguments[9];
+    point->position[0] = *static_cast<float *>(arguments[1]);
+    point->position[1] = *static_cast<float *>(arguments[2]);
+    point->position[2] = *static_cast<float *>(arguments[3]);
+    point->rotation[0] = *static_cast<float *>(arguments[4]);
+    point->rotation[1] = *static_cast<float *>(arguments[5]);
+    point->rotation[2] = *static_cast<float *>(arguments[6]);
+    point->trigger_range[0] = *static_cast<float *>(arguments[7]);
+    point->trigger_range[1] = *static_cast<float *>(arguments[8]);
+    point->trigger_range[2] = *static_cast<float *>(arguments[9]);
 
-    if (objframe == NULL) {
-        if (mapobj != NULL) {
-            slots = ((MAP_PARTS_INFO *) mapobj)->events;
+    if (objframe == nullptr) {
+        if (mapobj != nullptr) {
+            slots = reinterpret_cast<MAP_PARTS_INFO *>(mapobj)->events;
         }
 
-        if (mapparts != NULL) {
-            slots = ((MAP_PARTS_INFO *) mapparts)->events;
+        if (mapparts != nullptr) {
+            slots = reinterpret_cast<MAP_PARTS_INFO *>(mapparts)->events;
         }
 
         for (int i = 0; i < 8; i++) {
@@ -1600,30 +1505,30 @@ void CommandENTRANCE(void **arguments) {
  * Names the map that the entrances defined after it lead to.
  */
 void CommandMAPJUMP(void **arguments) {
-    mapjump_id = *(int *) arguments[0];
-    strcpy(mapjump_name, (char *) arguments[1]);
+    mapjump_id = *static_cast<int *>(arguments[0]);
+    mapjump_name = static_cast<char *>(arguments[1]);
 
     if (event_list >= 256) {
-        printf("event over!!!\n");
+        std::println("event over!!!");
         return;
     }
 
     ED_EVENT_POINT *point = &edit_info->work.events.points[event_list];
     s16            *slots;
     point->event_type = ED_EVENT_POINT_DOOR;
-    strcpy(point->destination, mapjump_name);
+    CopyToBuffer(mapjump_name, point->destination);
     point->map_no = mapjump_id;
     point->side = 0;
     point->trigger_range[0] = 10.0f;
     point->trigger_range[1] = 10.0f;
     point->trigger_range[2] = 10.0f;
 
-    if (mapobj != NULL) {
-        slots = ((MAP_PARTS_INFO *) mapobj)->events;
+    if (mapobj != nullptr) {
+        slots = reinterpret_cast<MAP_PARTS_INFO *>(mapobj)->events;
     }
 
-    if (mapparts != NULL) {
-        slots = ((MAP_PARTS_INFO *) mapparts)->events;
+    if (mapparts != nullptr) {
+        slots = reinterpret_cast<MAP_PARTS_INFO *>(mapparts)->events;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -1643,18 +1548,18 @@ void CommandPEOPLE(void **arguments) {
     if (people_list < 16) {
         VILLAGER_INFO *villager = &edit_info->villagers[people_list];
         villager->index = people_list;
-        strcpy(villager->name, (char *) arguments[0]);
-        villager->character_no = *(int *) arguments[1];
-        villager->model_no = *(int *) arguments[2];
-        villager->weapon_no = *(int *) arguments[3];
-        villager->initial_motion = *(int *) arguments[4];
-        villager->move_speed = *(float *) arguments[5];
-        villager->position[0] = *(float *) arguments[6];
-        villager->position[1] = *(float *) arguments[7];
-        villager->position[2] = *(float *) arguments[8];
+        CopyToBuffer(static_cast<char *>(arguments[0]), villager->name);
+        villager->character_no = *static_cast<int *>(arguments[1]);
+        villager->model_no = *static_cast<int *>(arguments[2]);
+        villager->weapon_no = *static_cast<int *>(arguments[3]);
+        villager->initial_motion = *static_cast<int *>(arguments[4]);
+        villager->move_speed = *static_cast<float *>(arguments[5]);
+        villager->position[0] = *static_cast<float *>(arguments[6]);
+        villager->position[1] = *static_cast<float *>(arguments[7]);
+        villager->position[2] = *static_cast<float *>(arguments[8]);
         villager->position[3] = 1.0f;
         villager->rotation[0] = 0.0f;
-        villager->rotation[1] = *(float *) arguments[9];
+        villager->rotation[1] = *static_cast<float *>(arguments[9]);
         villager->rotation[2] = 0.0f;
         people_list++;
     }
@@ -1664,7 +1569,7 @@ void CommandPEOPLE(void **arguments) {
  * Selects the weekly time table referenced by subsequent script entries.
  */
 void CommandTIME_TABLE_NO(void **arguments) {
-    int table_no = *(int *) arguments[0];
+    int table_no = *static_cast<int *>(arguments[0]);
 
     if (table_no < 0 || table_no >= 7) {
         table_no = 0;
@@ -1677,7 +1582,7 @@ void CommandTIME_TABLE_NO(void **arguments) {
  * Replaces one weekly villager time-table row from a script command.
  */
 void CommandTIME_TABLE(void **arguments) {
-    int table = **(int **) arguments;
+    int table = *static_cast<int *>(arguments[0]);
 
     if (table >= 0) {
         int *entries = edit_info->time_tables[week_no][table];
@@ -1687,7 +1592,7 @@ void CommandTIME_TABLE(void **arguments) {
         }
 
         for (int i = 0; i < 6; i++) {
-            entries[i] = *(int *) arguments[i + 1];
+            entries[i] = *static_cast<int *>(arguments[i + 1]);
         }
     }
 }
@@ -1695,7 +1600,7 @@ void CommandTIME_TABLE(void **arguments) {
 /**
  * Stops time progression for the current editor map.
  */
-void CommandTIME_STOP(void **arguments) {
+void CommandTIME_STOP(void ** /*arguments*/) {
     edit_info->time_stop = true;
 }
 
@@ -1703,20 +1608,20 @@ void CommandTIME_STOP(void **arguments) {
  * Stores the three sky-follow parameters parsed for the current map.
  */
 void CommandSKY_FOLLOW(void **arguments) {
-    edit_info->sky_follow[0] = *(int *) arguments[0];
-    edit_info->sky_follow[1] = *(int *) arguments[1];
-    edit_info->sky_follow[2] = *(int *) arguments[2];
+    edit_info->sky_follow[0] = *static_cast<int *>(arguments[0]);
+    edit_info->sky_follow[1] = *static_cast<int *>(arguments[1]);
+    edit_info->sky_follow[2] = *static_cast<int *>(arguments[2]);
 }
 
 /**
  * Stores the shadow distances, quality level and modes for the current map.
  */
 void CommandSHADOW_LEVEL(void **arguments) {
-    edit_info->shadow_level = *(int *) arguments[0];
-    edit_info->shadow_near = *(float *) arguments[1];
-    edit_info->shadow_far = *(float *) arguments[2];
-    edit_info->shadow_mode = *(int *) arguments[3];
-    edit_info->shadow_mode_2 = *(int *) arguments[4];
+    edit_info->shadow_level = *static_cast<int *>(arguments[0]);
+    edit_info->shadow_near = *static_cast<float *>(arguments[1]);
+    edit_info->shadow_far = *static_cast<float *>(arguments[2]);
+    edit_info->shadow_mode = *static_cast<int *>(arguments[3]);
+    edit_info->shadow_mode_2 = *static_cast<int *>(arguments[4]);
 }
 
 /**
@@ -1728,12 +1633,12 @@ void CommandEDITAREA_RECT(void **arguments) {
         edit_rect_list++;
         sceVu0FVECTOR second;
         sceVu0FVECTOR first;
-        first[0] = *(float *) arguments[0];
-        first[1] = *(float *) arguments[1];
-        first[2] = *(float *) arguments[2];
-        second[0] = *(float *) arguments[3];
-        second[1] = *(float *) arguments[4];
-        second[2] = *(float *) arguments[5];
+        first[0] = *static_cast<float *>(arguments[0]);
+        first[1] = *static_cast<float *>(arguments[1]);
+        first[2] = *static_cast<float *>(arguments[2]);
+        second[0] = *static_cast<float *>(arguments[3]);
+        second[1] = *static_cast<float *>(arguments[4]);
+        second[2] = *static_cast<float *>(arguments[5]);
         VectorMaxMin(rect->maximum, rect->minimum, second, first);
     }
 }
@@ -1742,64 +1647,43 @@ void CommandEDITAREA_RECT(void **arguments) {
  * Selects and reports the background-music number for the current map.
  */
 void CommandBGM_NO(void **arguments) {
-    edit_info->bgm_no = *(int *) arguments[0];
-    printf("bgm = %d\n", edit_info->bgm_no);
+    edit_info->bgm_no = *static_cast<int *>(arguments[0]);
+    std::println("bgm = {}", edit_info->bgm_no);
 }
 
 /**
  * Selects and reports the environmental sound set for the current map.
  */
 void CommandSOUND_SET(void **arguments) {
-    edit_info->sound_set_no = *(int *) arguments[0];
-    printf("sound set = %d\n", edit_info->sound_set_no);
+    edit_info->sound_set_no = *static_cast<int *>(arguments[0]);
+    std::println("sound set = {}", edit_info->sound_set_no);
 }
 
 /**
  * Selects the two environmental reverb presets and their strengths.
  */
 void CommandREVERBE(void **arguments) {
-    static char *rev[] = {
-        "OFF", "ROOM", "STUDIO_A", "STUDIO_B", "STUDIO_C", "HALL",
-        "SPACE", "ECHO", "DELAY", "PIPE", "MAX", ""};
+    constexpr std::array<const char *, 11> rev = {
+        "OFF", "ROOM", "STUDIO_A", "STUDIO_B", "STUDIO_C", "HALL", "SPACE", "ECHO", "DELAY", "PIPE", "MAX"};
 
-    int   mode = 0;
-    char *name = (char *) arguments[0];
-
-    while (*rev[mode] != '\0') {
-        if (strcasecmp(rev[mode], name) == 0) {
-            break;
+    // An unknown preset name selects OFF.
+    const auto find_mode = [&rev](std::string_view name) {
+        for (int mode = 0; mode < std::ssize(rev); mode++) {
+            if (EqualsIgnoreCase(rev[mode], name)) {
+                return mode;
+            }
         }
 
-        mode++;
-    }
+        return 0;
+    };
 
-    if (10 < mode) {
-        mode = 0;
-    }
+    edit_info->reverb_mode[0] = find_mode(static_cast<char *>(arguments[0]));
+    edit_info->reverb_depth[0] = *static_cast<int *>(arguments[1]);
+    edit_info->reverb_mode[1] = find_mode(static_cast<char *>(arguments[2]));
+    edit_info->reverb_depth[1] = *static_cast<int *>(arguments[3]);
 
-    edit_info->reverb_mode[0] = mode;
-    edit_info->reverb_depth[0] = *(int *) arguments[1];
-
-    mode = 0;
-    name = (char *) arguments[2];
-
-    while (*rev[mode] != '\0') {
-        if (strcasecmp(rev[mode], name) == 0) {
-            break;
-        }
-
-        mode++;
-    }
-
-    if (10 < mode) {
-        mode = 0;
-    }
-
-    edit_info->reverb_mode[1] = mode;
-    edit_info->reverb_depth[1] = *(int *) arguments[3];
-
-    printf("rev0 = %s %d\n", rev[edit_info->reverb_mode[0]], edit_info->reverb_depth[0]);
-    printf("rev1 = %s %d\n", rev[edit_info->reverb_mode[1]], edit_info->reverb_depth[1]);
+    std::println("rev0 = {} {}", rev[edit_info->reverb_mode[0]], edit_info->reverb_depth[0]);
+    std::println("rev1 = {} {}", rev[edit_info->reverb_mode[1]], edit_info->reverb_depth[1]);
 }
 
 /**
@@ -1809,13 +1693,13 @@ void CommandMOTION_PARTS(void **arguments) {
     if (motion_parts_list < 4) {
         EDIT_MOTION_PARTS_INFO *motion = &edit_info->motion_parts[motion_parts_list];
         motion_parts_list++;
-        strcpy(motion->name, (char *) arguments[0]);
-        motion->values[0] = *(float *) arguments[1];
-        motion->values[1] = *(float *) arguments[2];
-        motion->values[2] = *(float *) arguments[3];
-        motion->values[3] = *(float *) arguments[4];
-        motion->values[4] = *(float *) arguments[5];
-        motion->values[5] = *(float *) arguments[6];
+        CopyToBuffer(static_cast<char *>(arguments[0]), motion->name);
+        motion->values[0] = *static_cast<float *>(arguments[1]);
+        motion->values[1] = *static_cast<float *>(arguments[2]);
+        motion->values[2] = *static_cast<float *>(arguments[3]);
+        motion->values[3] = *static_cast<float *>(arguments[4]);
+        motion->values[4] = *static_cast<float *>(arguments[5]);
+        motion->values[5] = *static_cast<float *>(arguments[6]);
     }
 }
 
@@ -1826,12 +1710,12 @@ void CommandPEOPLE2(void **arguments) {
     if (people_list < 16) {
         VILLAGER_INFO *villager = &edit_info->villagers[people_list];
         villager->index = people_list;
-        strcpy(villager->name, (char *) arguments[0]);
+        CopyToBuffer(static_cast<char *>(arguments[0]), villager->name);
         villager->character_no = -1;
         villager->model_no = -1;
-        villager->weapon_no = *(int *) arguments[1];
-        villager->initial_motion = *(int *) arguments[2];
-        villager->move_speed = *(float *) arguments[3];
+        villager->weapon_no = *static_cast<int *>(arguments[1]);
+        villager->initial_motion = *static_cast<int *>(arguments[2]);
+        villager->move_speed = *static_cast<float *>(arguments[3]);
         villager->position[0] = 0.0f;
         villager->position[1] = 0.0f;
         villager->position[2] = 0.0f;
@@ -1849,7 +1733,7 @@ void CommandPEOPLE2(void **arguments) {
 /**
  * Disables ambient sound for the current editor map.
  */
-void CommandSE_AMBIENT_OFF(void **arguments) {
+void CommandSE_AMBIENT_OFF(void ** /*arguments*/) {
     edit_info->ambient_sound_off = true;
 }
 
@@ -1857,19 +1741,19 @@ void CommandSE_AMBIENT_OFF(void **arguments) {
  * Stores the four wind parameters parsed for the current editor map.
  */
 void CommandWIND(void **arguments) {
-    edit_info->wind[0] = *(float *) arguments[0];
-    edit_info->wind[1] = *(float *) arguments[1];
-    edit_info->wind[2] = *(float *) arguments[2];
-    edit_info->wind[3] = *(float *) arguments[3];
+    edit_info->wind[0] = *static_cast<float *>(arguments[0]);
+    edit_info->wind[1] = *static_cast<float *>(arguments[1]);
+    edit_info->wind[2] = *static_cast<float *>(arguments[2]);
+    edit_info->wind[3] = *static_cast<float *>(arguments[3]);
 }
 
 /**
  * Assigns the event number and level used when the current villager is addressed.
  */
 void CommandTALK_EVENT(void **arguments) {
-    if (now_villinfo != NULL) {
-        now_villinfo->talk_event_no = *(int *) arguments[0];
-        now_villinfo->talk_event_level = *(int *) arguments[1];
+    if (now_villinfo != nullptr) {
+        now_villinfo->talk_event_no = *static_cast<int *>(arguments[0]);
+        now_villinfo->talk_event_level = *static_cast<int *>(arguments[1]);
     }
 }
 
@@ -1877,16 +1761,16 @@ void CommandTALK_EVENT(void **arguments) {
  * Stores a character ambient colour selected by a one-based script slot.
  */
 void CommandCHARA_AMBIENT(void **arguments) {
-    int index = *(int *) arguments[0];
+    int index = *static_cast<int *>(arguments[0]);
     index--;
 
     if (index < 0 || index >= 4) {
         return;
     }
 
-    edit_info->character_ambient[index][0] = *(float *) arguments[1];
-    edit_info->character_ambient[index][1] = *(float *) arguments[2];
-    edit_info->character_ambient[index][2] = *(float *) arguments[3];
+    edit_info->character_ambient[index][0] = *static_cast<float *>(arguments[1]);
+    edit_info->character_ambient[index][1] = *static_cast<float *>(arguments[2]);
+    edit_info->character_ambient[index][2] = *static_cast<float *>(arguments[3]);
     edit_info->character_ambient[index][3] = 0.0f;
 }
 
@@ -1894,8 +1778,8 @@ void CommandCHARA_AMBIENT(void **arguments) {
  * Sets the rotation constraint used while the current villager talks.
  */
 void CommandTALK_ROT(void **arguments) {
-    if (now_villinfo != NULL) {
-        now_villinfo->talk_rotation = *(int *) arguments[0];
+    if (now_villinfo != nullptr) {
+        now_villinfo->talk_rotation = *static_cast<int *>(arguments[0]);
     }
 }
 
@@ -1903,8 +1787,8 @@ void CommandTALK_ROT(void **arguments) {
  * Sets the direction constraint used while the current villager talks.
  */
 void CommandTALK_DIR(void **arguments) {
-    if (now_villinfo != NULL) {
-        now_villinfo->talk_direction = *(int *) arguments[0];
+    if (now_villinfo != nullptr) {
+        now_villinfo->talk_direction = *static_cast<int *>(arguments[0]);
     }
 }
 
@@ -1913,9 +1797,11 @@ void CommandTALK_DIR(void **arguments) {
  */
 void CommandPEOPLE_LIST(void **arguments) {
     for (int i = 0; i < 15; i++) {
-        edit_info->people_list[i] = *(int *) arguments[i];
+        edit_info->people_list[i] = *static_cast<int *>(arguments[i]);
     }
 }
+
+} // namespace
 
 /**
  * Reports whether the current editor state should draw the fishing interface.
@@ -1936,14 +1822,14 @@ int FishingDrawCheck() {
  * Finds a file in the active pack or loads it into the shared read buffer.
  */
 void *EdLoadFile(char *name) {
-    void *file = GetPackFile(name, NULL);
+    void *file = GetPackFile(name, nullptr);
 
-    if (file != NULL) {
+    if (file != nullptr) {
         return file;
     }
 
-    if (LoadFile2(name, read_buffer, NULL, 0) == 0) {
-        return NULL;
+    if (LoadFile2(name, read_buffer, nullptr, 0) == 0) {
+        return nullptr;
     }
 
     return read_buffer;
@@ -1982,13 +1868,5 @@ void StopAllSound() {
  * Sets the editor sound-suppression counter within its valid range.
  */
 void EdSetSoundOffCount(int count) {
-    if (count > 10) {
-        count = 10;
-    }
-
-    if (count < 0) {
-        count = 0;
-    }
-
-    sound_off_cnt = count;
+    sound_off_cnt = std::clamp(count, 0, 10);
 }

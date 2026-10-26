@@ -28,50 +28,32 @@ struct EDIT_IN_INFO {
 
 STATIC_ASSERT(sizeof(EDIT_IN_INFO) == 0x44C0);
 
-/** Settings of the interior being run. */
+/**
+ * Settings of the interior being run.
+ */
 extern EDIT_IN_INFO *EdInInfo;
 
 /**
  * Builds everything one interior runs on: its data, models, script and camera.
- *
- * @mangled EditInInit__FfPc
- * @address 0x19BE30
- * @size 0x478
  */
 int EditInInit(float time, char *name);
 
 /**
  * Runs one frame of the interior and reports when it is to be left.
- *
- * @mangled EditInLoop__Fv
- * @address 0x19C2B0
- * @size 0x1014
  */
 int EditInLoop();
 
 /**
  * Finds the map jump the player is standing on and facing.
- *
- * @mangled SearchMapJump__FPfPf
- * @address 0x19E1F0
- * @size 0xF4
  */
 EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation);
 
 /**
  * Puts the player where the interior's map jump says they arrive.
- *
- * @mangled GetMapJumpPos__FP10CCharacter
- * @address 0x19E2F0
- * @size 0x12C
  */
 void GetMapJumpPos(CCharacter *chara);
 
 /**
  * Reads one interior object's levels of detail and hangs them off its part.
- *
- * @mangled LoadMapObject__FP9CMapPartsPPUiP14CDataAlloc2_1_
- * @address 0x19B790
- * @size 0x204
  */
 void LoadMapObject(CMapParts *parts, u_int **data, CDataAlloc2<1> *alloc);

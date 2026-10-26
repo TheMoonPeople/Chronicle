@@ -1,16 +1,20 @@
 #include "stubs/editloop3.hpp"
 
-#include "common.h"
-
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
 #include <sifdev.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
+#include <print>
+#include <string>
+#include <string_view>
 
 #include "actionseq.hpp"
 #include "battlemenu.hpp"
@@ -26,6 +30,7 @@
 #include "debugfont.hpp"
 #include "dngstatusdata.hpp"
 #include "ebattle.hpp"
+#include "edit.hpp"
 #include "editground.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
@@ -57,45 +62,55 @@
 #include "textureanime.hpp"
 #include "visualvu1.hpp"
 
-/* Retail editloop3.cpp: editor event points, villagers, script opcodes and talk handling. */
+namespace {
 
 /**
- * Visibility commands an event queues for one villager, as VILLAGER_APPEAR_STATE::action holds them.
+ * Visibility commands an event queues for one villager.
  */
 // clang-format off
-enum VillagerAppearAction {
-    VILLAGER_APPEAR_DEFAULT = 0, /**< No command; the villager follows its schedule. */
-    VILLAGER_APPEAR_IN      = 1, /**< Villager enters: left off the map but let in. */
-    VILLAGER_APPEAR_OUT     = 2, /**< Villager leaves: put on the map but not let back in. */
-    VILLAGER_APPEAR_OFF     = 3, /**< Villager is kept off the map. */
-    VILLAGER_APPEAR_ON      = 4, /**< Villager is put on the map. */
+enum class VillagerAppearAction : int {
+    Default = 0, /**< No command; the villager follows its schedule. */
+    In      = 1, /**< Villager enters: left off the map but let in. */
+    Out     = 2, /**< Villager leaves: put on the map but not let back in. */
+    Off     = 3, /**< Villager is kept off the map. */
+    On      = 4, /**< Villager is put on the map. */
 };
 
 // clang-format on
 
 /**
- * Steps of a villager conversation, as EdTalkMode's talk_mode holds them.
+ * Pending visibility or movement command for one villager.
  */
-// clang-format off
-enum TalkModeState {
-    TALK_MODE_SELECT  = 0, /**< Choice prompt is shown with its cursor. */
-    TALK_MODE_MESSAGE = 1, /**< Plain message is shown until it is closed. */
+struct VILLAGER_APPEAR_STATE {
+    VillagerAppearAction action;      /**< Visibility transition to apply. */
+    int                  priority;    /**< Priority of the command which last updated the state. */
+    int                  destination; /**< Villager slot used by a movement command. */
 };
 
-// clang-format on
+/**
+ * Copies a NUL-terminated name into a fixed-size field, truncating to fit.
+ */
+template <std::size_t N>
+void CopyString(char (&destination)[N], std::string_view source) {
+    const std::size_t length = std::min(source.size(), N - 1);
+    std::ranges::copy(source.substr(0, length), destination);
+    destination[length] = '\0';
+}
+
+} // namespace
 
 ED_EVENT_POINT *GetNewEventPoint(CMapParts *parts, EPARTS_FUNC_DATA *function, ED_EVENT_POINT *points, int count) {
     ED_EVENT_POINT *point = GetNewEventPoint(points, count);
 
-    if (point == NULL) {
-        printf("event over!!\n");
-        return NULL;
+    if (point == nullptr) {
+        std::println("event over!!");
+        return nullptr;
     }
 
     point->enabled = true;
 
     if (parts->parts_no >= 0) {
-        point->map_object = NULL;
+        point->map_object = nullptr;
         point->parts_no = parts->parts_no;
     } else {
         point->map_object = parts;
@@ -108,9 +123,9 @@ ED_EVENT_POINT *GetNewEventPoint(CMapParts *parts, EPARTS_FUNC_DATA *function, E
     point->end_time = ConvertTime(function->end_time);
     point->completion_flag = function->completion_flag;
     CFrame *frame = parts->frame[0];
-    point->frame = NULL;
+    point->frame = nullptr;
 
-    if (frame != NULL) {
+    if (frame != nullptr) {
         point->frame = frame->SearchFrame(function->frame_name);
     }
 
@@ -118,11 +133,11 @@ ED_EVENT_POINT *GetNewEventPoint(CMapParts *parts, EPARTS_FUNC_DATA *function, E
 }
 
 int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functions, int function_count, ED_EVENT_POINT *points, int point_count) {
-    int has_extent;
-    int created;
-    int j;
+    int has_extent = 0;
+    int created = 0;
+    int j = 0;
 
-    for (int i = 0; i < 8 && indices != NULL; i++) {
+    for (int i = 0; i < 8 && indices != nullptr; i++) {
         int point_index = indices[i];
 
         if (point_index <= 0) {
@@ -138,7 +153,7 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
         point->enabled = true;
 
         if (parts->parts_no >= 0) {
-            point->map_object = NULL;
+            point->map_object = nullptr;
             point->parts_no = parts->parts_no;
         } else {
             point->map_object = parts;
@@ -160,7 +175,7 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
                     point->trigger_range[2] = 10.0f;
                     point->trigger_range[1] = 10.0f;
                     point->trigger_range[0] = 10.0f;
-                    point->minimum_progress = (int) function->values[0];
+                    point->minimum_progress = static_cast<int>(function->values[0]);
                     point->start_time = ConvertTime(function->start_time);
                     point->end_time = ConvertTime(function->end_time);
                     point->completion_flag = function->completion_flag;
@@ -189,7 +204,7 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
                 }
 
                 if (function->kind == EPARTS_FUNC_DOOR_SIDE_A || function->kind == EPARTS_FUNC_DOOR_SIDE_B) {
-                    point->linked_value = (int) function->values[0];
+                    point->linked_value = static_cast<int>(function->values[0]);
                 }
             }
         }
@@ -199,33 +214,33 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
     EPARTS_FUNC_DATA *function = functions;
 
     for (int i = 0; i < function_count; i++, function++) {
-        ED_EVENT_POINT *point = NULL;
+        ED_EVENT_POINT *point = nullptr;
 
         switch (function->kind) {
             case EPARTS_FUNC_ITEM_BOX:
                 point = GetNewEventPoint(parts, function, points, point_count);
 
-                if (point != NULL) {
+                if (point != nullptr) {
                     point->event_type = ED_EVENT_POINT_ITEM_BOX;
                     point->trigger_range[2] = 15.0f;
                     point->trigger_range[1] = 15.0f;
                     point->trigger_range[0] = 15.0f;
-                    point->side = (int) function->values[0];
-                    point->linked_value = (int) function->values[1];
-                    point->minimum_progress = (int) function->values[2];
-                    point->secondary_progress = (int) function->values[3];
+                    point->side = static_cast<int>(function->values[0]);
+                    point->linked_value = static_cast<int>(function->values[1]);
+                    point->minimum_progress = static_cast<int>(function->values[2]);
+                    point->secondary_progress = static_cast<int>(function->values[3]);
                 }
 
                 break;
             case EPARTS_FUNC_EVENT:
-                if ((int) function->values[0] > 0) {
+                if (static_cast<int>(function->values[0]) > 0) {
                     point = GetNewEventPoint(parts, function, points, point_count);
 
-                    if (point != NULL) {
+                    if (point != nullptr) {
                         point->event_type = ED_EVENT_POINT_EVENT;
                         sceVu0CopyVector(point->trigger_range, function->parameters);
-                        point->side = (int) function->values[0];
-                        point->linked_value = (int) function->values[1];
+                        point->side = static_cast<int>(function->values[0]);
+                        point->linked_value = static_cast<int>(function->values[1]);
                     }
                 }
 
@@ -233,20 +248,20 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
             case EPARTS_FUNC_LADDER_BOTTOM:
                 point = GetNewEventPoint(parts, function, points, point_count);
 
-                if (point != NULL) {
+                if (point != nullptr) {
                     point->event_type = ED_EVENT_POINT_LADDER_BOTTOM;
                     point->trigger_range[2] = 6.0f;
                     point->trigger_range[1] = 6.0f;
                     point->trigger_range[0] = 6.0f;
                     point->trigger_range[3] = function->values[0];
-                    point->side = (int) function->values[1];
+                    point->side = static_cast<int>(function->values[1]);
 
                     for (j = 0; j < function_count; j++) {
                         EPARTS_FUNC_DATA *other = &functions[j];
 
                         if (other->kind == EPARTS_FUNC_LADDER_TOP && other->link_id == function->link_id) {
                             sceVu0CopyVector(point->extent, other->position);
-                            point->linked_value = (int) other->values[1];
+                            point->linked_value = static_cast<int>(other->values[1]);
                             break;
                         }
                     }
@@ -256,29 +271,31 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
             case EPARTS_FUNC_LADDER_TOP:
                 point = GetNewEventPoint(parts, function, points, point_count);
 
-                if (point != NULL) {
+                if (point != nullptr) {
                     point->event_type = ED_EVENT_POINT_LADDER_TOP;
                     point->trigger_range[2] = 6.0f;
                     point->trigger_range[1] = 6.0f;
                     point->trigger_range[0] = 6.0f;
                     point->trigger_range[3] = function->values[0];
-                    point->linked_value = (int) function->values[1];
+                    point->linked_value = static_cast<int>(function->values[1]);
 
                     for (j = 0; j < function_count; j++) {
                         EPARTS_FUNC_DATA *other = &functions[j];
 
                         if (other->kind == EPARTS_FUNC_LADDER_BOTTOM && other->link_id == function->link_id) {
                             sceVu0CopyVector(point->extent, other->position);
-                            point->side = (int) other->values[1];
+                            point->side = static_cast<int>(other->values[1]);
                             break;
                         }
                     }
                 }
 
                 break;
+            default:
+                break;
         }
 
-        if (point != NULL) {
+        if (point != nullptr) {
             created++;
         }
     }
@@ -288,7 +305,7 @@ int EdInitEventPoint(CMapParts *parts, short *indices, EPARTS_FUNC_DATA *functio
 
 int EdGetEvent(ED_EVENT_POINT *points, int count, ED_EVENT_PARAM *param, float *position, float *rotation, float time) {
     CEditGround    *ground = EdExchangeInfo.ground;
-    int             i;
+    int             i = 0;
     ED_EVENT_POINT *point = points;
     float           nearest = -1.0f;
 
@@ -311,23 +328,23 @@ int EdGetEvent(ED_EVENT_POINT *points, int count, ED_EVENT_PARAM *param, float *
         if (point->parts_no >= 0) {
             object = ground->GetPartsObject(point->parts_no);
 
-            if (object == NULL) {
+            if (object == nullptr) {
                 continue;
             }
 
             GetPosRot(object, event_position, event_rotation);
             GetPosRot(object, camera_position, camera_rotation);
         } else {
-            if (object != NULL) {
+            if (object != nullptr) {
                 GetPosRot(object, event_position, event_rotation);
             }
 
-            if (object != NULL) {
+            if (object != nullptr) {
                 GetPosRot(object, camera_position, camera_rotation);
             }
         }
 
-        float distance;
+        float distance = 0.0f;
 
         if (point->event_type == ED_EVENT_POINT_ITEM_BOX) {
             sceVu0FVECTOR delta;
@@ -361,6 +378,8 @@ int EdGetEvent(ED_EVENT_POINT *points, int count, ED_EVENT_PARAM *param, float *
                     }
 
                     break;
+                default:
+                    break;
             }
         }
 
@@ -377,7 +396,7 @@ int EdGetEvent(ED_EVENT_POINT *points, int count, ED_EVENT_PARAM *param, float *
             sceVu0RotMatrixY(matrix, matrix, event_rotation[1]);
             sceVu0ApplyMatrix(offset, matrix, offset);
             sceVu0AddVector(offset, offset, event_position);
-            sceVu0CopyVector((float *) param->unk_40, offset);
+            sceVu0CopyVector(reinterpret_cast<float *>(param->unk_40), offset);
             param->point = point;
         }
     }
@@ -447,16 +466,16 @@ void EdEventPointDraw(ED_EVENT_POINT *points, int count, float time) {
         if (point->parts_no >= 0) {
             object = ground->GetPartsObject(point->parts_no);
 
-            if (object == NULL) {
+            if (object == nullptr) {
                 continue;
             }
 
             GetPosRot(object, position, rotation);
-        } else if (object != NULL) {
+        } else if (object != nullptr) {
             GetPosRot(object, position, rotation);
         }
 
-        if (point->event_type == ED_EVENT_POINT_ITEM_BOX && marker != NULL) {
+        if (point->event_type == ED_EVENT_POINT_ITEM_BOX && marker != nullptr) {
             marker->SetPosition(position);
             marker->SetRotation(0.0f, rotation[1], 0.0f);
             MGDraw(marker);
@@ -476,7 +495,7 @@ int EdEventPointCpPoly(float *position, ED_EVENT_POINT *points, int count, CCPol
     CEditGround      *ground = EdExchangeInfo.ground;
     static CCharacter chara;
     chara.body_width = 3.0f;
-    int i;
+    int i = 0;
     int found = 0;
 
     for (i = 0; i < count; i++, points++) {
@@ -490,12 +509,12 @@ int EdEventPointCpPoly(float *position, ED_EVENT_POINT *points, int count, CCPol
             if (points->parts_no >= 0) {
                 object = ground->GetPartsObject(points->parts_no);
 
-                if (object == NULL) {
+                if (object == nullptr) {
                     continue;
                 }
 
                 GetPosRot(object, event_position, event_rotation);
-            } else if (object != NULL) {
+            } else if (object != nullptr) {
                 GetPosRot(object, event_position, event_rotation);
             }
 
@@ -508,12 +527,12 @@ int EdEventPointCpPoly(float *position, ED_EVENT_POINT *points, int count, CCPol
 }
 
 int EdSearchEvent(ED_EVENT_PARAM *param, char *name, int map_no, float time) {
-    int             i;
+    int             i = 0;
     CEditGround    *ground = EdExchangeInfo.ground;
     ED_EVENT_POINT *point = EditMapInfo->work.events.points;
 
     for (i = 0; i < 256; i++, point++) {
-        if (CheckEventPoint(point, time) && strcmp(point->destination, name) == 0 && point->map_no == map_no) {
+        if (CheckEventPoint(point, time) && std::string_view(point->destination) == name && point->map_no == map_no) {
             sceVu0FVECTOR event_position;
             sceVu0FVECTOR event_rotation;
             sceVu0FVECTOR camera_position;
@@ -527,19 +546,19 @@ int EdSearchEvent(ED_EVENT_PARAM *param, char *name, int map_no, float time) {
             if (point->parts_no >= 0) {
                 object = ground->GetPartsObject(point->parts_no);
 
-                if (object != NULL) {
+                if (object != nullptr) {
                     GetPosRot(object, event_position, event_rotation);
                 }
 
-                if (object != NULL) {
+                if (object != nullptr) {
                     GetPosRot(object, camera_position, camera_rotation);
                 }
             } else {
-                if (object != NULL) {
+                if (object != nullptr) {
                     GetPosRot(object, event_position, event_rotation);
                 }
 
-                if (object != NULL) {
+                if (object != nullptr) {
                     GetPosRot(object, camera_position, camera_rotation);
                 }
             }
@@ -557,51 +576,43 @@ int EdSearchEvent(ED_EVENT_PARAM *param, char *name, int map_no, float time) {
     return 0;
 }
 
-void EdMapJump(int kind, char *name) {
-    if (name == NULL || *name == '\0') {
+void EdMapJump(int /*kind*/, char *name) {
+    if (name == nullptr || *name == '\0') {
         return;
     }
 
-    int index;
-
-    if (kind >= 3) {
-        index = kind;
-    }
-
-    char *extensions[5] = {"m", "e", "n", "", ""};
     StartReadBG();
-    u_long128 *buffer = (u_long128 *) read_buffer;
-    char       filename[64];
-    int        size;
-    sprintf(filename, "%s.scn", name);
+    auto       *buffer = reinterpret_cast<u_long128 *>(read_buffer);
+    int         size = 0;
+    std::string filename = std::format("{}.scn", name);
 
-    if (LoadFileBG(filename, buffer, &size) == 0) {
-        name[strlen(name) - 1] = '\0';
-        sprintf(filename, "%s.scn", name);
+    if (LoadFileBG(filename.data(), buffer, &size) == 0) {
+        name[std::strlen(name) - 1] = '\0';
+        filename = std::format("{}.scn", name);
 
-        if (LoadFileBG(filename, buffer, &size) == 0) {
+        if (LoadFileBG(filename.data(), buffer, &size) == 0) {
             return;
         }
     }
 
     buffer += (((size >> 6) + 1) << 6) >> 4;
-    sprintf(filename, "%s.cfg", name);
-    LoadFileBG(filename, buffer, &size);
-    buffer = (u_long128 *) (EdNPCBuffer.base + EdNPCBuffer.used * 16);
-    sprintf(filename, "%s.pak", name);
+    filename = std::format("{}.cfg", name);
+    LoadFileBG(filename.data(), buffer, &size);
+    buffer = reinterpret_cast<u_long128 *>(EdNPCBuffer.base + EdNPCBuffer.used * 16);
+    filename = std::format("{}.pak", name);
 
-    if (LoadFileBG(filename, buffer, &size) == 0) {
-        sprintf(filename, "%s.img", name);
+    if (LoadFileBG(filename.data(), buffer, &size) == 0) {
+        filename = std::format("{}.img", name);
 
-        if (LoadFileBG(filename, buffer, &size) == 0) {
+        if (LoadFileBG(filename.data(), buffer, &size) == 0) {
             return;
         }
     }
 
     if (size > 0x200000) {
-        printf("img size over!!!\n");
+        std::println("img size over!!!");
 
-        while (1) {
+        while (true) {
         }
     }
 }
@@ -610,7 +621,6 @@ void EdPartsObjectOnOff(CMapParts *parts, EDITPARTS_INFO *info, int mode) {
     char  storage[32][32];
     char *names[32];
     int   draw_flag[2] = {2, 1};
-    int   hide_flag[2] = {4, 1};
 
     for (int element = 0; element < 6; element++) {
         if (info->elements[element].id < 0 || info->elements[element].id >= 36) {
@@ -626,7 +636,7 @@ void EdPartsObjectOnOff(CMapParts *parts, EDITPARTS_INFO *info, int mode) {
 
         GetElementObjName(info, names, element, mode);
 
-        char prefix;
+        char prefix = 0;
 
         for (int i = 0; (prefix = names[i][0]) != '\0'; i++) {
             if (prefix == '*') {
@@ -646,32 +656,29 @@ void EdPartsObjectOnOff(CMapParts *parts, EDITPARTS_INFO *info, int mode) {
     }
 }
 
-/** Holds a pending visibility or movement command for one villager. */
-struct VILLAGER_APPEAR_STATE {
-    int action;      /**< Visibility transition to apply. */
-    int priority;    /**< Priority of the command which last updated the state. */
-    int destination; /**< Villager slot used by a movement command. */
-};
+namespace {
 
-static int appear_table[10];
+std::array<int, 10> appear_table;
 
-static int select_table[10];
+std::array<int, 10> select_table;
 
 /** Pending appearance commands for the event villagers. */
-static VILLAGER_APPEAR_STATE appear[16];
+std::array<VILLAGER_APPEAR_STATE, 16> appear;
+
+} // namespace
 
 void EdInitVillagerControl() {
-    for (int i = 0; i < 16; i++) {
-        appear[i].action = VILLAGER_APPEAR_DEFAULT;
-        appear[i].destination = -1;
-        appear[i].priority = -1;
+    for (auto &state : appear) {
+        state.action = VillagerAppearAction::Default;
+        state.destination = -1;
+        state.priority = -1;
     }
 }
 
 void EdCreateVillagerTable(EDIT_MAP_INFO *info) {
     int candidates[16];
-    int i;
-    int period;
+    int i = 0;
+    int period = 0;
     int candidate_count = 0;
 
     for (i = 0; i < 16; i++) {
@@ -709,8 +716,12 @@ void EdInitVillagerTable(float clock, EDIT_MAP_INFO *info) {
     }
 }
 
+namespace {
+
 /** Saved state restored into the first ten villager entries. */
-static VILLAGER_INFO restore_info[10];
+std::array<VILLAGER_INFO, 10> restore_info;
+
+} // namespace
 
 void EdVillagerAppearOut(int index, int priority) {
     if (index < 0 || index >= 16) {
@@ -721,7 +732,7 @@ void EdVillagerAppearOut(int index, int priority) {
         return;
     }
 
-    appear[index].action = VILLAGER_APPEAR_OUT;
+    appear[index].action = VillagerAppearAction::Out;
     appear[index].priority = priority;
 }
 
@@ -734,7 +745,7 @@ void EdVillagerAppearIn(int index, int priority) {
         return;
     }
 
-    appear[index].action = VILLAGER_APPEAR_IN;
+    appear[index].action = VillagerAppearAction::In;
     appear[index].priority = priority;
 }
 
@@ -747,7 +758,7 @@ void EdVillagerAppearOff(int index, int priority) {
         return;
     }
 
-    appear[index].action = VILLAGER_APPEAR_OFF;
+    appear[index].action = VillagerAppearAction::Off;
     appear[index].priority = priority;
 }
 
@@ -760,7 +771,7 @@ void EdVillagerAppearOn(int index, int priority) {
         return;
     }
 
-    appear[index].action = VILLAGER_APPEAR_ON;
+    appear[index].action = VillagerAppearAction::On;
     appear[index].priority = priority;
 }
 
@@ -776,25 +787,26 @@ void EdVillagerAppearMove(int index, int destination, int priority) {
     appear[index].destination = destination;
 }
 
-static void RestoreVillagerInfo(VILLAGER_INFO *villagers) {
+namespace {
+
+void RestoreVillagerInfo(VILLAGER_INFO *villagers) {
     for (int i = 0; i < 10; i++) {
         villagers[i] = restore_info[i];
     }
 }
 
+} // namespace
+
 /**
  * Chooses the villagers on the map for the given time and fills the villager table.
  *
- * @mangled EdSelectVillager__FP13VILLAGER_INFOfP13EDIT_MAP_INFO
- * @address 0x1857E0
- * @size 0x30C
  * @note Returns the copy loop's final counter (10); callers ignore it.
  */
 int EdSelectVillager(VILLAGER_INFO *villagers, float clock, EDIT_MAP_INFO *map_info) {
     EdInitVillagerTable(clock, map_info);
     EdGetTime(clock);
 
-    int i;
+    int i = 0;
 
     for (i = 0; i < 10; i++) {
         select_table[i] = -1;
@@ -803,25 +815,25 @@ int EdSelectVillager(VILLAGER_INFO *villagers, float clock, EDIT_MAP_INFO *map_i
     int selected_count = 0;
 
     for (i = 0; i < 16 && selected_count < 6; i++) {
-        int action = appear[i].action;
+        VillagerAppearAction action = appear[i].action;
 
-        if (action == VILLAGER_APPEAR_ON || action == VILLAGER_APPEAR_OUT) {
+        if (action == VillagerAppearAction::On || action == VillagerAppearAction::Out) {
             select_table[selected_count++] = i;
         }
     }
 
     for (i = 0; i < 10 && selected_count < 6; i++) {
-        int j;
-        int duplicate;
+        int j = 0;
+        int duplicate = 0;
         int index = appear_table[i];
 
         if (index < 0) {
             break;
         }
 
-        int action = appear[index].action;
+        VillagerAppearAction action = appear[index].action;
 
-        if (action == VILLAGER_APPEAR_OFF || action == VILLAGER_APPEAR_IN) {
+        if (action == VillagerAppearAction::Off || action == VillagerAppearAction::In) {
             continue;
         }
 
@@ -850,7 +862,7 @@ int EdSelectVillager(VILLAGER_INFO *villagers, float clock, EDIT_MAP_INFO *map_i
             villagers[i] = map_info->villagers[index];
             VILLAGER_APPEAR_STATE *state = &appear[select_table[i]];
 
-            if (state->action != VILLAGER_APPEAR_DEFAULT && state->destination >= 0) {
+            if (state->action != VillagerAppearAction::Default && state->destination >= 0) {
                 villagers[i].initial_motion = state->destination;
             }
 
@@ -871,16 +883,17 @@ int EdCheckVillagerIn(int index, VILLAGER_INFO *villager) {
     }
 
     switch (appear[index].action) {
-        case VILLAGER_APPEAR_OFF:
-        case VILLAGER_APPEAR_OUT:
+        case VillagerAppearAction::Off:
+        case VillagerAppearAction::Out:
             return 0;
-        case VILLAGER_APPEAR_DEFAULT:
-            for (int i = 0; i < 10; i++) {
-                if (index == select_table[i]) {
+        case VillagerAppearAction::Default:
+            for (int selected : select_table) {
+                if (index == selected) {
                     return 0;
                 }
             }
-        case VILLAGER_APPEAR_IN: {
+            [[fallthrough]];
+        case VillagerAppearAction::In: {
             int parts_no = villager->character_no;
 
             if (parts_no < 0) {
@@ -889,7 +902,7 @@ int EdCheckVillagerIn(int index, VILLAGER_INFO *villager) {
 
             EDITPARTS_INFO *parts = EditPartsInfo.GetPartsInfo(parts_no);
 
-            if (parts == NULL) {
+            if (parts == nullptr) {
                 return 0;
             }
 
@@ -911,7 +924,7 @@ int EdCheckVillager(int index, VILLAGER_INFO *villager, CEditGround *ground) {
         return 0;
     }
 
-    if (ground == NULL) {
+    if (ground == nullptr) {
         return 0;
     }
 
@@ -923,11 +936,11 @@ int EdCheckVillager(int index, VILLAGER_INFO *villager, CEditGround *ground) {
 
     EDITPARTS_INFO *parts = EditPartsInfo.GetPartsInfo(parts_no);
 
-    if (parts == NULL) {
+    if (parts == nullptr) {
         return 0;
     }
 
-    if (ground->GetPartsObject(villager->character_no) == NULL) {
+    if (ground->GetPartsObject(villager->character_no) == nullptr) {
         return 0;
     }
 
@@ -940,10 +953,12 @@ int EdCheckVillager(int index, VILLAGER_INFO *villager, CEditGround *ground) {
     return parts->elements[model].enabled != 0 ? 1 : 0;
 }
 
-static int GetRandomVillager(VILLAGER_INFO *villagers) {
+namespace {
+
+int GetRandomVillager(VILLAGER_INFO *villagers) {
     int candidates[10] = {-1};
     int count = 0;
-    int i;
+    int i = 0;
 
     for (i = 0; i < 10; i++) {
         if (villagers[i].placed == 0 && villagers[i].name[0] != '\0') {
@@ -958,10 +973,10 @@ static int GetRandomVillager(VILLAGER_INFO *villagers) {
     return candidates[rand() % count];
 }
 
-static int GetRandomMoveVillager(VILLAGER_INFO *villagers) {
+int GetRandomMoveVillager(VILLAGER_INFO *villagers) {
     int candidates[10] = {-1};
     int count = 0;
-    int i;
+    int i = 0;
 
     for (i = 0; i < 10; i++) {
         if (villagers[i].placed == 0 && villagers[i].name[0] != '\0' && villagers[i].initial_motion != 0) {
@@ -976,15 +991,16 @@ static int GetRandomMoveVillager(VILLAGER_INFO *villagers) {
     return candidates[rand() % count];
 }
 
+} // namespace
+
 void EdInitVilager(VILLAGER_INFO *villagers, CEditGround *ground, u_long128 *buffer) {
     VILLAGER_INFO *info[10];
-    char           path[64];
     char           directory[64];
-    int            size;
-    int            i;
-    u_long128     *load_buffer = (u_long128 *) read_buffer;
+    int            size = 0;
+    int            i = 0;
+    auto          *load_buffer = reinterpret_cast<u_long128 *>(read_buffer);
 
-    if (buffer != NULL) {
+    if (buffer != nullptr) {
         load_buffer = buffer;
     }
 
@@ -993,12 +1009,12 @@ void EdInitVilager(VILLAGER_INFO *villagers, CEditGround *ground, u_long128 *buf
         villagers[i].placed = false;
         EdVillager[i].Initialize();
         EdVillager[i].texture_block = i + 54;
-        strcpy(EdVillager[i].resource_name, info[i]->name);
+        CopyString(EdVillager[i].resource_name, info[i]->name);
         GetEditDataDir(directory);
-        sprintf(path, "%schara/%s.chr", directory, info[i]->name);
+        std::string path = std::format("{}chara/{}.chr", directory, info[i]->name);
 
-        if (buffer != NULL) {
-            LoadFileBG(path, load_buffer, &size);
+        if (buffer != nullptr) {
+            LoadFileBG(path.data(), load_buffer, &size);
             load_buffer += (((size >> 6) + 1) << 6) >> 4;
         } else {
             EdLoadVillager(info[i]->name, &EdVillager[i], &EdVillagerBuffer);
@@ -1007,22 +1023,14 @@ void EdInitVilager(VILLAGER_INFO *villagers, CEditGround *ground, u_long128 *buf
 }
 
 int EdLoadVillager(u_int *pack, char *name, CNPCharacter *villager, CDataAlloc2<1> *arena) {
-    char copied_name[32];
-    char config_name[32];
-    int  texture_set = villager->texture_block;
-    strcpy(copied_name, name);
-    villager->texture_block = texture_set;
-    strcpy(villager->resource_name, copied_name);
+    const std::string copied_name = name;
+    const int         texture_set = villager->texture_block;
+    CopyString(villager->resource_name, copied_name);
 
-    if (GetPackFile(pack, "info.cfg", NULL) != NULL) {
-        sprintf(config_name, "info.cfg");
-    } else {
-        sprintf(config_name, "%s.cfg", name);
-    }
+    std::string config_name = GetPackFile(pack, "info.cfg", nullptr) != nullptr ? std::string("info.cfg") : std::format("{}.cfg", name);
+    villager->LoadPackData2(pack, config_name.data(), arena, texture_set, arena, 0);
 
-    villager->LoadPackData2(pack, config_name, arena, texture_set, arena, 0);
-
-    if (villager->frame != NULL) {
+    if (villager->frame != nullptr) {
         CFrameAttr attr;
         attr.clip_enable = false;
         attr.fog_enable = true;
@@ -1051,17 +1059,16 @@ int EdLoadVillager(u_int *pack, char *name, CNPCharacter *villager, CDataAlloc2<
 }
 
 int EdLoadVillager(char *name, CNPCharacter *villager, CDataAlloc2<1> *arena) {
-    char path[64];
     char directory[64];
 
-    if (name == NULL || *name == '\0') {
+    if (name == nullptr || *name == '\0') {
         return 0;
     }
 
     GetEditDataDir(directory);
-    sprintf(path, "%schara/%s.chr", directory, name);
+    std::string path = std::format("{}chara/{}.chr", directory, name);
 
-    if (LoadFile2(path, (void *) read_buffer, NULL, 0) != 0) {
+    if (LoadFile2(path.data(), read_buffer, nullptr, 0) != 0) {
         return EdLoadVillager(read_buffer, name, villager, arena);
     }
 
@@ -1079,7 +1086,7 @@ void EdInitVillagerOnOff(CNPCharacter *characters, VILLAGER_INFO *villagers, CEd
             if (parts_no >= 0 && characters[i].villager_id >= 0) {
                 characters[i].map_parts_no = parts_no;
 
-                if (ground->GetPartsObject(villager->character_no) != NULL) {
+                if (ground->GetPartsObject(villager->character_no) != nullptr) {
                     EDITPARTS_INFO *parts = EditPartsInfo.GetPartsInfo(villager->character_no);
 
                     if (parts->obtained > 0 && parts->elements[villager->model_no].enabled != 0) {
@@ -1101,7 +1108,7 @@ void EdInitVillagerOnOff(CNPCharacter *characters, VILLAGER_INFO *villagers, CEd
 }
 
 void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGround *ground, float (*transform)[4]) {
-    int i;
+    int i = 0;
 
     if (MapNo > 10) {
         RestoreVillagerInfo(info);
@@ -1115,7 +1122,7 @@ void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGr
                 sceVu0FVECTOR  rotation;
                 sceVu0FVECTOR  people_position;
 
-                if (ground->GetPeoplePos(entry->index, people_position) != 0) {
+                if (ground->GetPeoplePos(entry->index, people_position) != nullptr) {
                     rotation[2] = 0.0f;
                     rotation[0] = 0.0f;
                     rotation[1] = people_position[3];
@@ -1194,7 +1201,7 @@ void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGr
         int           avoid_count = 0;
         sceVu0FVECTOR avoid_positions[11];
 
-        if (transform != NULL) {
+        if (transform != nullptr) {
             sceVu0CopyVector(avoid_positions[avoid_count++], *transform);
         }
 
@@ -1213,7 +1220,7 @@ void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGr
         reference[3] = -1.0f;
         CMapObject *object = ground->GetPartsObject(info[selected].character_no);
 
-        if (object != NULL) {
+        if (object != nullptr) {
             sceVu0CopyVector(reference, object->pos);
             reference[3] = 200.0f;
         }
@@ -1268,7 +1275,7 @@ void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGr
             if (parts_no >= 0) {
                 villagers[i].map_parts_no = parts_no;
 
-                if (ground->GetPartsObject(entry->character_no) != NULL) {
+                if (ground->GetPartsObject(entry->character_no) != nullptr) {
                     EDITPARTS_INFO *parts = EditPartsInfo.GetPartsInfo(entry->character_no);
 
                     if (parts->obtained > 0 && parts->elements[entry->model_no].enabled != 0) {
@@ -1287,7 +1294,7 @@ void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGr
             if (entry->initial_motion == 0) {
                 sceVu0FVECTOR people_position;
 
-                if (ground->GetPeoplePos(entry->index, people_position) != 0) {
+                if (ground->GetPeoplePos(entry->index, people_position) != nullptr) {
                     rotation[2] = 0.0f;
                     rotation[0] = 0.0f;
                     rotation[1] = people_position[3];
@@ -1314,7 +1321,9 @@ void EdInitVilagerPosition(CNPCharacter *villagers, VILLAGER_INFO *info, CEditGr
     srand(random_state);
 }
 
-static void GetNearVill(CCamera *camera, CCharacter *player, CNPCharacter *villagers, int *indices, float *distances) {
+namespace {
+
+void GetNearVill(CCamera *camera, CCharacter *player, CNPCharacter *villagers, int *indices, float *distances) {
     sceVu0FVECTOR player_position;
     sceVu0FVECTOR camera_direction;
     sceVu0FVECTOR camera_offset;
@@ -1324,7 +1333,7 @@ static void GetNearVill(CCamera *camera, CCharacter *player, CNPCharacter *villa
     player->GetPosition(player_position);
     camera->GetDir(camera_direction);
     camera->GetPos(camera_position);
-    int i;
+    int i = 0;
 
     for (i = 0; i < 10; i++) {
         indices[i] = i;
@@ -1347,15 +1356,9 @@ static void GetNearVill(CCamera *camera, CCharacter *player, CNPCharacter *villa
         int compare_index = i + 1;
 
         while (compare_index < 10) {
-            if (distances[compare_index] >= 0.0f) {
-                if (distances[i] > distances[compare_index] || distances[i] < 0.0f) {
-                    int index = indices[i];
-                    indices[i] = indices[compare_index];
-                    indices[compare_index] = index;
-                    float distance = distances[i];
-                    distances[i] = distances[compare_index];
-                    distances[compare_index] = distance;
-                }
+            if (distances[compare_index] >= 0.0f && (distances[i] > distances[compare_index] || distances[i] < 0.0f)) {
+                std::swap(indices[i], indices[compare_index]);
+                std::swap(distances[i], distances[compare_index]);
             }
 
             compare_index++;
@@ -1365,20 +1368,7 @@ static void GetNearVill(CCamera *camera, CCharacter *player, CNPCharacter *villa
     }
 }
 
-static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground);
-
-/**
- * Advances and positions the selected villagers on the editable town map.
- *
- * @mangled EdMoveVillager__FP13VILLAGER_INFO
- * @address 0x186EF0
- * @size 0x5B4
- */
-void EdMoveVillager(VILLAGER_INFO *villagers);
-
-void EdMoveVillagerSubMap(VILLAGER_INFO *villagers);
-
-static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground) {
+void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground) {
     if (villager->CheckSeq() != 0) {
         return;
     }
@@ -1395,7 +1385,7 @@ static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CE
         {-100.0f, 0.0f, 0.0f,    0.0f},
     };
     int weights[5];
-    int i;
+    int i = 0;
     villager->GetPosition(position);
     villager->GetRotation(rotation);
 
@@ -1448,7 +1438,7 @@ static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CE
     CMapParts *current_parts = ground->GetParts(position[0], position[1], position[2]);
 
     for (i = 0; i < 4; i++) {
-        int blocked;
+        int blocked = 0;
         int direction = i + facing;
 
         if (direction > 3) {
@@ -1463,7 +1453,7 @@ static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CE
         blocked = 0;
 
         for (int j = 0; j < nearby_count; j++) {
-            if ((float) (int) sceVu0InnerProduct(nearby_offsets[j], offset) > 0.0f) {
+            if (static_cast<float>(static_cast<int>(sceVu0InnerProduct(nearby_offsets[j], offset))) > 0.0f) {
                 blocked = 1;
                 break;
             }
@@ -1480,7 +1470,7 @@ static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CE
             if (destination[0] <= box.max[0] && destination[0] >= box.min[0] && destination[2] <= box.max[2] && destination[2] >= box.min[2]) {
                 CMapParts *next_parts = ground->GetParts(destination[0], destination[1], destination[2]);
 
-                if (next_parts == NULL && ground->GetAreaCode(destination[0], destination[1], destination[2]) >= 0) {
+                if (next_parts == nullptr && ground->GetAreaCode(destination[0], destination[1], destination[2]) >= 0) {
                     weight /= 5;
 
                     if (weight <= 0) {
@@ -1491,7 +1481,7 @@ static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CE
                     weights[i] = weight;
                 }
 
-                if (next_parts != NULL && (next_parts->subtype == MAP_PARTS_SUBTYPE_ROAD || (current_parts != NULL && current_parts->subtype != MAP_PARTS_SUBTYPE_BRIDGE && next_parts->subtype == MAP_PARTS_SUBTYPE_BRIDGE))) {
+                if (next_parts != nullptr && (next_parts->subtype == MAP_PARTS_SUBTYPE_ROAD || (current_parts != nullptr && current_parts->subtype != MAP_PARTS_SUBTYPE_BRIDGE && next_parts->subtype == MAP_PARTS_SUBTYPE_BRIDGE))) {
                     total += weight;
                     weights[i] = weight;
                 }
@@ -1537,6 +1527,12 @@ static void EdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CE
     villager->SetWait(60);
 }
 
+} // namespace
+
+void PortEdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground) {
+    EdSetVillagerNextPos(villager, info, ground);
+}
+
 int EdCheckTime(float time, float start, float end) {
     if (!(start <= end) && !(start <= time) && end <= time) {
         return 0;
@@ -1550,10 +1546,10 @@ int EdCheckTime(float time, float start, float end) {
 }
 
 int EdGetTime(float time) {
-    int   period;
-    float period_end;
+    int   period = 0;
+    float period_end = 0.0f;
 
-    period = (int) (time / 3.0f);
+    period = static_cast<int>(time / 3.0f);
 
     if (EdCheckTime(time, 11.5f, 2.5f) != 0) {
         period = ED_TIME_DAY;
@@ -1592,19 +1588,19 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
     sceVu0UnitMatrix(identity);
     identity[3][1] = 2100.0f;
 
-    CFrameVu1 *current_sky;
-    CFrameVu1 *following_sky;
-    int        transition;
-    int        sky_index;
-    int        next_sky;
-    int        next_sun;
-    CFrame    *current_sun;
-    CFrame    *moon;
-    int        sun_index;
-    CFrame    *following_sun;
-    int        previous_sky;
+    CFrameVu1 *current_sky = nullptr;
+    CFrameVu1 *following_sky = nullptr;
+    int        transition = 0;
+    int        sky_index = 0;
+    int        next_sky = 0;
+    int        next_sun = 0;
+    CFrame    *current_sun = nullptr;
+    CFrame    *moon = nullptr;
+    int        sun_index = 0;
+    CFrame    *following_sun = nullptr;
+    int        previous_sky = 0;
 
-    sky_index = (int) (clock / 3.0f);
+    sky_index = static_cast<int>(clock / 3.0f);
     next_sky = sky_index + 1;
     previous_sky = sky_index - 1;
 
@@ -1619,16 +1615,8 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
         next_sky = 0;
     }
 
-    if (previous_sky < 0) {
-        previous_sky = (int) previous_sky;
-    }
-
     current_sky = sky[sky_index];
     following_sky = sky[next_sky];
-
-    if (current_sky != NULL && following_sky == NULL) {
-        following_sky = (CFrameVu1 *) following_sky;
-    }
 
     camera->GetPos(position);
 
@@ -1649,21 +1637,21 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
 
     mgRenderInfo.unlit = 1;
 
-    if (clouds != NULL) {
+    if (clouds != nullptr) {
         clouds->SetPosition(cloud_position);
     }
 
-    if (clouds != NULL) {
+    if (clouds != nullptr) {
         clouds->SetScale(1.0f, 1.0f, 1.0f);
     }
 
     MGDraw(clouds);
 
-    if (clouds != NULL) {
+    if (clouds != nullptr) {
         clouds->SetPosition(cloud_position);
     }
 
-    if (clouds != NULL) {
+    if (clouds != nullptr) {
         clouds->SetScale(1.0f, -1.0f, 1.0f);
     }
 
@@ -1705,10 +1693,6 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
         moon = following_sun;
     }
 
-    if (current_sun != NULL && following_sun != NULL && moon == NULL) {
-        moon = (CFrame *) moon;
-    }
-
     if (clock > 11.5f && clock < 12.0f) {
         ambient[3] = 2.0f * (128.0f * (12.0f - clock));
         transition = 1;
@@ -1745,7 +1729,7 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
                 *ambient_alpha = 128.0f - alpha;
                 MGSetAmbient(ambient);
 
-                if (next_sun != 2 && following_sun != NULL) {
+                if (next_sun != 2 && following_sun != nullptr) {
                     following_sun->SetTransMatrix(identity);
                     following_sun->SetRotation(0.0f, 0.0f, sun_rotation);
                     following_sun->SetPosition(position);
@@ -1755,7 +1739,7 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
 
             *ambient_alpha = alpha;
 
-            if (sun_index != 2 && current_sun != NULL) {
+            if (sun_index != 2 && current_sun != nullptr) {
                 current_sun->SetTransMatrix(identity);
                 MGSetAmbient(ambient);
                 current_sun->SetRotation(0.0f, 0.0f, sun_rotation);
@@ -1767,11 +1751,11 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
 
     mgRenderInfo.unlit = 1;
 
-    if (clouds != NULL) {
+    if (clouds != nullptr) {
         clouds->SetPosition(cloud_position);
     }
 
-    if (clouds != NULL) {
+    if (clouds != nullptr) {
         clouds->SetScale(1.0f, -1.0f, 1.0f);
     }
 
@@ -1808,7 +1792,7 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
         MGSetAmbient(ambient);
         TexManager.ReloadTexture(Vif1Packet, next_sky + 3);
 
-        if (following_sky != NULL) {
+        if (following_sky != nullptr) {
             following_sky->SetPosition(position);
         }
 
@@ -1819,14 +1803,14 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
     MGSetAmbient(ambient);
     TexManager.ReloadTexture(Vif1Packet, sky_index + 3);
 
-    if (current_sky != NULL) {
+    if (current_sky != nullptr) {
         current_sky->SetPosition(position);
     }
 
     MGDraw(current_sky);
     MGSetAmbient(old_ambient);
 
-    if (sun_index == 2 && moon != NULL) {
+    if (sun_index == 2 && moon != nullptr) {
         *ambient_alpha = 0.0f;
 
         if (clock > 5.5f && clock < 9.0) {
@@ -1853,7 +1837,7 @@ void EdDrawSky(float clock, CFrameVu1 **sky, CFrame **sun, CFrameVu1 *clouds, CC
 }
 
 void EdDrawLensFlare(float time, CFrame **sky) {
-    int sky_index = (int) (time / 3.0f);
+    int sky_index = static_cast<int>(time / 3.0f);
 
     if (!EdCheckTime(time, (0, 10.0f), 4.0f)) {
         return;
@@ -1861,14 +1845,14 @@ void EdDrawLensFlare(float time, CFrame **sky) {
 
     CFrame **sky_slot = &sky[sky_index];
 
-    if (*sky_slot == NULL) {
+    if (*sky_slot == nullptr) {
         return;
     }
 
     sceVu0FVECTOR position;
     int           screen[4];
     sceVu0FVECTOR origin = {0.0f, 0.0f, 0.0f, 1.0f};
-    CFrame       *light = NULL;
+    CFrame       *light = nullptr;
 
     if (sky_index == 0) {
         light = (*sky_slot)->SearchFrame("sun1");
@@ -1882,7 +1866,7 @@ void EdDrawLensFlare(float time, CFrame **sky) {
         light = (*sky_slot)->SearchFrame("moon");
     }
 
-    if (light != NULL) {
+    if (light != nullptr) {
         light->GetWorldPosition(position, origin);
     }
 
@@ -1890,9 +1874,9 @@ void EdDrawLensFlare(float time, CFrame **sky) {
         return;
     }
 
-    float fraction = time - (int) time;
+    float fraction = time - static_cast<int>(time);
     float inverse = 1.0f - fraction;
-    int   current = (int) time;
+    int   current = static_cast<int>(time);
     int   next = current + 1;
 
     if (next >= 12) {
@@ -1913,9 +1897,9 @@ void EdDrawLensFlare(float time, CFrame **sky) {
         {255.0f, 255.0f, 255.0f},
         {255.0f, 255.0f, 255.0f}
     };
-    unsigned char red = (unsigned char) (color[current][0] * inverse + color[next][0] * fraction);
-    unsigned char green = (unsigned char) (color[current][1] * inverse + color[next][1] * fraction);
-    unsigned char blue = (unsigned char) (color[current][2] * inverse + color[next][2] * fraction);
+    auto red = static_cast<unsigned char>(color[current][0] * inverse + color[next][0] * fraction);
+    auto green = static_cast<unsigned char>(color[current][1] * inverse + color[next][1] * fraction);
+    auto blue = static_cast<unsigned char>(color[current][2] * inverse + color[next][2] * fraction);
 
     if (!MGRotTransPers2D(screen, position, 0)) {
         return;
@@ -1933,21 +1917,21 @@ void EdDrawLensFlare(float time, CFrame **sky) {
         TexManager.ReloadTexture(GetVif1Packet(), 23);
         CTexture *texture = TexManager.GetTexture("lensfler", 23);
 
-        if (texture != NULL) {
+        if (texture != nullptr) {
             LensFlare(texture, position, red, green, blue);
         }
     }
 }
 
 void EdSetLightParam(float clock, int fixed, EDIT_MAP_INFO *info, CFrameVu1 *sky) {
-    int current = (int) clock;
-    int next = (int) clock + 1;
+    int current = static_cast<int>(clock);
+    int next = static_cast<int>(clock) + 1;
 
     if (info->time_stop != 0) {
         next = current;
     }
 
-    float current_weight = (float) next - clock;
+    float current_weight = static_cast<float>(next) - clock;
     float next_weight = 1.0f - current_weight;
 
     if (next >= 12) {
@@ -1955,15 +1939,14 @@ void EdSetLightParam(float clock, int fixed, EDIT_MAP_INFO *info, CFrameVu1 *sky
     }
 
     EDIT_FOG_INFO  fixed_fog;
-    EDIT_FOG_INFO *current_fog;
-    EDIT_FOG_INFO *next_fog;
+    EDIT_FOG_INFO *current_fog = nullptr;
+    EDIT_FOG_INFO *next_fog = nullptr;
     sceVu0FVECTOR  background;
     sceVu0FVECTOR  current_background;
     sceVu0FVECTOR  next_background;
 
     if (fixed != 0) {
-        float zero = 0.0f;
-        MGSetBGColor(zero, zero, zero, zero = 0.0f);
+        MGSetBGColor(0.0f, 0.0f, 0.0f, 0.0f);
         fixed_fog = info->fog[current];
         fixed_fog.far_distance *= 10.0f;
         fixed_fog.near_distance *= 10.0f;
@@ -1985,12 +1968,9 @@ void EdSetLightParam(float clock, int fixed, EDIT_MAP_INFO *info, CFrameVu1 *sky
     float fog_red = current_fog->red * current_weight + next_fog->red * next_weight;
     float fog_green = current_fog->green * current_weight + next_fog->green * next_weight;
     float fog_blue = current_fog->blue * current_weight + next_fog->blue * next_weight;
-    (unsigned char) fog_red;
-    (unsigned char) fog_green;
-    (unsigned char) fog_blue;
     float fog_intensity = current_fog->intensity * current_weight + next_fog->intensity * next_weight;
     float fog_exponent = current_fog->exponent * current_weight + next_fog->exponent * next_weight;
-    MGSetFogParm(fog_near, fog_far, (unsigned char) fog_red, (unsigned char) fog_green, (unsigned char) fog_blue, fog_intensity, fog_exponent);
+    MGSetFogParm(fog_near, fog_far, static_cast<unsigned char>(fog_red), static_cast<unsigned char>(fog_green), static_cast<unsigned char>(fog_blue), fog_intensity, fog_exponent);
 
     sceVu0FVECTOR ambient;
     sceVu0FVECTOR current_ambient;
@@ -2029,18 +2009,18 @@ void EdSetLightParam(float clock, int fixed, EDIT_MAP_INFO *info, CFrameVu1 *sky
     sceVu0TransposeMatrix(direction, direction);
     MGSetPLight(direction, colour);
 
-    if (sky != NULL) {
+    if (sky != nullptr) {
         CVisualVu1 *visual = sky->GetVisual();
 
-        if (visual != NULL) {
-            MDT_HEADER *model = (MDT_HEADER *) visual->GetMDTDataAddress();
+        if (visual != nullptr) {
+            auto *model = reinterpret_cast<MDT_HEADER *>(visual->GetMDTDataAddress());
 
-            if (model != NULL && model->colour_count != 0) {
-                sceVu0FVECTOR *vertices = (sceVu0FVECTOR *) ((char *) model + model->colour_ofs);
-                sceVu0FVECTOR  primary;
-                sceVu0FVECTOR  secondary;
-                sceVu0FVECTOR  second_current;
-                sceVu0FVECTOR  second_next;
+            if (model != nullptr && model->colour_count != 0) {
+                auto         *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<char *>(model) + model->colour_ofs);
+                sceVu0FVECTOR primary;
+                sceVu0FVECTOR secondary;
+                sceVu0FVECTOR second_current;
+                sceVu0FVECTOR second_next;
                 MGGetBGColor(primary);
                 sceVu0CopyVector(second_current, info->background_colour_2[current]);
                 sceVu0CopyVector(second_next, info->background_colour_2[next]);
@@ -2074,19 +2054,21 @@ void EdSetLightParam(float clock, int fixed, EDIT_MAP_INFO *info, CFrameVu1 *sky
     }
 }
 
-int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header);
+namespace {
 
 /** Colour and GS-scale alpha used to cover the screen during an editor fade. */
-static float fade_col[4];
+std::array<float, 4> fade_col;
 
 /** Direction and active-state flag for the editor fade. */
-static int fade_in_out;
+int fade_in_out;
 
 /** Target GS alpha for the active editor fade. */
-static int fade_end;
+int fade_end;
 
 /** GS alpha added on each frame of the active editor fade. */
-static float fade_step;
+float fade_step;
+
+} // namespace
 
 ED_EVENT_INFO EdEventInfo;
 
@@ -2102,8 +2084,6 @@ void EdFadeInit() {
     fade_end = 0;
 }
 
-/* A negative frame count means no step at all: the alpha is forced to the end this call starts
-   from and stays there, which is how a colour is held over the screen rather than faded through. */
 void EdFadeIn(int frames, float red, float green, float blue) {
     if (fade_in_out == 0 || frames < 0) {
         fade_col[3] = 128.0f;
@@ -2115,7 +2095,7 @@ void EdFadeIn(int frames, float red, float green, float blue) {
     if (frames < 0) {
         fade_step = 0.0f;
     } else {
-        fade_step = 128.0f / (float) frames;
+        fade_step = 128.0f / static_cast<float>(frames);
     }
 
     fade_col[0] = red;
@@ -2134,7 +2114,7 @@ void EdFadeOut(int frames, float red, float green, float blue) {
     if (frames < 0) {
         fade_step = 0.0f;
     } else {
-        fade_step = 128.0f / (float) frames;
+        fade_step = 128.0f / static_cast<float>(frames);
     }
 
     fade_col[0] = red;
@@ -2153,25 +2133,24 @@ void EdGetFadeColor(float *colour) {
     colour[3] = fade_col[3];
 }
 
-/* The rectangle is in the sixteenths of a pixel the coordinate registers count in, which is what
-   the multiplications are; why the cover is 70 boxes rather than one the code does not say. */
+// Rectangle coordinates are in sixteenths of a pixel, as the GS coordinate registers count them.
 void EdFadeInOut() {
-    int      red;
-    int      green;
-    int      blue;
-    int      alpha;
-    int      x;
-    int      y;
+    int      red = 0;
+    int      green = 0;
+    int      blue = 0;
+    int      alpha = 0;
+    int      x = 0;
+    int      y = 0;
     CRect_i_ rect;
 
     if (fade_in_out == 0) {
         return;
     }
 
-    red = (int) fade_col[0];
-    green = (int) fade_col[1];
-    blue = (int) fade_col[2];
-    alpha = (int) fade_col[3];
+    red = static_cast<int>(fade_col[0]);
+    green = static_cast<int>(fade_col[1]);
+    blue = static_cast<int>(fade_col[2]);
+    alpha = static_cast<int>(fade_col[3]);
 
     if (fade_in_out > 0) {
         fade_col[3] -= fade_step;
@@ -2201,9 +2180,11 @@ void EdFadeInOut() {
     }
 }
 
-static float GetMaxHeightCursor(float *position) {
+namespace {
+
+float GetMaxHeightCursor(float *position) {
     int height = 0;
-    int count;
+    int count = 0;
 
     for (count = 0; count < 8; count++) {
         EDIT_AREA_RECT_INFO *area = &EditMapInfo->edit_area_rects[count];
@@ -2228,6 +2209,8 @@ static float GetMaxHeightCursor(float *position) {
     return height;
 }
 
+} // namespace
+
 void LimitEditCursorPos(float *position, float *movement) {
     sceVu0FVECTOR previous;
     sceVu0FVECTOR clamped;
@@ -2236,7 +2219,7 @@ void LimitEditCursorPos(float *position, float *movement) {
     sceVu0CopyVector(previous, position);
     sceVu0AddVector(position, position, movement);
 
-    int count;
+    int count = 0;
 
     for (count = 0; count < 8; count++) {
         EDIT_AREA_RECT_INFO *area = &EditMapInfo->edit_area_rects[count];
@@ -2293,10 +2276,10 @@ void LimitEditCursorPos(float *position, float *movement) {
 
     nearest = 0;
     EDIT_AREA_RECT_INFO *area = &EditMapInfo->edit_area_rects[0];
-    float                max_x_distance;
-    float                min_x_distance;
-    float                min_z_distance;
-    float                max_z_distance;
+    float                max_x_distance = 0.0f;
+    float                min_x_distance = 0.0f;
+    float                min_z_distance = 0.0f;
+    float                max_z_distance = 0.0f;
     float                x = position[0];
     max_x_distance = x - area->maximum[0];
 
@@ -2413,19 +2396,21 @@ void EdSePlay(ED_SOUND_ID sound, int pan) {
     SndSePlay(sound, pan, 0);
 }
 
-/** Script-controlled sprites used by editor events. */
-static ED_SPRITE Sprite[16];
+namespace {
 
-static ED_SPRITE *GetSprite(int index) {
+/** Script-controlled sprites used by editor events. */
+std::array<ED_SPRITE, 16> Sprite;
+
+ED_SPRITE *GetSprite(int index) {
     if (index < 0 || index >= 16) {
-        return NULL;
+        return nullptr;
     }
 
     return &Sprite[index];
 }
 
-static void InitSprite(ED_SPRITE *sprite) {
-    if (sprite == NULL) {
+void InitSprite(ED_SPRITE *sprite) {
+    if (sprite == nullptr) {
         return;
     }
 
@@ -2439,20 +2424,20 @@ static void InitSprite(ED_SPRITE *sprite) {
 }
 
 /** Object-animation slots used by editor event scripts. */
-static OBJ_ANIME_SEQ obj_anime[16];
+std::array<OBJ_ANIME_SEQ, 16> obj_anime;
 
-static OBJ_ANIME_SEQ *GetObjAnime(int index) {
+OBJ_ANIME_SEQ *GetObjAnime(int index) {
     if (index < 0 || index >= 16) {
-        return NULL;
+        return nullptr;
     }
 
     return &obj_anime[index];
 }
 
-static void ClearObjAnime(int index) {
+void ClearObjAnime(int index) {
     if (index < 0) {
-        for (int i = 0; i < 16; i++) {
-            obj_anime[i].property = OBJ_ANIME_PROPERTY_NONE;
+        for (auto &anime : obj_anime) {
+            anime.property = OBJ_ANIME_PROPERTY_NONE;
         }
 
         return;
@@ -2460,70 +2445,81 @@ static void ClearObjAnime(int index) {
 
     OBJ_ANIME_SEQ *anime = GetObjAnime(index);
 
-    if (anime != NULL) {
+    if (anime != nullptr) {
         anime->property = OBJ_ANIME_PROPERTY_NONE;
     }
 }
 
+} // namespace
+
 /** Whether the current event uses the lightweight initialization path. */
 int simple_event;
 
+namespace {
+
 /** Whether an editor-event program has been installed. */
-static int event_enable;
+int event_enable;
 
 /** Whether a system event is currently being run. */
-static int run_system_event;
+int run_system_event;
 
 /** Whether the current asynchronous load may continue without waiting. */
-static int not_wait_load;
+int not_wait_load;
 
 /** Whether event character motion is globally held. */
-static int motion_stop_flag;
+int motion_stop_flag;
+
+} // namespace
 
 /** Menu mode requested by the active event. */
 extern int menu_mode;
 
+namespace {
+
 /** State of the menu temporarily opened by an event. */
-static int menu_mode_status;
+int menu_mode_status;
+
+} // namespace
 
 /** Item-list string supplied to the editor's use-item menu. */
-static char *p_use_item;
+char *p_use_item;
 
-/** Map requested by the world-map event command. */
-static int p_jump_map_no;
+namespace {
 
 /** Whether execution of the current event has stopped. */
-static int event_stop;
+int event_stop;
 
 /** Whether advancement of the current editor event is paused. */
-static int event_pause;
+int event_pause;
 
 /** Whether the active script permits event skipping. */
-static int skip_enable;
+int skip_enable;
 
 /** Whether event-local/world coordinate conversion is enabled. */
-static int set_wl_matrix;
+int set_wl_matrix;
 
 /** Character followed by the event camera. */
-static CCharacter *follow_chara;
+CCharacter *follow_chara;
 
 /** Character used as the event camera's reference target. */
-static CCharacter *sync_camera_ref_chara;
+CCharacter *sync_camera_ref_chara;
 
 /** Object used as the event camera's reference target. */
-static OBJ_HANDLE *sync_camera_ref_obj;
+OBJ_HANDLE *sync_camera_ref_obj;
 
 /** Object used as the event camera's position target. */
-static OBJ_HANDLE *sync_camera_pos_obj;
+OBJ_HANDLE *sync_camera_pos_obj;
 
 /** Shared destination buffer used by asynchronous event resource loads. */
-static u_int *BaseBuffer;
+u_int *BaseBuffer;
 
 /** Character-file slot selected by subsequent event load commands. */
-static int actv_file;
+int actv_file;
 
 /** Resource arena selected by subsequent event load commands. */
-static int actv_buffer;
+int actv_buffer;
+
+} // namespace
 
 void EdEventStopPlay() {
     event_stop = !event_stop;
@@ -2537,67 +2533,75 @@ int EdCheckEventPause() {
     return event_pause;
 }
 
+namespace {
+
 /** Directory prepended to relative event resource names. */
-static char CurrentDir[0x40];
+std::string CurrentDir;
 
 /** Origin of the event script's optional world coordinate system. */
-static sceVu0FVECTOR world_pos;
+sceVu0FVECTOR world_pos;
 
 /** Rotation of the event script's optional world coordinate system. */
-static sceVu0FVECTOR world_rot;
+sceVu0FVECTOR world_rot;
 
 /** Matrix that converts event-local coordinates to world coordinates. */
-static sceVu0FMATRIX world_local;
+sceVu0FMATRIX world_local;
 
 /** Matrix that converts world coordinates to event-local coordinates. */
-static sceVu0FMATRIX local_world;
+sceVu0FMATRIX local_world;
 
 /** Offset added to the event camera's synchronized reference target. */
-static sceVu0FVECTOR sync_camera_ref_offset;
+sceVu0FVECTOR sync_camera_ref_offset;
 
 /** Integer scratch flags exposed to editor event scripts. */
-static int work_flag[32];
+std::array<int, 32> work_flag;
 
 /** Action records supplied to each editor-event sequencer. */
-static ACT_SEQ asq_table[266];
+std::array<ACT_SEQ, 266> asq_table;
 
 /** Action sequencers available to event scripts. */
-static CActionSeq ActSeq[10];
+std::array<CActionSeq, 10> ActSeq;
 
 /** Texture-animation records supplied to event characters. */
-static CTexAnimeData anime_data[320];
+std::array<CTexAnimeData, 320> anime_data;
 
 /**
  * Sprite-table entries shared by foreground and background event sprites.
  */
-static SPRITE_TABLE sprite_table[32];
+std::array<SPRITE_TABLE, 32> sprite_table;
 
 /** Foreground sprite command table for the active event. */
-static CSpriteTable SpriteTable;
+CSpriteTable SpriteTable;
 
 /** Background sprite command table for the active event. */
-static CSpriteTable SpriteTableBack;
+CSpriteTable SpriteTableBack;
+
+} // namespace
 
 CCharacter SceneData;
 
 CCamera DmmyCamera(4.0f);
 
 /** Bytecode interpreter used by editor events. */
-static CRunScript EdEventScript;
+CRunScript EdEventScript;
 
 CRunScript SystemEventScript;
 
+namespace {
+
 /** Archive slots populated by event character-file loads. */
-static u_int *chr_file[16];
+std::array<u_int *, 16> chr_file;
 
 /** Saved point-light direction presets available to event scripts. */
-static sceVu0FMATRIX save_l[2];
+std::array<sceVu0FMATRIX, 2> save_l;
 
 /** Saved point-light colour presets available to event scripts. */
-static sceVu0FMATRIX save_c[2];
+std::array<sceVu0FMATRIX, 2> save_c;
 
 /** Saved ambient-light colour presets available to event scripts. */
-static sceVu0FVECTOR save_a[2];
+std::array<sceVu0FVECTOR, 2> save_a;
+
+} // namespace
 
 int (*ext_func__2[1500])(RS_STACKDATA *, int);
 
@@ -2610,7 +2614,9 @@ struct ED_EVENT_EXTERNAL_FUNCTION {
 void EdDrawOffAll();
 void EdDrawOnAll();
 
-static int SetWorkFlag(int index, int value) {
+namespace {
+
+int SetWorkFlag(int index, int value) {
     if (index < 0 || index >= 32) {
         return 0;
     }
@@ -2619,7 +2625,7 @@ static int SetWorkFlag(int index, int value) {
     return 1;
 }
 
-static int GetWorkFlag(int index) {
+int GetWorkFlag(int index) {
     if (index < 0 || index >= 32) {
         return 0;
     }
@@ -2630,9 +2636,9 @@ static int GetWorkFlag(int index) {
 /**
  * Reads a script stack value as an integer, converting a tagged float when necessary.
  */
-static int GetStackInt(RS_STACKDATA *stack) {
+int GetStackInt(RS_STACKDATA *stack) {
     if (stack->type == RS_FLOAT) {
-        return (int) stack->f;
+        return static_cast<int>(stack->f);
     }
 
     return stack->i;
@@ -2641,9 +2647,9 @@ static int GetStackInt(RS_STACKDATA *stack) {
 /**
  * Reads a script stack value as a float, converting a tagged integer when necessary.
  */
-static float GetStackFloat(RS_STACKDATA *stack) {
+float GetStackFloat(RS_STACKDATA *stack) {
     if (stack->type == RS_INT) {
-        return (float) stack->i;
+        return static_cast<float>(stack->i);
     }
 
     return stack->f;
@@ -2652,14 +2658,14 @@ static float GetStackFloat(RS_STACKDATA *stack) {
 /**
  * Reads the string pointer stored in a script stack value.
  */
-static char *GetStackString(RS_STACKDATA *stack) {
+char *GetStackString(RS_STACKDATA *stack) {
     return stack->s;
 }
 
 /**
  * Writes an integer through a script stack reference value.
  */
-static void SetStack(RS_STACKDATA *stack, int value) {
+void SetStack(RS_STACKDATA *stack, int value) {
     if (stack->type == RS_PTR) {
         stack->p->i = value;
     }
@@ -2668,35 +2674,35 @@ static void SetStack(RS_STACKDATA *stack, int value) {
 /**
  * Writes a float through a script stack reference value.
  */
-static void SetStack(RS_STACKDATA *stack, float value) {
+void SetStack(RS_STACKDATA *stack, float value) {
     if (stack->type == RS_PTR) {
         stack->p->f = value;
     }
 }
 
-static void PrintMemory() {
+void PrintMemory() {
 }
 
-static OBJ_HANDLE *GetObjHandle(int index) {
+OBJ_HANDLE *GetObjHandle(int index) {
     if (index < 0 || index >= 32) {
-        return NULL;
+        return nullptr;
     }
 
     return &ObjHandle[index];
 }
 
-static int SetObjHandle(int index, CMapParts *map_parts, char *frame_name) {
+int SetObjHandle(int index, CMapParts *map_parts, char *frame_name) {
     OBJ_HANDLE *handle = GetObjHandle(index);
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
-    if (map_parts == NULL) {
+    if (map_parts == nullptr) {
         return 0;
     }
 
-    if (frame_name == NULL) {
+    if (frame_name == nullptr) {
         return 0;
     }
 
@@ -2709,10 +2715,10 @@ static int SetObjHandle(int index, CMapParts *map_parts, char *frame_name) {
     handle->frames[4] = map_parts->GetCollisionFrame();
     handle->frames[5] = map_parts->shadow_frame;
     handle->frames[6] = map_parts->shade_frame;
-    CFrame *extra_frame;
+    CFrame *extra_frame = nullptr;
 
-    if (map_parts->camera_frame == NULL) {
-        extra_frame = NULL;
+    if (map_parts->camera_frame == nullptr) {
+        extra_frame = nullptr;
     } else {
         map_parts->camera_frame->SetPosition(map_parts->pos[0], map_parts->pos[1], map_parts->pos[2]);
         map_parts->camera_frame->SetRotation(map_parts->rotation.x, map_parts->rotation.y, map_parts->rotation.z);
@@ -2724,17 +2730,17 @@ static int SetObjHandle(int index, CMapParts *map_parts, char *frame_name) {
     i += 9;
 
     for (; i < 12; i++) {
-        handle->frames[i] = NULL;
+        handle->frames[i] = nullptr;
     }
 
     if (frame_name[0] != '\0') {
         for (i = 0; i < 12; i++) {
-            if (handle->frames[i] != NULL) {
+            if (handle->frames[i] != nullptr) {
                 handle->frames[i] = handle->frames[i]->SearchFrame(frame_name);
             }
         }
 
-        handle->map_parts = NULL;
+        handle->map_parts = nullptr;
     } else {
         handle->map_parts = map_parts;
     }
@@ -2742,18 +2748,18 @@ static int SetObjHandle(int index, CMapParts *map_parts, char *frame_name) {
     return 1;
 }
 
-static int SetObjHandle(int index, CCharacter *character, char *frame_name) {
+int SetObjHandle(int index, CCharacter *character, char *frame_name) {
     OBJ_HANDLE *handle = GetObjHandle(index);
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
-    if (frame_name == NULL) {
+    if (frame_name == nullptr) {
         return 0;
     }
 
@@ -2764,17 +2770,17 @@ static int SetObjHandle(int index, CCharacter *character, char *frame_name) {
     i += 2;
 
     for (; i < 12; i++) {
-        handle->frames[i] = NULL;
+        handle->frames[i] = nullptr;
     }
 
     if (frame_name[0] != '\0') {
         for (i = 0; i < 12; i++) {
-            if (handle->frames[i] != NULL) {
+            if (handle->frames[i] != nullptr) {
                 handle->frames[i] = handle->frames[i]->SearchFrame(frame_name);
             }
         }
 
-        handle->map_parts = NULL;
+        handle->map_parts = nullptr;
     } else {
         handle->character = character;
     }
@@ -2782,10 +2788,10 @@ static int SetObjHandle(int index, CCharacter *character, char *frame_name) {
     return 1;
 }
 
-static int SetObjHandle(int index, CFrame *frame) {
+int SetObjHandle(int index, CFrame *frame) {
     OBJ_HANDLE *handle = GetObjHandle(index);
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return 0;
     }
 
@@ -2794,8 +2800,8 @@ static int SetObjHandle(int index, CFrame *frame) {
     return 1;
 }
 
-static void obj_draw(OBJ_HANDLE *handle, int draw) {
-    if (handle == NULL) {
+void obj_draw(OBJ_HANDLE *handle, int draw) {
+    if (handle == nullptr) {
         return;
     }
 
@@ -2807,148 +2813,146 @@ static void obj_draw(OBJ_HANDLE *handle, int draw) {
         frame_flags = 1;
     }
 
-    if (handle->map_parts != NULL) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->draw_on = draw;
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->attr.draw_on = frame_draw;
-            handle->frames[i]->flags = frame_flags;
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->attr.draw_on = frame_draw;
+            frame->flags = frame_flags;
         }
     }
 }
 
-static void set_obj_pos(OBJ_HANDLE *handle, float *position) {
-    if (handle->map_parts != NULL) {
+void set_obj_pos(OBJ_HANDLE *handle, float *position) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->SetPosition(position);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->SetPosition(position);
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->SetPosition(position);
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->SetPosition(position);
         }
     }
 }
 
-static void get_obj_pos(OBJ_HANDLE *handle, float *out_position) {
-    if (handle->map_parts != NULL) {
+void get_obj_pos(OBJ_HANDLE *handle, float *out_position) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->GetPosition(out_position);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->GetPosition(out_position);
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            sceVu0CopyVector(out_position, handle->frames[i]->position);
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            sceVu0CopyVector(out_position, frame->position);
             return;
         }
     }
 }
 
-static void get_obj_world_pos(OBJ_HANDLE *handle, float *out_position) {
-    if (handle->map_parts != NULL) {
+void get_obj_world_pos(OBJ_HANDLE *handle, float *out_position) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->GetPosition(out_position);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->GetPosition(out_position);
         return;
     }
 
     sceVu0FVECTOR origin = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->GetWorldPosition(out_position, origin);
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->GetWorldPosition(out_position, origin);
             return;
         }
     }
 }
 
-static void set_obj_rot(OBJ_HANDLE *handle, float *rotation) {
-    if (handle->map_parts != NULL) {
+void set_obj_rot(OBJ_HANDLE *handle, float *rotation) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->SetRotation(rotation[0], rotation[1], rotation[2]);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->SetRotation(rotation[0], rotation[1], rotation[2]);
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->SetRotType(2);
-            handle->frames[i]->SetRotation(rotation[0], rotation[1], rotation[2]);
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->SetRotType(2);
+            frame->SetRotation(rotation[0], rotation[1], rotation[2]);
         }
     }
 }
 
-static void get_obj_rot(OBJ_HANDLE *handle, float *out_rotation) {
-    if (handle->map_parts != NULL) {
+void get_obj_rot(OBJ_HANDLE *handle, float *out_rotation) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->GetRotation(out_rotation);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->GetRotation(out_rotation);
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->GetRotation(out_rotation);
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->GetRotation(out_rotation);
             return;
         }
     }
 }
 
-static void set_obj_scale(OBJ_HANDLE *handle, float *scale) {
-    if (handle->map_parts != NULL) {
+void set_obj_scale(OBJ_HANDLE *handle, float *scale) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->SetScale(scale);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->SetScale(scale);
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->SetScale(scale);
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->SetScale(scale);
         }
     }
 }
 
-static void get_obj_scale(OBJ_HANDLE *handle, float *out_scale) {
-    if (handle->map_parts != NULL) {
+void get_obj_scale(OBJ_HANDLE *handle, float *out_scale) {
+    if (handle->map_parts != nullptr) {
         handle->map_parts->GetScale(out_scale);
         return;
     }
 
-    if (handle->character != NULL) {
+    if (handle->character != nullptr) {
         handle->character->GetScale(out_scale);
         return;
     }
 
-    for (int i = 0; i < 12; i++) {
-        CFrame *frame = handle->frames[i];
-
-        if (frame != NULL) {
+    for (auto *frame : handle->frames) {
+        if (frame != nullptr) {
             out_scale[0] = frame->scale[0];
             out_scale[1] = frame->scale[1];
             out_scale[2] = frame->scale[2];
@@ -2957,11 +2961,11 @@ static void get_obj_scale(OBJ_HANDLE *handle, float *out_scale) {
     }
 }
 
-static int init_obj_anime(int anime_index, int handle_index, int type, int number, float *offset, float *range, float *speed) {
+int init_obj_anime(int anime_index, int handle_index, int type, int number, float *offset, float *range, float *speed) {
     OBJ_ANIME_SEQ *anime = GetObjAnime(anime_index);
     OBJ_HANDLE    *handle = GetObjHandle(handle_index);
 
-    if (anime == NULL || handle == NULL) {
+    if (anime == nullptr || handle == nullptr) {
         return 0;
     }
 
@@ -2975,55 +2979,57 @@ static int init_obj_anime(int anime_index, int handle_index, int type, int numbe
     return 1;
 }
 
-static void sync_obj_obj(OBJ_HANDLE *source, OBJ_HANDLE *targets) {
-    CFrame *reference = NULL;
-    int     i;
+void sync_obj_obj(OBJ_HANDLE *source, OBJ_HANDLE *targets) {
+    CFrame *reference = nullptr;
+    int     i = 0;
 
     for (i = 0; i < 12; i++) {
-        if (source->frames[i] != NULL) {
+        if (source->frames[i] != nullptr) {
             reference = source->frames[i];
             break;
         }
     }
 
-    if (reference != NULL) {
+    if (reference != nullptr) {
         for (i = 0; i < 12; i++) {
-            if (targets->frames[i] != NULL) {
+            if (targets->frames[i] != nullptr) {
                 targets->frames[i]->SetReference(reference);
             }
         }
     }
 }
 
-static void release_obj_obj(OBJ_HANDLE *handle) {
-    for (int i = 0; i < 12; i++) {
-        if (handle->frames[i] != NULL) {
-            handle->frames[i]->DeleteReference();
+void release_obj_obj(OBJ_HANDLE *handle) {
+    for (auto &frame : handle->frames) {
+        if (frame != nullptr) {
+            frame->DeleteReference();
         }
     }
 }
 
-static void set_attr_obj(OBJ_HANDLE *handle, CFrameAttr &attr, int children, int mask) {
-    if (handle->character != NULL) {
-        if (handle->character->frame != NULL) {
+void set_attr_obj(OBJ_HANDLE *handle, CFrameAttr &attr, int children, int mask) {
+    if (handle->character != nullptr) {
+        if (handle->character->frame != nullptr) {
             handle->character->frame->SetAttr(attr, children, mask);
         }
     } else {
-        for (int i = 0; i < 12; i++) {
-            if (handle->frames[i] != NULL) {
-                handle->frames[i]->SetAttr(attr, children, mask);
+        for (auto &frame : handle->frames) {
+            if (frame != nullptr) {
+                frame->SetAttr(attr, children, mask);
             }
         }
     }
 }
 
-static CActionSeq *GetActSeq(int index) {
+CActionSeq *GetActSeq(int index) {
     if (index < 0 || index >= 10) {
-        return NULL;
+        return nullptr;
     }
 
     return &ActSeq[index];
 }
+
+} // namespace
 
 void turn_chara(CCharacter *character, float *position, float speed) {
     sceVu0FVECTOR current_position;
@@ -3038,39 +3044,41 @@ void turn_chara(CCharacter *character, float *position, float speed) {
     character->SetRotation(rotation);
 }
 
-static CCharacter *GetScene(int index) {
+namespace {
+
+CCharacter *GetScene(int index) {
     return &SceneData;
 }
 
-static CNPCharacter *GetNPC(int index) {
+CNPCharacter *GetNPC(int index) {
     if (index < 0 || index >= EdEventInfo.npc_count) {
-        return NULL;
+        return nullptr;
     }
 
     return &EdEventInfo.npcs[index];
 }
 
-static CCharacter *GetChara(int index) {
+CCharacter *GetChara(int index) {
     if (index == -1) {
         return EdEventInfo.main_character;
     }
 
     if (index < 0 || index >= EdEventInfo.npc_count) {
-        return NULL;
+        return nullptr;
     }
 
     return &EdEventInfo.npcs[index];
 }
 
-static CFrame *GetItemFrame(int index) {
+CFrame *GetItemFrame(int index) {
     if (index < 0 || index > 0) {
-        return NULL;
+        return nullptr;
     }
 
     return EdEventInfo.item_frame[index];
 }
 
-static void DeleteItemFrame(int index) {
+void DeleteItemFrame(int index) {
     if (index < 0 || index > 0) {
         return;
     }
@@ -3078,21 +3086,21 @@ static void DeleteItemFrame(int index) {
     CFrameVu1 **frames = EdEventInfo.item_frame;
     CFrameVu1 **frame = &frames[index];
 
-    if (*frame != NULL) {
+    if (*frame != nullptr) {
         (*frame)->DeleteReference();
-        *frame = NULL;
+        *frame = nullptr;
     }
 }
 
-static VILLAGER_INFO *GetVillagerInfo(int index) {
+VILLAGER_INFO *GetVillagerInfo(int index) {
     if (index < 0 || index >= 16) {
-        return NULL;
+        return nullptr;
     }
 
     return &EdEventInfo.villagers[index];
 }
 
-static void SetWorldCoord(float *position, float *rotation) {
+void SetWorldCoord(float *position, float *rotation) {
     sceVu0CopyVector(world_pos, position);
     world_pos[3] = 1.0f;
     sceVu0CopyVector(world_rot, rotation);
@@ -3104,7 +3112,7 @@ static void SetWorldCoord(float *position, float *rotation) {
     set_wl_matrix = 1;
 }
 
-static void GetWorldPos(float *out, float *position) {
+void GetWorldPos(float *out, float *position) {
     if (set_wl_matrix == 0) {
         sceVu0CopyVector(out, position);
         return;
@@ -3114,7 +3122,7 @@ static void GetWorldPos(float *out, float *position) {
     sceVu0ApplyMatrix(out, world_local, position);
 }
 
-static float GetWorldRotY(float rotation) {
+float GetWorldRotY(float rotation) {
     rotation += world_rot[1];
 
     if (rotation > PI_SHORT) {
@@ -3128,12 +3136,12 @@ static float GetWorldRotY(float rotation) {
     return rotation;
 }
 
-static void GetWorldRot(float *out, float *rotation) {
+void GetWorldRot(float *out, float *rotation) {
     sceVu0CopyVector(out, rotation);
     out[1] = GetWorldRotY(out[1]);
 }
 
-static void GetLocalPos(float *out, float *position) {
+void GetLocalPos(float *out, float *position) {
     if (set_wl_matrix == 0) {
         sceVu0CopyVector(out, position);
         return;
@@ -3143,7 +3151,7 @@ static void GetLocalPos(float *out, float *position) {
     sceVu0ApplyMatrix(out, local_world, position);
 }
 
-static float GetLocalRotY(float rotation) {
+float GetLocalRotY(float rotation) {
     rotation -= world_rot[1];
 
     if (rotation > PI_SHORT) {
@@ -3157,12 +3165,12 @@ static float GetLocalRotY(float rotation) {
     return rotation;
 }
 
-static void GetLocalRot(float *out, float *rotation) {
+void GetLocalRot(float *out, float *rotation) {
     sceVu0CopyVector(out, rotation);
     out[1] = GetLocalRotY(out[1]);
 }
 
-static void GetPosition(RS_STACKDATA *stack, float *position) {
+void GetPosition(RS_STACKDATA *stack, float *position) {
     position[0] = GetStackFloat(stack++);
     position[1] = GetStackFloat(stack++);
     position[2] = GetStackFloat(stack);
@@ -3170,7 +3178,7 @@ static void GetPosition(RS_STACKDATA *stack, float *position) {
     GetWorldPos(position, position);
 }
 
-static void SetPosition(RS_STACKDATA *stack, float *position) {
+void SetPosition(RS_STACKDATA *stack, float *position) {
     position[3] = 1.0f;
     GetLocalPos(position, position);
     SetStack(stack++, position[0]);
@@ -3178,7 +3186,7 @@ static void SetPosition(RS_STACKDATA *stack, float *position) {
     SetStack(stack, position[2]);
 }
 
-static void GetRotation(RS_STACKDATA *stack, float *rotation) {
+void GetRotation(RS_STACKDATA *stack, float *rotation) {
     rotation[0] = GetStackFloat(stack++);
     rotation[1] = GetStackFloat(stack++);
     rotation[2] = GetStackFloat(stack);
@@ -3186,7 +3194,7 @@ static void GetRotation(RS_STACKDATA *stack, float *rotation) {
     GetWorldRot(rotation, rotation);
 }
 
-static void SetRotation(RS_STACKDATA *stack, float *rotation) {
+void SetRotation(RS_STACKDATA *stack, float *rotation) {
     rotation[3] = 0.0f;
     GetLocalRot(rotation, rotation);
     SetStack(stack++, rotation[0]);
@@ -3194,21 +3202,19 @@ static void SetRotation(RS_STACKDATA *stack, float *rotation) {
     SetStack(stack, rotation[2]);
 }
 
-static void GetFileName(char *destination, char *name) {
-    if (name[0] == '/') {
-        strcpy(destination, name + 1);
-        return;
+std::string GetFileName(std::string_view name) {
+    if (name.starts_with('/')) {
+        return std::string(name.substr(1));
     }
 
-    strcpy(destination, CurrentDir);
-    strcat(destination, name);
+    return CurrentDir + std::string(name);
 }
 
-static int _TEST(RS_STACKDATA *stack, int argument_count) {
+int _TEST(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int exch_ok_cancel(int buttons) {
+int exch_ok_cancel(int buttons) {
     int confirm = buttons & ED_PAD_CONFIRM;
     int cancel = buttons & ED_PAD_CANCEL;
     buttons &= ~(ED_PAD_CONFIRM | ED_PAD_CANCEL);
@@ -3224,7 +3230,7 @@ static int exch_ok_cancel(int buttons) {
     return buttons;
 }
 
-static int _GET_PADON(RS_STACKDATA *stack, int argument_count) {
+int _GET_PADON(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -3233,7 +3239,7 @@ static int _GET_PADON(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_PADDOWN(RS_STACKDATA *stack, int argument_count) {
+int _GET_PADDOWN(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -3242,7 +3248,7 @@ static int _GET_PADDOWN(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_PADUP(RS_STACKDATA *stack, int argument_count) {
+int _GET_PADUP(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -3251,7 +3257,7 @@ static int _GET_PADUP(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_APAD(RS_STACKDATA *stack, int argument_count) {
+int _GET_APAD(RS_STACKDATA *stack, int argument_count) {
     if (argument_count > 0) {
         SetStack(stack++, GamePad.GetLXf());
     }
@@ -3271,7 +3277,7 @@ static int _GET_APAD(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_RANDOM(RS_STACKDATA *stack, int argument_count) {
+int _GET_RANDOM(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -3280,20 +3286,20 @@ static int _GET_RANDOM(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_RETURN_CODE(RS_STACKDATA *stack, int argument_count) {
+int _SET_RETURN_CODE(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.return_code = GetStackInt(stack);
     return 1;
 }
 
-static int _NEXT_EVENT(RS_STACKDATA *stack, int argument_count) {
+int _NEXT_EVENT(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.next_event = GetStackInt(stack);
     return 1;
 }
 
-static int _GOTO_INTERIOR(RS_STACKDATA *stack, int argument_count) {
+int _GOTO_INTERIOR(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.interior_entrance = GetStackInt(stack++);
     char *destination = GetStackString(stack++);
-    strcpy(EdEventInfo.interior_name, destination);
+    CopyString(EdEventInfo.interior_name, destination);
 
     if (argument_count > 2) {
         EdEventInfo.interior_start_event = GetStackInt(stack);
@@ -3304,7 +3310,7 @@ static int _GOTO_INTERIOR(RS_STACKDATA *stack, int argument_count) {
     return EdEventInfo.return_code = ED_EVENT_RETURN_INTERIOR;
 }
 
-static int _SET_WORLD_COORD(RS_STACKDATA *stack, int argument_count) {
+int _SET_WORLD_COORD(RS_STACKDATA *stack, int argument_count) {
     if (argument_count == 6) {
         world_pos[0] = GetStackFloat(stack++);
         world_pos[1] = GetStackFloat(stack++);
@@ -3326,22 +3332,22 @@ static int _SET_WORLD_COORD(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INITIALIZE(RS_STACKDATA *stack, int argument_count) {
+int _INITIALIZE(RS_STACKDATA *stack, int argument_count) {
     EdInitEventParam();
     return 1;
 }
 
-static int _EXIT_CODE(RS_STACKDATA *stack, int argument_count) {
+int _EXIT_CODE(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.exit_code = GetStackInt(stack);
     return 1;
 }
 
-static int _DRAW_EXCLAMATION_MARK(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_EXCLAMATION_MARK(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.draw_exclamation_mark = true;
     return 1;
 }
 
-static int _GOTO_USE_ITEM(RS_STACKDATA *stack, int argument_count) {
+int _GOTO_USE_ITEM(RS_STACKDATA *stack, int argument_count) {
     int items[32];
 
     if (stack->type != RS_PTR) {
@@ -3350,7 +3356,7 @@ static int _GOTO_USE_ITEM(RS_STACKDATA *stack, int argument_count) {
 
     p_use_item = stack->s;
     stack++;
-    int i;
+    int i = 0;
 
     for (i = 0; i < argument_count - 1; i++) {
         items[i] = GetStackInt(stack++);
@@ -3363,31 +3369,35 @@ static int _GOTO_USE_ITEM(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NAME_REGISTRY(RS_STACKDATA *stack, int argument_count) {
+int _NAME_REGISTRY(RS_STACKDATA *stack, int argument_count) {
     EdSetNameRegChara(GetStackInt(stack));
     menu_mode = ED_MENU_NAME_REGISTRY;
     return 1;
 }
 
+} // namespace
+
 int _WORLD_MAP(RS_STACKDATA *stack, int argument_count);
 
-static int _SKIP(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _SKIP(RS_STACKDATA *stack, int argument_count) {
     skip_enable = GetStackInt(stack);
     return 1;
 }
 
-static int _GOTO_OUTSIDE(RS_STACKDATA *stack, int argument_count) {
+int _GOTO_OUTSIDE(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.outside_map_no = GetStackInt(stack);
     EdEventInfo.return_code = ED_EVENT_RETURN_OUTSIDE;
     return 1;
 }
 
-static int _FINISH(RS_STACKDATA *stack, int argument_count) {
+int _FINISH(RS_STACKDATA *stack, int argument_count) {
     EdEventAllClear();
     return 1;
 }
 
-static int _MAP_JUMP(RS_STACKDATA *stack, int argument_count) {
+int _MAP_JUMP(RS_STACKDATA *stack, int argument_count) {
     int map = GetStackInt(stack++) - 1;
     int event = -1;
 
@@ -3400,47 +3410,47 @@ static int _MAP_JUMP(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_OLD_MAPNO(RS_STACKDATA *stack, int argument_count) {
+int _GET_OLD_MAPNO(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, OldMapNo + 1);
     return 1;
 }
 
-static int _SET_DUNGEON_FLOOR(RS_STACKDATA *stack, int argument_count) {
+int _SET_DUNGEON_FLOOR(RS_STACKDATA *stack, int argument_count) {
     BtSetMapJumpFloor(GetStackInt(stack));
     return 1;
 }
 
-static int _GET_DUNGEON_FLOOR(RS_STACKDATA *stack, int argument_count) {
+int _GET_DUNGEON_FLOOR(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, BtMapJumpFloor);
     return 1;
 }
 
-static int _FADEOUT_TO_EVENT(RS_STACKDATA *stack, int argument_count) {
+int _FADEOUT_TO_EVENT(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.fadeout_event_no = GetStackInt(stack);
     return 1;
 }
 
-static int _MAP_JUMP_BGM_STOP(RS_STACKDATA *stack, int argument_count) {
+int _MAP_JUMP_BGM_STOP(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.map_jump_bgm_stop = GetStackInt(stack);
     return 1;
 }
 
-static int _MAP_JUMP_BGM_PLAY(RS_STACKDATA *stack, int argument_count) {
+int _MAP_JUMP_BGM_PLAY(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.map_jump_bgm_play = GetStackInt(stack);
     return 1;
 }
 
-static int _GOTO_FP_CHANGE(RS_STACKDATA *stack, int argument_count) {
+int _GOTO_FP_CHANGE(RS_STACKDATA *stack, int argument_count) {
     menu_mode = ED_MENU_FISHING_EXCHANGE;
     return 1;
 }
 
-static int _GOTO_FISH_RANKING(RS_STACKDATA *stack, int argument_count) {
+int _GOTO_FISH_RANKING(RS_STACKDATA *stack, int argument_count) {
     menu_mode = ED_MENU_FISH_RANKING;
     return 1;
 }
 
-static int _GOTO_CHANGE_ESA(RS_STACKDATA *stack, int argument_count) {
+int _GOTO_CHANGE_ESA(RS_STACKDATA *stack, int argument_count) {
     if (stack->type != RS_PTR) {
         return 0;
     }
@@ -3453,22 +3463,22 @@ static int _GOTO_CHANGE_ESA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_CURRENT_DIR(RS_STACKDATA *stack, int argument_count) {
+int _SET_CURRENT_DIR(RS_STACKDATA *stack, int argument_count) {
     char *directory = GetStackString(stack);
 
-    if (directory == NULL) {
+    if (directory == nullptr) {
         return 0;
     }
 
-    strcpy(CurrentDir, directory);
+    CurrentDir = directory;
     return 1;
 }
 
-static u_int *get_pack_file() {
+u_int *get_pack_file() {
     return chr_file[actv_file];
 }
 
-static CDataAlloc2<1> *get_buffer() {
+CDataAlloc2<1> *get_buffer() {
     if (actv_buffer == 1) {
         return &EdEventExBuffer;
     }
@@ -3476,7 +3486,7 @@ static CDataAlloc2<1> *get_buffer() {
     return &EdEventBuffer;
 }
 
-static int _ACTIVE_FILE_BUFFER(RS_STACKDATA *stack, int argument_count) {
+int _ACTIVE_FILE_BUFFER(RS_STACKDATA *stack, int argument_count) {
     actv_file = GetStackInt(stack++);
     actv_buffer = GetStackInt(stack);
 
@@ -3487,25 +3497,24 @@ static int _ACTIVE_FILE_BUFFER(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_CHR_FILE(RS_STACKDATA *stack, int argument_count) {
-    char path[128];
-    int  size;
+int _LOAD_CHR_FILE(RS_STACKDATA *stack, int argument_count) {
+    int size = 0;
     StartReadBG();
-    u_long128 *buffer = (u_long128 *) read_buffer;
-    int        i;
+    auto *buffer = reinterpret_cast<u_long128 *>(read_buffer);
+    int   i = 0;
 
     for (i = 0; i < 16; i++) {
-        chr_file[i] = NULL;
+        chr_file[i] = nullptr;
     }
 
     for (i = 0; i < argument_count; i++) {
         char *name = GetStackString(stack++);
 
-        if (name != NULL) {
-            GetFileName(path, name);
-            printf("%s\n", path);
-            chr_file[i] = (u_int *) buffer;
-            LoadFileBG(path, (u_long128 *) chr_file[i], &size);
+        if (name != nullptr) {
+            std::string path = GetFileName(name);
+            std::println("{}", path);
+            chr_file[i] = reinterpret_cast<u_int *>(buffer);
+            LoadFileBG(path.data(), reinterpret_cast<u_long128 *>(chr_file[i]), &size);
             buffer += (((size >> 6) + 1) << 6) >> 4;
         }
     }
@@ -3513,7 +3522,7 @@ static int _LOAD_CHR_FILE(RS_STACKDATA *stack, int argument_count) {
     return not_wait_load = 1;
 }
 
-static int _LOAD_SYNC(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_SYNC(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -3523,7 +3532,7 @@ static int _LOAD_SYNC(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_CHARA(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *name_stack = stack + 1;
     int           index = GetStackInt(stack);
 
@@ -3531,13 +3540,13 @@ static int _LOAD_CHARA(RS_STACKDATA *stack, int argument_count) {
         CCharacter *character = EdEventInfo.main_character;
         char       *name = GetStackString(name_stack);
 
-        if (name == NULL) {
+        if (name == nullptr) {
             return 0;
         }
 
         u_int *pack = get_pack_file();
 
-        if (pack == NULL) {
+        if (pack == nullptr) {
             return 0;
         }
 
@@ -3551,19 +3560,19 @@ static int _LOAD_CHARA(RS_STACKDATA *stack, int argument_count) {
 
     CNPCharacter *npc = GetNPC(index);
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
     char *name = GetStackString(name_stack);
 
-    if (name == NULL) {
+    if (name == nullptr) {
         return 0;
     }
 
     u_int *pack = get_pack_file();
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return 0;
     }
 
@@ -3582,7 +3591,7 @@ static int _LOAD_CHARA(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.npc_shadow_draw[index] = 1;
     npc->SetMotionCamera(EdEventInfo.camera);
 
-    if (npc->frame != NULL) {
+    if (npc->frame != nullptr) {
         npc->frame->SetAttr(attr, 1, 4);
     }
 
@@ -3590,41 +3599,41 @@ static int _LOAD_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_CHARA_TEXTURE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_CHARA_TEXTURE(RS_STACKDATA *stack, int argument_count) {
     LOADTEXTURE_INFO2 textures[16];
-    int               size;
+    int               size = 0;
     int               index = GetStackInt(stack++);
     CNPCharacter     *npc = GetNPC(index);
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
-    if (npc->images[0] != NULL) {
+    if (npc->images[0] != nullptr) {
         return 1;
     }
 
     int    block = EdEventInfo.npc_texture_block + index;
-    int    i;
+    int    i = 0;
     u_int *pack = get_pack_file();
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return 0;
     }
 
     for (i = 0; i < argument_count - 1; i++) {
         u_int *file = GetPackFile(pack, GetStackString(stack++), &size);
 
-        if (file != NULL) {
+        if (file != nullptr) {
             void *copy = get_buffer()->Alloc((size >> 4) + 1);
             memcpy(copy, file, size);
             textures[i].block_no = block;
             textures[i].mipmap = false;
-            textures[i].name = (char *) copy;
+            textures[i].name = static_cast<char *>(copy);
         }
     }
 
-    textures[i].name = NULL;
+    textures[i].name = nullptr;
     TexManager.DeleteTextureBlock(block);
     TexManager.CleanUpBuffer();
     TexManager.LoadTextureBlockEX(block, textures);
@@ -3632,93 +3641,93 @@ static int _LOAD_CHARA_TEXTURE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_SPRITE_TEXTURE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_SPRITE_TEXTURE(RS_STACKDATA *stack, int argument_count) {
     LOADTEXTURE_INFO2 textures[16];
-    int               size;
-    int               i;
+    int               size = 0;
+    int               i = 0;
     u_int            *pack = get_pack_file();
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return 0;
     }
 
     for (i = 0; i < argument_count; i++) {
         u_int *file = GetPackFile(pack, GetStackString(stack++), &size);
 
-        if (file != NULL) {
+        if (file != nullptr) {
             void *copy = get_buffer()->Alloc((size >> 4) + 1);
             memcpy(copy, file, size);
             textures[i].block_no = 45;
             textures[i].mipmap = false;
-            textures[i].name = (char *) copy;
+            textures[i].name = static_cast<char *>(copy);
         }
     }
 
-    textures[i].name = NULL;
+    textures[i].name = nullptr;
     TexManager.DeleteTextureBlock(45);
     TexManager.CleanUpBuffer();
     TexManager.LoadTextureBlockEX(45, textures);
     return 1;
 }
 
-static int _LOAD_BG_SPRITE_TEXTURE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_BG_SPRITE_TEXTURE(RS_STACKDATA *stack, int argument_count) {
     LOADTEXTURE_INFO2 textures[16];
-    int               size;
-    int               i;
+    int               size = 0;
+    int               i = 0;
     u_int            *pack = get_pack_file();
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return 0;
     }
 
     for (i = 0; i < argument_count; i++) {
         u_int *file = GetPackFile(pack, GetStackString(stack++), &size);
 
-        if (file != NULL) {
+        if (file != nullptr) {
             void *copy = get_buffer()->Alloc((size >> 4) + 1);
             memcpy(copy, file, size);
             textures[i].block_no = 46;
             textures[i].mipmap = false;
-            textures[i].name = (char *) copy;
+            textures[i].name = static_cast<char *>(copy);
         }
     }
 
-    textures[i].name = NULL;
+    textures[i].name = nullptr;
     TexManager.DeleteTextureBlock(46);
     TexManager.CleanUpBuffer();
     TexManager.LoadTextureBlockEX(46, textures);
     return 1;
 }
 
-static int _LOAD_TEXTURE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_TEXTURE(RS_STACKDATA *stack, int argument_count) {
     LOADTEXTURE_INFO2 textures[16];
-    int               size;
+    int               size = 0;
     int               block = GetStackInt(stack++) + 45;
 
     if (block > 49 || block < 45) {
         return 0;
     }
 
-    int    i;
+    int    i = 0;
     u_int *pack = get_pack_file();
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return 0;
     }
 
     for (i = 0; i < argument_count - 1; i++) {
         u_int *file = GetPackFile(pack, GetStackString(stack++), &size);
 
-        if (file != NULL) {
+        if (file != nullptr) {
             void *copy = get_buffer()->Alloc((size >> 4) + 1);
             memcpy(copy, file, size);
             textures[i].block_no = block;
             textures[i].mipmap = false;
-            textures[i].name = (char *) copy;
+            textures[i].name = static_cast<char *>(copy);
         }
     }
 
-    textures[i].name = NULL;
+    textures[i].name = nullptr;
     TexManager.DeleteTextureBlock(block);
     TexManager.CleanUpBuffer();
     TexManager.LoadTextureBlockEX(block, textures);
@@ -3727,30 +3736,26 @@ static int _LOAD_TEXTURE(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Activates and places the villager selected by an editor-event script.
- *
- * @mangled _LOAD_IN_VILLAGER__FP12RS_STACKDATAi
- * @address 0x18CD60
- * @size 0x1FC
  */
-static int _LOAD_IN_VILLAGER(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_IN_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     int           index = GetStackInt(stack++);
     CNPCharacter *npc = GetNPC(index);
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
     VILLAGER_INFO *villager = GetVillagerInfo(GetStackInt(stack++));
     char          *name = GetStackString(stack++);
 
-    if (name == NULL) {
+    if (name == nullptr) {
         return 0;
     }
 
     npc->texture_block = index + 54;
     EdLoadVillager(name, npc, &EdVillagerBuffer);
 
-    if (villager == NULL) {
+    if (villager == nullptr) {
         npc->map_parts_no = -1;
         npc->villager_id = -1;
     } else {
@@ -3784,23 +3789,19 @@ static int _LOAD_IN_VILLAGER(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Removes the villager selected by an editor-event script.
- *
- * @mangled _LOAD_OUT_VILLAGER__FP12RS_STACKDATAi
- * @address 0x18CF60
- * @size 0x1C0
  */
-static int _LOAD_OUT_VILLAGER(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_OUT_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     int           index = GetStackInt(stack++);
     CNPCharacter *npc = GetNPC(index);
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
     VILLAGER_INFO *villager = GetVillagerInfo(GetStackInt(stack++));
     char          *name = GetStackString(stack++);
 
-    if (name == NULL) {
+    if (name == nullptr) {
         return 0;
     }
 
@@ -3809,7 +3810,7 @@ static int _LOAD_OUT_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     npc->map_parts_no = -1;
     npc->villager_id = -1;
 
-    if (villager != NULL) {
+    if (villager != nullptr) {
         villager->index = -1;
     }
 
@@ -3836,53 +3837,53 @@ static int _LOAD_OUT_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_VILLAGER(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     EdVillagerBuffer.used = 0;
     EdSelectVillager(EdVillagerInfo, EdEventInfo.current_time, EditMapInfo);
-    EdInitVilager(EdVillagerInfo, EdEventInfo.edit_ground, NULL);
-    EdInitVilagerPosition(EdVillager, EdVillagerInfo, EdEventInfo.edit_ground, NULL);
+    EdInitVilager(EdVillagerInfo, EdEventInfo.edit_ground, nullptr);
+    EdInitVilagerPosition(EdVillager, EdVillagerInfo, EdEventInfo.edit_ground, nullptr);
     return 1;
 }
 
-static int _CHECK_IN_VILLAGER(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_IN_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack++);
     int in = EdCheckVillagerIn(index, &EdEventInfo.villagers[index]);
     SetStack(stack, in);
     return 1;
 }
 
-static int _APPEAR_VILLAGER_ON(RS_STACKDATA *stack, int argument_count) {
+int _APPEAR_VILLAGER_ON(RS_STACKDATA *stack, int argument_count) {
     EdVillagerAppearOn(GetStackInt(stack), 1);
     return 1;
 }
 
-static int _APPEAR_VILLAGER_OFF(RS_STACKDATA *stack, int argument_count) {
+int _APPEAR_VILLAGER_OFF(RS_STACKDATA *stack, int argument_count) {
     EdVillagerAppearOff(GetStackInt(stack), 1);
     return 1;
 }
 
-static int _APPEAR_VILLAGER_OUT(RS_STACKDATA *stack, int argument_count) {
+int _APPEAR_VILLAGER_OUT(RS_STACKDATA *stack, int argument_count) {
     EdVillagerAppearOut(GetStackInt(stack), 1);
     return 1;
 }
 
-static int _APPEAR_VILLAGER_IN(RS_STACKDATA *stack, int argument_count) {
+int _APPEAR_VILLAGER_IN(RS_STACKDATA *stack, int argument_count) {
     EdVillagerAppearIn(GetStackInt(stack), 1);
     return 1;
 }
 
-static int _APPEAR_VILLAGER_MOVE(RS_STACKDATA *stack, int argument_count) {
+int _APPEAR_VILLAGER_MOVE(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           index = GetStackInt(stack);
     EdVillagerAppearMove(index, GetStackInt(next), 1);
     return 1;
 }
 
-static int _DELETE_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _DELETE_CHARA(RS_STACKDATA *stack, int argument_count) {
     int           index = GetStackInt(stack);
     CNPCharacter *npc = GetNPC(index);
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
@@ -3893,11 +3894,11 @@ static int _DELETE_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INIT_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _INIT_CHARA(RS_STACKDATA *stack, int argument_count) {
     for (int i = 0; i < argument_count; i++) {
         CNPCharacter *npc = GetNPC(GetStackInt(stack++));
 
-        if (npc != NULL) {
+        if (npc != nullptr) {
             npc->Initialize();
         }
     }
@@ -3905,18 +3906,18 @@ static int _INIT_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CLEAR_VILLAGER_BUFF(RS_STACKDATA *stack, int argument_count) {
-    CDataAlloc2<1> *arena = (CDataAlloc2<1> *) BaseBuffer;
-    int             used = arena->used;
-    u_char         *base = arena->base + used * 16;
-    int             limit = arena->limit - used;
+int _CLEAR_VILLAGER_BUFF(RS_STACKDATA *stack, int argument_count) {
+    auto   *arena = reinterpret_cast<CDataAlloc2<1> *>(BaseBuffer);
+    int     used = arena->used;
+    u_char *base = arena->base + used * 16;
+    int     limit = arena->limit - used;
     EdVillagerBuffer.base = base;
     EdVillagerBuffer.limit = limit;
     EdVillagerBuffer.used = 0;
     return 1;
 }
 
-static int _CLEAR_EVENT_BUFF(RS_STACKDATA *stack, int argument_count) {
+int _CLEAR_EVENT_BUFF(RS_STACKDATA *stack, int argument_count) {
     int     used = EdVillagerBuffer.used;
     u_char *base = EdVillagerBuffer.base + used * 16;
     int     limit = EdVillagerBuffer.limit - used;
@@ -3926,7 +3927,7 @@ static int _CLEAR_EVENT_BUFF(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CLEAR_EVENT_EXBUFF(RS_STACKDATA *stack, int argument_count) {
+int _CLEAR_EVENT_EXBUFF(RS_STACKDATA *stack, int argument_count) {
     int     used = EdEventBuffer.used;
     u_char *base = EdEventBuffer.base + used * 16;
     int     limit = EdEventBuffer.limit - used;
@@ -3936,22 +3937,22 @@ static int _CLEAR_EVENT_EXBUFF(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_SCENE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_SCENE(RS_STACKDATA *stack, int argument_count) {
     CCharacter *scene = GetScene(GetStackInt(stack++));
 
-    if (scene == NULL) {
+    if (scene == nullptr) {
         return 0;
     }
 
     char *name = GetStackString(stack++);
 
-    if (name == NULL) {
+    if (name == nullptr) {
         return 0;
     }
 
     u_int *pack = get_pack_file();
 
-    if (pack == NULL) {
+    if (pack == nullptr) {
         return 0;
     }
 
@@ -3967,10 +3968,10 @@ static int _LOAD_SCENE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SYNC_SCENE_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_SCENE_CHARA(RS_STACKDATA *stack, int argument_count) {
     CCharacter *scene = GetScene(GetStackInt(stack++));
 
-    if (scene == NULL) {
+    if (scene == nullptr) {
         return 0;
     }
 
@@ -3982,41 +3983,41 @@ static int _SYNC_SCENE_CHARA(RS_STACKDATA *stack, int argument_count) {
         character = GetNPC(index);
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
-    if (scene->frame == NULL) {
+    if (scene->frame == nullptr) {
         return 0;
     }
 
     CFrame *reference = scene->frame->SearchFrame(name);
 
-    if (reference == NULL) {
+    if (reference == nullptr) {
         return 0;
     }
 
-    if (character->frame == NULL) {
+    if (character->frame == nullptr) {
         return 0;
     }
 
     character->frame->SetReference(reference);
 
-    if (character->shadow_frame != NULL) {
+    if (character->shadow_frame != nullptr) {
         character->shadow_frame->SetReference(reference);
     }
 
     return 1;
 }
 
-static int _SYNC_SCENE_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_SCENE_CAMERA(RS_STACKDATA *stack, int argument_count) {
     CCharacter *scene = GetScene(GetStackInt(stack));
 
-    if (scene == NULL) {
+    if (scene == nullptr) {
         return 0;
     }
 
-    if (EdEventInfo.camera != NULL) {
+    if (EdEventInfo.camera != nullptr) {
         EdEventInfo.camera->FollowOff();
         scene->motion_type.state.camera = EdEventInfo.camera;
     }
@@ -4024,7 +4025,7 @@ static int _SYNC_SCENE_CAMERA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _RELEASE_SCENE_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _RELEASE_SCENE_CHARA(RS_STACKDATA *stack, int argument_count) {
     int         index = GetStackInt(stack);
     CCharacter *character = EdEventInfo.main_character;
 
@@ -4032,25 +4033,25 @@ static int _RELEASE_SCENE_CHARA(RS_STACKDATA *stack, int argument_count) {
         character = GetNPC(index);
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
-    if (character->frame != NULL) {
+    if (character->frame != nullptr) {
         character->frame->DeleteReference();
     }
 
-    if (character->shadow_frame != NULL) {
+    if (character->shadow_frame != nullptr) {
         character->shadow_frame->DeleteReference();
     }
 
     return 1;
 }
 
-static int _RELEASE_SCENE_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _RELEASE_SCENE_CAMERA(RS_STACKDATA *stack, int argument_count) {
     CCharacter *scene = GetScene(GetStackInt(stack));
 
-    if (scene == NULL) {
+    if (scene == nullptr) {
         return 0;
     }
 
@@ -4058,10 +4059,10 @@ static int _RELEASE_SCENE_CAMERA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_SCENE_POS(RS_STACKDATA *stack, int argument_count) {
+int _SET_SCENE_POS(RS_STACKDATA *stack, int argument_count) {
     CCharacter *scene = GetScene(GetStackInt(stack++));
 
-    if (scene == NULL) {
+    if (scene == nullptr) {
         return 0;
     }
 
@@ -4071,10 +4072,10 @@ static int _SET_SCENE_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_SCENE_ROT(RS_STACKDATA *stack, int argument_count) {
+int _SET_SCENE_ROT(RS_STACKDATA *stack, int argument_count) {
     CCharacter *scene = GetScene(GetStackInt(stack++));
 
-    if (scene == NULL) {
+    if (scene == nullptr) {
         return 0;
     }
 
@@ -4084,10 +4085,10 @@ static int _SET_SCENE_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_ITEM_FILE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_ITEM_FILE(RS_STACKDATA *stack, int argument_count) {
     char model_path[128];
     char texture_path[128];
-    int  size;
+    int  size = 0;
     EdGetItemFile(GetStackInt(stack), model_path, texture_path);
 
     if (model_path[0] == '\0' || texture_path[0] == '\0') {
@@ -4095,14 +4096,14 @@ static int _LOAD_ITEM_FILE(RS_STACKDATA *stack, int argument_count) {
     }
 
     StartReadBG();
-    u_long128 *buffer = (u_long128 *) read_buffer;
+    auto *buffer = reinterpret_cast<u_long128 *>(read_buffer);
     LoadFileBG(texture_path, buffer, &size);
     buffer += (((size >> 6) + 1) << 6) >> 4;
     LoadFileBG(model_path, buffer, &size);
     return 1;
 }
 
-static int _LOAD_ITEM(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_ITEM(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack);
 
     if (index < 0 || index > 0) {
@@ -4111,7 +4112,7 @@ static int _LOAD_ITEM(RS_STACKDATA *stack, int argument_count) {
 
     BG_READ_INFO *read = GetReadBGFile(0);
 
-    if (read == NULL) {
+    if (read == nullptr) {
         return 0;
     }
 
@@ -4122,36 +4123,36 @@ static int _LOAD_ITEM(RS_STACKDATA *stack, int argument_count) {
     LOADTEXTURE_INFO2 textures[2];
     textures[0].block_no = 40;
     textures[0].mipmap = false;
-    textures[0].name = (char *) copy;
-    textures[1].name = NULL;
+    textures[0].name = static_cast<char *>(copy);
+    textures[1].name = nullptr;
     TexManager.DeleteTextureBlock(40);
     TexManager.LoadTextureBlockEX(40, textures);
     read = GetReadBGFile(1);
 
-    if (read == NULL) {
+    if (read == nullptr) {
         return 0;
     }
 
-    EdEventInfo.item_frame[index] = LoadMDSFile((u_int *) read->buffer, get_buffer(), 0, NULL, NULL);
-    return EdEventInfo.item_frame[index] != NULL ? 1 : 0;
+    EdEventInfo.item_frame[index] = LoadMDSFile(reinterpret_cast<u_int *>(read->buffer), get_buffer(), 0, nullptr, nullptr);
+    return EdEventInfo.item_frame[index] != nullptr ? 1 : 0;
 }
 
-static int _SYNC_CHARA_ITEM(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_CHARA_ITEM(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack++));
     char       *name = GetStackString(stack++);
-    CFrame     *reference = NULL;
+    CFrame     *reference = nullptr;
 
-    if (name != NULL && name[0] != '\0') {
+    if (name != nullptr && name[0] != '\0') {
         reference = character->frame->SearchFrame(name);
     }
 
-    if (reference == NULL) {
+    if (reference == nullptr) {
         reference = character->frame;
     }
 
     CFrame *item = GetItemFrame(GetStackInt(stack));
 
-    if (item == NULL) {
+    if (item == nullptr) {
         return 0;
     }
 
@@ -4159,36 +4160,36 @@ static int _SYNC_CHARA_ITEM(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _RELEASE_CHARA_ITEM(RS_STACKDATA *stack, int argument_count) {
+int _RELEASE_CHARA_ITEM(RS_STACKDATA *stack, int argument_count) {
     CFrame *frame = GetItemFrame(GetStackInt(stack));
 
-    if (frame != NULL) {
+    if (frame != nullptr) {
         frame->DeleteReference();
     }
 
     return 1;
 }
 
-static int _DELETE_ITEM(RS_STACKDATA *stack, int argument_count) {
+int _DELETE_ITEM(RS_STACKDATA *stack, int argument_count) {
     DeleteItemFrame(GetStackInt(stack));
     TexManager.DeleteTextureBlock(40);
     return 1;
 }
 
-static int _SYNC_CHARA_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_CHARA_CHARA(RS_STACKDATA *stack, int argument_count) {
     CCharacter *source = GetChara(GetStackInt(stack++));
 
-    if (source == NULL) {
+    if (source == nullptr) {
         return 0;
     }
 
     char *name = GetStackString(stack++);
 
-    if (name == NULL) {
+    if (name == nullptr) {
         return 0;
     }
 
-    CFrame *reference;
+    CFrame *reference = nullptr;
 
     if (name[0] != '\0') {
         reference = source->frame->SearchFrame(name);
@@ -4196,48 +4197,48 @@ static int _SYNC_CHARA_CHARA(RS_STACKDATA *stack, int argument_count) {
         reference = source->frame;
     }
 
-    if (reference == NULL) {
+    if (reference == nullptr) {
         return 0;
     }
 
     CCharacter *target = GetChara(GetStackInt(stack));
 
-    if (target == NULL) {
+    if (target == nullptr) {
         return 0;
     }
 
-    if (target->frame == NULL) {
+    if (target->frame == nullptr) {
         return 0;
     }
 
     target->frame->SetReference(reference);
 
-    if (target->shadow_frame != NULL) {
+    if (target->shadow_frame != nullptr) {
         target->shadow_frame->SetReference(reference);
     }
 
     return 1;
 }
 
-static int _RELEASE_CHARA_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _RELEASE_CHARA_CHARA(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
-    if (character->frame != NULL) {
+    if (character->frame != nullptr) {
         character->frame->DeleteReference();
     }
 
-    if (character->shadow_frame != NULL) {
+    if (character->shadow_frame != nullptr) {
         character->shadow_frame->DeleteReference();
     }
 
     return 1;
 }
 
-static int _GET_CHARA_POS(RS_STACKDATA *stack, int argument_count) {
+int _GET_CHARA_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
 
     if (argument_count < 3) {
@@ -4249,7 +4250,7 @@ static int _GET_CHARA_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_CHARA_TALK_POS(RS_STACKDATA *stack, int argument_count) {
+int _GET_CHARA_TALK_POS(RS_STACKDATA *stack, int argument_count) {
     int position[2];
 
     if (argument_count < 2) {
@@ -4262,14 +4263,14 @@ static int _GET_CHARA_TALK_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_CHARA_POS(RS_STACKDATA *stack, int argument_count) {
+int _SET_CHARA_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     GetPosition(stack, position);
     EdEventInfo.main_character->SetPosition(position);
     return 1;
 }
 
-static int _SET_CHARA_ROT(RS_STACKDATA *stack, int argument_count) {
+int _SET_CHARA_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
 
     if (argument_count == 3) {
@@ -4288,7 +4289,7 @@ static int _SET_CHARA_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_CHARA_ROT(RS_STACKDATA *stack, int argument_count) {
+int _GET_CHARA_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
 
     if (argument_count < 3) {
@@ -4300,6 +4301,8 @@ static int _GET_CHARA_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
+} // namespace
+
 int _TURN_CHARA(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     GetPosition(stack, position);
@@ -4307,7 +4310,9 @@ int _TURN_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NPC_TALK_POS(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _GET_NPC_TALK_POS(RS_STACKDATA *stack, int argument_count) {
     int position[2];
 
     if (argument_count < 2) {
@@ -4331,7 +4336,7 @@ static int _GET_NPC_TALK_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
+int _GET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
 
     if (argument_count < 4) {
@@ -4341,13 +4346,13 @@ static int _GET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     CCharacter   *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
     character->GetPosition(position);
 
-    if (character->frame != NULL && character->frame->parent != NULL) {
+    if (character->frame != nullptr && character->frame->parent != nullptr) {
         SetStack(result++, position[0]);
         SetStack(result++, position[1]);
         SetStack(result, position[2]);
@@ -4358,16 +4363,16 @@ static int _GET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     RS_STACKDATA *argument = (0, stack + 1);
     CCharacter   *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
-    if (character->frame != NULL && character->frame->parent != NULL) {
+    if (character->frame != nullptr && character->frame->parent != nullptr) {
         position[0] = GetStackFloat(argument++);
         position[1] = GetStackFloat(argument++);
         position[2] = GetStackFloat(argument);
@@ -4381,22 +4386,22 @@ static int _SET_NPC_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
     CCharacter   *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
-    CFrame *parent = NULL;
+    CFrame *parent = nullptr;
 
-    if (character->frame != NULL) {
+    if (character->frame != nullptr) {
         parent = character->frame->parent;
     }
 
     if (argument_count == 4) {
-        if (parent != NULL) {
+        if (parent != nullptr) {
             rotation[0] = GetStackFloat(stack++);
             rotation[1] = GetStackFloat(stack++);
             rotation[2] = GetStackFloat(stack++);
@@ -4411,7 +4416,7 @@ static int _SET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
         rotation[0] = 0.0f;
         rotation[1] = GetStackFloat(stack);
 
-        if (parent == NULL) {
+        if (parent == nullptr) {
             GetWorldRot(rotation, rotation);
         }
     }
@@ -4420,7 +4425,7 @@ static int _SET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
+int _GET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
 
     if (argument_count < 4) {
@@ -4430,13 +4435,13 @@ static int _GET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     CCharacter   *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
     character->GetRotation(rotation);
 
-    if (character->frame != NULL && character->frame->parent != NULL) {
+    if (character->frame != nullptr && character->frame->parent != nullptr) {
         SetStack(result++, rotation[0]);
         SetStack(result++, rotation[1]);
         SetStack(result, rotation[2]);
@@ -4447,10 +4452,10 @@ static int _GET_NPC_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_SCALE(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_SCALE(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4467,12 +4472,12 @@ static int _SET_NPC_SCALE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NPC_SCALE(RS_STACKDATA *stack, int argument_count) {
+int _GET_NPC_SCALE(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR scale;
     RS_STACKDATA *result = (0, stack + 1);
     CCharacter   *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4483,13 +4488,13 @@ static int _GET_NPC_SCALE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NPC_POS_INIT(RS_STACKDATA *stack, int argument_count) {
+int _NPC_POS_INIT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR transform = {0.0f, 0.0f, 0.0f, 0.0f};
 
     for (int i = 0; i < argument_count; i++) {
         CCharacter *character = GetChara(GetStackInt(stack++));
 
-        if (character != NULL) {
+        if (character != nullptr) {
             character->SetPosition(transform);
             character->SetRotation(transform);
         }
@@ -4498,7 +4503,7 @@ static int _NPC_POS_INIT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NPC_PARTS_NO(RS_STACKDATA *stack, int argument_count) {
+int _GET_NPC_PARTS_NO(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 2) {
         return 0;
     }
@@ -4513,9 +4518,9 @@ static int _GET_NPC_PARTS_NO(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_MOTION(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_MOTION(RS_STACKDATA *stack, int argument_count) {
     int         index = GetStackInt(stack++);
-    CCharacter *character;
+    CCharacter *character = nullptr;
 
     if (index == -1) {
         character = EdEventInfo.main_character;
@@ -4523,7 +4528,7 @@ static int _SET_NPC_MOTION(RS_STACKDATA *stack, int argument_count) {
         character = GetNPC(index);
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4547,9 +4552,9 @@ static int _SET_NPC_MOTION(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_ANIME(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_ANIME(RS_STACKDATA *stack, int argument_count) {
     int         index = GetStackInt(stack++);
-    CCharacter *character;
+    CCharacter *character = nullptr;
 
     if (index == -1) {
         character = EdEventInfo.main_character;
@@ -4557,7 +4562,7 @@ static int _SET_NPC_ANIME(RS_STACKDATA *stack, int argument_count) {
         character = GetNPC(index);
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4581,7 +4586,7 @@ static int _SET_NPC_ANIME(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _TURN_NPC(RS_STACKDATA *stack, int argument_count) {
+int _TURN_NPC(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     int           index = GetStackInt(stack++);
 
@@ -4591,7 +4596,7 @@ static int _TURN_NPC(RS_STACKDATA *stack, int argument_count) {
 
     CCharacter *character = GetNPC(index);
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4600,13 +4605,15 @@ static int _TURN_NPC(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
+} // namespace
+
 int _NPC_DRAW(RS_STACKDATA *stack, int argument_count) {
     int draw = GetStackInt(stack++);
 
     for (int i = 0; i < argument_count - 1; i++) {
         int index = GetStackInt(stack++);
 
-        if (GetChara(index) != NULL) {
+        if (GetChara(index) != nullptr) {
             if (index < 0) {
                 EdEventInfo.player_draw = draw;
             }
@@ -4626,7 +4633,7 @@ int _NPC_DRAW_SHADOW(RS_STACKDATA *stack, int argument_count) {
     for (int i = 0; i < argument_count - 1; i++) {
         int index = GetStackInt(stack++);
 
-        if (GetChara(index) != NULL) {
+        if (GetChara(index) != nullptr) {
             if (index < 0) {
                 EdEventInfo.player_shadow_draw = draw;
             }
@@ -4647,7 +4654,7 @@ int _SET_NPC_FOOT_SOUND(RS_STACKDATA *stack, int argument_count) {
         int         index = GetStackInt(stack++);
         CCharacter *character = GetChara(index);
 
-        if (character != NULL) {
+        if (character != nullptr) {
             if (index < 0) {
                 EdEventInfo.player_foot_sound = mode;
             }
@@ -4665,11 +4672,13 @@ int _SET_NPC_FOOT_SOUND(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_FLOOR_ID(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _SET_NPC_FLOOR_ID(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *argument = (0, stack + 1);
     CCharacter   *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4679,16 +4688,12 @@ static int _SET_NPC_FLOOR_ID(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Script opcode that steps a villager; the step happens elsewhere.
- *
- * @mangled _NPC_STEP__FP12RS_STACKDATAi
- * @address 0x18F0A0
- * @size 0xC
  */
-static s32 _NPC_STEP(RS_STACKDATA *stack, s32 argument_count) {
+s32 _NPC_STEP(RS_STACKDATA *stack, s32 argument_count) {
     return 1;
 }
 
-static int _NPC_COL(RS_STACKDATA *stack, int argument_count) {
+int _NPC_COL(RS_STACKDATA *stack, int argument_count) {
     int collision = GetStackInt(stack++);
 
     for (int i = 0; i < argument_count - 1; i++) {
@@ -4706,7 +4711,7 @@ static int _NPC_COL(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NPC_STOP(RS_STACKDATA *stack, int argument_count) {
+int _NPC_STOP(RS_STACKDATA *stack, int argument_count) {
     int stopped = GetStackInt(stack++);
 
     for (int i = 0; i < argument_count - 1; i++) {
@@ -4724,7 +4729,7 @@ static int _NPC_STOP(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NPC_DRAW_BEFORE(RS_STACKDATA *stack, int argument_count) {
+int _NPC_DRAW_BEFORE(RS_STACKDATA *stack, int argument_count) {
     int order = GetStackInt(stack++);
     int i = 0;
 
@@ -4741,9 +4746,9 @@ static int _NPC_DRAW_BEFORE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INIT_NPC_CLOTH(RS_STACKDATA *stack, int argument_count) {
+int _INIT_NPC_CLOTH(RS_STACKDATA *stack, int argument_count) {
     int         index = GetStackInt(stack);
-    CCharacter *character;
+    CCharacter *character = nullptr;
 
     if (index == -1) {
         character = EdEventInfo.main_character;
@@ -4751,7 +4756,7 @@ static int _INIT_NPC_CLOTH(RS_STACKDATA *stack, int argument_count) {
         character = GetNPC(index);
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4759,11 +4764,11 @@ static int _INIT_NPC_CLOTH(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NPC_CLOTH_FLOOR(RS_STACKDATA *stack, int argument_count) {
+int _NPC_CLOTH_FLOOR(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *argument = (0, stack + 1);
     CCharacter   *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4771,10 +4776,10 @@ static int _NPC_CLOTH_FLOOR(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NPC_CLOTH_STEP(RS_STACKDATA *stack, int argument_count) {
+int _NPC_CLOTH_STEP(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4791,10 +4796,10 @@ static int _NPC_CLOTH_STEP(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_AMBIENT(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_AMBIENT(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4805,7 +4810,7 @@ static int _SET_NPC_AMBIENT(RS_STACKDATA *stack, int argument_count) {
         return 1;
     }
 
-    if ((unsigned int) (argument_count - 2) < 2) {
+    if (static_cast<unsigned int>(argument_count - 2) < 2) {
         float value = GetStackInt(stack++);
         character->ambient_offset[0] = value;
         character->ambient_offset[1] = value;
@@ -4825,10 +4830,10 @@ static int _SET_NPC_AMBIENT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_BODY_SIZE(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_BODY_SIZE(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4847,10 +4852,10 @@ static int _SET_NPC_BODY_SIZE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NPC_BODY_SIZE(RS_STACKDATA *stack, int argument_count) {
+int _GET_NPC_BODY_SIZE(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4869,10 +4874,10 @@ static int _GET_NPC_BODY_SIZE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _NPC_PLIGHT_INIT(RS_STACKDATA *stack, int argument_count) {
+int _NPC_PLIGHT_INIT(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(GetStackInt(stack));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -4880,26 +4885,26 @@ static int _NPC_PLIGHT_INIT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_NPC_PLIGHT(RS_STACKDATA *stack, int argument_count) {
+int _SET_NPC_PLIGHT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     float         light[5];
     CCharacter   *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
     GetPosition(stack, position);
     stack += 3;
 
-    for (int i = 0; i < 5; i++) {
-        light[i] = GetStackFloat(stack++);
+    for (float &component : light) {
+        component = GetStackFloat(stack++);
     }
 
     return character->SetPointLight(position, light[0], light[1], light[2], light[3], light[4], 128.0f);
 }
 
-static int _SGET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
+int _SGET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 2) {
         return 0;
     }
@@ -4907,7 +4912,7 @@ static int _SGET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     SV_GRD_NPC   *npc = SaveData->GetGrdNPCData(NowEditMap, GetStackInt(stack));
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
@@ -4915,11 +4920,11 @@ static int _SGET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SSET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
+int _SSET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     SV_GRD_NPC   *npc = SaveData->GetGrdNPCData(NowEditMap, GetStackInt(stack));
 
-    if (npc == NULL) {
+    if (npc == nullptr) {
         return 0;
     }
 
@@ -4927,22 +4932,22 @@ static int _SSET_NPC_TALK_MES(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static ClsMes *GetMes(int index) {
+ClsMes *GetMes(int index) {
     if (index < 0 || index >= 8) {
-        return NULL;
+        return nullptr;
     }
 
     return EdEventInfo.messages[index];
 }
 
-static int _MES_MAKE(RS_STACKDATA *stack, int argument_count) {
+int _MES_MAKE(RS_STACKDATA *stack, int argument_count) {
     ClsMes *message = GetMes(GetStackInt(stack++));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
-    if (EdEventInfo.camera != NULL) {
+    if (EdEventInfo.camera != nullptr) {
         sceVu0FMATRIX view;
         sceVu0FVECTOR eye;
         EdEventInfo.camera->GetCameraMatrix(view);
@@ -4964,7 +4969,7 @@ static int _MES_MAKE(RS_STACKDATA *stack, int argument_count) {
         for (int i = 4; argument_count >= i; i++) {
             int slot_message = GetStackInt(stack++);
             message->mes_no[i - 4] = slot_message;
-            printf("%d %d\n", i - 4, slot_message);
+            std::println("{} {}", i - 4, slot_message);
         }
     }
 
@@ -4972,10 +4977,10 @@ static int _MES_MAKE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _MES_CLOSE(RS_STACKDATA *stack, int argument_count) {
+int _MES_CLOSE(RS_STACKDATA *stack, int argument_count) {
     ClsMes *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -4985,10 +4990,10 @@ static int _MES_CLOSE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _MES_NEXTPAGE(RS_STACKDATA *stack, int argument_count) {
+int _MES_NEXTPAGE(RS_STACKDATA *stack, int argument_count) {
     ClsMes *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -4996,14 +5001,16 @@ static int _MES_NEXTPAGE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
+} // namespace
+
 int _SET_MES_AUTOSET(RS_STACKDATA *stack, int argument_count) {
     ClsMes *message = GetMes(GetStackInt(stack++));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
-    if (EdEventInfo.camera != NULL) {
+    if (EdEventInfo.camera != nullptr) {
         sceVu0FMATRIX view;
         sceVu0FVECTOR eye;
         EdEventInfo.camera->GetCameraMatrix(view);
@@ -5015,8 +5022,8 @@ int _SET_MES_AUTOSET(RS_STACKDATA *stack, int argument_count) {
     int talk_position[4];
 
     if (argument_count == 5) {
-        for (int i = 0; i < 4; i++) {
-            position[i] = GetStackInt(stack++);
+        for (int &coordinate : position) {
+            coordinate = GetStackInt(stack++);
         }
 
         message->AutoSet(position);
@@ -5036,10 +5043,12 @@ int _SET_MES_AUTOSET(RS_STACKDATA *stack, int argument_count) {
     return 0;
 }
 
-static int _SET_MES_SHIPPO(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _SET_MES_SHIPPO(RS_STACKDATA *stack, int argument_count) {
     ClsMes *message = GetMes(GetStackInt(stack++));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5056,11 +5065,11 @@ static int _SET_MES_SHIPPO(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_MES_POS(RS_STACKDATA *stack, int argument_count) {
+int _SET_MES_POS(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5068,11 +5077,11 @@ static int _SET_MES_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_MES_DRAWSPEED(RS_STACKDATA *stack, int argument_count) {
+int _SET_MES_DRAWSPEED(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5080,11 +5089,11 @@ static int _SET_MES_DRAWSPEED(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_MES_CURSOR(RS_STACKDATA *stack, int argument_count) {
+int _SET_MES_CURSOR(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5092,11 +5101,11 @@ static int _SET_MES_CURSOR(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_MES_OKURI(RS_STACKDATA *stack, int argument_count) {
+int _SET_MES_OKURI(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5104,11 +5113,11 @@ static int _SET_MES_OKURI(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_MES_WIN_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SET_MES_WIN_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5116,7 +5125,7 @@ static int _SET_MES_WIN_FLAG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CHECK_MES_COMPLETE(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_MES_COMPLETE(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 2) {
         return 0;
     }
@@ -5124,7 +5133,7 @@ static int _CHECK_MES_COMPLETE(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5132,7 +5141,7 @@ static int _CHECK_MES_COMPLETE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CHECK_MES_WAIT(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_MES_WAIT(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 2) {
         return 0;
     }
@@ -5140,7 +5149,7 @@ static int _CHECK_MES_WAIT(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5148,7 +5157,7 @@ static int _CHECK_MES_WAIT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CHECK_MES(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_MES(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 2) {
         return 0;
     }
@@ -5156,7 +5165,7 @@ static int _CHECK_MES(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5164,11 +5173,11 @@ static int _CHECK_MES(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_MES_FUKIDASHI(RS_STACKDATA *stack, int argument_count) {
+int _SET_MES_FUKIDASHI(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     ClsMes       *message = GetMes(GetStackInt(stack));
 
-    if (message == NULL) {
+    if (message == nullptr) {
         return 0;
     }
 
@@ -5176,7 +5185,7 @@ static int _SET_MES_FUKIDASHI(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ITEM_GET_MES(RS_STACKDATA *stack, int argument_count) {
+int _ITEM_GET_MES(RS_STACKDATA *stack, int argument_count) {
     int item = GetStackInt(stack++);
     int attachment = -1;
 
@@ -5192,17 +5201,17 @@ static int _ITEM_GET_MES(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INIT_SYS_MES(RS_STACKDATA *stack, int argument_count) {
+int _INIT_SYS_MES(RS_STACKDATA *stack, int argument_count) {
     ClearSystemMes();
     return 1;
 }
 
-static int _SKILL_GET_MES(RS_STACKDATA *stack, int argument_count) {
+int _SKILL_GET_MES(RS_STACKDATA *stack, int argument_count) {
     TecGetMes(GetStackInt(stack), 40);
     return 1;
 }
 
-static int _ADD_MAXITEM_MES(RS_STACKDATA *stack, int argument_count) {
+int _ADD_MAXITEM_MES(RS_STACKDATA *stack, int argument_count) {
     int amount = GetStackInt(stack);
 
     if (amount < 0) {
@@ -5213,7 +5222,7 @@ static int _ADD_MAXITEM_MES(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CHECK_COMPLETE_PARTS(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_COMPLETE_PARTS(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 2) {
         return 0;
     }
@@ -5223,12 +5232,12 @@ static int _CHECK_COMPLETE_PARTS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_EDIT_PARTS_POS(RS_STACKDATA *stack, int argument_count) {
+int _GET_EDIT_PARTS_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR rotation;
     CMapParts    *parts = EdEventInfo.edit_ground->GetPartsObject(GetStackInt(stack++));
 
-    if (parts == NULL) {
+    if (parts == nullptr) {
         return 0;
     }
 
@@ -5251,61 +5260,61 @@ static int _GET_EDIT_PARTS_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_NOW_TIME(RS_STACKDATA *stack, int argument_count) {
+int _GET_NOW_TIME(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, (0, EdGetTime(EdEventInfo.current_time)));
     return 1;
 }
 
-static int _SET_CLOCK(RS_STACKDATA *stack, int argument_count) {
+int _SET_CLOCK(RS_STACKDATA *stack, int argument_count) {
     EdSetClock(GetStackFloat(stack));
     return 1;
 }
 
-static int _GET_CLOCK(RS_STACKDATA *stack, int argument_count) {
+int _GET_CLOCK(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, EdGetClock());
     return 1;
 }
 
-static int _SGET_CMP_EVENT(RS_STACKDATA *stack, int argument_count) {
+int _SGET_CMP_EVENT(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           event = GetStackInt(stack);
     SetStack(result, (0, EditPartsInfo.GetCompEvent(event)));
     return 1;
 }
 
-static int _SSET_CMP_EVENT(RS_STACKDATA *stack, int argument_count) {
+int _SSET_CMP_EVENT(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           event = GetStackInt(stack);
     EditPartsInfo.SetCompEvent(event, GetStackInt(next));
     return 1;
 }
 
-static int _SCHECK_REQUEST(RS_STACKDATA *stack, int argument_count) {
+int _SCHECK_REQUEST(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           request = GetStackInt(stack);
     SetStack(result, (0, EditPartsInfo.GetRequest(request)));
     return 1;
 }
 
-static int _CHECK_PLACE(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_PLACE(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, EdInteriorFlag);
     return 1;
 }
 
-static int _CHECK_VILLAGER(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_VILLAGER(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           index = GetStackInt(stack);
     SetStack(result, EdCheckVillager(index, &EdEventInfo.villagers[index], EdEventInfo.edit_ground));
     return 1;
 }
 
-static int _DELETE_ROBO_PARTS(RS_STACKDATA *stack, int argument_count) {
+int _DELETE_ROBO_PARTS(RS_STACKDATA *stack, int argument_count) {
     EdDeleteE05RoboParts();
     return 1;
 }
 
-static int _HOBJ_FIXPARTS(RS_STACKDATA *stack, int argument_count) {
-    if (EdEventInfo.fixed_parts == NULL) {
+int _HOBJ_FIXPARTS(RS_STACKDATA *stack, int argument_count) {
+    if (EdEventInfo.fixed_parts == nullptr) {
         return 1;
     }
 
@@ -5324,8 +5333,8 @@ static int _HOBJ_FIXPARTS(RS_STACKDATA *stack, int argument_count) {
     return SetObjHandle(handle, &EdEventInfo.fixed_parts[index], GetStackString(stack)) ? result : 0;
 }
 
-static int _HOBJ_EDITPARTS(RS_STACKDATA *stack, int argument_count) {
-    if (EdEventInfo.edit_parts == NULL) {
+int _HOBJ_EDITPARTS(RS_STACKDATA *stack, int argument_count) {
+    if (EdEventInfo.edit_parts == nullptr) {
         return 1;
     }
 
@@ -5344,8 +5353,8 @@ static int _HOBJ_EDITPARTS(RS_STACKDATA *stack, int argument_count) {
     return SetObjHandle(handle, &EdEventInfo.edit_parts[index], GetStackString(stack)) ? result : 0;
 }
 
-static int _HOBJ_INTERIORPARTS(RS_STACKDATA *stack, int argument_count) {
-    if (EdEventInfo.interior_parts == NULL) {
+int _HOBJ_INTERIORPARTS(RS_STACKDATA *stack, int argument_count) {
+    if (EdEventInfo.interior_parts == nullptr) {
         return 1;
     }
 
@@ -5364,25 +5373,25 @@ static int _HOBJ_INTERIORPARTS(RS_STACKDATA *stack, int argument_count) {
     return SetObjHandle(handle, &EdEventInfo.interior_parts[index], GetStackString(stack)) ? result : 0;
 }
 
-static int _HOBJ_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _HOBJ_CHARA(RS_STACKDATA *stack, int argument_count) {
     int         handle_index = GetStackInt(stack++);
     CCharacter *character = GetChara(GetStackInt(stack++));
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
     return SetObjHandle(handle_index, character, GetStackString(stack)) != 0 ? 1 : 0;
 }
 
-static int _HOBJ_BT_HOBJ(RS_STACKDATA *stack, int argument_count) {
-    OBJ_HANDLE *handle;
-    int         i;
-    int         count;
+int _HOBJ_BT_HOBJ(RS_STACKDATA *stack, int argument_count) {
+    OBJ_HANDLE *handle = nullptr;
+    int         i = 0;
+    int         count = 0;
     count = argument_count;
     handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5395,7 +5404,7 @@ static int _HOBJ_BT_HOBJ(RS_STACKDATA *stack, int argument_count) {
     for (i = 0; i < count - 1; i++) {
         BT_OBJ_HANDLE *object = GetObjHDL(GetStackInt(stack++));
 
-        if (object == NULL) {
+        if (object == nullptr) {
             return 0;
         }
 
@@ -5415,25 +5424,25 @@ static int _HOBJ_BT_HOBJ(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _HOBJ_ITEM(RS_STACKDATA *stack, int argument_count) {
+int _HOBJ_ITEM(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           handle_index = GetStackInt(stack);
     CFrame       *frame = GetItemFrame(GetStackInt(next));
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return 0;
     }
 
     return SetObjHandle(handle_index, frame) != 0 ? 1 : 0;
 }
 
-static int _OBJ_DRAW(RS_STACKDATA *stack, int argument_count) {
+int _OBJ_DRAW(RS_STACKDATA *stack, int argument_count) {
     int draw = GetStackInt(stack++);
 
     for (int i = 0; i < argument_count - 1; i++) {
         OBJ_HANDLE *handle = GetObjHandle(GetStackInt(stack++));
 
-        if (handle != NULL) {
+        if (handle != nullptr) {
             obj_draw(handle, draw);
         }
     }
@@ -5441,11 +5450,11 @@ static int _OBJ_DRAW(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_OBJ_POS(RS_STACKDATA *stack, int argument_count) {
+int _SET_OBJ_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     OBJ_HANDLE   *handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5457,11 +5466,11 @@ static int _SET_OBJ_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_OBJ_POS(RS_STACKDATA *stack, int argument_count) {
+int _GET_OBJ_POS(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     OBJ_HANDLE   *handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5476,11 +5485,11 @@ static int _GET_OBJ_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_OBJ_ROT(RS_STACKDATA *stack, int argument_count) {
+int _SET_OBJ_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
     OBJ_HANDLE   *handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5492,11 +5501,11 @@ static int _SET_OBJ_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_OBJ_ROT(RS_STACKDATA *stack, int argument_count) {
+int _GET_OBJ_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
     OBJ_HANDLE   *handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5511,11 +5520,11 @@ static int _GET_OBJ_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_OBJ_SCALE(RS_STACKDATA *stack, int argument_count) {
+int _SET_OBJ_SCALE(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *arguments = (0, stack + 1);
     OBJ_HANDLE   *handle = GetObjHandle(GetStackInt(stack));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5528,11 +5537,11 @@ static int _SET_OBJ_SCALE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_OBJ_SCALE(RS_STACKDATA *stack, int argument_count) {
+int _GET_OBJ_SCALE(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR scale;
     OBJ_HANDLE   *handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5547,17 +5556,17 @@ static int _GET_OBJ_SCALE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SYNC_OBJ_OBJ(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_OBJ_OBJ(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     OBJ_HANDLE   *source = GetObjHandle(GetStackInt(stack));
 
-    if (source == NULL) {
+    if (source == nullptr) {
         return 0;
     }
 
     OBJ_HANDLE *target = GetObjHandle(GetStackInt(next));
 
-    if (target == NULL) {
+    if (target == nullptr) {
         return 0;
     }
 
@@ -5565,10 +5574,10 @@ static int _SYNC_OBJ_OBJ(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _RELEASE_OBJ_OBJ(RS_STACKDATA *stack, int argument_count) {
+int _RELEASE_OBJ_OBJ(RS_STACKDATA *stack, int argument_count) {
     OBJ_HANDLE *handle = GetObjHandle(GetStackInt(stack));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5576,10 +5585,10 @@ static int _RELEASE_OBJ_OBJ(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_OBJ_FOG(RS_STACKDATA *stack, int argument_count) {
+int _SET_OBJ_FOG(RS_STACKDATA *stack, int argument_count) {
     OBJ_HANDLE *handle = GetObjHandle(GetStackInt(stack++));
 
-    if (handle == NULL) {
+    if (handle == nullptr) {
         return 0;
     }
 
@@ -5589,7 +5598,7 @@ static int _SET_OBJ_FOG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_TALKNPC_INFO_ID(RS_STACKDATA *stack, int argument_count) {
+int _GET_TALKNPC_INFO_ID(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -5598,7 +5607,7 @@ static int _GET_TALKNPC_INFO_ID(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_TALKNPC_ID(RS_STACKDATA *stack, int argument_count) {
+int _GET_TALKNPC_ID(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -5609,12 +5618,8 @@ static int _GET_TALKNPC_ID(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Pushes the active conversation villager's event status onto the script stack.
- *
- * @mangled _GET_TALKNPC_STATUS__FP12RS_STACKDATAi
- * @address 0x191530
- * @size 0x74
  */
-static int _GET_TALKNPC_STATUS(RS_STACKDATA *stack, int argument_count) {
+int _GET_TALKNPC_STATUS(RS_STACKDATA *stack, int argument_count) {
     int index = EdEventInfo.talk_npc_id;
     int status = 0;
 
@@ -5627,7 +5632,7 @@ static int _GET_TALKNPC_STATUS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_TALK_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _SET_TALK_CAMERA(RS_STACKDATA *stack, int argument_count) {
     /**
      * Camera offsets from the speakers' midpoint for each of the three talk-camera views.
      */
@@ -5656,9 +5661,9 @@ static int _SET_TALK_CAMERA(RS_STACKDATA *stack, int argument_count) {
     midpoint[1] += 15.0f;
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->FollowOff();
-        camera->SetNextRef(NULL, midpoint[0], midpoint[1], midpoint[2]);
+        camera->SetNextRef(nullptr, midpoint[0], midpoint[1], midpoint[2]);
         camera->SetRef(midpoint);
     }
 
@@ -5669,15 +5674,15 @@ static int _SET_TALK_CAMERA(RS_STACKDATA *stack, int argument_count) {
     sceVu0ApplyMatrix(camera_position, rotation, vv[view]);
     sceVu0AddVector(camera_position, midpoint, camera_position);
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->SetPos(camera_position);
     }
 
-    if (camera != NULL) {
-        camera->SetNextPos(NULL, camera_position[0], camera_position[1], camera_position[2]);
+    if (camera != nullptr) {
+        camera->SetNextPos(nullptr, camera_position[0], camera_position[1], camera_position[2]);
     }
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         sceVu0FMATRIX view_matrix;
         sceVu0FVECTOR eye;
         camera->GetCameraMatrix(view_matrix);
@@ -5688,9 +5693,9 @@ static int _SET_TALK_CAMERA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_TALK_MES(RS_STACKDATA *stack, int argument_count) {
-    for (int i = 0; i < 16; i++) {
-        EdEventInfo.talk_messages[i] = -1;
+int _SET_TALK_MES(RS_STACKDATA *stack, int argument_count) {
+    for (int &talk_message : EdEventInfo.talk_messages) {
+        talk_message = -1;
     }
 
     for (int i = 0; i < argument_count; i++) {
@@ -5704,14 +5709,14 @@ static int _SET_TALK_MES(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_TALK_SELECT_MES(RS_STACKDATA *stack, int argument_count) {
+int _SET_TALK_SELECT_MES(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     EdEventInfo.talk_select_prompt = GetStackInt(stack);
     EdEventInfo.talk_select_message = GetStackInt(next);
     return 1;
 }
 
-static int _EVERY_TALK_EVENT(RS_STACKDATA *stack, int argument_count) {
+int _EVERY_TALK_EVENT(RS_STACKDATA *stack, int argument_count) {
     int villager_id = GetStackInt(stack++);
 
     if (villager_id < 0 || villager_id >= 16) {
@@ -5735,33 +5740,33 @@ static int _EVERY_TALK_EVENT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static CCameraFollow *GetCamera() {
+CCameraFollow *GetCamera() {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
-        return NULL;
+    if (camera == nullptr) {
+        return nullptr;
     }
 
     camera->FollowOff();
     return camera;
 }
 
-static int _SET_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR  position;
     sceVu0FVECTOR  reference;
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
     GetPosition(stack, position);
     GetPosition(stack + 3, reference);
     float speed = GetStackFloat(stack += 6);
-    follow_chara = NULL;
+    follow_chara = nullptr;
     camera->FollowOff();
-    camera->SetNextPos(NULL, position[0], position[1], position[2]);
-    camera->SetNextRef(NULL, reference[0], reference[1], reference[2]);
+    camera->SetNextPos(nullptr, position[0], position[1], position[2]);
+    camera->SetNextRef(nullptr, reference[0], reference[1], reference[2]);
     camera->SetSpeed(speed);
 
     if (speed <= 1.0f) {
@@ -5773,27 +5778,27 @@ static int _SET_CAMERA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_CAMERA_POS(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA_POS(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
-    follow_chara = NULL;
+    follow_chara = nullptr;
     camera->FollowOff();
     sceVu0FVECTOR position;
     GetPosition(stack, position);
-    camera->SetNextPos(NULL, position[0], position[1], position[2]);
+    camera->SetNextPos(nullptr, position[0], position[1], position[2]);
     return 1;
 }
 
-static int _GET_CAMERA_POS(RS_STACKDATA *stack, int argument_count) {
+int _GET_CAMERA_POS(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 3) {
         return 0;
     }
 
-    if (EdEventInfo.camera == NULL) {
+    if (EdEventInfo.camera == nullptr) {
         return 0;
     }
 
@@ -5803,27 +5808,27 @@ static int _GET_CAMERA_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_CAMERA_REF(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA_REF(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
-    follow_chara = NULL;
+    follow_chara = nullptr;
     camera->FollowOff();
     sceVu0FVECTOR position;
     GetPosition(stack, position);
-    camera->SetNextRef(NULL, position[0], position[1], position[2]);
+    camera->SetNextRef(nullptr, position[0], position[1], position[2]);
     return 1;
 }
 
-static int _GET_CAMERA_REF(RS_STACKDATA *stack, int argument_count) {
+int _GET_CAMERA_REF(RS_STACKDATA *stack, int argument_count) {
     if (argument_count < 3) {
         return 0;
     }
 
-    if (EdEventInfo.camera == NULL) {
+    if (EdEventInfo.camera == nullptr) {
         return 0;
     }
 
@@ -5833,21 +5838,21 @@ static int _GET_CAMERA_REF(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_CAMERA_SPEED(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA_SPEED(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
-    camera->SetSpeed((float) GetStackInt(stack));
+    camera->SetSpeed(static_cast<float>(GetStackInt(stack)));
     return 1;
 }
 
-static int _SET_FOLLOW_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _SET_FOLLOW_CAMERA(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -5863,17 +5868,17 @@ static int _SET_FOLLOW_CAMERA(RS_STACKDATA *stack, int argument_count) {
             follow_chara = GetNPC(index);
         }
 
-        if (follow_chara != NULL) {
+        if (follow_chara != nullptr) {
             follow_chara->GetPosition(position[1]);
         }
     } else {
         GetPosition(stack, position[1]);
         stack += 3;
-        follow_chara = NULL;
+        follow_chara = nullptr;
     }
 
-    for (int i = 0; i < 4; i++) {
-        values[i] = GetStackFloat(stack++);
+    for (float &value : values) {
+        value = GetStackFloat(stack++);
     }
 
     sceVu0FVECTOR rotation;
@@ -5895,10 +5900,10 @@ static int _SET_FOLLOW_CAMERA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ADD_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
+int _ADD_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -5907,10 +5912,10 @@ static int _ADD_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ADD_CAMERA_HEIGHT(RS_STACKDATA *stack, int argument_count) {
+int _ADD_CAMERA_HEIGHT(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -5919,10 +5924,10 @@ static int _ADD_CAMERA_HEIGHT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ADD_CAMERA_DIST(RS_STACKDATA *stack, int argument_count) {
+int _ADD_CAMERA_DIST(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -5931,14 +5936,14 @@ static int _ADD_CAMERA_DIST(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CAMERA_STEP(RS_STACKDATA *stack, int argument_count) {
+int _CAMERA_STEP(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 1;
     }
 
-    if (follow_chara != NULL) {
+    if (follow_chara != nullptr) {
         sceVu0FVECTOR position;
         follow_chara->GetPosition(position);
         camera->SetFollow(position[0], position[1] + 0.8f * follow_chara->body_height, position[2]);
@@ -5947,15 +5952,15 @@ static int _CAMERA_STEP(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_PROJECTION(RS_STACKDATA *stack, int argument_count) {
+int _SET_PROJECTION(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.projection = GetStackFloat(stack);
     return 1;
 }
 
-static int _ITEM_GET_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _ITEM_GET_CAMERA(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = EdEventInfo.camera;
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -5985,16 +5990,16 @@ static int _ITEM_GET_CAMERA(RS_STACKDATA *stack, int argument_count) {
     sceVu0ApplyMatrix(camera_position, rotation, camera_position);
     sceVu0ApplyMatrix(camera_reference, rotation, camera_reference);
     camera->SetPos(camera_position);
-    camera->SetNextPos(NULL, camera_position[0], camera_position[1], camera_position[2]);
+    camera->SetNextPos(nullptr, camera_position[0], camera_position[1], camera_position[2]);
     camera->SetRef(camera_reference);
-    camera->SetNextRef(NULL, camera_reference[0], camera_reference[1], camera_reference[2]);
+    camera->SetNextRef(nullptr, camera_reference[0], camera_reference[1], camera_reference[2]);
     return 1;
 }
 
-static int _SET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     CCamera *camera = GetCamera();
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -6037,10 +6042,10 @@ static int _SET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
+int _GET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     CCamera *camera = GetCamera();
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -6071,10 +6076,10 @@ static int _GET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_CAMERA_ROTATE(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA_ROTATE(RS_STACKDATA *stack, int argument_count) {
     CCamera *camera = GetCamera();
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -6101,13 +6106,13 @@ static int _SET_CAMERA_ROTATE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_CAMERA_ROTATE(RS_STACKDATA *stack, int argument_count) {
+int _GET_CAMERA_ROTATE(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR  position;
     sceVu0FVECTOR  reference;
     sceVu0FVECTOR  direction;
     CCameraFollow *camera = GetCamera();
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -6120,24 +6125,20 @@ static int _GET_CAMERA_ROTATE(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Requests a camera reset on the next event frame, facing back along the reset yaw.
- *
- * @mangled _RESET_CAMERA__FP12RS_STACKDATAi
- * @address 0x1928F0
- * @size 0x38
  */
-static int _RESET_CAMERA(RS_STACKDATA *stack, int argument_count) {
+int _RESET_CAMERA(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.reset_camera_angle = GetStackInt(stack);
     EdEventInfo.reset_camera_yaw = PI_SHORT;
     return 1;
 }
 
-static int _RESET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
+int _RESET_CAMERA_ANGLE(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.reset_camera_angle = 1;
     EdEventInfo.reset_camera_yaw = AngleLimit(GetStackFloat(stack));
     return 1;
 }
 
-static int _SYNC_CAMERA_REF_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_CAMERA_REF_CHARA(RS_STACKDATA *stack, int argument_count) {
     sync_camera_ref_chara = GetChara(GetStackInt(stack++));
 
     if (argument_count == 4) {
@@ -6153,12 +6154,12 @@ static int _SYNC_CAMERA_REF_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _RELEASE_CAMERA_REF_CHARA(RS_STACKDATA *stack, int argument_count) {
-    sync_camera_ref_chara = NULL;
+int _RELEASE_CAMERA_REF_CHARA(RS_STACKDATA *stack, int argument_count) {
+    sync_camera_ref_chara = nullptr;
     return 1;
 }
 
-static int _SYNC_CAMERA_REF_OBJ(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_CAMERA_REF_OBJ(RS_STACKDATA *stack, int argument_count) {
     sync_camera_ref_obj = GetObjHandle(GetStackInt(stack++));
 
     if (argument_count == 4) {
@@ -6174,25 +6175,25 @@ static int _SYNC_CAMERA_REF_OBJ(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _RELEASE_CAMERA_REF_OBJ(RS_STACKDATA *stack, int argument_count) {
-    sync_camera_ref_obj = NULL;
+int _RELEASE_CAMERA_REF_OBJ(RS_STACKDATA *stack, int argument_count) {
+    sync_camera_ref_obj = nullptr;
     return 1;
 }
 
-static int _SYNC_CAMERA_POS_OBJ(RS_STACKDATA *stack, int argument_count) {
+int _SYNC_CAMERA_POS_OBJ(RS_STACKDATA *stack, int argument_count) {
     sync_camera_pos_obj = GetObjHandle(GetStackInt(stack));
     return 1;
 }
 
-static int _RELEASE_CAMERA_POS_OBJ(RS_STACKDATA *stack, int argument_count) {
-    sync_camera_pos_obj = NULL;
+int _RELEASE_CAMERA_POS_OBJ(RS_STACKDATA *stack, int argument_count) {
+    sync_camera_pos_obj = nullptr;
     return 1;
 }
 
-static int _SET_CAMERA_ROLL(RS_STACKDATA *stack, int argument_count) {
+int _SET_CAMERA_ROLL(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = GetCamera();
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -6200,10 +6201,10 @@ static int _SET_CAMERA_ROLL(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_CAMERA_ROLL(RS_STACKDATA *stack, int argument_count) {
+int _GET_CAMERA_ROLL(RS_STACKDATA *stack, int argument_count) {
     CCameraFollow *camera = GetCamera();
 
-    if (camera == NULL) {
+    if (camera == nullptr) {
         return 0;
     }
 
@@ -6211,8 +6212,8 @@ static int _GET_CAMERA_ROLL(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _FADE_IN(RS_STACKDATA *stack, int argument_count) {
-    int red;
+int _FADE_IN(RS_STACKDATA *stack, int argument_count) {
+    int red = 0;
     int frames = (0, GetStackInt(stack++));
     int blue = 0;
     int green = 0;
@@ -6224,12 +6225,12 @@ static int _FADE_IN(RS_STACKDATA *stack, int argument_count) {
         blue = GetStackInt(stack);
     }
 
-    EdFadeIn(frames, (float) red, (float) green, (float) blue);
+    EdFadeIn(frames, static_cast<float>(red), static_cast<float>(green), static_cast<float>(blue));
     return 1;
 }
 
-static int _FADE_OUT(RS_STACKDATA *stack, int argument_count) {
-    int red;
+int _FADE_OUT(RS_STACKDATA *stack, int argument_count) {
+    int red = 0;
     int frames = (0, GetStackInt(stack++));
     int blue = 0;
     int green = 0;
@@ -6241,11 +6242,11 @@ static int _FADE_OUT(RS_STACKDATA *stack, int argument_count) {
         blue = GetStackInt(stack);
     }
 
-    EdFadeOut(frames, (float) red, (float) green, (float) blue);
+    EdFadeOut(frames, static_cast<float>(red), static_cast<float>(green), static_cast<float>(blue));
     return 1;
 }
 
-static int _CHECK_FADE(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_FADE(RS_STACKDATA *stack, int argument_count) {
     if (argument_count <= 0) {
         return 0;
     }
@@ -6254,13 +6255,13 @@ static int _CHECK_FADE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INIT_SPRITE(RS_STACKDATA *stack, int argument_count) {
+int _INIT_SPRITE(RS_STACKDATA *stack, int argument_count) {
     SpriteTable.ClearPointer();
     SpriteTableBack.ClearPointer();
     return 1;
 }
 
-static int _DRAW_SPRITE(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_SPRITE(RS_STACKDATA *stack, int argument_count) {
     RECT  source;
     int   x = GetStackInt(stack++);
     int   y = GetStackInt(stack++);
@@ -6271,15 +6272,15 @@ static int _DRAW_SPRITE(RS_STACKDATA *stack, int argument_count) {
     source.height = GetStackInt(stack);
     CTexture *texture = TexManager.GetTexture(name, -1);
 
-    if (texture == NULL) {
+    if (texture == nullptr) {
         return 0;
     }
 
-    SpriteTable.AddTable(x, y, (sceGsTex0 *) &texture->tex0, &source, 0, 0);
+    SpriteTable.AddTable(x, y, reinterpret_cast<sceGsTex0 *>(&texture->tex0), &source, 0, 0);
     return 1;
 }
 
-static int _DRAW_BG_SPRITE(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_BG_SPRITE(RS_STACKDATA *stack, int argument_count) {
     RECT  source;
     int   x = GetStackInt(stack++);
     int   y = GetStackInt(stack++);
@@ -6290,15 +6291,15 @@ static int _DRAW_BG_SPRITE(RS_STACKDATA *stack, int argument_count) {
     source.height = GetStackInt(stack);
     CTexture *texture = TexManager.GetTexture(name, -1);
 
-    if (texture == NULL) {
+    if (texture == nullptr) {
         return 0;
     }
 
-    SpriteTableBack.AddTable(x, y, (sceGsTex0 *) &texture->tex0, &source, 0, 0);
+    SpriteTableBack.AddTable(x, y, reinterpret_cast<sceGsTex0 *>(&texture->tex0), &source, 0, 0);
     return 1;
 }
 
-static int _DRAW_BACK(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_BACK(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.suppress_background = ((GetStackInt(stack++) != 0) ^ 1) & 0xFF;
     float red = -1.0f;
 
@@ -6320,24 +6321,20 @@ static int _DRAW_BACK(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _DRAW_SHADOW(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_SHADOW(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.suppress_shadows = ((GetStackInt(stack) != 0) ^ 1) & 0xFF;
     return 1;
 }
 
 /**
  * Stores the editor ground's event clipping plane from script arguments.
- *
- * @mangled _SET_CLIP_POINT__FP12RS_STACKDATAi
- * @address 0x1931F0
- * @size 0x8C
  */
-static int _SET_CLIP_POINT(RS_STACKDATA *stack, int argument_count) {
+int _SET_CLIP_POINT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR plane;
     GetPosition(stack, plane);
     stack += 3;
 
-    if (EdEventInfo.edit_ground != NULL) {
+    if (EdEventInfo.edit_ground != nullptr) {
         float        distance = GetStackFloat(stack++);
         CEditGround *ground = EdEventInfo.edit_ground;
         sceVu0CopyVector(ground->clip_plane, plane);
@@ -6347,19 +6344,19 @@ static int _SET_CLIP_POINT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _DRAW_EDIT_WATER(RS_STACKDATA *stack, int argument_count) {
-    if (EdEventInfo.edit_ground != NULL) {
+int _DRAW_EDIT_WATER(RS_STACKDATA *stack, int argument_count) {
+    if (EdEventInfo.edit_ground != nullptr) {
         EdEventInfo.edit_ground->suppress_water = ((GetStackInt(stack) != 0) ^ 1) & 0xFF;
     }
 
     return 1;
 }
 
-static int _DRAW_WATER_SURFACE(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_WATER_SURFACE(RS_STACKDATA *stack, int argument_count) {
     int draw = GetStackInt(stack++);
 
     for (int i = 0; i < argument_count - 1; i++) {
-        if (EdEventInfo.edit_ground != NULL) {
+        if (EdEventInfo.edit_ground != nullptr) {
             int index = GetStackInt(stack++);
 
             if (index >= 0 && index < 4) {
@@ -6371,7 +6368,7 @@ static int _DRAW_WATER_SURFACE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SCREEN_FILTER(RS_STACKDATA *stack, int argument_count) {
+int _SCREEN_FILTER(RS_STACKDATA *stack, int argument_count) {
     int red = GetStackInt(stack++);
 
     if (red < 0) {
@@ -6396,12 +6393,12 @@ static int _SCREEN_FILTER(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _DRAW_THUNDER(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_THUNDER(RS_STACKDATA *stack, int argument_count) {
     EdThunderEffectFlag = GetStackInt(stack);
     return 1;
 }
 
-static int _SET_LIGHT(RS_STACKDATA *stack, int argument_count) {
+int _SET_LIGHT(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.lighting_override = true;
     int index = GetStackInt(stack++);
 
@@ -6428,7 +6425,7 @@ static int _SET_LIGHT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_LIGHT_COLOR(RS_STACKDATA *stack, int argument_count) {
+int _SET_LIGHT_COLOR(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.lighting_override = true;
     int index = GetStackInt(stack++);
 
@@ -6442,7 +6439,7 @@ static int _SET_LIGHT_COLOR(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_AMBIENT(RS_STACKDATA *stack, int argument_count) {
+int _SET_AMBIENT(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.lighting_override = true;
     EdEventInfo.ambient_color[0] = GetStackFloat(stack++);
     EdEventInfo.ambient_color[1] = GetStackFloat(stack++);
@@ -6456,7 +6453,7 @@ static int _SET_AMBIENT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SAVE_LIGHT(RS_STACKDATA *stack, int argument_count) {
+int _SAVE_LIGHT(RS_STACKDATA *stack, int argument_count) {
     int slot = GetStackInt(stack);
 
     if (slot < 0 || slot > 1) {
@@ -6469,7 +6466,7 @@ static int _SAVE_LIGHT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_LIGHT(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_LIGHT(RS_STACKDATA *stack, int argument_count) {
     int slot = GetStackInt(stack);
 
     if (slot < 0) {
@@ -6488,19 +6485,19 @@ static int _LOAD_LIGHT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SET_DOF_LEVEL(RS_STACKDATA *stack, int argument_count) {
+int _SET_DOF_LEVEL(RS_STACKDATA *stack, int argument_count) {
     EdSetDOFLevel(GetStackInt(stack));
     return 1;
 }
 
-static int _SP_INIT(RS_STACKDATA *stack, int argument_count) {
+int _SP_INIT(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack);
 
     if (index < 0) {
         for (int i = 0;; i++) {
             ED_SPRITE *sprite = GetSprite(i);
 
-            if (sprite == NULL) {
+            if (sprite == nullptr) {
                 break;
             }
 
@@ -6512,7 +6509,7 @@ static int _SP_INIT(RS_STACKDATA *stack, int argument_count) {
 
     ED_SPRITE *sprite = GetSprite(index);
 
-    if (sprite == NULL) {
+    if (sprite == nullptr) {
         return 0;
     }
 
@@ -6520,10 +6517,10 @@ static int _SP_INIT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SP_SET_TEX(RS_STACKDATA *stack, int argument_count) {
+int _SP_SET_TEX(RS_STACKDATA *stack, int argument_count) {
     ED_SPRITE *sprite = GetSprite(GetStackInt(stack++));
 
-    if (sprite == NULL) {
+    if (sprite == nullptr) {
         return 0;
     }
 
@@ -6540,7 +6537,7 @@ static int _SP_SET_TEX(RS_STACKDATA *stack, int argument_count) {
 
     CTexture *texture = TexManager.GetTexture(name, -1);
 
-    if (texture == NULL) {
+    if (texture == nullptr) {
         return 0;
     }
 
@@ -6548,15 +6545,15 @@ static int _SP_SET_TEX(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SP_SET_POS(RS_STACKDATA *stack, int argument_count) {
+int _SP_SET_POS(RS_STACKDATA *stack, int argument_count) {
     ED_SPRITE *sprite = GetSprite(GetStackInt(stack++));
 
-    if (sprite == NULL) {
+    if (sprite == nullptr) {
         return 0;
     }
 
-    sprite->x = (float) GetStackInt(stack++);
-    sprite->y = (float) GetStackInt(stack++);
+    sprite->x = static_cast<float>(GetStackInt(stack++));
+    sprite->y = static_cast<float>(GetStackInt(stack++));
     sprite->height = -1;
     sprite->width = -1;
 
@@ -6571,10 +6568,10 @@ static int _SP_SET_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SP_SET_RGBA(RS_STACKDATA *stack, int argument_count) {
+int _SP_SET_RGBA(RS_STACKDATA *stack, int argument_count) {
     ED_SPRITE *sprite = GetSprite(GetStackInt(stack++));
 
-    if (sprite == NULL) {
+    if (sprite == nullptr) {
         return 0;
     }
 
@@ -6590,12 +6587,12 @@ static int _SP_SET_RGBA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SP_SET_ROT(RS_STACKDATA *stack, int argument_count) {
-    ED_SPRITE    *sprite;
+int _SP_SET_ROT(RS_STACKDATA *stack, int argument_count) {
+    ED_SPRITE    *sprite = nullptr;
     RS_STACKDATA *arguments = (0, stack + 1);
     sprite = GetSprite(GetStackInt(stack));
 
-    if (sprite == NULL) {
+    if (sprite == nullptr) {
         return 0;
     }
 
@@ -6606,11 +6603,11 @@ static int _SP_SET_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SP_SET_MOVE(RS_STACKDATA *stack, int argument_count) {
+int _SP_SET_MOVE(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *arguments = (0, stack + 1);
     ED_SPRITE    *sprite = GetSprite(GetStackInt(stack));
 
-    if (sprite == NULL) {
+    if (sprite == nullptr) {
         return 0;
     }
 
@@ -6619,13 +6616,13 @@ static int _SP_SET_MOVE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SP_DRAW(RS_STACKDATA *stack, int argument_count) {
+int _SP_DRAW(RS_STACKDATA *stack, int argument_count) {
     int layer = GetStackInt(stack++);
 
     for (int i = 0; i < argument_count - 1; i++) {
         ED_SPRITE *sprite = GetSprite(GetStackInt(stack++));
 
-        if (sprite != NULL) {
+        if (sprite != nullptr) {
             sprite->layer = layer;
         }
     }
@@ -6633,22 +6630,22 @@ static int _SP_DRAW(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INIT_DRAW_DAY(RS_STACKDATA *stack, int argument_count) {
+int _INIT_DRAW_DAY(RS_STACKDATA *stack, int argument_count) {
     EdInitDrawDay();
     return 1;
 }
 
-static int _DRAW_DAY(RS_STACKDATA *stack, int argument_count) {
+int _DRAW_DAY(RS_STACKDATA *stack, int argument_count) {
     EdStartDrawDay();
     return 1;
 }
 
-static int _MAP_TITLE_OFF(RS_STACKDATA *stack, int argument_count) {
+int _MAP_TITLE_OFF(RS_STACKDATA *stack, int argument_count) {
     now_loading_off();
     return 1;
 }
 
-static int _SET_WIND(RS_STACKDATA *stack, int argument_count) {
+int _SET_WIND(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.wind[0] = GetStackFloat(stack++);
     EdEventInfo.wind[1] = GetStackFloat(stack++);
     EdEventInfo.wind[2] = GetStackFloat(stack++);
@@ -6656,14 +6653,14 @@ static int _SET_WIND(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_INIT(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_INIT(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack);
 
     if (index < 0) {
         for (int i = 0; i < 10; i++) {
             CActionSeq *sequence = GetActSeq(index);
 
-            if (sequence != NULL) {
+            if (sequence != nullptr) {
                 sequence->ClearSeq();
             }
         }
@@ -6673,7 +6670,7 @@ static int _ASQ_INIT(RS_STACKDATA *stack, int argument_count) {
 
     CActionSeq *sequence = GetActSeq(index);
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6681,12 +6678,14 @@ static int _ASQ_INIT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
+} // namespace
+
 int _ASQ_SYNC_CHARA(RS_STACKDATA *stack, int argument_count) {
     int         sequence_index = GetStackInt(stack++);
     int         character_index = GetStackInt(stack);
     CActionSeq *sequence = GetActSeq(sequence_index);
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6696,7 +6695,7 @@ int _ASQ_SYNC_CHARA(RS_STACKDATA *stack, int argument_count) {
         character = EdEventInfo.main_character;
     }
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
@@ -6704,11 +6703,13 @@ int _ASQ_SYNC_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_SET_POS(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _ASQ_SET_POS(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *arguments = (0, stack + 1);
     CActionSeq   *sequence = GetActSeq(GetStackInt(stack));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6718,11 +6719,11 @@ static int _ASQ_SET_POS(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_MOVE(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_MOVE(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR position;
     CActionSeq   *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6739,10 +6740,12 @@ static int _ASQ_MOVE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
+} // namespace
+
 int _ASQ_MOVE_STEP(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6755,7 +6758,7 @@ int _ASQ_MOVE_STEP(RS_STACKDATA *stack, int argument_count) {
 int _ASQ_ROT_REF(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6765,11 +6768,13 @@ int _ASQ_ROT_REF(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_ROT_ANGLE(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _ASQ_ROT_ANGLE(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
     CActionSeq   *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6782,10 +6787,10 @@ static int _ASQ_ROT_ANGLE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_CLEAR_ROT(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_CLEAR_ROT(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6793,10 +6798,10 @@ static int _ASQ_CLEAR_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_WAIT_ROT(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_WAIT_ROT(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6804,11 +6809,11 @@ static int _ASQ_WAIT_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_ROT_MOVE(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_ROT_MOVE(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     CActionSeq   *sequence = GetActSeq(GetStackInt(stack));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6816,11 +6821,11 @@ static int _ASQ_ROT_MOVE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_SET_ROT(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_SET_ROT(RS_STACKDATA *stack, int argument_count) {
     sceVu0FVECTOR rotation;
     CActionSeq   *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6840,11 +6845,11 @@ static int _ASQ_SET_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_DELAY_ROT(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_DELAY_ROT(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     CActionSeq   *sequence = GetActSeq(GetStackInt(stack));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6852,10 +6857,10 @@ static int _ASQ_DELAY_ROT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_MOTION_TRG(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_MOTION_TRG(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6869,10 +6874,10 @@ static int _ASQ_MOTION_TRG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int asq_motion_play(int mode, RS_STACKDATA *stack, int argument_count) {
+int asq_motion_play(int mode, RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6886,7 +6891,7 @@ static int asq_motion_play(int mode, RS_STACKDATA *stack, int argument_count) {
     int flags = 0;
 
     if (argument_count >= 4) {
-        flags = (int) GetStackFloat(stack);
+        flags = static_cast<int>(GetStackFloat(stack));
     }
 
     flags &= 4;
@@ -6894,25 +6899,25 @@ static int asq_motion_play(int mode, RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_MOTION_PLAY(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_MOTION_PLAY(RS_STACKDATA *stack, int argument_count) {
     asq_motion_play(5, stack, argument_count);
     return 1;
 }
 
-static int _ASQ_MOTION_STOP(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_MOTION_STOP(RS_STACKDATA *stack, int argument_count) {
     asq_motion_play(6, stack, argument_count);
     return 1;
 }
 
-static int _ASQ_MOTION_NEXT(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_MOTION_NEXT(RS_STACKDATA *stack, int argument_count) {
     asq_motion_play(7, stack, argument_count);
     return 1;
 }
 
-static int _ASQ_ANIME_TRG(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_ANIME_TRG(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6926,10 +6931,10 @@ static int _ASQ_ANIME_TRG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _ASQ_ANIME(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_ANIME(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6956,15 +6961,11 @@ static int _ASQ_ANIME(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Pushes whether an editor action-sequence slot is still running onto the script stack.
- *
- * @mangled _ASQ_CHECK__FP12RS_STACKDATAi
- * @address 0x194B70
- * @size 0x74
  */
-static int _ASQ_CHECK(RS_STACKDATA *stack, int argument_count) {
+int _ASQ_CHECK(RS_STACKDATA *stack, int argument_count) {
     CActionSeq *sequence = GetActSeq(GetStackInt(stack++));
 
-    if (sequence == NULL) {
+    if (sequence == nullptr) {
         return 0;
     }
 
@@ -6973,7 +6974,7 @@ static int _ASQ_CHECK(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _OBJ_ANIME_INIT(RS_STACKDATA *stack, int argument_count) {
+int _OBJ_ANIME_INIT(RS_STACKDATA *stack, int argument_count) {
     for (int i = 0; i < argument_count; i++) {
         ClearObjAnime(GetStackInt(stack++));
     }
@@ -6983,12 +6984,8 @@ static int _OBJ_ANIME_INIT(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Starts an object animation with up to three rotation keys, converting radians to degrees.
- *
- * @mangled _OBJ_ANIME__FP12RS_STACKDATAi
- * @address 0x194C70
- * @size 0x29C
  */
-static int _OBJ_ANIME(RS_STACKDATA *stack, int argument_count) {
+int _OBJ_ANIME(RS_STACKDATA *stack, int argument_count) {
     int           anime_index = GetStackInt(stack++);
     int           handle_index = GetStackInt(stack++);
     int           angle_mode = GetStackInt(stack++);
@@ -7037,7 +7034,7 @@ static int _OBJ_ANIME(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SSET_GAME_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SSET_GAME_FLAG(RS_STACKDATA *stack, int argument_count) {
     if (argument_count != 2) {
         return 0;
     }
@@ -7048,7 +7045,7 @@ static int _SSET_GAME_FLAG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SGET_GAME_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SGET_GAME_FLAG(RS_STACKDATA *stack, int argument_count) {
     if (argument_count != 2) {
         return 0;
     }
@@ -7059,7 +7056,7 @@ static int _SGET_GAME_FLAG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SSET_GAME_INT_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SSET_GAME_INT_FLAG(RS_STACKDATA *stack, int argument_count) {
     if (argument_count != 2) {
         return 0;
     }
@@ -7070,7 +7067,7 @@ static int _SSET_GAME_INT_FLAG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SGET_GAME_INT_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SGET_GAME_INT_FLAG(RS_STACKDATA *stack, int argument_count) {
     if (argument_count != 2) {
         return 0;
     }
@@ -7081,7 +7078,7 @@ static int _SGET_GAME_INT_FLAG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SITEM_GET(RS_STACKDATA *stack, int argument_count) {
+int _SITEM_GET(RS_STACKDATA *stack, int argument_count) {
     int attachment = -1;
     int item = GetStackInt(stack);
 
@@ -7093,49 +7090,49 @@ static int _SITEM_GET(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SSET_MAP_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SSET_MAP_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           flag = GetStackInt(stack);
     EdSetMapFlag(flag, ((GetStackInt(next) != 0) ^ 1) & 0xFF);
     return 1;
 }
 
-static int _SGET_MAP_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SGET_MAP_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           flag = GetStackInt(stack);
     SetStack(result, ((EdGetMapFlag(flag) != 0) ^ 1) & 0xFF);
     return 1;
 }
 
-static int _SET_WORK_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SET_WORK_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           flag = GetStackInt(stack);
     SetWorkFlag(flag, GetStackInt(next));
     return 1;
 }
 
-static int _GET_WORK_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _GET_WORK_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           flag = GetStackInt(stack);
     SetStack(result, (0, GetWorkFlag(flag)));
     return 1;
 }
 
-static int _SITEM_CHECK(RS_STACKDATA *stack, int argument_count) {
+int _SITEM_CHECK(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           item = GetStackInt(stack);
     SetStack(result, EdCheckItem(item));
     return 1;
 }
 
-static int _SITEM_CHECK_ALL(RS_STACKDATA *stack, int argument_count) {
+int _SITEM_CHECK_ALL(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *result = (0, stack + 1);
     int           item = GetStackInt(stack);
     SetStack(result, PlayerAllItemCheck(item));
     return 1;
 }
 
-static int _SGET_DUNGEON_STATUS(RS_STACKDATA *stack, int argument_count) {
+int _SGET_DUNGEON_STATUS(RS_STACKDATA *stack, int argument_count) {
     CDngStatusData *status = SaveData->GetDngStatus();
     int             dungeon = GetStackInt(stack++);
 
@@ -7151,24 +7148,24 @@ static int _SGET_DUNGEON_STATUS(RS_STACKDATA *stack, int argument_count) {
 /**
  * Writes the current active-party count to an event-script stack reference.
  */
-static int _SGET_PARTY_NUM(RS_STACKDATA *stack, int argument_count) {
+int _SGET_PARTY_NUM(RS_STACKDATA *stack, int argument_count) {
     CDngStatusData *status = SaveData->GetDngStatus();
     SetStack(stack++, status->party_size);
     return 1;
 }
 
-static int _SSET_PARTY_NUM(RS_STACKDATA *stack, int argument_count) {
+int _SSET_PARTY_NUM(RS_STACKDATA *stack, int argument_count) {
     CDngStatusData *status = SaveData->GetDngStatus();
     int             party_size = GetStackInt(stack);
     status->SetPartySize(party_size);
     return 1;
 }
 
-static int _SSET_REQUEST_EVENT_FLAG(RS_STACKDATA *stack, int argument_count) {
+int _SSET_REQUEST_EVENT_FLAG(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA    *next = (0, stack + 1);
     SV_GEORAMA_DATA *georama = SaveData->GetGrdData(GetStackInt(stack) - 1);
 
-    if (georama == NULL) {
+    if (georama == nullptr) {
         return 0;
     }
 
@@ -7178,12 +7175,8 @@ static int _SSET_REQUEST_EVENT_FLAG(RS_STACKDATA *stack, int argument_count) {
 
 /**
  * Updates a map's visit count and optionally returns the resulting count to the script.
- *
- * @mangled _SADD_VISIT_MAP__FP12RS_STACKDATAi
- * @address 0x195540
- * @size 0xC4
  */
-static int _SADD_VISIT_MAP(RS_STACKDATA *stack, int argument_count) {
+int _SADD_VISIT_MAP(RS_STACKDATA *stack, int argument_count) {
     int map = GetStackInt(stack++) - 1;
     int add = 1;
 
@@ -7200,7 +7193,7 @@ static int _SADD_VISIT_MAP(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SSKILL_GET(RS_STACKDATA *stack, int argument_count) {
+int _SSKILL_GET(RS_STACKDATA *stack, int argument_count) {
     CDngStatusData *status = SaveData->GetDngStatus();
     int             character = GetStackInt(stack);
 
@@ -7212,7 +7205,7 @@ static int _SSKILL_GET(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SGET_EQUIP_WEAPON(RS_STACKDATA *stack, int argument_count) {
+int _SGET_EQUIP_WEAPON(RS_STACKDATA *stack, int argument_count) {
     CDngStatusData *status = SaveData->GetDngStatus();
     int             character = GetStackInt(stack++);
 
@@ -7224,41 +7217,43 @@ static int _SGET_EQUIP_WEAPON(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SADD_MAXITEM(RS_STACKDATA *stack, int argument_count) {
+int _SADD_MAXITEM(RS_STACKDATA *stack, int argument_count) {
     EdAddMaxItem(GetStackInt(stack));
     return 1;
 }
 
-static int _SITEM_LOST(RS_STACKDATA *stack, int argument_count) {
+int _SITEM_LOST(RS_STACKDATA *stack, int argument_count) {
     CDngStatusData *status = SaveData->GetDngStatus();
     status->LostItem(GetStackInt(stack));
     return 1;
 }
 
-static int _SATRA_PARTS_GET(RS_STACKDATA *stack, int argument_count) {
+int _SATRA_PARTS_GET(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           georama = GetStackInt(stack) - 1;
     SaveData->AtraPartsGet(georama, GetStackInt(next));
     return 1;
 }
 
-static int _SATRA_CHIP_GET(RS_STACKDATA *stack, int argument_count) {
+int _SATRA_CHIP_GET(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           georama = GetStackInt(stack) - 1;
     SaveData->AtraChipGet(georama, GetStackInt(next));
     return 1;
 }
 
+} // namespace
+
 int _SGET_REQUEST(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA    *result = (0, stack + 1);
     SV_GEORAMA_DATA *georama = SaveData->GetGrdData(GetStackInt(stack) - 1);
 
-    if (georama == NULL) {
+    if (georama == nullptr) {
         SetStack(result, 0);
         return 0;
     }
 
-    int i;
+    int i = 0;
     int completed = 0;
     i = 0;
 
@@ -7281,7 +7276,9 @@ int _SGET_REQUEST(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SGET_ATRA_PARTS_NUM(RS_STACKDATA *stack, int argument_count) {
+namespace {
+
+int _SGET_ATRA_PARTS_NUM(RS_STACKDATA *stack, int argument_count) {
     int           count = 0;
     RS_STACKDATA *result = (0, stack + 1);
     int           georama = GetStackInt(stack) - 1;
@@ -7289,7 +7286,7 @@ static int _SGET_ATRA_PARTS_NUM(RS_STACKDATA *stack, int argument_count) {
     for (int i = 0; i < 24; i++) {
         SV_EDIT_PARTS_INFO *part = SaveData->GetEditPartsInfo(georama, i);
 
-        if (part != NULL && part->obtained != 0) {
+        if (part != nullptr && part->obtained != 0) {
             count++;
         }
     }
@@ -7298,101 +7295,101 @@ static int _SGET_ATRA_PARTS_NUM(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _SGET_DAY(RS_STACKDATA *stack, int argument_count) {
+int _SGET_DAY(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, SaveData->GetDay());
     return 1;
 }
 
-static int _SSET_TIME(RS_STACKDATA *stack, int argument_count) {
+int _SSET_TIME(RS_STACKDATA *stack, int argument_count) {
     SaveData->SetNowTime(GetStackFloat(stack));
     return 1;
 }
 
-static int _SGET_TIME(RS_STACKDATA *stack, int argument_count) {
+int _SGET_TIME(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, SaveData->GetNowTime());
     return 1;
 }
 
-static int _SADD_TIME(RS_STACKDATA *stack, int argument_count) {
+int _SADD_TIME(RS_STACKDATA *stack, int argument_count) {
     SaveData->AddNowTime(GetStackFloat(stack));
     return 1;
 }
 
-static int _SEQUIP_DEFAULT_WEAPON(RS_STACKDATA *stack, int argument_count) {
+int _SEQUIP_DEFAULT_WEAPON(RS_STACKDATA *stack, int argument_count) {
     EquipDefaultWeapon(GetStackInt(stack));
     return 1;
 }
 
-static int _LOAD_SND_SYNC(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_SND_SYNC(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, SndSyncBG());
     return 1;
 }
 
-static int _LOAD_SOUND_SET(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_SOUND_SET(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
-    SndSoundLoadBG(GetStackInt(stack), read_buffer, NULL);
+    SndSoundLoadBG(GetStackInt(stack), read_buffer, nullptr);
     return 1;
 }
 
-static int _LOAD_VOICE_SET(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_VOICE_SET(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
-    SndVoiceLoadBG(GetStackInt(stack), read_buffer, NULL);
+    SndVoiceLoadBG(GetStackInt(stack), read_buffer, nullptr);
     return 1;
 }
 
-static int _LOAD_BGM(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_BGM(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
-    SndBgmLoadBG(GetStackInt(stack), read_buffer, NULL);
+    SndBgmLoadBG(GetStackInt(stack), read_buffer, nullptr);
     return 1;
 }
 
-static int _DELETE_BGM(RS_STACKDATA *stack, int argument_count) {
+int _DELETE_BGM(RS_STACKDATA *stack, int argument_count) {
     SndBgmStop();
     SndBgmInit();
     return 1;
 }
 
-static int _PLAY_BGM(RS_STACKDATA *stack, int argument_count) {
+int _PLAY_BGM(RS_STACKDATA *stack, int argument_count) {
     SndBgmPlay(GetStackInt(stack));
     return 1;
 }
 
-static int _STOP_BGM(RS_STACKDATA *stack, int argument_count) {
+int _STOP_BGM(RS_STACKDATA *stack, int argument_count) {
     SndBgmStop();
     return 1;
 }
 
-static int _SET_BGM_VOL(RS_STACKDATA *stack, int argument_count) {
+int _SET_BGM_VOL(RS_STACKDATA *stack, int argument_count) {
     SndSetBgmVol(GetStackInt(stack));
     return 1;
 }
 
-static int _SET_BGM_VOLF(RS_STACKDATA *stack, int argument_count) {
+int _SET_BGM_VOLF(RS_STACKDATA *stack, int argument_count) {
     SndSetBgmVolf(GetStackFloat(stack));
     return 1;
 }
 
-static int _GET_BGM_VOL(RS_STACKDATA *stack, int argument_count) {
+int _GET_BGM_VOL(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, SndGetBgmVol());
     return 1;
 }
 
-static int _GET_BGM_NO(RS_STACKDATA *stack, int argument_count) {
+int _GET_BGM_NO(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, SndGetBgmNo());
     return 1;
 }
 
-static int _SET_OUT_BGM_NO(RS_STACKDATA *stack, int argument_count) {
+int _SET_OUT_BGM_NO(RS_STACKDATA *stack, int argument_count) {
     EdBeforeInBgmNo = GetStackInt(stack);
     return 1;
 }
 
-static int _GET_OUT_BGM_NO(RS_STACKDATA *stack, int argument_count) {
+int _GET_OUT_BGM_NO(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, EdBeforeInBgmNo);
     return 1;
 }
 
-static int _BGM_FADE_IN(RS_STACKDATA *stack, int argument_count) {
+int _BGM_FADE_IN(RS_STACKDATA *stack, int argument_count) {
     int bgm = GetStackInt(stack++);
     int frames = -1;
     int mode = 0;
@@ -7409,7 +7406,7 @@ static int _BGM_FADE_IN(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _BGM_FADE_OUT(RS_STACKDATA *stack, int argument_count) {
+int _BGM_FADE_OUT(RS_STACKDATA *stack, int argument_count) {
     int bgm = GetStackInt(stack++);
     int frames = 0;
 
@@ -7421,27 +7418,27 @@ static int _BGM_FADE_OUT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _CHECK_BGM_FADE(RS_STACKDATA *stack, int argument_count) {
+int _CHECK_BGM_FADE(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, SndCheckFade());
     return 1;
 }
 
-static int _PLAY_AMB_BGM(RS_STACKDATA *stack, int argument_count) {
+int _PLAY_AMB_BGM(RS_STACKDATA *stack, int argument_count) {
     SndAmbientPlay(GetStackInt(stack));
     return 1;
 }
 
-static int _STOP_AMB_BGM(RS_STACKDATA *stack, int argument_count) {
+int _STOP_AMB_BGM(RS_STACKDATA *stack, int argument_count) {
     SndAmbientStop();
     return 1;
 }
 
-static int _SET_AMB_VOLF(RS_STACKDATA *stack, int argument_count) {
+int _SET_AMB_VOLF(RS_STACKDATA *stack, int argument_count) {
     SndAmbientSetVolf(GetStackFloat(stack));
     return 1;
 }
 
-static int _PLAY_SE(RS_STACKDATA *stack, int argument_count) {
+int _PLAY_SE(RS_STACKDATA *stack, int argument_count) {
     int sound = GetStackInt(stack++);
 
     if (argument_count >= 4) {
@@ -7473,25 +7470,25 @@ static int _PLAY_SE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _STOP_SE(RS_STACKDATA *stack, int argument_count) {
+int _STOP_SE(RS_STACKDATA *stack, int argument_count) {
     SndSeStop(GetStackInt(stack), 0);
     return 1;
 }
 
-static int _SET_SE_VOL(RS_STACKDATA *stack, int argument_count) {
+int _SET_SE_VOL(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           sound = GetStackInt(stack);
     SndSetSeVol(sound, GetStackInt(next), 0);
     return 1;
 }
 
-static int _LOAD_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
     StartReadBG();
-    SndSPSeLoadBG(GetStackInt(stack), read_buffer, NULL);
+    SndSPSeLoadBG(GetStackInt(stack), read_buffer, nullptr);
     return 1;
 }
 
-static int _PLAY_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
+int _PLAY_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
     int sound = GetStackInt(stack++);
     int voice = -1;
 
@@ -7503,12 +7500,12 @@ static int _PLAY_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _STOP_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
+int _STOP_SPECIAL_SE(RS_STACKDATA *stack, int argument_count) {
     SndSPSeStop(GetStackInt(stack));
     return 1;
 }
 
-static int _SET_SPECIAL_SE_VOL(RS_STACKDATA *stack, int argument_count) {
+int _SET_SPECIAL_SE_VOL(RS_STACKDATA *stack, int argument_count) {
     int   sound = GetStackInt(stack++);
     float position[4];
     GetPosition(stack, position);
@@ -7524,15 +7521,15 @@ static int _SET_SPECIAL_SE_VOL(RS_STACKDATA *stack, int argument_count) {
         far = GetStackFloat(stack);
     }
 
-    float volume;
-    float pan;
+    float volume = 0.0f;
+    float pan = 0.0f;
     SndGetVolPan(&volume, &pan, position, near, far);
     SndSetSPSeVolf(sound, volume);
     SndSetSPSePanf(sound, pan);
     return 1;
 }
 
-static int _SOUND_OFF_COUNT(RS_STACKDATA *stack, int argument_count) {
+int _SOUND_OFF_COUNT(RS_STACKDATA *stack, int argument_count) {
     EdEventInfo.sound_off_count = GetStackInt(stack);
 
     if (EdEventInfo.sound_off_count > 10) {
@@ -7543,7 +7540,7 @@ static int _SOUND_OFF_COUNT(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_V_ARG(RS_STACKDATA *stack, int argument_count) {
+int _GET_V_ARG(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack++);
 
     if (index < 0 || index >= 4) {
@@ -7557,7 +7554,7 @@ static int _GET_V_ARG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_I_ARG(RS_STACKDATA *stack, int argument_count) {
+int _GET_I_ARG(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack++);
 
     if (index < 0 || index >= 8) {
@@ -7568,7 +7565,7 @@ static int _GET_I_ARG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _GET_F_ARG(RS_STACKDATA *stack, int argument_count) {
+int _GET_F_ARG(RS_STACKDATA *stack, int argument_count) {
     int index = GetStackInt(stack++);
 
     if (index < 0 || index >= 8) {
@@ -7579,12 +7576,12 @@ static int _GET_F_ARG(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _EB_INIT(RS_STACKDATA *stack, int argument_count) {
+int _EB_INIT(RS_STACKDATA *stack, int argument_count) {
     EBInit(GetStackFloat(stack));
     return 1;
 }
 
-static int _EB_SET_MOTION(RS_STACKDATA *stack, int argument_count) {
+int _EB_SET_MOTION(RS_STACKDATA *stack, int argument_count) {
     int motions[128];
 
     if (argument_count < 2) {
@@ -7603,7 +7600,7 @@ static int _EB_SET_MOTION(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _EB_SET_KEY(RS_STACKDATA *stack, int argument_count) {
+int _EB_SET_KEY(RS_STACKDATA *stack, int argument_count) {
     float time = GetStackFloat(stack++);
     int   key = GetStackInt(stack++);
     int   mode = 0;
@@ -7616,44 +7613,44 @@ static int _EB_SET_KEY(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _EB_LOOP(RS_STACKDATA *stack, int argument_count) {
+int _EB_LOOP(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, EBLoop());
     return 1;
 }
 
-static int _EB_INTRO_START(RS_STACKDATA *stack, int argument_count) {
+int _EB_INTRO_START(RS_STACKDATA *stack, int argument_count) {
     EBInitialize();
     EBInitIntro();
     return 1;
 }
 
-static int _EB_INTRO_LOOP(RS_STACKDATA *stack, int argument_count) {
+int _EB_INTRO_LOOP(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, EBIntroLoop());
     return 1;
 }
 
-static int _EB_INTRO_END(RS_STACKDATA *stack, int argument_count) {
+int _EB_INTRO_END(RS_STACKDATA *stack, int argument_count) {
     EBExit();
     return 1;
 }
 
-static int _EB_DEBUG(RS_STACKDATA *stack, int argument_count) {
+int _EB_DEBUG(RS_STACKDATA *stack, int argument_count) {
     EBDebug(GetStackInt(stack));
     return 1;
 }
 
-static int _EB_FINISH_SOUND(RS_STACKDATA *stack, int argument_count) {
+int _EB_FINISH_SOUND(RS_STACKDATA *stack, int argument_count) {
     RS_STACKDATA *next = (0, stack + 1);
     int           fade_bgm = GetStackInt(stack);
     EBFinishSound(fade_bgm, GetStackInt(next));
     return 1;
 }
 
-static int _LOAD_MAIN_CHARA(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_MAIN_CHARA(RS_STACKDATA *stack, int argument_count) {
     char           *model = GetStackString(stack++);
     char           *motion = GetStackString(stack++);
     int             use_villager_arena = GetStackInt(stack);
-    CDataAlloc2<1> *arena = NULL;
+    CDataAlloc2<1> *arena = nullptr;
 
     if (use_villager_arena == 1) {
         arena = &EdVillagerBuffer;
@@ -7663,7 +7660,7 @@ static int _LOAD_MAIN_CHARA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _LOAD_FISHING_DATA(RS_STACKDATA *stack, int argument_count) {
+int _LOAD_FISHING_DATA(RS_STACKDATA *stack, int argument_count) {
     int fish_set = GetStackInt(stack++);
     FishingInit();
     FishingLoad(&EdVillagerBuffer, 8);
@@ -7683,14 +7680,14 @@ static int _LOAD_FISHING_DATA(RS_STACKDATA *stack, int argument_count) {
     CCPoly polygons[1024];
     int    polygon_count = 0;
 
-    if (EdEventInfo.edit_ground != NULL) {
+    if (EdEventInfo.edit_ground != nullptr) {
         polygon_count = EdEventInfo.edit_ground->PickUpPoly(polygons, bounds, 0);
-        printf("poly_num = %d\n", polygon_count);
+        std::println("poly_num = {}", polygon_count);
 
         if (polygon_count > 1024) {
-            printf("CPOLY OVER *****************\n");
+            std::println("CPOLY OVER *****************");
 
-            while (1) {
+            while (true) {
             }
         }
     }
@@ -7699,32 +7696,36 @@ static int _LOAD_FISHING_DATA(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
+} // namespace
+
 /**
  * Initializes the fishing line at the player's rod and requests fishing mode.
  */
-/** Homogeneous origin used to resolve the fishing rod's world position. */
-static sceVu0FVECTOR fishing_line_origin = {0.0f, 0.0f, 0.0f, 1.0f};
+namespace {
 
-static int _GOTO_FISHING(RS_STACKDATA *stack, int argument_count) {
+/** Homogeneous origin used to resolve the fishing rod's world position. */
+sceVu0FVECTOR fishing_line_origin = {0.0f, 0.0f, 0.0f, 1.0f};
+
+int _GOTO_FISHING(RS_STACKDATA *stack, int argument_count) {
     CCharacter *character = GetChara(-1);
 
-    if (character == NULL) {
+    if (character == nullptr) {
         return 0;
     }
 
     sceVu0FVECTOR position;
     character->GetPosition(position);
 
-    if (character->frame != NULL) {
+    if (character->frame != nullptr) {
         /** Homogeneous origin copied into the aligned stack work vector. */
         struct FishingOrigin {
             sceVu0FVECTOR value; /**< Homogeneous origin vector. */
         };
 
-        FishingOrigin origin = *(FishingOrigin *) fishing_line_origin;
+        FishingOrigin origin = *reinterpret_cast<FishingOrigin *>(fishing_line_origin);
         CFrame       *rod = character->frame->SearchFrame("sao");
 
-        if (rod != NULL) {
+        if (rod != nullptr) {
             rod->GetWorldPosition(position, origin.value);
         }
 
@@ -7735,43 +7736,41 @@ static int _GOTO_FISHING(RS_STACKDATA *stack, int argument_count) {
     return 1;
 }
 
-static int _INIT_FISH(RS_STACKDATA *stack, int argument_count) {
+int _INIT_FISH(RS_STACKDATA *stack, int argument_count) {
     CBoxVu0 bounds;
     bounds.min[0] = GetStackFloat(stack++);
     bounds.min[1] = 0.0f;
     bounds.min[2] = GetStackFloat(stack++);
     bounds.max[0] = GetStackFloat(stack++);
-    // Retail redundantly clears the first bound's Y coordinate here.
-    bounds.min[1] = 0.0f;
     bounds.max[2] = GetStackFloat(stack);
     FishingInitFish(bounds);
     return 1;
 }
 
-static int _EXIT_FISHING(RS_STACKDATA *stack, int argument_count) {
+int _EXIT_FISHING(RS_STACKDATA *stack, int argument_count) {
     FishingExit();
     return 1;
 }
 
-static int _SET_FISHING_ESA(RS_STACKDATA *stack, int argument_count) {
+int _SET_FISHING_ESA(RS_STACKDATA *stack, int argument_count) {
     int item = GetStackInt(stack);
     FishingLoadEsa(item, EdEventInfo.item_frame[0], 40);
     return 1;
 }
 
-static int _GET_TV_MODE(RS_STACKDATA *stack, int argument_count) {
-    // 1 is PAL's 50 Hz, which makes the scripts shorten their frame counts by 5/6.
+int _GET_TV_MODE(RS_STACKDATA *stack, int argument_count) {
+    // 1 would select PAL's 50 Hz, which makes the scripts shorten their frame counts by 5/6.
     SetStack(stack, 0);
     return 1;
 }
 
-static int _GET_LANG_CODE(RS_STACKDATA *stack, int argument_count) {
+int _GET_LANG_CODE(RS_STACKDATA *stack, int argument_count) {
     SetStack(stack, LanguageCode);
     return 1;
 }
 
-/** Retail's ordered registry of editor-event external functions. */
-static ED_EVENT_EXTERNAL_FUNCTION ext_func_info[] = {
+/** Ordered registry of editor-event external functions. */
+ED_EVENT_EXTERNAL_FUNCTION ext_func_info[] = {
     {_GET_PADON,                0   },
     {_GET_PADDOWN,              1   },
     {_GET_PADUP,                2   },
@@ -8080,46 +8079,48 @@ static ED_EVENT_EXTERNAL_FUNCTION ext_func_info[] = {
     {_SET_FISHING_ESA,          994 },
     {_GET_TV_MODE,              1001},
     {_GET_LANG_CODE,            1002},
-    {NULL,                      -1  },
+    {nullptr,                   -1  },
 };
 
+} // namespace
+
 int EdSetEventScript(char *common_script, char *map_script, CDataAlloc2<1> *allocator) {
-    if (common_script == NULL) {
+    if (common_script == nullptr) {
         event_enable = 0;
         return 0;
     }
 
     event_enable = 1;
-    RS_STACKDATA *stack = (RS_STACKDATA *) allocator->Alloc(64);
-    RS_CALLDATA  *calls = (RS_CALLDATA *) allocator->Alloc(384);
-    EdEventScript.load((RS_PROG_HEADER *) common_script, stack, 128, calls, 512);
+    auto *stack = reinterpret_cast<RS_STACKDATA *>(allocator->Alloc(64));
+    auto *calls = reinterpret_cast<RS_CALLDATA *>(allocator->Alloc(384));
+    EdEventScript.load(reinterpret_cast<RS_PROG_HEADER *>(common_script), stack, 128, calls, 512);
 
-    if (map_script == NULL) {
-        map_script = common_script + ((int *) common_script)[5];
+    if (map_script == nullptr) {
+        map_script = common_script + (reinterpret_cast<int *>(common_script))[5];
     }
 
-    if (EdEventInfo.messages[1] != NULL) {
-        EdEventInfo.messages[1]->SetBuff((short *) map_script);
+    if (EdEventInfo.messages[1] != nullptr) {
+        EdEventInfo.messages[1]->SetBuff(reinterpret_cast<short *>(map_script));
     }
 
-    int i;
+    int i = 0;
 
     for (i = 0; i < 1500; i++) {
-        ext_func__2[i] = NULL;
+        ext_func__2[i] = nullptr;
     }
 
     for (i = 0;; i++) {
-        if (ext_func_info[i].function == NULL) {
+        if (ext_func_info[i].function == nullptr) {
             break;
         }
 
-        int j;
+        int j = 0;
 
         for (j = 0; j < i; j++) {
             if (ext_func_info[i].operation == ext_func_info[j].operation) {
-                printf("same ext_func_no!!!\n");
+                std::println("same ext_func_no!!!");
 
-                while (1) {
+                while (true) {
                 }
             }
         }
@@ -8127,7 +8128,7 @@ int EdSetEventScript(char *common_script, char *map_script, CDataAlloc2<1> *allo
         int operation = ext_func_info[i].operation;
 
         if (operation < 0 || operation >= 1500) {
-            printf("ext func over!!");
+            std::print("ext func over!!");
         } else {
             ext_func__2[operation] = ext_func_info[i].function;
         }
@@ -8139,7 +8140,7 @@ int EdSetEventScript(char *common_script, char *map_script, CDataAlloc2<1> *allo
 }
 
 int EdInitEventParamSimple() {
-    int i;
+    int i = 0;
     EdEventInfo.next_event = -1;
     EdEventInfo.fadeout_event_no = -1;
     EdEventInfo.interior_entrance = -1;
@@ -8147,13 +8148,13 @@ int EdInitEventParamSimple() {
     EdEventInfo.return_code = ED_EVENT_RETURN_NONE;
     motion_stop_flag = 0;
     menu_mode = ED_MENU_NONE;
-    CurrentDir[0] = '\0';
+    CurrentDir.clear();
     actv_file = 0;
     actv_buffer = 0;
-    follow_chara = NULL;
-    sync_camera_ref_chara = NULL;
-    sync_camera_ref_obj = NULL;
-    sync_camera_pos_obj = NULL;
+    follow_chara = nullptr;
+    sync_camera_ref_chara = nullptr;
+    sync_camera_ref_obj = nullptr;
+    sync_camera_pos_obj = nullptr;
     sync_camera_ref_offset[0] = 0.0f;
     sync_camera_ref_offset[1] = 0.0f;
     sync_camera_ref_offset[2] = 0.0f;
@@ -8174,16 +8175,16 @@ int EdInitEventParamSimple() {
 
     for (i = 0; i < 266; i++) {
         asq_table[i].operation = ACT_SEQ_UNUSED;
-        asq_table[i].next = NULL;
+        asq_table[i].next = nullptr;
     }
 
     for (i = 0; i < 10; i++) {
-        ActSeq[i].Initialize(asq_table, 266);
+        ActSeq[i].Initialize(asq_table.data(), asq_table.size());
     }
 
-    SpriteTable.Initialize(sprite_table, 32, 4);
+    SpriteTable.Initialize(sprite_table.data(), sprite_table.size(), 4);
     SpriteTable.ClearPointer();
-    SpriteTableBack.Initialize(sprite_table, 32, 4);
+    SpriteTableBack.Initialize(sprite_table.data(), sprite_table.size(), 4);
     SpriteTableBack.ClearPointer();
 
     for (i = 45; i <= 49; i++) {
@@ -8195,7 +8196,7 @@ int EdInitEventParamSimple() {
     event_pause = 0;
 
     for (i = 0; i <= 0; i++) {
-        EdEventInfo.item_frame[i] = NULL;
+        EdEventInfo.item_frame[i] = nullptr;
     }
 
     SceneData.Initialize();
@@ -8203,7 +8204,7 @@ int EdInitEventParamSimple() {
     for (i = 0; i < 16; i++) {
         ED_SPRITE *sprite = GetSprite(i);
 
-        if (sprite != NULL) {
+        if (sprite != nullptr) {
             InitSprite(sprite);
         } else {
             break;
@@ -8218,9 +8219,9 @@ int EdInitEventParamSimple() {
 
 int EdInitEventParam() {
     EdInitEventParamSimple();
-    CDataAlloc2<1> *allocator = (CDataAlloc2<1> *) BaseBuffer;
+    auto *allocator = reinterpret_cast<CDataAlloc2<1> *>(BaseBuffer);
 
-    if (allocator != NULL) {
+    if (allocator != nullptr) {
         int     used = allocator->used;
         u_char *base = allocator->base + used * 16;
         int     limit = allocator->limit - used;
@@ -8229,21 +8230,21 @@ int EdInitEventParam() {
         EdVillagerBuffer.used = 0;
     }
 
-    for (int i = 0; i < 320; i++) {
-        anime_data[i].Initialize();
+    for (auto &data : anime_data) {
+        data.Initialize();
     }
 
-    if (EdEventInfo.main_texture_animation == NULL) {
-        EdEventInfo.main_character->InitializeTexAnime(anime_data, 320);
+    if (EdEventInfo.main_texture_animation == nullptr) {
+        EdEventInfo.main_character->InitializeTexAnime(anime_data.data(), anime_data.size());
     }
 
     for (int i = 0; i < EdEventInfo.npc_count; i++) {
         EdEventInfo.npcs[i].Initialize();
-        EdEventInfo.npcs[i].InitializeTexAnime(anime_data, 320);
+        EdEventInfo.npcs[i].InitializeTexAnime(anime_data.data(), anime_data.size());
         TexManager.DeleteTextureBlock(EdEventInfo.npc_texture_block + i);
     }
 
-    if (EdEventInfo.main_character != NULL) {
+    if (EdEventInfo.main_character != nullptr) {
         EdEventInfo.main_character->SetMotion(0, 0);
     }
 
@@ -8252,24 +8253,18 @@ int EdInitEventParam() {
 
 /**
  * Initializes the editor event runtime and starts the requested script program.
- *
- * @mangled EdEventInit__FiP14CDataAlloc2_1_Pc
- * @address 0x1973B0
- * @size 0x2E8
  */
 int EdRunEvent(int program, CDataAlloc2<1> *arena);
 
 int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program) {
-    if (program == NULL) {
+    if (program == nullptr) {
         return 0;
     }
 
     run_system_event = 0;
 
-    for (int i = 0; i < 8; i++) {
-        ClsMes *message = EdEventInfo.messages[i];
-
-        if (message == NULL) {
+    for (auto *message : EdEventInfo.messages) {
+        if (message == nullptr) {
             continue;
         }
 
@@ -8294,12 +8289,12 @@ int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program) {
         message->mes_made = -1;
         message->edge_alpha = 0x80;
 
-        for (int j = 0; j < 10; j++) {
-            message->mes_no[j] = -1;
+        for (int &mes_no : message->mes_no) {
+            mes_no = -1;
         }
 
-        for (int j = 0; j < 8; j++) {
-            message->values[j] = 0;
+        for (int &value : message->values) {
+            value = 0;
         }
 
         message->value = 0;
@@ -8312,13 +8307,13 @@ int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program) {
         message->cursor_y = 0;
         message->cursor_lit = false;
 
-        for (int j = 0; j < 10; j++) {
-            message->line_pos[j].x = -1;
-            message->line_pos[j].y = -1;
+        for (auto &line_pos : message->line_pos) {
+            line_pos.x = -1;
+            line_pos.y = -1;
         }
     }
 
-    EdEventScript.reload((RS_PROG_HEADER *) program);
+    EdEventScript.reload(reinterpret_cast<RS_PROG_HEADER *>(program));
     EdEventInfo.return_code = ED_EVENT_RETURN_NONE;
     EdEventInfo.event_no = event_number;
     EdEventInfo.exit_code = 0;
@@ -8340,7 +8335,7 @@ int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program) {
     }
 
     EdInitEventParamSimple();
-    BaseBuffer = (u_int *) arena;
+    BaseBuffer = reinterpret_cast<u_int *>(arena);
 
     if (EdRunEvent(event_number, arena) <= 0) {
         simple_event = 1;
@@ -8375,11 +8370,6 @@ void RunEvent(CRunScript *script, int program, CDataAlloc2<1> *arena) {
     script->run(program);
 }
 
-/**
- * Starts an event script using the shared event-script runner.
- */
-int EdRunEvent(int program, CDataAlloc2<1> *arena);
-
 int EdResumeEvent() {
     EdEventScript.resume();
     return 1;
@@ -8393,7 +8383,7 @@ int EdEventSkip() {
 int EdEventAllClear() {
     EdEventInfo.main_character->ClearTexAnime();
 
-    if (EdEventInfo.main_texture_animation != NULL) {
+    if (EdEventInfo.main_texture_animation != nullptr) {
         for (int i = 0; i < EdEventInfo.main_texture_animation_count; i++) {
             EdEventInfo.main_texture_animation[i].Initialize();
         }
@@ -8408,13 +8398,13 @@ int EdEventAllClear() {
     for (int i = 0; i < EdEventInfo.npc_count; i++) {
         CNPCharacter *npc = GetNPC(i);
 
-        if (npc != NULL) {
+        if (npc != nullptr) {
             if (npc->texture_block >= 54) {
                 TexManager.DeleteTextureBlock(npc->texture_block);
             }
 
             npc->Initialize();
-            npc->InitializeTexAnime(NULL, 0);
+            npc->InitializeTexAnime(nullptr, 0);
         }
     }
 
@@ -8430,8 +8420,8 @@ int EdEventAllClear() {
         TexManager.DeleteTextureBlock(i);
     }
 
-    for (int i = 0; i < 10; i++) {
-        ActSeq[i].ClearSeq();
+    for (auto &sequence : ActSeq) {
+        sequence.ClearSeq();
     }
 
     return 1;
@@ -8446,7 +8436,7 @@ int EdEventFinish() {
     EdEventInfo.main_character->frame->DeleteReference();
     CFrame *shadow = EdEventInfo.main_character->shadow_frame;
 
-    if (shadow != NULL) {
+    if (shadow != nullptr) {
         shadow->DeleteReference();
     }
 
@@ -8455,15 +8445,10 @@ int EdEventFinish() {
 
 /**
  * Steps the editor's event system and reports the action requested by the script.
- *
- * @mangled EdEventMode__FP13CCameraFollowi
- * @address 0x197AD0
- * @size 0xCFC
  */
 int EdEventMode(CCameraFollow *camera, int kind) {
-    int result;
+    int result = 0;
 
-    // Debug builds toggle the event debugger with one button and pause the event with another.
     if (DebugMode != 0 && GamePad.Down(PAD_R3) != 0) {
         EdEventStopPlay();
     }
@@ -8484,11 +8469,11 @@ int EdEventMode(CCameraFollow *camera, int kind) {
         static int    select_chara = -1;
         sceVu0FVECTOR position;
         sceVu0FVECTOR reference;
-        char          text[128];
+        std::string   text;
         sceVu0FVECTOR chara_position;
         sceVu0FVECTOR chara_rotation;
-        int          *collision;
-        CCharacter   *chara;
+        int          *collision = nullptr;
+        CCharacter   *chara = nullptr;
 
         EdDDebug(1);
         collision = &EdEventInfo.player_collision;
@@ -8541,6 +8526,8 @@ int EdEventMode(CCameraFollow *camera, int kind) {
                 }
 
                 break;
+            default:
+                break;
         }
 
         EdDPrint(mode_name[mode]);
@@ -8554,12 +8541,12 @@ int EdEventMode(CCameraFollow *camera, int kind) {
         chara->GetRotation(chara_rotation);
         GetLocalPos(chara_position, chara_position);
         GetLocalRot(chara_rotation, chara_rotation);
-        sprintf(text, "select chara %d\ncollision %d\n", select_chara, *collision);
-        EdDPrint(text);
+        text = std::format("select chara {}\ncollision {}\n", select_chara, *collision);
+        EdDPrint(text.data());
         EdDPrintVector(" pos = ", chara_position);
         EdDPrintVector(" rot = ", chara_rotation);
-        sprintf(text, " amb %5.1f %5.1f %5.1f %5.1f\n", chara->ambient_offset[0], chara->ambient_offset[1], chara->ambient_offset[2], chara->ambient_offset[3]);
-        EdDPrint(text);
+        text = std::format(" amb {:5.1f} {:5.1f} {:5.1f} {:5.1f}\n", chara->ambient_offset[0], chara->ambient_offset[1], chara->ambient_offset[2], chara->ambient_offset[3]);
+        EdDPrint(text.data());
         EdDPrint("camera\n");
         GetLocalPos(position, position);
         GetLocalPos(reference, reference);
@@ -8570,16 +8557,16 @@ int EdEventMode(CCameraFollow *camera, int kind) {
         chara_rotation[0] = 0.0f;
         chara_rotation[1] = angle;
         GetLocalRot(chara_rotation, chara_rotation);
-        sprintf(text, " angle = %4.3f\n", chara_rotation[1]);
-        EdDPrint(text);
-        sprintf(text, " height = %6.2f\n", position[1] - reference[1]);
-        EdDPrint(text);
+        text = std::format(" angle = {:4.3f}\n", chara_rotation[1]);
+        EdDPrint(text.data());
+        text = std::format(" height = {:6.2f}\n", position[1] - reference[1]);
+        EdDPrint(text.data());
         position[1] = 0.0f;
         reference[1] = 0.0f;
-        sprintf(text, " distance = %6.2f\n", DistVector(position, reference));
-        EdDPrint(text);
-        sprintf(text, " projection = %7.1f\n", MGGetProjection());
-        EdDPrint(text);
+        text = std::format(" distance = {:6.2f}\n", DistVector(position, reference));
+        EdDPrint(text.data());
+        text = std::format(" projection = {:7.1f}\n", MGGetProjection());
+        EdDPrint(text.data());
         EdDCheck();
 
         if (GamePad.Down(PAD_SELECT) != 0) {
@@ -8661,16 +8648,16 @@ int EdEventMode(CCameraFollow *camera, int kind) {
     EdEventInfo.camera = camera;
 
     if (EdEventInfo.world_coord_enable != 0) {
-        SetWorldCoord((float *) &EdEventInfo.world_coord[8], (float *) &EdEventInfo.world_coord[24]);
+        SetWorldCoord(reinterpret_cast<float *>(&EdEventInfo.world_coord[8]), reinterpret_cast<float *>(&EdEventInfo.world_coord[24]));
     }
 
-    for (int i = 0; i < 8; i++) {
-        if (EdEventInfo.messages[i] != NULL) {
-            EdEventInfo.messages[i]->Step();
+    for (auto &message : EdEventInfo.messages) {
+        if (message != nullptr) {
+            message->Step();
         }
     }
 
-    if (SceneData.frame != NULL) {
+    if (SceneData.frame != nullptr) {
         float speed = SceneData.motion_speed;
         SceneData.SetMotion(0, 0);
         SceneData.motion_speed = speed;
@@ -8712,21 +8699,14 @@ int EdEventMode(CCameraFollow *camera, int kind) {
                         case ED_MENU_CHANGE_ESA: {
                             int item = EdGetUseItem();
 
-                            if (p_use_item != NULL) {
-                                ((RS_STACKDATA *) p_use_item)->i = item;
+                            if (p_use_item != nullptr) {
+                                reinterpret_cast<RS_STACKDATA *>(p_use_item)->i = item;
                             }
 
-                            p_use_item = NULL;
+                            p_use_item = nullptr;
                             break;
                         }
-                        case ED_MENU_NAME_REGISTRY:
-                            break;
-                        case ED_MENU_WORLD_MAP:
-                            if (p_jump_map_no != 0) {
-                                ((RS_STACKDATA *) p_jump_map_no)->i = MenuMapJumpMode + 1;
-                            }
-
-                            p_jump_map_no = 0;
+                        default:
                             break;
                     }
 
@@ -8736,15 +8716,17 @@ int EdEventMode(CCameraFollow *camera, int kind) {
                 }
 
                 break;
+            default:
+                break;
         }
     }
 
-    for (int i = 0; i < 10; i++) {
-        ActSeq[i].Play();
+    for (auto &sequence : ActSeq) {
+        sequence.Play();
     }
 
-    for (int i = 0; i < 16; i++) {
-        ObjAnimePlay(&obj_anime[i]);
+    for (auto &anime : obj_anime) {
+        ObjAnimePlay(&anime);
     }
 
     result = EdEventInfo.return_code;
@@ -8763,28 +8745,28 @@ int EdEventMode(CCameraFollow *camera, int kind) {
         MGSetBGColor(EdEventInfo.background_color[0], EdEventInfo.background_color[1], EdEventInfo.background_color[2], 128.0f);
     }
 
-    if (camera != NULL) {
-        if (follow_chara != NULL) {
+    if (camera != nullptr) {
+        if (follow_chara != nullptr) {
             sceVu0FVECTOR position;
             follow_chara->GetPosition(position);
             camera->SetFollow(position[0], position[1] + 0.8f * follow_chara->body_height, position[2]);
         }
 
-        if (sync_camera_ref_chara != NULL) {
+        if (sync_camera_ref_chara != nullptr) {
             sceVu0FVECTOR reference = {0.0f, 0.0f, 0.0f, 1.0f};
             sync_camera_ref_chara->GetPosition(reference);
             sceVu0AddVector(reference, reference, sync_camera_ref_offset);
             camera->SetRef(reference[0], reference[1] + 0.8f * sync_camera_ref_chara->body_height, reference[2]);
         }
 
-        if (sync_camera_ref_obj != NULL) {
+        if (sync_camera_ref_obj != nullptr) {
             sceVu0FVECTOR reference;
             get_obj_world_pos(sync_camera_ref_obj, reference);
             sceVu0AddVector(reference, reference, sync_camera_ref_offset);
             camera->SetRef(reference[0], reference[1], reference[2]);
         }
 
-        if (sync_camera_pos_obj != NULL) {
+        if (sync_camera_pos_obj != nullptr) {
             sceVu0FVECTOR position;
             get_obj_world_pos(sync_camera_pos_obj, position);
             camera->SetPos(position);
@@ -8818,7 +8800,7 @@ int EdEventNPCStep() {
         EdEventInfo.npcs[i].wind = wind;
 
         if (EdEventInfo.npc_stop[i] == 0) {
-            ((CNPCharacter *) EdEventInfo.npcs)[i].sequence_enabled = 0;
+            EdEventInfo.npcs[i].sequence_enabled = 0;
             EdEventInfo.npcs[i].Step();
             EdEventInfo.npcs[i].ShadowStep();
         }
@@ -8846,7 +8828,7 @@ int EdEventSpriteDraw() {
         for (int i = 0; i < 16; i++) {
             ED_SPRITE *sprite = GetSprite(i);
 
-            if (sprite == NULL) {
+            if (sprite == nullptr) {
                 break;
             }
 
@@ -8858,8 +8840,8 @@ int EdEventSpriteDraw() {
             CRect_i_ texel;
             screen.x = screen.y = screen.width = screen.height = 0;
             texel.x = texel.y = texel.width = texel.height = 0;
-            screen.x = (int) sprite->x;
-            screen.y = (int) sprite->y;
+            screen.x = static_cast<int>(sprite->x);
+            screen.y = static_cast<int>(sprite->y);
             screen.width = sprite->width;
             screen.height = sprite->height;
             texel.x = sprite->source_x;
@@ -8889,9 +8871,9 @@ int EdEventSpriteDraw() {
             sprite->y += sprite->move_y;
 
             if (sprite->rotated == 0) {
-                set2DSprite(GetVif1Packet(), &sprite->texture, screen, texel, (u_char) sprite->red, (u_char) sprite->green, (u_char) sprite->blue, (u_char) sprite->alpha);
+                set2DSprite(GetVif1Packet(), &sprite->texture, screen, texel, static_cast<u_char>(sprite->red), static_cast<u_char>(sprite->green), static_cast<u_char>(sprite->blue), static_cast<u_char>(sprite->alpha));
             } else {
-                set2DSpriteRot(GetVif1Packet(), &sprite->texture, screen, texel, sprite->rotation_x, sprite->rotation_y, sprite->rotation, (u_char) sprite->red, (u_char) sprite->green, (u_char) sprite->blue, (u_char) sprite->alpha);
+                set2DSpriteRot(GetVif1Packet(), &sprite->texture, screen, texel, sprite->rotation_x, sprite->rotation_y, sprite->rotation, static_cast<u_char>(sprite->red), static_cast<u_char>(sprite->green), static_cast<u_char>(sprite->blue), static_cast<u_char>(sprite->alpha));
             }
         }
     }
@@ -8913,7 +8895,7 @@ int EdSearchNearNPC(CCharacter *character, CNPCharacter *npcs, int count) {
     sceVu0FVECTOR npc_rotation;
     sceVu0FVECTOR character_position;
     sceVu0FVECTOR npc_position;
-    int           i;
+    int           i = 0;
     int           nearest = -1;
     float         nearest_distance = 0.0f;
     character->GetRotation(character_rotation);
@@ -8975,96 +8957,7 @@ int EdSearchNearNPC(CCharacter *character, CNPCharacter *npcs, int count) {
     return nearest;
 }
 
-/** Villager involved in the active conversation. */
-static CNPCharacter *talk_villager__2;
-
-/** Metadata identifier of the character involved in the active conversation. */
-static int talk_chara_info_id;
-
-/** Camera placement variant selected for the current conversation. */
-static int talk_camera;
-
-/** Conversation state currently being processed. */
-static int talk_mode;
-
-/** Selected choice in the active conversation prompt. */
-static int talk_select;
-
-/** Whether the active conversation message still needs to be created. */
-static int TalkMesMake;
-
-/** Message number the active conversation is showing. */
-static int TalkMesNo;
-
-int EdTalkModeInit(CNPCharacter *villager, int character_info_id);
-
-CNPCharacter *EdNowTalkChara();
-
-int EdNowTalkCharaInfoID();
-
-/**
- * Closes the conversation window and leaves it ready for the next message.
- */
-static inline void EdCloseTalkMes() {
-    EditMes1.text_rate = EditMes1.text_rate_set;
-    EditMes1.mes_made = -1;
-    EditMes1.fade_in = false;
-    EditMes1.text_columns = MES_WIN_COLUMNS;
-    EditMes1.text_rows = 0xA;
-    EditMes1.text_len = 0;
-    EditMes1.text_width = 0;
-    EditMes1.text_height = 0;
-    EditMes1.fade = 0.0f;
-    EditMes1.fade_in = true;
-    EditMes1.text_rate = EditMes1.text_rate_set;
-    EditMes1.waiting = false;
-    EditMes1.text_at = 0.0f;
-    EditMes1.text_no = 0;
-    EditMes1.text_from = 0;
-    EditMes1.page_from = 0;
-    EditMes1.InitMesWinTbl();
-    EditMes1.clut_now = EditMes1.clut_default;
-    EditMes1.wait = 0;
-    EditMes1.blink = 0;
-    EditMes1.auto_page_wait = 0;
-    EditMes1.mes_made = -1;
-    EditMes1.edge_alpha = 0x80;
-
-    for (int i = 0; i < 10; i++) {
-        EditMes1.mes_no[i] = -1;
-    }
-
-    for (int i = 0; i < 8; i++) {
-        EditMes1.values[i] = 0;
-    }
-
-    EditMes1.value = 0;
-    EditMes1.value_signed = false;
-    EditMes1.value_show = true;
-    EditMes1.value_narrow = false;
-    EditMes1.space_width = -1;
-    EditMes1.space_area = -1;
-    EditMes1.cursor_row = -1;
-    EditMes1.cursor_y = 0;
-    EditMes1.cursor_lit = false;
-
-    for (int i = 0; i < 10; i++) {
-        EditMes1.line_pos[i].x = -1;
-        EditMes1.line_pos[i].y = -1;
-    }
-}
-
-/**
- * Runs the talking-to-a-villager mode for one frame.
- *
- * @mangled EdTalkMode__FP10CCharacterP13CCameraFollowiPi
- * @address 0x199090
- * @size 0xEBC
- */
-int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selection);
-
-ED_SPRITE::ED_SPRITE() {
-}
+ED_SPRITE::ED_SPRITE() = default;
 
 int CheckPartsInfo(EDITPARTS_INFO *info) {
     if (info->obtained == 0) {

@@ -1,9 +1,11 @@
-#include "stubs/editground.hpp"
-
 #include "editground.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <vector>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -20,25 +22,16 @@
 #include "savedata.hpp"
 #include "vector3.hpp"
 
-static int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z);
+namespace {
+
+int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z);
+
+} // namespace
 
 int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y) {
-    CVector3_f_     grid;
-    int             area_no;
-    int             span[2];
-    int             deleted_parts_no;
-    int             deleted_rot_y;
-    int             width;
-    int             height;
-    int             i;
-    int             j;
-    CMapParts      *source;
-    int             parts_id;
-    CEditArea     **slot;
-    CMapParts      *target;
-    CEditArea      *area;
-    int             placeable;
-    EDITPARTS_INFO *info;
+    CVector3_f_ grid;
+    int         deleted_parts_no = 0;
+    int         deleted_rot_y = 0;
 
     if (CheckEffect()) {
         return -1;
@@ -48,39 +41,37 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
         return -1;
     }
 
-    if (plot_parts == NULL) {
+    if (plot_parts == nullptr) {
         return -1;
     }
 
-    source = &plot_parts[parts_no];
+    CMapParts *source = &plot_parts[parts_no];
 
     if (source->handle < 0) {
         return -1;
     }
 
-    area_no = GetAreaCode(x, y, z);
+    int area_no = GetAreaCode(x, y, z);
 
     if (area_no < 0) {
         return -1;
     }
 
-    CEditArea **area_list = areas;
-    slot = &area_list[area_no];
-    area = *slot;
+    CEditArea *area = areas[area_no];
 
-    if (source->info == NULL) {
+    if (source->info == nullptr) {
         return -1;
     }
 
-    placeable = area->CheckParts(source, x, y, z, rot_y);
-    target = parts;
-    parts_id = -1;
+    int        placeable = area->CheckParts(source, x, y, z, rot_y);
+    CMapParts *target = parts;
+    int        parts_id = -1;
 
     switch (source->subtype) {
         case MAP_PARTS_SUBTYPE_BRIDGE:
         case MAP_PARTS_SUBTYPE_ON_RIVER:
             // A bridge or a crossing replaces the river or road piece beneath it.
-            parts_id = (*slot)->SearchPartsID(x, y, z);
+            parts_id = area->SearchPartsID(x, y, z);
 
             if (parts_id >= 0 && CheckDelete(area, source, x, y, z) == 0) {
                 if (parts[parts_id].subtype == MAP_PARTS_SUBTYPE_RIVER && parts[parts_id].handle == 1) {
@@ -108,10 +99,10 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
             break;
     }
 
-    if (parts_info != NULL) {
-        info = parts_info->GetPartsInfo(parts_no);
+    if (parts_info != nullptr) {
+        EDITPARTS_INFO *info = parts_info->GetPartsInfo(parts_no);
 
-        if (info != NULL) {
+        if (info != nullptr) {
             if (info->placed == info->stock) {
                 return -1;
             }
@@ -121,8 +112,8 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
     }
 
     if (parts_id < 0) {
-        for (parts_id = 0; parts_id < 128; target++, parts_id++) {
-            if (target->handle < 0) {
+        for (parts_id = 0; parts_id < 128; parts_id++) {
+            if (parts[parts_id].handle < 0) {
                 break;
             }
         }
@@ -130,16 +121,18 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
         if (parts_id == 128) {
             return -1;
         }
+
+        target = &parts[parts_id];
     }
 
     if (placeable != 0 && source->subtype != MAP_PARTS_SUBTYPE_ROAD) {
-        span[0] = source->GetWidth();
-        span[1] = source->GetHeight();
+        int span_width = source->GetWidth();
+        int span_height = source->GetHeight();
 
-        for (i = 0; i < span[0]; i++) {
-            for (j = 0; j < span[1]; j++) {
-                float cell_x = x - (float) ((span[0] >> 1) - i) * area->GetUnitSize();
-                float cell_z = z - (float) ((span[1] >> 1) - j) * area->GetUnitSize();
+        for (int column = 0; column < span_width; column++) {
+            for (int row = 0; row < span_height; row++) {
+                float cell_x = x - static_cast<float>((span_width >> 1) - column) * area->GetUnitSize();
+                float cell_z = z - static_cast<float>((span_height >> 1) - row) * area->GetUnitSize();
 
                 if (area->SearchPartsExtra(cell_x, y, cell_z) == 1) {
                     DeleteMapParts(&deleted_parts_no, &deleted_rot_y, cell_x, y, cell_z);
@@ -150,20 +143,20 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
 
     memcpy(target, source, sizeof(CMapParts));
     target->SetRotY(rot_y);
-    (*slot)->GetGrid(&grid, x, y, z);
-    width = source->GetWidth();
-    height = source->GetHeight();
+    area->GetGrid(&grid, x, y, z);
+    int width = source->GetWidth();
+    int height = source->GetHeight();
 
     if (width % 2 == 1) {
-        grid.x += 0.5f * (*slot)->GetUnitSize();
+        grid.x += 0.5f * area->GetUnitSize();
     }
 
     if (height % 2 == 1) {
-        grid.z += 0.5f * (*slot)->GetUnitSize();
+        grid.z += 0.5f * area->GetUnitSize();
     }
 
-    grid.y = (*slot)->GetAlt(grid.x, grid.y, grid.z);
-    target->unit_size = (*slot)->GetUnitSize();
+    grid.y = area->GetAlt(grid.x, grid.y, grid.z);
+    target->unit_size = area->GetUnitSize();
     sceVu0FVECTOR position = {0.0f, 0.0f, 0.0f, 1.0f};
     position[0] = grid.x;
     position[1] = grid.y;
@@ -171,7 +164,7 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
     target->SetPosition(position);
     target->SetRotY(rot_y);
     target->area = area_no;
-    (*slot)->SetMapParts(parts_id, parts, x, y, z, rot_y);
+    area->SetMapParts(parts_id, parts, x, y, z, rot_y);
 
     if (target->subtype == MAP_PARTS_SUBTYPE_RIVER && target->handle != 6) {
         SetRiverParts(x, y, z, 0, 0);
@@ -192,33 +185,14 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
     return parts_id;
 }
 
-/**
- * Gives back the frame that a map part's shadow draws from.
- */
-static inline CFrame *GetShadowFrame(CMapParts *parts) {
-    return parts->shadow_frame;
-}
-
-/**
- * Gives back the frame that a map part's shade draws from.
- */
-static inline CFrame *GetShadeFrame(CMapParts *parts) {
-    return parts->shade_frame;
-}
-
-/**
- * Gives back the frame that a map part's ripple draws from.
- */
-static inline CFrame *GetRippleFrame(CMapParts *parts) {
-    return parts->ripple_frame;
-}
+namespace {
 
 /**
  * Puts a map part's camera collision frame where the part is and gives it back.
  */
-static inline CFrame *GetCameraFrame(CMapParts *parts) {
-    if (parts->camera_frame == NULL) {
-        return NULL;
+CFrame *GetCameraFrame(CMapParts *parts) {
+    if (parts->camera_frame == nullptr) {
+        return nullptr;
     }
 
     parts->camera_frame->SetPosition(parts->pos[0], parts->pos[1], parts->pos[2]);
@@ -226,11 +200,28 @@ static inline CFrame *GetCameraFrame(CMapParts *parts) {
     return parts->camera_frame;
 }
 
+/**
+ * Takes one copy of a plot's part back off the map count, never going below zero.
+ */
+void ReleasePlot(CEditPartsInfo *parts_info, int plot) {
+    if (parts_info == nullptr) {
+        return;
+    }
+
+    EDITPARTS_INFO *info = parts_info->GetPartsInfo(plot);
+
+    if (info != nullptr) {
+        info->placed = std::max<s32>(info->placed - 1, 0);
+    }
+}
+
+} // namespace
+
 int CEditGround::SetRiverParts(float x, float y, float z, int column_step, int row_step) {
     CVector3_i_ cell;
     CVector3_f_ position;
-    int         deleted_parts_no;
-    int         deleted_rot_y;
+    int         deleted_parts_no = 0;
+    int         deleted_rot_y = 0;
 
     int area_no = GetAreaCode(x, y, z);
 
@@ -251,7 +242,7 @@ int CEditGround::SetRiverParts(float x, float y, float z, int column_step, int r
     CMapParts *object = &parts[parts_id];
     int        subtype = object->subtype;
 
-    if ((subtype != MAP_PARTS_SUBTYPE_RIVER && subtype != MAP_PARTS_SUBTYPE_BRIDGE && subtype != MAP_PARTS_SUBTYPE_ON_RIVER) || river_parts == NULL) {
+    if ((subtype != MAP_PARTS_SUBTYPE_RIVER && subtype != MAP_PARTS_SUBTYPE_BRIDGE && subtype != MAP_PARTS_SUBTYPE_ON_RIVER) || river_parts == nullptr) {
         return 0;
     }
 
@@ -277,20 +268,20 @@ int CEditGround::SetRiverParts(float x, float y, float z, int column_step, int r
         rot_y = -1;
     }
 
+    CMapParts &river = river_parts[piece - 1];
+
     for (int i = 0; i < 4; i++) {
-        CMapParts *river = &river_parts[(u32) (piece - 1)];
-        CFrameVu1 *frame = river->frame[i];
-        object->SetFrame(frame, i);
+        object->SetFrame(river.frame[i], i);
     }
 
-    object->collision_frame = river_parts[(u32) (piece - 1)].GetCollisionFrame();
-    object->shadow_frame = GetShadowFrame(&river_parts[(u32) (piece - 1)]);
-    object->shade_frame = GetShadeFrame(&river_parts[(u32) (piece - 1)]);
-    object->camera_frame = GetCameraFrame(&river_parts[(u32) (piece - 1)]);
-    object->ripple_frame = GetRippleFrame(&river_parts[(u32) (piece - 1)]);
-    object->handle = river_parts[(u32) (piece - 1)].handle;
-    object->subtype = river_parts[(u32) (piece - 1)].subtype;
-    object->bound = river_parts[(u32) (piece - 1)].bound;
+    object->collision_frame = river.GetCollisionFrame();
+    object->shadow_frame = river.shadow_frame;
+    object->shade_frame = river.shade_frame;
+    object->camera_frame = GetCameraFrame(&river);
+    object->ripple_frame = river.ripple_frame;
+    object->handle = river.handle;
+    object->subtype = river.subtype;
+    object->bound = river.bound;
     object->SetRotY(rot_y);
     return 1;
 }
@@ -316,7 +307,7 @@ int CEditGround::SetRoadParts(float x, float y, float z, int column_step, int ro
 
     CMapParts *object = &parts[parts_id];
 
-    if (object->subtype != MAP_PARTS_SUBTYPE_ROAD || road_parts == NULL) {
+    if (object->subtype != MAP_PARTS_SUBTYPE_ROAD || road_parts == nullptr) {
         return 0;
     }
 
@@ -337,17 +328,17 @@ int CEditGround::SetRoadParts(float x, float y, float z, int column_step, int ro
         rot_y = -1;
     }
 
+    CMapParts &road = road_parts[piece - 1];
+
     for (int i = 0; i < 4; i++) {
-        CMapParts *road = &road_parts[(u32) (piece - 1)];
-        CFrameVu1 *frame = road->frame[i];
-        object->SetFrame(frame, i);
+        object->SetFrame(road.frame[i], i);
     }
 
-    object->collision_frame = road_parts[(u32) (piece - 1)].GetCollisionFrame();
+    object->collision_frame = road.GetCollisionFrame();
     object->SetRotY(rot_y);
-    object->handle = road_parts[(u32) (piece - 1)].handle;
-    object->subtype = road_parts[(u32) (piece - 1)].subtype;
-    object->bound = road_parts[(u32) (piece - 1)].bound;
+    object->handle = road.handle;
+    object->subtype = road.subtype;
+    object->bound = road.bound;
     return 1;
 }
 
@@ -382,37 +373,14 @@ int CEditGround::DeleteMapParts(int *out_parts_no, int *out_rot_y, float x, floa
         target->SetPosition(position);
         target->SetRotY(rot_y);
         area->SetMapParts(parts_id, parts, x, y, z, rot_y);
-
-        if (parts_info != NULL) {
-            EDITPARTS_INFO *info = parts_info->GetPartsInfo(plot);
-
-            if (info != NULL) {
-                info->placed--;
-
-                if (info->placed < 0) {
-                    info->placed = false;
-                }
-            }
-        }
-
+        ReleasePlot(parts_info, plot);
         return parts_id;
     }
 
-    if (parts_info != NULL) {
-        EDITPARTS_INFO *info = parts_info->GetPartsInfo(parts[parts_id].parts_no);
-
-        if (info != NULL) {
-            info->placed--;
-
-            if (info->placed < 0) {
-                info->placed = false;
-            }
-        }
-    }
-
+    ReleasePlot(parts_info, parts[parts_id].parts_no);
     sceVu0FVECTOR position;
     parts[parts_id].GetPosition(position);
-    area->DeleteMapParts(parts_id, parts, (float) (1.0f + position[0]), position[1], (float) (1.0f + position[2]));
+    area->DeleteMapParts(parts_id, parts, 1.0f + position[0], position[1], 1.0f + position[2]);
 
     if (parts[parts_id].subtype == MAP_PARTS_SUBTYPE_RIVER) {
         SetRiverParts(position[0], position[1], position[2], 1, 0);
@@ -437,7 +405,7 @@ int CEditGround::DeleteMapParts(int *out_parts_no, int *out_rot_y, float x, floa
 
 int CEditGround::GetAreaCode(float x, float y, float z) {
     for (int i = 0; i < 4; i++) {
-        if (areas[i] == NULL) {
+        if (areas[i] == nullptr) {
             break;
         }
 
@@ -470,15 +438,13 @@ int CEditGround::GetAlt_i(float x, float y, float z) {
 }
 
 CMapParts *CEditGround::GetPartsObject(int parts_no) {
-    CMapParts *object = parts;
-
-    for (int i = 0; i < 128; i++, object++) {
-        if (object->handle >= 0 && object->parts_no == parts_no) {
-            return object;
+    for (CMapParts &object : parts) {
+        if (object.handle >= 0 && object.parts_no == parts_no) {
+            return &object;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 int CEditGround::GetPartsID(float x, float y, float z) {
@@ -495,7 +461,7 @@ CMapParts *CEditGround::GetParts(float x, float y, float z) {
     int parts_id = GetPartsID(x, y, z);
 
     if (parts_id < 0) {
-        return NULL;
+        return nullptr;
     }
 
     return &parts[parts_id];
@@ -528,11 +494,8 @@ void CEditGround::SetBuildEffect(int parts_id) {
 
 void CEditGround::EffectTask() {
     sceVu0FVECTOR position;
-    int           stop = effect_parts_id < 0 || effect_parts_id >= 128;
-    stop = (bool) stop || effect_count <= 0;
-    stop = (bool) stop || parts[effect_parts_id].handle < 0;
 
-    if (stop) {
+    if (effect_parts_id < 0 || effect_parts_id >= 128 || effect_count <= 0 || parts[effect_parts_id].handle < 0) {
         effect_parts_id = -1;
         effect_count = -1;
         return;
@@ -574,34 +537,31 @@ int CEditGround::SetFocusParts(float x, float y, float z) {
     return focus_parts_id;
 }
 
+namespace {
+
 /**
  * Returns the absolute value of a floating-point number.
  */
-static inline float Magnitude(float value) {
+float Magnitude(float value) {
     return value < 0.0f ? -value : value;
 }
+
+} // namespace
 
 void CEditGround::EditAreaClip(CCamera *camera, float range) {
     CBoxVu0       box;
     sceVu0FVECTOR eye = {0.0f, 0.0f, 0.0f, 0.0f};
     sceVu0FVECTOR ref;
-    sceVu0FVECTOR dir;
     sceVu0FVECTOR forward;
     float         dists[4];
-    float         dots[4];
-    sceVu0FVECTOR to_center;
-    sceVu0FVECTOR center;
     sceVu0FVECTOR corner_a;
     sceVu0FVECTOR corner_b;
     sceVu0FVECTOR corner_max;
     sceVu0FVECTOR corner_min;
-    float         facing;
-    int           i;
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->GetPos(eye);
         camera->GetRef(ref);
-        sceVu0SubVector(dir, ref, eye);
 
         if (GetAreaCode(eye[0], eye[1], eye[2]) < 0) {
             sceVu0SubVector(forward, ref, eye);
@@ -612,15 +572,12 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
         }
     } else {
         sceVu0CopyVector(eye, ref);
-        sceVu0CopyVector(dir, ref);
     }
 
-    facing = 0.0f;
-
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         CEditArea *area = areas[i];
 
-        if (area == NULL) {
+        if (area == nullptr) {
             break;
         }
 
@@ -628,11 +585,10 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
         box.min[1] -= 2.0f * area->GetUnitAlt();
         box.min[3] = 1.0f;
         sceVu0CopyVector(box.max, box.min);
-        box.max[0] += area->GetUnitSize() * (float) area->GetWidth();
+        box.max[0] += area->GetUnitSize() * static_cast<float>(area->GetWidth());
         box.max[1] += 32.0f * area->GetUnitAlt();
-        box.max[2] += area->GetUnitSize() * (float) area->GetHeight();
+        box.max[2] += area->GetUnitSize() * static_cast<float>(area->GetHeight());
         dists[i] = -1.0f;
-        dots[i] = -1.0f;
 
         if (MGClipBox(&box)) {
             area_visible[i] = 0;
@@ -640,14 +596,6 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
         }
 
         area_visible[i] = 1;
-        sceVu0AddVector(center, box.max, box.min);
-        sceVu0ScaleVector(center, center, 0.5f);
-        sceVu0SubVector(to_center, center, eye);
-        dots[i] = sceVu0InnerProduct(to_center, dir);
-
-        if (dots[i] > 0.0f) {
-            facing += 1.0f;
-        }
 
         // The corners of the area on the ground, for the distance from the target to its edge.
         sceVu0CopyVector(corner_max, box.max);
@@ -679,28 +627,22 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
             side_z = 1;
         }
 
-        float gap;
-
         if (side_x < 0 && side_z < 0) {
             dists[i] = DistVector(ref, corner_min);
         } else if (side_x == 0 && side_z < 0) {
-            gap = ref[2] - corner_min[2];
-            dists[i] = gap < 0.0f ? -gap : gap;
+            dists[i] = Magnitude(ref[2] - corner_min[2]);
         } else if (side_x > 0 && side_z < 0) {
             dists[i] = DistVector(ref, corner_a);
         } else if (side_x < 0 && side_z == 0) {
-            gap = ref[0] - corner_min[0];
-            dists[i] = gap < 0.0f ? -gap : gap;
+            dists[i] = Magnitude(ref[0] - corner_min[0]);
         } else if (side_x == 0 && side_z == 0) {
             dists[i] = 0.0f;
         } else if (side_x > 0 && side_z == 0) {
-            gap = ref[0] - corner_max[0];
-            dists[i] = gap < 0.0f ? -gap : gap;
+            dists[i] = Magnitude(ref[0] - corner_max[0]);
         } else if (side_x < 0 && side_z > 0) {
             dists[i] = DistVector(ref, corner_b);
         } else if (side_x == 0 && side_z > 0) {
-            gap = ref[2] - corner_max[2];
-            dists[i] = gap < 0.0f ? -gap : gap;
+            dists[i] = Magnitude(ref[2] - corner_max[2]);
         } else if (side_x > 0 && side_z > 0) {
             dists[i] = DistVector(ref, corner_max);
         }
@@ -719,7 +661,7 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
     int nearest_dist = -1;
 
     for (int j = 0; j < 4; j++) {
-        if (areas[j] == NULL) {
+        if (areas[j] == nullptr) {
             break;
         }
 
@@ -768,7 +710,7 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
             break;
         case TOWN_QUEENS:
             for (int k = 0; k < 4; k++) {
-                if (areas[k] == NULL) {
+                if (areas[k] == nullptr) {
                     break;
                 }
 
@@ -784,22 +726,20 @@ void CEditGround::EditAreaClip(CCamera *camera, float range) {
             }
 
             break;
+        default:
+            break;
     }
 }
 
 int CEditGround::GetRandomPlanePos(sceVu0FVECTOR out_position, sceVu0FVECTOR avoid[], int avoid_count, sceVu0FVECTOR bounds) {
-    int           cells[2048];
-    sceVu0FVECTOR position;
-    CVector3_f_   grid;
-    CVector3_f_   chosen;
-    int           found = 0;
-    int           area_count = 0;
-    int           x;
-    int           z;
-    int           area_no;
+    std::vector<int> cells;
+    sceVu0FVECTOR    position;
+    CVector3_f_      grid;
+    CVector3_f_      chosen;
+    int              area_count = 0;
 
-    for (x = 0;; x++) {
-        if (areas[x] == NULL) {
+    for (int area_no = 0;; area_no++) {
+        if (areas[area_no] == nullptr) {
             break;
         }
 
@@ -810,13 +750,15 @@ int CEditGround::GetRandomPlanePos(sceVu0FVECTOR out_position, sceVu0FVECTOR avo
         return 0;
     }
 
-    for (area_no = 0; area_no < area_count; area_no++) {
+    cells.reserve(2048);
+
+    for (int area_no = 0; area_no < area_count; area_no++) {
         int width = areas[area_no]->GetWidth();
         int height = areas[area_no]->GetHeight();
 
         // The outer two cells of each edge are never chosen.
-        for (x = 2; x < width - 2; x++) {
-            for (z = 2; z < height - 2; z++) {
+        for (int x = 2; x < width - 2; x++) {
+            for (int z = 2; z < height - 2; z++) {
                 if (areas[area_no]->GetPartsID(x, z) >= 0 && areas[area_no]->GetPartsExtra(x, z) != 1) {
                     continue;
                 }
@@ -845,20 +787,20 @@ int CEditGround::GetRandomPlanePos(sceVu0FVECTOR out_position, sceVu0FVECTOR avo
                 }
 
                 if (!blocked) {
-                    cells[found++] = (area_no << 16) | (x | (z << 8));
+                    cells.push_back((area_no << 16) | (x | (z << 8)));
                 }
             }
         }
     }
 
-    if (found == 0) {
+    if (cells.empty()) {
         return 0;
     }
 
-    int cell = cells[rand() % found];
+    int cell = cells[rand() % static_cast<int>(cells.size())];
     int column = cell & 0xFF;
     int row = (cell >> 8) & 0xFF;
-    area_no = (cell >> 16) & 0xFF;
+    int area_no = (cell >> 16) & 0xFF;
     areas[area_no]->GetPos(&chosen, column, 0, row);
     out_position[0] = chosen.x + 0.5f * areas[area_no]->GetUnitSize();
     out_position[1] = areas[0]->GetAlt(column, row);
@@ -867,16 +809,14 @@ int CEditGround::GetRandomPlanePos(sceVu0FVECTOR out_position, sceVu0FVECTOR avo
 }
 
 int CEditGround::GetNearParts(CMapParts **out_parts, int limit, CBoxVu0 *box, CBoxVu0 *fixed_box) {
-    int        i;
-    int        count = 0;
-    CMapParts *object = parts;
+    int count = 0;
 
-    for (i = 0; i < 128; i++, object++) {
-        if (object->handle < 0) {
+    for (CMapParts &object : parts) {
+        if (object.handle < 0) {
             continue;
         }
 
-        if (!object->CheckBox(box)) {
+        if (!object.CheckBox(box)) {
             continue;
         }
 
@@ -884,22 +824,20 @@ int CEditGround::GetNearParts(CMapParts **out_parts, int limit, CBoxVu0 *box, CB
             return count;
         }
 
-        *out_parts++ = object;
+        out_parts[count] = &object;
         count++;
     }
 
-    if (fixed_box == NULL) {
+    if (fixed_box == nullptr) {
         fixed_box = box;
     }
 
-    for (i = 0; i < 64; i++) {
-        if (fixed_parts[i].handle < 0) {
+    for (CMapParts &fixed : fixed_parts) {
+        if (fixed.handle < 0) {
             continue;
         }
 
-        CMapParts *fixed = &fixed_parts[i];
-
-        if (!fixed->CheckBox2(fixed_box)) {
+        if (!fixed.CheckBox2(fixed_box)) {
             continue;
         }
 
@@ -907,7 +845,7 @@ int CEditGround::GetNearParts(CMapParts **out_parts, int limit, CBoxVu0 *box, CB
             return count;
         }
 
-        *out_parts++ = fixed;
+        out_parts[count] = &fixed;
         count++;
     }
 
@@ -915,9 +853,9 @@ int CEditGround::GetNearParts(CMapParts **out_parts, int limit, CBoxVu0 *box, CB
 }
 
 void CEditGround::MakePartsBox() {
-    for (int i = 0; i < 4; i++) {
-        if (areas[i] != NULL) {
-            areas[i]->MakePartsBox();
+    for (CEditArea *area : areas) {
+        if (area != nullptr) {
+            area->MakePartsBox();
         }
     }
 }
@@ -933,7 +871,7 @@ void CEditGround::GetPartsBox(CBoxVu0 *out_box, float x, float y, float z) {
         return;
     }
 
-    if (areas[area_no] != NULL) {
+    if (areas[area_no] != nullptr) {
         areas[area_no]->GetPartsBox(out_box);
     }
 }
@@ -955,15 +893,15 @@ EPARTS_FUNC_DATA *CEditGround::GetPeoplePos(int villager, float *out_position) {
             owner = GetPartsObject(owner->parts_no);
         }
 
-        if (owner == NULL) {
-            return NULL;
+        if (owner == nullptr) {
+            return nullptr;
         }
 
         sceVu0CopyVector(out_position, marker->position);
         CFrameVu1 *frame = owner->frame[0];
 
-        if (frame == NULL) {
-            return NULL;
+        if (frame == nullptr) {
+            return nullptr;
         }
 
         owner->GetPosition(transform);
@@ -977,55 +915,52 @@ EPARTS_FUNC_DATA *CEditGround::GetPeoplePos(int villager, float *out_position) {
         return marker;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void CEditGround::DrawBaseGround() {
-    for (int i = 0; i < 4; i++) {
-        if (areas[i] == NULL) {
+    for (CEditArea *area : areas) {
+        if (area == nullptr) {
             break;
         }
 
-        areas[i]->DrawGrid();
+        area->DrawGrid();
     }
 }
 
 void CEditGround::StepWater() {
-    int           i;
-    int           j;
-    CGroundWater *surface = water_surfaces;
-
-    for (i = 0; i < 4; i++, surface++) {
-        if (surface->draw == 0) {
+    for (CGroundWater &surface : water_surfaces) {
+        if (surface.draw == 0) {
             continue;
         }
 
-        if (surface->water.CheckClip()) {
+        if (surface.water.CheckClip()) {
             continue;
         }
 
-        for (j = 0; j < 4; j++) {
-            if (surface->ripples[j].power == 0.0f && surface->ripples[j].range == 0.0f) {
+        for (const GROUND_WATER_RIPPLE &ripple : surface.ripples) {
+            if (ripple.power == 0.0f && ripple.range == 0.0f) {
                 break;
             }
 
-            int row = surface->ripples[j].row;
-            int column = surface->ripples[j].column;
+            int row = ripple.row;
+            int column = ripple.column;
 
+            // Both picks scale by the row count, so a free column only covers a square surface.
             if (row < 0) {
-                int rows = surface->water.rows;
-                row = rows * (float) rand() / 2.1474836e9f;
+                int rows = surface.water.rows;
+                row = rows * static_cast<float>(rand()) / 2.1474836e9f;
             }
 
             if (column < 0) {
-                int rows = surface->water.rows;
-                column = rows * (float) rand() / 2.1474836e9f;
+                int rows = surface.water.rows;
+                column = rows * static_cast<float>(rand()) / 2.1474836e9f;
             }
 
-            surface->water.Shake(row, column, surface->ripples[j].power + surface->ripples[j].range * (float) rand() / 2.1474836e9f);
+            surface.water.Shake(row, column, ripple.power + ripple.range * static_cast<float>(rand()) / 2.1474836e9f);
         }
 
-        surface->water.Hamon();
+        surface.water.Hamon();
     }
 }
 
@@ -1034,15 +969,15 @@ void CEditGround::DrawWaterSurface(CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR dir;
     sceVu0FVECTOR parts_position;
-    int           i;
-    CGroundWater *surface = water_surfaces;
 
     camera->GetPos(eye);
     camera->GetDir(dir);
     dir[1] = 0.0f;
     sceVu0Normalize(dir, dir);
 
-    for (i = 0; i < 4; i++, surface++) {
+    for (CGroundWater &water_surface : water_surfaces) {
+        CGroundWater *surface = &water_surface;
+
         if (surface->draw == 0) {
             continue;
         }
@@ -1053,16 +988,16 @@ void CEditGround::DrawWaterSurface(CCamera *camera) {
         if (surface->parts_no >= 0) {
             CMapParts *owner = GetPartsObject(surface->parts_no);
 
-            if (owner == NULL) {
+            if (owner == nullptr) {
                 continue;
             }
 
             CFrame *frame = owner->ripple_frame;
 
-            if (frame != NULL && surface->name[0] != '\0') {
+            if (frame != nullptr && surface->name[0] != '\0') {
                 frame = frame->SearchFrame(surface->name);
 
-                if (frame != NULL && !(frame->attr.draw_on & 1)) {
+                if (frame != nullptr && !(frame->attr.draw_on & 1)) {
                     continue;
                 }
             }
@@ -1096,20 +1031,20 @@ void CEditGround::DrawWaterSurface(CCamera *camera) {
             water->frame.SetPosition(position);
         }
 
-        DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(water, &mgRenderInfo, GetVif1Packet(), NULL);
+        DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(water, &mgRenderInfo, GetVif1Packet(), nullptr);
     }
 }
 
 void CEditGround::DrawWater(int pass) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR corner;
-    CMapParts    *object = parts;
-    int           i;
 
-    for (i = 0; i < 128; i++, object++) {
+    for (CMapParts &placed : parts) {
         if (suppress_water) {
             break;
         }
+
+        CMapParts *object = &placed;
 
         if (object->handle < 0) {
             continue;
@@ -1128,6 +1063,8 @@ void CEditGround::DrawWater(int pass) {
             case MAP_PARTS_SUBTYPE_BRIDGE:
                 water->SetPosition(position);
                 water->Draw();
+                break;
+            default:
                 break;
             case MAP_PARTS_SUBTYPE_LAKE:
                 if (object->area < 0) {
@@ -1161,9 +1098,9 @@ void CEditGround::DrawWater(int pass) {
         }
     }
 
-    for (int j = 0; j < 64; j++) {
-        if (fixed_parts[j].category_no == pass) {
-            fixed_parts[j].Draw();
+    for (CMapParts &fixed : fixed_parts) {
+        if (fixed.category_no == pass) {
+            fixed.Draw();
         }
     }
 }
@@ -1171,19 +1108,19 @@ void CEditGround::DrawWater(int pass) {
 void CEditGround::DrawRipple(int pass) {
     sceVu0FVECTOR transform;
     sceVu0FVECTOR position;
-    CMapParts    *object = parts;
-    int           i;
 
-    for (i = 0; i < 128; i++, object++) {
+    for (CMapParts &placed : parts) {
         if (suppress_water) {
             break;
         }
+
+        CMapParts *object = &placed;
 
         if (object->handle < 0) {
             continue;
         }
 
-        if (object->ripple_frame == NULL) {
+        if (object->ripple_frame == nullptr) {
             continue;
         }
 
@@ -1203,7 +1140,7 @@ void CEditGround::DrawRipple(int pass) {
             }
         }
 
-        if (object->ripple_frame == NULL) {
+        if (object->ripple_frame == nullptr) {
             continue;
         }
 
@@ -1215,75 +1152,72 @@ void CEditGround::DrawRipple(int pass) {
         MGDraw(object->ripple_frame);
     }
 
-    for (int j = 0; j < 64; j++) {
-        if (fixed_parts[j].category_no != pass) {
+    for (CMapParts &fixed : fixed_parts) {
+        if (fixed.category_no != pass) {
             continue;
         }
 
-        if (fixed_parts[j].ripple_frame == NULL) {
+        if (fixed.ripple_frame == nullptr) {
             continue;
         }
 
-        if (fixed_parts[j].draw_on == 0) {
+        if (fixed.draw_on == 0) {
             continue;
         }
 
-        fixed_parts[j].GetPosition(transform);
-        fixed_parts[j].ripple_frame->SetPosition(transform);
-        fixed_parts[j].GetRotation(transform);
-        fixed_parts[j].ripple_frame->SetRotation(transform[0], transform[1], transform[2]);
-        MGDraw(fixed_parts[j].ripple_frame);
+        fixed.GetPosition(transform);
+        fixed.ripple_frame->SetPosition(transform);
+        fixed.GetRotation(transform);
+        fixed.ripple_frame->SetRotation(transform[0], transform[1], transform[2]);
+        MGDraw(fixed.ripple_frame);
     }
 }
 
 void CEditGround::DrawEffect(CCameraFollow *camera, float time, CEffectGroup *effects) {
     sceVu0FVECTOR position;
-    int           i;
-    CMapParts    *object = parts;
 
-    for (i = 0; i < 128; i++, object++) {
-        if (object->area >= 0 && area_visible[object->area] == 0) {
+    for (CMapParts &object : parts) {
+        if (object.area >= 0 && area_visible[object.area] == 0) {
             continue;
         }
 
         if (!(clip_plane[3] <= 0.0f)) {
-            object->GetPosition(position);
+            object.GetPosition(position);
 
             if (!(DistVector(position, clip_plane) <= clip_plane[3])) {
                 continue;
             }
         }
 
-        object->DrawEffect(camera, time, effects);
+        object.DrawEffect(camera, time, effects);
     }
 
-    for (i = 0; i < 64; i++) {
-        fixed_parts[i].DrawEffect(camera, time, effects);
+    for (CMapParts &fixed : fixed_parts) {
+        fixed.DrawEffect(camera, time, effects);
     }
 }
 
-void CEditGround::Save(char *path) {
-    char                buffer[4000];
-    sceVu0FVECTOR       position;
-    GROUND_SAVE_HEADER *header = (GROUND_SAVE_HEADER *) buffer;
-    SV_GRD_PART        *record = (SV_GRD_PART *) (header + 1);
+void CEditGround::Save([[maybe_unused]] char *path) {
+    auto          buffer = std::make_unique<char[]>(4000);
+    sceVu0FVECTOR position;
+    auto         *header = reinterpret_cast<GROUND_SAVE_HEADER *>(buffer.get());
+    auto         *records = reinterpret_cast<SV_GRD_PART *>(buffer.get() + sizeof(GROUND_SAVE_HEADER));
 
     header->offset = sizeof(GROUND_SAVE_HEADER);
     header->count = 0;
 
-    for (int i = 0; i < 128; i++) {
-        CMapParts *object = &parts[i];
-        int        parts_id = parts[i].handle;
+    for (CMapParts &placed : parts) {
+        CMapParts *object = &placed;
+        int        parts_id = placed.handle;
 
         if (parts_id < 0) {
             continue;
         }
 
-        int j;
         int kind = object->subtype;
 
         if (kind > 0) {
-            for (j = 0; j < 24; j++) {
+            for (int j = 0; j < 24; j++) {
                 if (kind == plot_parts[j].subtype) {
                     parts_id = plot_parts[j].handle;
                     break;
@@ -1292,51 +1226,47 @@ void CEditGround::Save(char *path) {
         }
 
         object->GetPosition(position);
-        record->part_id = parts_id;
-        record->rot_y = object->rot_y;
-        record->pos_x = position[0];
-        record->pos_y = position[1];
-        record->pos_z = position[2];
-        record++;
+        SV_GRD_PART &record = records[header->count];
+        record.part_id = parts_id;
+        record.rot_y = object->rot_y;
+        record.pos_x = position[0];
+        record.pos_y = position[1];
+        record.pos_z = position[2];
         header->count++;
     }
 
-    record->part_id = -1;
-    record->rot_y = -1;
-    record->pos_x = 0.0f;
-    record->pos_y = 0.0f;
-    record->pos_z = 0.0f;
-    header->size = (char *) (record + 1) - buffer;
-    WriteFile("host0:y:/ps2/dc_data/gdata0.edt", buffer, header->size);
+    SV_GRD_PART &terminator = records[header->count];
+    terminator.part_id = -1;
+    terminator.rot_y = -1;
+    terminator.pos_x = 0.0f;
+    terminator.pos_y = 0.0f;
+    terminator.pos_z = 0.0f;
+    header->size = sizeof(GROUND_SAVE_HEADER) + (header->count + 1) * sizeof(SV_GRD_PART);
+    WriteFile("host0:y:/ps2/dc_data/gdata0.edt", buffer.get(), header->size);
 }
 
 void CEditGround::Load(char *data) {
-    char                buffer[4000];
-    GROUND_SAVE_HEADER *header;
-    char               *file;
-    SV_GRD_PART        *record;
-    SV_GRD_PART        *records;
-    int                 i;
+    std::unique_ptr<char[]> buffer;
+    char                   *file = data;
 
     Clear();
-    file = buffer;
 
-    if (data == NULL) {
-        if (!LoadFile2("gdata0.edt", file, NULL, 0)) {
+    if (data == nullptr) {
+        buffer = std::make_unique<char[]>(4000);
+        file = buffer.get();
+
+        if (!LoadFile2("gdata0.edt", file, nullptr, 0)) {
             return;
         }
-    } else {
-        file = data;
     }
 
-    header = (GROUND_SAVE_HEADER *) file;
-    records = (SV_GRD_PART *) (file + header->offset);
+    const auto *header = reinterpret_cast<GROUND_SAVE_HEADER *>(file);
+    const auto *records = reinterpret_cast<SV_GRD_PART *>(file + header->offset);
     // Parts that follow the ground's height go down first, then the rest, then the
     // parts that stand on others.
-    record = records;
-
-    for (i = 0; i < header->count; i++, record++) {
-        int parts_id = record->part_id;
+    for (int i = 0; i < header->count; i++) {
+        const SV_GRD_PART *record = &records[i];
+        int                parts_id = record->part_id;
 
         if (parts_id < 0 || parts_id >= 24) {
             break;
@@ -1349,10 +1279,9 @@ void CEditGround::Load(char *data) {
         }
     }
 
-    record = records;
-
-    for (i = 0; i < header->count; i++, record++) {
-        int parts_id = record->part_id;
+    for (int i = 0; i < header->count; i++) {
+        const SV_GRD_PART *record = &records[i];
+        int                parts_id = record->part_id;
 
         if (parts_id < 0 || parts_id >= 24) {
             break;
@@ -1372,109 +1301,103 @@ void CEditGround::Load(char *data) {
         }
     }
 
-    record = records;
-
-    for (i = 0; i < header->count; i++, record++) {
-        int parts_id = record->part_id;
+    for (int i = 0; i < header->count; i++) {
+        const SV_GRD_PART *record = &records[i];
+        int                parts_id = record->part_id;
 
         if (parts_id < 0 || parts_id >= 24) {
             break;
         }
 
-        switch (plot_parts[parts_id].subtype) {
-            case MAP_PARTS_SUBTYPE_BRIDGE:
-            case MAP_PARTS_SUBTYPE_ON_RIVER:
-                SetMapParts(parts_id, record->pos_x + 1.0f, record->pos_y, record->pos_z + 1.0f, record->rot_y);
-                break;
+        int kind = plot_parts[parts_id].subtype;
+
+        if (kind == MAP_PARTS_SUBTYPE_BRIDGE || kind == MAP_PARTS_SUBTYPE_ON_RIVER) {
+            SetMapParts(parts_id, record->pos_x + 1.0f, record->pos_y, record->pos_z + 1.0f, record->rot_y);
         }
     }
 
-    for (i = 0; i < 4; i++) {
-        if (areas[i] != NULL) {
-            areas[i]->RemakeGrid();
-            areas[i]->RemakeGrid();
+    for (CEditArea *area : areas) {
+        if (area != nullptr) {
+            area->RemakeGrid();
+            area->RemakeGrid();
         }
     }
 }
 
 void CEditGround::Save(int town, CSaveData *save) {
     sceVu0FVECTOR position;
-    int           count;
-    int           i;
+    int           count = 0;
 
-    SV_GRD_PART *record = save->GetParts(town, &count);
+    SV_GRD_PART *records = save->GetParts(town, &count);
 
-    if (record == NULL) {
+    if (records == nullptr) {
         return;
     }
 
-    for (i = 0; i < 128; i++) {
-        CMapParts *object = &parts[i];
-        int        parts_id = parts[i].handle;
+    int saved = 0;
+
+    for (CMapParts &object : parts) {
+        int parts_id = object.handle;
 
         if (parts_id < 0) {
             continue;
         }
 
-        int j;
-        int kind = object->subtype;
+        int kind = object.subtype;
 
-        switch (kind) {
-            case MAP_PARTS_SUBTYPE_ROAD:
-            case MAP_PARTS_SUBTYPE_RIVER:
-            case MAP_PARTS_SUBTYPE_BRIDGE:
-                for (j = 0; j < 24; j++) {
-                    if (kind == plot_parts[j].subtype) {
-                        parts_id = plot_parts[j].handle;
-                        break;
-                    }
+        if (kind == MAP_PARTS_SUBTYPE_ROAD || kind == MAP_PARTS_SUBTYPE_RIVER || kind == MAP_PARTS_SUBTYPE_BRIDGE) {
+            for (int j = 0; j < 24; j++) {
+                if (kind == plot_parts[j].subtype) {
+                    parts_id = plot_parts[j].handle;
+                    break;
                 }
-
-                break;
+            }
         }
 
-        object->GetPosition(position);
-        record->part_id = parts_id;
-        record->rot_y = object->rot_y;
-        record->pos_x = position[0];
-        record->pos_y = position[1];
-        record->pos_z = position[2];
-        record++;
+        object.GetPosition(position);
+        SV_GRD_PART &record = records[saved++];
+        record.part_id = parts_id;
+        record.rot_y = object.rot_y;
+        record.pos_x = position[0];
+        record.pos_y = position[1];
+        record.pos_z = position[2];
     }
 
-    record->part_id = -1;
-    record->rot_y = -1;
-    record->pos_x = 0.0f;
-    record->pos_y = 0.0f;
-    record->pos_z = 0.0f;
+    SV_GRD_PART &terminator = records[saved];
+    terminator.part_id = -1;
+    terminator.rot_y = -1;
+    terminator.pos_x = 0.0f;
+    terminator.pos_y = 0.0f;
+    terminator.pos_z = 0.0f;
 }
 
 void CEditGround::Load(int town, CSaveData *save) {
-    char                buffer[0x5000];
-    int                 count;
-    GROUND_SAVE_HEADER *header = (GROUND_SAVE_HEADER *) buffer;
-    SV_GRD_PART        *record = (SV_GRD_PART *) &buffer[sizeof(GROUND_SAVE_HEADER)];
+    int count = 0;
 
     SV_GRD_PART *saved = save->GetParts(town, &count);
 
-    if (saved == NULL) {
+    if (saved == nullptr) {
         return;
     }
+
+    auto  buffer = std::make_unique<char[]>(0x5000);
+    auto *header = reinterpret_cast<GROUND_SAVE_HEADER *>(buffer.get());
+    auto *records = reinterpret_cast<SV_GRD_PART *>(buffer.get() + sizeof(GROUND_SAVE_HEADER));
 
     header->count = count;
     header->offset = sizeof(GROUND_SAVE_HEADER);
 
-    for (int i = 0; i < count; saved++, record++, i++) {
-        record->part_id = saved->part_id;
-        record->rot_y = saved->rot_y;
-        record->pos_x = saved->pos_x;
-        record->pos_y = saved->pos_y;
-        record->pos_z = saved->pos_z;
+    for (int i = 0; i < count; i++) {
+        records[i].part_id = saved[i].part_id;
+        records[i].rot_y = saved[i].rot_y;
+        records[i].pos_x = saved[i].pos_x;
+        records[i].pos_y = saved[i].pos_y;
+        records[i].pos_z = saved[i].pos_z;
     }
 
-    record->part_id = -1;
-    record->rot_y = -1;
-    Load(buffer);
+    records[count].part_id = -1;
+    records[count].rot_y = -1;
+    Load(buffer.get());
 }
 
 int CEditGround::PickUpPoly(CCPoly *polygons, float x, float y, float z) {
@@ -1490,63 +1413,51 @@ int CEditGround::PickUpPoly(CCPoly *polygons, float x, float y, float z) {
 }
 
 int CEditGround::PickUpPoly(CCPoly *out_polygons, CBoxVu0 box, int flags) {
-    int        i;
-    int        count = 0;
-    CCPoly    *polygons = out_polygons;
-    CMapParts *object = parts;
-    int        found;
-    CFrame    *frame;
+    int count = 0;
 
-    for (i = 0; i < 128; i++, object++) {
-        if (object->handle < 0) {
+    for (CMapParts &object : parts) {
+        if (object.handle < 0) {
             continue;
         }
 
-        if (flags != 0 && object->subtype == MAP_PARTS_SUBTYPE_NONE) {
+        if (flags != 0 && object.subtype == MAP_PARTS_SUBTYPE_NONE) {
             continue;
         }
 
-        frame = object->GetCollisionFrame();
+        CFrame *frame = object.GetCollisionFrame();
 
-        if (frame == NULL) {
+        if (frame == nullptr) {
             continue;
         }
 
-        if (!object->CheckBox(&box)) {
+        if (!object.CheckBox(&box)) {
             continue;
         }
 
-        found = frame->PickUpNearPoly(polygons, box);
-        polygons += found;
-        count += found;
+        count += frame->PickUpNearPoly(&out_polygons[count], box);
     }
 
-    for (i = 0; i < 64; i++) {
-        if (fixed_parts[i].handle < 0) {
+    for (CMapParts &fixed : fixed_parts) {
+        if (fixed.handle < 0) {
             continue;
         }
 
-        CMapParts *fixed = &fixed_parts[i];
-        frame = fixed->GetCollisionFrame();
+        CFrame *frame = fixed.GetCollisionFrame();
 
-        if (frame == NULL) {
+        if (frame == nullptr) {
             continue;
         }
 
-        if (!fixed->CheckBox2(&box)) {
+        if (!fixed.CheckBox2(&box)) {
             continue;
         }
 
-        found = frame->PickUpNearPoly(polygons, box);
-        polygons += found;
-        count += found;
+        count += frame->PickUpNearPoly(&out_polygons[count], box);
     }
 
-    for (i = 0; i < 4; i++) {
-        if (areas[i] != NULL) {
-            found = areas[i]->PickUpPoly(polygons, box);
-            polygons += found;
-            count += found;
+    for (CEditArea *area : areas) {
+        if (area != nullptr) {
+            count += area->PickUpPoly(&out_polygons[count], box);
         }
     }
 
@@ -1564,59 +1475,57 @@ int CEditGround::PickUpEditAreaPoly(CCPoly *polygons, float x, float y, float z)
 }
 
 int CEditGround::PickUpCameraPoly(CCPoly *out_polygons, CBoxVu0 &box, int flags) {
-    int           i;
     int           count = 0;
-    CCPoly       *polygons = out_polygons;
-    CMapParts    *object = parts;
-    CFrame       *frame;
-    int           found;
     sceVu0FVECTOR center;
 
-    for (i = 0; i < 128 && (flags & 2); i++, object++) {
-        if (object->handle < 0) {
+    for (int i = 0; i < 128 && (flags & 2); i++) {
+        CMapParts &object = parts[i];
+
+        if (object.handle < 0) {
             continue;
         }
 
-        frame = GetCameraFrame(object);
+        CFrame *frame = GetCameraFrame(&object);
 
-        if (frame == NULL) {
+        if (frame == nullptr) {
             continue;
         }
 
-        if (!object->CheckBox(&box)) {
+        if (!object.CheckBox(&box)) {
             continue;
         }
 
-        found = frame->PickUpNearPoly(polygons, box);
-        polygons += found;
-        count += found;
+        count += frame->PickUpNearPoly(&out_polygons[count], box);
     }
 
-    for (i = 0; i < 64 && (flags & 1); i++) {
-        if (fixed_parts[i].handle < 0) {
+    for (int i = 0; i < 64 && (flags & 1); i++) {
+        CMapParts &fixed = fixed_parts[i];
+
+        if (fixed.handle < 0) {
             continue;
         }
 
-        frame = GetCameraFrame(&fixed_parts[i]);
+        CFrame *frame = GetCameraFrame(&fixed);
 
-        if (frame == NULL) {
+        if (frame == nullptr) {
             continue;
         }
 
-        if (!fixed_parts[i].CheckBox(&box)) {
+        if (!fixed.CheckBox(&box)) {
             continue;
         }
 
-        found = frame->PickUpNearPoly(polygons, box);
-        polygons += found;
-        count += found;
+        count += frame->PickUpNearPoly(&out_polygons[count], box);
     }
 
-    for (i = 0; i < 4; i++) {
-        if (areas[i] != NULL) {
+    // Every area writes its ground polygons to the same place, so only the last one's survive.
+    CCPoly *area_polygons = &out_polygons[count];
+
+    for (CEditArea *area : areas) {
+        if (area != nullptr) {
             sceVu0AddVector(center, box.max, box.min);
             sceVu0ScaleVector(center, center, 0.5f);
-            count += areas[i]->PickUpPoly(polygons, center[0], center[1], center[2]);
+            count += area->PickUpPoly(area_polygons, center[0], center[1], center[2]);
         }
     }
 
@@ -1624,14 +1533,12 @@ int CEditGround::PickUpCameraPoly(CCPoly *out_polygons, CBoxVu0 &box, int flags)
 }
 
 void CEditGround::Clear() {
-    int i;
-
-    for (i = 0; i < 128; i++) {
-        parts[i].Initialize();
+    for (CMapParts &object : parts) {
+        object.Initialize();
     }
 
-    for (i = 0; i < 4; i++) {
-        if (areas[i] != NULL) {
+    for (int i = 0; i < 4; i++) {
+        if (areas[i] != nullptr) {
             areas[i]->Clear();
         }
 
@@ -1644,7 +1551,7 @@ void CEditGround::Clear() {
     effect_target_alt = 0.0f;
     effect_step = 0.0f;
 
-    if (parts_info != NULL) {
+    if (parts_info != nullptr) {
         parts_info->Clear();
     }
 
@@ -1667,7 +1574,7 @@ void CEditGround::Clear() {
         SetMapParts(16, position.x, position.y, position.z, 0);
         areas[2]->GetPos(&position, 3, 0, 7);
         SetMapParts(16, position.x, position.y, position.z, 0);
-        info->placed = false;
+        info->placed = 0;
         info->stock -= 6;
         info->obtained = saved;
     }
@@ -1675,65 +1582,61 @@ void CEditGround::Clear() {
 
 void CEditGround::Initialize() {
     map_no = TOWN_NORUNE;
-    plot_parts = NULL;
-    river_parts = NULL;
-    road_parts = NULL;
-    parts_info = NULL;
+    plot_parts = nullptr;
+    river_parts = nullptr;
+    road_parts = nullptr;
+    parts_info = nullptr;
 
     for (int area = 0; area < 4; area++) {
-        areas[area] = NULL;
+        areas[area] = nullptr;
         area_visible[area] = 1;
     }
 
-    int i;
-
-    for (i = 0; i < 64; i++) {
-        fixed_parts[i].Initialize();
+    for (CMapParts &fixed : fixed_parts) {
+        fixed.Initialize();
     }
 
-    for (i = 0; i < 1; i++) {
-        spare_words[i] = 0;
+    for (s32 &word : spare_words) {
+        word = 0;
     }
 
-    for (i = 0; i < 4; i++) {
-        water_surfaces[i].draw = false;
+    for (CGroundWater &surface : water_surfaces) {
+        surface.draw = 0;
     }
 
-    for (i = 0; i < 128; i++) {
-        people[i] = NULL;
+    for (EPARTS_FUNC_DATA *&marker : people) {
+        marker = nullptr;
     }
 
     people_count = 0;
-    suppress_water = false;
+    suppress_water = 0;
     Clear();
     clip_plane[3] = -1.0f;
 }
 
 void CEditGround::RemakeGrid() {
-    for (int i = 0; i < 4; i++) {
-        if (areas[i] != NULL) {
-            areas[i]->grid_redraw = 1;
+    for (CEditArea *area : areas) {
+        if (area != nullptr) {
+            area->grid_redraw = 1;
         }
     }
 }
 
 CEditGround::CEditGround() {
     cursor.area = 0;
-    people[0] = NULL;
-    cursor.pieces[1] = NULL;
-    cursor.pieces[0] = NULL;
+    people[0] = nullptr;
+    cursor.pieces[1] = nullptr;
+    cursor.pieces[0] = nullptr;
     cursor.unit_size = 1.0f;
     Initialize();
 }
 
+namespace {
+
 /**
  * Reports whether a part may be replaced by the one being placed over it.
- *
- * @mangled CheckDelete__FP9CEditAreaP9CMapPartsfff
- * @address 0x1A5B20
- * @size 0x18C
  */
-static int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z) {
+int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z) {
     CVector3_i_ position;
 
     area->GetPos(&position, x, y, z);
@@ -1741,56 +1644,28 @@ static int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, floa
     int row = position.z;
     int kind = parts->subtype;
 
-    switch (area->GetMapNo()) {
-        case TOWN_MATATAKI:
-            if (kind == MAP_PARTS_SUBTYPE_BRIDGE) {
-                break;
-            }
-
-            switch (area->GetAreaID()) {
-                case 0:
-                    if (column == 5 && row == 0) {
-                        return 1;
-                    }
-
-                    if (column == 2 && row == 7) {
-                        return 1;
-                    }
-
-                    break;
-                case 1:
-                    if (column == 3 && row == 5) {
-                        return 1;
-                    }
-
-                    if (column == 11 && row == 3) {
-                        return 1;
-                    }
-
-                    break;
-                case 2:
-                    if (column == 4 && row == 0) {
-                        return 1;
-                    }
-
-                    if (column == 3 && row == 7) {
-                        return 1;
-                    }
-
-                    break;
-            }
-
-            break;
+    // The river ends Clear lays down in Matataki stay put; only a bridge may go over them.
+    if (area->GetMapNo() != TOWN_MATATAKI || kind == MAP_PARTS_SUBTYPE_BRIDGE) {
+        return 0;
     }
 
-    return 0;
+    switch (area->GetAreaID()) {
+        case 0:
+            return (column == 5 && row == 0) || (column == 2 && row == 7);
+        case 1:
+            return (column == 3 && row == 5) || (column == 11 && row == 3);
+        case 2:
+            return (column == 4 && row == 0) || (column == 3 && row == 7);
+        default:
+            return 0;
+    }
 }
+
+} // namespace
 
 void CPartsCursor::Draw(float *position, int width, int height) {
     sceVu0FVECTOR cell;
     sceVu0FVECTOR corner;
-    int           i;
-    int           j;
     int           columns = width * 2;
     int           rows = height * 2;
 
@@ -1801,10 +1676,10 @@ void CPartsCursor::Draw(float *position, int width, int height) {
     corner[2] += 0.25f * unit_size;
     sceVu0CopyVector(cell, corner);
 
-    for (i = 0; i < columns; i++) {
+    for (int i = 0; i < columns; i++) {
         cell[2] = corner[2];
 
-        for (j = 0; j < rows; j++) {
+        for (int j = 0; j < rows; j++) {
             int piece = 2;
             int turn = 0;
 
@@ -1860,24 +1735,19 @@ void CPartsCursor::Draw(float *position, int width, int height) {
 }
 
 void CEditGround::RequestCheck() {
-    CMapParts *placed[24][64];
-    int        plot_count[24];
-    int        i;
+    CMapParts *placed[24][64] = {};
+    int        plot_count[24] = {};
 
-    memset(placed, 0, sizeof(placed));
-    CMapParts *object = parts;
-
-    for (i = 0; i < 24; i++) {
-        plot_count[i] = 0;
+    for (int i = 0; i < 24; i++) {
         parts_info->request[i] = 0;
     }
 
-    for (i = 0; i < 128; i++, object++) {
-        if (object->handle >= 0) {
-            int plot = object->parts_no;
+    for (CMapParts &object : parts) {
+        if (object.handle >= 0) {
+            int plot = object.parts_no;
 
             if (plot >= 0 && plot < 24) {
-                placed[plot][plot_count[plot]++] = object;
+                placed[plot][plot_count[plot]++] = &object;
             }
         }
     }
@@ -1898,9 +1768,11 @@ void CEditGround::RequestCheck() {
         case TOWN_YELLOW_DROPS:
             YellowRequest(placed);
             break;
+        default:
+            break;
     }
 
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         if (!parts_info->CheckComplete(i)) {
             parts_info->request[i] = 0;
         }
@@ -1908,17 +1780,17 @@ void CEditGround::RequestCheck() {
 }
 
 int CEditGround::CheckPartsRect(int parts_no, int area_no, CRect_i_ &rect) {
-    int parts_ids[256];
+    std::array<int, 256> parts_ids;
 
     if (area_no < 0 || area_no >= 4) {
         return 0;
     }
 
-    if (areas[area_no] == NULL) {
+    if (areas[area_no] == nullptr) {
         return 0;
     }
 
-    int count = areas[area_no]->GetPartsRect(rect, parts_ids, 256);
+    int count = areas[area_no]->GetPartsRect(rect, parts_ids.data(), static_cast<int>(parts_ids.size()));
 
     for (int i = 0; i < count; i++) {
         if (parts[parts_ids[i]].parts_no == parts_no) {
@@ -1935,7 +1807,7 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int margin) {
 
     *rect = CRect_i_(0, 0, 0, 0);
 
-    if (target == NULL) {
+    if (target == nullptr) {
         return;
     }
 
@@ -1946,7 +1818,7 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int margin) {
         return;
     }
 
-    if (areas[area_no] == NULL) {
+    if (areas[area_no] == nullptr) {
         return;
     }
 
@@ -1964,15 +1836,10 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int margin) {
 void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int column, int row) {
     sceVu0FVECTOR position;
     CVector3_i_   grid;
-    int           width;
-    int           height;
-    int           rot_y;
-    int           offset_x;
-    int           offset_z;
 
     *rect = CRect_i_(0, 0, 0, 0);
 
-    if (target == NULL) {
+    if (target == nullptr) {
         return;
     }
 
@@ -1983,15 +1850,15 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int column, in
         return;
     }
 
-    if (areas[area_no] == NULL) {
+    if (areas[area_no] == nullptr) {
         return;
     }
 
     areas[area_no]->GetPos(&grid, position[0], position[1], position[2]);
-    rot_y = target->GetRotY();
+    int rot_y = target->GetRotY();
     target->SetRotY(0);
-    width = target->GetWidth();
-    height = target->GetHeight();
+    int width = target->GetWidth();
+    int height = target->GetHeight();
     target->SetRotY(rot_y);
     column -= width >> 1;
     row -= height >> 1;
@@ -2034,6 +1901,9 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int column, in
         }
     }
 
+    int offset_x = 0;
+    int offset_z = 0;
+
     switch (target->GetRotY()) {
         case 0:
             offset_x = column;
@@ -2051,6 +1921,8 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int column, in
             offset_x = -row;
             offset_z = column;
             break;
+        default:
+            break;
     }
 
     rect->x = grid.x + offset_x + adjust_x;
@@ -2059,13 +1931,16 @@ void CEditGround::GetRectParts(CRect_i_ *rect, CMapParts *target, int column, in
     rect->height = 1;
 }
 
+namespace {
+
 /**
  * Gives the first cell that a span covers when it is centred on a cell.
  */
-static inline int SpanStart(int &centre, int size) {
-    int half = size >> 1;
-    return centre - half;
+int SpanStart(int centre, int size) {
+    return centre - (size >> 1);
 }
+
+} // namespace
 
 void CEditGround::GetRectDirParts(CRect_i_ *rect, CMapParts *target, int direction, int depth) {
     sceVu0FVECTOR position;
@@ -2073,7 +1948,7 @@ void CEditGround::GetRectDirParts(CRect_i_ *rect, CMapParts *target, int directi
 
     *rect = CRect_i_(0, 0, 0, 0);
 
-    if (target == NULL) {
+    if (target == nullptr) {
         return;
     }
 
@@ -2084,7 +1959,7 @@ void CEditGround::GetRectDirParts(CRect_i_ *rect, CMapParts *target, int directi
         return;
     }
 
-    if (areas[area_no] == NULL) {
+    if (areas[area_no] == nullptr) {
         return;
     }
 
@@ -2133,27 +2008,31 @@ void CEditGround::GetRectDirParts(CRect_i_ *rect, CMapParts *target, int directi
 void CEditGround::NornRequest(CMapParts *(*placed)[64]) {
     parts_info->parts_max = 8;
 
-    if (areas[0] == NULL) {
+    if (areas[0] == nullptr) {
         return;
     }
 
-    if (placed[0][0] != NULL && placed[0][0]->GetRotY() == 1) {
+    if (placed[0][0] != nullptr && placed[0][0]->GetRotY() == 1) {
         parts_info->request[0] = 1;
     }
 
-    if (placed[1][0] != NULL) {
-        if (CheckPartsRect(1, 0, CRect_i_(10, 0, 4, 5))) {
+    if (placed[1][0] != nullptr) {
+        CRect_i_ zone(10, 0, 4, 5);
+
+        if (CheckPartsRect(1, 0, zone)) {
             parts_info->request[1] = 1;
         }
     }
 
-    if (placed[2][0] != NULL) {
-        if (!CheckPartsRect(2, 0, CRect_i_(2, 8, 9, 4))) {
+    if (placed[2][0] != nullptr) {
+        CRect_i_ zone(2, 8, 9, 4);
+
+        if (!CheckPartsRect(2, 0, zone)) {
             parts_info->request[2] = 1;
         }
     }
 
-    if (placed[3][0] != NULL) {
+    if (placed[3][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[12][0], 2);
@@ -2163,7 +2042,7 @@ void CEditGround::NornRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[4][0] != NULL) {
+    if (placed[4][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[6][0], 4);
@@ -2173,7 +2052,7 @@ void CEditGround::NornRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[5][0] != NULL) {
+    if (placed[5][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[8][0], 2, 4);
@@ -2183,7 +2062,7 @@ void CEditGround::NornRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[6][0] != NULL) {
+    if (placed[6][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[1][0], 4);
@@ -2193,12 +2072,12 @@ void CEditGround::NornRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[7][0] != NULL) {
-        int      parts_ids[256];
-        CRect_i_ rect;
+    if (placed[7][0] != nullptr) {
+        std::array<int, 256> parts_ids;
+        CRect_i_             rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[7][0], 4);
-        int count = areas[0]->GetPartsRect(rect, parts_ids, 256);
+        int count = areas[0]->GetPartsRect(rect, parts_ids.data(), static_cast<int>(parts_ids.size()));
         int houses = 0;
 
         for (int i = 0; i < count; i++) {
@@ -2217,7 +2096,7 @@ void CEditGround::NornRequest(CMapParts *(*placed)[64]) {
 void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
     parts_info->parts_max = 10;
 
-    if (areas[0] == NULL || areas[1] == NULL || areas[2] == NULL) {
+    if (areas[0] == nullptr || areas[1] == nullptr || areas[2] == nullptr) {
         return;
     }
 
@@ -2232,22 +2111,26 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         parts_info->request[16] = 1;
     }
 
-    if (placed[0][0] != NULL) {
-        if (CheckPartsRect(0, 0, CRect_i_(0, 0, 4, 1))) {
+    if (placed[0][0] != nullptr) {
+        CRect_i_ zone(0, 0, 4, 1);
+
+        if (CheckPartsRect(0, 0, zone)) {
             parts_info->request[0] = 1;
         }
 
-        if (CheckPartsRect(0, 1, CRect_i_(0, 5, 1, 1))) {
+        CRect_i_ second_zone(0, 5, 1, 1);
+
+        if (CheckPartsRect(0, 1, second_zone)) {
             parts_info->request[0] = 1;
         }
     }
 
-    if (placed[1][0] != NULL) {
-        int      parts_ids[256];
-        CRect_i_ rect;
+    if (placed[1][0] != nullptr) {
+        std::array<int, 256> parts_ids;
+        CRect_i_             rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[1][0], 1);
-        int count = areas[placed[1][0]->area]->GetPartsRect(rect, parts_ids, 256);
+        int count = areas[placed[1][0]->area]->GetPartsRect(rect, parts_ids.data(), static_cast<int>(parts_ids.size()));
         int found = 0;
 
         for (int i = 0; i < count; i++) {
@@ -2262,7 +2145,7 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[2][0] != NULL) {
+    if (placed[2][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[2][0], 3);
@@ -2281,7 +2164,7 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[3][0] != NULL) {
+    if (placed[3][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[3][0], 4);
@@ -2292,13 +2175,15 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[4][0] != NULL) {
-        if (CheckPartsRect(4, 2, CRect_i_(0, 5, 7, 3))) {
+    if (placed[4][0] != nullptr) {
+        CRect_i_ zone(0, 5, 7, 3);
+
+        if (CheckPartsRect(4, 2, zone)) {
             parts_info->request[4] = 1;
         }
     }
 
-    if (placed[5][0] != NULL) {
+    if (placed[5][0] != nullptr) {
         sceVu0FVECTOR position;
         placed[5][0]->GetPosition(position);
 
@@ -2307,7 +2192,7 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[6][0] != NULL && placed[3][0] != NULL) {
+    if (placed[6][0] != nullptr && placed[3][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[3][0], 3);
@@ -2317,7 +2202,7 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[7][0] != NULL) {
+    if (placed[7][0] != nullptr) {
         sceVu0FVECTOR position;
         placed[7][0]->GetPosition(position);
 
@@ -2326,12 +2211,12 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[14][0] != NULL) {
-        int      parts_ids[256];
-        CRect_i_ rect;
+    if (placed[14][0] != nullptr) {
+        std::array<int, 256> parts_ids;
+        CRect_i_             rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[14][0], 1);
-        int count = areas[placed[14][0]->area]->GetPartsRect(rect, parts_ids, 256);
+        int count = areas[placed[14][0]->area]->GetPartsRect(rect, parts_ids.data(), static_cast<int>(parts_ids.size()));
         int found = 0;
 
         for (int i = 0; i < count; i++) {
@@ -2368,21 +2253,25 @@ void CEditGround::MatatagiRequest(CMapParts *(*placed)[64]) {
 void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
     parts_info->parts_max = 10;
 
-    if (areas[0] == NULL || areas[1] == NULL || areas[2] == NULL) {
+    if (areas[0] == nullptr || areas[1] == nullptr || areas[2] == nullptr) {
         return;
     }
 
-    if (placed[0][0] != NULL) {
-        if (CheckPartsRect(0, 1, CRect_i_(0, 0, 1, 7))) {
+    if (placed[0][0] != nullptr) {
+        CRect_i_ zone(0, 0, 1, 7);
+
+        if (CheckPartsRect(0, 1, zone)) {
             parts_info->request[0] = 1;
         }
 
-        if (CheckPartsRect(0, 2, CRect_i_(0, 0, 1, 8))) {
+        CRect_i_ second_zone(0, 0, 1, 8);
+
+        if (CheckPartsRect(0, 2, second_zone)) {
             parts_info->request[0] = 1;
         }
     }
 
-    if (placed[1][0] != NULL && placed[10][0] != NULL) {
+    if (placed[1][0] != nullptr && placed[10][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[10][0], 3);
@@ -2392,7 +2281,7 @@ void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[2][0] != NULL && placed[8][0] != NULL) {
+    if (placed[2][0] != nullptr && placed[8][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[8][0], 2);
@@ -2402,7 +2291,7 @@ void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[3][0] != NULL && placed[1][0] != NULL) {
+    if (placed[3][0] != nullptr && placed[1][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[1][0], 2);
@@ -2412,19 +2301,19 @@ void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[4][0] != NULL) {
-        if (placed[9][0] == NULL) {
+    if (placed[4][0] != nullptr) {
+        if (placed[9][0] == nullptr) {
             parts_info->request[4] = 1;
         } else if (placed[4][0]->area != placed[9][0]->area) {
             parts_info->request[4] = 1;
         }
     }
 
-    if (placed[5][0] != NULL && placed[5][0]->GetRotY() == 0) {
+    if (placed[5][0] != nullptr && placed[5][0]->GetRotY() == 0) {
         parts_info->request[5] = 1;
     }
 
-    if (placed[6][0] != NULL && placed[11][0] != NULL && placed[6][0]->GetRotY() == -1) {
+    if (placed[6][0] != nullptr && placed[11][0] != nullptr && placed[6][0]->GetRotY() == -1) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[11][0], 3);
@@ -2434,11 +2323,11 @@ void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[7][0] != NULL && placed[7][0]->area == 0) {
+    if (placed[7][0] != nullptr && placed[7][0]->area == 0) {
         parts_info->request[7] = 1;
     }
 
-    if (placed[8][0] != NULL) {
+    if (placed[8][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[8][0], 0, 3);
@@ -2448,7 +2337,7 @@ void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[9][0] != NULL && placed[8][0] != NULL) {
+    if (placed[9][0] != nullptr && placed[8][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[8][0], 1);
@@ -2459,23 +2348,18 @@ void CEditGround::QueensRequest(CMapParts *(*placed)[64]) {
     }
 }
 
+namespace {
+
 /**
  * Reports whether one part, turned by a quarter-turn offset, faces the same direction as another.
- *
- * @mangled CheckRot__FP9CMapPartsP9CMapPartsi
- * @address 0x1A7890
- * @size 0x8C
  */
-static int CheckRot(CMapParts *parts, CMapParts *other, int rotation_offset) {
-    int other_rotation;
-    int rotation;
-
-    if (parts == NULL || other == NULL) {
+int CheckRot(CMapParts *parts, CMapParts *other, int rotation_offset) {
+    if (parts == nullptr || other == nullptr) {
         return 0;
     }
 
-    rotation = rotation_offset + parts->GetRotY();
-    other_rotation = other->GetRotY();
+    int rotation = rotation_offset + parts->GetRotY();
+    int other_rotation = other->GetRotY();
 
     if (rotation > 2) {
         rotation -= 4;
@@ -2488,15 +2372,19 @@ static int CheckRot(CMapParts *parts, CMapParts *other, int rotation_offset) {
     return rotation == other_rotation;
 }
 
+} // namespace
+
 void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
     parts_info->parts_max = 9;
 
-    if (areas[0] == NULL) {
+    if (areas[0] == nullptr) {
         return;
     }
 
-    if (placed[0][0] != NULL && placed[8][0] != NULL) {
-        if (CheckPartsRect(0, 0, CRect_i_(1, 0, 6, 3))) {
+    if (placed[0][0] != nullptr && placed[8][0] != nullptr) {
+        CRect_i_ zone(1, 0, 6, 3);
+
+        if (CheckPartsRect(0, 0, zone)) {
             CRect_i_ rect;
             rect.x = rect.y = rect.width = rect.height = 0;
             GetRectDirParts(&rect, placed[0][0], 2, 14);
@@ -2507,7 +2395,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[1][0] != NULL && placed[10][0] != NULL) {
+    if (placed[1][0] != nullptr && placed[10][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[1][0], 2, 14);
@@ -2517,7 +2405,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[2][0] != NULL && placed[9][0] != NULL) {
+    if (placed[2][0] != nullptr && placed[9][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[2][0], 2, 14);
@@ -2527,7 +2415,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[3][0] != NULL && placed[9][0] != NULL) {
+    if (placed[3][0] != nullptr && placed[9][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectParts(&rect, placed[11][0], 2);
@@ -2543,7 +2431,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[4][0] != NULL && placed[9][0] != NULL) {
+    if (placed[4][0] != nullptr && placed[9][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[4][0], 2, 14);
@@ -2553,7 +2441,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[5][0] != NULL && placed[10][0] != NULL) {
+    if (placed[5][0] != nullptr && placed[10][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[5][0], 2, 14);
@@ -2563,7 +2451,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[6][0] != NULL && placed[8][0] != NULL) {
+    if (placed[6][0] != nullptr && placed[8][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[6][0], 2, 14);
@@ -2573,7 +2461,7 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[7][0] != NULL && placed[8][0] != NULL) {
+    if (placed[7][0] != nullptr && placed[8][0] != nullptr) {
         CRect_i_ rect;
         rect.x = rect.y = rect.width = rect.height = 0;
         GetRectDirParts(&rect, placed[7][0], 2, 14);
@@ -2583,25 +2471,20 @@ void CEditGround::MuskaRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[10][0] != NULL) {
-        if (CheckPartsRect(10, 0, CRect_i_(2, 0, 3, 14)) && placed[10][0]->GetRotY() == 0) {
+    if (placed[10][0] != nullptr) {
+        CRect_i_ zone(2, 0, 3, 14);
+
+        if (CheckPartsRect(10, 0, zone) && placed[10][0]->GetRotY() == 0) {
             parts_info->request[10] = 1;
         }
     }
 }
 
 void CEditGround::YellowRequest(CMapParts *(*placed)[64]) {
-    int unused[24];
-    int i;
-
     parts_info->parts_max = 13;
 
-    if (areas[0] == NULL) {
+    if (areas[0] == nullptr) {
         return;
-    }
-
-    for (int j = 0; j < 24; j++) {
-        unused[j] = 0;
     }
 
     if (CheckRot(placed[0][0], placed[7][0], 0)) {
@@ -2683,7 +2566,7 @@ void CEditGround::YellowRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    if (placed[7][0] != NULL) {
+    if (placed[7][0] != nullptr) {
         parts_info->request[7] = 1;
     }
 
@@ -2740,11 +2623,11 @@ void CEditGround::YellowRequest(CMapParts *(*placed)[64]) {
         }
     }
 
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         int on = 2;
-        this->plot_parts[i].FrameObjectOnOff("setuzoku", on);
+        plot_parts[i].FrameObjectOnOff("setuzoku", on);
 
-        if (placed[i][0] != NULL) {
+        if (placed[i][0] != nullptr) {
             sceVu0FVECTOR position;
             placed[i][0]->GetPosition(position);
 
@@ -2752,7 +2635,7 @@ void CEditGround::YellowRequest(CMapParts *(*placed)[64]) {
                 on = 1;
             }
 
-            this->plot_parts[i].FrameObjectOnOff("setuzoku", on);
+            plot_parts[i].FrameObjectOnOff("setuzoku", on);
         }
     }
 }

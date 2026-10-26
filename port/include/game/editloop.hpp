@@ -284,12 +284,12 @@ union EDIT_MAP_WORK_INFO {
 };
 
 /**
- * Exposes the message-speed word used from the saved configuration block.
+ * Editor settings read out of the saved configuration block.
  */
 struct EDIT_CONFIG_VIEW {
     u8  unk_00[0x8];
     int clock_hidden; /**< Whether the player has turned the editor clock off. */
-    int unk_0C;
+    int unk_0c;
     int message_speed; /**< Whether editor messages use the faster reveal rate. */
 };
 
@@ -703,212 +703,120 @@ int EdSetMapFlag(int flag_no, int value);
 
 /**
  * Applies the editor-specific layout and reveal settings to its message windows.
- *
- * @mangled EdInitMesParam__Fv
- * @address 0x1781D0
- * @size 0x1B0
  */
 void EdInitMesParam();
 
 /**
  * Enables or disables the cursor drawn over the controlled character.
- *
- * @mangled EdSetCharaCursor__Fi
- * @address 0x17CBE0
- * @size 0xC
  */
 void EdSetCharaCursor(int on);
 
 /**
  * Loads the player model and motion archive used by an editor event.
- *
- * @mangled EdLoadMainChara__FPcPcP14CDataAlloc2_1_
- * @address 0x181480
- * @size 0x154
  */
 void EdLoadMainChara(char *pack_path, char *info_name, CDataAlloc2<1> *arena);
 
 /**
  * Copies the current editor resource directory into a caller buffer.
- *
- * @mangled GetEditDataDir__FPc
- * @address 0x1777D0
- * @size 0x28
  */
 void GetEditDataDir(char *name);
 
 /**
  * Resolves a map object's local position and yaw into world coordinates.
- *
- * @mangled GetPosRot__FP10CMapObjectPfPf
- * @address 0x1838F0
- * @size 0x118
  */
 int GetPosRot(CMapObject *object, float *position, float *rotation);
 
 /**
  * Tests whether an event point is enabled and valid at the requested map time.
- *
- * @mangled CheckEventPoint__FP14ED_EVENT_POINTf
- * @address 0x183A60
- * @size 0x1D4
  */
 int CheckEventPoint(ED_EVENT_POINT *point, float time);
 
 /**
  * Returns the first unused event-point slot after the reserved first entry.
- *
- * @mangled GetNewEventPoint__FP14ED_EVENT_POINTi
- * @address 0x183A10
- * @size 0x4C
  */
 ED_EVENT_POINT *GetNewEventPoint(ED_EVENT_POINT *points, int count);
 
 /**
  * Writes the editor's part progress and clock back to the save data.
- *
- * @mangled EditSave__Fv
- * @address 0x177BF0
- * @size 0x84
  */
 void EditSave();
 
 /**
  * Loads the georama editor's state back from the save data.
- *
- * @mangled EditLoad__Fv
- * @address 0x177C80
- * @size 0xBC
  */
 void EditLoad();
 
 /**
  * Draws one textured rectangle rotated about a caller-supplied pivot.
- *
- * @mangled set2DSpriteRot__FP13sceVif1PacketP8CTextureRC8CRect_i_RC8CRect_i_iifUc
- * @address 0x1831D0
- * @size 0x590
  */
 void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y, float angle, unsigned char alpha);
 
 /**
  * Draws the editor's system overlays for the current frame.
- *
- * @mangled DrawSysGra__Fv
- * @address 0x17D9F0
- * @size 0x16C
  */
 void DrawSysGra();
 
 /**
  * Draws the cursor associated with one collection of event points.
- *
- * @mangled EdDrawSysCursor__FP14ED_EVENT_POINTi
- * @address 0x17CBF0
- * @size 0x418
  */
 void EdDrawSysCursor(ED_EVENT_POINT *points, int count);
 
 /**
  * Draws the current day and its transition overlay.
- *
- * @mangled DrawDay__Fv
- * @address 0x17D040
- * @size 0x9A8
  */
 void DrawDay();
 
 /**
  * Draws the editor cursor and focused-part label overlay.
- *
- * @mangled ParamDraw__Fv
- * @address 0x17C9B0
- * @size 0x224
  */
 void ParamDraw();
 
 /**
  * Draws the town clock at the requested screen offset.
- *
- * @mangled EdDrawClock__Fii
- * @address 0x17DB60
- * @size 0x1AC
  */
 void EdDrawClock(int x, int y);
 
 /**
  * Requests that the main editor loop terminate.
- *
- * @mangled EdExitLoop__Fv
- * @address 0x178110
- * @size 0x10
  */
 int EdExitLoop();
 
 /**
  * Requests a transition from the editor into a dungeon.
- *
- * @mangled GotoDungeon__Fv
- * @address 0x17ECE0
- * @size 0x10
  */
 int GotoDungeon();
 
 /**
  * Provides the empty map-object loading hook used by this editor loop.
- *
- * @mangled LoadMapObject__FP9CMapPartsPPc
- * @address 0x1831C0
- * @size 0x8
  */
 void LoadMapObject(CMapParts *map_parts, char **script);
 
 /**
  * Sets the town clock to the requested time of day.
- *
- * @mangled EdSetClock__Ff
- * @address 0x178170
- * @size 0x60
  */
 void EdSetClock(float time);
 
 /**
  * Returns the town clock's current time of day.
- *
- * @mangled EdGetClock__Fv
- * @address 0x178140
- * @size 0x24
  */
 float EdGetClock();
 
 /**
  * Starts the editor's day-transition display.
- *
- * @mangled EdStartDrawDay__Fv
- * @address 0x17D010
- * @size 0x18
  */
 void EdStartDrawDay();
 
 /**
  * Resets the editor's day-transition display.
- *
- * @mangled EdInitDrawDay__Fv
- * @address 0x17D030
- * @size 0x10
  */
 void EdInitDrawDay();
 
 /**
  * Removes the event-specific robot-part models.
- *
- * @mangled EdDeleteE05RoboParts__Fv
- * @address 0x17ECF0
- * @size 0xE8
  */
 void EdDeleteE05RoboParts();
 
-/** Data whose shape the unit does not need yet. */
+/** Texture animation records of the player character. */
 extern CTexAnimeData CharaTexAnimeData[];
 
 /** Sprites the system events draw with. */

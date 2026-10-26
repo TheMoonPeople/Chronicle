@@ -5,11 +5,18 @@
 #include <libvu0.h>
 #include <sifdev.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
+#include <string>
+#include <string_view>
+#include <vector>
 
+#include "battlemenu.hpp"
 #include "boxvu0.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -29,20 +36,28 @@
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
+#include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "effect.hpp"
 #include "effectgroup.hpp"
+#include "effectmacro.hpp"
+#include "fishing.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
+#include "gameutil.hpp"
 #include "mainselect.hpp"
 #include "mapparts.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
+#include "memcard.hpp"
+#include "menu_draw.hpp"
 #include "menu_misc.hpp"
+#include "menuetc.hpp"
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
+#include "nowload.hpp"
 #include "npcharacter.hpp"
 #include "objanime.hpp"
 #include "objectframe.hpp"
@@ -52,20 +67,6 @@
 #include "snd.hpp"
 #include "sysmes.hpp"
 #include "texture.hpp"
-
-/* Retail editloop.cpp: town-script parsing, map construction and pre-event editor state. */
-
-void BtSetMapJumpFloor(int floor);
-
-#include "battlemenu.hpp"
-#include "editmenu.hpp"
-#include "effectmacro.hpp"
-#include "fishing.hpp"
-#include "gameutil.hpp"
-#include "memcard.hpp"
-#include "menu_draw.hpp"
-#include "menuetc.hpp"
-#include "nowload.hpp"
 #include "vutext.hpp"
 #include "weaponlevelup.hpp"
 #include "wind.hpp"
@@ -101,13 +102,7 @@ char              EdInteriorName[0x20];
 
 CEffectGroup EdEffectGroup;
 /** Pool the editor's effect group plays its effects out of. */
-CEffect *EffectTable__3;
-/** Unreferenced word of the editor's small data. */
-static int D_002A2844;
-/** Unreferenced word of the editor's small data. */
-static int D_002A2848;
-/** Unreferenced word of the editor's small data. */
-static int     D_002A284C;
+CEffect       *EffectTable__3;
 EDIT_MAP_INFO *EditMapInfo;
 char          *EdEventData;
 char          *EdSystemEventData;
@@ -208,8 +203,8 @@ CCameraFollow TalkCamera(60.0f, 20.0f, 0.0f, 4.0f);
 CCameraFollow EventCamera(60.0f, 20.0f, 0.0f, 4.0f);
 /** Camera used by the free-look view. */
 CCameraFollow ViewCamera(60.0f, 20.0f, 0.0f, 4.0f);
-CFrameVu1 *SkyFrame[4];
-CFrame    *SunFrame[4];
+CFrameVu1    *SkyFrame[4];
+CFrame       *SunFrame[4];
 /** Sprites the system events draw with. */
 C3DSprite SystemEffect[8];
 /** Where the player is held while a door plays its motion. */
@@ -219,10 +214,16 @@ sceVu0FVECTOR fix_chara_rot;
 sceVu0FVECTOR fix_camera_pos;
 char          interior_map_name[0x40];
 float         NowPartsCursorPos[4];
+
+namespace {
+
 /** Model of the cursor the editor places parts with. */
-static CFrameVu1 ecursorframe;
-sceVu0FVECTOR    NowCursorPos;
-sceVu0FVECTOR    NextCursorPos;
+CFrameVu1 ecursorframe;
+
+} // namespace
+
+sceVu0FVECTOR NowCursorPos;
+sceVu0FVECTOR NextCursorPos;
 /** Texture animation the map plays. */
 CTextureAnime TexAnime;
 /** Records of the map's texture animation. */
@@ -243,8 +244,6 @@ int     NowSelectParts = -1;
 CFrame *ECursorFrame = &ecursorframe;
 int     PartsNameNum = -1;
 
-/* editloop's own functions, in the order the unit defines them; the prototypes
- * let each call ahead of its definition. */
 void                CopyCMapParts(CMapParts *to, CMapParts *from, CDataAlloc2<1> *arena);
 EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points, CMapParts *shared);
 void                LoadPTS(CMapParts *parts, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points);
@@ -267,70 +266,69 @@ void                MainMode();
 void                EditMode();
 void                PlayAmbient(float volume);
 
-/* The ground the player has built on one map, as the save holds it. */
-struct ED_GRD_DATA {
-    u8  unk_00[0x64];
-    int complete_event_seen; /**< Zero until the map's own build event has been seen. */
-};
+namespace {
 
-void EBDraw();
+/**
+ * Copies a string and its terminator into a buffer the caller has sized for it.
+ */
+void CopyString(char *destination, std::string_view source) {
+    std::ranges::copy(source, destination);
+    destination[source.size()] = '\0';
+}
+
+} // namespace
 
 /**
  * Copies the current editor resource directory into a caller buffer.
  */
 void GetEditDataDir(char *name) {
-    strcpy(name, EditDataDir);
+    CopyString(name, EditDataDir);
 }
 
 /**
  * Reads the shared and map-specific event scripts into the script arena.
  */
 void LoadScript() {
-    char  common_path[0x40];
-    char  map_path[0x40];
-    char  language[0x1c];
-    int   size;
-    char *map_script;
+    int   size = 0;
+    char *map_script = nullptr;
 
     EdScriptBuffer.used = 0;
-    EdEventData = (char *) (EdScriptBuffer.base + EdScriptBuffer.used * 16);
-    sprintf(language, "_%d.mes", LanguageCode);
-    GetEditDataDir(common_path);
-    GetEditDataDir(map_path);
-    strcat(common_path, "event.stb");
-    strcat(map_path, EditMapName);
-    strcat(map_path, language);
+    EdEventData = reinterpret_cast<char *>(&EdScriptBuffer.base[static_cast<ptrdiff_t>(EdScriptBuffer.used) * 16]);
+    std::string common_path = std::format("{}event.stb", EditDataDir);
+    std::string map_path = std::format("{}{}_{}.mes", EditDataDir, EditMapName, LanguageCode);
 
-    if (LoadFile2(common_path, EdEventData, &size, 0) != 0) {
+    if (LoadFile2(common_path.data(), EdEventData, &size, 0) != 0) {
         EdScriptBuffer.Alloc((size >> 4) + 1);
-        map_script = (char *) (EdScriptBuffer.base + EdScriptBuffer.used * 16);
+        map_script = reinterpret_cast<char *>(&EdScriptBuffer.base[static_cast<ptrdiff_t>(EdScriptBuffer.used) * 16]);
 
-        if (LoadFile2(map_path, map_script, &size, 0) != 0) {
+        if (LoadFile2(map_path.data(), map_script, &size, 0) != 0) {
             EdScriptBuffer.Alloc((size >> 4) + 1);
         } else {
-            map_script = NULL;
+            map_script = nullptr;
         }
 
         EdSetEventScript(EdEventData, map_script, &EdScriptBuffer);
     } else {
-        EdEventData = NULL;
+        EdEventData = nullptr;
     }
 
     EdScriptBuffer.Align64();
-    EdSystemEventData = (char *) (EdScriptBuffer.base + EdScriptBuffer.used * 16);
+    EdSystemEventData = reinterpret_cast<char *>(&EdScriptBuffer.base[static_cast<ptrdiff_t>(EdScriptBuffer.used) * 16]);
 
     if (LoadFile2("gedit/system/event.stb", EdSystemEventData, &size, 0) != 0) {
         EdScriptBuffer.Alloc((size >> 4) + 1);
         return;
     }
 
-    EdSystemEventData = NULL;
+    EdSystemEventData = nullptr;
 }
+
+namespace {
 
 /**
  * Starts a map event and copies an optional source camera into the event camera.
  */
-static int RunEvent(int event_no, CCamera *camera) {
+int RunEvent(int event_no, CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR reference;
 
@@ -338,7 +336,7 @@ static int RunEvent(int event_no, CCamera *camera) {
         return 0;
     }
 
-    if (camera != NULL) {
+    if (camera != nullptr) {
         camera->GetPos(position);
         camera->GetRef(reference);
         EventCamera.SetPos(position);
@@ -354,14 +352,14 @@ static int RunEvent(int event_no, CCamera *camera) {
 /**
  * Starts a system event and copies an optional source camera into the event camera.
  */
-static void RunSystemEvent(int event_no, CCamera *camera) {
+void RunSystemEvent(int event_no, CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR reference;
 
     start_event_no = -1;
 
     if (start_system_event <= 0) {
-        if (camera != NULL) {
+        if (camera != nullptr) {
             camera->GetPos(position);
             camera->GetRef(reference);
             EventCamera.SetPos(position);
@@ -373,6 +371,8 @@ static void RunSystemEvent(int event_no, CCamera *camera) {
     }
 }
 
+} // namespace
+
 /**
  * Begins a fade into a comparison event unless a higher-priority request is active.
  */
@@ -381,11 +381,8 @@ int FadeOutToEvent(int event_no, int level) {
         return 0;
     }
 
-    if (goto_cmp_event != 0) {
-        if (level > goto_cmp_event_level) {
-        } else {
-            return 0;
-        }
+    if (goto_cmp_event != 0 && level <= goto_cmp_event_level) {
+        return 0;
     }
 
     goto_cmp_event = event_no;
@@ -408,7 +405,7 @@ void EditSave() {
 
     EDIT_MAP_INFO *info = EditMapInfo;
 
-    if (info != NULL && info->time_stop == 0) {
+    if (info != nullptr && info->time_stop == 0) {
         SaveData->SetNowTime(NowTime);
     }
 }
@@ -424,7 +421,7 @@ void EditLoad() {
 
     EditPartsObjectOnOff();
     pEditGround->MakePartsBox();
-    NowTime = 0.01f * (float) ((int) (100.0f * SaveData->GetNowTime()) % 1200);
+    NowTime = 0.01f * static_cast<float>(static_cast<int>(100.0f * SaveData->GetNowTime()) % 1200);
 }
 
 /**
@@ -457,10 +454,7 @@ void EditExit() {
     MGSetBGColor(fade);
 }
 
-/**
- * Carves the villager, work and menu arenas out of what the NPC arena left.
- */
-void InitWorkBuffer();
+namespace {
 
 /**
  * Reports whether any modal editor event currently blocks normal input.
@@ -472,6 +466,8 @@ int run_event_check() {
 
     return 0;
 }
+
+} // namespace
 
 /**
  * Disables editor input while an event is active or the loop is starting.
@@ -508,24 +504,14 @@ void EdSetFlag() {
         draw_npc_cursor = 0;
     }
 
-    EDIT_CONFIG_VIEW *config = (EDIT_CONFIG_VIEW *) SaveData->GetConfigData();
+    auto *config = static_cast<EDIT_CONFIG_VIEW *>(SaveData->GetConfigData());
 
-    draw_clock = !(bool) config->clock_hidden;
+    draw_clock = static_cast<int>(config->clock_hidden == 0);
 
     if (key_lock != 0) {
         draw_clock = 0;
     }
 }
-
-/**
- * Returns a flag from the current town's persistent map state.
- */
-int EdGetMapFlag(int flag_no);
-
-/**
- * Writes a flag in the current town's persistent map state.
- */
-int EdSetMapFlag(int flag_no, int value);
 
 /**
  * Cancels editor pause while another modal event is active.
@@ -579,8 +565,8 @@ void EdSetClock(float time) {
  * Applies the editor-specific layout and reveal settings to its message windows.
  */
 void EdInitMesParam() {
-    float             text_rate;
-    EDIT_CONFIG_VIEW *config = (EDIT_CONFIG_VIEW *) SaveData->GetConfigData();
+    float text_rate = 0.0f;
+    auto *config = static_cast<EDIT_CONFIG_VIEW *>(SaveData->GetConfigData());
 
     if (config->message_speed != 0) {
         text_rate = 0.6f;
@@ -632,11 +618,6 @@ void EdInitMesParam() {
 }
 
 /**
- * Builds every buffer, camera, message window and map the editor loop runs on.
- */
-int EditInit(void *param);
-
-/**
  * Returns the sum of the editor category indices from zero through nine.
  */
 int cat_end() {
@@ -648,15 +629,6 @@ int cat_end() {
 
     return total;
 }
-
-/**
- * Runs one frame of the editor and reports what it is to do next.
- *
- * @mangled EditLoop__Fv
- * @address 0x1797E0
- * @size 0x1FE8
- */
-int EditLoop();
 
 /**
  * Draws the editor's map cursor, and the plate that names the part under it.
@@ -677,12 +649,12 @@ void ParamDraw() {
     screen[0] = 320;
     screen[1] = SCREEN_HALF_HEIGHT;
 
-    if (NowFocusParts != NULL && DrawPartsNameCount == 0) {
+    if (NowFocusParts != nullptr && DrawPartsNameCount == 0) {
         int name_count = PartsNameNum;
 
         if (name_count > 0) {
-            int top;
-            int step;
+            int top = 0;
+            int step = 0;
             int few = 6;
             int many = 9;
             step = 20;
@@ -777,7 +749,7 @@ void EdDrawSysCursor(ED_EVENT_POINT *points, int count) {
     }
 
     if (EdEventInfo.draw_exclamation_mark != 0) {
-        if (CharaCursor2 != NULL) {
+        if (CharaCursor2 != nullptr) {
             sceVu0FVECTOR position;
             Chara->GetPosition(position);
             static float a = 0.0f;
@@ -820,12 +792,10 @@ void EdInitDrawDay() {
     draw_day_flag = 0;
 }
 
+namespace {
+
 /**
- * Gives a rectangle that starts at zero.
- *
- * The four words come out back to front, which `CRect_i_`'s own constructor
- * does not do, and `rect.hpp` cannot serve both orders from one constructor
- * without moving the generated-name counter in every unit that includes it.
+ * Rectangle that starts zeroed, for the day overlay's texel cells.
  */
 class CRectZero : public CRect_i_ {
 public:
@@ -844,19 +814,21 @@ public:
     }
 };
 
+} // namespace
+
 void DrawDay() {
     if (draw_day_flag != 0) {
-        int       week;
-        int       x;
-        int       width;
-        int       alpha;
-        int       day;
+        int       week = 0;
+        int       x = 0;
+        int       width = 0;
+        int       alpha = 0;
+        int       day = 0;
         int       digit[4];
-        CTexture *texture;
-        int       count;
-        int       drawn;
-        int       remain;
-        int       value;
+        CTexture *texture = nullptr;
+        int       count = 0;
+        int       drawn = 0;
+        int       remain = 0;
+        int       value = 0;
 
         draw_day_cnt -= 0.02f;
 
@@ -876,11 +848,11 @@ void DrawDay() {
         x = 0x140;
 
         if (draw_day_cnt > 4.0f) {
-            alpha = (int) (128.0f * (5.0f - draw_day_cnt));
+            alpha = static_cast<int>(128.0f * (5.0f - draw_day_cnt));
         } else if (draw_day_cnt > 1.0f) {
             alpha = 0x80;
         } else {
-            alpha = (int) (128.0f * draw_day_cnt);
+            alpha = static_cast<int>(128.0f * draw_day_cnt);
         }
 
         count = 1;
@@ -1051,7 +1023,7 @@ void DrawDay() {
         CRectZero cell(0, 0, 0x18, 0x20);
         CRectZero number;
 
-        if (texture != NULL) {
+        if (texture != nullptr) {
             switch (LanguageCode) {
                 case LANG_JAPANESE:
                     set2DSprite(GetVif1Packet(), texture, CRect_i_(x, 0xE4, title.width, title.height), title, alpha);
@@ -1060,7 +1032,7 @@ void DrawDay() {
                 case LANG_ENGLISH_US:
                 case LANG_ENGLISH_UK:
                     width = week_word.width + (word_end.width + (word.width + ((count - 1) * 32)) + 0x48);
-                    x = 0x140 - (int) (width >> 1);
+                    x = 0x140 - (width >> 1);
                     set2DSprite(GetVif1Packet(), texture, CRect_i_(x, 0xE4, word.width, word.height), word, alpha);
                     x += word.width + 0xC;
                     set2DSprite(GetVif1Packet(), texture, CRect_i_(x, 0xE4, word_end.width, word_end.height), word_end, alpha);
@@ -1071,15 +1043,13 @@ void DrawDay() {
                 case LANG_ITALIAN:
                 case LANG_SPANISH:
                     width = week_word.width + (word_end.width + (word.width + ((count - 1) * 32)) + 0x38);
-                    x = 0x140 - (int) (width >> 1);
+                    x = 0x140 - (width >> 1);
                     set2DSprite(GetVif1Packet(), texture, CRect_i_(x, 0xE4, word.width, word.height), word, alpha);
                     x += word.width + 0xC;
                     break;
             }
 
-            int n;
-
-            for (n = count; n > 0; n--) {
+            for (int n = count; n > 0; n--) {
                 number = cell;
                 value = digit[n - 1];
 
@@ -1111,7 +1081,7 @@ void DrawDay() {
             }
 
             drawn = 0;
-            x = 0x134 - (int) (width >> 1);
+            x = 0x134 - (width >> 1);
             set2DSprite(GetVif1Packet(), texture, CRect_i_(x, 0xFC, bar_left.width, bar_left.height), bar_left, alpha);
             drawn += bar_left.width;
             x += bar_left.width;
@@ -1132,16 +1102,6 @@ void DrawDay() {
 }
 
 /**
- * Draws the editor's clock, day display, event cursors, and pause overlay.
- */
-void DrawSysGra();
-
-/**
- * Draws the town-clock face and its hand at the current editor time.
- */
-void EdDrawClock(int x, int y);
-
-/**
  * Selects the main character and advances normal character movement.
  */
 void MainMode() {
@@ -1149,27 +1109,31 @@ void MainMode() {
     MoveChara();
 }
 
+namespace {
+
 /**
  * Changes whether a named child frame participates in drawing.
  */
 int FrameOnOff(CFrame *root, char *name, int on) {
-    if (root == NULL) {
+    if (root == nullptr) {
         return 0;
     }
 
-    if (name == NULL) {
+    if (name == nullptr) {
         return 0;
     }
 
     CFrame *frame = root->SearchFrame(name);
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return 0;
     }
 
     frame->attr.draw_on = on;
     return 0;
 }
+
+} // namespace
 
 /**
  * Synchronizes object visibility for every active editable map part.
@@ -1197,10 +1161,6 @@ void EditMode() {
 
 /**
  * Runs the editing mode: the cursor, the part list and the placement rules.
- *
- * @mangled MainEditMode__Fv
- * @address 0x17DEA0
- * @size 0x7A4
  */
 void MainEditMode() {
     if (EdEventInfo.lighting_override != 0) {
@@ -1232,7 +1192,7 @@ void MainEditMode() {
     EdWind.SetDir(direction);
     EdWind.SetVelocity(wind[3]);
     EdWind.Step();
-    Chara->wind = (int) &EdWind;
+    Chara->wind = static_cast<int>(reinterpret_cast<intptr_t>(&EdWind));
 
     for (int i = 0; i < 4; i++) {
         MotionParts[i].Step();
@@ -1259,7 +1219,7 @@ void MainEditMode() {
 
     float time_step = 0.0011133334f;
 
-    if (((int *) SaveData->GetConfigData())[3] == 0) {
+    if (static_cast<EDIT_CONFIG_VIEW *>(SaveData->GetConfigData())->unk_0c == 0) {
         time_step /= 2.0f;
     }
 
@@ -1272,7 +1232,7 @@ void MainEditMode() {
     }
 
     if (GamePad.Down2(PAD_DOWN) != 0) {
-        time_flag = (u8) !time_flag;
+        time_flag = static_cast<int>(time_flag == 0);
     }
 
     if (!(NowTime < 12.0f)) {
@@ -1290,7 +1250,7 @@ void MainEditMode() {
     int hour_set = 0;
 
     if (GamePad.Down2(PAD_UP) != 0) {
-        NowTime = 1.0f + (float) (int) NowTime;
+        NowTime = 1.0f + static_cast<float>(static_cast<int>(NowTime));
 
         if (!(NowTime < 12.0f)) {
             NowTime = 0.0f;
@@ -1335,7 +1295,7 @@ void MainEditMode() {
 
     static int parts = 0;
 
-    int level;
+    int level = 0;
     int day_on = 1;
     int night_on = 2;
 
@@ -1379,12 +1339,12 @@ void MainEditMode() {
                 on = 2;
             }
 
-            if (timer->object != NULL) {
+            if (timer->object != nullptr) {
                 timer->object->FrameObjectOnOff(timer->name, on);
-            } else if (timer->frame != NULL) {
+            } else if (timer->frame != nullptr) {
                 CFrame *found = timer->frame->SearchFrame(timer->name);
 
-                if (found != NULL) {
+                if (found != nullptr) {
                     found->attr.draw_on = on;
                 }
             }
@@ -1415,8 +1375,8 @@ void OpenDoorMode() {
  * conversation asks for a menu or an event.
  */
 void TalkMode() {
-    int i;
-    int event_no;
+    int i = 0;
+    int event_no = 0;
 
     if (talk_villager < 0 || talk_villager >= 10) {
         GameMode = ED_MODE_WALK;
@@ -1478,7 +1438,7 @@ void EventMode() {
 
     switch (result) {
         case ED_EVENT_RETURN_INTERIOR:
-            GotoInterior(EdEventInfo.interior_name, EdEventInfo.interior_entrance, 0, NULL, EdEventInfo.interior_start_event);
+            GotoInterior(EdEventInfo.interior_name, EdEventInfo.interior_entrance, 0, nullptr, EdEventInfo.interior_start_event);
             break;
         case ED_EVENT_RETURN_DUNGEON:
             GotoDungeon();
@@ -1550,12 +1510,12 @@ int GotoDungeon() {
  * the story can build it again.
  */
 void EdDeleteE05RoboParts() {
-    int count;
+    int count = 0;
 
     for (int i = 0; i < 14; i++) {
         SV_EDIT_PARTS_INFO *plot = SaveData->GetEditPartsInfo(4, i);
 
-        if (plot != NULL) {
+        if (plot != nullptr) {
             plot->obtained = 0;
             plot->placed = false;
             plot->stock = 0;
@@ -1564,17 +1524,16 @@ void EdDeleteE05RoboParts() {
 
     s16 *elements = SaveData->GetElemData(4);
 
-    if (elements != NULL) {
+    if (elements != nullptr) {
         for (int i = 0; i < 128; i++) {
-            *elements = -1;
-            elements++;
+            elements[i] = -1;
         }
     }
 
     SV_GRD_PART *parts = SaveData->GetParts(4, &count);
 
-    for (int i = 0; i < count; i++, parts++) {
-        parts->part_id = -1;
+    for (int i = 0; i < count; i++) {
+        parts[i].part_id = -1;
     }
 }
 
@@ -1582,26 +1541,24 @@ void EdDeleteE05RoboParts() {
  * Loads the interior a door leads to and places the player and camera in it.
  */
 int GotoInterior(char *name, int entrance, int direction, ED_EVENT_PARAM *param, int start_event) {
-    char          *suffix[5] = {"m", "e", "n", "m", ""};
-    char           path[0x40];
-    ED_EVENT_PARAM entry;
-    sceVu0FVECTOR  position;
-    sceVu0FVECTOR  rotation;
+    constexpr std::string_view suffix[5] = {"m", "e", "n", "m", ""};
+    ED_EVENT_PARAM             entry;
+    sceVu0FVECTOR              position;
+    sceVu0FVECTOR              rotation;
 
     int period = EdGetTime(NowTime);
-    strcpy(EdInteriorName, name);
-    sprintf(path, "%sin/%s/%s%s", EditDataDir, name, name, suffix[period]);
-    sprintf(interior_map_name, "%s", path);
+    CopyString(EdInteriorName, name);
+    CopyString(interior_map_name, std::format("{}in/{}/{}{}", EditDataDir, name, name, suffix[period]));
     EdInteriorPartsNo = entrance;
     EdNPCBuffer.used = 0;
 
-    if (param == NULL) {
+    if (param == nullptr) {
         direction = 0;
     }
 
     EdInteriorJumpID = 0;
 
-    if (param != NULL) {
+    if (param != nullptr) {
         EdInteriorJumpID = param->point->map_no;
     }
 
@@ -1714,7 +1671,7 @@ void MoveChara() {
         ED_EVENT_PARAM *param = &EdMoveCharaInfo.param;
 
         if (param->kind == ED_EVENT_POINT_DOOR) {
-            if (strcmp(param->point->destination, "dungeon") == 0) {
+            if (std::string_view(param->point->destination) == "dungeon") {
                 RunEvent(130, &MainCamera);
             } else if (EdPadDown(0x40, 1) != 0 && EdCheckViewMode() == 0 && key_lock == 0) {
                 ED_EVENT_POINT *point = param->point;
@@ -1731,11 +1688,11 @@ void MoveChara() {
             Chara->GetPosition(pos);
             CMapParts *parts = pEditGround->GetParts(pos[0], pos[1], pos[2]);
 
-            if (parts != NULL) {
+            if (parts != nullptr) {
                 int             plot = parts->parts_no;
                 EDITPARTS_INFO *plot_info = EditPartsInfo.GetPartsInfo(plot);
 
-                if (plot_info != NULL && plot_info->kind == 2 && !(plot_info->completion_flags & 1) && EditPartsInfo.CheckComplete(plot) != 0) {
+                if (plot_info != nullptr && plot_info->kind == 2 && !(plot_info->completion_flags & 1) && EditPartsInfo.CheckComplete(plot) != 0) {
                     FadeOutToEvent(plot + 200, 0);
                 }
             }
@@ -1745,7 +1702,7 @@ void MoveChara() {
             Chara->GetPosition(pos);
             CMapParts *parts = pEditGround->GetParts(pos[0], pos[1], pos[2]);
 
-            if (parts != NULL) {
+            if (parts != nullptr) {
                 parts->GetPosition(part_pos);
                 parts->GetRotation(part_rot);
                 sceVu0UnitMatrix(world);
@@ -1801,10 +1758,10 @@ void VillagerCollision() {
     CCPoly        poly;
 
     for (int i = -1; i < 10; i++) {
-        int           snap_to_ground;
-        CCharacter   *chara;
-        CNPCharacter *villager = NULL;
-        int           foot_sound;
+        int           snap_to_ground = 0;
+        CCharacter   *chara = nullptr;
+        CNPCharacter *villager = nullptr;
+        int           foot_sound = 0;
 
         if (i >= 0) {
             villager = &EdVillager[i];
@@ -1823,7 +1780,7 @@ void VillagerCollision() {
         }
 
         WorkBuffer__2->used = 0;
-        CCPoly *polys = (CCPoly *) WorkBuffer__2->Alloc(2000);
+        auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
         box.max[0] = 1.0f + pos[0];
         box.min[0] = pos[0] - 1.0f;
         box.max[2] = 1.0f + pos[2];
@@ -1846,7 +1803,7 @@ void VillagerCollision() {
         int poly_count = GetCollision(polys, &box);
 
         if (poly_count > 200) {
-            printf("cpoly over!!!! %d\n", poly_count);
+            std::printf("cpoly over!!!! %d\n", poly_count);
         }
 
         if (poly_count > 0) {
@@ -1905,7 +1862,7 @@ int CheckEditToWalk(float *position) {
     sceVu0CopyVector(pos, ECursorFrame->position);
     pos[3] = 1.0f;
     WorkBuffer__2->used = 0;
-    CCPoly *polys = (CCPoly *) WorkBuffer__2->Alloc(1024);
+    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(1024));
     box.max[0] = 100.0f + pos[0];
     box.min[0] = pos[0] - 100.0f;
     float z = pos[2];
@@ -1951,7 +1908,7 @@ int CheckEditToWalk(float *position) {
             if (EdDebugMoveFlag <= 0) {
                 float alt = pEditGround->GetAlt(from[0], from[1], from[2]);
                 int   area = pEditGround->GetAreaCode(from[0], from[1], from[2]);
-                float drop;
+                float drop = 0.0f;
                 drop = hit[1] - alt;
                 drop = drop < 0.0f ? -drop : drop;
 
@@ -1963,7 +1920,7 @@ int CheckEditToWalk(float *position) {
 
                 CMapParts *parts = pEditGround->GetParts(pos[0], pos[1], pos[2]);
 
-                if (parts != NULL && parts->subtype == MAP_PARTS_SUBTYPE_ROAD) {
+                if (parts != nullptr && parts->subtype == MAP_PARTS_SUBTYPE_ROAD) {
                     pos[1] = 1.0f + hit[1];
                     walkable = 1;
                 }
@@ -1982,10 +1939,6 @@ int CheckEditToWalk(float *position) {
 
 /**
  * Moves the placement cursor across the ground with the pad.
- *
- * @mangled MoveEditCursor__Fv
- * @address 0x1800C0
- * @size 0xB40
  */
 void MoveEditCursor() {
     float pos[4];
@@ -2000,11 +1953,11 @@ void MoveEditCursor() {
         cursor_scale[0] *= 0.6f;
     }
 
-    float step_z;
-    float camera_angle;
-    float step_x;
-    float forward;
-    float right;
+    float step_z = 0.0f;
+    float camera_angle = 0.0f;
+    float step_x = 0.0f;
+    float forward = 0.0f;
+    float right = 0.0f;
 
     camera_angle = EditCamera.GetAngle();
     right = EdGetLXf(2);
@@ -2013,14 +1966,14 @@ void MoveEditCursor() {
     sceVu0CopyVector(pos, ECursorFrame->position);
 
     int        area_code = pEditGround->GetAreaCode(pos[0], pos[1], pos[2]);
-    CEditArea *area = NULL;
+    CEditArea *area = nullptr;
 
     if (EdPadDown(0xF000, 2) != 0) {
         if (area_code >= 0) {
             area = pEditGround->areas[area_code];
         }
 
-        if (area != NULL) {
+        if (area != nullptr) {
             float unit = area->GetUnitSize();
 
             if (EdPadDown(0x1000, 2) != 0) {
@@ -2046,7 +1999,7 @@ void MoveEditCursor() {
 
     sceVu0CopyVector(pos, ECursorFrame->position);
 
-    if (area != NULL) {
+    if (area != nullptr) {
         if (pEditGround->GetAreaCode(pos[0] + step_x, pos[1], pos[2] + step_z) < 0) {
             step_x = 0.0f;
             step_z = 0.0f;
@@ -2066,7 +2019,7 @@ void MoveEditCursor() {
         DrawPartsNameCount = 0;
     }
 
-    if (area != NULL) {
+    if (area != nullptr) {
         CVector3_f_ grid;
 
         area->GetGrid(&grid, pos[0], pos[1], pos[2]);
@@ -2101,7 +2054,7 @@ void MoveEditCursor() {
 
     sceVu0CopyVector(parts_pos, ECursorFrame->position);
 
-    if (PI_SHORT * (float) NowSelectAngle / 2.0f == NowCursorRotY) {
+    if (PI_SHORT * static_cast<float>(NowSelectAngle) / 2.0f == NowCursorRotY) {
         if (EdPadDown(2, 2) != 0) {
             OldSelectAngle = NowSelectAngle;
             NowSelectAngle = NowSelectAngle - 1;
@@ -2119,14 +2072,14 @@ void MoveEditCursor() {
         NowSelectAngle = 2;
     }
 
-    NowCursorRotY = AngleInterpolate(NowCursorRotY, PI_SHORT * (float) NowSelectAngle / 2.0f, 0.1f, INTERPOLATE_STEP);
+    NowCursorRotY = AngleInterpolate(NowCursorRotY, PI_SHORT * static_cast<float>(NowSelectAngle) / 2.0f, 0.1f, INTERPOLATE_STEP);
 
     int menu_mode = EditMenuStatus.mode;
 
     OldFocusParts = NowFocusParts;
     NowFocusParts = pEditGround->GetParts(pos[0], pos[1], pos[2]);
 
-    if ((u_int) EditMenuStatus.mode < 2 && EdPadDown(0x40, 2) != 0) {
+    if (static_cast<u_int>(EditMenuStatus.mode) < 2 && EdPadDown(0x40, 2) != 0) {
         int sound_id = 13;
 
         if (MapNo == TOWN_YELLOW_DROPS) {
@@ -2141,7 +2094,7 @@ void MoveEditCursor() {
 
             EDITPARTS_INFO *info = EditPartsInfo.GetPartsInfo(NowSelectParts);
 
-            if (EditMenuStatus.mode == EDIT_MENU_MODE_REPLACE || (info != NULL && info->stock > 0 && info->placed == info->stock)) {
+            if (EditMenuStatus.mode == EDIT_MENU_MODE_REPLACE || (info != nullptr && info->stock > 0 && info->placed == info->stock)) {
                 menu_mode = EDIT_MENU_MODE_MOVE;
                 NowSelectParts = -1;
                 NowSelectAngle = 0;
@@ -2151,20 +2104,20 @@ void MoveEditCursor() {
     }
 
     if (EditMenuStatus.mode == EDIT_MENU_MODE_MOVE) {
-        int deleted_parts;
-        int deleted_angle;
+        int deleted_parts = 0;
+        int deleted_angle = 0;
 
         if (EdPadDown(0x80, 2) != 0 && pEditGround->DeleteMapParts(&deleted_parts, &deleted_angle, parts_pos[0], parts_pos[1], parts_pos[2]) >= 0) {
-            EdSePlay((ED_SOUND_ID) 0xE, -1);
+            EdSePlay(static_cast<ED_SOUND_ID>(0xE), -1);
         }
 
         pEditGround->SetFocusParts(parts_pos[0], parts_pos[1], parts_pos[2]);
 
         if (EdPadDown(0x40, 2) != 0) {
-            int taken_parts;
-            int taken_angle;
+            int taken_parts = 0;
+            int taken_angle = 0;
 
-            if (NowFocusParts != NULL) {
+            if (NowFocusParts != nullptr) {
                 int width = NowFocusParts->GetWidth();
 
                 if (width * NowFocusParts->GetHeight() > 0) {
@@ -2184,7 +2137,7 @@ void MoveEditCursor() {
                 menu_mode = EDIT_MENU_MODE_REPLACE;
                 NowSelectParts = taken_parts;
                 NowSelectAngle = taken_angle;
-                NowCursorRotY = PI_SHORT * (float) taken_angle / 2.0f;
+                NowCursorRotY = PI_SHORT * static_cast<float>(taken_angle) / 2.0f;
                 OldSelectAngle = taken_angle;
                 EditMenuStatus.parts = taken_parts;
             }
@@ -2198,11 +2151,11 @@ void MoveEditCursor() {
     }
 
     if (GamePad.Down2(PAD_CIRCLE) != 0) {
-        pEditGround->Save(NULL);
+        pEditGround->Save(nullptr);
     }
 
     if (GamePad.Down2(PAD_TRIANGLE) != 0) {
-        pEditGround->Load(NULL);
+        pEditGround->Load(nullptr);
     }
 
     if (pEditGround->GetAreaCode(pos[0], pos[1], pos[2]) >= 0) {
@@ -2214,7 +2167,7 @@ void MoveEditCursor() {
     ECursorFrame->SetPosition(pos[0], pos[1], pos[2]);
     sceVu0CopyVector(NextCursorPos, pos);
 
-    if (NowFocusParts != NULL) {
+    if (NowFocusParts != nullptr) {
         if (NowFocusParts->GetWidth() > 1) {
             NowFocusParts->GetHeight();
         }
@@ -2251,7 +2204,7 @@ void MoveEditCursor() {
         EdEditMainHelpMes(CheckEditToWalk(walk));
     }
 
-    if ((u_int) EditMenuStatus.mode < 2) {
+    if (static_cast<u_int>(EditMenuStatus.mode) < 2) {
         EdEditBuildHelpMes(NowSelectParts);
     }
 
@@ -2263,28 +2216,31 @@ void MoveEditCursor() {
 u_int *scn_data;
 u_int *parts_read_buffer;
 
+namespace {
+
 /**
- * Enters the editor map's textures once they have been read.
- *
- * @mangled LoadTexture__Fv
- * @address 0x180C00
- * @size 0x878
+ * A part already built while the map loads, so later copies can share it.
  */
-int LoadTexture();
+struct LOADED_PARTS {
+    std::string_view name;  /**< Resource name the part was built from. */
+    CMapParts       *parts; /**< Part built from that name. */
+};
+
+} // namespace
 
 /**
  * Loads the player's model and motions into the arena the caller names, or
  * into the character arena when it names none.
  */
 void EdLoadMainChara(char *pack_path, char *info_name, CDataAlloc2<1> *arena) {
-    int i;
+    int i = 0;
 
-    if (arena == NULL) {
+    if (arena == nullptr) {
         arena = &CharaBuffer;
         CharaBuffer.used = 0;
     }
 
-    LoadFile(pack_path, read_buffer, NULL);
+    LoadFile(pack_path, read_buffer, nullptr);
     MainChara.Initialize();
 
     for (i = 0; i < 128; i++) {
@@ -2303,22 +2259,16 @@ void EdLoadMainChara(char *pack_path, char *info_name, CDataAlloc2<1> *arena) {
 
 /**
  * Reads the editor map's ground, areas and grid.
- *
- * @mangled LoadGroundData__Fv
- * @address 0x1815E0
- * @size 0xDA8
  */
 void LoadGroundData() {
     parts_read_buffer = read_buffer;
 
-    char pack_path[64];
+    std::string pack_path = std::format("{}mds.pak", EditDataDir);
 
-    GetEditDataDir(pack_path);
-    strcat(pack_path, "mds.pak");
-    LoadPackFile(pack_path, parts_read_buffer, NULL);
+    LoadPackFile(pack_path.data(), parts_read_buffer, nullptr);
     wait_now_loading_vsync();
 
-    u_int             *data;
+    u_int             *data = nullptr;
     OBJ_ANIME_SEQ     *anime = EditMapInfo->work.obj_anime;
     EDIT_EFFECT_INFO  *effects = EditMapInfo->work.effects.first;
     EDIT_OBJECT_TIMER *timers = EditMapInfo->work.object_timers.timers;
@@ -2330,16 +2280,16 @@ void LoadGroundData() {
     char *sun_names[4] = {"sun1", "sun2", "sun3", "moon"};
 
     for (int i = 0; i < 4; i++) {
-        SkyFrame[i] = NULL;
+        SkyFrame[i] = nullptr;
 
         CFrameAttr layer_attr;
 
         layer_attr.depth_write = false;
 
         if (EditMapInfo->sky_layers[i].name[0] != '\0') {
-            data = (u_int *) EdLoadFile(EditMapInfo->sky_layers[i].name);
+            data = static_cast<u_int *>(EdLoadFile(EditMapInfo->sky_layers[i].name));
 
-            SkyFrame[i] = LoadMDSFile(data, &DataBuffer__2, 0, NULL, NULL);
+            SkyFrame[i] = LoadMDSFile(data, &DataBuffer__2, 0, nullptr, nullptr);
             SkyFrame[i]->SetAttr(layer_attr, 1, 0x1000);
 
             for (int j = 0; j < 8; j++) {
@@ -2351,16 +2301,16 @@ void LoadGroundData() {
             }
         }
 
-        SunFrame[i] = NULL;
+        SunFrame[i] = nullptr;
 
         if (EditMapInfo->sun_layers[i].name[0] != '\0') {
-            data = (u_int *) EdLoadFile(EditMapInfo->sun_layers[i].name);
+            data = static_cast<u_int *>(EdLoadFile(EditMapInfo->sun_layers[i].name));
 
-            SunFrame[i] = LoadMDSFile(data, &DataBuffer__2, 0, NULL, NULL);
+            SunFrame[i] = LoadMDSFile(data, &DataBuffer__2, 0, nullptr, nullptr);
             SunFrame[i]->SetAttr(layer_attr, 1, 0x1000);
         }
 
-        if (SunFrame[i] != NULL) {
+        if (SunFrame[i] != nullptr) {
             sceVu0FMATRIX world;
 
             sceVu0UnitMatrix(world);
@@ -2370,30 +2320,30 @@ void LoadGroundData() {
         }
     }
 
-    SkyBackFrame = NULL;
+    SkyBackFrame = nullptr;
 
     if (EditMapInfo->sky_layers[4].name[0] != '\0') {
-        data = (u_int *) EdLoadFile(EditMapInfo->sky_layers[4].name);
+        data = static_cast<u_int *>(EdLoadFile(EditMapInfo->sky_layers[4].name));
 
         CFrameAttr back_attr;
 
         back_attr.depth_write = false;
         back_attr.use_color = true;
-        SkyBackFrame = LoadMDSFile(data, &DataBuffer__2, 6, NULL, NULL);
+        SkyBackFrame = LoadMDSFile(data, &DataBuffer__2, 6, nullptr, nullptr);
         SkyBackFrame->SetAttr(back_attr, 1, 0x1200);
     }
 
     for (int i = 0; i < 4; i++) {
         EDIT_AREA_INFO *info = &EditMapInfo->parts_work.edit_areas[i];
 
-        pEditGround->areas[i] = NULL;
+        pEditGround->areas[i] = nullptr;
 
         if (info->name[0] != '\0') {
-            data = (u_int *) EdLoadFile(info->name);
+            data = static_cast<u_int *>(EdLoadFile(info->name));
             EditArea[i].SetMapInfo(NowEditMap, i);
             EditArea[i].SetSize(info->width, info->height, info->unit_size, info->unit_alt);
-            EditArea[i].SetOffset(info->origin_x - 0.01f * (float) info->width, info->origin_y, info->origin_z - 0.01f * (float) info->height);
-            EditArea[i].SetGridFrame(LoadMDSFile(data, &DataBuffer__2, 6, NULL, NULL));
+            EditArea[i].SetOffset(info->origin_x - 0.01f * static_cast<float>(info->width), info->origin_y, info->origin_z - 0.01f * static_cast<float>(info->height));
+            EditArea[i].SetGridFrame(LoadMDSFile(data, &DataBuffer__2, 6, nullptr, nullptr));
 
             CFrameAttr grid_attr;
 
@@ -2404,22 +2354,22 @@ void LoadGroundData() {
     }
 
     if (MapNo < 6) {
-        data = (u_int *) EdLoadFile("gedit/e01/mds/e01a03_0.mds");
+        data = static_cast<u_int *>(EdLoadFile("gedit/e01/mds/e01a03_0.mds"));
 
-        pEditGround->cursor.pieces[0] = LoadMDSFile(data, &DataBuffer__2, 0, NULL, NULL);
+        pEditGround->cursor.pieces[0] = LoadMDSFile(data, &DataBuffer__2, 0, nullptr, nullptr);
 
-        data = (u_int *) EdLoadFile("gedit/e01/mds/e01a04_0.mds");
+        data = static_cast<u_int *>(EdLoadFile("gedit/e01/mds/e01a04_0.mds"));
 
-        pEditGround->cursor.pieces[1] = LoadMDSFile(data, &DataBuffer__2, 0, NULL, NULL);
+        pEditGround->cursor.pieces[1] = LoadMDSFile(data, &DataBuffer__2, 0, nullptr, nullptr);
 
-        data = (u_int *) EdLoadFile("gedit/e01/mds/e01a05_0.mds");
+        data = static_cast<u_int *>(EdLoadFile("gedit/e01/mds/e01a05_0.mds"));
 
-        pEditGround->cursor.pieces[2] = LoadMDSFile(data, &DataBuffer__2, 0, NULL, NULL);
+        pEditGround->cursor.pieces[2] = LoadMDSFile(data, &DataBuffer__2, 0, nullptr, nullptr);
         pEditGround->cursor.area = 2;
     } else {
-        pEditGround->cursor.pieces[0] = NULL;
-        pEditGround->cursor.pieces[1] = NULL;
-        pEditGround->cursor.pieces[2] = NULL;
+        pEditGround->cursor.pieces[0] = nullptr;
+        pEditGround->cursor.pieces[1] = nullptr;
+        pEditGround->cursor.pieces[2] = nullptr;
     }
 
     wait_now_loading_vsync();
@@ -2430,7 +2380,7 @@ void LoadGroundData() {
         MotionParts[i].Initialize();
 
         if (info->name[0] != '\0') {
-            data = (u_int *) EdLoadFile(info->name);
+            data = static_cast<u_int *>(EdLoadFile(info->name));
             MotionParts[i].InitializeTexAnime(TexAnimeData, 64);
             MotionParts[i].LoadPackData2(data, "info.cfg", &DataBuffer__2, i + 0x1B, &DataBuffer__2, 0);
             MotionParts[i].SetPosition(info->values[0], info->values[1], info->values[2]);
@@ -2438,21 +2388,18 @@ void LoadGroundData() {
         }
     }
 
-    scn_data = (u_int *) (EdNPCBuffer.base + EdNPCBuffer.used * 16);
+    scn_data = reinterpret_cast<u_int *>(&EdNPCBuffer.base[static_cast<ptrdiff_t>(EdNPCBuffer.used) * 16]);
 
-    char scene_path[64];
-    int  scene_size;
+    std::string scene_path = std::format("{}{}", EditDataDir, EditMapInfo->scene_name);
+    int         scene_size = 0;
 
-    GetEditDataDir(scene_path);
-    strcat(scene_path, EditMapInfo->scene_name);
-
-    if (LoadFile2(scene_path, (void *) scn_data, &scene_size, 0) == 0) {
-        scn_data = NULL;
+    if (LoadFile2(scene_path.data(), scn_data, &scene_size, 0) == 0) {
+        scn_data = nullptr;
         scene_size = 0;
     }
 
-    if (scn_data != NULL) {
-        parts_read_buffer = (u_int *) ((char *) scn_data + (((scene_size >> 6) + 1) << 6));
+    if (scn_data != nullptr) {
+        parts_read_buffer = reinterpret_cast<u_int *>(&reinterpret_cast<u8 *>(scn_data)[((scene_size >> 6) + 1) << 6]);
     } else {
         parts_read_buffer = read_buffer;
     }
@@ -2468,21 +2415,8 @@ void LoadGroundData() {
     pEditGround->parts_info = &EditPartsInfo;
     ObjParts[12].draw_distance = 490.0f;
 
-    /**
-     * A part already built while the map loads, so later copies can share it.
-     */
-    struct LOADED_PARTS {
-        char       name[0x20]; /**< Resource name the part was built from. */
-        CMapParts *parts;      /**< Part built from that name. */
-    } built[64];
-
-    int i;
-
-    for (i = 0; i < 64; i++) {
-        built[i].name[0] = '\0';
-    }
-
-    int built_count = 0;
+    std::vector<LOADED_PARTS> built;
+    int                       i = 0;
 
     for (i = 0;; i++) {
         MAP_PARTS_INFO *info = &EditMapInfo->map_objects[i];
@@ -2497,40 +2431,36 @@ void LoadGroundData() {
 
         u_int *pts = SearchPTS(scn_data, info->name[0]);
 
-        if (pts != NULL) {
-            CMapParts *shared = NULL;
+        if (pts != nullptr) {
+            CMapParts *shared = nullptr;
 
-            for (int j = 0; j < built_count; j++) {
-                if (strcmp(info->name[0], built[j].name) == 0) {
-                    shared = built[j].parts;
+            for (const LOADED_PARTS &loaded : built) {
+                if (loaded.name == info->name[0]) {
+                    shared = loaded.parts;
                     break;
                 }
             }
 
             LoadPTS(parts, pts, info, anime, effects, timers, points, shared);
 
-            char *c = info->name[0];
-            char *base = c;
-            char  letter;
+            std::string_view base = info->name[0];
 
-            for (; (letter = *c) != '\0'; c++) {
-                if (letter == '/') {
-                    base = c + 1;
-                }
+            if (const auto slash = base.rfind('/'); slash != std::string_view::npos) {
+                base.remove_prefix(slash + 1);
             }
 
-            if (strcmp(base, "e02c13") == 0) {
+            if (base == "e02c13") {
                 CFrameAttr door_attr;
 
                 door_attr.fog_enable = true;
 
                 CFrame *door = parts->ripple_frame;
 
-                if (door != NULL) {
+                if (door != nullptr) {
                     door = door->SearchFrame("cube1");
                 }
 
-                if (door != NULL) {
+                if (door != nullptr) {
                     door->SetAttr(door_attr, 1, 0x40);
                 }
             }
@@ -2541,10 +2471,8 @@ void LoadGroundData() {
             parts->SetPosition(position);
             parts->SetRotation(info->rotation[0], info->rotation[1], info->rotation[2]);
 
-            if (shared == NULL) {
-                strcpy(built[built_count].name, info->name[0]);
-                built[built_count].parts = parts;
-                built_count++;
+            if (shared == nullptr) {
+                built.push_back({.name = info->name[0], .parts = parts});
             }
         } else {
             LoadPTS(parts, info, anime, effects, timers, points);
@@ -2581,7 +2509,7 @@ void LoadGroundData() {
                                    1.0f};
 
         surface->draw = true;
-        strcpy(surface->name, info->name);
+        CopyString(surface->name, info->name);
         surface->parts_no = info->parts_no;
         sceVu0CopyVector(surface->offset, info->corner_c);
 
@@ -2607,45 +2535,24 @@ void LoadGroundData() {
  * loaded it, so the two share one set of frames.
  */
 void LoadObjectParts() {
-    char  name_buffer[7][0x40];
-    char *names[7];
-
-    /**
-     * A part already built while the map loads, so later copies can share it.
-     */
-    struct LOADED_PARTS {
-        char       name[0x20]; /**< Resource name the part was built from. */
-        CMapParts *parts;      /**< Part built from that name. */
-    } loaded[64];
+    std::vector<LOADED_PARTS> loaded;
 
     OBJ_ANIME_SEQ     *anime = EditMapInfo->work.obj_anime;
     EDIT_EFFECT_INFO  *effects = EditMapInfo->work.effects.second;
     EDIT_OBJECT_TIMER *timers = EditMapInfo->work.object_timers.timers;
     ED_EVENT_POINT    *points = EditMapInfo->work.events.points;
 
-    for (int i = 0; i < 7; i++) {
-        names[i] = name_buffer[i];
-        *names[i] = '\0';
-    }
-
-    int i;
     int river = 0;
     int road = 0;
 
-    for (i = 0; i < 64; i++) {
-        loaded[i].name[0] = '\0';
-    }
-
-    int loaded_count = 0;
-
-    for (i = 0; i < 46; i++) {
-        CMapParts      *shared = NULL;
+    for (int i = 0; i < 46; i++) {
+        CMapParts      *shared = nullptr;
         int             has_archive = 0;
-        CMapParts      *parts;
+        CMapParts      *parts = nullptr;
         MAP_PARTS_INFO *info = &EditMapInfo->parts_work.general.parts[i];
-        EDITPARTS_INFO *plot = NULL;
+        EDITPARTS_INFO *plot = nullptr;
         int             index = i;
-        int             slot;
+        int             slot = 0;
 
         if (i >= 24) {
             info = &EditMapInfo->parts_work.roads.parts[road];
@@ -2675,22 +2582,22 @@ void LoadObjectParts() {
             slot = i;
         }
 
-        for (int j = 0; j < loaded_count; j++) {
-            if (strcmp(info->name[0], loaded[j].name) == 0) {
-                shared = loaded[j].parts;
+        for (const LOADED_PARTS &entry : loaded) {
+            if (entry.name == info->name[0]) {
+                shared = entry.parts;
                 break;
             }
         }
 
         u_int *archive = SearchPTS(scn_data, info->name[0]);
 
-        if (archive != NULL) {
+        if (archive != nullptr) {
             has_archive = 1;
         }
 
         parts->Initialize();
 
-        if (plot == NULL) {
+        if (plot == nullptr) {
             for (int j = 0; j < 24; j++) {
                 if (info->subtype == ObjParts[j].subtype) {
                     index = j;
@@ -2707,49 +2614,46 @@ void LoadObjectParts() {
         parts->lift = info->lift;
         parts->def_parts_no = info->parts_no;
 
-        EPARTS_INFO_HEADER *header;
+        EPARTS_INFO_HEADER *header = nullptr;
 
         if (has_archive != 0) {
             header = LoadPTS(parts, archive, info, anime, effects, timers, points, shared);
         } else {
-            if (plot != NULL) {
-                header = (EPARTS_INFO_HEADER *) (EPartsInfoBuff.base + EPartsInfoBuff.used * 16);
-                EPartsInfoBuff.Alloc((EdInitToEPInfo((INIT_PARTSINFO *) &EditMapInfo->parts_work.parts_defs.defs[i], header) >> 4) + 1);
+            if (plot != nullptr) {
+                header = reinterpret_cast<EPARTS_INFO_HEADER *>(&EPartsInfoBuff.base[static_cast<ptrdiff_t>(EPartsInfoBuff.used) * 16]);
+                EPartsInfoBuff.Alloc((EdInitToEPInfo(reinterpret_cast<INIT_PARTSINFO *>(&EditMapInfo->parts_work.parts_defs.defs[i]), header) >> 4) + 1);
             }
 
             LoadPTS(parts, info, anime, effects, timers, points);
         }
 
-        if (plot != NULL) {
+        if (plot != nullptr) {
             EditPartsInfo.Initialize(i, header);
         }
 
         parts->info = EditPartsInfo.GetPartsInfo(index);
 
-        if (parts->frame[3] != NULL) {
-            parts->preview_frame = (int) parts->frame[3];
-        } else if (parts->frame[2] != NULL) {
-            parts->preview_frame = (int) parts->frame[2];
-        } else if (parts->frame[1] != NULL) {
-            parts->preview_frame = (int) parts->frame[1];
-        } else if (parts->frame[0] != NULL) {
-            parts->preview_frame = (int) parts->frame[0];
+        for (int level = 3; level >= 0; level--) {
+            if (parts->frame[level] != nullptr) {
+                parts->preview_frame = static_cast<int>(reinterpret_cast<intptr_t>(parts->frame[level]));
+                break;
+            }
         }
 
-        if (shared == NULL) {
-            strcpy(loaded[loaded_count].name, info->name[0]);
-            loaded[loaded_count].parts = parts;
-            loaded_count++;
+        if (shared == nullptr) {
+            loaded.push_back({.name = info->name[0], .parts = parts});
         }
     }
 }
 
+namespace {
+
 /**
  * Puts a map part's camera collision frame where the part stands and returns it.
  */
-static inline CFrame *GetCameraFrame(CMapParts *parts) {
-    if (parts->camera_frame == NULL) {
-        return NULL;
+CFrame *GetCameraFrame(CMapParts *parts) {
+    if (parts->camera_frame == nullptr) {
+        return nullptr;
     }
 
     parts->camera_frame->SetPosition(parts->pos[0], parts->pos[1], parts->pos[2]);
@@ -2757,27 +2661,19 @@ static inline CFrame *GetCameraFrame(CMapParts *parts) {
     return parts->camera_frame;
 }
 
-/**
- * Builds one map part from its archive entry, sharing the models of a part already
- * built.
- *
- * @mangled LoadPTS__FP9CMapPartsPUiP14MAP_PARTS_INFOP13OBJ_ANIME_SEQP16EDIT_EFFECT_INFOP17EDIT_OBJECT_TIMERP14ED_EVENT_POINTP9CMapParts
- * @address 0x1828B0
- * @size 0x754
- */
-EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points, CMapParts *shared);
+} // namespace
 
 /**
  * Builds one map part that has no part-definition file: its models are loaded
  * straight from the names the script gave, and its bound comes from them.
  */
-void LoadPTS(CMapParts *parts, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points) {
+void LoadPTS(CMapParts *parts, MAP_PARTS_INFO *info, [[maybe_unused]] OBJ_ANIME_SEQ *anime, [[maybe_unused]] EDIT_EFFECT_INFO *effects, [[maybe_unused]] EDIT_OBJECT_TIMER *timers, [[maybe_unused]] ED_EVENT_POINT *points) {
     char      *names[9];
     CFrameVu1 *frames[4];
     CBoxVu0    bound;
     CBoxVu0    part_bound;
 
-    if (info == NULL || info->name[0][0] == '\0') {
+    if (info == nullptr || info->name[0][0] == '\0') {
         return;
     }
 
@@ -2792,26 +2688,18 @@ void LoadPTS(CMapParts *parts, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_
         frames[i] = frame;
     }
 
-    if (frames[0] != NULL) {
+    if (frames[0] != nullptr) {
         frames[0]->GetBoundBox(&bound, 1);
         CFrame *collision = parts->GetCollisionFrame();
 
-        if (collision != NULL) {
+        if (collision != nullptr) {
             collision->GetBoundBox(&part_bound, 1);
             VectorMaxMin(bound.max, bound.min, bound.max, bound.min, part_bound.max, part_bound.min);
         }
 
-        CFrame *camera_frame = parts->camera_frame;
+        CFrame *camera_frame = GetCameraFrame(parts);
 
-        if (camera_frame == NULL) {
-            camera_frame = NULL;
-        } else {
-            camera_frame->SetPosition(parts->pos[0], parts->pos[1], parts->pos[2]);
-            parts->camera_frame->SetRotation(parts->rotation.x, parts->rotation.y, parts->rotation.z);
-            camera_frame = parts->camera_frame;
-        }
-
-        if (camera_frame != NULL) {
+        if (camera_frame != nullptr) {
             camera_frame->GetBoundBox(&part_bound, 1);
             VectorMaxMin(bound.max, bound.min, bound.max, bound.min, part_bound.max, part_bound.min);
         }
@@ -2825,11 +2713,6 @@ void LoadPTS(CMapParts *parts, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_
  */
 void LoadMapObject(CMapParts *map_parts, char **script) {
 }
-
-/**
- * Draws one textured rectangle rotated about a caller-supplied pivot.
- */
-void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y, float angle, unsigned char alpha);
 
 C3DSprite::C3DSprite() {
     texel.x = texel.y = texel.width = texel.height = 0;
@@ -2845,33 +2728,23 @@ void CopyCMapParts(CMapParts *to, CMapParts *from, CDataAlloc2<1> *arena) {
     }
 
     to->collision_frame = CopyFrame(from->GetCollisionFrame(), arena);
-    to->shadow_frame = (CFrame *) CopyFrameVu1((CFrameVu1 *) from->shadow_frame, arena);
-    to->shade_frame = (CFrame *) CopyFrameVu1((CFrameVu1 *) from->shade_frame, arena);
-    CFrame *camera_frame = from->camera_frame;
-
-    if (camera_frame == NULL) {
-        camera_frame = NULL;
-    } else {
-        camera_frame->SetPosition(from->pos[0], from->pos[1], from->pos[2]);
-        from->camera_frame->SetRotation(from->rotation.x, from->rotation.y, from->rotation.z);
-        camera_frame = from->camera_frame;
-    }
-
-    to->camera_frame = CopyFrame(camera_frame, arena);
-    to->ripple_frame = (CFrame *) CopyFrameVu1((CFrameVu1 *) from->ripple_frame, arena);
+    to->shadow_frame = CopyFrameVu1(static_cast<CFrameVu1 *>(from->shadow_frame), arena);
+    to->shade_frame = CopyFrameVu1(static_cast<CFrameVu1 *>(from->shade_frame), arena);
+    to->camera_frame = CopyFrame(GetCameraFrame(from), arena);
+    to->ripple_frame = CopyFrameVu1(static_cast<CFrameVu1 *>(from->ripple_frame), arena);
 }
 
 /**
  * Derives an object's world position and normalized yaw from its first frame.
  */
 int GetPosRot(CMapObject *object, float *position, float *rotation) {
-    if (object == NULL) {
+    if (object == nullptr) {
         return 0;
     }
 
     CFrame *frame = object->frame[0];
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return 0;
     }
 
@@ -2907,14 +2780,14 @@ ED_EVENT_POINT *GetNewEventPoint(ED_EVENT_POINT *points, int count) {
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 /**
  * Says whether one event point is ready to fire at the given time of day.
  */
 int CheckEventPoint(ED_EVENT_POINT *point, float time) {
-    if (point == NULL) {
+    if (point == nullptr) {
         return 0;
     }
 
@@ -2934,7 +2807,7 @@ int CheckEventPoint(ED_EVENT_POINT *point, float time) {
 
     CFrame *frame = point->frame;
 
-    if (frame != NULL && !(frame->attr.draw_on & 1)) {
+    if (frame != nullptr && !(frame->attr.draw_on & 1)) {
         return 0;
     }
 

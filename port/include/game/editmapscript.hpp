@@ -84,12 +84,13 @@ extern int motion_parts_list;
 
 /**
  * Returns the integer value addressed by a script argument slot.
- *
- * @mangled test__FPPv
- * @address 0x1741D0
- * @size 0x10
  */
 int test(void **argument);
+
+/**
+ * Adds one water-wave parameter set to the first unused wave slot of the current water surface.
+ */
+void CommandWATER_SHAKE(void **arguments);
 
 /**
  * Reports whether the current editor state should draw the fishing interface.
@@ -108,13 +109,5 @@ void StopAllSound();
 
 /**
  * Loads one file of the active script directory into the editor's read buffer.
- *
- * @mangled EdLoadFile__FPc
  */
 void *EdLoadFile(char *name);
-
-/** Name of the map the editor jumps to next. */
-extern char mapjump_name[0x80];
-
-/** The default light directions of the editor's twelve lights. */
-extern float def_light[12][4];
