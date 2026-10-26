@@ -84,9 +84,6 @@ void MGSetBGColor(float red, float green, float blue, float alpha);
  * Index of the display buffer, and of each visual's built block, in use this frame.
  */
 extern int            DBuffID;
-extern sceDmaChan    *DmaCH1;
-extern sceDmaChan    *DmaCH2;
-extern sceDmaChan    *DmaCH8;
 extern sceVif1Packet *Vif1Packet;
 /* Retail has two distinct `VSyncField` symbols (0x2A23C8 GLOBAL -- this one
  * -- and 0x2A25DC LOCAL, in a still-raw TU); the `__2` suffix is the
@@ -95,7 +92,6 @@ extern s32           VSyncField__2;
 extern sceGsTex1     mgTEX1Env;
 extern s32           mgClearBackFlag;
 extern MG_PICKZ      mgPickZBuff[16];
-extern sceGsDBuff    mgDBuff;
 extern sceVu0FVECTOR mgBackColor;
 
 /**

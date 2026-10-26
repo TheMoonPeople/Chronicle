@@ -1,5 +1,3 @@
-#pragma name_counter 567
-
 #include "menuetc.hpp"
 
 #include "camera.hpp"

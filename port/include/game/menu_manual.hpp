@@ -96,15 +96,6 @@ s16 ManualImgEnter();
 void DrawPrevNextCursor();
 
 /**
- * Draws the explanatory message for the current manual page.
- *
- * @mangled DrawManualMsg__Fv
- * @address 0x00233BE0
- * @size 0x1EC
- */
-void DrawManualMsg();
-
-/**
  * Initializes the manual menu from its placement data and load buffer.
  *
  * @mangled InitMenuManual__FPiP1

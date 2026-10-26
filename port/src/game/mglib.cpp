@@ -1,7 +1,4 @@
 #include "stubs/mglib.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 250
 
 #include "mglib.hpp"
 #include "types.h"
@@ -26,9 +23,6 @@
 
 int            DBuffID;
 int            mgWaitVSync;
-sceDmaChan    *DmaCH1;
-sceDmaChan    *DmaCH2;
-sceDmaChan    *DmaCH8;
 sceVif1Packet *Vif1Packet;
 int            VSyncField__2;
 int            mgClearBackFlag;
@@ -48,7 +42,6 @@ int mgZBufferAdr;
 
 MG_PICKZ      mgPickZBuff[16];
 sceGifTag     GiftagAD;
-sceGsDBuff    mgDBuff;
 sceVu0FVECTOR mgBackColor;
 
 /* The window rectangle. Its four words are written back to front at static-initialisation time,
@@ -82,8 +75,6 @@ sceVu0FVECTOR        mgUnitVector2;
 sceVu0FVECTOR        mgZeroVector2;
 sceVu0FMATRIX        mgUnitMatrix;
 sceVu0FMATRIX        mgZeroMatrix;
-static sceVif1Packet vifpacket[2];
-sceGsStoreImage      gs_simage;
 static int           packetbuf[2];
 
 static int vcount;
@@ -101,128 +92,6 @@ void MGInitVSyncCallBack(int (*callback)(int));
    bytes rather than sixteen, so it is zero for every address the caller can pass and the step never
    runs. */
 void MGInitVif1Packet(u_long128 *buffer0, u_long128 *buffer1);
-
-/* The frame the capture is part-way through: it decides which of the two read-back buffers a field
-   lands in, and whether this call is the one that opens and closes the file. */
-static int movie_count;
-
-/* One screenshot, written where the host filesystem can take it: the two fields are read back out
-   of the frame buffer separately, packed from 32-bit colour down to the 24 a TGA holds, and
-   written row by row from the bottom up, which is the order that format stores. */
-void StoreImage() {
-    int            fd;
-    int            i;
-    int            j;
-    int            k;
-    char          *mark;
-    sceVif1Packet *packet;
-    u_char        *field0;
-    u_char        *field1;
-    static int     image_num = 0;
-    static u_char  tga_head[18] = {0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 2, 192, 1, 24, 0};
-    char           name[128];
-    char           directory[128];
-
-    movie_count = 1;
-
-    packet = &vifpacket[DBuffID];
-
-    printf("%d %d %d\n", image_num, DBuffID, VSyncField__2);
-
-    if (movie_count % 2) {
-        strcpy(directory, "host0:y:/ps2/capture/");
-        sprintf(name, "%si%5d.tga", directory, image_num++);
-
-        /* The width the number is padded to is what makes the names sort, and a space is not a
-           character a file name can carry. */
-        for (mark = name; *mark; mark++) {
-            if (*mark == ' ') {
-                *mark = '0';
-            }
-        }
-
-        fd = sceOpen(name, SCE_WRONLY | SCE_CREAT | SCE_TRUNC);
-    }
-
-    sceGsSetHalfOffset(&mgDBuff.draw0, 2048, 2048, 0);
-    sceGsSetHalfOffset(&mgDBuff.draw1, 2048, 2048, 0);
-    FlushCache(0);
-    sceGsSwapDBuff(&mgDBuff, DBuffID);
-    FlushCache(0);
-    sceGsSyncPath(0, 0);
-    DmaCH1->chcr.TTE = 1;
-    sceDmaSend(DmaCH1, packet->pBase);
-    sceGsSyncPath(0, 0);
-
-    sceGsSetDefStoreImage(&gs_simage, !DBuffID * 2240, 10, 0, 0, 0, 640, SCREEN_HALF_HEIGHT);
-    FlushCache(0);
-
-    if (movie_count % 2) {
-        sceGsExecStoreImage(&gs_simage, (u_long128 *) 0x02100000);
-    } else {
-        sceGsExecStoreImage(&gs_simage, (u_long128 *) 0x02300000);
-    }
-
-    sceGsSyncPath(0, 0);
-
-    sceGsSetHalfOffset(&mgDBuff.draw0, 2048, 2048, 1);
-    sceGsSetHalfOffset(&mgDBuff.draw1, 2048, 2048, 1);
-    FlushCache(0);
-    sceGsSyncPath(0, 0);
-    sceGsSwapDBuff(&mgDBuff, DBuffID);
-    FlushCache(0);
-    sceGsSyncPath(0, 0);
-    DmaCH1->chcr.TTE = 1;
-    sceDmaSend(DmaCH1, packet->pBase);
-    sceGsSyncPath(0, 0);
-
-    sceGsSetDefStoreImage(&gs_simage, !DBuffID * 2240, 10, 0, 0, 0, 640, SCREEN_HALF_HEIGHT);
-    FlushCache(0);
-
-    if (movie_count % 2) {
-        sceGsExecStoreImage(&gs_simage, (u_long128 *) 0x02200000);
-    } else {
-        sceGsExecStoreImage(&gs_simage, (u_long128 *) 0x02400000);
-    }
-
-    sceGsSyncPath(0, 0);
-
-    if (movie_count % 2) {
-        sceWrite(fd, tga_head, 18);
-
-        for (i = 0; i < SCREEN_HALF_HEIGHT; i++) {
-            field0 = (u_char *) 0x02100000 + ((((SCREEN_HALF_HEIGHT - 1) - i) * 640 >> 2) << 4);
-            field1 = (u_char *) 0x02200000 + ((((SCREEN_HALF_HEIGHT - 1) - i) * 640 >> 2) << 4);
-
-            /* Packed down in place and over the row it came from: three bytes out for every four
-               in, and the two colour ends swapped, which is the order a TGA stores. */
-            for (j = 0, k = 0; k < 2560; j += 3, k += 4) {
-                u_char red = field0[k];
-                field0[k] = field0[k + 2];
-                field0[k + 2] = red;
-                red = field1[k];
-                field1[k] = field1[k + 2];
-                field1[k + 2] = red;
-
-                field0[j] = field0[k];
-                field0[j + 1] = field0[k + 1];
-                field0[j + 2] = field0[k + 2];
-                field1[j] = field1[k];
-                field1[j + 1] = field1[k + 1];
-                field1[j + 2] = field1[k + 2];
-            }
-
-            sceWrite(fd, field1, 1920);
-            sceWrite(fd, field0, 1920);
-        }
-    }
-
-    if (movie_count % 2) {
-        sceClose(fd);
-    }
-
-    movie_count++;
-}
 
 static int h_count;
 

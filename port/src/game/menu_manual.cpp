@@ -1,7 +1,3 @@
-#include "stubs/menu_manual.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-
 #include "menu_manual.hpp"
 
 #include <cstdio>
@@ -51,46 +47,6 @@ int GetGameFlagForManualMenu() {
     }
 
     return result;
-}
-
-/**
- * Begins loading the image resources for the current manual page.
- *
- * @mangled ManualImgLoad__Fv
- * @address 0x002335D0
- * @size 0x1A8
- */
-static s16 ManualImgLoad() {
-    char path[76];
-    int  size;
-
-    if (ReadBGSync() != 0 || ManualMenu.images_ready != 0) {
-        BreakReadBG();
-    }
-
-    GetPathReadDifferntLang(path);
-    strcat(path, "manual/m%d.pac");
-    int image_no = ManualMenu.entry + (ManualMenu.category + 1) * 10;
-    sprintf(path, path, image_no);
-    u_long128 *buffer = ManualMenu.load_buffer;
-    buffer = MenuCalcBufAlignment(buffer);
-    StartReadBG();
-    LoadFileBG(path, buffer, &size);
-    buffer += size / 16 + 1;
-    buffer = MenuCalcBufAlignment(buffer);
-
-    if ((u32) (image_no - 11) <= 1 || (u32) (image_no - 21) <= 1 || image_no == 31 || image_no == 42) {
-        GetPathReadDifferntLang(path);
-        strcat(path, "manual/m%db.pac");
-        sprintf(path, path, image_no);
-        LoadFileBG(path, buffer, &size);
-    }
-
-    ReadBG();
-    ManualMenu.image_offset = 0;
-    ManualMenu.image_reset = 0;
-    ManualMenu.images_ready = false;
-    return ManualMenu.images_ready;
 }
 
 s16 ManualImgEnter() {
@@ -170,57 +126,6 @@ void DrawPrevNextCursor() {
         CRect_i_ screen(x[cursor], 0x106, texel.width, texel.height);
         DrawMenu2DSprite(texture, screen, texel, 0x80);
     }
-}
-
-void DrawManualMsg() {
-    if (ManualMenu.messages_ready == 0) {
-        return;
-    }
-
-    MenuTextureReload(CommonMenuMes3.tex_block);
-    ManualMsg->text_x = 0x86;
-    ManualMsg->text_y = 0x46;
-    ClsMes *window = ManualMsg;
-
-    if (ManualMenu.selection_level < 0) {
-        if (ManualMenu.selection_level == -1) {
-            window->edge_alpha = 0x50;
-        } else {
-            window->edge_alpha = 0x80;
-        }
-
-        ManualMsg->Step();
-        ManualMsg->DrawMesWin();
-    }
-
-    int message_no = 0;
-
-    if (ManualMenu.selection_level == -1) {
-        CommonMenuMes3.auto_pos = MES_POS_NONE;
-        message_no = ManualMenu.category * 1000 + 1000;
-        CommonMenuMes3.stay_frame = true;
-        CommonMenuMes3.text_x = 0x86;
-        CommonMenuMes3.text_y = 0xEE;
-    }
-
-    if (ManualMenu.mode == MANUAL_MODE_READING) {
-        CommonMenuMes3.stay_frame = true;
-        CommonMenuMes3.auto_pos = MES_POS_BOTTOM;
-        message_no = ManualMenu.category * 1000 + 1100 + (ManualMenu.entry + 1) * 10 + ManualMenu.message_page;
-        CommonMenuMes3.text_x = 0x78;
-        CommonMenuMes3.text_y = 0x158;
-    }
-
-    if (CommonMenuMes3.mes_made != message_no) {
-        CommonMenuMes3.MakeMesWin(message_no);
-    }
-
-    if (message_no <= 0) {
-        CommonMenuMes3.stay_frame = false;
-    }
-
-    CommonMenuMes3.Step();
-    CommonMenuMes3.DrawMesWin();
 }
 
 int InitMenuManual(int *texture_blocks, u_long128 *load_buffer) {
