@@ -1,10 +1,3 @@
-#pragma argument_flag 0
-#pragma argument_flag_ones 210, 230, 247, 255, 277, 308, 310, 484, 485, 486
-#pragma argument_flag_ones 494, 496, 499, 501, 545, 548, 552, 553, 557, 560
-#pragma argument_flag_ones 583, 594, 602, 609, 610, 611, 614, 615, 616, 655
-#pragma argument_flag_ones 665, 671, 672, 673, 679, 689, 695, 696, 697, 703
-#pragma argument_flag_ones 713, 719, 720, 721, 736, 751, 757, 758, 764, 772
-#pragma argument_flag_ones 825, 1002
 #include "common.h"
 
 #include <libgraph.h>

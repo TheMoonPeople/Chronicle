@@ -1,8 +1,3 @@
-#pragma argument_flag 0
-#pragma argument_flag_ones 47, 54, 61, 64, 66, 159, 160, 162, 168, 1204
-#pragma argument_flag_ones 1205, 1206, 1209, 1210, 1211, 1473, 1493, 1494, 1580, 1582
-#pragma argument_flag_ones 1583, 1585, 1599
-
 #include "common.h"
 
 #include <cstdlib>

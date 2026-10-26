@@ -1,12 +1,4 @@
 #include "stubs/title/rushmovi.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma argument_flag 0
-#pragma argument_flag_ones 91, 97, 98, 99, 104, 136, 164, 165, 166, 167
-#pragma argument_flag_ones 174, 175, 176, 177, 257, 258, 259, 268, 269, 270
-#pragma argument_flag_ones 304, 305, 306, 332, 334, 345, 347, 401, 403, 443
-#pragma argument_flag_ones 454, 464, 713, 723, 725, 733, 739, 742, 743, 744
-#pragma argument_flag_ones 782
 
 #include "common.h"
 

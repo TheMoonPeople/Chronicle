@@ -1,5 +1,3 @@
-#pragma helper_mask_gpr 0x30
-
 #include "common.h"
 
 #include <libgraph.h>
