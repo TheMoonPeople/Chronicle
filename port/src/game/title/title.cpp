@@ -103,10 +103,6 @@ public:
    their own because each is another unit's to type. Only the members this file touches are named;
    the extents are the sizes the executable gives the objects below. */
 
-/* Named rather than included, because a unit's include list is a dial on the order a call's
-   floating-point arguments are set up in and nothing here needs the definition: adding
-   renderinfo.h alone takes RushInit's three-float SetFollow out of the order the image has. */
-
 /* A frame parented to an object, which is what lets the world transform drive a model. */
 class CObjectFrame : public CObject {
 public:
@@ -211,24 +207,11 @@ static void InitProcH();
 static void InitProcI();
 static void InitProcTitle();
 
-/* Nothing reads this, and nothing in the image stands for it: the link this file was built by
-   removed it. It is here because the compiler carries state from one definition to the next, and
-   the follow camera below is constructed with its four arguments evaluated in an order no
-   declaration that emits nothing reaches. Deleting it puts three of those four constants in the
-   wrong registers. */
-
-CCamera       Camera(4.0f);
+CCamera      Camera(4.0f);
 CCameraFollow FCamera(60.0f, 20.0f, 0.0f, 4.0f);
 CCharacter    Cloud__2;
 CCharacter    Logo;
 CCharacter    Spark[9];
-
-/* Nothing calls this and nothing reads the table it writes: the link this file was built by
-   removed both. They are here because the compiler carries state from one definition to the next,
-   and the camera calls in TitleInit below evaluate their arguments in an order that no declaration
-   emitting nothing reaches. */
-
-void DataLoad();
 
 /**
  * Initializes title cinematic scene A.

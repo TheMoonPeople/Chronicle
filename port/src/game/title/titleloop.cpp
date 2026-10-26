@@ -1,5 +1,3 @@
-#pragma argument_flag 0
-#pragma argument_flag_ones 14, 16, 20, 22, 31, 33, 45, 47, 129
 /* The title screen's own loop. Retail compiles it apart from the rest of the
    title unit: its constants are a run of their own, which is why the three
    names it shares with the code before it are spelled twice in the image. */
@@ -208,12 +206,6 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char r, u_char g, u_char b, u_char a);
 
 void TiPlayVolSE(int group, int no, int voice, float volume);
-
-/* Nothing reads this, and nothing in the image stands for it: the link this file was built by
-   removed it. It is here because the compiler carries state from one definition to the next, and
-   the follow camera below is constructed with its four arguments evaluated in an order no
-   declaration that emits nothing reaches. Deleting it puts three of those four constants in the
-   wrong registers. */
 
 int    Fade1;
 int    Fade2;
