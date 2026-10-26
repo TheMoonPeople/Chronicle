@@ -1,7 +1,4 @@
 #include "stubs/dngstatusdata.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 781
 
 #include "dngstatusdata.hpp"
 
@@ -888,8 +885,6 @@ void CDngStatusData::Initialize() {
     this->cur_chara = CHARA_TOAN;
     this->party_size = 1;
 
-    // The first weapon id of each character's range; copied but never read.
-    s32 weapon_base[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
     s32 start_hp[6] = {70, 60, 100, 90, 110, 100};
     s32 start_stat[6] = {3, 1, 12, 23, 38, 46};
 

@@ -1,7 +1,4 @@
 #include "stubs/dun/gameloop.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 885
 
 #include "dun/gameloop.hpp"
 
@@ -1048,8 +1045,6 @@ float  atraGetMsgBordRate;
 u_int *shortAtraEffectPtr;
 float  itemNormalScale;
 s32    itemOpenSmallFlag;
-s32    itemOpenItemMds;
-s32    itemOpenItemImg;
 u_int *itemOpenItemChr;
 
 /* The model the item a gate holds draws with. */
@@ -1171,7 +1166,6 @@ s32 existFlag;
 s32 tryalExit;
 s32 DeadKeyWait;
 s32 DeadKeyStartWait;
-s32 BtEventData;
 
 /* Where the pack file the dungeon read last went. */
 unsigned int *old_read_buffer;
@@ -4403,7 +4397,6 @@ static void CameraAutoMove(CCameraFollow *camera, CCPoly *poly, float *position,
 }
 
 void autoCamTrial() {
-    static int    cameraDilay = 0;
     sceVu0FVECTOR eye;
     sceVu0FVECTOR look;
     sceVu0FVECTOR along;
@@ -4766,8 +4759,6 @@ void DelActiveItem(int slot) {
 #define CHARA_WEAPONS_OFFSET 0x450c
 STATIC_ASSERT((int) &((CUserStatus *) 0)->chara_weapons == CHARA_WEAPONS_OFFSET);
 
-#pragma opt_propagation off
-
 int Run_TrapCircle(MAP_TRAP_CIRCLE *trap) {
     if (trap == NULL) {
         return;
@@ -4871,8 +4862,6 @@ int Run_TrapCircle(MAP_TRAP_CIRCLE *trap) {
     SndSePlay(se, -1, 0);
     return kind;
 }
-
-#pragma opt_propagation reset
 
 void LockOffTargte() {
     lockOnTargetDraw = 0;

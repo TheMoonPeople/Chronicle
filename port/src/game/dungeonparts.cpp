@@ -1,8 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma argument_flag 0
-#pragma argument_flag_ones 82, 115, 116, 117, 173, 177, 179, 183
-
 #include "dungeonparts.hpp"
 
 #include <libvu0.h>

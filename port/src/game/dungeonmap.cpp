@@ -1,10 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 1008
-#pragma argument_flag 0
-#pragma argument_flag_ones 69, 109, 232, 233, 278, 307, 308, 353, 409, 424
-#pragma argument_flag_ones 426, 480, 481, 497, 498, 499, 959
-
 #include "dungeonmap.hpp"
 
 #include <libvu0.h>
@@ -786,11 +779,6 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
     }
 }
 
-/* 189 of 202 instructions. Retail's loop test forms `&parts[parts_no]` and the
- * body reads the fire positions at 0x20 from it; mwcc carries only the scaled
- * index across the test and folds the 0x490 into the load displacement. A
- * `CDungeonParts *` local recovers the 0x20 offsets but forms the base inside
- * the body, which trades three differences for four. */
 void CDungeonMap::DrawRaster(CFrameVu1 *frame) {
     float pos[4];
     int   i;
@@ -2829,23 +2817,6 @@ int CDungeonMap::CreatPartsList(int *list, int max, int first_part, int last_par
     return num;
 }
 
-/* The integer address accumulation is a rare pointer-arithmetic exception.
- * Retail adds the cell offset to `this` with the offset on the left, and MWCC
- * emits that order only while the address accumulates in an integer: written as
- * `&this->cells[no]` the operands of that one `addu` come out the other way
- * round at every site. `->cells[0]` keeps the member offset symbolic. */
-
-/* The constants that the functions above name. These stand here rather than
- * at the foot of the file because MWCC's own .rodata for SetCharaDoor's jump
- * table is spliced in at this point, and retail puts the table after all of
- * the constants below and before the two that follow the function. */
-
-/* The integer address accumulation is the same exception as above, and for the
- * same reason. */
-
-/* MWCC emits its own jump table for the switch, which lands where retail keeps
- * @3191, and a .data template for `gate_keys`, which is retail's @3162 at the end
- * of this unit's data run. */
 void CDungeonMap::buildRandomMap(int room_max, int first_build) {
     int w;
     int h;

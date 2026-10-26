@@ -912,16 +912,6 @@ extern int CMonUnitHold;
 extern int CEffectHold;
 
 /**
- * Model of the item a pickup presentation is showing.
- */
-extern int itemOpenItemMds;
-
-/**
- * Texture of the item a pickup presentation is showing.
- */
-extern int itemOpenItemImg;
-
-/**
  * Hides the monster units instead of drawing them.
  */
 extern int CMonUnitHyde;
@@ -1072,9 +1062,6 @@ extern ClsMes BtEventMes1;
 
 /** File buffer the current floor's system script is read into. */
 extern CDataAlloc2<1> BtSystemScriptFileBuffer;
-
-/** Base address of the system script data currently loaded. */
-extern s32 BtEventData;
 
 /** Whether an enemy is locked on. */
 extern s32 lockOnTargetFlag;
