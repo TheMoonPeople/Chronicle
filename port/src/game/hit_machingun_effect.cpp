@@ -5,36 +5,28 @@
 #include "shot_utils.hpp"
 
 void CHIT_MACHINGUN_EFFECT::Set(float *position) {
-    s32 free_index = -1;
-
     for (s32 i = 0; i < 16; i++) {
         if (this->timer[i] < 0) {
-            free_index = i;
-            break;
+            sceVu0CopyVector(this->position[i], position);
+            this->timer[i] = 17;
+            return;
         }
-    }
-
-    if (free_index != -1) {
-        sceVu0CopyVector(this->position[free_index], position);
-        this->timer[free_index] = 17;
     }
 }
 
 void CHIT_MACHINGUN_EFFECT::Draw() {
-    s32 cell;
-
     for (s32 i = 0; i < 16; i++) {
         if (this->timer[i] >= 0) {
-            cell = 2 - this->timer[i] / 6;
+            const s32 cell = 2 - this->timer[i] / 6;
             set3DCellModel(this->position[i], "basefx00", 5.0f, cell << 4, 0x70, 0x10, 0x10, 0x80);
         }
     }
 }
 
 void CHIT_MACHINGUN_EFFECT::Step() {
-    for (s32 i = 0; i < 16; i++) {
-        if (this->timer[i] >= 0) {
-            this->timer[i]--;
+    for (s32 &frames_left : this->timer) {
+        if (frames_left >= 0) {
+            frames_left--;
         }
     }
 }

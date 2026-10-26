@@ -1,46 +1,72 @@
 #include "fish.hpp"
 
-#include <cstring>
-
-#include "dataread.hpp"
-#include "mathutil.hpp"
-
-FishInfo fish_info[18] = {
-    {17.0f, 10.0f, 20.0f, 20,  50,   {1.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
-    {19.5f, 8.0f,  16.0f, 10,  30,   {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 1.0f}},
-    {25.5f, 8.0f,  19.0f, 8,   25,   {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 1.0f, 0.5f, 0.5f, 0.0f}},
-    {35.4f, 12.0f, 24.0f, 30,  60,   {0.5f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}},
-    {28.0f, 8.0f,  16.0f, 10,  40,   {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 1.0f}},
-    {21.0f, 10.0f, 16.0f, 200, 400,  {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
-    {20.0f, 6.0f,  12.0f, 15,  40,   {0.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f}},
-    {20.0f, 6.0f,  10.0f, 20,  50,   {0.0f, 0.5f, 1.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f}},
-    {1.0f,  1.0f,  2.0f,  1,   2,    {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
-    {21.0f, 8.0f,  16.0f, 100, 200,  {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
-    {20.0f, 8.0f,  16.0f, 40,  80,   {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 1.0f, 0.5f, 0.5f}},
-    {20.0f, 6.0f,  12.0f, 20,  40,   {1.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 0.0f}},
-    {15.0f, 6.0f,  12.0f, 10,  30,   {1.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 0.0f}},
-    {21.0f, 10.0f, 20.0f, 35,  70,   {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}},
-    {21.0f, 8.0f,  16.0f, 15,  40,   {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 1.0f, 0.5f, 0.5f, 0.0f}},
-    {20.0f, 8.0f,  20.0f, 20,  40,   {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 1.0f, 0.5f, 0.0f}},
-    {20.0f, 8.0f,  14.0f, 20,  40,   {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 0.5f, 1.0f, 1.0f}},
-    {21.0f, 10.0f, 30.0f, 600, 1000, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f}},
-};
-
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
+#include <utility>
 
 #include "collision.hpp"
+#include "dataread.hpp"
 #include "mathutil.hpp"
 
 int PickUpNearPoly(CCPoly *out, CBoxVu0 box, CCPoly *polys, int count);
 
+namespace {
+
+constexpr std::array<FishInfo, 18> fish_info = {
+    {
+     {17.0f, 10.0f, 20.0f, 20, 50, {1.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
+     {19.5f, 8.0f, 16.0f, 10, 30, {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 1.0f}},
+     {25.5f, 8.0f, 19.0f, 8, 25, {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 1.0f, 0.5f, 0.5f, 0.0f}},
+     {35.4f, 12.0f, 24.0f, 30, 60, {0.5f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}},
+     {28.0f, 8.0f, 16.0f, 10, 40, {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 1.0f}},
+     {21.0f, 10.0f, 16.0f, 200, 400, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
+     {20.0f, 6.0f, 12.0f, 15, 40, {0.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f}},
+     {20.0f, 6.0f, 10.0f, 20, 50, {0.0f, 0.5f, 1.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 0.5f, 0.5f, 0.0f}},
+     {1.0f, 1.0f, 2.0f, 1, 2, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
+     {21.0f, 8.0f, 16.0f, 100, 200, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f}},
+     {20.0f, 8.0f, 16.0f, 40, 80, {0.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 1.0f, 0.5f, 0.5f}},
+     {20.0f, 6.0f, 12.0f, 20, 40, {1.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 0.0f}},
+     {15.0f, 6.0f, 12.0f, 10, 30, {1.0f, 0.5f, 0.5f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.5f, 0.5f, 0.0f}},
+     {21.0f, 10.0f, 20.0f, 35, 70, {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}},
+     {21.0f, 8.0f, 16.0f, 15, 40, {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 1.0f, 0.5f, 0.5f, 0.0f}},
+     {20.0f, 8.0f, 20.0f, 20, 40, {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 1.0f, 0.5f, 0.0f}},
+     {20.0f, 8.0f, 14.0f, 20, 40, {0.0f, 0.0f, 0.0f, 0.2f, 0.2f, 0.2f, 0.0f, 0.2f, 0.0f, 0.5f, 0.5f, 1.0f, 1.0f}},
+     {21.0f, 10.0f, 30.0f, 600, 1000, {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f}},
+     }
+};
+
+constexpr int kMaxNearbyPolys = 256;
+
+constexpr std::array<char *, 18> fish_file_names = {
+    "chara/f01a.chr",
+    "chara/f02a.chr",
+    "chara/f03a.chr",
+    "chara/f04a.chr",
+    "chara/f05a.chr",
+    "chara/f06a.chr",
+    "chara/f07a.chr",
+    "chara/f08a.chr",
+    "chara/f09a.chr",
+    "chara/f10a.chr",
+    "chara/f11a.chr",
+    "chara/f12a.chr",
+    "chara/f13a.chr",
+    "chara/f14a.chr",
+    "chara/f15a.chr",
+    "chara/f16a.chr",
+    "chara/f17a.chr",
+    "chara/f18a.chr",
+};
+
 int rand_check(float probability) {
     int   roll = rand();
     float threshold = probability * 1000.0f;
-    (int) threshold;
-    return roll % 1000 < (int) threshold ? 1 : 0;
+    return roll % 1000 < static_cast<int>(threshold) ? 1 : 0;
 }
 
 int GetActCnt() {
@@ -54,6 +80,8 @@ int GetActCnt2() {
     count += rand() % 30;
     return count;
 }
+
+} // namespace
 
 int CFish::FindFood() {
     float position[4];
@@ -129,13 +157,11 @@ void CFish::SetCPoly(CCPoly *polys, int count) {
 }
 
 void CFish::Step() {
-    float   position[4];
-    float   rotation[4];
-    float   velocity[4];
-    float   next_position[4];
-    float   hit_position[4];
-    CCPoly  nearby_polys[256];
-    CBoxVu0 box;
+    float position[4];
+    float rotation[4];
+    float velocity[4];
+    float next_position[4];
+    float hit_position[4];
 
     if (fish_kind < 0) {
         return;
@@ -183,6 +209,8 @@ void CFish::Step() {
             case FISH_ACTION_LEAVE:
                 action = FISH_ACTION_NONE;
                 break;
+            default:
+                break;
         }
     }
 
@@ -190,17 +218,17 @@ void CFish::Step() {
         if (move_mode == FISH_MOVE_UNSET) {
             move_mode = FISH_MOVE_SWIM;
         } else {
-            move_mode = (FishMoveMode) (rand() % 2);
+            move_mode = static_cast<FishMoveMode>(rand() % 2);
         }
 
         move_timer = GetActCnt();
         target_speed = 0.0f;
 
         if (move_mode != FISH_MOVE_STOP) {
-            target_yaw = TWO_PI * ((float) rand() / 2147483648.0f);
+            target_yaw = TWO_PI * (static_cast<float>(rand()) / 2147483648.0f);
             target_yaw = AngleLimit(target_yaw);
             move_timer += 30;
-            target_speed = 0.2f + (0.5f * (float) rand() / 2147483648.0f);
+            target_speed = 0.2f + (0.5f * static_cast<float>(rand()) / 2147483648.0f);
         }
     }
 
@@ -220,13 +248,13 @@ void CFish::Step() {
 
     if (action == FISH_ACTION_BITE_HOOK) {
         float food_yaw = atan2f(food_position[0] - position[0], food_position[2] - position[2]);
-        target_yaw = food_yaw + 0.2f * ((float) rand() / 2147483648.0f);
+        target_yaw = food_yaw + 0.2f * (static_cast<float>(rand()) / 2147483648.0f);
         target_yaw = AngleLimit(target_yaw);
         target_speed = 0.0f;
     }
 
     if (action == FISH_ACTION_BATTLE) {
-        target_yaw = TWO_PI * ((float) rand() / 2147483648.0f);
+        target_yaw = TWO_PI * (static_cast<float>(rand()) / 2147483648.0f);
         target_yaw = AngleLimit(target_yaw);
         target_speed = 0.5f;
         turn_step *= 2.0f;
@@ -249,18 +277,12 @@ void CFish::Step() {
 
     if (speed < target_speed) {
         speed += speed_step;
-
-        if (speed > target_speed) {
-            speed = target_speed;
-        }
+        speed = std::min(speed, target_speed);
     }
 
     if (speed > target_speed) {
         speed -= speed_step;
-
-        if (speed < target_speed) {
-            speed = target_speed;
-        }
+        speed = std::max(speed, target_speed);
     }
 
     velocity[0] = speed * sinf(rotation[1]);
@@ -277,6 +299,8 @@ void CFish::Step() {
             break;
         case FISH_MOVE_FAST:
             SetMotion(1, 0);
+            break;
+        default:
             break;
     }
 
@@ -296,21 +320,23 @@ void CFish::Step() {
     GetPosition(position);
     sceVu0AddVector(next_position, position, velocity);
 
-    if (collision_polys != NULL) {
+    if (collision_polys != nullptr) {
+        auto    nearby_polys = std::make_unique_for_overwrite<CCPoly[]>(kMaxNearbyPolys);
+        CBoxVu0 box;
         box.max[0] = position[0] + 10.0f;
         box.max[1] = position[1] + 10.0f;
         box.max[2] = position[2];
         box.min[0] = position[0] - 10.0f;
         box.min[1] = position[1];
         box.min[2] = position[2] - 10.0f;
-        int count = PickUpNearPoly(nearby_polys, box, collision_polys, collision_poly_count);
+        int count = PickUpNearPoly(nearby_polys.get(), box, collision_polys, collision_poly_count);
 
-        if (CheckHit(nearby_polys, count, position, next_position, hit_position, 0, 0) < 0) {
+        if (CheckHit(nearby_polys.get(), count, position, next_position, hit_position, 0, 0) < 0) {
             SetPosition(next_position);
         }
 
         GetPosition(position);
-        CheckWidth(nearby_polys, count, position, 2.0f * angle_model_scale, next_position, 0);
+        CheckWidth(nearby_polys.get(), count, position, 2.0f * angle_model_scale, next_position, 0);
         SetPosition(next_position);
     }
 
@@ -351,15 +377,11 @@ void CFish::SetBattleMode() {
 }
 
 int CFish::GetFP() {
-    float points;
-
     if (size >= info.min_size) {
-        points = info.min_fp + (info.max_fp - info.min_fp) * (size - info.min_size) / (info.max_size - info.min_size);
-    } else {
-        points = info.min_fp - 0.5f * (info.min_fp * (info.min_size - size) / (info.min_size - 0.5f * info.min_size));
+        return static_cast<int>(info.min_fp + (info.max_fp - info.min_fp) * (size - info.min_size) / (info.max_size - info.min_size));
     }
 
-    return (int) points;
+    return static_cast<int>(info.min_fp - 0.5f * (info.min_fp * (info.min_size - size) / (info.min_size - 0.5f * info.min_size)));
 }
 
 void CFish::SetMotion(int motion_no, int flags) {
@@ -386,21 +408,21 @@ void CFish::SetRotation(float *rotation) {
 void CFish::GetRotation(float *rotation) { angle_model.GetRotation(rotation); }
 
 void CFish::SetReference(CFrame *reference) {
-    if (model.frame != NULL) {
+    if (model.frame != nullptr) {
         model.frame->SetReference(reference);
     }
 
-    if (angle_model.frame != NULL) {
+    if (angle_model.frame != nullptr) {
         angle_model.frame->SetReference(reference);
     }
 }
 
 void CFish::DeleteReference() {
-    if (model.frame != NULL) {
+    if (model.frame != nullptr) {
         model.frame->DeleteReference();
     }
 
-    if (angle_model.frame != NULL) {
+    if (angle_model.frame != nullptr) {
         angle_model.frame->DeleteReference();
     }
 }
@@ -417,7 +439,7 @@ void CFish::Initialize() {
     model_scale = 1.0f;
     model.Initialize();
     angle_model.Initialize();
-    collision_polys = NULL;
+    collision_polys = nullptr;
     collision_poly_count = 0;
     unk_78 = 0;
     target_yaw = 0.0f;
@@ -428,43 +450,22 @@ void CFish::Initialize() {
 }
 
 void LoadFish(CFish *fish, int fish_kind, int texture_slot, CDataAlloc2<1> *alloc, int loaded_before) {
-    if (fish_kind < 0 || fish_kind >= 18) {
+    if (fish_kind < 0 || std::cmp_greater_equal(fish_kind, fish_info.size())) {
         return;
     }
 
-    LoadFile("chara/f00s.chr", read_buffer, NULL);
+    LoadFile("chara/f00s.chr", read_buffer, nullptr);
     fish->Initialize();
     fish->model.LoadPackData3(read_buffer, "info.cfg", alloc, texture_slot, alloc, loaded_before, 0);
-    memcpy(&fish->info, &fish_info[fish_kind], sizeof(FishInfo));
+    fish->info = fish_info[fish_kind];
     fish->SetScale();
     fish->fish_kind = fish_kind;
 }
 
 char *GetFishFileName(int fish_kind) {
-    static char *name[18] = {
-        "chara/f01a.chr",
-        "chara/f02a.chr",
-        "chara/f03a.chr",
-        "chara/f04a.chr",
-        "chara/f05a.chr",
-        "chara/f06a.chr",
-        "chara/f07a.chr",
-        "chara/f08a.chr",
-        "chara/f09a.chr",
-        "chara/f10a.chr",
-        "chara/f11a.chr",
-        "chara/f12a.chr",
-        "chara/f13a.chr",
-        "chara/f14a.chr",
-        "chara/f15a.chr",
-        "chara/f16a.chr",
-        "chara/f17a.chr",
-        "chara/f18a.chr",
-    };
-
-    if (fish_kind < 0 || fish_kind >= 18) {
-        return NULL;
+    if (fish_kind < 0 || std::cmp_greater_equal(fish_kind, fish_file_names.size())) {
+        return nullptr;
     }
 
-    return name[fish_kind];
+    return fish_file_names[fish_kind];
 }

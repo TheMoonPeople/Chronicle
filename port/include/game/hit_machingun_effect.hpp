@@ -12,28 +12,16 @@ public:
 
     /**
      * Starts one flash at the specified world position.
-     *
-     * @mangled Set__21CHIT_MACHINGUN_EFFECTFPf
-     * @address 0x1AE980
-     * @size 0x98
      */
     void Set(float *position);
 
     /**
      * Draws each active machine-gun hit flash.
-     *
-     * @mangled Draw__21CHIT_MACHINGUN_EFFECTFv
-     * @address 0x1AEA20
-     * @size 0xB0
      */
     void Draw();
 
     /**
      * Advances the lifetime of each active flash.
-     *
-     * @mangled Step__21CHIT_MACHINGUN_EFFECTFv
-     * @address 0x1AEAD0
-     * @size 0x48
      */
     void Step();
 };

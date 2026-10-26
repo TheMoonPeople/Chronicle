@@ -1,21 +1,22 @@
 #include "stubs/gameutil.hpp"
 
-#include "gameutil.hpp"
-
 #include <eekernel.h>
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
-#include <cstdio>
 #include <cstring>
+#include <limits>
 
 #include "camera.hpp"
 #include "character.hpp"
 #include "dataalloc.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
+#include "gameutil.hpp"
 #include "mathutil.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
@@ -23,26 +24,24 @@
 #include "texture.hpp"
 #include "visualvu1.hpp"
 
-/* Shared helpers: motion interpolation, collision and ground queries, and 2D
- * sprite setup. The IOP midi bridge lives in the platform layer. */
+// Shared helpers: motion interpolation, and collision and ground queries. The 2D sprite and
+// IOP midi helpers declared in gameutil.hpp live in the platform layer.
+
+namespace {
 
 /**
  * Interpolates between two quaternions along the shorter arc.
- *
- * @mangled QuatSlerp__FPfPffPf
- * @address 0x147B70
- * @size 0x1B0
  */
-static void QuatSlerp(float *from, float *to, float t, float *out) {
-    float to_x;
-    float to_y;
-    float to_z;
-    float to_w;
-    float cosine;
-    float angle;
-    float inv_sine;
-    float scale_from;
-    float scale_to;
+void QuatSlerp(float *from, float *to, float t, float *out) {
+    float to_x = 0.0f;
+    float to_y = 0.0f;
+    float to_z = 0.0f;
+    float to_w = 0.0f;
+    float cosine = 0.0f;
+    float angle = 0.0f;
+    float inv_sine = 0.0f;
+    float scale_from = 0.0f;
+    float scale_to = 0.0f;
 
     from[0] = -from[0];
     to[0] = -to[0];
@@ -80,8 +79,8 @@ static void QuatSlerp(float *from, float *to, float t, float *out) {
 /**
  * Finds the last key of a driver that stands at or before a motion frame.
  */
-static inline int SearchMotKey(Mot_List *list, u_int frame) {
-    int middle;
+int SearchMotKey(Mot_List *list, u_int frame) {
+    int middle = 0;
     int low = 0;
     int high = list->key_count;
 
@@ -98,23 +97,68 @@ static inline int SearchMotKey(Mot_List *list, u_int frame) {
     return low - 1;
 }
 
+/**
+ * Builds a matrix that rotates by an angle around an arbitrary direction.
+ */
+void SetRotationMatrixFromDir(sceVu0FMATRIX matrix, float *direction, float angle) {
+    float         cosine = cosf(angle);
+    float         sine = sinf(angle);
+    float         inverse_cosine = 1.0f - cosine;
+    sceVu0FVECTOR axis;
+
+    sceVu0UnitMatrix(matrix);
+    sceVu0Normalize(axis, direction);
+    matrix[0][0] = cosine + inverse_cosine * (axis[0] * axis[0]);
+    matrix[0][1] = inverse_cosine * (axis[0] * axis[1]) - axis[2] * sine;
+    matrix[0][2] = inverse_cosine * (axis[0] * axis[2]) + axis[1] * sine;
+    matrix[1][0] = inverse_cosine * (axis[1] * axis[0]) + axis[2] * sine;
+    matrix[1][1] = cosine + inverse_cosine * (axis[1] * axis[1]);
+    matrix[1][2] = inverse_cosine * (axis[1] * axis[2]) - axis[0] * sine;
+    matrix[2][0] = inverse_cosine * (axis[2] * axis[0]) - axis[1] * sine;
+    matrix[2][1] = inverse_cosine * (axis[2] * axis[1]) + axis[0] * sine;
+    matrix[2][2] = cosine + inverse_cosine * (axis[2] * axis[2]);
+}
+
+/**
+ * Reads the vertex array of a model's MDT data.
+ */
+sceVu0FVECTOR *ModelVertices(MDT_HEADER *model) {
+    return reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<u_char *>(model) + model->vertex_ofs);
+}
+
+/**
+ * Reads the material array of a model's MDT data.
+ */
+MDT_MATERIAL *ModelMaterials(MDT_HEADER *model) {
+    return reinterpret_cast<MDT_MATERIAL *>(reinterpret_cast<u_char *>(model) + model->info_ofs);
+}
+
+/**
+ * Reads the MDT data of the visual a frame draws.
+ */
+MDT_HEADER *FrameModel(CFrameVu1 *frame) {
+    return reinterpret_cast<MDT_HEADER *>(frame->GetVisual()->GetMDTDataAddress());
+}
+
+} // namespace
+
 Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
-    int   key;
-    int   next;
-    float t;
+    int   key = 0;
+    int   next = 0;
+    float t = 0.0f;
 
     key = SearchMotKey(list, state->frame);
 
     if (state->next_frame == state->frame + 1) {
-        u_int time;
-        u_int next_time;
+        u_int time = 0;
+        u_int next_time = 0;
 
         next = key + 1;
         next_time = list->keys[next].frame;
         time = list->keys[key].frame;
 
         if ((next_time != time + 1) != 0) {
-            t = (state->time - (float) time) / ((float) next_time - (float) time);
+            t = (state->time - static_cast<float>(time)) / (static_cast<float>(next_time) - static_cast<float>(time));
         } else {
             t = state->blend;
         }
@@ -122,21 +166,19 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
         if (state->next_frame == list->keys[state->next_frame - 1].frame) {
             next = state->next_frame - 1;
         } else {
-            int found = SearchMotKey(list, state->next_frame);
-
-            next = found;
+            next = SearchMotKey(list, state->next_frame);
         }
 
         t = state->blend;
     }
 
     if (!(t < 0.0f) && t <= 1.0f && key < list->key_count && next < list->key_count) {
-        float         one_minus_t;
+        float         one_minus_t = 0.0f;
         sceVu0FVECTOR value;
         sceVu0FVECTOR rotation;
         sceVu0FVECTOR from;
         sceVu0FVECTOR to;
-        CFrameVu1    *target = &((CFrameVu1 *) frame)[list->frame];
+        CFrameVu1    *target = &static_cast<CFrameVu1 *>(frame)[list->frame];
 
         switch (list->type) {
             case MOTION_KEY_ROTATION:
@@ -194,10 +236,9 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
                 target->world_valid = false;
                 break;
             case MOTION_KEY_VERTEX: {
-                int            vertex;
-                MDT_HEADER    *model = (MDT_HEADER *) target->GetVisual()->GetMDTDataAddress();
-                sceVu0FVECTOR *vertices = (sceVu0FVECTOR *) ((u_char *) model + model->vertex_ofs);
-                u_int          frame_no;
+                int            vertex = 0;
+                sceVu0FVECTOR *vertices = ModelVertices(FrameModel(target));
+                u_int          frame_no = 0;
 
                 target->attr.remake_pending = 1;
                 frame_no = list->frame;
@@ -209,9 +250,8 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
                         sceVu0CopyVectorXYZ(vertices[vertex], value);
                         list = list->next;
 
-                        switch ((int) list) {
-                            case 0:
-                                return NULL;
+                        if (list == nullptr) {
+                            return nullptr;
                         }
                     }
                 } else {
@@ -221,9 +261,8 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
                             sceVu0CopyVectorXYZ(vertices[vertex], list->keys[key].value);
                             list = list->next;
 
-                            switch ((int) list) {
-                                case 0:
-                                    return NULL;
+                            if (list == nullptr) {
+                                return nullptr;
                             }
                         }
                     }
@@ -234,9 +273,8 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
                             sceVu0CopyVectorXYZ(vertices[vertex], list->keys[next].value);
                             list = list->next;
 
-                            switch ((int) list) {
-                                case 0:
-                                    return NULL;
+                            if (list == nullptr) {
+                                return nullptr;
                             }
                         }
                     }
@@ -245,49 +283,44 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
                 return list;
             }
             case MOTION_KEY_CAMERA_POSITION:
-                if (state->camera != NULL) {
+                if (state->camera != nullptr) {
                     sceVu0InterVectorXYZ(value, list->keys[next].value, list->keys[key].value, t);
                     frame->GetWorldPosition(value, value);
-                    state->camera->SetPos(NULL, value[0], value[1], value[2]);
+                    state->camera->SetPos(nullptr, value[0], value[1], value[2]);
                 }
 
                 break;
             case MOTION_KEY_CAMERA_TARGET:
-                if (state->camera != NULL) {
+                if (state->camera != nullptr) {
                     sceVu0InterVectorXYZ(value, list->keys[next].value, list->keys[key].value, t);
                     frame->GetWorldPosition(value, value);
-                    state->camera->SetRef(NULL, value[0], value[1], value[2]);
+                    state->camera->SetRef(nullptr, value[0], value[1], value[2]);
                 }
 
                 break;
             case MOTION_KEY_MATERIAL_ALPHA: {
-                MDT_HEADER   *model;
-                MDT_MATERIAL *material;
-
                 one_minus_t = 1.0f - t;
-                model = (MDT_HEADER *) target->GetVisual()->GetMDTDataAddress();
-                material = (MDT_MATERIAL *) ((u_char *) model + model->info_ofs);
+                MDT_MATERIAL *material = ModelMaterials(FrameModel(target));
                 material[list->target].diffuse[3] = 1.0f - (one_minus_t * list->keys[key].value[0] + t * list->keys[next].value[0]);
                 target->attr.remake_pending = 2;
                 break;
             }
             case MOTION_KEY_MATERIAL_COLOR: {
-                MDT_HEADER   *model = (MDT_HEADER *) target->GetVisual()->GetMDTDataAddress();
-                MDT_MATERIAL *material = (MDT_MATERIAL *) ((u_char *) model + model->info_ofs);
+                MDT_MATERIAL *material = ModelMaterials(FrameModel(target));
 
                 sceVu0InterVectorXYZ(material[list->target].diffuse, list->keys[next].value, list->keys[key].value, t);
                 target->attr.remake_pending = 2;
                 break;
             }
             case MOTION_KEY_CAMERA_ROLL:
-                if (state->camera != NULL) {
+                if (state->camera != nullptr) {
                     one_minus_t = 1.0f - t;
                     state->camera->SetRoll(-(PI * ((one_minus_t * list->keys[key].value[0] + t * list->keys[next].value[0]) / 180.0f)));
                 }
 
                 break;
             case MOTION_KEY_CAMERA_FOV:
-                if (state->camera != NULL) {
+                if (state->camera != nullptr) {
                     one_minus_t = 1.0f - t;
                     MGSetProjection(0.5f * (480.0f * (1.0f / tanf(PI * ((0.5f * (one_minus_t * list->keys[key].value[0] + t * list->keys[next].value[0])) / 180.0f)))));
                 }
@@ -309,19 +342,17 @@ Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list) {
                 }
 
                 break;
+            default:
+                break;
         }
     }
 
     return list->next;
 }
 
-/**
- * Working copy of the skinned frame's vertices that the bone weights move.
- */
-static sceVu0FVECTOR def_vrtx[3000];
 void SetMotionEX(CFrame *frame, tagMOTION_TYPE *motion, MOTION_INFO *info, MOTION_STATE *state, tagFRAME_INF *frame_info) {
-    Mot_List *list;
-    Mot_List *list2;
+    Mot_List *list = nullptr;
+    Mot_List *list2 = nullptr;
 
     if (state->playing_no != state->motion_no || state->blending != 0) {
         if (state->blending == 0) {
@@ -340,19 +371,19 @@ void SetMotionEX(CFrame *frame, tagMOTION_TYPE *motion, MOTION_INFO *info, MOTIO
             state->blending = false;
         }
 
-        for (list = motion->proc_list; list != NULL;) {
+        for (list = motion->proc_list; list != nullptr;) {
             list = MotionProc(frame, state, list);
         }
 
         if (state->look_at != 0) {
-            if (state->look_target != NULL) {
+            if (state->look_target != nullptr) {
                 LookAt(state->look_frame, state->look_target, state->look_constraint);
             } else {
                 LookAt(state->look_frame, state->look_position, state->look_constraint);
             }
         }
 
-        for (list = motion->proc_list2; list != NULL;) {
+        for (list = motion->proc_list2; list != nullptr;) {
             list = MotionProc2(frame, motion, frame_info, list);
         }
 
@@ -364,82 +395,75 @@ void SetMotionEX(CFrame *frame, tagMOTION_TYPE *motion, MOTION_INFO *info, MOTIO
     state->next_frame = state->frame + 1;
     state->blend = state->time - state->frame;
 
-    for (list2 = motion->proc_list; list2 != NULL;) {
+    for (list2 = motion->proc_list; list2 != nullptr;) {
         list2 = MotionProc(frame, state, list2);
     }
 
     if (state->look_at != 0) {
-        if (state->look_target != NULL) {
+        if (state->look_target != nullptr) {
             LookAt(state->look_frame, state->look_target, state->look_constraint);
         } else {
             LookAt(state->look_frame, state->look_position, state->look_constraint);
         }
     }
 
-    for (list2 = motion->proc_list2; list2 != NULL;) {
+    for (list2 = motion->proc_list2; list2 != nullptr;) {
         list2 = MotionProc2(frame, motion, frame_info, list2);
     }
 
     state->time += info[state->motion_no].speed;
 
-    if ((unsigned int) state->time >= info[state->motion_no].end) {
-        state->time -= (float) info[state->motion_no].end - (float) info[state->motion_no].start;
+    if (static_cast<unsigned int>(state->time) >= info[state->motion_no].end) {
+        state->time -= static_cast<float>(info[state->motion_no].end) - static_cast<float>(info[state->motion_no].start);
         state->frame = info[state->motion_no].start;
         state->next_frame = state->frame + 1;
         state->blend = state->time - state->frame;
     }
 }
 
-/**
- * Takes a motion's animation data out of an arena and fills it from a file.
- *
- * @mangled CreateAnimeDataEX__FP14tagMOTION_TYPEP14CDataAlloc2_1_P16MOTION_FILE_INFO
- * @address 0x149090
- * @size 0x264
- */
 int CreateAnimeDataEX(tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, MOTION_FILE_INFO *files) {
-    if (files[0].name != NULL) {
-        motion->base_matrices = (sceVu0FMATRIX *) arena->Alloc((files[0].size >> 4) + 1);
-        memcpy(motion->base_matrices, files[0].data, files[0].size);
+    if (files[0].name != nullptr) {
+        motion->base_matrices = reinterpret_cast<sceVu0FMATRIX *>(arena->Alloc((files[0].size >> 4) + 1));
+        std::memcpy(motion->base_matrices, files[0].data, files[0].size);
     }
 
-    if (files[1].name != NULL) {
-        Mot_List      *list;
-        Mot_File_List *record;
-        u_char        *data;
-        Mot_List      *reversed;
-        Mot_List      *previous;
-        Mot_List      *node;
-        u_char        *keys;
+    if (files[1].name != nullptr) {
+        Mot_List      *list = nullptr;
+        Mot_File_List *record = nullptr;
+        u_char        *data = nullptr;
+        Mot_List      *reversed = nullptr;
+        Mot_List      *previous = nullptr;
+        Mot_List      *node = nullptr;
+        u_char        *keys = nullptr;
 
-        data = (u_char *) files[1].data;
-        motion->proc_list = NULL;
+        data = reinterpret_cast<u_char *>(files[1].data);
+        motion->proc_list = nullptr;
 
         do {
-            record = (Mot_File_List *) data;
-            list = (Mot_List *) arena->Alloc(sizeof(Mot_List) / 16 + 1);
+            record = reinterpret_cast<Mot_File_List *>(data);
+            list = reinterpret_cast<Mot_List *>(arena->Alloc((sizeof(Mot_List) / 16) + 1));
             list->frame = record->frame;
             list->target = record->target;
             list->key_count = record->key_count;
             list->type = record->type;
-            list->keys = (Mot_Key *) arena->Alloc(list->key_count * sizeof(Mot_Key) / 16 + 1);
+            list->keys = reinterpret_cast<Mot_Key *>(arena->Alloc(static_cast<int>((list->key_count * sizeof(Mot_Key) / 16) + 1)));
             data += sizeof(Mot_File_List);
             keys = data;
             data += list->key_count * sizeof(Mot_Key);
-            memcpy(list->keys, keys, list->key_count * sizeof(Mot_Key));
+            std::memcpy(list->keys, keys, list->key_count * sizeof(Mot_Key));
 
-            if (motion->proc_list == NULL) {
-                list->next = NULL;
+            if (motion->proc_list == nullptr) {
+                list->next = nullptr;
             } else {
                 list->next = motion->proc_list;
             }
 
             motion->proc_list = list;
-        } while (record->more != 0L);
+        } while (record->more != 0);
 
-        reversed = NULL;
+        reversed = nullptr;
 
-        while ((node = motion->proc_list) != NULL) {
+        while ((node = motion->proc_list) != nullptr) {
             previous = reversed;
             reversed = node;
             motion->proc_list = node->next;
@@ -449,43 +473,43 @@ int CreateAnimeDataEX(tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, MOTION_FILE
         motion->proc_list = reversed;
     }
 
-    if (files[2].name != NULL) {
-        Mot_List      *list;
-        Mot_File_List *record;
-        u_char        *data;
-        Mot_List      *reversed;
-        Mot_List      *previous;
-        Mot_List      *node;
-        u_char        *keys;
+    if (files[2].name != nullptr) {
+        Mot_List      *list = nullptr;
+        Mot_File_List *record = nullptr;
+        u_char        *data = nullptr;
+        Mot_List      *reversed = nullptr;
+        Mot_List      *previous = nullptr;
+        Mot_List      *node = nullptr;
+        u_char        *keys = nullptr;
 
-        data = (u_char *) files[2].data;
-        motion->proc_list2 = NULL;
+        data = reinterpret_cast<u_char *>(files[2].data);
+        motion->proc_list2 = nullptr;
 
         do {
-            record = (Mot_File_List *) data;
-            list = (Mot_List *) arena->Alloc(sizeof(Mot_List) / 16 + 1);
+            record = reinterpret_cast<Mot_File_List *>(data);
+            list = reinterpret_cast<Mot_List *>(arena->Alloc((sizeof(Mot_List) / 16) + 1));
             list->frame = record->frame;
             list->target = record->target;
             list->key_count = record->key_count;
             list->type = record->type;
-            list->keys = (Mot_Key *) arena->Alloc(list->key_count * sizeof(Mot_Key) / 16 + 1);
+            list->keys = reinterpret_cast<Mot_Key *>(arena->Alloc(static_cast<int>((list->key_count * sizeof(Mot_Key) / 16) + 1)));
             data += sizeof(Mot_File_List);
             keys = data;
             data += list->key_count * sizeof(Mot_Key);
-            memcpy(list->keys, keys, list->key_count * sizeof(Mot_Key));
+            std::memcpy(list->keys, keys, list->key_count * sizeof(Mot_Key));
 
-            if (motion->proc_list2 == NULL) {
-                list->next = NULL;
+            if (motion->proc_list2 == nullptr) {
+                list->next = nullptr;
             } else {
                 list->next = motion->proc_list2;
             }
 
             motion->proc_list2 = list;
-        } while (record->more != 0L);
+        } while (record->more != 0);
 
-        reversed = NULL;
+        reversed = nullptr;
 
-        while ((node = motion->proc_list2) != NULL) {
+        while ((node = motion->proc_list2) != nullptr) {
             previous = reversed;
             reversed = node;
             motion->proc_list2 = node->next;
@@ -498,53 +522,40 @@ int CreateAnimeDataEX(tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, MOTION_FILE
     return 1;
 }
 
-/**
- * Builds the per-frame animation table a model's motion needs.
- *
- * @mangled AnimeDataInit__FP6CFrameP14tagMOTION_TYPEP14CDataAlloc2_1_PP12tagFRAME_INF
- * @address 0x149300
- * @size 0x98
- */
 void AnimeDataInit(CFrame *frame, tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, tagFRAME_INF **frame_info) {
-    *frame_info = (tagFRAME_INF *) arena->Alloc64((frame->GetFrameNum() + 10) * sizeof(tagFRAME_INF) / 16 + 1);
+    *frame_info = reinterpret_cast<tagFRAME_INF *>(arena->Alloc64(static_cast<int>(((frame->GetFrameNum() + 10) * sizeof(tagFRAME_INF) / 16) + 1)));
     AnimeDataInit(frame, motion, arena, *frame_info);
 }
 
-/**
- * Builds the per-frame animation table into storage already set aside.
- *
- * @mangled AnimeDataInit__FP6CFrameP14tagMOTION_TYPEP14CDataAlloc2_1_P12tagFRAME_INF
- * @address 0x1493A0
- * @size 0x318
- */
 int AnimeDataInit(CFrame *frame, tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, tagFRAME_INF *frame_info) {
-    CFrameVu1 *current;
-    u32        target;
-    CFrame    *parent;
+    auto      *frames = static_cast<CFrameVu1 *>(frame);
+    CFrameVu1 *current = nullptr;
+    u32        target = 0;
+    CFrame    *parent = nullptr;
     Mot_List  *list = motion->proc_list2;
-    u32        last = -1;
-    int        i;
+    u32        last = std::numeric_limits<u32>::max();
+    int        i = 0;
     int        count = frame->GetFrameNum();
 
     for (i = 0; i < count; i++) {
-        current = &((CFrameVu1 *) frame)[i];
+        current = &frames[i];
         tagFRAME_INF *info = &frame_info[i];
         sceVu0CopyMatrix(info->matrix, current->local);
         parent = current->parent;
-        info->parent_frame = (CFrameVu1 *) parent - (CFrameVu1 *) frame;
+        info->parent_frame = static_cast<CFrameVu1 *>(parent) - frames;
     }
 
-    for (; list != NULL; list = list->next) {
+    for (; list != nullptr; list = list->next) {
         if (list->type == MOTION_KEY_SKIP) {
             continue;
         }
 
-        // Retail searches for each parent's index and never uses it.
+        // The parent index this finds is never used.
         target = list->target;
-        parent = ((CFrameVu1 *) frame)[target].parent;
+        parent = frames[target].parent;
 
         for (i = 0; i < target; i++) {
-            if (parent == &((CFrameVu1 *) frame)[i]) {
+            if (parent == &frames[i]) {
                 break;
             }
         }
@@ -553,29 +564,28 @@ int AnimeDataInit(CFrame *frame, tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, 
             continue;
         }
 
-        current = &((CFrameVu1 *) frame)[list->frame];
+        current = &frames[list->frame];
         parent = current->parent;
 
         for (i = 0; i < list->frame; i++) {
-            if (parent == &((CFrameVu1 *) frame)[i]) {
+            if (parent == &frames[i]) {
                 break;
             }
         }
 
         CVisualVu1 *visual = current->GetVisual();
 
-        if (visual != NULL) {
-            sceVu0FVECTOR *vertices;
-            MDT_HEADER    *model = (MDT_HEADER *) visual->GetMDTDataAddress();
-            vertices = (sceVu0FVECTOR *) ((u_char *) model + model->vertex_ofs);
-            sceVu0FMATRIX matrix;
+        if (visual != nullptr) {
+            auto          *model = reinterpret_cast<MDT_HEADER *>(visual->GetMDTDataAddress());
+            sceVu0FVECTOR *vertices = ModelVertices(model);
+            sceVu0FMATRIX  matrix;
 
-            frame_info[list->frame].base_vertices = (sceVu0FVECTOR *) arena->Alloc(model->vertex_num * sizeof(sceVu0FVECTOR) / 16 + 1);
+            frame_info[list->frame].base_vertices = reinterpret_cast<sceVu0FVECTOR *>(arena->Alloc(static_cast<int>((model->vertex_num * sizeof(sceVu0FVECTOR) / 16) + 1)));
             frame_info[list->frame].vertex_count = model->vertex_num;
             sceVu0UnitMatrix(matrix);
             sceVu0CopyMatrix(matrix, frame_info[list->frame].matrix);
 
-            for (i = 0; i < (u32) model->vertex_num; i++) {
+            for (i = 0; i < static_cast<u32>(model->vertex_num); i++) {
                 sceVu0ApplyMatrix(frame_info[list->frame].base_vertices[i], matrix, vertices[i]);
             }
         }
@@ -591,39 +601,11 @@ int NextMotionTime_GET_EX(MOTION_INFO *info, MOTION_STATE *state) {
     float progress = (state->time - playing_start) / (info[state->playing_no].end - playing_start);
     int   start = info[state->motion_no].start;
     int   end = info[state->motion_no].end;
-    int   time = start + progress * (end - start);
+    int   time = static_cast<int>(start + progress * (end - start));
 
-    if (end < time) {
-        time = end;
-    }
-
-    if (time < start) {
-        time = start;
-    }
-
+    time = std::min(time, end);
+    time = std::max(time, start);
     return time;
-}
-
-/**
- * Builds a matrix that rotates by an angle around an arbitrary direction.
- */
-static void SetRotationMatrixFromDir(sceVu0FMATRIX matrix, float *direction, float angle) {
-    float         cosine = cosf(angle);
-    float         sine = sinf(angle);
-    float         inverse_cosine = 1.0f - cosine;
-    sceVu0FVECTOR axis;
-
-    sceVu0UnitMatrix(matrix);
-    sceVu0Normalize(axis, direction);
-    matrix[0][0] = cosine + inverse_cosine * (axis[0] * axis[0]);
-    matrix[0][1] = inverse_cosine * (axis[0] * axis[1]) - axis[2] * sine;
-    matrix[0][2] = inverse_cosine * (axis[0] * axis[2]) + axis[1] * sine;
-    matrix[1][0] = inverse_cosine * (axis[1] * axis[0]) + axis[2] * sine;
-    matrix[1][1] = cosine + inverse_cosine * (axis[1] * axis[1]);
-    matrix[1][2] = inverse_cosine * (axis[1] * axis[2]) - axis[0] * sine;
-    matrix[2][0] = inverse_cosine * (axis[2] * axis[0]) - axis[1] * sine;
-    matrix[2][1] = inverse_cosine * (axis[2] * axis[1]) + axis[0] * sine;
-    matrix[2][2] = cosine + inverse_cosine * (axis[2] * axis[2]);
 }
 
 int LookAt(CFrameVu1 *frame, float *target, _FRAMECONSTRAINT constraint) {
@@ -638,7 +620,7 @@ int LookAt(CFrameVu1 *frame, float *target, _FRAMECONSTRAINT constraint) {
     sceVu0FMATRIX parent;
     sceVu0FMATRIX matrix;
     sceVu0FMATRIX rotation;
-    float         angle;
+    float         angle = 0.0f;
 
     sceVu0UnitMatrix(parent);
     frame->parent->GetLWMatrix(parent);
@@ -680,11 +662,7 @@ int LookAt(CFrameVu1 *frame, float *target, _FRAMECONSTRAINT constraint) {
 
         if (angle < 0.99999f) {
             sceVu0UnitMatrix(rotation);
-            angle = acosf(angle);
-
-            if (angle > QUARTER_PI) {
-                angle = QUARTER_PI;
-            }
+            angle = std::min(acosf(angle), QUARTER_PI);
 
             if (acosf(sceVu0InnerProduct(axis, direction)) > HALF_PI) {
                 SetRotationMatrixFromDir(rotation, side, -angle);
@@ -706,20 +684,14 @@ int LookAt(CFrameVu1 *frame, CFrameVu1 *target, _FRAMECONSTRAINT constraint) {
     target->GetLWMatrix(matrix);
     return LookAt(frame, matrix[3], constraint);
 }
-/**
- * Collects the polygons of a set that meet a box.
- *
- * @mangled PickUpNearPoly__FP6CCPoly7CBoxVu0P6CCPolyi
- * @address 0x149C30
- * @size 0x118
- */
+
 int PickUpNearPoly(CCPoly *out, CBoxVu0 box, CCPoly *poly, int count) {
     sceVu0FVECTOR poly_max;
     sceVu0FVECTOR poly_min;
     int           picked = 0;
-    int           i;
-    CCPoly       *src;
-    CCPoly       *dst;
+    int           i = 0;
+    CCPoly       *src = nullptr;
+    CCPoly       *dst = nullptr;
 
     vu_hold_box(box.max, box.min);
     src = poly;
@@ -732,7 +704,7 @@ int PickUpNearPoly(CCPoly *out, CBoxVu0 box, CCPoly *poly, int count) {
             continue;
         }
 
-        memcpy(dst, src, sizeof(CCPoly));
+        std::memcpy(dst, src, sizeof(CCPoly));
         dst++;
         picked++;
     }
@@ -745,15 +717,15 @@ int CheckHit(CCPoly *poly, int count, float *from, float *to, float *hit_point, 
     sceVu0FVECTOR diff;
     sceVu0FVECTOR poly_min;
     sceVu0FVECTOR poly_max;
-    CBoxVu0       line;
+    CBoxVu0       line{};
     sceVu0FVECTOR offset;
-    int           i;
+    int           i = 0;
     int           hit = -1;
     int           found = 0;
-    float         best;
-    float         from_side;
-    float         to_side;
-    float         dist;
+    float         best = 0.0f;
+    float         from_side = 0.0f;
+    float         to_side = 0.0f;
+    float         dist = 0.0f;
 
     VectorMaxMin(line.max, line.min, from, to);
     vu_hold_box(line.max, line.min);
@@ -801,11 +773,7 @@ int CheckHit(CCPoly *poly, int count, float *from, float *to, float *hit_point, 
         diff[2] = from[2] - point[2];
         dist = diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2];
 
-        if (found == 0) {
-            hit = i;
-            best = dist;
-            sceVu0CopyVector(hit_point, point);
-        } else if (best > dist) {
+        if (found == 0 || best > dist) {
             hit = i;
             best = dist;
             sceVu0CopyVector(hit_point, point);
@@ -819,8 +787,8 @@ int CheckHit(CCPoly *poly, int count, float *from, float *to, float *hit_point, 
 
 int CheckHitVertical(CCPoly *poly, int count, float *from, float depth, float *hit_point, int mode) {
     sceVu0FVECTOR to;
-    float         best_y;
-    int           i;
+    float         best_y = 0.0f;
+    int           i = 0;
     int           best = -1;
 
     to[0] = from[0];
@@ -860,14 +828,14 @@ int CheckHits(CCPoly *poly, int count, float *from, float *to, int max, int *hit
     sceVu0FVECTOR point;
     sceVu0FVECTOR poly_min;
     sceVu0FVECTOR poly_max;
-    CBoxVu0       line;
+    CBoxVu0       line{};
     sceVu0FVECTOR offset;
     sceVu0FVECTOR swap;
-    int           i;
-    int           j;
-    int           hits;
-    float         from_side;
-    float         to_side;
+    int           i = 0;
+    int           j = 0;
+    int           hits = 0;
+    float         from_side = 0.0f;
+    float         to_side = 0.0f;
 
     hits = 0;
     VectorMaxMin(line.max, line.min, from, to);
@@ -953,15 +921,15 @@ int CheckHits(CCPoly *poly, int count, float *from, float *to, int max, int *hit
 }
 
 int MoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *out_info, CCPoly *polys, int poly_num, int mode) {
-    int           hit_wall;
-    CCPoly       *wall;
-    int           poly_no;
-    int           i;
-    float         drop;
+    int           hit_wall = 0;
+    CCPoly       *wall = nullptr;
+    int           poly_no = 0;
+    int           i = 0;
+    float         drop = 0.0f;
     sceVu0FVECTOR hit;
     sceVu0FVECTOR from;
     sceVu0FVECTOR to;
-    CCPoly        poly;
+    CCPoly        poly{};
     sceVu0FVECTOR probe;
     sceVu0FVECTOR centre;
 
@@ -1031,7 +999,7 @@ int MoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *out_in
             out_info->ground_poly = poly;
             out_info->poly = poly;
             out_info->ground_found = 1;
-            *(u_long128 *) out_info->ground_point = *(u_long128 *) hit;
+            std::memcpy(out_info->ground_point, hit, sizeof(sceVu0FVECTOR));
 
             if (!(hit[1] <= from[1] + velocity[1] - 4.0f - drop)) {
                 out_info->landed = 1;
@@ -1060,7 +1028,7 @@ int MoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *out_in
         out_pos[2] = to[2];
     }
 
-    *(u_long128 *) centre = *(u_long128 *) out_pos;
+    std::memcpy(centre, out_pos, sizeof(sceVu0FVECTOR));
     centre[1] += 4.0f;
 
     if (CheckWidth(polys, poly_num, centre, 5.0f, to, mode) != 0) {
@@ -1071,35 +1039,23 @@ int MoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *out_in
     return hit_wall;
 }
 
-/**
- * Describes the surface of a collision triangle, in the shape that CCPoly
- * carries alongside its plane.
- */
-struct CCPolyAttr {
-    s16 ground_kind; /**< What the surface is made of. */
-    s16 foot_sound;  /**< Sound the character's feet play on it. */
-    s16 light;       /**< Light or ambience the surface puts the character in. */
-    s16 ignore_mask; /**< Collision query modes that pass through the surface. */
-    u8  unk_48[8];
-};
+namespace {
 
 /**
- * Finds the polygon under a position, within a drop of the given height, and
- * gives back the surface it is made of.
- *
- * @mangled GetFootPoly__FPffP6CCPolyPfP6CCPolyii
- * @address 0x14ABB0
- * @size 0x1DC
+ * Surface attributes of a collision polygon, as CCPoly::attr holds them.
  */
+using CCPolyAttr = decltype(CCPoly::attr);
+
+} // namespace
+
 int GetFootPoly(float *position, float depth, CCPoly *found, float *ground, CCPoly *polys, int count, int mode) {
-    int           hits;
-    int           i;
+    int           hits = 0;
+    int           i = 0;
     int           hit_no[32];
     sceVu0FVECTOR from;
     sceVu0FVECTOR to;
     sceVu0FVECTOR hit_point[64];
     CCPolyAttr    attr;
-    CCPolyAttr    saved;
 
     sceVu0CopyVector(from, position);
     sceVu0CopyVector(to, position);
@@ -1107,8 +1063,7 @@ int GetFootPoly(float *position, float depth, CCPoly *found, float *ground, CCPo
     hits = CheckHits(polys, count, from, to, 32, hit_no, hit_point, 1, mode);
     attr.ground_kind = 0;
     attr.foot_sound = 0;
-    attr.light = 0;
-    saved = attr;
+    attr.area_kind = 0;
 
     if (hits > 0) {
         *found = polys[hit_no[0]];
@@ -1116,28 +1071,28 @@ int GetFootPoly(float *position, float depth, CCPoly *found, float *ground, CCPo
     }
 
     for (i = 0; i < hits; i++) {
-        CCPolyAttr *hit_attr = (CCPolyAttr *) &polys[hit_no[i]].attr;
+        const CCPolyAttr &hit_attr = polys[hit_no[i]].attr;
 
         if (attr.ground_kind == 0) {
-            attr.ground_kind = hit_attr->ground_kind;
+            attr.ground_kind = hit_attr.ground_kind;
         }
 
         if (attr.foot_sound == 0) {
-            attr.foot_sound = hit_attr->foot_sound;
+            attr.foot_sound = hit_attr.foot_sound;
         }
 
-        if (attr.light == 0) {
-            attr.light = hit_attr->light;
+        if (attr.area_kind == 0) {
+            attr.area_kind = hit_attr.area_kind;
         }
     }
 
-    found->info = *(CCPolyInfo *) &attr;
+    found->attr = attr;
     return hits > 0;
 }
 
 int GetEventPoly(float *position, float *velocity, CCPoly *found, int *found_no, float *hit, CCPoly *polys, int count, int mode) {
-    int           hits;
-    int           i;
+    int           hits = 0;
+    int           i = 0;
     int           hit_no[32];
     sceVu0FVECTOR from;
     sceVu0FVECTOR to;
@@ -1149,7 +1104,7 @@ int GetEventPoly(float *position, float *velocity, CCPoly *found, int *found_no,
     hits = CheckHits(polys, count, from, to, 32, hit_no, hit_point, 1, mode);
     attr.ground_kind = 0;
     attr.foot_sound = 0;
-    attr.light = 0;
+    attr.area_kind = 0;
     *found_no = -1;
 
     if (hits > 0) {
@@ -1159,31 +1114,31 @@ int GetEventPoly(float *position, float *velocity, CCPoly *found, int *found_no,
     }
 
     for (i = 0; i < hits; i++) {
-        CCPolyAttr *hit_attr = (CCPolyAttr *) &polys[hit_no[i]].attr;
+        const CCPolyAttr &hit_attr = polys[hit_no[i]].attr;
 
         if (attr.ground_kind == 0) {
-            attr.ground_kind = hit_attr->ground_kind;
+            attr.ground_kind = hit_attr.ground_kind;
         }
 
         if (attr.foot_sound == 0) {
-            attr.foot_sound = hit_attr->foot_sound;
+            attr.foot_sound = hit_attr.foot_sound;
         }
 
-        if (attr.light == 0) {
-            attr.light = hit_attr->light;
+        if (attr.area_kind == 0) {
+            attr.area_kind = hit_attr.area_kind;
         }
     }
 
-    found->info = *(CCPolyInfo *) &attr;
+    found->attr = attr;
     return attr.ground_kind;
 }
 
 int CheckWidth(CCPoly *polys, int count, float *position, float radius, float *out, int flags) {
-    int           hit;
-    int           hit_plus;
-    int           hit_minus;
-    int           poly_no;
-    float         step;
+    int           hit = 0;
+    int           hit_plus = 0;
+    int           hit_minus = 0;
+    int           poly_no = 0;
+    float         step = 0.0f;
     sceVu0FVECTOR to;
     sceVu0FVECTOR hit_a;
     sceVu0FVECTOR hit_b;
@@ -1375,11 +1330,11 @@ int CheckWidth(CCPoly *polys, int count, float *position, float radius, float *o
 }
 
 int CheckCameraWidth(CCPoly *polys, int count, float *position, float radius, float *out, int flags) {
-    int           hit;
-    int           hit_plus;
-    int           hit_minus;
-    int           poly_no;
-    float         step;
+    int           hit = 0;
+    int           hit_plus = 0;
+    int           hit_minus = 0;
+    int           poly_no = 0;
+    float         step = 0.0f;
     sceVu0FVECTOR to;
     sceVu0FVECTOR hit_a;
     sceVu0FVECTOR hit_b;
@@ -1772,27 +1727,10 @@ int Mes1MakeFlg = 1;
 int Mes2MakeFlg = 1;
 int MesAbsDrawOff;
 
-/** Texture buffer the first common menu message window draws its glyphs from. */
 u8 MesWinTexBuff_01[0x100];
-/** Texture buffer the second common menu message window draws its glyphs from. */
 u8 MesWinTexBuff_02[0x100];
-/** Texture buffer the third common menu message window draws its glyphs from. */
 u8 MesWinTexBuff_11[0x100];
-/** Texture buffer the name message window draws its glyphs from. */
 u8 MesWinTexBuff_12[0x100];
-
-static s32        linear;   // Nonzero selects linear filtering for sprite batches.
-static u_long128 *data_top; // First quadword of the open sprite batch.
-static u_long128 *pdata;    // Current write cursor of the open sprite batch.
-static u_int     *dma_cnt;  // DMA and VIF tag words patched when the batch closes.
-
-void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture);
-
-void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, u8 red, u8 green, u8 blue, u8 alpha);
-
-void set2DSprite_End(sceVif1Packet *packet, CTexture *texture);
-
-void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut);
 
 float LinerInterpolation(float from, float to, float at) {
     return from + (at * (to - from));
@@ -1806,21 +1744,10 @@ void AreaAddPos(int *area, int *pos, int *out) {
     int x = pos[0];
     int y = pos[1];
 
-    if (x < left) {
-        left = x;
-    }
-
-    if (right < x) {
-        right = x;
-    }
-
-    if (y < top) {
-        top = y;
-    }
-
-    if (bottom < y) {
-        bottom = y;
-    }
+    left = std::min(left, x);
+    right = std::max(right, x);
+    top = std::min(top, y);
+    bottom = std::max(bottom, y);
 
     out[0] = left;
     out[1] = top;
@@ -1839,8 +1766,8 @@ void RollPos(float *centre, float *point, float angle, float *out) {
 }
 
 int CheckPosInOutForRect(RECT *rect, int x, int y) {
-    s32 top;
-    s32 left;
+    s32 top = 0;
+    s32 left = 0;
 
     left = rect->x;
 
@@ -1862,8 +1789,8 @@ int CheckPosInOutForRect(RECT *rect, int x, int y) {
 }
 
 float GetDisPosToRect(RECT *rect, int x, int y) {
-    float dx = rect->x + (rect->width >> 1) - x;
-    float dy = rect->y + (rect->height >> 1) - y;
+    auto dx = static_cast<float>(rect->x + (rect->width >> 1) - x);
+    auto dy = static_cast<float>(rect->y + (rect->height >> 1) - y);
 
     return sqrt(dx * dx + dy * dy);
 }
@@ -1883,7 +1810,7 @@ void GetScrPosFromChar(CCharacter *chara, int *out_pos) {
 unsigned int Color2Clut(unsigned int colour) {
     for (int i = 0; i < 16; i++) {
         if (colour == FontColorTbl[i]) {
-            return i;
+            return static_cast<unsigned int>(i);
         }
     }
 
@@ -1891,18 +1818,117 @@ unsigned int Color2Clut(unsigned int colour) {
 }
 
 int NameRegistCodeJtoE(int code) {
-    int table[109] = {
-        -683, -682, -681, -680, -679, -678, -677, -676, -675, -674,
-        -673, -672, -679, -671, -670, -669, -254, -668, -667, -666,
-        -665, -664, -679, -679, -679, -679, -679, -679, -657, -656,
-        -655, -654, -653, -652, -651, -650, -649, -648, -679, -679,
-        -679, -661, -660, -659, -658, -679, -644, -614, -608, -607,
-        -679, -634, -636, -637, -635, -679, -606, -605, -604, -603,
-        -679, -625, -627, -628, -626, -679, -639, -615, -602, -601,
-        -679, -616, -618, -619, -617, -679, -600, -641, -642, -599,
-        -679, -629, -631, -632, -630, -679, -640, -612, -598, -597,
-        -679, -620, -622, -623, -621, -679, -596, -624, -643, -633,
-        -613, -647, -595, -594, -679, -679, -638, -646, -645};
+    static constexpr std::array<int, 109> table = {
+        -683,
+        -682,
+        -681,
+        -680,
+        -679,
+        -678,
+        -677,
+        -676,
+        -675,
+        -674,
+        -673,
+        -672,
+        -679,
+        -671,
+        -670,
+        -669,
+        -254,
+        -668,
+        -667,
+        -666,
+        -665,
+        -664,
+        -679,
+        -679,
+        -679,
+        -679,
+        -679,
+        -679,
+        -657,
+        -656,
+        -655,
+        -654,
+        -653,
+        -652,
+        -651,
+        -650,
+        -649,
+        -648,
+        -679,
+        -679,
+        -679,
+        -661,
+        -660,
+        -659,
+        -658,
+        -679,
+        -644,
+        -614,
+        -608,
+        -607,
+        -679,
+        -634,
+        -636,
+        -637,
+        -635,
+        -679,
+        -606,
+        -605,
+        -604,
+        -603,
+        -679,
+        -625,
+        -627,
+        -628,
+        -626,
+        -679,
+        -639,
+        -615,
+        -602,
+        -601,
+        -679,
+        -616,
+        -618,
+        -619,
+        -617,
+        -679,
+        -600,
+        -641,
+        -642,
+        -599,
+        -679,
+        -629,
+        -631,
+        -632,
+        -630,
+        -679,
+        -640,
+        -612,
+        -598,
+        -597,
+        -679,
+        -620,
+        -622,
+        -623,
+        -621,
+        -679,
+        -596,
+        -624,
+        -643,
+        -633,
+        -613,
+        -647,
+        -595,
+        -594,
+        -679,
+        -679,
+        -638,
+        -646,
+        -645,
+    };
 
     if (code >= 0xD5 && code < 0x142) {
         return table[code - 0xD5];

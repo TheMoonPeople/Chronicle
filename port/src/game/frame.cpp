@@ -1,63 +1,41 @@
 #include "stubs/frame.hpp"
 
-#include "frame.hpp"
-
 #include <libdma.h>
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstring>
+#include <string_view>
 
 #include "collision.hpp"
+#include "frame.hpp"
 #include "framevu1.hpp"
 #include "mathutil.hpp"
 #include "mglib.hpp"
 #include "renderinfo.hpp"
 #include "visualvu1.hpp"
 
-void *operator new(size_t size, u_long128 *block);
+namespace {
 
-void *operator new[](size_t size, u_long128 *block);
+// The quaternion is stored scalar first: w, x, y, z.
+void QuatToMat(const float *quaternion, sceVu0FMATRIX matrix) {
+    const float x2 = quaternion[1] + quaternion[1];
+    const float y2 = quaternion[2] + quaternion[2];
+    const float z2 = quaternion[3] + quaternion[3];
 
-void DevInit() {
-    sceDmaEnv env;
-
-    sceDmaReset(1);
-    sceDmaGetEnv(&env);
-    env.notify = 0x100;
-    sceDmaPutEnv(&env);
-    sceGsResetPath();
-}
-/* The rotation a frame carries is stored as a quaternion whose scalar part comes first, so the
-   caller's four floats are w, x, y, z in that order. */
-static void QuatToMat(float *quaternion, sceVu0FMATRIX matrix) {
-    float wx;
-    float wy;
-    float wz;
-    float xx;
-    float yy;
-    float yz;
-    float xy;
-    float xz;
-    float zz;
-    float x2;
-    float y2;
-    float z2;
-
-    x2 = quaternion[1] + quaternion[1];
-    y2 = quaternion[2] + quaternion[2];
-    z2 = quaternion[3] + quaternion[3];
-
-    xx = quaternion[1] * x2;
-    xy = quaternion[1] * y2;
-    xz = quaternion[1] * z2;
-    yy = quaternion[2] * y2;
-    yz = quaternion[2] * z2;
-    zz = quaternion[3] * z2;
-    wx = quaternion[0] * x2;
-    wy = quaternion[0] * y2;
-    wz = quaternion[0] * z2;
+    const float xx = quaternion[1] * x2;
+    const float xy = quaternion[1] * y2;
+    const float xz = quaternion[1] * z2;
+    const float yy = quaternion[2] * y2;
+    const float yz = quaternion[2] * z2;
+    const float zz = quaternion[3] * z2;
+    const float wx = quaternion[0] * x2;
+    const float wy = quaternion[0] * y2;
+    const float wz = quaternion[0] * z2;
 
     matrix[0][0] = 1.0f - (yy + zz);
     matrix[1][0] = xy - wz;
@@ -78,6 +56,36 @@ static void QuatToMat(float *quaternion, sceVu0FMATRIX matrix) {
     matrix[1][3] = 0.0f;
     matrix[2][3] = 0.0f;
     matrix[3][3] = 1.0f;
+}
+
+std::size_t NameStemLength(const char *name) {
+    std::size_t length = 0;
+
+    while (name[length] != '\0' && (name[length] != '_' || name[length + 1] != '_')) {
+        length++;
+    }
+
+    return length;
+}
+
+// Only the stem before a "__" identifies a frame; the flags after it are ignored.
+int StrCmp(const char *left, const char *right) {
+    const std::string_view left_stem(left, NameStemLength(left));
+    const std::string_view right_stem(right, NameStemLength(right));
+
+    return left_stem == right_stem ? 1 : 0;
+}
+
+} // namespace
+
+void DevInit() {
+    sceDmaEnv env;
+
+    sceDmaReset(1);
+    sceDmaGetEnv(&env);
+    env.notify = 0x100;
+    sceDmaPutEnv(&env);
+    sceGsResetPath();
 }
 
 void CFrameAttr::Initialize() {
@@ -104,12 +112,10 @@ CFrameAttr::CFrameAttr() {
 }
 
 void CFrame::Initialize() {
-    int i;
-
     world_valid = false;
     no_rotation = true;
 
-    parent = child = brother = elder = 0;
+    parent = child = brother = elder = nullptr;
 
     scale[0] = scale[1] = scale[2] = scale[3] = 1.0f;
     position[0] = position[1] = position[2] = position[3] = 0.0f;
@@ -122,17 +128,17 @@ void CFrame::Initialize() {
     sceVu0UnitMatrix(inverse);
     sceVu0UnitMatrix(local);
 
-    for (i = 0; i < 8; i++) {
-        corner[i][0] = 0.0f;
-        corner[i][1] = 0.0f;
-        corner[i][2] = 0.0f;
-        corner[i][3] = 1.0f;
+    for (auto &point : corner) {
+        point[0] = 0.0f;
+        point[1] = 0.0f;
+        point[2] = 0.0f;
+        point[3] = 1.0f;
     }
 
     attr.Initialize();
 
     flags = 1;
-    collision = 0;
+    collision = nullptr;
     name[0] = '\0';
     rot_type = 0;
     srt = false;
@@ -188,12 +194,9 @@ void CFrame::SetScale(float *scale) {
 }
 
 int CFrame::GetFrameNum() {
-    int     num;
-    CFrame *frame;
+    int num = 1;
 
-    num = 1;
-
-    for (frame = child; frame != 0; frame = frame->brother) {
+    for (CFrame *frame = child; frame != nullptr; frame = frame->brother) {
         num += frame->GetFrameNum();
     }
 
@@ -201,13 +204,13 @@ int CFrame::GetFrameNum() {
 }
 
 void CFrame::SetParent(CFrame *parent) {
-    if (this->parent != 0) {
+    if (this->parent != nullptr) {
         return;
     }
 
     this->parent = parent;
 
-    if (parent == 0) {
+    if (parent == nullptr) {
         return;
     }
 
@@ -215,11 +218,11 @@ void CFrame::SetParent(CFrame *parent) {
 }
 
 void CFrame::SetBrother(CFrame *brother) {
-    if (brother == 0) {
+    if (brother == nullptr) {
         return;
     }
 
-    if (this->brother != 0) {
+    if (this->brother != nullptr) {
         this->brother->SetBrother(brother);
         return;
     }
@@ -229,12 +232,12 @@ void CFrame::SetBrother(CFrame *brother) {
 }
 
 void CFrame::SetChild(CFrame *child) {
-    if (child == 0) {
-        this->child = 0;
+    if (child == nullptr) {
+        this->child = nullptr;
         return;
     }
 
-    if (this->child != 0) {
+    if (this->child != nullptr) {
         this->child->SetBrother(child);
         return;
     }
@@ -244,7 +247,7 @@ void CFrame::SetChild(CFrame *child) {
 }
 
 void CFrame::SetReference(CFrame *reference) {
-    if (reference == 0) {
+    if (reference == nullptr) {
         return;
     }
 
@@ -253,65 +256,45 @@ void CFrame::SetReference(CFrame *reference) {
 }
 
 void CFrame::DeleteReference() {
-    parent = 0;
+    parent = nullptr;
     reference = false;
 }
 
-/* The frame's world matrix, rebuilt unless the cache and every cache above it in the chain are
-   still current. Rebuilding one invalidates the caches of the frame's children, since their
-   world matrices were composed with the matrix that just changed. */
+// Rebuilding the world matrix invalidates the children's caches, which were composed with it.
 void CFrame::GetLWMatrix(sceVu0FMATRIX matrix) {
     sceVu0FMATRIX parent_world;
     sceVu0FMATRIX local_matrix;
     sceVu0FVECTOR translation;
-    CFrame       *frame;
-    CFrame       *sibling;
 
-    /* A referenced frame follows a frame that is not its parent, so nothing on that frame's side
-       clears this cache when it moves and it can never be trusted. */
+    // Nothing on a referenced frame's side clears this cache when it moves.
     if (reference) {
         world_valid = false;
     }
 
     if (world_valid) {
-        if (!parent) {
+        if (parent == nullptr) {
             sceVu0CopyMatrix(matrix, world);
             return;
         }
 
-        frame = parent;
+        for (CFrame *ancestor = parent; ancestor->world_valid;) {
+            ancestor = ancestor->parent;
 
-        while (frame) {
-            if (!frame->world_valid) {
-                break;
-            }
-
-            frame = frame->parent;
-
-            if (!frame) {
+            if (ancestor == nullptr) {
                 sceVu0CopyMatrix(matrix, world);
                 return;
             }
         }
     }
 
-    if (this->child) {
-        this->child->world_valid = false;
-        sibling = this->child;
-
-        if (sibling->brother) {
-            while (sibling->brother) {
-                sibling->brother->world_valid = false;
-                sibling = sibling->brother;
-            }
-        }
+    for (CFrame *sibling = child; sibling != nullptr; sibling = sibling->brother) {
+        sibling->world_valid = false;
     }
 
     if (srt) {
         ScaleMatrix(local_matrix, this->local, scale);
 
-        /* Rotation type 2 turns about the frame's own origin rather than the parent's, so the
-           translation is taken out before the rotation and added back after it. */
+        // Rotation type 2 turns about the frame's own origin, so the translation is removed around it.
         if (rot_type & 2) {
             sceVu0CopyVector(translation, local_matrix[3]);
             local_matrix[3][0] = local_matrix[3][1] = local_matrix[3][2] = 0.0f;
@@ -340,19 +323,18 @@ void CFrame::GetLWMatrix(sceVu0FMATRIX matrix) {
         sceVu0CopyMatrix(local_matrix, this->local);
     }
 
-    frame = parent;
-
-    if (!frame) {
+    if (parent == nullptr) {
         sceVu0CopyMatrix(world, local_matrix);
         sceVu0CopyMatrix(matrix, world);
         world_valid = true;
         return;
     }
 
-    if (frame->attr.billboard) {
-        sceVu0CopyMatrix(parent_world, frame->world);
+    // A billboarded parent writes its own world matrix while drawing.
+    if (parent->attr.billboard) {
+        sceVu0CopyMatrix(parent_world, parent->world);
     } else {
-        frame->GetLWMatrix(parent_world);
+        parent->GetLWMatrix(parent_world);
     }
 
     MulFrameMatrix(world, parent_world, local_matrix);
@@ -374,64 +356,13 @@ void CFrame::SetTransMatrix(sceVu0FMATRIX matrix) {
     world_valid = false;
 }
 
-/* A quaternion says nothing about where the frame is, so the translation row of the local matrix
-   has to survive being overwritten by the rotation it produces. */
 void CFrame::SetTransMatrix(float *quaternion) {
     sceVu0FVECTOR translation;
 
     world_valid = false;
-    *(u_long128 *) translation = *(u_long128 *) local[3];
+    std::ranges::copy(local[3], translation);
     QuatToMat(quaternion, local);
-    *(u_long128 *) local[3] = *(u_long128 *) translation;
-}
-
-/* Only the stem before a "__" identifies a frame, so both sides are measured to it first and a
-   difference in stem length settles the answer without comparing a character. */
-static int StrCmp(char *left, char *right) {
-    char *left_cursor;
-    char *right_cursor;
-    char  ch;
-    int   left_length;
-    int   right_length;
-    int   i;
-
-    left_cursor = left;
-    right_cursor = right;
-    left_length = 0;
-    right_length = 0;
-
-    while ((ch = *left_cursor) != '\0') {
-        if (ch == '_' && left_cursor[1] == '_') {
-            break;
-        }
-
-        left_length++;
-        left_cursor++;
-    }
-
-    while ((ch = *right_cursor) != '\0') {
-        if (ch == '_' && right_cursor[1] == '_') {
-            break;
-        }
-
-        right_length++;
-        right_cursor++;
-    }
-
-    if (left_length != right_length) {
-        return 0;
-    }
-
-    for (i = 0; i < left_length; i++) {
-        if (*left != *right) {
-            return 0;
-        }
-
-        left++;
-        right++;
-    }
-
-    return 1;
+    std::ranges::copy(translation, local[3]);
 }
 
 int FrameNameComp(char *left, char *right) {
@@ -439,33 +370,27 @@ int FrameNameComp(char *left, char *right) {
 }
 
 CFrame *CFrame::SearchFrame(char *name) {
-    CFrame *frame;
-    CFrame *found;
-
-    if (StrCmp(this->name, name)) {
+    if (StrCmp(this->name, name) != 0) {
         return this;
     }
 
-    for (frame = child; frame != 0; frame = frame->brother) {
-        found = frame->SearchFrame(name);
+    for (CFrame *frame = child; frame != nullptr; frame = frame->brother) {
+        CFrame *found = frame->SearchFrame(name);
 
-        if (found != 0) {
+        if (found != nullptr) {
             return found;
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
-/* Without a parent the frame's own extent is already in the space the caller wants; with one it is
-   the eight corners run through the local transform, which is why the corners are kept at all. */
+// With a parent, the bound is the eight corners run through the local transform.
 void CFrame::GetBoundBox(CBoxVu0 *box, int children) {
     sceVu0FVECTOR low;
     sceVu0FVECTOR high;
     sceVu0FVECTOR point;
     CBoxVu0       child_box;
-    CFrame       *frame;
-    int           i;
 
     low[0] = min[0];
     low[1] = min[1];
@@ -477,14 +402,14 @@ void CFrame::GetBoundBox(CBoxVu0 *box, int children) {
     high[2] = max[2];
     high[3] = 1.0f;
 
-    if (parent == 0) {
+    if (parent == nullptr) {
         sceVu0CopyVector(box->min, low);
         sceVu0CopyVector(box->max, high);
     } else {
         sceVu0ApplyMatrix(box->max, local, corner[0]);
         sceVu0CopyVector(box->min, box->max);
 
-        for (i = 1; i < 8; i++) {
+        for (int i = 1; i < 8; i++) {
             sceVu0ApplyMatrix(point, local, corner[i]);
             VectorMaxMin(box->max, box->min, point, box->max, box->min);
         }
@@ -494,21 +419,18 @@ void CFrame::GetBoundBox(CBoxVu0 *box, int children) {
         return;
     }
 
-    for (frame = child; frame != 0; frame = frame->brother) {
+    for (CFrame *frame = child; frame != nullptr; frame = frame->brother) {
         frame->GetBoundBox(&child_box, 1);
         VectorMaxMin(box->max, box->min, box->max, box->min, child_box.max, child_box.min);
     }
 }
 
-/* Scaling about the centre rather than the origin, so a bound stays where the frame is. */
 void CFrame::ScaleBoundBox(float *scale) {
     sceVu0FVECTOR center;
     sceVu0FVECTOR dmax;
     sceVu0FVECTOR dmin;
     sceVu0FVECTOR new_max;
     sceVu0FVECTOR new_min;
-    float        *bound[2];
-    int           i;
 
     new_max[0] = this->max[0];
     new_max[1] = this->max[1];
@@ -542,10 +464,9 @@ void CFrame::ScaleBoundBox(float *scale) {
     this->min[1] = new_min[1];
     this->min[2] = new_min[2];
 
-    bound[0] = this->min;
-    bound[1] = this->max;
+    const std::array<const float *, 2> bound = {this->min, this->max};
 
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         this->corner[i][3] = 1.0f;
         this->corner[i][0] = bound[(i & 1) != 0][0];
         this->corner[i][1] = bound[(i & 2) != 0][1];
@@ -554,8 +475,6 @@ void CFrame::ScaleBoundBox(float *scale) {
 }
 
 void CFrame::SetAttr(CFrameAttr &attr, int children, int mask) {
-    CFrame *frame;
-
     if (mask == 0) {
         this->attr = attr;
     } else {
@@ -600,7 +519,7 @@ void CFrame::SetAttr(CFrameAttr &attr, int children, int mask) {
         }
 
         if (mask & 0x400) {
-            *(u_long128 *) this->attr.color = *(u_long128 *) attr.color;
+            std::ranges::copy(attr.color, this->attr.color);
         }
 
         if (mask & 0x800) {
@@ -632,7 +551,7 @@ void CFrame::SetAttr(CFrameAttr &attr, int children, int mask) {
         return;
     }
 
-    for (frame = child; frame != 0; frame = frame->brother) {
+    for (CFrame *frame = child; frame != nullptr; frame = frame->brother) {
         frame->SetAttr(attr, 1, mask);
     }
 }
@@ -678,182 +597,26 @@ void CFrame::SetRotType(int type) {
     }
 }
 
-/* A copied frame is a frame of its own: it keeps the transform and the attributes and none of the
-   place in the hierarchy the original held. */
+// The copy keeps the transform and attributes but none of the original's place in the hierarchy.
 CFrame &CFrame::operator=(CFrame &other) {
-    memcpy(this, &other, sizeof(CFrame));
+    std::memcpy(static_cast<void *>(this), static_cast<const void *>(&other), sizeof(CFrame));
 
-    parent = child = brother = 0;
+    parent = child = brother = nullptr;
     world_valid = false;
     no_rotation = false;
 
     return *this;
 }
 
-/* The shadow the frame casts is a plane projection, and the plane is carried as a point and a
-   normal rather than as four coefficients. Both are turned into one vector d with x.d == 1 over the
-   plane, which is what lets the projection be written without a division per point. A plane through
-   the origin has no such vector, so a point that lands there is pushed a tenth of a unit back along
-   the normal instead of failing. */
-static void ShadowMatrix(sceVu0FMATRIX matrix, sceVu0FMATRIX light, float *point, float *normal) {
-    sceVu0FVECTOR direction;
-    sceVu0FVECTOR plane;
-    sceVu0FVECTOR axis;
-    float         dx;
-    float         dy;
-    float         dz;
-    float         nx;
-    float         ny;
-    float         nz;
-    float         depth;
-    float         scale;
-    float         t;
-
-    direction[0] = light[0][0];
-    direction[1] = light[1][0];
-    direction[2] = light[2][0];
-    direction[3] = 0.0f;
-
-    sceVu0CopyVector(plane, point);
-    sceVu0CopyVector(axis, normal);
-
-    t = sceVu0InnerProduct(axis, plane);
-
-    if (t == 0.0f) {
-        plane[0] -= 0.1f * axis[0];
-        plane[1] -= 0.1f * axis[1];
-        plane[2] -= 0.1f * axis[2];
-        t = sceVu0InnerProduct(axis, plane);
-    }
-
-    t = 1.0f / t;
-    dx = axis[0] * t;
-    dy = axis[1] * t;
-    dz = axis[2] * t;
-
-    sceVu0Normalize(direction, direction);
-
-    nx = direction[0];
-    ny = direction[1];
-    nz = direction[2];
-
-    depth = dx * nx + dy * ny + dz * nz;
-    scale = -1.0f / depth;
-
-    matrix[0][0] = scale * (dx * nx - depth);
-    matrix[1][0] = scale * (dy * nx);
-    matrix[2][0] = scale * (dz * nx);
-    matrix[3][0] = scale * -nx;
-    matrix[0][1] = scale * (dx * ny);
-    matrix[1][1] = scale * (dy * ny - depth);
-    matrix[2][1] = scale * (dz * ny);
-    matrix[3][1] = scale * -ny;
-    matrix[0][2] = scale * (dx * nz);
-    matrix[1][2] = scale * (dy * nz);
-    matrix[2][2] = scale * (dz * nz - depth);
-    matrix[3][2] = scale * -nz;
-    matrix[0][3] = 0.0f;
-    matrix[1][3] = 0.0f;
-    matrix[2][3] = 0.0f;
-    matrix[3][3] = scale * -depth;
-}
-
-/* The shadow doubles the volume a frame has to be clipped against: what is drawn is the box that
-   holds both the frame's own corners and the same corners flattened onto the plane, so the two
-   sets are reduced to one bound and that bound's own corners go to the screen. */
-static void ShadowClipBox(sceVu0FVECTOR *screen, sceVu0FVECTOR *corner, sceVu0FMATRIX matrix, RenderInfo *info) {
-    sceVu0FMATRIX shadow;
-    sceVu0FVECTOR flat[8];
-    sceVu0FVECTOR world[8];
-    /* Only two of these are ever filled. The frame reserves 64 bytes for the array, which is
-       what rules two out, and nothing addresses the pair beyond. */
-    sceVu0FVECTOR extent[4];
-    sceVu0FVECTOR max[4];
-    sceVu0FVECTOR min[4];
-    int           i;
-
-    ApplyMatrixN(world, matrix, corner, 8);
-    MulFrameMatrix(shadow, info->shadow, matrix);
-    ApplyMatrixN(flat, shadow, corner, 8);
-
-    VectorMaxMin(max[0], min[0], world[0], world[1], world[2], world[3]);
-    VectorMaxMin(max[1], min[1], world[4], world[5], world[6], world[7]);
-    VectorMaxMin(max[2], min[2], flat[0], flat[1], flat[2], flat[3]);
-    VectorMaxMin(max[3], min[3], flat[4], flat[5], flat[6], flat[7]);
-    VectorMax(extent[0], max[0], max[1], max[2], max[3]);
-    VectorMin(extent[1], min[0], min[1], min[2], min[3]);
-
-    for (i = 0; i < 8; i++) {
-        world[i][3] = 1.0f;
-        world[i][0] = extent[(i & 1) != 0][0];
-        world[i][1] = extent[(i & 2) != 0][1];
-        world[i][2] = extent[(i & 4) != 0][2];
-    }
-
-    ApplyMatrixN(screen, info->view_scaled, world, 8);
-}
-
-/* The three registers a frame is drawn under, written straight into a word cursor the caller
-   already holds rather than through a packet: one counted DMA tag, a DIRECT code, and a GIF tag of
-   three A+D pairs. The answer is the number of words written, not quadwords. */
-static int SetGsReg3(u_int *p, u_long *test, u_long *zbuf, u_long *alpha) {
-    p[0] = 0x10000005;
-    p[1] = 0;
-    p[2] = 0;
-    p[3] = 0;
-    p[4] = 0;
-    p[5] = 0;
-    p[6] = 0;
-    p[7] = 0x50000004;
-    p[8] = 0x00008001;
-    p[9] = 0x30000000;
-    p[10] = 0x00000eee;
-    p[11] = 0;
-    *(u_long *) (p + 12) = *test;
-    p[14] = SCE_GS_TEST_1;
-    p[15] = 0;
-    *(u_long *) (p + 16) = *zbuf;
-    p[18] = SCE_GS_ZBUF_1;
-    p[19] = 0;
-    *(u_long *) (p + 20) = *alpha;
-    p[22] = SCE_GS_ALPHA_1;
-    p[23] = 0;
-
-    return 24;
-}
-
-/* A frame draws its own visual and then its children's, into a cursor the caller owns rather than
-   into a packet, and answers how many words it spent - which is what lets a whole hierarchy go into
-   one packet without anybody counting for it.
-
-   Four things happen in order. The world matrix is either asked for or, for a frame the attributes
-   turn towards the camera, built here from the camera's position and the axis lengths of the one
-   the hierarchy would have given. The bound's eight corners go to the screen and decide whether
-   anything is drawn at all. The GS registers the attributes ask for go down the packet and are put
-   back after. And the light the frame supplies itself, where it does, replaces the scene's for the
-   length of its own draw and no longer.
-
-   A frame turned towards the camera cannot take its transform from the hierarchy, so it writes its
-   own into the cache and invalidates its children's - which is the one place a draw moves anything.
-   Its children then take the cached matrix as it stands, because the attribute that turns the
-   frame is also what GetLWMatrix reads on a parent to mean exactly that. */
-
-/* The same draw against a packet the SDK is tracking rather than a bare cursor: the packet is
-   closed so that its current word is a legal place to write, the draw is handed that word, and the
-   packet is told afterwards how much of it went.
-
-   The word buffer is reserved and never reached, and the cursor is what reserves it: a local
-   whose address nothing takes costs no stack at all. */
-
 void CFrame::SetCollision(CCollision *collision) {
     this->collision = collision;
 }
 
-int CFrame::DrawVu1(unsigned int *packet, RenderInfo *info) {
+int CFrame::DrawVu1(unsigned int * /*packet*/, RenderInfo * /*info*/) {
     return 0;
 }
 
-int CFrame::DrawVu1(sceVif1Packet *packet, RenderInfo *info) {
+int CFrame::DrawVu1(sceVif1Packet * /*packet*/, RenderInfo * /*info*/) {
     return 0;
 }
 
@@ -871,26 +634,22 @@ CVisualVu1 *CFrameVu1::GetVisual() {
 
 void CFrameVu1::Initialize() {
     CFrame::Initialize();
-    visual = 0;
+    visual = nullptr;
 }
 
 CFrameVu1::CFrameVu1() {
     CFrameVu1::Initialize();
 }
 
-/* Exactly what the compiler would have generated, and declared all the same - which is what makes
-   assigning one of these a call at every use instead of the base call and one word copied in
-   line. */
 CFrameVu1 &CFrameVu1::operator=(CFrameVu1 &other) {
     CFrame::operator=(other);
     visual = other.visual;
 
     return *this;
 }
-/* The polygons of this frame's collision, and of every frame under it, that reach into a bound the
-   caller gives in world space. The bound is carried the other way instead of the geometry: it is
-   eight corners through the inverse of this frame's transform and then their extent, so the
-   collision is searched in its own space and only what comes back is transformed. */
+
+// The world-space box is carried into each frame's local space, so collision is searched untransformed
+// and only the polygons found are transformed back to world space.
 int CFrame::PickUpNearPoly(CCPoly *poly, const CBoxVu0 &box) {
     sceVu0FVECTOR box_corner[8];
     sceVu0FVECTOR local_corner[8];
@@ -901,27 +660,20 @@ int CFrame::PickUpNearPoly(CCPoly *poly, const CBoxVu0 &box) {
     sceVu0FVECTOR extent[2];
     sceVu0FMATRIX world_matrix;
     CBoxVu0       bound;
-    CCPoly       *found;
-    float (*inverse_matrix)[4];
-    int     num;
-    CFrame *frame;
-    int     i;
-
-    found = poly;
-    num = 0;
+    int           num = 0;
 
     if (flags == 4) {
         return 0;
     }
 
-    if (collision != 0 && (flags & 1)) {
+    if (collision != nullptr && (flags & 1) != 0) {
         GetLWMatrix(world_matrix);
-        inverse_matrix = GetInverseMatrix();
+        float (*inverse_matrix)[4] = GetInverseMatrix();
 
-        *(u_long128 *) extent[0] = *(u_long128 *) box.min;
-        *(u_long128 *) extent[1] = *(u_long128 *) box.max;
+        std::ranges::copy(box.min, extent[0]);
+        std::ranges::copy(box.max, extent[1]);
 
-        for (i = 0; i < 8; i++) {
+        for (int i = 0; i < 8; i++) {
             box_corner[i][3] = 1.0f;
             box_corner[i][0] = extent[(i & 1) != 0][0];
             box_corner[i][1] = extent[(i & 2) != 0][1];
@@ -935,22 +687,16 @@ int CFrame::PickUpNearPoly(CCPoly *poly, const CBoxVu0 &box) {
 
         num = collision->PickUpNearPoly(poly, bound);
 
-        found = poly;
         pre_trance_normal(world_matrix);
 
-        for (i = 0; i < num; i++, found++) {
-            trance_normal(found->vertex[0], found->vertex[1], found->vertex[2], found->normal);
+        for (int i = 0; i < num; i++) {
+            trance_normal(poly[i].vertex[0], poly[i].vertex[1], poly[i].vertex[2], poly[i].normal);
         }
     }
 
-    if ((flags & 2) == 0) {
-        for (frame = child; frame != 0; frame = frame->brother) {
-            if (flags & 4) {
-                continue;
-            }
-
-            num += frame->PickUpNearPoly(found, box);
-            found = poly + num;
+    if ((flags & 2) == 0 && (flags & 4) == 0) {
+        for (CFrame *frame = child; frame != nullptr; frame = frame->brother) {
+            num += frame->PickUpNearPoly(&poly[num], box);
         }
     }
 

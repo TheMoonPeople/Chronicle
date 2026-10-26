@@ -20,28 +20,16 @@ public:
 
     /**
      * Starts a healing-particle effect at the supplied world position.
-     *
-     * @mangled Set__11CHealEffectFPf
-     * @address 0x1B2900
-     * @size 0x1F8
      */
     void Set(float *world);
 
     /**
      * Advances every active healing particle and ends the effect when all expire.
-     *
-     * @mangled Step__11CHealEffectFv
-     * @address 0x1B2B00
-     * @size 0x244
      */
     void Step();
 
     /**
      * Draws every live healing particle around the player character.
-     *
-     * @mangled Draw__11CHealEffectFv
-     * @address 0x1B2D50
-     * @size 0x13C
      */
     void Draw();
 };

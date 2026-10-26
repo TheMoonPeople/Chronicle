@@ -84,9 +84,6 @@ extern int Mes2MakeFlg;
  */
 extern int MesAbsDrawOff;
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCamera;
 class CRect_i_;
 struct RECT;
@@ -94,73 +91,41 @@ struct i;
 
 /**
  * Connects the EE client to the EZMIDI RPC server.
- *
- * @mangled ezMidiInit__Fv
- * @address 0x147970
- * @size 0x88
  */
 int ezMidiInit();
 
 /**
  * Sends one command to the EZMIDI RPC server and returns its response word.
- *
- * @mangled ezMidi__Fii
- * @address 0x147A00
- * @size 0xD4
  */
 int ezMidi(int command, int argument);
 
 /**
  * Transfers a buffer from EE memory into IOP memory and waits for completion.
- *
- * @mangled ezTransToIOP__FPvPvi
- * @address 0x147AE0
- * @size 0x90
  */
 int ezTransToIOP(void *iop_address, void *ee_address, int size);
 
 /**
  * Turns a model frame gradually towards a world-space target position.
- *
- * @mangled LookAt__FP9CFrameVu1Pf16_FRAMECONSTRAINT
- * @address 0x149910
- * @size 0x2BC
  */
 int LookAt(CFrameVu1 *frame, float *target, _FRAMECONSTRAINT constraint);
 
 /**
  * Turns a model frame gradually towards another frame's world position.
- *
- * @mangled LookAt__FP9CFrameVu1P9CFrameVu116_FRAMECONSTRAINT
- * @address 0x149BD0
- * @size 0x54
  */
 int LookAt(CFrameVu1 *frame, CFrameVu1 *target, _FRAMECONSTRAINT constraint);
 
 /**
  * Opens a batch of textured two-dimensional sprites in a VIF1 packet.
- *
- * @mangled set2DSprite_Start__FP13sceVif1PacketP8CTexture
- * @address 0x14C220
- * @size 0x19C
  */
 void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture);
 
 /**
  * Closes the current two-dimensional sprite batch and fixes its tag lengths.
- *
- * @mangled set2DSprite_End__FP13sceVif1PacketP8CTexture
- * @address 0x14C4F0
- * @size 0xA4
  */
 void set2DSprite_End(sceVif1Packet *packet, CTexture *texture);
 
 /**
  * Uploads a texture's 16-by-16 colour lookup table through a VIF1 packet.
- *
- * @mangled SetClut__FP13sceVif1PacketP8CTextureP1i
- * @address 0x14C5A0
- * @size 0x60
  */
 void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut);
 
@@ -189,10 +154,10 @@ struct MOTION_STATE {
     s32              motion_no;       /**< Motion that the character asks for. */
     s32              playing_no;      /**< Motion that plays now. */
     s32              blending;        /**< Set while the model blends into a newly requested motion. */
-    CCamera         *camera;          /**< Camera that the motion moves; zero where it moves none. */
+    CCamera         *camera;          /**< Camera that the motion moves, or nullptr where it moves none. */
     s32              look_at;         /**< Set when a frame of the model turns to look at a target. */
     CFrameVu1       *look_frame;      /**< Frame that turns to look. */
-    CFrameVu1       *look_target;     /**< Frame looked at, or NULL to look at look_position. */
+    CFrameVu1       *look_target;     /**< Frame looked at, or nullptr to look at look_position. */
     sceVu0FVECTOR    look_position;   /**< Point looked at when there is no target frame. */
     _FRAMECONSTRAINT look_constraint; /**< Axes the looking frame may turn about. */
     u8               unk_44[0xC];
@@ -236,7 +201,7 @@ struct Mot_List {
     s32       type;      /**< What the keys set. @see MotionKeyType. */
     u32       key_count; /**< Number of keys. */
     Mot_Key  *keys;      /**< The keys, in frame order. */
-    Mot_List *next;      /**< The next driver, or NULL after the last. */
+    Mot_List *next;      /**< The next driver, or nullptr after the last. */
     u8        unk_18[8];
 };
 
@@ -284,7 +249,7 @@ STATIC_ASSERT(sizeof(tagMOTION_TYPE) == 0x80);
  */
 struct MOTION_FILE_INFO {
     char         *name; /**< Name used to find the file in the archive. */
-    unsigned int *data; /**< Packed file data, or NULL when the file is absent. */
+    unsigned int *data; /**< Packed file data, or nullptr when the file is absent. */
     int           size; /**< Size of the packed file in bytes. */
 };
 
@@ -292,169 +257,101 @@ STATIC_ASSERT(sizeof(MOTION_FILE_INFO) == 0xC);
 
 /**
  * Takes a motion's animation data out of an arena and fills it from its files.
- *
- * @mangled CreateAnimeDataEX__FP14tagMOTION_TYPEP14CDataAlloc2_1_P16MOTION_FILE_INFO
- * @address 0x149090
- * @size 0x264
  */
 int CreateAnimeDataEX(tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, MOTION_FILE_INFO *files);
 
 /**
  * Builds the per-frame animation table a model's motion needs.
- *
- * @mangled AnimeDataInit__FP6CFrameP14tagMOTION_TYPEP14CDataAlloc2_1_PP12tagFRAME_INF
- * @address 0x149300
- * @size 0x98
  */
 void AnimeDataInit(CFrame *frame, tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, tagFRAME_INF **frame_info);
 
 /**
  * Builds the per-frame animation table into storage already set aside.
- *
- * @mangled AnimeDataInit__FP6CFrameP14tagMOTION_TYPEP14CDataAlloc2_1_P12tagFRAME_INF
- * @address 0x1493A0
- * @size 0x318
  */
 int AnimeDataInit(CFrame *frame, tagMOTION_TYPE *motion, CDataAlloc2<1> *arena, tagFRAME_INF *frame_info);
 
 /**
  * Applies one motion's frame to a model's frame hierarchy, and gives back the
  * next driver in the list.
- *
- * @mangled MotionProc__FP6CFrameP12MOTION_STATEP8Mot_List
- * @address 0x147D20
- * @size 0xB34
  */
 Mot_List *MotionProc(CFrame *frame, MOTION_STATE *state, Mot_List *list);
 
 /**
  * Skins one bone of a model: moves each weighted vertex toward the bone's
  * transform, and gives back the next driver in the list.
- *
- * @mangled MotionProc2__FP6CFrameP14tagMOTION_TYPEP12tagFRAME_INFP8Mot_List
- * @address 0x148860
- * @size 0x498
  */
 Mot_List *MotionProc2(CFrame *frame, tagMOTION_TYPE *motion, tagFRAME_INF *frame_info, Mot_List *list);
 
 /**
  * Puts a model on the frame that its motion state stands on.
- *
- * @mangled SetMotionEX__FP6CFrameP14tagMOTION_TYPEP11MOTION_INFOP12MOTION_STATEP12tagFRAME_INF
- * @address 0x148D00
- * @size 0x390
  */
 void SetMotionEX(CFrame *frame, tagMOTION_TYPE *motion, MOTION_INFO *info, MOTION_STATE *state, tagFRAME_INF *frame_info);
 
 /**
  * Maps how far the playing motion has run onto the requested motion's frames.
- *
- * @mangled NextMotionTime_GET_EX__FP11MOTION_INFOP12MOTION_STATE
- * @address 0x1496C0
- * @size 0xC4
  */
 int NextMotionTime_GET_EX(MOTION_INFO *info, MOTION_STATE *state);
 
 /**
  * Finds where a line from one point to another crosses a set of polygons, and
  * gives back how many crossings it found.
- *
- * @mangled CheckHits__FP6CCPolyiPfPfiPiPA4_fii
- * @address 0x14A230
- * @size 0x444
  */
 int CheckHits(CCPoly *poly, int count, float *from, float *to, int max, int *hit_poly, float (*hit_point)[4], int sort, int mode);
 
 /**
+ * Copies the polygons of a set whose bounds meet a box, and gives back how
+ * many it copied.
+ */
+int PickUpNearPoly(CCPoly *out, CBoxVu0 box, CCPoly *poly, int count);
+
+/**
  * Finds the polygon straight below a point, and gives back which one it is.
- *
- * @mangled CheckHitVertical__FP6CCPolyiPffPfi
- * @address 0x14A080
- * @size 0x1A4
  */
 int CheckHitVertical(CCPoly *poly, int count, float *from, float depth, float *hit_point, int mode);
 
 /**
  * Works out where a character stands on screen, in pixels.
- *
- * @mangled GetScrPosFromChar__FP10CCharacterPi
- * @address 0x14C980
- * @size 0x88
- * @unknownret
  */
 void GetScrPosFromChar(CCharacter *chara, int *out_pos);
 
 /**
  * Maps one character of a registered name from its Japanese code to the
  * external-character code the English font draws it with.
- *
- * @mangled NameRegistCodeJtoE__Fi
- * @address 0x14CA60
- * @size 0xC4
  */
 int NameRegistCodeJtoE(int code);
 
 /**
  * Gives the font palette entry that holds one colour, or the first entry.
- *
- * @mangled Color2Clut__FUi
- * @address 0x14CA10
- * @size 0x4C
  */
 unsigned int Color2Clut(unsigned int colour);
 
 /**
  * Turns one point about another by an angle, and writes where it lands.
- *
- * @mangled RollPos__FPfPffPf
- * @address 0x14C690
- * @size 0x1E4
  */
 void RollPos(float *centre, float *point, float angle, float *out);
 
 /**
  * Draws one part of a texture into a rectangle of the screen, at one colour.
- *
- * @mangled set2DSprite_Core__FP13sceVif1PacketP8CTextureRC8CRect_i_RC8CRect_i_UcUcUcUc
- * @address 0x14C3C0
- * @size 0x128
  */
 void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
 
 /**
  * Tells whether a point lies inside a rectangle.
- *
- * @mangled CheckPosInOutForRect__FP4RECTii
- * @address 0x14C880
- * @size 0x7C
  */
 int CheckPosInOutForRect(RECT *rect, int x, int y);
 
 /**
  * Gives back how far a point lies from a rectangle.
- *
- * @mangled GetDisPosToRect__FP4RECTii
- * @address 0x14C900
- * @size 0x80
  */
 float GetDisPosToRect(RECT *rect, int x, int y);
 
 /**
  * Gives back the point that lies a fraction of the way from one to another.
- *
- * @mangled LinerInterpolation__Ffff
- * @address 0x14C600
- * @size 0x14
  */
 float LinerInterpolation(float from, float to, float at);
 
 /**
  * Widens a rectangle so that it also covers a point.
- *
- * @mangled AreaAddPos__FPiPiPi
- * @address 0x14C620
- * @size 0x70
- * @unknownret
  */
 void AreaAddPos(int *area, int *pos, int *out);
 
@@ -475,61 +372,47 @@ STATIC_ASSERT(sizeof(MoveCheckInfo) == 0xD0);
 
 /**
  * Slides a position along a velocity, against a list of collision polygons.
- *
- * @mangled MoveCheck__FPfPfPfP13MoveCheckInfoP6CCPolyii
- * @address 0x14A680
- * @size 0x530
  */
 int MoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *out_info, CCPoly *polys, int poly_num, int mode);
 
 /**
  * Finds the collision polygon below a point and combines its surface attributes.
- *
- * @mangled GetFootPoly__FPffP6CCPolyPfP6CCPolyii
- * @address 0x14ABB0
- * @size 0x1DC
  */
 int GetFootPoly(float *position, float depth, CCPoly *found, float *ground, CCPoly *polys, int count, int mode);
 
 /**
  * Pushes a position out of the polygons within a radius of it.
- *
- * @mangled CheckWidth__FP6CCPolyiPffPfi
- * @address 0x14AF70
- * @size 0x8B8
  */
 int CheckWidth(CCPoly *polys, int count, float *position, float radius, float *out, int flags);
 
 /**
  * Finds the event polygon that a step crosses, and gives back the kind of
  * ground it is.
- *
- * @mangled GetEventPoly__FPfPfP6CCPolyPiPfP6CCPolyii
- * @address 0x14AD90
- * @size 0x1E0
  */
 int GetEventPoly(float *position, float *velocity, CCPoly *found, int *found_no, float *hit, CCPoly *polys, int count, int mode);
 
 /**
  * Pushes the camera out of the polygons within a radius of it, counting only
  * the polygons that face the way it is pushed.
- *
- * @mangled CheckCameraWidth__FP6CCPolyiPffPfi
- * @address 0x14B830
- * @size 0x9EC
  */
 int CheckCameraWidth(CCPoly *polys, int count, float *position, float radius, float *out, int flags);
 
 /**
- * The message window font's texture work area.
+ * Texture buffer the first common menu message window draws its glyphs from.
+ */
+extern u8 MesWinTexBuff_01[0x100];
+
+/**
+ * Texture buffer the second common menu message window draws its glyphs from.
  */
 extern u8 MesWinTexBuff_02[0x100];
 
-/** The texture each message window builds itself in. */
-extern u8 MesWinTexBuff_01[0x100];
-
-/** Texture buffer the third common menu message window draws its glyphs from. */
+/**
+ * Texture buffer the third common menu message window draws its glyphs from.
+ */
 extern u8 MesWinTexBuff_11[0x100];
 
-/** Texture buffer the name message window draws its glyphs from. */
+/**
+ * Texture buffer the name message window draws its glyphs from.
+ */
 extern u8 MesWinTexBuff_12[0x100];

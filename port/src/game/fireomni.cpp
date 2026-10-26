@@ -9,20 +9,10 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
-CFireOmni::CFireOmni() {
-    raster_phase = 0.0f;
-    flame_phase = 0.0f;
-    cell_phase = 15.0f;
-    flicker_width = 0.0f;
-    flicker_height = 0.0f;
-    // Starting the count somewhere in the cycle keeps two fires out of step.
-    flicker_count = (int) (4.0f * (float) rand() / 2.1474836e9f);
-    flicker_seed = 0;
-    unk_00 = 0;
-    glow = NULL;
-    core = NULL;
-    texture_set = 0;
-}
+CFireOmni::CFireOmni()
+    : unk_00(0), raster_phase(0.0f), flame_phase(0.0f), cell_phase(15.0f), flicker_width(0.0f), flicker_height(0.0f), flicker_seed(0),
+      // Starting the count somewhere in the cycle keeps two fires out of step.
+      flicker_count(static_cast<int>(4.0f * static_cast<float>(std::rand()) / 2.1474836e9f)), texture_set(0), core(nullptr), glow(nullptr) {}
 
 void CFireOmni::FireStep() {
     cell_phase -= 0.4f;
@@ -37,40 +27,40 @@ void CFireOmni::FireStep() {
         flame_phase = 0.0f;
     }
 
-    flicker_seed = (int) (60000.0f * (float) rand() / 2.1474836e9f);
+    flicker_seed = static_cast<s16>(static_cast<int>(60000.0f * static_cast<float>(std::rand()) / 2.1474836e9f));
 }
 
 void CFireOmni::FireCreate() {
     CTexture *texture = TexManager.GetTexture("d01e02", -1);
 
-    if (texture == NULL) {
+    if (texture == nullptr) {
         return;
     }
 
     if (texture->bpp == 1) {
-        int       cell = (int) cell_phase;
+        int       cell = static_cast<int>(cell_phase);
         int       column = cell % 4;
         int       row = cell / 4;
         sceGsTex0 blend = *reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("blender", -1)->tex0);
-        blendTextuer(Vif1Packet, blend.TBP0, blend.TBW, blend.PSM, TexManager.GetTexture("d01e03", -1), CRect_i_(0, 0, 128, 128), CRect_i_(0, (int) flame_phase, 128, 64), TexManager.GetTexture("d01e02", -1), CRect_i_(0, 0, 128, 128), CRect_i_(column * 64, row * 64, 64, 64));
+        blendTextuer(Vif1Packet, blend.TBP0, blend.TBW, blend.PSM, TexManager.GetTexture("d01e03", -1), CRect_i_(0, 0, 128, 128), CRect_i_(0, static_cast<int>(flame_phase), 128, 64), TexManager.GetTexture("d01e02", -1), CRect_i_(0, 0, 128, 128), CRect_i_(column * 64, row * 64, 64, 64));
     } else {
         sceGsTex0 blend = *reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("blender", -1)->tex0);
-        blendTextuer(Vif1Packet, blend.TBP0, blend.TBW, blend.PSM, TexManager.GetTexture("d01e03", -1), CRect_i_(0, 0, 128, 128), CRect_i_(0, (int) flame_phase, 128, 64), TexManager.GetTexture("d01e02", -1), CRect_i_(0, 0, 128, 128), CRect_i_(0, (int) cell_phase * 64, 64, 64));
+        blendTextuer(Vif1Packet, blend.TBP0, blend.TBW, blend.PSM, TexManager.GetTexture("d01e03", -1), CRect_i_(0, 0, 128, 128), CRect_i_(0, static_cast<int>(flame_phase), 128, 64), TexManager.GetTexture("d01e02", -1), CRect_i_(0, 0, 128, 128), CRect_i_(0, static_cast<int>(cell_phase) * 64, 64, 64));
     }
 }
 
 void CFireOmni::SetTexture(CTexture *core_texture, CTexture *glow_texture) {
-    this->core = core_texture;
-    this->glow = glow_texture;
-    this->texture_set = 1;
+    core = core_texture;
+    glow = glow_texture;
+    texture_set = 1;
 }
 
 void CFireOmni::RasterStep() {
-    float phase = this->raster_phase + ((2.0f * (float) rand()) / 2.1474836e9f);
-    this->raster_phase = phase;
+    float phase = raster_phase + ((2.0f * static_cast<float>(std::rand())) / 2.1474836e9f);
+    raster_phase = phase;
 
     if (!(phase < 8.0f)) {
-        this->raster_phase = 0.0f;
+        raster_phase = 0.0f;
     }
 }
 

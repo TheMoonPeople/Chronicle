@@ -2,8 +2,8 @@
 
 #include <libvu0.h>
 
+#include <array>
 #include <cstdlib>
-#include <cstring>
 
 #include "boxvu0.hpp"
 #include "dataalloc.hpp"
@@ -20,6 +20,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace {
+
 /**
  * Describes one kind of bait that can be put on the hook.
  */
@@ -31,21 +33,50 @@ struct EsaInfo {
 /**
  * The kinds of bait, indexed by esa_type.
  */
-static EsaInfo esa_info[13] = {
-    {ITEM_EVY,              50.0f},
-    {ITEM_MIMI,             25.0f},
-    {ITEM_PRICKLY,          25.0f},
-    {ITEM_THROBBING_CHERRY, 25.0f},
-    {ITEM_GOOEY_PEACH,      25.0f},
-    {ITEM_BOMB_NUTS,        25.0f},
-    {ITEM_POISONOUS_APPLE,  25.0f},
-    {ITEM_MELLOW_BANANA,    25.0f},
-    {ITEM_CARROT,           25.0f},
-    {ITEM_POTATO_CAKE,      25.0f},
-    {ITEM_MINON,            25.0f},
-    {ITEM_BATTAN,           25.0f},
-    {ITEM_PETITE_FISH,      40.0f},
+constexpr std::array<EsaInfo, 13> esa_info = {
+    {
+     {.item_no = ITEM_EVY, .radius = 50.0f},
+     {.item_no = ITEM_MIMI, .radius = 25.0f},
+     {.item_no = ITEM_PRICKLY, .radius = 25.0f},
+     {.item_no = ITEM_THROBBING_CHERRY, .radius = 25.0f},
+     {.item_no = ITEM_GOOEY_PEACH, .radius = 25.0f},
+     {.item_no = ITEM_BOMB_NUTS, .radius = 25.0f},
+     {.item_no = ITEM_POISONOUS_APPLE, .radius = 25.0f},
+     {.item_no = ITEM_MELLOW_BANANA, .radius = 25.0f},
+     {.item_no = ITEM_CARROT, .radius = 25.0f},
+     {.item_no = ITEM_POTATO_CAKE, .radius = 25.0f},
+     {.item_no = ITEM_MINON, .radius = 25.0f},
+     {.item_no = ITEM_BATTAN, .radius = 25.0f},
+     {.item_no = ITEM_PETITE_FISH, .radius = 40.0f},
+     }
 };
+
+/**
+ * The pairs of hook points held apart by a fixed length.
+ */
+constexpr std::array<std::array<int, 2>, 3> hook_link = {
+    {{0, 1},
+     {0, 2},
+     {1, 2}}
+};
+
+/**
+ * The pairs of float points held apart by a fixed length.
+ */
+constexpr std::array<std::array<int, 2>, 6> uki_link = {
+    {{0, 1},
+     {0, 2},
+     {0, 3},
+     {1, 2},
+     {2, 3},
+     {3, 1}}
+};
+
+void GetHookPos(float *position) {
+    sceVu0CopyVector(position, hookp[0]);
+}
+
+} // namespace
 
 int           draw_under_water = 1;
 float         distp = 1.6666666f;
@@ -89,36 +120,31 @@ sceVu0FVECTOR rod_top;
 sceVu0FVECTOR fishhook;
 sceVu0FVECTOR uki;
 
-static void GetHookPos(float *position);
-
 void FishingLoad(CDataAlloc2<1> *alloc, int slot) {
-    LoadFile("chara/fishing.pak", read_buffer, NULL);
+    LoadFile("chara/fishing.pak", read_buffer, nullptr);
     fishing_texb = slot;
-    HookFrame = LoadMDSFile(GetPackFile(read_buffer, "hari.mds", NULL), alloc, 0, NULL, NULL);
-    UkiFrame = LoadMDSFile(GetPackFile(read_buffer, "uki.mds", NULL), alloc, 0, NULL, NULL);
+    HookFrame = LoadMDSFile(GetPackFile(read_buffer, "hari.mds", nullptr), alloc, 0, nullptr, nullptr);
+    UkiFrame = LoadMDSFile(GetPackFile(read_buffer, "uki.mds", nullptr), alloc, 0, nullptr, nullptr);
     CFrameAttr attr;
     attr.use_color = true;
 
-    if (UkiFrame != NULL) {
+    if (UkiFrame != nullptr) {
         UkiFrame->SetAttr(attr, 1, 0x200);
     }
 
-    cpoly = (CCPoly *) alloc->Alloc(0x1800);
+    cpoly = reinterpret_cast<CCPoly *>(alloc->Alloc(0x1800));
     cpoly_num = 0;
     SndSPSeLoad(0x2F);
 }
 
 void FishingLoadFish(int spot, CDataAlloc2<1> *alloc, int slot) {
-    int rare_interval;
-    int loaded;
-
     draw_under_water = 1;
 
     if (spot == 3) {
         draw_under_water = 0;
     }
 
-    Fish = new ((u_long128 *) alloc->Alloc(0xD8C)) CFish[6];
+    Fish = new (reinterpret_cast<u_long128 *>(alloc->Alloc(0xD8C))) CFish[6];
     fish_texb = slot;
     FishNum = 5;
 
@@ -134,7 +160,7 @@ void FishingLoadFish(int spot, CDataAlloc2<1> *alloc, int slot) {
         FishNum = 5;
     }
 
-    rare_interval = 30;
+    int rare_interval = 30;
 
     switch (EdGetTime(SaveData->GetNowTime())) {
         case ED_TIME_DAY:
@@ -149,10 +175,12 @@ void FishingLoadFish(int spot, CDataAlloc2<1> *alloc, int slot) {
         case ED_TIME_MORNING:
             rare_interval = 25;
             break;
+        default:
+            break;
     }
 
-    loaded = false;
-    LoadFile("chara/f00s.chr", read_buffer, NULL);
+    bool loaded = false;
+    LoadFile("chara/f00s.chr", read_buffer, nullptr);
 
     for (int i = 0; i < FishNum; i++) {
         int kind = -1;
@@ -160,7 +188,7 @@ void FishingLoadFish(int spot, CDataAlloc2<1> *alloc, int slot) {
 
         switch (spot) {
             case 0:
-                switch ((int) (3.99999f * rnd())) {
+                switch (static_cast<int>(3.99999f * rnd())) {
                     case 0:
                         kind = 1;
                         break;
@@ -173,11 +201,13 @@ void FishingLoadFish(int spot, CDataAlloc2<1> *alloc, int slot) {
                     case 3:
                         kind = 7;
                         break;
+                    default:
+                        break;
                 }
 
                 break;
             case 1: {
-                int roll = 100.0f * rnd();
+                auto roll = static_cast<int>(100.0f * rnd());
 
                 if (roll < 35) {
                     kind = 1;
@@ -252,15 +282,17 @@ void FishingLoadFish(int spot, CDataAlloc2<1> *alloc, int slot) {
                 }
 
                 break;
+            default:
+                break;
         }
 
         if (DebugMode) {
-            static int fish_type[5][8] = {
-                {1, 2, 6, 7, 1, 2, 6, 7},
-                {1, 4, 9, 10, 1, 4, 9, 10},
-                {2, 4, 6, 5, 17, 2, 4, 6},
-                {0, 3, 11, 12, 13, 0, 3, 11},
-                {14, 15, 16, 5, 17}
+            static constexpr std::array<std::array<int, 8>, 5> fish_type = {
+                {{1, 2, 6, 7, 1, 2, 6, 7},
+                 {1, 4, 9, 10, 1, 4, 9, 10},
+                 {2, 4, 6, 5, 17, 2, 4, 6},
+                 {0, 3, 11, 12, 13, 0, 3, 11},
+                 {14, 15, 16, 5, 17}}
             };
             kind = fish_type[spot][i % 5];
         }
@@ -283,7 +315,7 @@ void FishingLoadEsa(int item_no, CFrameVu1 *frame, int slot) {
     esa_texb = slot;
     esa_type = 0;
 
-    for (int i = 0; i < 13; i++) {
+    for (int i = 0; i < std::ssize(esa_info); i++) {
         if (item_no == esa_info[i].item_no) {
             esa_type = i;
             return;
@@ -292,7 +324,7 @@ void FishingLoadEsa(int item_no, CFrameVu1 *frame, int slot) {
 }
 
 void FishingDeleteEsa() {
-    EsaFrame = NULL;
+    EsaFrame = nullptr;
     esa_type = -1;
 }
 
@@ -307,20 +339,20 @@ int FishingGetEsaItemNo() {
 void FishingInit() {
     WaterLevel = 0.0f;
     GroundLevel = 0.0f;
-    HookFrame = NULL;
-    UkiFrame = NULL;
-    EsaFrame = NULL;
+    HookFrame = nullptr;
+    UkiFrame = nullptr;
+    EsaFrame = nullptr;
     esa_type = -1;
     UkiFrameTop.Initialize();
     Rod.Initialize();
     esa_texb = -99;
     fish_texb = -99;
     fishing_texb = -99;
-    Fish = NULL;
+    Fish = nullptr;
     FishNum = 0;
-    AngleFish = NULL;
-    BattleFish = NULL;
-    cpoly = NULL;
+    AngleFish = nullptr;
+    BattleFish = nullptr;
+    cpoly = nullptr;
     cpoly_num = 0;
 }
 
@@ -353,14 +385,14 @@ float FishingGetWaterLevel() {
 
 void FishingSetCPoly(CCPoly *polys, int count) {
     for (int i = 0; i < count; i++) {
-        memcpy(&cpoly[i], &polys[i], sizeof(CCPoly));
+        cpoly[i] = polys[i];
     }
 
     cpoly_num = count;
 }
 
 void FishingSetRect(CBoxVu0 bounds) {
-    memcpy(&fishing_rect, &bounds, sizeof(CBoxVu0));
+    fishing_rect = bounds;
 }
 
 int FishingPickUpPoly(CCPoly *polys) {
@@ -377,20 +409,22 @@ int FishingPickUpPoly(CCPoly *polys) {
         corner[i][2] = bound[(i & 4) != 0][2];
     }
 
-    int face[8][3] = {
-        {0, 1, 2},
-        {1, 3, 2},
-        {1, 5, 3},
-        {5, 7, 3},
-        {5, 4, 7},
-        {4, 6, 7},
-        {4, 0, 6},
-        {0, 2, 6},
+    constexpr std::array<std::array<int, 3>, 8> face = {
+        {
+         {0, 1, 2},
+         {1, 3, 2},
+         {1, 5, 3},
+         {5, 7, 3},
+         {5, 4, 7},
+         {4, 6, 7},
+         {4, 0, 6},
+         {0, 2, 6},
+         }
     };
 
     for (int i = 0; i < 8; i++) {
         CCPoly *poly = &polys[i];
-        memset(poly, 0, sizeof(CCPoly));
+        *poly = CCPoly{};
 
         for (int j = 0; j < 3; j++) {
             sceVu0CopyVector(poly->vertex[j], corner[face[i][j]]);
@@ -405,11 +439,11 @@ int FishingPickUpPoly(CCPoly *polys) {
 void FishingInitFish(CBoxVu0 bounds) {
     sceVu0FVECTOR position;
 
-    if (Fish == NULL) {
+    if (Fish == nullptr) {
         return;
     }
 
-    memcpy(&fish_rect, &bounds, sizeof(CBoxVu0));
+    fish_rect = bounds;
 
     for (int i = 0; i < FishNum; i++) {
         position[0] = 0.5f * (bounds.max[0] + bounds.min[0]);
@@ -421,30 +455,22 @@ void FishingInitFish(CBoxVu0 bounds) {
 }
 
 int FishingFishStatus(int *fish_no) {
-    int status;
-
-    if (Fish == NULL) {
+    if (Fish == nullptr) {
         return -1;
     }
 
-    status = -1;
+    int status = -1;
 
     for (int i = 0; i < 6; i++) {
-        if (fish_no != NULL) {
+        if (fish_no != nullptr) {
             *fish_no = i;
         }
 
-        CFish *fish;
+        CFish *fish = &Fish[i];
 
-        if (status == -1) {
-            fish = &Fish[i];
-
-            if (fish->action == FISH_ACTION_EAT_FOOD) {
-                status = FISH_ACTION_EAT_FOOD;
-            }
+        if (status == -1 && fish->action == FISH_ACTION_EAT_FOOD) {
+            status = FISH_ACTION_EAT_FOOD;
         }
-
-        fish = &Fish[i];
 
         if (fish->action == FISH_ACTION_BITE_HOOK) {
             return FISH_ACTION_BITE_HOOK;
@@ -459,7 +485,7 @@ int FishingFishStatus(int *fish_no) {
 }
 
 void FishingBattleFish(int fish_no) {
-    BattleFish = NULL;
+    BattleFish = nullptr;
 
     if (fish_no >= 0 && fish_no < 6) {
         CFish *fish = &Fish[fish_no];
@@ -477,17 +503,16 @@ int FishingFishKind(int fish_no) {
 
 void FishingBattleToAngleFish(u_int *pack, CDataAlloc2<1> *alloc) {
     AngleFish = BattleFish;
-    BattleFish = NULL;
+    BattleFish = nullptr;
 
-    if (AngleFish != NULL) {
-        if (pack != NULL) {
+    if (AngleFish != nullptr) {
+        if (pack != nullptr) {
             CCharacter *model = &AngleFish->angle_model;
             model->LoadPackData2(pack, "info.cfg", alloc, fish_texb + 1, alloc, 0);
         }
 
         AngleFish->SetAngleMode();
-        CFish *fish = AngleFish;
-        fish->use_angle_model = true;
+        AngleFish->use_angle_model = true;
     }
 }
 
@@ -498,7 +523,7 @@ CFish *FishingGetBattleFish() {
 }
 
 void FishingAngleFish(int fish_no) {
-    AngleFish = NULL;
+    AngleFish = nullptr;
 
     if (fish_no >= 0 && fish_no < 6) {
         CFish *fish = &Fish[fish_no];
@@ -506,25 +531,24 @@ void FishingAngleFish(int fish_no) {
         if (fish->action == FISH_ACTION_BITE_HOOK) {
             AngleFish = fish;
             fish->SetAngleMode();
-            fish = &Fish[fish_no];
             fish->use_angle_model = true;
         }
     }
 }
 
 int FishingGetAngleFishSize(int *size, int *fp) {
-    if (AngleFish == NULL) {
+    if (AngleFish == nullptr) {
         return -1;
     }
 
     float length = AngleFish->size;
-    *size = length * 10.0f;
+    *size = static_cast<int>(length * 10.0f);
     *fp = AngleFish->GetFP();
     return AngleFish->fish_kind;
 }
 
 void FishingInitFishStatus() {
-    if (Fish != NULL) {
+    if (Fish != nullptr) {
         for (int i = 0; i < 6; i++) {
             CFish *fish = &Fish[i];
             fish->action = FISH_ACTION_NONE;
@@ -535,7 +559,7 @@ void FishingInitFishStatus() {
 }
 
 void FishingDeleteAngleFish() {
-    if (AngleFish != NULL) {
+    if (AngleFish != nullptr) {
         AngleFish->fish_kind = -1;
     }
 }
@@ -546,17 +570,17 @@ void FishingStepFish() {
     GetHookPos(hook);
     hook[1] -= 3.0f;
 
-    if (Fish == NULL) {
+    if (Fish == nullptr) {
         return;
     }
 
-    if (AngleFish != NULL) {
+    if (AngleFish != nullptr) {
         AngleFish->Step();
         return;
     }
 
     for (int i = 0; i < 6; i++) {
-        if (esa_type < 0 || EsaFrame == NULL) {
+        if (esa_type < 0 || EsaFrame == nullptr) {
             float radius = 0.0f;
             Fish[i].SetFoodPos(-1, hook, radius);
         } else {
@@ -564,7 +588,7 @@ void FishingStepFish() {
 
             // Debug builds let every fish notice the bait from anywhere.
             if (DebugMode) {
-                radius = 100000000;
+                radius = 100000000.0f;
             }
 
             Fish[i].SetFoodPos(esa_type, hook, radius);
@@ -575,11 +599,11 @@ void FishingStepFish() {
 }
 
 void FishingDrawFish() {
-    if (Fish == NULL) {
+    if (Fish == nullptr) {
         return;
     }
 
-    if (AngleFish != NULL) {
+    if (AngleFish != nullptr) {
         TexManager.ReloadTexture(GetVif1Packet(), fish_texb + 1);
         AngleFish->SetReference(HookFrame);
         sceVu0FVECTOR position = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -599,41 +623,8 @@ void FishingDrawFish() {
     }
 }
 
-/**
- * Gives where the hook is.
- *
- * @mangled GetHookPos__FPf
- * @address 0x1A9BC0
- * @size 0x28
- */
-static void GetHookPos(float *position) {
-    sceVu0CopyVector(position, hookp[0]);
-}
-
-/**
- * The pairs of hook points held apart by a fixed length.
- */
-static int hook_link[3][2] = {
-    {0, 1},
-    {0, 2},
-    {1, 2}
-};
-
-/**
- * The pairs of float points held apart by a fixed length.
- */
-static int uki_link[6][2] = {
-    {0, 1},
-    {0, 2},
-    {0, 3},
-    {1, 2},
-    {2, 3},
-    {3, 1}
-};
-
 void FishLineInit(float *position) {
     sceVu0FVECTOR p;
-    int           i;
 
     set_uki_pos = 0;
     set_hook_pos = 0;
@@ -643,38 +634,38 @@ void FishLineInit(float *position) {
     sceVu0CopyVector(p, position);
     p[3] = 1.0f;
 
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         sceVu0CopyVector(point[i], p);
         sceVu0CopyVector(old_p[i], p);
         sceVu0CopyVector(velo[i], zero);
         p[1] -= distp;
     }
 
-    for (i = 0; i < 3; i++) {
-        sceVu0CopyVector(hookp[i], point[23]);
+    for (auto &hook_point : hookp) {
+        sceVu0CopyVector(hook_point, point[23]);
     }
 
-    for (i = 1; i < 3; i++) {
+    for (int i = 1; i < 3; i++) {
         hookp[i][1] -= 2.0f;
     }
 
     hookp[1][0] -= 1.0f;
     hookp[2][0] += 1.0f;
 
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         sceVu0CopyVector(hookop[i], hookp[i]);
         sceVu0CopyVector(hookv[i], zero);
     }
 
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         hook_dist[i] = DistVector(hookp[hook_link[i][0]], hookp[hook_link[i][1]]);
     }
 
-    for (i = 0; i < 4; i++) {
-        sceVu0CopyVector(ukip[i], point[18]);
+    for (auto &uki_point : ukip) {
+        sceVu0CopyVector(uki_point, point[18]);
     }
 
-    for (i = 1; i < 4; i++) {
+    for (int i = 1; i < 4; i++) {
         ukip[i][1] -= 0.866f;
     }
 
@@ -684,12 +675,12 @@ void FishLineInit(float *position) {
     ukip[3][0] -= 0.866f;
     ukip[3][2] -= 0.5f;
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         sceVu0CopyVector(ukiop[i], ukip[i]);
         sceVu0CopyVector(ukiv[i], zero);
     }
 
-    for (i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++) {
         uki_dist[i] = DistVector(ukip[uki_link[i][0]], ukip[uki_link[i][1]]);
     }
 }
@@ -737,7 +728,6 @@ void FishLineGetHook(float *position) {
 int FishingCheckUkiHook() {
     sceVu0FVECTOR uki_pos;
     sceVu0FVECTOR hook_pos;
-    float         water;
 
     FishLineGetUki(uki_pos);
     FishLineGetHook(hook_pos);
@@ -760,7 +750,7 @@ int FishingCheckUkiHook() {
         }
     }
 
-    water = 5.0f + FishingGetWaterLevel();
+    float water = 5.0f + FishingGetWaterLevel();
 
     if (hook_pos[1] > water) {
         return 1;
@@ -773,7 +763,7 @@ int FishingCheckUkiHook() {
     return 0;
 }
 
-void FishLineStep(float *rod_position, float *unused) {
+void FishLineStep(float *rod_position, float * /*unused*/) {
     sceVu0FVECTOR hook_from;
     sceVu0FVECTOR hook_to;
     sceVu0FVECTOR uki_from;
@@ -783,12 +773,8 @@ void FishLineStep(float *rod_position, float *unused) {
     sceVu0FVECTOR diff;
     sceVu0FVECTOR move0;
     sceVu0FVECTOR move1;
-    float         water;
-    float         weight;
-    int           i;
-    int           iteration;
 
-    if (cpoly != NULL) {
+    if (cpoly != nullptr) {
         sceVu0CopyVector(hook_from, point[23]);
         sceVu0CopyVector(hook_to, point[23]);
         hook_from[1] += 40.0f;
@@ -826,38 +812,38 @@ void FishLineStep(float *rod_position, float *unused) {
         LineGroundLevel = HookGroundLevel;
     }
 
-    water = WaterLevel;
+    float water = WaterLevel;
 
     sceVu0CopyVector(rod_top, rod_position);
     rod_top[3] = 1.0f;
     fishhook[3] = 1.0f;
 
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         velo[i][1] += -0.1f;
         velo[i][3] = 0.0f;
         sceVu0AddVector(point[i], point[i], velo[i]);
     }
 
-    weight = pull_hook;
+    float weight = pull_hook;
     point[23][1] += weight;
 
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         hookv[i][1] += -0.1f + weight;
         hookv[i][3] = 0.0f;
         sceVu0AddVector(hookp[i], hookp[i], hookv[i]);
     }
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         ukiv[i][1] += -0.1f + weight;
         ukiv[i][3] = 0.0f;
         sceVu0AddVector(ukip[i], ukip[i], ukiv[i]);
     }
 
-    for (iteration = 0; iteration < 16; iteration++) {
+    for (int iteration = 0; iteration < 16; iteration++) {
         sceVu0CopyVector(point[0], rod_top);
         sceVu0CopyVector(old_p[0], rod_top);
 
-        for (i = 1; i < 24; i++) {
+        for (int i = 1; i < 24; i++) {
             weight = 0.5f;
 
             if (i == 23) {
@@ -865,22 +851,22 @@ void FishLineStep(float *rod_position, float *unused) {
             }
 
             float  rest = 1.0f - weight;
-            float *near = point[i - 1];
-            float *far = point[i];
-            sceVu0SubVector(diff, near, far);
+            float *previous = point[i - 1];
+            float *current = point[i];
+            sceVu0SubVector(diff, previous, current);
             float length = DistVector(diff);
             float stretch = length - distp;
             float scale = rest * stretch / length;
             weight = weight * stretch / length;
             sceVu0ScaleVector(move0, diff, scale);
             sceVu0ScaleVector(move1, diff, weight);
-            sceVu0SubVector(near, near, move0);
-            sceVu0AddVector(far, far, move1);
+            sceVu0SubVector(previous, previous, move0);
+            sceVu0AddVector(current, current, move1);
         }
 
         sceVu0CopyVector(hookp[0], point[23]);
 
-        for (i = 0; i < 3; i++) {
+        for (int i = 0; i < 3; i++) {
             sceVu0SubVector(diff, hookp[hook_link[i][0]], hookp[hook_link[i][1]]);
             float length = DistVector(diff);
             sceVu0ScaleVector(move0, diff, 0.5f * (length - hook_dist[i]) / length);
@@ -898,10 +884,10 @@ void FishLineStep(float *rod_position, float *unused) {
         sceVu0SubVector(point[18], point[18], move0);
         sceVu0AddVector(ukip[0], ukip[0], move1);
 
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; i++) {
             sceVu0SubVector(diff, ukip[uki_link[i][0]], ukip[uki_link[i][1]]);
-            float length = DistVector(diff);
-            sceVu0ScaleVector(move0, diff, 0.5f * (length - uki_dist[i]) / length);
+            float link_length = DistVector(diff);
+            sceVu0ScaleVector(move0, diff, 0.5f * (link_length - uki_dist[i]) / link_length);
             sceVu0SubVector(ukip[uki_link[i][0]], ukip[uki_link[i][0]], move0);
             sceVu0AddVector(ukip[uki_link[i][1]], ukip[uki_link[i][1]], move0);
         }
@@ -917,7 +903,7 @@ void FishLineStep(float *rod_position, float *unused) {
         }
     }
 
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         sceVu0SubVector(velo[i], point[i], old_p[i]);
 
         if (i != 23) {
@@ -944,7 +930,7 @@ void FishLineStep(float *rod_position, float *unused) {
         sceVu0CopyVector(old_p[i], point[i]);
     }
 
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         sceVu0SubVector(hookv[i], hookp[i], hookop[i]);
 
         if (hookp[i][1] < HookGroundLevel) {
@@ -958,7 +944,7 @@ void FishLineStep(float *rod_position, float *unused) {
         sceVu0ScaleVector(hookv[i], hookv[i], 0.99f);
     }
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         sceVu0SubVector(ukiv[i], ukip[i], ukiop[i]);
 
         if (ukip[i][1] < UkiGroundLevel) {
@@ -1004,6 +990,3 @@ void FishLineStep(float *rod_position, float *unused) {
     set_hook_pos = 0;
     pull_hook = 0.0f;
 }
-
-void FishLineDraw(int above_water);
-

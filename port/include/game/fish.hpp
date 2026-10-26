@@ -7,10 +7,10 @@
 #include "character.hpp"
 #include "dataalloc_fwd.hpp"
 
-/** Number of bait kinds for which each fish records an attraction value. */
-enum {
-    FISH_FOOD_KIND_COUNT = 13
-};
+/**
+ * Number of bait kinds for which each fish records an attraction value.
+ */
+inline constexpr int FISH_FOOD_KIND_COUNT = 13;
 
 /**
  * Stores the fixed size, fishing-point, and bait attributes of one fish kind.
@@ -29,7 +29,7 @@ STATIC_ASSERT(sizeof(FishInfo) == 0x48);
 /**
  * Names the fish's current movement behaviour.
  */
-enum FishMoveMode {
+enum FishMoveMode : s32 {
     FISH_MOVE_UNSET = -1,
     FISH_MOVE_STOP = 0,
     FISH_MOVE_SWIM = 1,
@@ -41,7 +41,7 @@ enum FishMoveMode {
 /**
  * Names the fish's current interaction with bait and the hook.
  */
-enum FishAction {
+enum FishAction : s32 {
     FISH_ACTION_NONE = -1,
     FISH_ACTION_APPROACH_FOOD = 6,
     FISH_ACTION_EAT_FOOD = 7,
@@ -84,65 +84,123 @@ public:
 
     /**
      * Constructs both character forms and resets the fish.
-     * @mangled __ct__5CFishFv
-     * @address 0x1A8DC0
-     * @size 0x184
      */
     CFish();
 
-    /** Tests whether the fish notices the current bait. */
+    /**
+     * Tests whether the fish notices the current bait.
+     */
     int FindFood();
-    /** Tests whether the fish eats the bait it has reached. */
+
+    /**
+     * Tests whether the fish eats the bait it has reached.
+     */
     int EatFood();
-    /** Tests whether the fish takes the hook it has reached. */
+
+    /**
+     * Tests whether the fish takes the hook it has reached.
+     */
     int BiteHook();
-    /** Tests whether the fish abandons the bait. */
+
+    /**
+     * Tests whether the fish abandons the bait.
+     */
     int LeaveFood();
-    /** Tests whether the fish abandons the hook. */
+
+    /**
+     * Tests whether the fish abandons the hook.
+     */
     int LeaveHook();
-    /** Sets the collision polygons that constrain the fish. */
+
+    /**
+     * Sets the collision polygons that constrain the fish.
+     */
     void SetCPoly(CCPoly *polys, int count);
-    /** Advances movement, interaction, animation, and collision. */
+
+    /**
+     * Advances movement, interaction, animation, and collision.
+     */
     void Step();
-    /** Draws the active character form. */
+
+    /**
+     * Draws the active character form.
+     */
     void Draw();
-    /** Sets the bait kind, position, and attraction radius. */
+
+    /**
+     * Sets the bait kind, position, and attraction radius.
+     */
     void SetFoodPos(int kind, float *position, float radius);
-    /** Puts the fish in the static angling-display mode. */
+
+    /**
+     * Puts the fish in the static angling-display mode.
+     */
     void SetAngleMode();
-    /** Puts the fish in the hooked battle mode. */
+
+    /**
+     * Puts the fish in the hooked battle mode.
+     */
     void SetBattleMode();
-    /** Generates the fish size and the scales of both models. */
+
+    /**
+     * Generates the fish size and the scales of both models.
+     */
     void SetScale();
-    /** Calculates the fishing points awarded for this fish. */
+
+    /**
+     * Calculates the fishing points awarded for this fish.
+     */
     int GetFP();
-    /** Selects the motion played by both character forms. */
+
+    /**
+     * Selects the motion played by both character forms.
+     */
     void SetMotion(int motion_no, int flags);
-    /** Sets the position of both character forms. */
+
+    /**
+     * Sets the position of both character forms.
+     */
     void SetPosition(float *position);
-    /** Gets the position of the angling character form. */
+
+    /**
+     * Gets the position of the angling character form.
+     */
     void GetPosition(float *position);
-    /** Sets the rotation of both character forms. */
+
+    /**
+     * Sets the rotation of both character forms.
+     */
     void SetRotation(float *rotation);
-    /** Gets the rotation of the angling character form. */
+
+    /**
+     * Gets the rotation of the angling character form.
+     */
     void GetRotation(float *rotation);
-    /** Attaches both character frames to a reference frame. */
+
+    /**
+     * Attaches both character frames to a reference frame.
+     */
     void SetReference(CFrame *reference);
-    /** Detaches both character frames from their reference frames. */
+
+    /**
+     * Detaches both character frames from their reference frames.
+     */
     void DeleteReference();
-    /** Resets the fish's runtime state and both character forms. */
+
+    /**
+     * Resets the fish's runtime state and both character forms.
+     */
     void Initialize();
 };
 
 STATIC_ASSERT(sizeof(CFish) == 0x2410);
 
-/** Returns whether a random sample succeeds at the supplied probability. */
-int rand_check(float probability);
-/** Returns a randomized ordinary movement duration. */
-int GetActCnt();
-/** Returns a randomized interaction duration. */
-int GetActCnt2();
-/** Loads one fish kind and its character data. */
+/**
+ * Loads one fish kind and its character data.
+ */
 void LoadFish(CFish *fish, int fish_kind, int texture_slot, CDataAlloc2<1> *alloc, int loaded_before);
-/** Returns the character archive name for one fish kind. */
+
+/**
+ * Returns the character archive name for one fish kind.
+ */
 char *GetFishFileName(int fish_kind);
