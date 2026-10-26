@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 230
-
 #include "dispctrl.hpp"
 
 #include <cstring>
@@ -38,17 +34,6 @@ STATIC_ASSERT(sizeof(PTS_ENTRY) == 0x30);
 int CBound::Sizeof() {
     return sizeof(CBound);
 }
-
-void openGiftag(sceVif1Packet *packet);
-
-/**
- * Closes the GIF tag and the direct code that openGiftag began.
- *
- * @mangled closeGiftag__FP13sceVif1Packet
- * @address 0x13DF00
- * @size 0x38
- */
-void closeGiftag(sceVif1Packet *packet);
 
 u_int *SearchPTS(u_int *archive, char *name) {
     int         i;

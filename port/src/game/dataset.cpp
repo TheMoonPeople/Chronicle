@@ -1,10 +1,5 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 199
-
 #include "dataset.hpp"
 
-#include <eekernel.h>
 #include <libvu0.h>
 
 #include <cstdio>
@@ -272,8 +267,6 @@ CFrameVu1 *LoadMDSFile(u_int *data, CDataAlloc2<1> *alloc, int attr, char **doub
     if ((int) data % 16) {
         printf("address error!! %d \n", data);
     }
-
-    FlushCache(0);
 
     if (!init) {
         flag = 0;

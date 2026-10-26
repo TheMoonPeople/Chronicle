@@ -71,8 +71,6 @@ public:
     void Reset() { used = 0; }
 };
 
-extern "C" void *__ct__14CDataAlloc2_1_Fi(void *self, int limit);
-
 template <>
 class CDataAlloc<1, 6000> {
 public:
