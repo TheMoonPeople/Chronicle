@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 553
-
 #include "menu_draw.hpp"
 
 #include <libvu0.h>
@@ -640,11 +636,6 @@ void FadeTexX(int left_x, int left_width, int right_x, int right_width, char *na
     CTexture texture = *TexManager.GetTexture(name, -1);
     spRGBA   left;
     spRGBA   right;
-
-    // Retail tests the local copy's address, which is never null, so a missing texture is not caught here.
-    if (&texture == NULL) {
-        return;
-    }
 
     ((sceGsTex0 *) &texture.tex0)->bits.tcc = 0;
     sceGsTexa texa = mgTexa;

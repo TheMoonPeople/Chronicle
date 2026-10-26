@@ -399,16 +399,6 @@ public:
     int DeleteFile(int file_no);
 
     /**
-     * Returns the message of the operation that the class is running, counted
-     * from the given message number.
-     *
-     * @mangled GetMsgNo__17CMemoryCardAccessFi
-     * @address 0x216980
-     * @size 0xC8
-     */
-    int GetMsgNo(int msg_no);
-
-    /**
      * Records the kind of the given error and the operation, file and step that
      * it stopped.
      *
@@ -449,24 +439,10 @@ STATIC_ASSERT(sizeof(CMemoryCardAccess) == 0x7C0);
 void InitSaveFileInfoTbl();
 
 /**
- * Returns the attribute recorded for a save file name, or zero when the name is not in the table.
- *
- * @mangled GetOpenAttribute__FPc
- * @address 0x213540
- * @size 0x90
- */
-int GetOpenAttribute(char *name);
-
-/**
  * Directory entries that CMemoryCardAccess::dir_table reads the save
  * directory's listing into.
  */
 extern MC_DIR_ENTRY SaveFileInfo[MC_DIR_ENTRY_MAX];
-
-/**
- * The dummy file that MakeDir writes into a new save directory.
- */
-extern char mcdmybuf[0x40];
 
 /**
  * Configuration image that LoadSysConfig reads from the card and SetBuff and

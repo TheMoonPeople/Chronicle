@@ -1,7 +1,4 @@
 #include "stubs/memcard.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 2
 
 #include "memcard.hpp"
 
@@ -34,36 +31,11 @@
 #include "texture.hpp"
 #include "userstatus.hpp"
 
-/**
- * Holds the state of the option screen.
- */
-struct OPTION_MENU_STATE {
-    s16 mode;    /**< How the screen was opened. @see OptionOpenMode. */
-    s16 buttons; /**< Part of the screen the cursor is on. @see OptionCursorArea. */
-    s16 cursor;  /**< Cell that the cursor is on, as ten times the row plus the column. */
-    s16 unk_06;
-    s32   step;       /**< Stage that the screen is at. @see OptionStep. */
-    s32   step_count; /**< Frames the screen has spent at its stage. */
-    float cursor_x;   /**< Screen X of the cursor. */
-    float cursor_y;   /**< Screen Y of the cursor. */
-    float page_x;     /**< Screen X of the rows, eased toward the cursor's page. */
-    s32 flag[13];           /**< Setting of each option row. */
-    s32 prev_flag[13];      /**< Setting of each option row when the screen opened. */
-    s32 prev_screen_pos[2]; /**< Screen position offsets of the configuration when the screen opened. */
-    u8  texture_ready;      /**< Whether the screen's textures have been entered. */
-    s16 block_no;           /**< Texture block the screen's textures load into. */
-};
-
-STATIC_ASSERT(sizeof(OPTION_MENU_STATE) == 0x90);
-
 /** Holds the georama parts of a town the player is not standing in. */
 CEditPartsInfo BtEditPartsInfo;
 
 MENU_ATORA_SEL    MenuAtoraSel;
 CMemoryCardAccess McAccess;
-
-/** The state of the option screen. */
-OPTION_MENU_STATE OptionMenu;
 
 /** The StayTex menu texture. */
 CTexture *StayTex;
@@ -91,9 +63,6 @@ CTexture *VillageName;
 
 /** The texture that the save screen's file boards draw from. */
 CTexture *SaveBoard;
-
-/** The texture that the option screen draws from. */
-CTexture *MenuOption;
 
 CEditPartsInfo *CommonMenuAtoraInfo;
 short          *GetAtraMsgReadBuf;
@@ -870,9 +839,6 @@ int AtoraHeyCnt;
 
 /** Frame counter that DrawAtora's completion sprites animate with. */
 int CompMsgCt;
-
-/** The configuration words that the option screen edits. */
-s32 *OpConfigPt;
 
 /**
  * Marks which of the six chip slots of a georama part can be selected.
@@ -3001,10 +2967,6 @@ static void AtoraMenuTipCancel() {
 static void AtoraBoardFadeEffect() {
     CTexture frame = *TexManager.GetTexture("frame_image", -1);
 
-    if (&frame == NULL) {
-        return;
-    }
-
     ((sceGsTex0 *) &frame.tex0)->bits.tcc = 0;
     sceGsTexa texa = mgTexa;
     texa.AEM = 1;
@@ -3131,256 +3093,6 @@ void AtoraNameDraw(int unused) {
         AtoraBoardFadeEffect();
     }
 }
-
-/**
- * Draws the twelve option rows, each label with its current setting, as two
- * pages from the given position.
- *
- * @mangled OptionMenuDraw__Fiiiii
- * @address 0x21E020
- * @size 0x42C
- */
-static void OptionMenuDraw(int x, int y, int arrow_x, int arrow_y, int alpha) {
-    int label[13] = {10, 8, 4, 5, 2, 3, 14, 9, 11, 12, 13, 6, 7};
-    int kind[13] = {0, 0, 1, 2, 0, 1, 4, 3, 0, 0, 0, 0, 0};
-    int u;
-    int v;
-    int i;
-    int row_x;
-    int row_y;
-    int cell_x;
-    int setting;
-
-    row_x = x;
-    row_y = y;
-
-    for (i = 0; i < 13; i++) {
-        CRect_i_ dst(0, 0, 210, 24);
-        CRect_i_ src(0, 0, 210, 24);
-
-        if (label[i] < 7) {
-            src.x = 0;
-            src.y = label[i] * 24;
-        } else {
-            src.x = src.width;
-            src.y = (label[i] - 7) * 24;
-        }
-
-        dst.x = row_x;
-        dst.y = row_y + 1;
-        DrawMenu2DSprite(MenuOption, dst, src, alpha);
-        int row_kind = kind[i];
-        // Source position of the first cell of the row, by row kind.
-        int cell_uv[5][2] = {
-            {OptionMenu.flag[i] << 6, row_kind * 48 + 176},
-            {OptionMenu.flag[i] << 6, row_kind * 48 + 176},
-            {OptionMenu.flag[i] << 6, row_kind * 48 + 176},
-            {128,                     176                },
-            {192,                     200                }
-        };
-        u = cell_uv[row_kind][0];
-        v = cell_uv[row_kind][1];
-
-        switch (row_kind) {
-            case 0:
-            case 1:
-            case 2:
-                DrawMenu2DSprite(MenuOption, CRect_i_(row_x + 238, row_y + 1, 64, 23), CRect_i_(u, v + 1, 64, 24), alpha);
-
-                if (u < 64) {
-                    u = 64;
-                } else {
-                    u = 0;
-                }
-
-                v = (row_kind * 2 + 1) * 24 + 176;
-                DrawMenu2DSprite(MenuOption, CRect_i_(row_x + 310, row_y + 1, 64, 23), CRect_i_(u, v + 1, 64, 24), alpha);
-                break;
-            case 3:
-                cell_x = row_x + 238;
-                setting = OptionMenu.flag[i];
-
-                for (int j = 0; j < 3; j++) {
-                    u = 160;
-
-                    if (j == setting) {
-                        u -= 32;
-                    }
-
-                    DrawMenu2DSprite(MenuOption, CRect_i_(cell_x, row_y + 1, 32, 23), CRect_i_(u, v + 1, 32, 24), alpha);
-                    v += 24;
-                    cell_x += 36;
-                }
-
-                int off_u;
-                off_u = 0;
-
-                if (setting != 3) {
-                    off_u += 64;
-                }
-
-                DrawMenu2DSprite(MenuOption, CRect_i_(cell_x, row_y + 1, 64, 23), CRect_i_(off_u, 199, 64, 24), alpha);
-                break;
-            case 4:
-                DrawMenu2DSprite(MenuOption, CRect_i_(row_x + 238, row_y + 1, 64, 23), CRect_i_(u, v, 64, 24), alpha);
-                break;
-        }
-
-        row_y += 30;
-
-        if (i == 6) {
-            row_x += 560;
-            row_y = y;
-        }
-    }
-
-    DrawMenu2DSprite(MenuOption, CRect_i_(arrow_x, arrow_y, 60, 29), CRect_i_(452, 224, 60, 29), alpha);
-}
-
-/**
- * Draws the arrow that points to the other option page.
- *
- * @mangled DrawOptionLRCur__Fii
- * @address 0x21E450
- * @size 0x80
- */
-static void DrawOptionLRCur(int side, int alpha) {
-    s16 cursor_x[2] = {32, 520};
-    int v;
-
-    v = side * 32 + 256;
-    DrawMenu2DSprite(MenuOption, CRect_i_(cursor_x[side], 180, 96, 32), CRect_i_(416, v, 96, 32), alpha);
-}
-
-/**
- * Draws the screen position adjustment frame: its centre piece, arrows and screen corners. PAL only.
- *
- * @mangled DrawOptionScreenWaku__Fv
- * @address 0x223D50
- * @size 0x1D4
- */
-static void DrawOptionScreenWaku() {
-    int center_x = 320;
-    int center_y = 240;
-
-    DrawMenu2DSprite(MenuOption, CRect_i_(288, 208, 64, 64), CRect_i_(448, 0, 64, 64), 0x80);
-    // Screen corners that the frame corner pieces sit in.
-    s16 corner[4][2] = {
-        {4,   4  },
-        {604, 4  },
-        {4,   444},
-        {604, 444}
-    };
-    // Positions of the four arrows around the centre piece.
-    s16 arrow[4][2] = {
-        {center_x - 16, center_y - 96},
-        {center_x + 64, center_y - 16},
-        {center_x - 16, center_y + 64},
-        {center_x - 96, center_y - 16}
-    };
-    // Source offset of each corner's piece within its group.
-    u8 piece_uv[4][2] = {
-        {0,  0 },
-        {32, 0 },
-        {0,  32},
-        {32, 32}
-    };
-
-    for (int i = 0; i < 4; i++) {
-        DrawMenu2DSprite(MenuOption, CRect_i_(corner[i][0], corner[i][1], 32, 32), CRect_i_(piece_uv[i][0] + 448, piece_uv[i][1] + 64, 32, 32), 0x80);
-        DrawMenu2DSprite(MenuOption, CRect_i_(arrow[i][0], arrow[i][1], 32, 32), CRect_i_(piece_uv[i][0] + 448, piece_uv[i][1] + 128, 32, 32), 0x80);
-    }
-}
-
-int InitMenuOption(int mode, int block_no, u_long128 *buffer);
-
-/**
- * Stores whether the menus discard their saved positions in the saved menu
- * cursors.
- */
-static inline void SetCursorResetPos(CMenuCursor *cursor, int reset) {
-    cursor->reset_pos = reset;
-}
-
-/**
- * Closes the option screen, writing every setting the player changed back to
- * the configuration and the saved status.
- */
-static void ExitMenuOption() {
-    CUserStatus *status;
-    CMenuCursor *cursor;
-
-    if (OptionMenu.mode == OPTION_OPEN_TITLE) {
-        GamePad.AutoRepeatOff();
-        GamePad.MenuModeOff();
-        GamePad.SetAutoRepeat(PAD_UP | PAD_DOWN, 30, 9);
-        GamePad.MenuModeOn(120);
-    }
-
-    status = (CUserStatus *) SaveData->GetDngStatus();
-    cursor = SaveData->GetMenuCursor();
-    SetCursorResetPos(cursor, OptionMenu.flag[0]);
-
-    if (cursor->reset_pos) {
-        cursor->InitPos();
-    }
-
-    OpConfigPt[7] = OptionMenu.flag[1];
-    OpConfigPt[4] = OptionMenu.flag[2];
-    OpConfigPt[5] = OptionMenu.flag[3];
-    CSnd.SetStereoMode(OpConfigPt[5] ? 0 : 1);
-    OpConfigPt[2] = OptionMenu.flag[4];
-    OpConfigPt[3] = OptionMenu.flag[5];
-    status->minimap_status = OptionMenu.flag[7];
-    OpConfigPt[10] = OptionMenu.flag[8];
-    OpConfigPt[9] = OptionMenu.flag[9];
-    OpConfigPt[11] = OptionMenu.flag[10];
-    OpConfigPt[8] = OptionMenu.flag[11];
-    OpConfigPt[6] = OptionMenu.flag[12];
-}
-
-/**
- * Resets the option rows to their defaults.
- *
- * @mangled InitOptionFlag__Fv
- * @address 0x21E910
- * @size 0x44
- */
-static void InitOptionFlag() {
-    int i;
-
-    for (i = 0; i < 13; i++) {
-        OptionMenu.flag[i] = 0;
-    }
-
-    OptionMenu.flag[7] = 1;
-    OpConfigPt[13] = 0;
-    OpConfigPt[12] = 0;
-}
-
-/**
- * Restores the option rows to the values they had when the screen opened.
- *
- * @mangled PrevOptionSetFunc__Fv
- * @address 0x21E960
- * @size 0x48
- */
-static void PrevOptionSetFunc() {
-    int i;
-
-    for (i = 0; i < 12; i++) {
-        OptionMenu.flag[i] = OptionMenu.prev_flag[i];
-    }
-
-    OpConfigPt[12] = OptionMenu.prev_screen_pos[0];
-    OpConfigPt[13] = OptionMenu.prev_screen_pos[1];
-}
-
-int MenuOptionKey();
-
-void DrawMenuOption();
-
-int OptionMenuFadeOutStart();
 
 int InitMenuSave(int mode, int block_no, u_long128 *buffer) {
     u_long128 *data;

@@ -7,7 +7,6 @@
 #include "savedata.hpp"
 
 MC_DIR_ENTRY  SaveFileInfo[MC_DIR_ENTRY_MAX];
-char          mcdmybuf[0x40];
 SV_CONFIG_SYS sys_config;
 
 void InitSaveFileInfoTbl() {
@@ -15,19 +14,6 @@ void InitSaveFileInfoTbl() {
         memset(&SaveFileInfo[i], 0, sizeof(SaveFileInfo[i]));
         SaveFileInfo[i].name[0] = 0;
     }
-}
-
-int GetOpenAttribute(char *name) {
-    for (int i = 0; i < MC_DIR_ENTRY_MAX; i++) {
-        char *entry = SaveFileInfo[i].name;
-
-        if (strcmp(name, entry) == 0) {
-            printf("same file existed!!!!!!\n");
-            return 1;
-        }
-    }
-
-    return 0;
 }
 
 void CMemoryCardAccess::Initialize() {
@@ -140,44 +126,6 @@ void CMemoryCardAccess::SetVersion(char *version) {
 
 char *CMemoryCardAccess::GetVersion() {
     return this->version;
-}
-
-int CMemoryCardAccess::GetMsgNo(int msg_no) {
-    int result = 0;
-
-    switch (this->GetFuncNo()) {
-        case MC_OPERATION_GET_DIR:
-            result = msg_no + 5;
-            break;
-        case MC_OPERATION_MAKE_DIR:
-            result = msg_no + 11;
-            break;
-        case MC_OPERATION_GET_ALL_SAVE_FILE_INFO:
-            result = msg_no + 5;
-            break;
-        case MC_OPERATION_SAVE:
-        case MC_OPERATION_SAVE_CONFIG:
-            result = msg_no + 11;
-            break;
-        case MC_OPERATION_LOAD:
-        case MC_OPERATION_LOAD_CONFIG:
-            result = msg_no + 21;
-            break;
-        case MC_OPERATION_FORMAT:
-            result = msg_no + 35;
-            break;
-        case MC_OPERATION_UNFORMAT:
-            result = msg_no + 39;
-            break;
-        case MC_OPERATION_DELETE:
-            result = msg_no + 41;
-            break;
-        case MC_OPERATION_UNK_8:
-            result = msg_no + 43;
-            break;
-    }
-
-    return result;
 }
 
 int CMemoryCardAccess::McError(int result) {

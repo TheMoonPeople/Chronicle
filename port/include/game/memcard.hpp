@@ -98,7 +98,7 @@ enum OptionOpenMode {
 // clang-format on
 
 /**
- * Steps of the option screen, as OPTION_MENU_STATE::step holds them.
+ * Steps of the option screen.
  */
 // clang-format off
 enum OptionStep {
@@ -110,7 +110,7 @@ enum OptionStep {
 // clang-format on
 
 /**
- * Parts of the option screen the cursor can be on, as OPTION_MENU_STATE::buttons holds them.
+ * Parts of the option screen the cursor can be on.
  */
 // clang-format off
 enum OptionCursorArea {
