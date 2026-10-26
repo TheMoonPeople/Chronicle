@@ -1,9 +1,6 @@
 #include "stubs/main.hpp"
 // C imports
-#include <libcdvd.h>
 #include <libmc.h>
-#include <sifdev.h>
-#include <sifrpc.h>
 
 #include <cstdio>
 #include <cstring>
@@ -93,10 +90,6 @@ public:
 
 STATIC_ASSERT(sizeof(CategoryAttr) == 0x18);
 
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 873
-
 /* Global, GLOBAL-linkage per retail `nm` (0x1cbc9b0, `T`). Purpose beyond
  * being constructed here is unanalyzed -- out of scope for this pass. */
 CRunScript RunScript;
@@ -164,72 +157,6 @@ CDebugFont DebugFont;
  * doesn't participate in sinit ordering either way). */
 CDataAlloc2<1> mainCDataAlloc2;
 
-/* Everything below is called from main() but not itself decompiled here
- * (out of scope for this pass -- each is its own subsystem). Declared with
- * their exact retail mangled/symbol names so the linker resolves them
- * against the existing reassembled .s files. Functions with no retained
- * retail name use this project's "func_ADDRESS" convention. */
-extern "C" {
-void init_all__Fv();
-void initialize_data__Fv();
-void GlobalNameInit__Fv();
-void InitReadBG__Fv();
-void SndInit__Fv();
-void LoadOverlay__Fi(int mode);
-void MGSetRenderInfo__Ffff(float a1, float a2, float a3);
-void FlushCache(int mode);
-void init_now_loading__Fi(int map_no);
-void LoadSystemMessage__Fv();
-void SndInitialize__Fiiii(int a1, int a2, int a3, int a4);
-int  InitExistData__Fv();
-void MapJump__Fii(int map_no, int event_no);
-void EditInit__FPv(void *param);
-void func_01DAF1C0();
-void MenuInit__Fv(int mode);
-void func_01DC1420(int mode);
-void MemCheckInit__Fv(int mode);
-void TrialEndInit__Fv(int mode);
-void InitSave__Fv(int mode);
-void LangsetInit__Fv(int mode);
-void func_01DAC1C0();
-void func_01DD1AB0(int inited);
-void func_01DC8C50();
-/* Takes no arguments -- the mangled name is __Fv, and retail's call sites
- * (the `while (check_now_loading...) ` spin loop at 0x1415C0) set up no
- * argument registers at all. An earlier pass of this file passed a saved
- * copy of `mode` here, which forced an extra callee-saved register copy
- * (`paddub s4,a0`) retail doesn't have. */
-int  check_now_loading__Fv();
-void MGInitVSyncCallBack__FPFi_i(void (*callback)(int));
-void PlayTimeCount__Fi(int add);
-void MGBeginFrame__Fv();
-/* Retail passes Vif1Packet as the (pointer-typed, per the mangling) first
- * argument: `lw $4,Vif1Packet; paddub $20,$4; jal SetEnv...` -- the load
- * goes straight into $a0 and is copied to $s4 only to survive the call for
- * reuse by sceVif1PkCall below. An earlier pass declared this () and made
- * the copy direction come out backwards (lw s4 then paddub a0,s4). */
-void SetEnv__FP13sceVif1Packet(sceVif1Packet *vif1_packet);
-int  func_01DD2220();
-int  func_01DC8EB0();
-int  EditLoop__Fv();
-int  func_01DAF970();
-int  MenuLoop__Fv();
-int  func_01DC1510();
-int  MemCheckLoop__Fv();
-int  TrialEndLoop__Fv();
-int  LoopSave__Fv();
-int  LangsetLoop__Fv();
-int  func_01DAD980(int mode);
-void MGEndFrame__Fv();
-int  CheckTrialEnd__Fv();
-/* No arguments (mangled __Fv); retail's spin loop at 0x141D10 sets up no
- * argument registers. An earlier pass passed `d2` here -- `d2` is in fact
- * never referenced by retail main() at all (no -0x72B4($gp) access
- * anywhere in ref/asm/split/main/main.s). */
-int  ReadBGSync__Fv();
-void TrialStart__Fv();
-}
-
 /* File-scope statics of the original main translation unit. Retail has them
  * unsuffixed and LOCAL (`nm`: mode, d1, d2, d8, mc_mode, in that main.sbss
  * address order, 0x2a2534-0x2a2548), so file-scope `static` rather than
@@ -259,71 +186,7 @@ s32 NextMapNo = -1;
 /** Enables accumulation of the save file's play-time counter. */
 static int play_time_count = 1;
 
-/* Low byte of an EE DMA channel's CHCR, as a bitfield. The "kick this
- * channel" write in main() is a 1-bit field assignment in the original
- * source, not hand masking: only that form makes MWCC materialise the OR
- * operand with `daddiu $3,$0,0x40` -- its bitfield engine works in 64-bit --
- * instead of folding it into an `ori`. The same lbu/daddiu/li/and/or/sb
- * sequence appears twice in MGEndFrame against DmaCH8. */
-typedef struct {
-    u8 chcr_low : 6; /* DIR/MOD/ASP/TTE etc. -- untouched here */
-    u8 str : 1;      /* channel start/busy */
-    u8 chcr_top : 1;
-} DMA_CHCR_BYTE;
-
-/** Overlay file selected for each top-level game mode. */
-static char *binfile[15] = {"TITLE.BIN", "TITLE.BIN", "", "DUN.BIN", "DUN.BIN",
-                            "TITLE.BIN", "", "", "DUN.BIN", "DUN.BIN",
-                            "", "", "", "", ""};
-
-/** Name of the currently loaded overlay. */
-static char now_binfile[128] = "";
-
-void LoadOverlay(int mode);
-
 void init_all() {
-    sceSifInitRpc(0);
-    sceCdInit(0);
-    sceCdMmode(2);
-
-    while (!sceSifRebootIop("cdrom0:\\MODULES\\IOPRP211.IMG;1")) {
-    }
-
-    while (!sceSifSyncIop()) {
-    }
-
-    sceSifInitRpc(0);
-    sceCdInit(0);
-    sceCdMmode(2);
-    sceFsReset();
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\SIO2MAN.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\PADMAN.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\MCMAN.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\MCSERV.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\LIBSD.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\SDRDRV.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\MODMIDI.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\MODHSYN.IRX;1", 0, 0) < 0) {
-    }
-
-    while (sceSifLoadModule("cdrom0:\\MODULES\\EZMIDI.IRX;1", 0, 0) < 0) {
-    }
-
     InitCDFile();
     DevInit();
     d1 = sceDmaGetChan(1);
@@ -353,8 +216,6 @@ sceVu0FMATRIX lightcolor = {
 
 /** Initial ambient-light colour used by the renderer. */
 sceVu0FVECTOR ambientlight = {64.0f, 64.0f, 64.0f, 128.0f};
-
-void SetEnv(sceVif1Packet *packet);
 
 void LoadSndTxt() {
     u_char  work[48000];
@@ -407,9 +268,6 @@ void initialize_data() {
     BtMapJumpFloor = -1;
     LoadSndTxt();
 }
-
-/* @ 0x1410B0 (0xC80 bytes) -- main */
-int main(int argc, const char **argv, const char **envp);
 
 static int edit_map;
 static int sub_map;
@@ -830,44 +688,6 @@ void TrialStart() {}
 
 int CheckTrialEnd() { return 0; }
 
-/* MAP_NPC_MODEL's members as its copy assignment reaches them; the tail is alignment padding. */
-struct GeneratedNpcModel {
-    CCharacter chara;           /**< Draws and moves the character. */
-    float      pos[4];          /**< World position of the character. */
-    float      rotation[4];     /**< Angle of the character about each axis. */
-    s32        parts_no;        /**< Index of the map part that the character stands on. */
-    s32        used;            /**< 1 if the slot is in use. */
-    s32        unk_11D8;        /**< 0 to hide the character. */
-    s32        unk_11DC;        /**< Motion the character plays; -1 to keep it still. */
-    float      draw_pos[16][4]; /**< Position of each copy of the character to draw. */
-    s32        draw_param[16];  /**< Parameter of each copy of the character to draw. */
-    s32        draw_num;        /**< Number of copies of the character to draw. */
-};
-
-/**
- * Copies one character over another, field by field.
- *
- * @mangled __as__10CCharacterFRC10CCharacter
- * @address 0x142DA0
- * @size 0x43C
- */
-/**
- * Copies one character into another with CCharacter's assignment operator.
- * Nothing calls it: it exists so that the operator documented above is defined in this unit.
- */
-#pragma push
-#pragma dont_inline on
-
-static void CopyNpcModel(GeneratedNpcModel &dest, const GeneratedNpcModel &src) {
-    dest = src;
-}
-
-static void CopyCharacter(CCharacter &dest, const CCharacter &src) {
-    dest = src;
-}
-
-#pragma pop
-
 CObject &CObject::operator=(const CObject &source) {
     // The three words after the mass are alignment padding and are not carried over.
     mass = source.mass;
@@ -1025,27 +845,6 @@ void CMajinBeem::Initialize() {
 }
 
 /**
- * Constructs one map character slot.
- *
- * @mangled __ct__13MAP_NPC_MODELFv
- * @address 0x143500
- * @size 0x30
- */
-extern "C" void *__ct__13MAP_NPC_MODELFv(void *self) {
-    __ct__10CCharacterFv(self);
-    return self;
-}
-
-/**
- * Constructs a character with no model, motion or texture animation.
- *
- * @mangled __ct__10CCharacterFv
- * @address 0x143530
- * @size 0xD4
- */
-extern "C" void *__ct__10CCharacterFv(void *self);
-
-/**
  * Constructs the motion parameters.
  *
  * @mangled __ct__11MotionParamFv
@@ -1053,53 +852,3 @@ extern "C" void *__ct__10CCharacterFv(void *self);
  * @size 0xC
  */
 MotionParam::MotionParam() {}
-
-/**
- * Constructs a texture animation with no data attached.
- *
- * @mangled __ct__13CTextureAnimeFv
- * @address 0x143620
- * @size 0x28
- */
-extern "C" void *__ct__13CTextureAnimeFv(void *self);
-
-/**
- * Constructs an object at the origin with an identity transform.
- *
- * @mangled __ct__7CObjectFv
- * @address 0x143650
- * @size 0x28
- */
-extern "C" void *__ct__7CObjectFv(void *self);
-
-/**
- * Constructs a projectile effect.
- *
- * @mangled __ct__12CSHOT_EFFECTFv
- * @address 0x143680
- * @size 0x54
- */
-extern "C" void *__ct__12CSHOT_EFFECTFv(void *self) {
-    __ct__10CCharacterFv((u_char *) self + 0x10);
-    u_char *array = (u_char *) self + 0x11C0;
-    __construct_array(array, (MWRuntimeObjectFunction) __ct__10CCharacterFv, NULL, 0x11B0, 8);
-    return self;
-}
-
-/**
- * Constructs a hit marker.
- *
- * @mangled __ct__8CHitMarkFv
- * @address 0x1436E0
- * @size 0x3C
- */
-extern "C" void *__ct__8CHitMarkFv(void *self);
-
-/**
- * Takes a run of quadwords out of the six-thousand-quadword arena.
- *
- * @mangled Alloc__18CDataAlloc_1_6000_Fi
- * @address 0x143720
- * @size 0x68
- */
-

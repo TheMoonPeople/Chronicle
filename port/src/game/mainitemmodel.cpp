@@ -1,9 +1,6 @@
-#pragma argument_flag 0
-#pragma argument_flag_ones 33, 34, 39, 59, 225, 254, 266, 268
 #include "mainitemmodel.hpp"
 
 #include <cstdio>
-#pragma argument_flag_ones 58
 #include <libvu0.h>
 
 #include <cstring>

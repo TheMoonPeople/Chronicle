@@ -44,8 +44,6 @@ void LangsetInit() {
     Proc = LANGSET_FADE_IN;
 }
 
-int LangsetLoop();
-
 int LangsetProc() {
     if (GamePad.Down(PAD_UP) != 0) {
         Cursor--;
