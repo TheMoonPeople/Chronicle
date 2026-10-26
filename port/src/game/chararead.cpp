@@ -1,6 +1,12 @@
-#include <cstdio>
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <print>
+#include <string>
+#include <string_view>
 
 #include "character.hpp"
 #include "cloth.hpp"
@@ -14,100 +20,110 @@
 #include "sysmes.hpp"
 #include "texture.hpp"
 
-typedef MOTION_INFO tagMOTION_KEY;
+CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
+void    CommandIMG(void **argv);
+
+extern CDataAlloc2<1> *img_buffer;
+extern u_int          *pack_data;
+extern u_int          *load_img[4];
+
+namespace {
+
+using tagMOTION_KEY = MOTION_INFO;
 
 /**
  * Describes one command a character configuration file may contain.
  */
 struct COMMAND_INFO {
-    char *name;          /**< Keyword that introduces the command. */
-    int   arg_types[16]; /**< SCRIPT_ARGUMENT_TYPE of each argument, ended by -1. */
+    const char *name;          /**< Keyword that introduces the command. */
+    int         arg_types[16]; /**< SCRIPT_ARGUMENT_TYPE of each argument, ended by -1. */
 };
 
-u_int *GetPackFile(u_int *pack, char *name, int *size = 0);
-void  *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
+constexpr int         COMMAND_COUNT = 19;
+constexpr int         UNKNOWN_COMMAND = 20;
+constexpr int         ARGUMENT_MAX = 16;
+constexpr std::size_t ARGUMENT_SIZE = 256;
+constexpr int         ALLOC_NAME_MAX = 8;
 
-static void CommandVERTEX_ANIME(void **argv);
-static void CommandSHADOW_VERTEX_ANIME(void **argv);
-static void CommandMODEL(void **argv);
-static void CommandSHADOW_MODEL(void **argv);
-static void CommandMOTION(void **argv);
-static void CommandSHADOW_MOTION(void **argv);
-static void CommandKEY_START(void **argv);
-static void CommandKEY(void **argv);
-static void CommandMOTION_END(void **argv);
-static void CommandCLOTH(void **argv);
-static void CommandBODY_SIZE(void **argv);
-static void CommandALLOC_MDT(void **argv);
-static void CommandALLOC_DBUFF(void **argv);
-static void CommandALLOC_SHADOW_MDT(void **argv);
-static void CommandALLOC_SHADOW_DBUFF(void **argv);
-void CommandIMG(void **argv);
-static void CommandIMG_END(void **argv);
-static void CommandFOOT(void **argv);
-static void CommandEVENT(void **argv);
-static int  GetArg(input_str &input, int *arg_types, void **argv);
-static int  SearchCommand(input_str &input, int *command);
-static int  SkipSpace(input_str &input);
-static int  CheckChar(char ch);
-static void PreProcess(input_str &input);
+void CommandVERTEX_ANIME(void **argv);
+void CommandSHADOW_VERTEX_ANIME(void **argv);
+void CommandMODEL(void **argv);
+void CommandSHADOW_MODEL(void **argv);
+void CommandMOTION(void **argv);
+void CommandSHADOW_MOTION(void **argv);
+void CommandKEY_START(void **argv);
+void CommandKEY(void **argv);
+void CommandMOTION_END(void **argv);
+void CommandCLOTH(void **argv);
+void CommandBODY_SIZE(void **argv);
+void CommandALLOC_MDT(void **argv);
+void CommandALLOC_DBUFF(void **argv);
+void CommandALLOC_SHADOW_MDT(void **argv);
+void CommandALLOC_SHADOW_DBUFF(void **argv);
+void CommandIMG_END(void **argv);
+void CommandFOOT(void **argv);
+void CommandEVENT(void **argv);
+int  GetArg(input_str &input, const int *arg_types, void **argv);
+bool SearchCommand(input_str &input, int *command);
+bool SkipSpace(input_str &input);
+bool CheckChar(char ch);
+void PreProcess(input_str &input);
 
-static CDataAlloc2<1> *mds_buffer;
-static CDataAlloc2<1> *buffer;
-static CDataAlloc2<1> *exbuffer;
-extern CDataAlloc2<1> *img_buffer;
-static int             texture_block;
-static CCharacter     *character;
-static int             vertex_anime;
-static int             def_vtype;
-static int             shadow_vertex_anime;
-extern u_int          *pack_data;
-static int             motion_info_num;
-static int             key_start;
-static int             key_no;
-static tagMOTION_KEY  *motion_info;
-static int             cloth_cnt;
-static int             now_motion_data;
-static int             shadow_motion;
-static int             dont_delete_texb;
-static int             alloc_mdt_list;
-static int             alloc_dbuff_list;
-static int             alloc_smdt_list;
-static int             alloc_sdbuff_list;
-static int             fsound_num;
-static int             tex_anime_list;
-static char           *config_file;
-static int             config_file_size;
+CDataAlloc2<1> *mds_buffer;
+CDataAlloc2<1> *buffer;
+CDataAlloc2<1> *exbuffer;
+int             texture_block;
+CCharacter     *character;
+int             vertex_anime;
+int             def_vtype;
+int             shadow_vertex_anime;
+int             motion_info_num;
+int             key_start;
+int             key_no;
+tagMOTION_KEY  *motion_info;
+int             cloth_cnt;
+int             now_motion_data;
+int             shadow_motion;
+int             dont_delete_texb;
+int             alloc_mdt_list;
+int             alloc_dbuff_list;
+int             alloc_smdt_list;
+int             alloc_sdbuff_list;
+int             fsound_num;
+int             tex_anime_list;
+char           *config_file;
+int             config_file_size;
 
-static char   alloc_mdt[9][16];
-static char   alloc_dbuff[9][16];
-static char   alloc_smdt[9][16];
-static char   alloc_sdbuff[9][16];
-extern u_int *load_img[4];
+std::array<std::string, ALLOC_NAME_MAX> alloc_mdt;
+std::array<std::string, ALLOC_NAME_MAX> alloc_dbuff;
+std::array<std::string, ALLOC_NAME_MAX> alloc_smdt;
+std::array<std::string, ALLOC_NAME_MAX> alloc_sdbuff;
 
-static COMMAND_INFO Command[19] = {
-    {"VERTEX_ANIME",        {SCRIPT_ARGUMENT_INTEGER, -1}                                                                        },
-    {"SHADOW_VERTEX_ANIME", {SCRIPT_ARGUMENT_INTEGER, -1}                                                                        },
-    {"MODEL",               {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"SHADOW_MODEL",        {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"MOTION",              {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, -1}},
-    {"SHADOW_MOTION",       {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, -1}                         },
-    {"KEY",                 {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, -1}                        },
-    {"KEY_START",           {SCRIPT_ARGUMENT_INTEGER, -1}                                                                        },
-    {"MOTION_END",          {-1}                                                                                                 },
-    {"CLOTH",               {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"BODY_SIZE",           {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                            },
-    {"ALLOC_MDT",           {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"ALLOC_DBUFF",         {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"ALLOC_SHADOW_MDT",    {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"ALLOC_SHADOW_DBUFF",  {SCRIPT_ARGUMENT_STRING, -1}                                                                         },
-    {"IMG",                 {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_STRING, -1}                                                },
-    {"IMG_END",             {-1}                                                                                                 },
-    {"FOOT",                {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                   },
-    {"EVENT",               {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, -1}                        }
+constexpr std::array<COMMAND_INFO, COMMAND_COUNT> Command = {
+    {
+     {.name = "VERTEX_ANIME", .arg_types = {SCRIPT_ARGUMENT_INTEGER, -1}},
+     {.name = "SHADOW_VERTEX_ANIME", .arg_types = {SCRIPT_ARGUMENT_INTEGER, -1}},
+     {.name = "MODEL", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "SHADOW_MODEL", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "MOTION", .arg_types = {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "SHADOW_MOTION", .arg_types = {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "KEY", .arg_types = {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "KEY_START", .arg_types = {SCRIPT_ARGUMENT_INTEGER, -1}},
+     {.name = "MOTION_END", .arg_types = {-1}},
+     {.name = "CLOTH", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "BODY_SIZE", .arg_types = {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "ALLOC_MDT", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "ALLOC_DBUFF", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "ALLOC_SHADOW_MDT", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "ALLOC_SHADOW_DBUFF", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "IMG", .arg_types = {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "IMG_END", .arg_types = {-1}},
+     {.name = "FOOT", .arg_types = {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "EVENT", .arg_types = {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, -1}},
+     }
 };
 
-static void (*CommandExe[19])(void **) = {
+constexpr std::array<void (*)(void **), COMMAND_COUNT> CommandExe = {
     CommandVERTEX_ANIME,
     CommandSHADOW_VERTEX_ANIME,
     CommandMODEL,
@@ -128,12 +144,9 @@ static void (*CommandExe[19])(void **) = {
     CommandFOOT,
     CommandEVENT};
 
-void ReadInfo(CCharacter *chara, u_int *pack, char *name, CDataAlloc2<1> *model_alloc, CDataAlloc2<1> *motion_alloc, CDataAlloc2<1> *extra_alloc, int texture_block_no, CDataAlloc2<1> *image_alloc, int visual_type, int keep_textures) {
-    char  arg_storage[16][256];
-    char *argv[18];
-    int   file_size;
-    int   command;
+} // namespace
 
+void ReadInfo(CCharacter *chara, u_int *pack, char *name, CDataAlloc2<1> *model_alloc, CDataAlloc2<1> *motion_alloc, CDataAlloc2<1> *extra_alloc, int texture_block_no, CDataAlloc2<1> *image_alloc, int visual_type, int keep_textures) {
     def_vtype = visual_type;
     mds_buffer = model_alloc;
     buffer = motion_alloc;
@@ -146,75 +159,82 @@ void ReadInfo(CCharacter *chara, u_int *pack, char *name, CDataAlloc2<1> *model_
     motion_info_num = 0;
     key_start = 0;
     key_no = 0;
-    motion_info = 0;
+    motion_info = nullptr;
     cloth_cnt = 0;
     now_motion_data = 0;
     shadow_motion = 0;
     texture_block = texture_block_no;
-    alloc_mdt[0][0] = 0;
-    alloc_dbuff[0][0] = 0;
-    alloc_smdt[0][0] = 0;
-    alloc_sdbuff[0][0] = 0;
+    alloc_mdt[0].clear();
+    alloc_dbuff[0].clear();
+    alloc_smdt[0].clear();
+    alloc_sdbuff[0].clear();
     alloc_mdt_list = 0;
     alloc_dbuff_list = 0;
     alloc_smdt_list = 0;
     alloc_sdbuff_list = 0;
     fsound_num = 0;
     dont_delete_texb = keep_textures;
-
-    for (int i = 0; i < 4; i++) {
-        load_img[i] = 0;
-    }
-
+    std::ranges::fill(load_img, nullptr);
     tex_anime_list = 0;
 
-    if (chara != 0) {
-        char *config_text = (char *) GetPackFile(pack, name, &file_size);
+    if (chara == nullptr) {
+        return;
+    }
 
-        if (config_text == 0) {
-            printf("not found %s\n", name);
-        } else {
-            config_file = config_text;
-            config_file_size = file_size;
-            input_str input;
-            input.data = config_file;
-            input.size = file_size;
-            input.pos = 0;
-            PreProcess(input);
-            SkipSpace(input);
+    int   file_size = 0;
+    char *config_text = reinterpret_cast<char *>(GetPackFile(pack, name, &file_size));
 
-            for (int i = 0; i < 16; i++) {
-                argv[i] = arg_storage[i];
+    if (config_text == nullptr) {
+        std::println("not found {}", name);
+        return;
+    }
+
+    config_file = config_text;
+    config_file_size = file_size;
+    input_str input;
+    input.data = config_file;
+    input.size = file_size;
+    input.pos = 0;
+    PreProcess(input);
+    SkipSpace(input);
+
+    auto                             arg_storage = std::make_unique<std::array<std::array<char, ARGUMENT_SIZE>, ARGUMENT_MAX>>();
+    std::array<void *, ARGUMENT_MAX> argv{};
+
+    for (int i = 0; i < ARGUMENT_MAX; i++) {
+        argv[i] = (*arg_storage)[i].data();
+    }
+
+    int command = 0;
+
+    while (SearchCommand(input, &command)) {
+        if (command < COMMAND_COUNT && command >= 0) {
+            const int arg_status = GetArg(input, Command[command].arg_types, argv.data());
+
+            if (arg_status == 0) {
+                return;
             }
 
-            while (SearchCommand(input, &command)) {
-                if (command < 19 && command >= 0) {
-                    int arg_status = GetArg(input, Command[command].arg_types, (void **) argv);
-
-                    if (arg_status == 0) {
-                        return;
-                    }
-
-                    if (arg_status < 0) {
-                        printf("error!! at %s\n", Command[command].name);
-                    }
-
-                    CommandExe[command]((void **) argv);
-                }
+            if (arg_status < 0) {
+                std::println("error!! at {}", Command[command].name);
             }
+
+            CommandExe[command](argv.data());
         }
     }
 }
 
-static void CommandVERTEX_ANIME(void **argv) {
-    vertex_anime = *(int *) argv[0];
+namespace {
+
+void CommandVERTEX_ANIME(void **argv) {
+    vertex_anime = *static_cast<int *>(argv[0]);
 }
 
-static void CommandSHADOW_VERTEX_ANIME(void **argv) {
-    shadow_vertex_anime = *(int *) argv[0];
+void CommandSHADOW_VERTEX_ANIME(void **argv) {
+    shadow_vertex_anime = *static_cast<int *>(argv[0]);
 }
 
-static void CommandMODEL(void **argv) {
+void CommandMODEL(void **argv) {
     character->Initialize();
     int visual_type = def_vtype;
 
@@ -226,77 +246,75 @@ static void CommandMODEL(void **argv) {
         visual_type = 18;
     }
 
-    u_int *mds_file = GetPackFile(pack_data, (char *) argv[0]);
+    char  *model_name = static_cast<char *>(argv[0]);
+    u_int *mds_file = GetPackFile(pack_data, model_name, nullptr);
 
-    if (mds_file == 0) {
-        char *missing_name = (char *) argv[0];
-        printf("not found %s\n", missing_name);
-    } else {
-        if (alloc_dbuff_list > 0 || alloc_mdt_list > 0) {
-            char *mdt_names[12];
-            char *dbuff_names[12];
-            int   i;
+    if (mds_file == nullptr) {
+        std::println("not found {}", model_name);
+        return;
+    }
 
-            for (i = 0; i < alloc_mdt_list; i++) {
-                mdt_names[i] = alloc_mdt[i];
-            }
+    if (alloc_dbuff_list > 0 || alloc_mdt_list > 0) {
+        // Both lists end with a null entry.
+        std::array<char *, ALLOC_NAME_MAX + 1> mdt_names{};
+        std::array<char *, ALLOC_NAME_MAX + 1> dbuff_names{};
 
-            mdt_names[i] = 0;
-
-            for (i = 0; i < alloc_dbuff_list; i++) {
-                dbuff_names[i] = alloc_dbuff[i];
-            }
-
-            dbuff_names[i] = 0;
-            character->frame = LoadMDSFile(mds_file, mds_buffer, 0, dbuff_names, mdt_names);
-        } else {
-            character->frame = LoadMDSFile(mds_file, mds_buffer, visual_type, 0, 0);
+        for (int i = 0; i < alloc_mdt_list; i++) {
+            mdt_names[i] = alloc_mdt[i].data();
         }
 
-        character->config = (char *) mds_buffer->Alloc((config_file_size >> 4) + 1);
-        character->config_size = config_file_size;
-        memcpy(character->config, config_file, config_file_size);
+        for (int i = 0; i < alloc_dbuff_list; i++) {
+            dbuff_names[i] = alloc_dbuff[i].data();
+        }
+
+        character->frame = LoadMDSFile(mds_file, mds_buffer, 0, dbuff_names.data(), mdt_names.data());
+    } else {
+        character->frame = LoadMDSFile(mds_file, mds_buffer, visual_type, nullptr, nullptr);
     }
+
+    character->config = reinterpret_cast<char *>(mds_buffer->Alloc((config_file_size >> 4) + 1));
+    character->config_size = config_file_size;
+    std::memcpy(character->config, config_file, config_file_size);
 }
 
-static void CommandSHADOW_MODEL(void **argv) {
+void CommandSHADOW_MODEL(void **argv) {
     int visual_type = 8;
 
     if (shadow_vertex_anime != 0) {
         visual_type = 14;
     }
 
-    u_int *mds_file = GetPackFile(pack_data, (char *) argv[0]);
+    char  *model_name = static_cast<char *>(argv[0]);
+    u_int *mds_file = GetPackFile(pack_data, model_name, nullptr);
 
-    if (mds_file == 0) {
-        char *missing_name = (char *) argv[0];
-        printf("not found %s\n", missing_name);
+    if (mds_file == nullptr) {
+        std::println("not found {}", model_name);
     } else {
-        character->shadow_frame = LoadMDSFile(mds_file, mds_buffer, visual_type, 0, 0);
+        character->shadow_frame = LoadMDSFile(mds_file, mds_buffer, visual_type, nullptr, nullptr);
     }
 }
 
-static void CommandMOTION(void **argv) {
-    if (character->frame == 0) {
+void CommandMOTION(void **argv) {
+    if (character->frame == nullptr) {
         return;
     }
 
-    now_motion_data = *(int *) argv[0];
+    now_motion_data = *static_cast<int *>(argv[0]);
     character->ClearEvent(now_motion_data);
 
-    if (now_motion_data < 0 || now_motion_data >= 8) {
+    if (now_motion_data < 0 || now_motion_data >= CHARA_MOTION_MAX) {
         return;
     }
 
     if (now_motion_data > 0) {
-        character->motion[now_motion_data] = (tagMOTION_TYPE *) character->motion_storage[now_motion_data].storage;
+        character->motion[now_motion_data] = reinterpret_cast<tagMOTION_TYPE *>(character->motion_storage[now_motion_data].storage);
     }
 
     tagMOTION_TYPE *motion = character->motion[now_motion_data];
-    memset(motion, 0, sizeof(tagMOTION_TYPE));
-    char            *motion_name = (char *) argv[1];
-    char            *bone_name = (char *) argv[2];
-    char            *weight_name = (char *) argv[3];
+    std::memset(motion, 0, sizeof(tagMOTION_TYPE));
+    char            *motion_name = static_cast<char *>(argv[1]);
+    char            *bone_name = static_cast<char *>(argv[2]);
+    char            *weight_name = static_cast<char *>(argv[3]);
     MOTION_FILE_INFO files[3];
     files[1].name = motion_name;
     files[0].name = bone_name;
@@ -308,49 +326,43 @@ static void CommandMOTION(void **argv) {
     files[1].data = GetPackFile(pack_data, motion_name, &files[1].size);
     files[2].data = GetPackFile(pack_data, weight_name, &files[2].size);
 
-    if (files[0].size == 0) {
-        files[0].name = 0;
-    }
-
-    if (files[1].size == 0) {
-        files[1].name = 0;
-    }
-
-    if (files[2].size == 0) {
-        files[2].name = 0;
+    for (MOTION_FILE_INFO &file : files) {
+        if (file.size == 0) {
+            file.name = nullptr;
+        }
     }
 
     CreateAnimeDataEX(motion, buffer, files);
 
-    if (character->frame_info == 0) {
+    if (character->frame_info == nullptr) {
         AnimeDataInit(character->frame, motion, mds_buffer, &character->frame_info);
     }
 
     motion->frame_info = character->frame_info;
     motion_info_num = 0;
     key_no = 0;
-    motion_info = 0;
+    motion_info = nullptr;
 }
 
-static void CommandSHADOW_MOTION(void **argv) {
-    if (character->shadow_frame == 0) {
+void CommandSHADOW_MOTION(void **argv) {
+    if (character->shadow_frame == nullptr) {
         return;
     }
 
-    if (now_motion_data < 0 || now_motion_data >= 8) {
+    if (now_motion_data < 0 || now_motion_data >= CHARA_MOTION_MAX) {
         return;
     }
 
     if (now_motion_data > 0) {
-        character->shadow_motion[now_motion_data] = (tagMOTION_TYPE *) character->shadow_motion_storage[now_motion_data].storage;
+        character->shadow_motion[now_motion_data] = reinterpret_cast<tagMOTION_TYPE *>(character->shadow_motion_storage[now_motion_data].storage);
     }
 
     tagMOTION_TYPE *motion = character->shadow_motion[now_motion_data];
-    memset(motion, 0, sizeof(tagMOTION_TYPE));
+    std::memset(motion, 0, sizeof(tagMOTION_TYPE));
     shadow_motion = 1;
-    char            *motion_name = (char *) argv[0];
-    char            *bone_name = (char *) argv[1];
-    char            *weight_name = (char *) argv[2];
+    char            *motion_name = static_cast<char *>(argv[0]);
+    char            *bone_name = static_cast<char *>(argv[1]);
+    char            *weight_name = static_cast<char *>(argv[2]);
     MOTION_FILE_INFO files[3];
     files[0].size = 0;
     files[1].size = 0;
@@ -362,61 +374,62 @@ static void CommandSHADOW_MOTION(void **argv) {
     files[1].data = GetPackFile(pack_data, motion_name, &files[1].size);
     files[2].data = GetPackFile(pack_data, weight_name, &files[2].size);
 
-    if (bone_name[0] == 0) {
-        files[0].name = 0;
+    if (bone_name[0] == '\0') {
+        files[0].name = nullptr;
     }
 
-    if (weight_name[0] == 0) {
-        files[2].name = 0;
+    if (weight_name[0] == '\0') {
+        files[2].name = nullptr;
     }
 
-    if (files[0].data == 0 && files[1].data == 0 && files[2].data == 0) {
+    if (files[0].data == nullptr && files[1].data == nullptr && files[2].data == nullptr) {
         return;
     }
 
     CreateAnimeDataEX(motion, buffer, files);
 
-    if (character->shadow_frame_info == 0) {
+    if (character->shadow_frame_info == nullptr) {
         AnimeDataInit(character->shadow_frame, motion, mds_buffer, &character->shadow_frame_info);
     }
 
     motion->frame_info = character->shadow_frame_info;
 }
 
-static void CommandKEY_START(void **argv) {
-    if (now_motion_data < 0 || now_motion_data >= 8) {
+void CommandKEY_START(void **argv) {
+    if (now_motion_data < 0 || now_motion_data >= CHARA_MOTION_MAX) {
         return;
     }
 
-    key_start = *(int *) argv[0];
+    key_start = *static_cast<int *>(argv[0]);
     character->motion_start[now_motion_data] = key_start;
 }
 
-static void CommandKEY(void **argv) {
-    if (motion_info == 0) {
-        motion_info = (tagMOTION_KEY *) (buffer->base + buffer->used * 16);
+void CommandKEY(void **argv) {
+    // Keys are written into the free space of the motion buffer and only allocated at MOTION_END.
+    if (motion_info == nullptr) {
+        motion_info = reinterpret_cast<tagMOTION_KEY *>(&buffer->base[static_cast<std::ptrdiff_t>(buffer->used) * 16]);
     }
 
-    tagMOTION_KEY *key = motion_info + key_no;
-    key->start = *(int *) argv[0];
-    key->end = *(int *) argv[1];
-    key->speed = *(float *) argv[2];
+    tagMOTION_KEY &key = motion_info[key_no];
+    key.start = *static_cast<int *>(argv[0]);
+    key.end = *static_cast<int *>(argv[1]);
+    key.speed = *static_cast<float *>(argv[2]);
     key_no++;
     motion_info_num = key_no;
 }
 
-static void CommandMOTION_END(void **argv) {
-    if (now_motion_data < 0 || now_motion_data >= 8 || motion_info == 0) {
+void CommandMOTION_END(void ** /*argv*/) {
+    if (now_motion_data < 0 || now_motion_data >= CHARA_MOTION_MAX || motion_info == nullptr) {
         return;
     }
 
     tagMOTION_TYPE *motion = character->motion[now_motion_data];
-    buffer->Alloc((((unsigned int) (motion_info_num + 1) << 4) >> 4) + 1);
+    buffer->Alloc(static_cast<int>(((static_cast<unsigned int>(motion_info_num + 1) << 4) >> 4) + 1));
     motion_info[motion_info_num].start = -1;
     motion_info[motion_info_num].end = -1;
     motion_info[motion_info_num].speed = -1.0f;
     motion->motion_info = motion_info;
-    motion->state.time = (float) motion->motion_info->start;
+    motion->state.time = static_cast<float>(motion->motion_info->start);
     motion->state.blend_step = 0.1f;
     motion->state.motion_no = 0;
     motion->state.playing_no = 0;
@@ -425,7 +438,7 @@ static void CommandMOTION_END(void **argv) {
     if (shadow_motion != 0) {
         tagMOTION_TYPE *shadow_motion_type = character->shadow_motion[now_motion_data];
         shadow_motion_type->motion_info = motion_info;
-        shadow_motion_type->state.time = (float) shadow_motion_type->motion_info->start;
+        shadow_motion_type->state.time = static_cast<float>(shadow_motion_type->motion_info->start);
         shadow_motion_type->state.blend_step = 0.1f;
         shadow_motion_type->state.motion_no = 0;
         shadow_motion_type->state.playing_no = 0;
@@ -435,105 +448,106 @@ static void CommandMOTION_END(void **argv) {
     character->motion_end[now_motion_data] = key_start + key_no;
 }
 
-static void CommandCLOTH(void **argv) {
-    int    size;
-    u_int *cloth_file = GetPackFile(pack_data, (char *) argv[0], &size);
+void CommandCLOTH(void **argv) {
+    int    size = 0;
+    u_int *cloth_file = GetPackFile(pack_data, static_cast<char *>(argv[0]), &size);
 
-    if (cloth_file != 0) {
+    if (cloth_file != nullptr) {
         input_str input;
-        input.data = (char *) cloth_file;
+        input.data = reinterpret_cast<char *>(cloth_file);
         input.size = size;
         input.pos = 0;
-        character->cloth[cloth_cnt] = (CCloth *) InitCloth((CFrameVu1 *) character->frame, input, buffer);
+        character->cloth[cloth_cnt] = InitCloth(static_cast<CFrameVu1 *>(character->frame), input, buffer);
         cloth_cnt++;
     }
 }
 
-static void CommandBODY_SIZE(void **argv) {
-    character->body_height = *(float *) argv[0];
-    character->body_width = *(float *) argv[1];
-    character->body_depth = *(float *) argv[2];
+void CommandBODY_SIZE(void **argv) {
+    character->body_height = *static_cast<float *>(argv[0]);
+    character->body_width = *static_cast<float *>(argv[1]);
+    character->body_depth = *static_cast<float *>(argv[2]);
 }
 
-static void CommandALLOC_MDT(void **argv) {
-    if (alloc_mdt_list < 8) {
-        strcpy(alloc_mdt[alloc_mdt_list++], (char *) argv[0]);
+void CommandALLOC_MDT(void **argv) {
+    if (alloc_mdt_list < ALLOC_NAME_MAX) {
+        alloc_mdt[alloc_mdt_list++] = static_cast<char *>(argv[0]);
     }
 }
 
-static void CommandALLOC_DBUFF(void **argv) {
-    if (alloc_dbuff_list < 8) {
-        strcpy(alloc_dbuff[alloc_dbuff_list++], (char *) argv[0]);
+void CommandALLOC_DBUFF(void **argv) {
+    if (alloc_dbuff_list < ALLOC_NAME_MAX) {
+        alloc_dbuff[alloc_dbuff_list++] = static_cast<char *>(argv[0]);
     }
 }
 
-static void CommandALLOC_SHADOW_MDT(void **argv) {
-    if (alloc_smdt_list < 8) {
-        strcpy(alloc_smdt[alloc_smdt_list++], (char *) argv[0]);
+void CommandALLOC_SHADOW_MDT(void **argv) {
+    if (alloc_smdt_list < ALLOC_NAME_MAX) {
+        alloc_smdt[alloc_smdt_list++] = static_cast<char *>(argv[0]);
     }
 }
 
-static void CommandALLOC_SHADOW_DBUFF(void **argv) {
-    if (alloc_sdbuff_list < 8) {
-        strcpy(alloc_sdbuff[alloc_sdbuff_list++], (char *) argv[0]);
+void CommandALLOC_SHADOW_DBUFF(void **argv) {
+    if (alloc_sdbuff_list < ALLOC_NAME_MAX) {
+        alloc_sdbuff[alloc_sdbuff_list++] = static_cast<char *>(argv[0]);
     }
 }
 
-void CommandIMG(void **argv);
+void CommandIMG_END(void ** /*argv*/) {
+    // One more entry than there are images, for the terminator.
+    std::array<LOADTEXTURE_INFO2, 5> textures{};
+    int                              texture_count = 0;
 
-static void CommandIMG_END(void **argv) {
-    LOADTEXTURE_INFO2 textures[5];
-    textures[0].block_no = 0;
-    textures[0].mipmap = false;
-    textures[0].name = 0;
-    int i;
-    int texture_count = 0;
-
-    if (character->images[0] != 0 && load_img[0] == 0) {
+    if (character->images[0] != nullptr && load_img[0] == nullptr) {
         load_img[0] = character->images[0];
     }
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         character->images[i] = load_img[i];
 
-        if (load_img[i] != 0) {
+        if (load_img[i] != nullptr) {
             textures[texture_count].block_no = texture_block;
-            textures[texture_count].mipmap = false;
-            textures[texture_count].name = (char *) load_img[i];
+            textures[texture_count].mipmap = 0;
+            textures[texture_count].name = reinterpret_cast<char *>(load_img[i]);
             texture_count++;
         }
     }
 
     textures[texture_count].block_no = 0;
-    textures[texture_count].mipmap = false;
-    textures[texture_count].name = 0;
+    textures[texture_count].mipmap = 0;
+    textures[texture_count].name = nullptr;
 
     if (texture_count > 0) {
         if (dont_delete_texb == 0) {
             TexManager.DeleteTextureBlock(texture_block);
         }
 
-        TexManager.LoadTextureBlockEX(texture_block, textures);
+        TexManager.LoadTextureBlockEX(texture_block, textures.data());
     }
 
-    if (config_file != 0) {
+    if (config_file != nullptr) {
         character->tex_anime.LoadCFGFile(config_file, config_file_size);
     }
 }
 
-static void CommandFOOT(void **argv) {
-    character->SetFootSound(*(float *) argv[0], *(float *) argv[1], now_motion_data);
+void CommandFOOT(void **argv) {
+    character->SetFootSound(*static_cast<float *>(argv[0]), *static_cast<float *>(argv[1]), now_motion_data);
 }
 
-static void CommandEVENT(void **argv) {
-    if (*(int *) argv[1] >= 0) {
-        character->SetEvent(*(float *) argv[0], *(int *) argv[1], *(int *) argv[2], now_motion_data);
+void CommandEVENT(void **argv) {
+    if (*static_cast<int *>(argv[1]) >= 0) {
+        character->SetEvent(*static_cast<float *>(argv[0]), *static_cast<int *>(argv[1]), *static_cast<int *>(argv[2]), now_motion_data);
     }
 }
 
-static int GetArg(input_str &input, int *arg_types, void **argv) {
-    char word[256];
+bool IsDigit(char letter) {
+    return letter >= '0' && letter <= '9';
+}
 
+/**
+ * Reads the arguments of one command into argv, converting each to its type.
+ * Returns 1 on success, 0 at the end of the text and -1 on a malformed argument.
+ */
+int GetArg(input_str &input, const int *arg_types, void **argv) {
     if (arg_types[0] < 0) {
         return 1;
     }
@@ -544,186 +558,130 @@ static int GetArg(input_str &input, int *arg_types, void **argv) {
 
     int arg_count = 0;
 
-    while (arg_types[arg_count++] >= 0)
-        ;
+    while (arg_types[arg_count] >= 0) {
+        arg_count++;
+    }
 
-    int ch;
+    std::string word;
 
-    for (int i = 0; i < arg_count - 1; i++) {
-        int length = 0;
-
+    for (int i = 0; i < arg_count; i++) {
         if (!SkipSpace(input)) {
             return 0;
         }
 
-        while (1) {
+        word.clear();
+        int ch = 0;
+
+        while (true) {
             if (input.get(&ch) == 0) {
                 return 0;
             }
 
-            if (ch == ',' || !CheckChar(ch)) {
+            if (ch == ',' || !CheckChar(static_cast<char>(ch))) {
                 break;
             }
 
-            word[length++] = ch;
+            word.push_back(static_cast<char>(ch));
         }
 
-        word[length] = 0;
+        // A NUL byte ends the word, as it did when words were C strings.
+        const std::string_view text = std::string_view(word).substr(0, word.find('\0'));
 
-        if (arg_types[i] != SCRIPT_ARGUMENT_FLOAT) {
-            length = 1;
-
-            if (arg_types[i] != SCRIPT_ARGUMENT_INTEGER) {
-                switch (arg_types[i]) {
-                    case SCRIPT_ARGUMENT_STRING:
-                        break;
-                    default:
-                        goto invalid_type;
-                }
-
-                {
-                    if (word[0] != '"') {
-                        return -1;
-                    }
-
-                    while (1) {
-                        char letter = word[length];
-
-                        if (letter == '"') {
-                            word[length] = 0;
-                            break;
-                        }
-
-                        if (letter == 0) {
-                            return -1;
-                        }
-
-                        length++;
-                    }
-
-                    strcpy((char *) argv[i], word + 1);
-                    goto next_arg;
-                }
-            } else {
-                for (length = 0; word[length] != 0; length++) {
-                    char letter = word[length];
-
-                    if (letter < '0' || letter > '9') {
-                        return -1;
-                    }
-                }
-
-                *(int *) argv[i] = atoi(word);
-                goto next_arg;
-            }
-        } else {
-            for (length = 0; word[length] != 0; length++) {
-                char letter = word[length];
-
-                if ((letter < '0' || letter > '9') && letter != '.' && letter != '-') {
+        switch (arg_types[i]) {
+            case SCRIPT_ARGUMENT_FLOAT:
+                if (!std::ranges::all_of(text, [](char letter) { return IsDigit(letter) || letter == '.' || letter == '-'; })) {
                     return -1;
                 }
+
+                *static_cast<float *>(argv[i]) = static_cast<float>(std::atof(word.c_str()));
+                break;
+            case SCRIPT_ARGUMENT_INTEGER:
+                if (!std::ranges::all_of(text, IsDigit)) {
+                    return -1;
+                }
+
+                *static_cast<int *>(argv[i]) = std::atoi(word.c_str());
+                break;
+            case SCRIPT_ARGUMENT_STRING: {
+                if (!text.starts_with('"')) {
+                    return -1;
+                }
+
+                const std::size_t close = text.find('"', 1);
+
+                if (close == std::string_view::npos) {
+                    return -1;
+                }
+
+                const std::string_view contents = text.substr(1, std::min(close - 1, ARGUMENT_SIZE - 1));
+                char                  *destination = static_cast<char *>(argv[i]);
+                destination[contents.copy(destination, contents.size())] = '\0';
+                break;
             }
-
-            *(float *) argv[i] = (float) atof(word);
-            goto next_arg;
+            default:
+                return -1;
         }
-
-    invalid_type:
-        return -1;
-    next_arg:;
     }
 
     return 1;
 }
 
-static int SearchCommand(input_str &input, int *command) {
-    char word[256];
-
+bool SearchCommand(input_str &input, int *command) {
     if (!SkipSpace(input)) {
-        return 0;
+        return false;
     }
 
-    int length = 0;
-    int ch;
+    std::string word;
+    int         ch = 0;
 
-    while (1) {
-        if (input.get(&ch) == 0 && length == 0) {
-            return 0;
+    while (true) {
+        // A word already started keeps reading past the end of the text until it meets a space.
+        if (input.get(&ch) == 0 && word.empty()) {
+            return false;
         }
 
-        if (!CheckChar(ch)) {
+        if (!CheckChar(static_cast<char>(ch))) {
             break;
         }
 
-        word[length++] = ch;
+        word.push_back(static_cast<char>(ch));
     }
 
-    word[length] = 0;
+    // A NUL byte ends the word, as it did when words were C strings.
+    const std::string_view text = std::string_view(word).substr(0, word.find('\0'));
 
-    for (int i = 0; i < 19; i++) {
-        if (strcmp(Command[i].name, word) == 0) {
+    for (int i = 0; i < COMMAND_COUNT; i++) {
+        if (text == Command[i].name) {
             *command = i;
-            return 1;
+            return true;
         }
     }
 
-    *command = 20;
-    return 1;
+    *command = UNKNOWN_COMMAND;
+    return true;
 }
 
-static int SkipSpace(input_str &input) {
-    char *text;
-    int   pos;
-
-    text = input.data;
-    pos = input.pos;
-
-    while (pos < input.size) {
-        if (CheckChar(text[pos])) {
-            break;
-        }
-
-        pos++;
+bool SkipSpace(input_str &input) {
+    while (input.pos < input.size && !CheckChar(input.data[input.pos])) {
+        input.pos++;
     }
 
-    input.pos = pos;
-
-    if (pos >= input.size) {
-        return 0;
-    }
-
-    return 1;
+    return input.pos < input.size;
 }
 
-static int CheckChar(char ch) {
-    int is_space = 0;
-
-    if (ch == ' ') {
-        is_space = 1;
-    }
-
-    if (ch == '\t') {
-        is_space = 1;
-    }
-
-    if (ch == '\n') {
-        is_space = 1;
-    }
-
-    if (ch == '\r') {
-        is_space = 1;
-    }
-
-    return !is_space;
+/**
+ * Returns whether ch is not a space, tab, line feed or carriage return.
+ */
+bool CheckChar(char ch) {
+    return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
 }
 
-static void PreProcess(input_str &input) {
-    u_char *text;
-    int     pos;
-
-    text = (u_char *) input.data;
-    pos = 0;
+/**
+ * Blanks out // and block comments in place.
+ */
+void PreProcess(input_str &input) {
+    char *text = input.data;
+    int   pos = 0;
 
     while (pos < input.size) {
         if (text[pos] == '/' && text[pos + 1] == '/') {
@@ -756,11 +714,11 @@ static void PreProcess(input_str &input) {
     }
 }
 
-void CCharacter::StopCloth(int unused) {
-    int i;
+} // namespace
 
-    for (i = 0; i < 4; i++) {
-        if (cloth[i] != 0) {
+void CCharacter::StopCloth(int /*unused*/) {
+    for (int i = 0; i < 4; i++) {
+        if (cloth[i] != nullptr) {
             cloth[i]->stop = true;
         }
     }

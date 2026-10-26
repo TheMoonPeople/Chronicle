@@ -7,6 +7,10 @@
 #include "rect.hpp"
 
 class CFrameVu1;
+struct input_str;
+struct MOTION_INFO;
+template <int Kind>
+class CDataAlloc2;
 
 /**
  * Cloth instance currently receiving configuration commands.
@@ -14,20 +18,26 @@ class CFrameVu1;
 extern CCloth *pCloth;
 
 /**
+ * Reads one model's cloth description from a character script and attaches the
+ * simulation to the frame it names. Returns nullptr when there is no model frame.
+ */
+CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
+
+/**
+ * Converts analog-stick displacement into the walk speed of motion[2] and
+ * returns the movement state: 0 untilted, 1 for a strong tilt, 2 for a slight one.
+ */
+int keyCtrl(float stick_x, float stick_y, MOTION_INFO *motion);
+
+/**
  * Turns a model towards one heading, a step at a time, and gives back the
  * heading it stands on now.
- *
- * @mangled unitRotation__FP9CFrameVu1f
- * @address 0x140810
- * @size 0x28C
  */
 float unitRotation(CFrameVu1 *frame, float heading);
 
 /**
  * Queues a GS local-to-local image move between two texture buffers.
  *
- * @mangled MoveImageTest__FP13sceVif1PacketiiiRC8CRect_i_iiiiii
- * @address 0x140660
- * @size 0x1a4
+ * The direction only orders overlapping transfers within one buffer.
  */
 void MoveImageTest(sceVif1Packet *packet, int src_base, int src_width, int src_format, const CRect_i_ &rect, int dst_base, int dst_width, int dst_format, int dst_x, int dst_y, int direction);

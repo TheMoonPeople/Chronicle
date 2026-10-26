@@ -93,9 +93,6 @@ enum MesAutoPos {
 
 // clang-format on
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCharacter;
 class CRect_i_;
 class CTexture;
@@ -128,9 +125,15 @@ struct MES_WIN_LINE {
 
 STATIC_ASSERT(sizeof(MES_WIN_LINE) == 0x8);
 
-/** Lines one message window can lay out. */
-#define MES_WIN_LINE_MAX 720
-#define MES_WIN_COLUMNS 72
+/**
+ * Characters one message window can lay out.
+ */
+inline constexpr int MES_WIN_LINE_MAX = 720;
+
+/**
+ * Characters one line of a message window holds by default.
+ */
+inline constexpr int MES_WIN_COLUMNS = 72;
 
 /**
  * Where one line of a message window draws, for the windows that place their
@@ -141,6 +144,9 @@ struct MES_LINE_POS {
     s32 y; /**< Distance of the line from the top of the screen; -1 where it is not set. */
 };
 
+/**
+ * A message window: lays a message out, reveals it, and draws it in a frame or speech bubble.
+ */
 class ClsMes {
 public:
     s32          text_x;       /**< Distance of the text from the left of the screen. */
@@ -227,41 +233,26 @@ public:
     char        *text_system;                /**< The same, for the system messages. */
     void        *tex_buff;                   /**< Buffer the window builds its text texture in, cleared to start over; null where there is none. */
     u32         *clut;                       /**< The palette the window's font draws out of. */
+
     /**
      * Gives back how wide one external character of the font draws, in pixels.
-     *
-     * @mangled GetGaijiW__6ClsMesFi
-     * @address 0x14CB30
-     * @size 0xA0
      */
     s16 GetGaijiW(int code);
 
     /**
      * Gives back how many characters one character's registered name has, or
      * -1 where there is no such name.
-     *
-     * @mangled GetNameLen__6ClsMesFi
-     * @address 0x14CBD0
-     * @size 0x90
      */
     int GetNameLen(int chara);
 
     /**
      * Adds up how wide a character's registered name draws, in pixels.
-     *
-     * @mangled GetNameWidth__6ClsMesFi
-     * @address 0x14CC60
-     * @size 0x118
      */
     int GetNameWidth(int chara);
 
     /**
      * Reads where two characters stand on screen, so that AutoSet can place
      * the window clear of both of them.
-     *
-     * @mangled AutoSetSub__6ClsMesFP10CCharacterP10CCharacterPi
-     * @address 0x14CFE0
-     * @size 0x50
      */
     void AutoSetSub(CCharacter *first, CCharacter *second, int *out_pos);
 
@@ -269,317 +260,185 @@ public:
      * Puts the window at whichever of nine screen positions lies furthest
      * from the two points @p pos names, and works out where its tail leaves
      * it.
-     *
-     * @mangled AutoSet__6ClsMesFPi
-     * @address 0x14D030
-     * @size 0x628
      */
     void AutoSet(int *pos);
 
     /**
      * Pulls the window back inside the screen's margins, and moves its text
      * along with it.
-     *
-     * @mangled AbsFukidashiIn__6ClsMesFv
-     * @address 0x14D660
-     * @size 0x154
      */
     void AbsFukidashiIn();
 
     /**
      * Starts a window with nothing to say and every setting at its default.
-     *
-     * @mangled __ct__6ClsMesFv
-     * @address 0x14D7C0
-     * @size 0x234
      */
     ClsMes();
 
     /**
      * Gives the window the message file it reads its text out of.
-     *
-     * @mangled SetBuff__6ClsMesFPs
-     * @address 0x14DA00
-     * @size 0x28
      */
     void SetBuff(short *buff);
 
     /**
      * The same, for the file the system messages come out of.
-     *
-     * @mangled SetBuff_system__6ClsMesFPs
-     * @address 0x14DA30
-     * @size 0x28
      */
     void SetBuff_system(short *buff);
 
     /**
      * Sets the frame, colours and text speed that one of the window's styles
      * asks for.
-     *
-     * @mangled Preset__6ClsMesFi
-     * @address 0x14DA60
-     * @size 0x14C
      */
     void Preset(int style);
 
     /**
      * Sets the font size, frame and colours that one of the speech-bubble
      * styles asks for.
-     *
-     * @mangled SetMesFukidashi__6ClsMesFi
-     * @address 0x14DBB0
-     * @size 0x1D8
      */
     void SetMesFukidashi(int style);
 
     /**
      * Carries the window's fade on by one step, and works out where its tail
      * stands now.
-     *
-     * @mangled Step__6ClsMesFv
-     * @address 0x14DD90
-     * @size 0x2F0
      */
     void Step();
 
     /**
      * Gives back what the window is doing: closed, fading in or out, revealing
      * its text, stopped on a page, or done.
-     *
-     * @mangled State__6ClsMesFv
-     * @address 0x14E080
-     * @size 0xB0
      */
     int State();
 
     /**
      * Forgets which characters of the text the window has already drawn.
-     *
-     * @mangled MyTextureMake_InitAll__6ClsMesFv
-     * @address 0x14E130
-     * @size 0x34
      */
     void MyTextureMake_InitAll();
 
     /**
      * Carries the window on to the page that follows the one it stopped at.
-     *
-     * @mangled GoNextPage__6ClsMesFv
-     * @address 0x14E170
-     * @size 0x48
      */
     void GoNextPage();
 
     /**
      * Steps the window's text on by one laid-out character and gives back
      * what the caller has to do about it.
-     *
-     * @mangled MyTextureMake_sub__6ClsMesFv
-     * @address 0x14E1C0
-     * @size 0x1B8
      */
     int MyTextureMake_sub();
 
     /**
      * Reveals as much of the text as this step's rate allows.
-     *
-     * @mangled MyTextureMake__6ClsMesFv
-     * @address 0x14E380
-     * @size 0x1FC
      */
     void MyTextureMake();
 
     /**
      * Lays out the number that a bare value code prints, and moves the pen
      * past it.
-     *
-     * @mangled MakeMesWinTbl_value__6ClsMesFPiPi
-     * @address 0x14E700
-     * @size 0x224
      */
     void MakeMesWinTbl_value(int *x, int *y);
 
     /**
      * The same, for the number one of the window's value slots holds.
-     *
-     * @mangled MakeMesWinTbl_value__6ClsMesFiPiPi
-     * @address 0x14E930
-     * @size 0x23C
      */
     void MakeMesWinTbl_value(int which, int *x, int *y);
 
     /**
      * Lays out the system message that a code names, and gives back whether
      * there was one to lay out.
-     *
-     * @mangled MakeMesWinTbl_system__6ClsMesFiPiPi
-     * @address 0x14EB70
-     * @size 0x478
      */
     int MakeMesWinTbl_system(int code, int *x, int *y);
 
     /**
      * Gives back how many characters the longest line of one system message
      * has, or -1 where there is no such message.
-     *
-     * @mangled GetMesLen_system__6ClsMesFi
-     * @address 0x14EFF0
-     * @size 0x32C
      */
     int GetMesLen_system(int mes_no);
 
     /**
      * Gives back how wide the widest line of one system message draws.
-     *
-     * @mangled GetMesWidth_system__6ClsMesFi
-     * @address 0x14F320
-     * @size 0x184
      */
     int GetMesWidth_system(int mes_no);
 
     /**
      * Gives back where one message of the window's file starts.
-     *
-     * @mangled GetTextLineDataTop__6ClsMesFi
-     * @address 0x14F4B0
-     * @size 0x64
      */
     short *GetTextLineDataTop(int line);
 
     /**
      * The same, for the system messages.
-     *
-     * @mangled GetTextLineDataTop_system__6ClsMesFi
-     * @address 0x14F520
-     * @size 0x64
      */
     short *GetTextLineDataTop_system(int line);
 
     /**
      * Empties the window's line table so that a message can be laid out into
      * it.
-     *
-     * @mangled InitMesWinTbl__6ClsMesFv
-     * @address 0x14F590
-     * @size 0x44
      */
     void InitMesWinTbl();
 
     /**
      * Enters one laid-out character into the window's line table, or applies
      * the control code it stands for; gives back whether a line was entered.
-     *
-     * @mangled SetMesWinTbl__6ClsMesFiiss
-     * @address 0x14F5E0
-     * @size 0x19C
      */
     int SetMesWinTbl(int code, int mode, short x, short y);
 
     /**
      * Works out how wide each space of one justified line has to draw.
-     *
-     * @mangled CalcSpaceW__6ClsMesFiiPs
-     * @address 0x14F780
-     * @size 0x14C
      */
     int CalcSpaceW(int width, int glyph_width, short *text);
 
     /**
      * Lays one message out into the window's line table, and gives back
      * whether it ran as far as a page break.
-     *
-     * @mangled MakeMesWinTbl__6ClsMesFi
-     * @address 0x14F8D0
-     * @size 0x428
      */
     int MakeMesWinTbl(int mes_no);
 
     /**
      * Works out the characters, lines, width and height that a message needs,
      * and writes the largest of each into the four slots of @p out.
-     *
-     * @mangled NeedMesWinWH__6ClsMesFiPi
-     * @address 0x14FD60
-     * @size 0x6A8
      */
     void NeedMesWinWH(int mes_no, int *out);
 
     /**
      * Opens the window on one message: lays the text out, sizes the frame
      * around it and places it on screen.
-     *
-     * @mangled MakeMesWin__6ClsMesFi
-     * @address 0x150550
-     * @size 0x100
      */
     int MakeMesWin(int mes_no);
 
     /**
      * Lays one message out and works out the frame it needs, unless the
      * window already holds that message.
-     *
-     * @mangled MakeMesTexture__6ClsMesFi
-     * @address 0x150650
-     * @size 0x1BC
      */
     void MakeMesTexture(int mes_no);
 
     /**
      * Draws the outline that stands behind one character of the text.
-     *
-     * @mangled Myset2DSprite_Fuchi__6ClsMesFP13sceVif1PacketP8CTextureiiiiiiii
-     * @address 0x150810
-     * @size 0x39C
      */
     void Myset2DSprite_Fuchi(sceVif1Packet *packet, CTexture *texture, int x, int y, int width, int height, int u, int v, int u_width, int v_height);
 
     /**
      * Writes the points that the speech bubble's outline is drawn from into
      * the packet.
-     *
-     * @mangled MakeFukidashi_sub__6ClsMesFP13sceVif1Packeti
-     * @address 0x150F50
-     * @size 0xB80
      */
     void MakeFukidashi_sub(sceVif1Packet *packet, int prim);
 
     /**
      * Draws the speech bubble into the texture that the text is laid over.
-     *
-     * @mangled MakeFukidashi__6ClsMesFP13sceVif1Packet
-     * @address 0x151AD0
-     * @size 0x540
      */
     void MakeFukidashi(sceVif1Packet *packet);
 
     /**
      * Draws the window's frame once, offset by @p dx and @p dy; @p frame asks
      * for the nine-slice frame rather than one plain sprite.
-     *
-     * @mangled DrawMesWin_sub__6ClsMesFP8CTextureiii
-     * @address 0x152030
-     * @size 0x8F4
      */
     void DrawMesWin_sub(CTexture *texture, int dx, int dy, int frame);
 
     /**
      * Draws one external character of the text at the colour its palette
      * entry asks for.
-     *
-     * @mangled DrawGaijiFont__6ClsMesFP8CTextureiRC8CRect_i_RC8CRect_i_ii
-     * @address 0x152EE0
-     * @size 0x430
      */
     void DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen, int wide, int dark);
 
     /**
      * Draws the window: its frame, the text revealed so far, and the marks
      * that go alongside them.
-     *
-     * @mangled DrawMesWin__6ClsMesFv
-     * @address 0x153310
-     * @size 0xC24
      */
     void DrawMesWin();
 };

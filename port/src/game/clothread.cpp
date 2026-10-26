@@ -2,10 +2,15 @@
 
 #include <libpkt.h>
 
-#include <cassert>
-#include <cstdio>
+#include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <numbers>
+#include <print>
+#include <string>
+#include <string_view>
 
 #include "bound.hpp"
 #include "btsysscript.hpp"
@@ -28,276 +33,163 @@
 
 CCloth *pCloth;
 
+namespace {
+
+/**
+ * Raw bytes of one parsed command argument: a NUL-terminated string, an int or a float.
+ */
+using ArgumentSlot = std::array<char, 256>;
+
+/**
+ * Argument slots shared by every command of one cloth configuration.
+ *
+ * Slots keep their bytes between commands, so a command whose arguments failed to parse
+ * sees whatever the previous command left there.
+ */
+using ArgumentList = std::array<ArgumentSlot, 16>;
+
 /**
  * Last exclusion bound attached while reading one cloth configuration.
  */
-static CBound *pBound;
+CBound *pBound;
 
 /**
  * Model frame whose cloth configuration is being read.
  */
-static CFrameVu1 *ParentFrame;
+CFrameVu1 *ParentFrame;
 
 /**
  * Allocator used for the cloth currently being initialized.
  */
-static CDataAlloc2<1> *DataBuffer;
+CDataAlloc2<1> *DataBuffer;
+
+int ReadInteger(const ArgumentSlot &slot) {
+    int value = 0;
+    std::memcpy(&value, slot.data(), sizeof(value));
+    return value;
+}
+
+float ReadFloat(const ArgumentSlot &slot) {
+    float value = 0.0f;
+    std::memcpy(&value, slot.data(), sizeof(value));
+    return value;
+}
+
+void WriteInteger(ArgumentSlot &slot, int value) {
+    std::memcpy(slot.data(), &value, sizeof(value));
+}
+
+void WriteFloat(ArgumentSlot &slot, float value) {
+    std::memcpy(slot.data(), &value, sizeof(value));
+}
 
 /**
  * Sets and clamps the cloth grid dimensions.
  */
-static void CommandSIZE(void **argv);
+void CommandSIZE(ArgumentList &arguments) {
+    pCloth->num_i = std::clamp(ReadInteger(arguments[0]), 1, 16);
+    pCloth->num_j = std::clamp(ReadInteger(arguments[1]), 1, 16);
+}
+
 /**
  * Attaches the cloth to the frame named by the command.
  */
-static void CommandFRAME(void **argv);
-/**
- * Sets the scale used when calculating cloth normals.
- */
-static void CommandNORMAL(void **argv);
-/**
- * Sets the cloth follow vector.
- */
-static void CommandFOLLOW(void **argv);
-/**
- * Sets the cloth stiffness vector.
- */
-static void CommandK(void **argv);
-/**
- * Sets the cloth response to wind.
- */
-static void CommandWINDEFFECT(void **argv);
-/**
- * Sets the cloth gravity vector.
- */
-static void CommandGRAVITY(void **argv);
-/**
- * Selects which cloth rows divide their polygons.
- */
-static void CommandPOLYDIVE(void **argv);
-/**
- * Creates and attaches an exclusion bound for the cloth.
- */
-static void CommandBOUND(void **argv);
-
-/**
- * Names one keyword of the cloth configuration file.
- *
- * The argument list gives each argument's SCRIPT_ARGUMENT_TYPE and ends at -1.
- */
-struct COMMAND_INFO {
-    char *name;          /**< Keyword the line starts with. */
-    int   arg_types[16]; /**< Kind of each argument, ended by -1. */
-};
-
-/* The keywords a cloth configuration file may use. */
-static COMMAND_INFO Command[9] = {
-    {"SIZE",       {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, -1}                                                                                                                                                                                                                                                                                 },
-    {"FRAME",      {SCRIPT_ARGUMENT_STRING, -1}                                                                                                                                                                                                                                                                                                           },
-    {"NORMAL",     {SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                            },
-    {"FOLLOW",     {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                              },
-    {"K",          {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                              },
-    {"WINDEFFECT", {SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                            },
-    {"GRAVITY",    {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                              },
-    {"POLYDIV",    {SCRIPT_ARGUMENT_STRING, -1}                                                                                                                                                                                                                                                                                                           },
-    {"BOUND",      {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
-};
-
-/* What each of those keywords does, in the same order. */
-static void (*CommandExe[9])(void **) = {
-    CommandSIZE,
-    CommandFRAME,
-    CommandNORMAL,
-    CommandFOLLOW,
-    CommandK,
-    CommandWINDEFFECT,
-    CommandGRAVITY,
-    CommandPOLYDIVE,
-    CommandBOUND,
-};
-
-static int GetArg(input_str &input, int *arg_types, void **argv);
-static int SearchCommand(input_str &input, int *command);
-static int SkipSpace(input_str &input);
-static int CheckChar(char ch);
-
-/**
- * Reads one model's cloth description and attaches the simulation.
- *
- * @mangled InitCloth__FP9CFrameVu1R9input_strP14CDataAlloc2_1_
- * @address 0x13F9C0
- * @size 0x1B4
- */
-CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc) {
-    char  arg_storage[16][256];
-    void *argv[16];
-    int   command;
-
-    DataBuffer = alloc;
-    pCloth = new ((u_long128 *) alloc->Alloc(0x856)) CCloth(16, 16, 1.0f);
-    ParentFrame = frame;
-    pBound = NULL;
-
-    if (frame == NULL) {
-        return NULL;
-    }
-
-    if (pCloth == NULL) {
-        return NULL;
-    }
-
-    SkipSpace(input);
-
-    for (int i = 0; i < 16; i++) {
-        argv[i] = arg_storage[i];
-    }
-
-    while (SearchCommand(input, &command) != 0) {
-        if (command >= 9 || command < 0) {
-            printf("unknown command!!\n");
-            continue;
-        }
-
-        int arg_status = GetArg(input, Command[command].arg_types, (void **) argv);
-
-        if (arg_status == 0) {
-            break;
-        }
-
-        if (arg_status < 0) {
-            printf("error!!\n");
-        }
-
-        CommandExe[command](argv);
-    }
-
-    return pCloth;
-}
-
-static void CommandSIZE(void **argv) {
-    int num_i = *(int *) argv[0];
-    int num_j = *(int *) argv[1];
-
-    if (num_i <= 0) {
-        num_i = 1;
-    }
-
-    if (num_i > 16) {
-        num_i = 16;
-    }
-
-    if (num_j <= 0) {
-        num_j = 1;
-    }
-
-    if (num_j > 16) {
-        num_j = 16;
-    }
-
-    pCloth->num_i = num_i;
-    pCloth->num_j = num_j;
-}
-
-/**
- * Names the frame the following model commands act on.
- *
- * @mangled CommandFRAME__FPPv
- * @address 0x13FBE0
- * @size 0x7C
- */
-static void CommandFRAME(void **argv) {
-    CFrameVu1 *frame = (CFrameVu1 *) ParentFrame->SearchFrame((char *) argv[0]);
+void CommandFRAME(ArgumentList &arguments) {
+    auto *frame = static_cast<CFrameVu1 *>(ParentFrame->SearchFrame(arguments[0].data()));
 
     pCloth->frame = frame;
 
-    if (frame != NULL) {
+    if (frame != nullptr) {
         frame->attr.draw_on = 2;
         CVisualVu1 *visual = frame->GetVisual();
-        pCloth->Initialize((MDT_HEADER *) visual->GetMDTDataAddress(), DataBuffer);
-    }
-}
-
-static void CommandNORMAL(void **argv) {
-    pCloth->normal_scale = *(float *) argv[0];
-}
-
-static void CommandFOLLOW(void **argv) {
-    pCloth->follow[0] = *(float *) argv[0];
-    pCloth->follow[1] = *(float *) argv[1];
-    pCloth->follow[2] = *(float *) argv[2];
-}
-
-static void CommandK(void **argv) {
-    pCloth->stiffness[0] = *(float *) argv[0];
-    pCloth->stiffness[1] = *(float *) argv[1];
-    pCloth->stiffness[2] = *(float *) argv[2];
-}
-
-static void CommandWINDEFFECT(void **argv) {
-    pCloth->wind_effect = *(float *) argv[0];
-}
-
-static void CommandGRAVITY(void **argv) {
-    pCloth->gravity[0] = *(float *) argv[0];
-    pCloth->gravity[1] = *(float *) argv[1];
-    pCloth->gravity[2] = *(float *) argv[2];
-}
-
-static void CommandPOLYDIVE(void **argv) {
-    char *flags = (char *) argv[0];
-    int   row = 0;
-
-    while (row < 16) {
-        char flag = *flags;
-
-        if (flag == 0) {
-            break;
-        }
-
-        pCloth->polygon_divide[row] = (flag != '0');
-        flags++;
-        row++;
+        pCloth->Initialize(reinterpret_cast<MDT_HEADER *>(visual->GetMDTDataAddress()), DataBuffer);
     }
 }
 
 /**
- * Adds one exclusion box to the cloth on the current frame.
- *
- * @mangled CommandBOUND__FPPv
- * @address 0x13FDB0
- * @size 0x24C
+ * Sets the scale used when calculating cloth normals.
  */
-static void CommandBOUND(void **argv) {
+void CommandNORMAL(ArgumentList &arguments) {
+    pCloth->normal_scale = ReadFloat(arguments[0]);
+}
+
+/**
+ * Sets the cloth follow vector.
+ */
+void CommandFOLLOW(ArgumentList &arguments) {
+    pCloth->follow[0] = ReadFloat(arguments[0]);
+    pCloth->follow[1] = ReadFloat(arguments[1]);
+    pCloth->follow[2] = ReadFloat(arguments[2]);
+}
+
+/**
+ * Sets the cloth stiffness vector.
+ */
+void CommandK(ArgumentList &arguments) {
+    pCloth->stiffness[0] = ReadFloat(arguments[0]);
+    pCloth->stiffness[1] = ReadFloat(arguments[1]);
+    pCloth->stiffness[2] = ReadFloat(arguments[2]);
+}
+
+/**
+ * Sets the cloth response to wind.
+ */
+void CommandWINDEFFECT(ArgumentList &arguments) {
+    pCloth->wind_effect = ReadFloat(arguments[0]);
+}
+
+/**
+ * Sets the cloth gravity vector.
+ */
+void CommandGRAVITY(ArgumentList &arguments) {
+    pCloth->gravity[0] = ReadFloat(arguments[0]);
+    pCloth->gravity[1] = ReadFloat(arguments[1]);
+    pCloth->gravity[2] = ReadFloat(arguments[2]);
+}
+
+/**
+ * Selects which cloth rows divide their polygons.
+ */
+void CommandPOLYDIVE(ArgumentList &arguments) {
+    const ArgumentSlot &flags = arguments[0];
+
+    for (int row = 0; row < 16 && flags[row] != 0; row++) {
+        pCloth->polygon_divide[row] = (flags[row] != '0');
+    }
+}
+
+/**
+ * Creates and attaches an exclusion bound for the cloth.
+ */
+void CommandBOUND(ArgumentList &arguments) {
     sceVu0FVECTOR box_vectors[4];
-    CBound       *bound = new ((u_long128 *) DataBuffer->Alloc(0x14)) CBound(1.0f, 1.0f, 1.0f);
+    auto         *bound = new (reinterpret_cast<u_long128 *>(DataBuffer->Alloc(0x14))) CBound(1.0f, 1.0f, 1.0f);
 
-    if (bound == NULL) {
+    if (bound == nullptr) {
         return;
     }
 
-    int     arg_index = 0;
-    CFrame *frame = ParentFrame->SearchFrame((char *) argv[arg_index++]);
+    CFrame *frame = ParentFrame->SearchFrame(arguments[0].data());
 
-    if (frame == NULL) {
+    if (frame == nullptr) {
         return;
     }
 
-    for (int i = 0; i < 4; i++) {
-        box_vectors[i][0] = *(float *) argv[arg_index];
-        box_vectors[i][1] = *(float *) argv[(int) (arg_index + 1)];
-        box_vectors[i][2] = *(float *) argv[(int) (arg_index + 2)];
+    int arg_index = 1;
+
+    for (auto &box_vector : box_vectors) {
+        box_vector[0] = ReadFloat(arguments[arg_index]);
+        box_vector[1] = ReadFloat(arguments[arg_index + 1]);
+        box_vector[2] = ReadFloat(arguments[arg_index + 2]);
         arg_index += 3;
-        box_vectors[i][3] = 1.0f;
+        box_vector[3] = 1.0f;
     }
 
     box_vectors[0][3] = 0.0f;
     bound->SetDir(frame, box_vectors[1], box_vectors[2], box_vectors[0], box_vectors[3][0], box_vectors[3][1]);
-    float half_x;
-    float half_y;
-    float half_z;
-    half_z = box_vectors[3][2];
-    half_y = box_vectors[3][1];
-    half_x = box_vectors[3][0];
+    const float half_x = box_vectors[3][0];
+    const float half_y = box_vectors[3][1];
+    const float half_z = box_vectors[3][2];
     bound->extent[0] = half_x;
     bound->extent[1] = half_y;
     bound->extent[2] = half_z;
@@ -314,9 +206,9 @@ static void CommandBOUND(void **argv) {
         bound->reciprocal[2] = 1.0f / half_z;
     }
 
-    bound->friction = *(float *) argv[arg_index];
+    bound->friction = ReadFloat(arguments[arg_index]);
 
-    if (pBound == NULL) {
+    if (pBound == nullptr) {
         pCloth->bound = bound;
     } else {
         pBound->next = bound;
@@ -326,90 +218,149 @@ static void CommandBOUND(void **argv) {
 }
 
 /**
- * Reads one command argument out of a model script.
+ * Names one keyword of the cloth configuration file.
  *
- * @mangled GetArg__FR9input_strPiPPv__2
- * @address 0x140000
- * @size 0x320
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
+ * The argument list gives each argument's SCRIPT_ARGUMENT_TYPE and ends at -1.
  */
-static int GetArg(input_str &input, int *arg_types, void **argv) {
-    char word[256];
+struct COMMAND_INFO {
+    std::string_view    name;      /**< Keyword the line starts with. */
+    std::array<int, 16> arg_types; /**< Kind of each argument, ended by -1. */
+};
 
+constexpr std::array<COMMAND_INFO, 9> Command = {
+    {
+     {.name = "SIZE", .arg_types = {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, -1}},
+     {.name = "FRAME", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "NORMAL", .arg_types = {SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "FOLLOW", .arg_types = {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "K", .arg_types = {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "WINDEFFECT", .arg_types = {SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "GRAVITY", .arg_types = {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {.name = "POLYDIV", .arg_types = {SCRIPT_ARGUMENT_STRING, -1}},
+     {.name = "BOUND",
+         .arg_types = {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT,
+                       SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT,
+                       SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT,
+                       SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     }
+};
+
+constexpr std::array<void (*)(ArgumentList &), 9> CommandExe = {
+    CommandSIZE,
+    CommandFRAME,
+    CommandNORMAL,
+    CommandFOLLOW,
+    CommandK,
+    CommandWINDEFFECT,
+    CommandGRAVITY,
+    CommandPOLYDIVE,
+    CommandBOUND,
+};
+
+/**
+ * Reports whether a character is not whitespace.
+ */
+bool CheckChar(char ch) {
+    return ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r';
+}
+
+/**
+ * Steps past whitespace and reports whether any text remains.
+ */
+bool SkipSpace(input_str &input) {
+    int pos = input.pos;
+
+    while (pos < input.size && !CheckChar(input.data[pos])) {
+        pos++;
+    }
+
+    input.pos = pos;
+    return pos < input.size;
+}
+
+/**
+ * Reads the next word, ended by whitespace (or a comma when stop_at_comma is set).
+ *
+ * Returns false if the text runs out first.
+ */
+bool ReadWord(input_str &input, bool stop_at_comma, std::string &word) {
+    int ch = 0;
+
+    while (true) {
+        if (input.get(&ch) == 0) {
+            return false;
+        }
+
+        if ((stop_at_comma && ch == ',') || !CheckChar(static_cast<char>(ch))) {
+            return true;
+        }
+
+        word.push_back(static_cast<char>(ch));
+    }
+}
+
+/**
+ * Reads the arguments of one command into the argument slots.
+ *
+ * Returns 1 on success, 0 when the text runs out, and -1 on a malformed argument.
+ */
+int GetArg(input_str &input, const std::array<int, 16> &arg_types, ArgumentList &arguments) {
     if (!SkipSpace(input)) {
         return 0;
     }
 
     int arg_count = 0;
 
-    while (arg_types[arg_count++] >= 0)
-        ;
-
-    int ch;
+    while (arg_types[arg_count++] >= 0) {
+    }
 
     for (int i = 0; i < arg_count - 1; i++) {
-        int length = 0;
-
         if (!SkipSpace(input)) {
             return 0;
         }
 
-        while (1) {
-            if (input.get(&ch) == 0) {
-                return 0;
-            }
+        std::string word;
 
-            if (ch == ',' || !CheckChar(ch)) {
-                break;
-            }
-
-            word[length++] = ch;
+        if (!ReadWord(input, true, word)) {
+            return 0;
         }
 
-        word[length] = 0;
+        // A NUL byte in the text ends the word.
+        const std::string_view text = std::string_view(word).substr(0, word.find('\0'));
+        ArgumentSlot          &slot = arguments[i];
 
         switch (arg_types[i]) {
-            case SCRIPT_ARGUMENT_STRING:
-                if (word[0] != '"') {
+            case SCRIPT_ARGUMENT_STRING: {
+                if (!text.starts_with('"')) {
                     return -1;
                 }
 
-                for (length = 1;; length++) {
-                    char letter = word[length];
+                const std::size_t closing_quote = text.find('"', 1);
 
-                    if (letter == '"') {
-                        word[length] = 0;
-                        break;
-                    }
-
-                    if (letter == 0) {
-                        return -1;
-                    }
+                if (closing_quote == std::string_view::npos) {
+                    return -1;
                 }
 
-                strcpy((char *) argv[i], word + 1);
+                const std::size_t length = std::min(closing_quote - 1, slot.size() - 1);
+                text.copy(slot.data(), length, 1);
+                slot[length] = 0;
                 break;
+            }
             case SCRIPT_ARGUMENT_INTEGER:
-                for (length = 0; word[length] != 0; length++) {
-                    char letter = word[length];
-
-                    if (letter < '0' || letter > '9') {
-                        return -1;
-                    }
+                if (!std::ranges::all_of(text, [](char letter) { return letter >= '0' && letter <= '9'; })) {
+                    return -1;
                 }
 
-                *(int *) argv[i] = atoi(word);
+                WriteInteger(slot, std::atoi(word.c_str()));
                 break;
             case SCRIPT_ARGUMENT_FLOAT:
-                for (length = 0; word[length] != 0; length++) {
-                    char letter = word[length];
-
-                    if ((letter < '0' || letter > '9') && letter != '.' && letter != '-') {
-                        return -1;
-                    }
+                if (!std::ranges::all_of(text, [](char letter) {
+                        return (letter >= '0' && letter <= '9') || letter == '.' || letter == '-';
+                    })) {
+                    return -1;
                 }
 
-                *(float *) argv[i] = (float) atof(word);
+                WriteFloat(slot, static_cast<float>(std::atof(word.c_str())));
                 break;
             default:
                 return -1;
@@ -420,120 +371,75 @@ static int GetArg(input_str &input, int *arg_types, void **argv) {
 }
 
 /**
- * Finds the command table entry a model script's next word names.
+ * Reads the next keyword and looks it up in the command table.
  *
- * @mangled SearchCommand__FR9input_strPi__2
- * @address 0x140320
- * @size 0x144
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
+ * An unknown keyword yields an index past the table. Returns false when the text runs out.
  */
-static int SearchCommand(input_str &input, int *command) {
-    char word[256];
-
+bool SearchCommand(input_str &input, int &command) {
     if (!SkipSpace(input)) {
-        return 0;
+        return false;
     }
 
-    int length = 0;
-    int ch;
+    std::string word;
 
-    while (1) {
-        if (input.get(&ch) == 0) {
-            return 0;
+    if (!ReadWord(input, false, word)) {
+        return false;
+    }
+
+    const std::string_view text = std::string_view(word).substr(0, word.find('\0'));
+    const auto *const      found = std::ranges::find(Command, text, &COMMAND_INFO::name);
+
+    command = found != Command.end() ? static_cast<int>(found - Command.begin()) : 10;
+    return true;
+}
+
+} // namespace
+
+CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc) {
+    DataBuffer = alloc;
+    pCloth = new (reinterpret_cast<u_long128 *>(alloc->Alloc(0x856))) CCloth(16, 16, 1.0f);
+    ParentFrame = frame;
+    pBound = nullptr;
+
+    if (frame == nullptr) {
+        return nullptr;
+    }
+
+    if (pCloth == nullptr) {
+        return nullptr;
+    }
+
+    SkipSpace(input);
+
+    const auto arguments = std::make_unique<ArgumentList>();
+    int        command = 0;
+
+    while (SearchCommand(input, command)) {
+        if (command >= 9 || command < 0) {
+            std::println("unknown command!!");
+            continue;
         }
 
-        if (!CheckChar(ch)) {
+        const int arg_status = GetArg(input, Command[command].arg_types, *arguments);
+
+        if (arg_status == 0) {
             break;
         }
 
-        word[length++] = ch;
-    }
-
-    word[length] = 0;
-
-    for (int i = 0; i < 9; i++) {
-        if (strcmp(Command[i].name, word) == 0) {
-            *command = i;
-            return 1;
-        }
-    }
-
-    *command = 10;
-    return 1;
-}
-
-/**
- * Steps a model script past whitespace and comments.
- *
- * @mangled SkipSpace__FR9input_str__2
- * @address 0x140470
- * @size 0x94
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
- */
-static int SkipSpace(input_str &input) {
-    char *text;
-    int   pos;
-
-    text = input.data;
-    pos = input.pos;
-
-    while (pos < input.size) {
-        if (CheckChar(text[pos])) {
-            break;
+        if (arg_status < 0) {
+            std::println("error!!");
         }
 
-        pos++;
+        CommandExe[command](*arguments);
     }
 
-    input.pos = pos;
-
-    if (pos >= input.size) {
-        return 0;
-    }
-
-    return 1;
+    return pCloth;
 }
 
-/**
- * Reports whether a character is not whitespace.
- *
- * @mangled CheckChar__Fc__2
- * @address 0x140510
- * @size 0x60
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
- */
-static int CheckChar(char ch) {
-    int is_space = 0;
-
-    if (ch == ' ') {
-        is_space = 1;
-    }
-
-    if (ch == '\t') {
-        is_space = 1;
-    }
-
-    if (ch == '\n') {
-        is_space = 1;
-    }
-
-    if (ch == '\r') {
-        is_space = 1;
-    }
-
-    return !is_space;
-}
-
-/**
- * Converts analog-stick displacement into a motion speed and movement state.
- */
 int keyCtrl(float stick_x, float stick_y, MOTION_INFO *motion) {
     int move_state = 0;
 
     if (stick_y != 0.0f || stick_x != 0.0f) {
-        float tilt;
-        float speed;
-
         move_state = 2;
 
         if (stick_x < 0.0f) {
@@ -544,13 +450,8 @@ int keyCtrl(float stick_x, float stick_y, MOTION_INFO *motion) {
             stick_y *= -1.0f;
         }
 
-        if (stick_x >= stick_y) {
-            tilt = stick_x;
-        } else {
-            tilt = stick_y;
-        }
-
-        speed = 0.8f * (0.1f + tilt);
+        const float tilt = stick_x >= stick_y ? stick_x : stick_y;
+        const float speed = 0.8f * (0.1f + tilt);
         motion[2].speed = speed;
 
         if (speed >= 0.7f) {
@@ -565,25 +466,12 @@ int keyCtrl(float stick_x, float stick_y, MOTION_INFO *motion) {
     return move_state;
 }
 
-/**
- * Copies one rectangle of video memory to another.
- *
- * @mangled MoveImageTest__FP13sceVif1PacketiiiRC8CRect_i_iiiiii
- * @address 0x140660
- * @size 0x1A4
- */
-void MoveImageTest(sceVif1Packet *packet, int src_base, int src_width, int src_format, const CRect_i_ &rect, int dst_base, int dst_width, int dst_format, int dst_x, int dst_y, int direction);
-
-/**
- * Turns a frame toward a heading by one angular step and returns the new yaw.
- */
 float unitRotation(CFrameVu1 *frame, float heading) {
-    float rotation[4];
-    float delta;
-    float abs_delta;
+    std::array<float, 4> rotation{};
+    float                abs_delta = 0.0f;
 
-    frame->GetRotation(rotation);
-    delta = heading - rotation[1];
+    frame->GetRotation(rotation.data());
+    float delta = heading - rotation[1];
 
     if (delta <= 0.0f) {
         abs_delta = -1.0f * delta;
@@ -591,7 +479,8 @@ float unitRotation(CFrameVu1 *frame, float heading) {
         abs_delta = delta;
     }
 
-    if (abs_delta <= PI_D) {
+    // The comparisons and the wrap-around are done in double precision.
+    if (abs_delta <= std::numbers::pi) {
         if (abs_delta <= TWELFTH_PI_D) {
             delta = 0.0f;
         }
@@ -604,7 +493,7 @@ float unitRotation(CFrameVu1 *frame, float heading) {
     }
 
     if (delta > 0.0f) {
-        if (delta <= PI_D) {
+        if (delta <= std::numbers::pi) {
             rotation[1] += TWELFTH_PI;
         } else {
             rotation[1] -= TWELFTH_PI;
@@ -612,7 +501,7 @@ float unitRotation(CFrameVu1 *frame, float heading) {
     }
 
     if (delta < 0.0f) {
-        if (delta >= -PI_D) {
+        if (delta >= -std::numbers::pi) {
             rotation[1] -= TWELFTH_PI;
         } else {
             rotation[1] += TWELFTH_PI;
@@ -623,11 +512,11 @@ float unitRotation(CFrameVu1 *frame, float heading) {
         rotation[1] = heading;
     }
 
-    if (rotation[1] <= -PI_D) {
+    if (rotation[1] <= -std::numbers::pi) {
         rotation[1] += TWO_PI;
     }
 
-    if (rotation[1] >= PI_D) {
+    if (rotation[1] >= std::numbers::pi) {
         rotation[1] -= TWO_PI;
     }
 

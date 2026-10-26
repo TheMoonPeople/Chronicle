@@ -2,6 +2,7 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
 #include <cmath>
 
 #include "mathutil.hpp"
@@ -16,15 +17,13 @@ void CCameraFollow::Step(int steps) {
     if (steps < 0) {
         if (this->follow_on) {
             this->angle = this->next_angle;
-            this->SetNextPos(NULL, this->follow[0] + this->distance * sinf(this->angle), this->follow[1] + this->height, this->follow[2] + this->distance * cosf(this->angle));
-            this->SetNextRef(NULL, this->follow[0], this->follow[1], this->follow[2]);
+            this->SetNextPos(nullptr, this->follow[0] + this->distance * sinf(this->angle), this->follow[1] + this->height, this->follow[2] + this->distance * cosf(this->angle));
+            this->SetNextRef(nullptr, this->follow[0], this->follow[1], this->follow[2]);
         }
 
         this->CCamera::Step(steps);
     } else {
-        int i;
-
-        // The angle that the eye turns to stays inside one turn.
+        // Wrapped once only, so an angle more than a turn out stays out of range.
         if (this->next_angle > TWO_PI_D) {
             this->next_angle -= TWO_PI;
         }
@@ -33,13 +32,9 @@ void CCameraFollow::Step(int steps) {
             this->next_angle += TWO_PI;
         }
 
-        for (i = 0; i < steps; i++) {
+        for (int step = 0; step < steps; step++) {
             if (this->follow_on) {
-                float turn = this->speed / 2.0f;
-
-                if (turn < 1.0f) {
-                    turn = 1.0f;
-                }
+                const float turn = std::max(this->speed / 2.0f, 1.0f);
 
                 this->angle = AngleInterpolate(this->angle, this->next_angle, turn, INTERPOLATE_FRACTION);
 
@@ -49,8 +44,8 @@ void CCameraFollow::Step(int steps) {
                     this->angle = this->next_angle;
                 }
 
-                this->SetNextPos(NULL, this->follow[0] + this->distance * sinf(this->angle), this->follow[1] + this->height, this->follow[2] + this->distance * cosf(this->angle));
-                this->SetNextRef(NULL, this->follow[0], this->follow[1], this->follow[2]);
+                this->SetNextPos(nullptr, this->follow[0] + this->distance * sinf(this->angle), this->follow[1] + this->height, this->follow[2] + this->distance * cosf(this->angle));
+                this->SetNextRef(nullptr, this->follow[0], this->follow[1], this->follow[2]);
             }
 
             this->CCamera::Step(1);
@@ -131,16 +126,8 @@ float CCameraFollow::GetHeight() {
     return this->height;
 }
 
-CCameraFollow::CCameraFollow(float distance, float height, float angle, float speed) : CCamera(speed) {
-    this->follow[0] = 0.0f;
-    this->follow[1] = 0.0f;
-    this->follow[2] = 0.0f;
-    this->next_angle = angle;
-    this->angle = angle;
-    this->distance = distance;
-    this->height = height;
-    this->follow_on = 1;
+CCameraFollow::CCameraFollow(float distance, float height, float angle, float speed)
+    : CCamera(speed), follow{}, distance(distance), height(height), next_angle(angle), angle(angle), follow_on(1) {
 }
 
-CCameraFollow::~CCameraFollow() {
-}
+CCameraFollow::~CCameraFollow() = default;

@@ -3,6 +3,7 @@
 /* The per-character special-attack key handlers: Toan's, Ungaga's and Goro's,
  * with the two helpers they share. */
 
+#include <array>
 #include <cmath>
 
 #include "btactstatus.hpp"
@@ -23,26 +24,26 @@
 #include "userstatus.hpp"
 #include "weaponeffect.hpp"
 
+namespace {
+
 void sound_play(float from, float to, float now, int se_no) {
     if (now >= from && now <= to) {
         SndSePlay(se_no, -1, 0);
     }
 }
 
+// Tags the hit just set on NowColData with the held weapon's stats, its owner and attack kind.
 void basic_damage(int kind, int owner) {
-    NowColData->hit[NowColData->now_hit].vs_monster = NowWeaponHave->vs_monster;
-    NowColData->hit[NowColData->now_hit].weapon_flags = NowWeaponHave->flags;
+    auto &hit = NowColData->hit[NowColData->now_hit];
 
-    s8              elem = NowWeaponHave->best_elem;
-    CCollisionData *attr_col = NowColData;
-
-    attr_col->hit[attr_col->now_hit].flags = GetWeaponElementAttr(elem);
-
-    CCollisionData *owner_col = NowColData;
-
-    owner_col->hit[owner_col->now_hit].owner = owner;
-    owner_col->hit[owner_col->now_hit].attack_no = kind;
+    hit.vs_monster = NowWeaponHave->vs_monster;
+    hit.weapon_flags = NowWeaponHave->flags;
+    hit.flags = GetWeaponElementAttr(NowWeaponHave->best_elem);
+    hit.owner = owner;
+    hit.attack_no = kind;
 }
+
+} // namespace
 
 void ToanKey_On() {
     if (BtActStatus.special_cooldown > 0) {
@@ -96,20 +97,10 @@ void ToanKey_Play() {
         damage *= 2;
     }
 
-    int element_se = -1;
-
-    if (NowWeaponHave->best_elem < 5) {
-        element_se = NowWeaponHave->best_elem + 0x65;
-    }
-
-    if (element_se == 0x66) {
-        element_se = 0x66;
-    }
-
     sceVu0FVECTOR hit_pos;
     sceVu0FVECTOR chara_pos;
 
-    getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol1", hit_pos);
+    getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol1", hit_pos);
     sceVu0CopyVector(chara_pos, CharaMain.pos);
 
     if (time >= 825 && time <= 828.0f) {
@@ -137,31 +128,31 @@ void ToanKey_Play() {
     }
 
     if (time >= 862 && time <= 866) {
-        damage *= 1.8f;
+        damage = static_cast<int>(static_cast<float>(damage) * 1.8f);
         NowColData->Set(hit_pos, damage, 1, 6.2f, 0.0f, 2, 2, 0, 0);
         basic_damage(0, 0);
         NowColData->SetKickBack(chara_pos, 3.0f, 0.3f, 2);
     }
 
     if (time >= 193.0f && time <= 196.0f) {
-        damage *= 1.5;
+        damage = static_cast<int>(damage * 1.5);
         NowColData->Set(hit_pos, damage, 1, 6.0f, 0.0f, 2, 2, 0, 0);
         basic_damage(2, 0);
         NowColData->SetKickBack(chara_pos, 3.0f, 0.3f, 2);
     }
 
     if (time >= 720.0f && time <= 722) {
-        damage *= 1.5;
+        damage = static_cast<int>(damage * 1.5);
         NowColData->Set(hit_pos, damage, 1, 12.0f, 0.0f, 2, 2, 0, 0);
         basic_damage(3, 0);
         NowColData->SetKickBack(chara_pos, 3.0f, 0.3f, 2);
     }
 
-    int swing_motions[4] = {0x25, 0x26, 0x27, 0x28};
+    constexpr std::array swing_motions{0x25, 0x26, 0x27, 0x28};
 
-    for (int i = 0; i < 4; i++) {
-        float swing_start = CharaMain.motion_type.motion_info[swing_motions[i]].start;
-        float swing_end = CharaMain.motion_type.motion_info[swing_motions[i]].end;
+    for (int motion : swing_motions) {
+        float swing_start = CharaMain.motion_type.motion_info[motion].start;
+        float swing_end = CharaMain.motion_type.motion_info[motion].end;
 
         if (swing_start < time && swing_end > time) {
             BtActStatus.swinging = 1;
@@ -205,9 +196,7 @@ void ToanKey_Play() {
         float end = CharaMain.motion_type.motion_info[0x24].end;
 
         if (time >= 824.0f && time <= 825) {
-            float tip = 64.0f;
-
-            CWeaponFx.Set(8, 32.0f, tip);
+            CWeaponFx.Set(8, 32.0f, 64.0f);
         }
 
         BtActStatus.combo_window = 1;
@@ -251,7 +240,7 @@ void ToanKey_Play() {
 
     if (BtActStatus.action_no == 0x25) {
         if (BtActStatus.stick_strength > 0.0f) {
-            CharaMain.frame->SetRotation(0.0f, unitRotation((CFrameVu1 *) CharaMain.frame, BtActStatus.swing_heading), 0.0f);
+            CharaMain.frame->SetRotation(0.0f, unitRotation(static_cast<CFrameVu1 *>(CharaMain.frame), BtActStatus.swing_heading), 0.0f);
         }
 
         BtActStatus.motion_no = 0x25;
@@ -297,7 +286,7 @@ void ToanKey_Play() {
 
     if (BtActStatus.action_no == 0x26) {
         if (BtActStatus.stick_strength > 0.0f) {
-            CharaMain.frame->SetRotation(0.0f, unitRotation((CFrameVu1 *) CharaMain.frame, BtActStatus.swing_heading), 0.0f);
+            CharaMain.frame->SetRotation(0.0f, unitRotation(static_cast<CFrameVu1 *>(CharaMain.frame), BtActStatus.swing_heading), 0.0f);
         }
 
         BtActStatus.motion_no = 0x26;
@@ -343,7 +332,7 @@ void ToanKey_Play() {
 
     if (BtActStatus.action_no == 0x27) {
         if (BtActStatus.stick_strength > 0.0f) {
-            CharaMain.frame->SetRotation(0.0f, unitRotation((CFrameVu1 *) CharaMain.frame, BtActStatus.swing_heading), 0.0f);
+            CharaMain.frame->SetRotation(0.0f, unitRotation(static_cast<CFrameVu1 *>(CharaMain.frame), BtActStatus.swing_heading), 0.0f);
         }
 
         BtActStatus.motion_no = 0x27;
@@ -457,10 +446,10 @@ void ToanKey_Play() {
                     sceVu0FVECTOR shot_vector = {0.0001f, 0.9998f, 0.0001f, 1.0f};
 
                     sceVu0CopyVector(shot_pos, CharaMain.pos);
-                    NowMainEffect->Set(shot_pos, shot_vector, 0, -1, 0, NULL, -1);
+                    NowMainEffect->Set(shot_pos, shot_vector, 0, -1, 0, nullptr, -1);
                     NowMainEffect->SetVsMonster(NowWeaponHave->vs_monster);
                     NowMainEffect->SetWepStatus(NowWeaponHave->flags);
-                    NowMainEffect->SetDmg((int) (1.5f * (float) damage));
+                    NowMainEffect->SetDmg(static_cast<int>(1.5f * static_cast<float>(damage)));
                     NowMainEffect->SetWait(45);
                     NowMainEffect->SetAttribute(GetWeaponElementAttr(NowWeaponHave->best_elem));
                     SwordDmgCheck1(3.0f, 0);
@@ -638,15 +627,9 @@ void UngagaKey_Play() {
     sceVu0FVECTOR hit_right;
     sceVu0FVECTOR chara_pos;
 
-    getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol0", hit_left);
-    getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol1", hit_right);
+    getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol0", hit_left);
+    getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol1", hit_right);
     sceVu0CopyVector(chara_pos, CharaMain.pos);
-
-    int element_se;
-
-    if (NowWeaponHave->best_elem < 5) {
-        element_se = NowWeaponHave->best_elem + 0x65;
-    }
 
     int damage = NowWeaponHave->attack;
 
@@ -681,11 +664,11 @@ void UngagaKey_Play() {
         NowColData->SetKickBack(chara_pos, 2.0f, 0.1f, 2);
     }
 
-    int swing_motions[3] = {0x25, 0x26, 0x27};
+    constexpr std::array swing_motions{0x25, 0x26, 0x27};
 
-    for (int i = 0; i < 3; i++) {
-        float swing_start = CharaMain.motion_type.motion_info[swing_motions[i]].start;
-        float swing_end = CharaMain.motion_type.motion_info[swing_motions[i]].end;
+    for (int motion : swing_motions) {
+        float swing_start = CharaMain.motion_type.motion_info[motion].start;
+        float swing_end = CharaMain.motion_type.motion_info[motion].end;
 
         if (swing_start < time && swing_end > time) {
             BtActStatus.swinging = 1;
@@ -887,16 +870,16 @@ void UngagaKey_Play() {
 
             SndSeSeqPlayStop(0x192, 30, 1);
             wait = 0;
-            getFramePos((CFrameVu1 *) CharaMain.frame, "weapon", effect_pos);
+            getFramePos(static_cast<CFrameVu1 *>(CharaMain.frame), "weapon", effect_pos);
             getCharacterVector(effect_vector, 0.0f);
             effect_vector[0] += effect_pos[0];
             effect_vector[1] += effect_pos[1];
             effect_vector[2] += effect_pos[2];
-            NowMainEffect->Set(effect_pos, effect_vector, 4, 2, 0, NULL, -1);
+            NowMainEffect->Set(effect_pos, effect_vector, 4, 2, 0, nullptr, -1);
             NowMainEffect->SetVsMonster(NowWeaponHave->vs_monster);
             NowMainEffect->SetWepStatus(NowWeaponHave->flags);
             NowMainEffect->SetAttribute(GetWeaponElementAttr(NowWeaponHave->best_elem));
-            NowMainEffect->SetDmg((int) (1.5f * (float) damage));
+            NowMainEffect->SetDmg(static_cast<int>(1.5f * static_cast<float>(damage)));
             NowMainEffect->SetWait(45);
             SwordDmgCheck1(0.8f, 0);
         }
@@ -958,21 +941,11 @@ void GoroKey_Play() {
         damage *= 2;
     }
 
-    int element_se = -1;
-
-    if (NowWeaponHave->best_elem < 5) {
-        element_se = NowWeaponHave->best_elem + 0x65;
-    }
-
-    if (element_se == 0x66) {
-        element_se = 0x66;
-    }
-
     sceVu0FVECTOR shot_vector = {0.001f, 1.0f, 0.001f, 1.0f};
     sceVu0FVECTOR hit_pos;
     sceVu0FVECTOR chara_pos;
 
-    getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol0", hit_pos);
+    getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol0", hit_pos);
     sceVu0CopyVector(chara_pos, CharaMain.pos);
 
     if (time >= 99.0f && time <= 102.0f) {
@@ -982,28 +955,17 @@ void GoroKey_Play() {
     }
 
     if (time >= 462.0f && time <= 482.0f) {
-        damage *= 1.5;
+        damage = static_cast<int>(damage * 1.5);
         NowColData->Set(hit_pos, damage, 1, 5.0f, 0.0f, 2, 2, 0, 0);
 
-        NowColData->hit[NowColData->now_hit].vs_monster = NowWeaponHave->vs_monster;
-        NowColData->hit[NowColData->now_hit].weapon_flags = NowWeaponHave->flags;
-
-        s8              elem = NowWeaponHave->best_elem;
-        CCollisionData *attr_col = NowColData;
-
-        attr_col->hit[attr_col->now_hit].flags = GetWeaponElementAttr(elem);
-
-        CCollisionData *owner_col = NowColData;
-
-        owner_col->hit[owner_col->now_hit].owner = 2;
-        owner_col->hit[owner_col->now_hit].attack_no = 1;
+        basic_damage(1, 2);
     }
 
     if (time >= 482.0f && time < 482.4f) {
-        NowMainEffect->Set(hit_pos, shot_vector, 2, -1, 0, NULL, -1);
+        NowMainEffect->Set(hit_pos, shot_vector, 2, -1, 0, nullptr, -1);
         NowMainEffect->SetWepStatus(NowWeaponHave->flags);
         NowMainEffect->SetVsMonster(NowWeaponHave->vs_monster);
-        NowMainEffect->SetDmg((int) (1.2f * (float) damage));
+        NowMainEffect->SetDmg(static_cast<int>(1.2f * static_cast<float>(damage)));
         NowMainEffect->SetWait(45);
         NowMainEffect->SetAttribute(GetWeaponElementAttr(NowWeaponHave->best_elem));
         NowColData->SetKickBack(chara_pos, 2.5f, 0.1f, 2);

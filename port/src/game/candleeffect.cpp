@@ -12,7 +12,7 @@ void CCandleEffect::Initialize() {
     this->animation_frame = 0.0f;
     this->half_height = 1.0f;
     this->half_width = 1.0f;
-    this->texture = NULL;
+    this->texture = nullptr;
 }
 
 CCandleEffect::CCandleEffect() {
@@ -29,7 +29,7 @@ void CCandleEffect::SetScale(float half_width, float half_height) {
 }
 
 void CCandleEffect::SetPosition(float *world) {
-    sceVu0CopyVector(this->position, (float *) world);
+    sceVu0CopyVector(this->position, world);
 }
 
 void CCandleEffect::Step() {
@@ -41,7 +41,7 @@ void CCandleEffect::Step() {
 }
 
 void CCandleEffect::Draw() {
-    if (texture == NULL || enabled == 0) {
+    if (texture == nullptr || enabled == 0) {
         return;
     }
 
@@ -60,7 +60,7 @@ void CCandleEffect::Draw() {
 
     bottom_right[1] = top_left[1] + ((bottom_right[1] - top_left[1]) >> 1);
 
-    spRGBA     color = {128, 128, 128, 128};
+    spRGBA     color = {.r = 128, .g = 128, .b = 128, .a = 128};
     sceGsAlpha alpha = mgAlpha;
     alpha.bits.a = 0;
     alpha.bits.b = 2;
@@ -70,7 +70,7 @@ void CCandleEffect::Draw() {
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
 
-    int frame = 7 - (int) animation_frame;
+    int frame = 7 - static_cast<int>(animation_frame);
     int column = (frame % 4) * 32;
     int row = (frame / 4) * 32;
     MGSetGsALPHA(&alpha);

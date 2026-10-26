@@ -2,7 +2,10 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cstring>
+#include <print>
 
 #include "chararead.hpp"
 #include "cloth.hpp"
@@ -12,79 +15,38 @@
 #include "mglib.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
-
-/* External */
-
-/* sbss */
-s32 CCharacter::MotionStopFlag;
-
-/* data */
-
 #include "textureanime.hpp"
 #include "visualvu1.hpp"
 
-void zcross(float z, float *from, float *to, float *out) {
-    float dz;
-    float t;
-    float dy;
-    float dx;
+s32 CCharacter::MotionStopFlag;
 
-    // Where the line between the two points crosses the plane at z.
-    dx = to[0] - from[0];
-    dy = to[1] - from[1];
-    dz = to[2] - from[2];
-    t = (z - from[2]) / dz;
+namespace {
+
+// Where the line between the two points crosses the plane at z.
+void zcross(float z, const float *from, const float *to, float *out) {
+    const float dx = to[0] - from[0];
+    const float dy = to[1] - from[1];
+    const float dz = to[2] - from[2];
+    const float t = (z - from[2]) / dz;
     out[0] = from[0] + t * dx;
     out[1] = from[1] + t * dy;
     out[2] = z;
     out[3] = 1.0f;
 }
 
-/**
- * Clips a triangle against the near plane, giving back the polygon that survives.
- *
- * @mangled scissior__FPA4_fPA4_fPA4_ff
- * @address 0x137440
- * @size 0xA38
- */
+} // namespace
+
 int scissior(float out[][4], float first[][4], float second[][4], float near_z) {
-    float first_distance[4];
-    float second_distance[4];
-    int   count;
-    int   first_front;
-    int   second_front;
-    int   first_behind;
-    int   second_behind;
-    int   first_crosses;
-    int   pair_crosses;
-    int   second_crosses;
-    int   i;
-    int   crossing_count;
+    std::array<float, 3> first_distance{};
+    std::array<float, 3> second_distance{};
+    int                  count = 0;
+    int                  first_crosses = 0;
+    int                  pair_crosses = 0;
+    int                  second_crosses = 0;
 
-    count = 0;
-    first_front = 0;
-    second_front = 0;
-    first_behind = 0;
-    second_behind = 0;
-    first_crosses = 0;
-    pair_crosses = 0;
-    second_crosses = 0;
-
-    for (i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         first_distance[i] = first[i][2] - near_z;
         second_distance[i] = second[i][2] - near_z;
-
-        if (!(first_distance[i] <= 0.0f)) {
-            first_front++;
-        } else {
-            first_behind++;
-        }
-
-        if (!(second_distance[i] <= 0.0f)) {
-            second_front++;
-        } else {
-            second_behind++;
-        }
     }
 
     if (first_distance[0] * first_distance[1] < 0.0f) {
@@ -123,11 +85,11 @@ int scissior(float out[][4], float first[][4], float second[][4], float near_z) 
         pair_crosses++;
     }
 
-    crossing_count = first_crosses + second_crosses + pair_crosses;
+    const int crossing_count = first_crosses + second_crosses + pair_crosses;
 
     if (crossing_count == 0) {
         for (int j = 0; j < 5; j++) {
-            *(u_long128 *) out[j] = *(u_long128 *) first[0];
+            std::memcpy(out[j], first[0], sizeof(out[j]));
         }
 
         return 0;
@@ -243,53 +205,48 @@ int scissior(float out[][4], float first[][4], float second[][4], float near_z) 
             }
         }
     } else {
-        printf("%d*******\n", crossing_count);
+        std::println("{}*******", crossing_count);
     }
 
     if (count == 0) {
         for (int j = 0; j < 5; j++) {
-            *(u_long128 *) out[j] = *(u_long128 *) first[0];
+            std::memcpy(out[j], first[0], sizeof(out[j]));
         }
     } else {
         for (int j = count; j < 5; j++) {
-            *(u_long128 *) out[j] = *(u_long128 *) out[j - count];
+            std::memcpy(out[j], out[j - count], sizeof(out[j]));
         }
     }
 
     return count;
 }
 
-void CVisualVu1::SetMDTDataAddress(unsigned int *data) {
-}
+void CVisualVu1::SetMDTDataAddress(unsigned int * /*data*/) {}
 
 unsigned int *CVisualVu1::GetMDTDataAddress() {
-    return NULL;
+    return nullptr;
 }
 
 void CCharacter::ClearPointLight() {
-    int i;
-
-    for (i = 0; i < CHARA_POINT_LIGHT_MAX; i++) {
-        this->point_light[i].used = 0;
-        this->point_light[i].source_w = -1.0f;
+    for (CFakePointLight &light : this->point_light) {
+        light.used = 0;
+        light.source_w = -1.0f;
     }
 }
 
 int CCharacter::SetPointLight(float *pos, float inner_range, float outer_range, float red, float green, float blue, float alpha) {
-    int i;
-
     // The light goes into the first slot that is free.
-    for (i = 0; i < CHARA_POINT_LIGHT_MAX; i++) {
-        if (this->point_light[i].used == 0) {
-            this->point_light[i].used = 1;
-            sceVu0CopyVector(this->point_light[i].pos, pos);
-            this->point_light[i].source_w = pos[3];
-            this->point_light[i].inner_range = inner_range;
-            this->point_light[i].outer_range = outer_range;
-            this->point_light[i].colour[0] = red;
-            this->point_light[i].colour[1] = green;
-            this->point_light[i].colour[2] = blue;
-            this->point_light[i].colour[3] = alpha;
+    for (CFakePointLight &light : this->point_light) {
+        if (light.used == 0) {
+            light.used = 1;
+            sceVu0CopyVector(light.pos, pos);
+            light.source_w = pos[3];
+            light.inner_range = inner_range;
+            light.outer_range = outer_range;
+            light.colour[0] = red;
+            light.colour[1] = green;
+            light.colour[2] = blue;
+            light.colour[3] = alpha;
             return 1;
         }
     }
@@ -318,28 +275,21 @@ void CCharacter::TexAnimeOff(int no) {
 }
 
 int CCharacter::SetFootSound(float left_frame, float right_frame, int motion_no) {
-    CHARA_FOOT_SOUND *sound;
-    int               i;
-
     // One sound for each foot, each in the first slot that is free.
-    for (i = 0; i < CHARA_FOOT_SOUND_MAX; i++) {
-        sound = &this->foot_sound[i];
-
-        if ((float) sound->frame < 0.0f) {
-            sound->frame = (int) left_frame;
-            sound->foot = 0;
-            sound->motion_no = motion_no;
+    for (CHARA_FOOT_SOUND &sound : this->foot_sound) {
+        if (static_cast<float>(sound.frame) < 0.0f) {
+            sound.frame = static_cast<int>(left_frame);
+            sound.foot = 0;
+            sound.motion_no = motion_no;
             break;
         }
     }
 
-    for (i = 0; i < CHARA_FOOT_SOUND_MAX; i++) {
-        sound = &this->foot_sound[i];
-
-        if ((float) sound->frame < 0.0f) {
-            sound->frame = (int) right_frame;
-            sound->foot = 1;
-            sound->motion_no = motion_no;
+    for (CHARA_FOOT_SOUND &sound : this->foot_sound) {
+        if (static_cast<float>(sound.frame) < 0.0f) {
+            sound.frame = static_cast<int>(right_frame);
+            sound.foot = 1;
+            sound.motion_no = motion_no;
             break;
         }
     }
@@ -360,57 +310,44 @@ void CCharacter::EventEnable(int on) {
 }
 
 void CCharacter::SetEvent(float frame, int kind, int no, int motion_no) {
-    CHARA_EVENT *event;
-    int          i;
-
-    for (i = 0; i < CHARA_EVENT_MAX; i++) {
-        event = &this->event[i];
-
-        if ((float) event->frame < 0.0f) {
-            event->frame = (int) frame;
-            event->kind = kind;
-            event->no = no;
-            event->motion_no = motion_no;
+    for (CHARA_EVENT &slot : this->event) {
+        if (static_cast<float>(slot.frame) < 0.0f) {
+            slot.frame = static_cast<int>(frame);
+            slot.kind = kind;
+            slot.no = no;
+            slot.motion_no = motion_no;
             break;
         }
     }
 }
 
 void CCharacter::ClearEvent(int motion_no) {
-    int i;
-
-    // A motion below zero clears every event rather than one motion\'s own.
-    for (i = 0; i < CHARA_EVENT_MAX; i++) {
-        if (motion_no < 0 || this->event[i].motion_no == motion_no) {
-            this->event[i].no = -1;
-            this->event[i].frame = -1;
-            this->event[i].unk_10 = 0;
+    // A motion below zero clears every event rather than one motion's own.
+    for (CHARA_EVENT &slot : this->event) {
+        if (motion_no < 0 || slot.motion_no == motion_no) {
+            slot.no = -1;
+            slot.frame = -1;
+            slot.unk_10 = 0;
         }
     }
 }
 
 void CCharacter::SetMotionCamera(CCamera *camera) {
-    int i;
-
-    for (i = 0; i < CHARA_MOTION_MAX; i++) {
-        if (this->motion[i] != NULL) {
-            this->motion[i]->state.camera = camera;
+    for (tagMOTION_TYPE *set : this->motion) {
+        if (set != nullptr) {
+            set->state.camera = camera;
         }
     }
 }
 
 tagMOTION_TYPE *CCharacter::GetMotionParam(int motion_no, int *out_index, int *out_start, int *out_end, int *out_set) {
-    int             index;
-    int             i;
-    tagMOTION_TYPE *found;
-
-    index = -1;
-    found = NULL;
+    int             index = -1;
+    tagMOTION_TYPE *found = nullptr;
 
     // The motion numbers of the sets run one after another, so the set that
     // holds the number is the one whose range covers it.
-    for (i = 0; i < CHARA_MOTION_MAX; i++) {
-        if (this->motion[i] != NULL) {
+    for (int i = 0; i < CHARA_MOTION_MAX; i++) {
+        if (this->motion[i] != nullptr) {
             if (this->motion_start[i] > motion_no) {
                 continue;
             }
@@ -422,15 +359,15 @@ tagMOTION_TYPE *CCharacter::GetMotionParam(int motion_no, int *out_index, int *o
             index = motion_no - this->motion_start[i];
             found = this->motion[i];
 
-            if (out_start != NULL) {
+            if (out_start != nullptr) {
                 *out_start = this->motion_start[i];
             }
 
-            if (out_end != NULL) {
+            if (out_end != nullptr) {
                 *out_end = this->motion_end[i];
             }
 
-            if (out_set != NULL) {
+            if (out_set != nullptr) {
                 *out_set = i;
             }
 
@@ -439,7 +376,7 @@ tagMOTION_TYPE *CCharacter::GetMotionParam(int motion_no, int *out_index, int *o
     }
 
     if (index < 0) {
-        return NULL;
+        return nullptr;
     }
 
     *out_index = index;
@@ -447,29 +384,25 @@ tagMOTION_TYPE *CCharacter::GetMotionParam(int motion_no, int *out_index, int *o
 }
 
 MOTION_INFO *CCharacter::GetMotionInfo(int motion_no) {
-    tagMOTION_TYPE *motion;
-    int             index;
+    int             index = 0;
+    tagMOTION_TYPE *motion = GetMotionParam(motion_no, &index, nullptr, nullptr, nullptr);
 
-    motion = GetMotionParam(motion_no, &index, NULL, NULL, NULL);
-
-    if (motion == NULL) {
-        return NULL;
+    if (motion == nullptr) {
+        return nullptr;
     }
 
-    if (motion->motion_info == NULL) {
-        return NULL;
+    if (motion->motion_info == nullptr) {
+        return nullptr;
     }
 
     return &motion->motion_info[index];
 }
 
 float CCharacter::GetNowTime() {
-    tagMOTION_TYPE *motion;
-    int             index;
+    int                   index = 0;
+    const tagMOTION_TYPE *motion = GetMotionParam(this->motion_no, &index, nullptr, nullptr, nullptr);
 
-    motion = GetMotionParam(this->motion_no, &index, NULL, NULL, NULL);
-
-    if (motion != NULL) {
+    if (motion != nullptr) {
         return motion->state.time;
     }
 
@@ -477,54 +410,37 @@ float CCharacter::GetNowTime() {
 }
 
 void CCharacter::Step() {
-    int             index;
-    int             set_no;
-    tagMOTION_TYPE *motion;
-    float           old_time;
-    float step;
-    float             new_time;
-    float             saved_speed;
-    float             saved_blend_step;
-    float             delta;
-    float             abs_delta;
-    MOTION_INFO      *motion_info;
-    CHARA_FOOT_SOUND *sound;
-    CHARA_EVENT      *event;
-    int               foot_sound_enabled;
-    sceVu0FVECTOR     position;
-
     this->motion_state = 0;
 
     if (this->motion_no < 0) {
         return;
     }
 
-    index = -1;
-    motion = GetMotionParam(this->motion_no, &index, NULL, NULL, &set_no);
+    int             index = -1;
+    int             set_no = 0;
+    tagMOTION_TYPE *motion = GetMotionParam(this->motion_no, &index, nullptr, nullptr, &set_no);
 
-    if (motion == NULL) {
+    if (motion == nullptr) {
         return;
     }
 
-    if (motion->motion_info == NULL) {
+    if (motion->motion_info == nullptr) {
         return;
     }
 
-    old_time = motion->state.time;
+    const float old_time = motion->state.time;
     this->motion_state = 2;
-    motion_info = &motion->motion_info[index];
+    const MOTION_INFO *motion_info = &motion->motion_info[index];
 
     // The step the motion advances by this frame, once the character's own speed overrides it.
-    step = motion_info->speed;
+    float step = motion_info->speed;
 
     if (this->motion_speed > 0.0f) {
         step = this->motion_speed;
     }
 
-    if (motion_info != NULL) {
-        if (old_time >= (float) motion_info->start && (float) motion_info->end - step - 0.01f <= old_time) {
-            this->motion_state = 3;
-        }
+    if (motion_info != nullptr && old_time >= static_cast<float>(motion_info->start) && static_cast<float>(motion_info->end) - step - 0.01f <= old_time) {
+        this->motion_state = 3;
     }
 
     motion->state.motion_no = index;
@@ -539,8 +455,8 @@ void CCharacter::Step() {
         }
     }
 
-    saved_speed = motion->motion_info[index].speed;
-    saved_blend_step = motion->state.blend_step;
+    const float saved_speed = motion->motion_info[index].speed;
+    const float saved_blend_step = motion->state.blend_step;
 
     if (this->motion_speed > 0.0f) {
         motion->motion_info[index].speed = this->motion_speed;
@@ -551,79 +467,65 @@ void CCharacter::Step() {
         motion->state.blend_step = 0.0f;
     }
 
-    if (this->motion_flags & 2) {
-        if (!(motion->state.time + step < (float) motion->motion_info[index].end)) {
-            motion->motion_info[index].speed = 0.0f;
-        }
+    if ((this->motion_flags & 2) != 0 && !(motion->state.time + step < static_cast<float>(motion->motion_info[index].end))) {
+        motion->motion_info[index].speed = 0.0f;
     }
 
     if (this->motion_flags & 4) {
         motion->state.blend_step = 1.0f;
         motion->state.frame = motion->motion_info[index].start;
         motion->state.next_frame = motion->motion_info[index].start;
-        motion->state.time = (float) motion->motion_info[index].start;
+        motion->state.time = static_cast<float>(motion->motion_info[index].start);
     }
 
     this->motion_flags &= ~4;
     SetMotionEX(this->frame, motion, motion->motion_info, &motion->state, motion->frame_info);
 
-    if (motion->motion_info != NULL) {
+    if (motion->motion_info != nullptr) {
         motion->motion_info[index].speed = saved_speed;
         motion->state.blend_step = saved_blend_step;
     }
 
     if (this->fade_out != 0) {
         this->fade[0] -= 0.08f;
-
-        if (this->fade[0] < this->fade[3]) {
-            this->fade[0] = this->fade[3];
-        }
+        this->fade[0] = std::max(this->fade[0], this->fade[3]);
     } else {
         this->fade[0] += 0.08f;
-
-        if (this->fade[0] > 1.0f) {
-            this->fade[0] = 1.0f;
-        }
+        this->fade[0] = std::min(this->fade[0], 1.0f);
     }
 
     if (this->ground_ambient_no >= 0 && this->ground_ambient_no < 2) {
-        for (int j = 0; j < 3; j++) {
-            if (this->ground_ambient[this->ground_ambient_no][j] > this->ambient_tint[j]) {
-                this->ambient_tint[j] += 10.0f;
+        const float *target = this->ground_ambient[this->ground_ambient_no];
 
-                if (this->ground_ambient[this->ground_ambient_no][j] < this->ambient_tint[j]) {
-                    this->ambient_tint[j] = this->ground_ambient[this->ground_ambient_no][j];
-                }
+        for (int j = 0; j < 3; j++) {
+            if (target[j] > this->ambient_tint[j]) {
+                this->ambient_tint[j] += 10.0f;
+                this->ambient_tint[j] = std::min(this->ambient_tint[j], target[j]);
             }
 
-            if (this->ground_ambient[this->ground_ambient_no][j] < this->ambient_tint[j]) {
+            if (target[j] < this->ambient_tint[j]) {
                 this->ambient_tint[j] -= 10.0f;
-
-                if (this->ground_ambient[this->ground_ambient_no][j] > this->ambient_tint[j]) {
-                    this->ambient_tint[j] = this->ground_ambient[this->ground_ambient_no][j];
-                }
+                this->ambient_tint[j] = std::max(this->ambient_tint[j], target[j]);
             }
         }
     } else {
         for (int j = 0; j < 3; j++) {
             this->ambient_tint[j] -= 10.0f;
-
-            if (this->ambient_tint[j] < 0.0f) {
-                this->ambient_tint[j] = 0.0f;
-            }
+            this->ambient_tint[j] = std::max(this->ambient_tint[j], 0.0f);
         }
     }
 
-    new_time = motion->state.time;
+    const float   new_time = motion->state.time;
+    sceVu0FVECTOR position;
     GetWorldPosition(position);
-    delta = old_time - new_time;
-    abs_delta = delta < 0.0f ? -delta : delta;
+    float       delta = old_time - new_time;
+    const float abs_delta = delta < 0.0f ? -delta : delta;
 
     if (abs_delta < 1.0f) {
         for (int i = 0; i < CHARA_FOOT_SOUND_MAX && this->foot_sound_enable != 0 && this->foot_sound_id >= 0 && this->foot_sound_wait == 0; i++) {
-            sound = &this->foot_sound[i];
+            const CHARA_FOOT_SOUND *sound = &this->foot_sound[i];
 
-            if ((float) sound->frame >= 0.0f && sound->motion_no == set_no && (float) sound->frame >= old_time && (float) sound->frame < new_time) {
+            if (static_cast<float>(sound->frame) >= 0.0f && sound->motion_no == set_no && static_cast<float>(sound->frame) >= old_time && static_cast<float>(sound->frame) < new_time) {
                 SndPlayFootSound(this->foot_sound_id, sound->foot, position);
                 this->foot_sound_wait = 5;
             }
@@ -634,59 +536,49 @@ void CCharacter::Step() {
 
     if (delta < 1.0f) {
         for (int i = 0; i < CHARA_EVENT_MAX && this->event_enable != 0; i++) {
-            event = &this->event[i];
+            const CHARA_EVENT *event = &this->event[i];
 
-            if ((float) event->frame < 0.0f || event->motion_no != set_no || (float) event->frame < old_time || (float) event->frame >= new_time) {
+            if (static_cast<float>(event->frame) < 0.0f || event->motion_no != set_no || static_cast<float>(event->frame) < old_time || static_cast<float>(event->frame) >= new_time) {
                 continue;
             }
 
-            switch (event->kind) {
-                case CHARA_EVENT_FOOT_SOUND:
-                    foot_sound_enabled = this->foot_sound_enable;
-
-                    if (foot_sound_enabled != 0) {
+            switch (static_cast<CharaEventKind>(event->kind)) {
+                case CharaEventKind::FootSound:
+                    if (this->foot_sound_enable != 0) {
                         SndPlayFootSound(this->foot_sound_id, event->no, position);
                     }
 
                     break;
-                case CHARA_EVENT_SOUND_EFFECT:
+                case CharaEventKind::SoundEffect:
                     SndSePlay(event->no, -1, 0);
+                    break;
+                default:
                     break;
             }
         }
     }
 
     this->foot_sound_wait--;
-
-    if (this->foot_sound_wait < 0) {
-        this->foot_sound_wait = 0;
-    }
+    this->foot_sound_wait = std::max(this->foot_sound_wait, 0);
 }
 
 void CCharacter::ShadowStep() {
-    int             index;
-    int             i;
-    tagMOTION_TYPE *motion;
-    tagMOTION_TYPE *shadow;
-    int             motion_no;
-    int             start;
-    float           speed;
-
-    motion_no = this->motion_no;
+    const int motion_no = this->motion_no;
 
     if (motion_no < 0) {
         return;
     }
 
-    index = -1;
-    shadow = NULL;
+    int             index = -1;
+    tagMOTION_TYPE *motion = nullptr;
+    tagMOTION_TYPE *shadow = nullptr;
 
-    for (i = 0; i < CHARA_MOTION_MAX; i++) {
-        if (this->motion[i] == NULL) {
+    for (int i = 0; i < CHARA_MOTION_MAX; i++) {
+        if (this->motion[i] == nullptr) {
             continue;
         }
 
-        start = this->motion_start[i];
+        const int start = this->motion_start[i];
 
         if (start > motion_no) {
             continue;
@@ -701,7 +593,7 @@ void CCharacter::ShadowStep() {
         motion = this->motion[i];
     }
 
-    if (shadow == NULL) {
+    if (shadow == nullptr) {
         return;
     }
 
@@ -709,24 +601,22 @@ void CCharacter::ShadowStep() {
         return;
     }
 
-    if (motion->motion_info == NULL || shadow->motion_info == NULL) {
+    if (motion->motion_info == nullptr || shadow->motion_info == nullptr) {
         return;
     }
 
-    speed = motion->motion_info[index].speed;
+    const float speed = motion->motion_info[index].speed;
 
     if ((this->motion_flags & 1) || MotionStopFlag) {
         shadow->motion_info[index].speed = 0.0f;
     }
 
-    if (this->motion_flags & 2) {
-        // The shadow stops on the last frame rather than running past it.
-        if (!(shadow->state.time + speed + 0.001f < (float) shadow->motion_info[index].end)) {
-            shadow->motion_info[index].speed = 0.0f;
-        }
+    // The shadow stops on the last frame rather than running past it.
+    if ((this->motion_flags & 2) != 0 && !(shadow->state.time + speed + 0.001f < static_cast<float>(shadow->motion_info[index].end))) {
+        shadow->motion_info[index].speed = 0.0f;
     }
 
-    if (this->shadow_frame == NULL) {
+    if (this->shadow_frame == nullptr) {
         return;
     }
 
@@ -744,10 +634,8 @@ void CCharacter::ShadowStep() {
 }
 
 void CCharacter::ClothFloor(int floor) {
-    int i;
-
-    for (i = 0; i < CHARA_CLOTH_MAX; i++) {
-        if (this->cloth[i] != NULL) {
+    for (int i = 0; i < CHARA_CLOTH_MAX; i++) {
+        if (this->cloth[i] != nullptr) {
             this->cloth[i]->floor_on = floor;
         }
     }
@@ -756,11 +644,11 @@ void CCharacter::ClothFloor(int floor) {
 void CCharacter::SetPosition(float x, float y, float z) {
     CObject::SetPosition(x, y, z);
 
-    if (this->frame != NULL) {
+    if (this->frame != nullptr) {
         this->frame->SetPosition(x, y, z);
     }
 
-    if (this->shadow_frame != NULL) {
+    if (this->shadow_frame != nullptr) {
         this->shadow_frame->SetPosition(x, y, z);
     }
 }
@@ -769,7 +657,7 @@ void CCharacter::GetWorldPosition(float *out_position) {
     GetPosition(out_position);
     out_position[3] = 1.0f;
 
-    if (this->frame->parent != NULL) {
+    if (this->frame->parent != nullptr) {
         this->frame->parent->GetWorldPosition(out_position, out_position);
     }
 }
@@ -789,11 +677,11 @@ void CCharacter::SetPosition(CVector3_f_ position) {
 void CCharacter::SetRotation(float x, float y, float z) {
     CObject::SetRotation(x, y, z);
 
-    if (this->frame != NULL) {
+    if (this->frame != nullptr) {
         this->frame->SetRotation(x, y, z);
     }
 
-    if (this->shadow_frame != NULL) {
+    if (this->shadow_frame != nullptr) {
         this->shadow_frame->SetRotation(x, y, z);
     }
 }
@@ -809,11 +697,11 @@ void CCharacter::SetRotation(CVector3_f_ rotation) {
 void CCharacter::SetScale(float x, float y, float z) {
     CObject::SetScale(x, y, z);
 
-    if (this->frame != NULL) {
+    if (this->frame != nullptr) {
         this->frame->SetScale(x, y, z);
     }
 
-    if (this->shadow_frame != NULL) {
+    if (this->shadow_frame != nullptr) {
         this->shadow_frame->SetScale(x, y, z);
     }
 }
@@ -829,23 +717,14 @@ void CCharacter::Draw() {
     float         light_colour[4][4];
     float         saved_light_colour[4][4];
     float         saved_light_direction[4][4];
-    sceVu0FVECTOR pos;
-    sceVu0FVECTOR direction;
-    int           fading;
-    int           light_slot;
-    int           i;
-    int           colour_no;
-    int           cloth_no;
-    float         distance;
-    float         level;
 
-    if (this->frame != NULL) {
+    if (this->frame != nullptr) {
         this->frame->SetPosition(this->pos[0], this->pos[1], this->pos[2]);
         this->frame->SetRotation(this->rotation.x, this->rotation.y, this->rotation.z);
         this->frame->SetScale(this->scale[0], this->scale[1], this->scale[2]);
     }
 
-    fading = this->fade[0] < 1.0f;
+    const bool fading = this->fade[0] < 1.0f;
 
     // The scene keeps the lights it had, so that the character can put them
     // back once it has drawn.
@@ -855,10 +734,10 @@ void CCharacter::Draw() {
     sceVu0CopyMatrix(saved_light_direction, light_direction);
     sceVu0CopyVector(saved_ambient, ambient);
 
-    light_slot = 3;
+    int light_slot = 3;
 
-    for (i = 0; i < CHARA_POINT_LIGHT_MAX; i++) {
-        // Only a light_slot that the scene leaves free can take one of its own.
+    for (CFakePointLight &light : this->point_light) {
+        // Only a slot that the scene leaves free can take one of the character's lights.
         if (saved_light_direction[0][light_slot] != 0.0f) {
             break;
         }
@@ -871,15 +750,17 @@ void CCharacter::Draw() {
             break;
         }
 
-        if (this->point_light[i].used == 0) {
+        if (light.used == 0) {
             continue;
         }
 
+        sceVu0FVECTOR pos;
+        sceVu0FVECTOR direction;
         GetPosition(pos);
-        sceVu0SubVector(direction, this->point_light[i].pos, pos);
-        distance = DistVector(direction);
+        sceVu0SubVector(direction, light.pos, pos);
+        const float distance = DistVector(direction);
 
-        if (!(distance <= this->point_light[i].outer_range)) {
+        if (!(distance <= light.outer_range)) {
             continue;
         }
 
@@ -888,18 +769,18 @@ void CCharacter::Draw() {
         light_direction[1][light_slot] = direction[1];
         light_direction[2][light_slot] = direction[2];
 
-        // The light_slot gives its whole colour up to the inner range and fades
+        // The light gives its whole colour up to the inner range and fades
         // away over the rest.
-        level = 1.0f;
+        float level = 1.0f;
 
-        if (!(distance <= this->point_light[i].inner_range)) {
-            level = level - (distance - this->point_light[i].inner_range) / (this->point_light[i].outer_range - this->point_light[i].inner_range);
+        if (!(distance <= light.inner_range)) {
+            level = level - (distance - light.inner_range) / (light.outer_range - light.inner_range);
         }
 
-        light_colour[light_slot][0] = this->point_light[i].colour[0] * level;
-        light_colour[light_slot][1] = this->point_light[i].colour[1] * level;
-        light_colour[light_slot][2] = this->point_light[i].colour[2] * level;
-        light_colour[light_slot][3] = this->point_light[i].colour[3];
+        light_colour[light_slot][0] = light.colour[0] * level;
+        light_colour[light_slot][1] = light.colour[1] * level;
+        light_colour[light_slot][2] = light.colour[2] * level;
+        light_colour[light_slot][3] = light.colour[3];
 
         light_slot--;
 
@@ -911,8 +792,8 @@ void CCharacter::Draw() {
     if (fading) {
         sceVu0ScaleVectorXYZ(ambient, ambient, this->fade[0]);
 
-        for (colour_no = 0; colour_no < 4; colour_no++) {
-            sceVu0ScaleVectorXYZ(light_colour[colour_no], light_colour[colour_no], this->fade[0]);
+        for (float *colour : light_colour) {
+            sceVu0ScaleVectorXYZ(colour, colour, this->fade[0]);
         }
     }
 
@@ -928,8 +809,8 @@ void CCharacter::Draw() {
     MGSetPLight(light_direction, light_colour);
     MGDraw(this->frame);
 
-    for (cloth_no = 0; cloth_no < CHARA_CLOTH_MAX; cloth_no++) {
-        if (this->cloth[cloth_no] != NULL) {
+    for (int cloth_no = 0; cloth_no < CHARA_CLOTH_MAX; cloth_no++) {
+        if (this->cloth[cloth_no] != nullptr) {
             this->cloth[cloth_no]->Draw();
         }
     }
@@ -939,19 +820,16 @@ void CCharacter::Draw() {
 }
 
 void CCharacter::DrawShadow() {
-    sceVu0FVECTOR transform;
-
-    if (this->shadow_frame == NULL) {
+    if (this->shadow_frame == nullptr) {
         return;
     }
 
     sceVu0FVECTOR light_direction = {0.0f, 1.0f, 0.0f, 0.0f};
+    sceVu0FVECTOR transform;
 
     this->shadow_frame->SetScale(this->scale[0], this->scale[1], this->scale[2]);
     GetRotation(transform);
-
-    CFrame *shadow = this->shadow_frame;
-    shadow->SetRotation(transform[0], transform[1], transform[2]);
+    this->shadow_frame->SetRotation(transform[0], transform[1], transform[2]);
     GetPosition(transform);
     this->shadow_frame->SetPosition(transform);
     // The shadow lies below the feet rather than inside the model.
@@ -964,7 +842,7 @@ void CCharacter::LoadPackData(unsigned int *pack, char *name, CDataAlloc2<1> *mo
 }
 
 void CCharacter::LoadPackData(unsigned int *pack, char *name, CDataAlloc2<1> *model_alloc, CDataAlloc2<1> *motion_alloc, CDataAlloc2<1> *texture_alloc) {
-    ReadInfo(this, pack, name, model_alloc, motion_alloc, texture_alloc, 0, NULL, 0, 0);
+    ReadInfo(this, pack, name, model_alloc, motion_alloc, texture_alloc, 0, nullptr, 0, 0);
 }
 
 void CCharacter::LoadPackData2(unsigned int *pack, char *name, CDataAlloc2<1> *alloc, int texture_block_no, CDataAlloc2<1> *image_alloc, int visual_type) {
@@ -976,34 +854,31 @@ void CCharacter::LoadPackData3(unsigned int *pack, char *name, CDataAlloc2<1> *a
 }
 
 void CCharacter::DeleteExtendTexture(int block_no) {
-    LOADTEXTURE_INFO2 info[2];
-
-    if (this->config != NULL) {
+    if (this->config != nullptr) {
         this->tex_anime.LoadCFGFile(this->config, this->config_size);
     }
 
     // A block that the character loaded textures into goes back to what the
     // character alone asks for.
-    if (this->images[1] != 0 || this->images[2] != 0 || this->images[3] != 0) {
+    if (this->images[1] != nullptr || this->images[2] != nullptr || this->images[3] != nullptr) {
+        std::array<LOADTEXTURE_INFO2, 2> info{};
         info[0].block_no = block_no;
         info[0].mipmap = false;
-        info[0].name = (char *) this->images[0];
+        info[0].name = reinterpret_cast<char *>(this->images[0]);
         info[1].block_no = 0;
         info[1].mipmap = false;
-        info[1].name = NULL;
+        info[1].name = nullptr;
         TexManager.DeleteTextureBlock(block_no);
-        TexManager.LoadTextureBlockEX(block_no, info);
+        TexManager.LoadTextureBlockEX(block_no, info.data());
     }
 }
 
 void CCharacter::DeleteExtendMotion() {
-    int i;
-
     // The first set is the one the character was loaded with; the rest come
     // from packs that a caller added, and go with them.
-    for (i = 1; i < CHARA_MOTION_MAX; i++) {
-        this->motion[i] = NULL;
-        this->shadow_motion[i] = NULL;
+    for (int i = 1; i < CHARA_MOTION_MAX; i++) {
+        this->motion[i] = nullptr;
+        this->shadow_motion[i] = nullptr;
         this->motion_start[i] = -1;
         this->motion_end[i] = -1;
     }
@@ -1011,39 +886,39 @@ void CCharacter::DeleteExtendMotion() {
 
 void CCharacter::Initialize() {
     CObject::Initialize(1.0f);
-    this->frame = NULL;
+    this->frame = nullptr;
     this->motion_no = 0;
-    this->shadow_frame = NULL;
+    this->shadow_frame = nullptr;
     this->motion_speed = -1.0f;
-    this->frame_info = 0;
-    this->shadow_frame_info = 0;
-    this->motion_type.motion_info = NULL;
-    this->unk_C6C = 0;
+    this->frame_info = nullptr;
+    this->shadow_frame_info = nullptr;
+    this->motion_type.motion_info = nullptr;
+    this->unk_C6C = 0.0f;
     this->motion_type.unk_78 = 0;
-    this->motion_type.frame_info = NULL;
+    this->motion_type.frame_info = nullptr;
     this->motion_type.unk_6C = 0;
     this->motion_type.unk_68 = 0;
     this->motion_type.unk_70 = 0;
     this->motion_type.unk_74 = 0;
     this->shadow_motion_type = this->motion_type;
-    this->shadow_motion_type.frame_info = NULL;
+    this->shadow_motion_type.frame_info = nullptr;
     this->motion_flags = 0;
 
     this->cloth = this->cloth_buf;
 
     for (int j = 0; j < CHARA_CLOTH_MAX; j++) {
-        this->cloth[j] = NULL;
+        this->cloth[j] = nullptr;
     }
 
     this->wind = 0;
 
     for (int i = 0; i < CHARA_MOTION_MAX; i++) {
-        this->motion[i] = NULL;
-        this->shadow_motion[i] = NULL;
+        this->motion[i] = nullptr;
+        this->shadow_motion[i] = nullptr;
         this->motion_start[i] = -1;
         this->motion_end[i] = -1;
-        memset(this->motion_storage[i].storage, 0, sizeof(this->motion_storage[i].storage));
-        memset(this->shadow_motion_storage[i].storage, 0, sizeof(this->shadow_motion_storage[i].storage));
+        std::memset(this->motion_storage[i].storage, 0, sizeof(this->motion_storage[i].storage));
+        std::memset(this->shadow_motion_storage[i].storage, 0, sizeof(this->shadow_motion_storage[i].storage));
     }
 
     this->body_width = 7.0f;
@@ -1061,8 +936,8 @@ void CCharacter::Initialize() {
 
     sceVu0FVECTOR zero = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    for (int i = 0; i < 2; i++) {
-        sceVu0CopyVector(this->ground_ambient[i], zero);
+    for (float *ground : this->ground_ambient) {
+        sceVu0CopyVector(ground, zero);
     }
 
     sceVu0CopyVector(this->ambient_tint, zero);
@@ -1073,15 +948,15 @@ void CCharacter::Initialize() {
     this->motion_start[0] = 0;
     this->motion_end[0] = 256;
 
-    for (int j = 0; j < 16; j++) {
-        this->unk_1068[j].unk_04 = -1.0f;
-        this->unk_1068[j].unk_00 = -1;
-        this->unk_1068[j].unk_0C = 0;
+    for (CHARA_UNK_1068 &range : this->unk_1068) {
+        range.unk_04 = -1.0f;
+        range.unk_00 = -1;
+        range.unk_0C = 0;
     }
 
-    for (int j = 0; j < CHARA_FOOT_SOUND_MAX; j++) {
-        this->foot_sound[j].foot = -1;
-        this->foot_sound[j].frame = -1;
+    for (CHARA_FOOT_SOUND &sound : this->foot_sound) {
+        sound.foot = -1;
+        sound.frame = -1;
     }
 
     this->foot_sound_wait = 0;
@@ -1090,7 +965,7 @@ void CCharacter::Initialize() {
     ClearEvent(-1);
     this->event_enable = 1;
     this->motion_state = 0;
-    this->config = NULL;
+    this->config = nullptr;
     ClearPointLight();
 }
 

@@ -2,10 +2,12 @@
 
 #include <libpkt.h>
 
+#include <algorithm>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
+#include <format>
+#include <optional>
+#include <string>
 
 #include "character.hpp"
 #include "editpartsdata.hpp"
@@ -17,84 +19,143 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
-/* The external-character code of every letter of each registered name. */
-s16 NameRegistTbl[8][11];
+void MakeRandTbl(float lo, float hi);
+void MakeRandTbl2(float lo, float hi);
 
-/* Random tables the message window shakes its text with. */
 float RandTbl[64];
 float RandTbl2[64];
 
-/* Every pass of the outline the message window draws behind its text. The
- * last entry's alpha ends the run. */
+// The entry with an alpha of zero or less ends the table.
 MES_FUCHI FuchiTbl_E[] = {
-    {0,  -2, 0, 0, 0, 128},
-    {0,  2,  0, 0, 0, 128},
-    {2,  0,  0, 0, 0, 128},
-    {-2, 0,  0, 0, 0, 128},
-    {0,  0,  0, 0, 0, -1 },
+    {.x = 0,  .y = -2, .r = 0, .g = 0, .b = 0, .alpha = 128},
+    {.x = 0,  .y = 2,  .r = 0, .g = 0, .b = 0, .alpha = 128},
+    {.x = 2,  .y = 0,  .r = 0, .g = 0, .b = 0, .alpha = 128},
+    {.x = -2, .y = 0,  .r = 0, .g = 0, .b = 0, .alpha = 128},
+    {.x = 0,  .y = 0,  .r = 0, .g = 0, .b = 0, .alpha = -1 },
 };
 
-/** What each of the eight words of a GaijiDataTbl entry says. */
-enum {
-    GAIJI_CODE,   /**< The external-character code the entry draws. */
-    GAIJI_U,      /**< Distance of the character from the left of the texture. */
-    GAIJI_V,      /**< Distance of the character from the top of the texture. */
-    GAIJI_WIDTH,  /**< How wide the character is in the texture. */
-    GAIJI_HEIGHT, /**< How tall the character is in the texture. */
-    GAIJI_X_OFF,  /**< Extra distance the character draws to the right. */
-    GAIJI_Y_OFF,  /**< Extra distance the character draws down. */
-    GAIJI_CELLS,  /**< Font cells the character takes across. */
-};
+namespace {
+
+s16 NameRegistTbl[8][11];
 
 /**
- * The tag that opens a run of GS register writes, as the four words the GIF
- * reads it out of.
+ * Gives back the gaiji code of a value digit or sign, or -1 for any other
+ * character.
  */
-struct GIFTAG {
-    u32 word[4];
-} __attribute__((aligned(16)));
+int ValueGlyphCode(char glyph) {
+    if (glyph == '+') {
+        return -0x2A4;
+    }
 
-STATIC_ASSERT(sizeof(GIFTAG) == 0x10);
+    if (glyph == '-') {
+        return -0x2A3;
+    }
+
+    if (glyph >= '0' && glyph <= '9') {
+        return -0x291 + (glyph - '0');
+    }
+
+    return -1;
+}
+
+std::string FormatValue(int value, bool show_sign) {
+    if (show_sign && value > 0) {
+        return std::format("+{}", value);
+    }
+
+    return std::format("{}", value);
+}
+
+void LayOutValue(ClsMes &mes, int value, int *x, int *y) {
+    for (const char glyph : FormatValue(value, mes.value_signed != 0)) {
+        const int code = ValueGlyphCode(glyph);
+
+        if (code == -1) {
+            continue;
+        }
+
+        mes.SetMesWinTbl(code, 0, *x, *y);
+
+        if (mes.value_narrow != 0) {
+            *x = *x + (mes.char_width >> 2) * 3;
+        } else {
+            *x = *x + mes.char_width;
+        }
+    }
+}
+
+/**
+ * Resolves a system-message code to the message it names, or nothing where
+ * the code is out of range or prints no message.
+ */
+std::optional<int> ResolveSystemCode(const ClsMes &mes, int code) {
+    if (code < -0x500 || code >= -0x400) {
+        return std::nullopt;
+    }
+
+    const int no = code + 0x500;
+
+    switch (no) {
+        case 0xFF:
+        case 0xFA:
+        case 0xF9:
+        case 0xF8:
+        case 0xF7:
+        case 0xF6:
+        case 0xF5:
+        case 0xF4:
+        case 0xF3:
+            return std::nullopt;
+        case 0xFE:
+            return mes.mes_no[0];
+        case 0xFD:
+            return mes.mes_no[1];
+        case 0xFC:
+            return mes.mes_no[2];
+        case 0xFB:
+            return mes.mes_no[3];
+        case 0xF2:
+            return mes.mes_no[4];
+        case 0xF1:
+            return mes.mes_no[5];
+        case 0xF0:
+            return mes.mes_no[6];
+        case 0xEF:
+            return mes.mes_no[7];
+        case 0xEE:
+            return mes.mes_no[8];
+        case 0xED:
+            return mes.mes_no[9];
+        default:
+            return no;
+    }
+}
+
+} // namespace
 
 s16 ClsMes::GetGaijiW(int code) {
     if (code >= -0x300 && code < -0x251) {
-        if (this->narrow_gaiji != 0) {
-            if (code == -0x2BD) {
-                return 5;
-            }
-
-            if (code == -0x2BA) {
-                return 5;
-            }
-
-            if (code == -0x2AB) {
-                return 5;
-            }
+        if (this->narrow_gaiji != 0 && (code == -0x2BD || code == -0x2BA || code == -0x2AB)) {
+            return 5;
         }
 
-        EDIT_GAIJI *table = (EDIT_GAIJI *) &EditPartsData[0x491C];
-        EDIT_GAIJI *gaiji = &EditGaijiTbl[code];
-        s16         width = this->char_width;
+        const s16 width = this->char_width;
 
-        return width * gaiji->width;
+        return width * EditGaijiTbl[code].width;
     }
 
     return this->char_width;
 }
 
 int ClsMes::GetNameLen(int chara) {
-    if (chara < 0) {
+    if (chara < 0 || chara >= 6) {
         return -1;
     }
 
-    if (chara >= 6) {
-        return -1;
-    }
-
-    short *name = (short *) SaveData->GetCharaName(chara);
+    const s16 *name = SaveData->GetCharaName(chara);
 
     for (int i = 0; i < 11; i++) {
-        if ((u16) name[i] == 0) {
+        if (name[i] == 0) {
             return i;
         }
     }
@@ -103,23 +164,19 @@ int ClsMes::GetNameLen(int chara) {
 }
 
 int ClsMes::GetNameWidth(int chara) {
-    if (chara < 0) {
+    if (chara < 0 || chara >= 6) {
         return -1;
     }
 
-    if (chara >= 6) {
-        return -1;
-    }
-
-    u16 *name = (u16 *) SaveData->GetCharaName(chara);
-    s16  width = 0;
+    const s16 *name = SaveData->GetCharaName(chara);
+    s16        width = 0;
 
     for (int i = 0; i < 11; i++) {
         if (name[i] == 0) {
             return width;
         }
 
-        int code = NameRegistCodeJtoE(name[i] - 1);
+        const int code = NameRegistCodeJtoE(static_cast<u16>(name[i]) - 1);
 
         if (code >= -0x300 && code < -0x250) {
             width += this->GetGaijiW(code);
@@ -131,35 +188,21 @@ int ClsMes::GetNameWidth(int chara) {
     return -1;
 }
 
-void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r, u8 g, u8 b, u8 a);
-
 void ClsMes::AutoSetSub(CCharacter *first, CCharacter *second, int *out_pos) {
     GetScrPosFromChar(first, out_pos);
     GetScrPosFromChar(second, &out_pos[2]);
 }
 
 void ClsMes::AutoSet(int *pos) {
-    RECT  candidate[3][3];
-    int   outside[3][3];
-    float clearance[3][3];
-    int   speaker_x;
-    int   speaker_y;
-    int   other_x;
-    int   other_y;
-    int   width;
-    int   height;
-    int   col;
-    int   row;
-    int   best_col;
-    int   best_row;
-
-    speaker_x = pos[0];
-    speaker_y = pos[1];
-    other_x = pos[2];
-    other_y = pos[3];
-
-    width = 0xCA;
-    height = 0x8A;
+    RECT      candidate[3][3];
+    int       outside[3][3];
+    float     clearance[3][3];
+    const int speaker_x = pos[0];
+    const int speaker_y = pos[1];
+    const int other_x = pos[2];
+    const int other_y = pos[3];
+    int       width = 0xCA;
+    int       height = 0x8A;
 
     if (this->win_width > 0xCA) {
         width = this->win_width;
@@ -169,8 +212,8 @@ void ClsMes::AutoSet(int *pos) {
         height = this->win_height;
     }
 
-    for (row = 0; row < 3; row++) {
-        for (col = 0; col < 3; col++) {
+    for (int row = 0; row < 3; row++) {
+        for (int col = 0; col < 3; col++) {
             candidate[row][col].height = height;
 
             if (col == 0) {
@@ -201,12 +244,12 @@ void ClsMes::AutoSet(int *pos) {
         }
     }
 
-    best_col = 0;
-    best_row = 0;
+    int best_col = 0;
+    int best_row = 0;
 
     if (this->auto_pos == MES_POS_AUTO) {
-        for (row = 0; row < 3; row++) {
-            for (col = 0; col < 3; col++) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
                 RECT *rect = &candidate[row][col];
 
                 outside[row][col] = CheckPosInOutForRect(rect, speaker_x, speaker_y);
@@ -217,8 +260,8 @@ void ClsMes::AutoSet(int *pos) {
             }
         }
 
-        for (row = 0; row < 3; row++) {
-            for (col = 0; col < 3; col++) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
                 if (outside[row][col] != 0) {
                     clearance[row][col] = -1.0f;
                 }
@@ -227,18 +270,16 @@ void ClsMes::AutoSet(int *pos) {
 
                 clearance[row][col] = GetDisPosToRect(rect, speaker_x, speaker_y);
 
-                float other_clearance = GetDisPosToRect(rect, other_x, other_y);
+                const float other_clearance = GetDisPosToRect(rect, other_x, other_y);
 
-                if (other_clearance < clearance[row][col]) {
-                    clearance[row][col] = other_clearance;
-                }
+                clearance[row][col] = std::min(clearance[row][col], other_clearance);
             }
         }
 
         float best_clearance = 0.0f;
 
-        for (row = 0; row < 3; row++) {
-            for (col = 0; col < 3; col++) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
                 if (clearance[row][col] >= 0.0f && best_clearance < clearance[row][col]) {
                     best_col = col;
                     best_row = row;
@@ -270,8 +311,8 @@ void ClsMes::AutoSet(int *pos) {
         this->win_y += 0x10;
     }
 
-    this->text_x = this->win_x + (int) (3.0f * this->char_width);
-    this->text_y = this->win_y + (int) (1.5f * this->char_height);
+    this->text_x = this->win_x + static_cast<int>(3.0f * this->char_width);
+    this->text_y = this->win_y + static_cast<int>(1.5f * this->char_height);
 
     if (this->tail_on != 0) {
         this->tail_to_x = speaker_x;
@@ -282,18 +323,18 @@ void ClsMes::AutoSet(int *pos) {
     this->grow_y = this->win_y + (this->win_height >> 1);
 
     if (this->tail_on != 0) {
-        if (this->tail_to_x <= this->win_x + (int) (this->win_width >> 2)) {
-            this->tail_x = this->win_x + (int) (this->win_width >> 2);
-        } else if (this->win_x + (int) (this->win_width * 3 >> 2) <= this->tail_to_x) {
-            this->tail_x = this->win_x + (int) (this->win_width * 3 >> 2);
+        if (this->tail_to_x <= this->win_x + (this->win_width >> 2)) {
+            this->tail_x = this->win_x + (this->win_width >> 2);
+        } else if (this->win_x + (this->win_width * 3 >> 2) <= this->tail_to_x) {
+            this->tail_x = this->win_x + (this->win_width * 3 >> 2);
         } else {
             this->tail_x = this->tail_to_x;
         }
 
-        if (this->tail_to_y <= this->win_y + (int) (this->win_height >> 2)) {
-            this->tail_y = this->win_y + (int) (this->win_height >> 2);
-        } else if (this->win_y + (int) (this->win_height * 3 >> 2) <= this->tail_to_y) {
-            this->tail_y = this->win_y + (int) (this->win_height * 3 >> 2);
+        if (this->tail_to_y <= this->win_y + (this->win_height >> 2)) {
+            this->tail_y = this->win_y + (this->win_height >> 2);
+        } else if (this->win_y + (this->win_height * 3 >> 2) <= this->tail_to_y) {
+            this->tail_y = this->win_y + (this->win_height * 3 >> 2);
         } else {
             this->tail_y = this->tail_to_y;
         }
@@ -303,18 +344,18 @@ void ClsMes::AutoSet(int *pos) {
 void ClsMes::AbsFukidashiIn() {
     if (this->win_x < 0x10) {
         this->win_x = 0x10;
-        this->text_x = this->win_x + (int) (3.0f * this->char_width);
+        this->text_x = this->win_x + static_cast<int>(3.0f * this->char_width);
     } else if (this->win_x + this->win_width >= 0x270) {
         this->win_x = 0x270 - this->win_width;
-        this->text_x = this->win_x + (int) (3.0f * this->char_width);
+        this->text_x = this->win_x + static_cast<int>(3.0f * this->char_width);
     }
 
     if (this->win_y < 0x10) {
         this->win_y = 0x10;
-        this->text_y = this->win_y + (int) (1.5f * this->char_height);
+        this->text_y = this->win_y + static_cast<int>(1.5f * this->char_height);
     } else if (this->win_y + this->win_height >= 0x1B0) {
         this->win_y = 0x1B0 - this->win_height;
-        this->text_y = this->win_y + (int) (1.5f * this->char_height);
+        this->text_y = this->win_y + static_cast<int>(1.5f * this->char_height);
     }
 }
 
@@ -377,13 +418,8 @@ ClsMes::ClsMes() {
     this->narrow_gaiji_set = 0;
     this->narrow_gaiji = false;
 
-    for (int i = 0; i < 10; i++) {
-        this->mes_no[i] = -1;
-    }
-
-    for (int i = 0; i < 8; i++) {
-        this->values[i] = 0;
-    }
+    std::ranges::fill(this->mes_no, -1);
+    std::ranges::fill(this->values, 0);
 
     this->value = 0;
     this->value_signed = false;
@@ -396,29 +432,27 @@ ClsMes::ClsMes() {
     this->cursor_lit = false;
     this->tex_block = 0;
 
-    for (int i = 0; i < 10; i++) {
-        this->line_pos[i].x = -1;
-        this->line_pos[i].y = -1;
+    for (MES_LINE_POS &pos : this->line_pos) {
+        pos.x = -1;
+        pos.y = -1;
     }
 
-    this->buff = NULL;
-    this->buff_system = NULL;
-    this->text = NULL;
-    this->text_system = NULL;
-    this->tex_buff = NULL;
+    this->buff = nullptr;
+    this->buff_system = nullptr;
+    this->text = nullptr;
+    this->text_system = nullptr;
+    this->tex_buff = nullptr;
     this->clut = MesWinClut;
 }
 
 void ClsMes::SetBuff(short *buff) {
     this->buff = buff;
-    this->text = (char *) this->buff;
-    this->text += (u16) this->buff[1];
+    this->text = reinterpret_cast<char *>(this->buff) + static_cast<u16>(this->buff[1]);
 }
 
 void ClsMes::SetBuff_system(short *buff) {
     this->buff_system = buff;
-    this->text_system = (char *) this->buff_system;
-    this->text_system += (u16) this->buff_system[1];
+    this->text_system = reinterpret_cast<char *>(this->buff_system) + static_cast<u16>(this->buff_system[1]);
 }
 
 void ClsMes::Preset(int style) {
@@ -460,6 +494,7 @@ void ClsMes::Preset(int style) {
             this->page_mark_style = false;
             break;
         case MES_PRESET_NONE:
+        default:
             break;
     }
 }
@@ -539,17 +574,13 @@ void ClsMes::Step() {
             this->fade = this->fade + this->fade_speed;
         }
 
-        if (1.0f < this->fade) {
-            this->fade = 1.0f;
-        }
+        this->fade = std::min(this->fade, 1.0f);
     } else {
         if (0.0f < this->fade) {
             this->fade = this->fade - this->fade_speed;
         }
 
-        if (this->fade < 0.0f) {
-            this->fade = 0.0f;
-        }
+        this->fade = std::max(this->fade, 0.0f);
     }
 
     if (this->tail_on == 0) {
@@ -565,19 +596,19 @@ void ClsMes::Step() {
     centre[0] = this->tail_x;
     centre[1] = this->tail_y;
 
-    float angle = atan2((float) (this->tail_to_x - this->tail_x), (float) (this->tail_to_y - this->tail_y));
+    float angle = atan2(static_cast<float>(this->tail_to_x - this->tail_x), static_cast<float>(this->tail_to_y - this->tail_y));
 
     left[0] = this->tail_x - this->tail_half_width;
     left[1] = this->tail_y;
     RollPos(centre, left, angle, left_out);
-    this->tail_left_x = (int) left_out[0];
-    this->tail_left_y = (int) left_out[1];
+    this->tail_left_x = static_cast<int>(left_out[0]);
+    this->tail_left_y = static_cast<int>(left_out[1]);
 
     right[0] = this->tail_x + this->tail_half_width;
     right[1] = this->tail_y;
     RollPos(centre, right, angle, right_out);
-    this->tail_right_x = (int) right_out[0];
-    this->tail_right_y = (int) right_out[1];
+    this->tail_right_x = static_cast<int>(right_out[0]);
+    this->tail_right_y = static_cast<int>(right_out[1]);
 
     float dx = this->tail_to_x - this->tail_x;
     float dy = this->tail_to_y - this->tail_y;
@@ -586,8 +617,8 @@ void ClsMes::Step() {
     float px = this->tail_length * dx / length;
     float py = this->tail_length * dy / length;
 
-    this->tail_tip_x = (int) px + this->tail_x;
-    this->tail_tip_y = (int) py + this->tail_y;
+    this->tail_tip_x = static_cast<int>(px) + this->tail_x;
+    this->tail_tip_y = static_cast<int>(py) + this->tail_y;
 }
 
 int ClsMes::State() {
@@ -611,7 +642,7 @@ int ClsMes::State() {
 }
 
 void ClsMes::MyTextureMake_InitAll() {
-    if (this->tex_buff != NULL) {
+    if (this->tex_buff != nullptr) {
         memset(this->tex_buff, 0, 0x100);
     }
 }
@@ -631,12 +662,6 @@ int ClsMes::MyTextureMake_sub() {
     this->text_no = at + 1;
 
     short code = this->win_line[at].code;
-
-    int unused;
-
-    if (code >= 0x1000) {
-        unused = code;
-    }
 
     switch (code) {
         case MES_CODE_NEWLINE:
@@ -658,6 +683,8 @@ int ClsMes::MyTextureMake_sub() {
         case MES_CODE_SPACE:
             this->text_at += 1.0f;
             return 0;
+        default:
+            break;
     }
 
     if ((code >= -0x700 && code <= -0x601) || (code >= -0x800 && code <= -0x701) || (code >= -0x900 && code < -0x800)) {
@@ -689,9 +716,7 @@ void ClsMes::MyTextureMake() {
         return;
     }
 
-    if (this->text_at > this->text_len) {
-        this->text_at = this->text_len;
-    }
+    this->text_at = std::min(this->text_at, static_cast<float>(this->text_len));
 
     while (this->text_rate == 0.0f || this->text_at - this->text_no >= 1.0f) {
         int made = this->MyTextureMake_sub();
@@ -717,111 +742,36 @@ void ClsMes::MyTextureMake() {
     }
 }
 
-short *SetAndGetNameRegistTbl(int chara) {
-    if (chara < 0) {
-        return NULL;
+namespace {
+
+s16 *SetAndGetNameRegistTbl(int chara) {
+    if (chara < 0 || chara >= 6) {
+        return nullptr;
     }
 
-    if (chara >= 6) {
-        return NULL;
-    }
+    std::ranges::fill(NameRegistTbl[chara], static_cast<s16>(MES_CODE_NEWLINE));
 
-    for (int i = 0; i < 11; i++) {
-        NameRegistTbl[chara][i] = MES_CODE_NEWLINE;
-    }
-
-    u16 *name = (u16 *) SaveData->GetCharaName(chara);
+    const s16 *name = SaveData->GetCharaName(chara);
 
     for (int i = 0; i < 11; i++) {
         if (name[i] == 0) {
             NameRegistTbl[chara][i] = MES_CODE_NEWLINE;
         } else {
-            NameRegistTbl[chara][i] = NameRegistCodeJtoE(name[i] - 1);
+            NameRegistTbl[chara][i] = NameRegistCodeJtoE(static_cast<u16>(name[i]) - 1);
         }
     }
 
     return NameRegistTbl[chara];
 }
 
+} // namespace
+
 void ClsMes::MakeMesWinTbl_value(int *x, int *y) {
     if (this->value_show == 0 && this->value == 0) {
         return;
     }
 
-    char text[128];
-
-    if (this->value_signed != 0 && this->value > 0) {
-        sprintf(text, "+%d\n", this->value);
-    } else {
-        sprintf(text, "%d\n", this->value);
-    }
-
-    int len = strlen(text);
-
-    for (int i = 0; i < len; i++) {
-        int  code = -1;
-        char digit = text[i];
-
-        if (digit == '+') {
-            code = -0x2A4;
-        }
-
-        if (digit == '-') {
-            code = -0x2A3;
-        }
-
-        if (digit == '1') {
-            code = -0x290;
-        }
-
-        if (digit == '2') {
-            code = -0x28F;
-        }
-
-        if (digit == '3') {
-            code = -0x28E;
-        }
-
-        if (digit == '4') {
-            code = -0x28D;
-        }
-
-        if (digit == '5') {
-            code = -0x28C;
-        }
-
-        if (digit == '6') {
-            code = -0x28B;
-        }
-
-        if (digit == '7') {
-            code = -0x28A;
-        }
-
-        if (digit == '8') {
-            code = -0x289;
-        }
-
-        if (digit == '9') {
-            code = -0x288;
-        }
-
-        if (digit == '0') {
-            code = -0x291;
-        }
-
-        if (code == -1) {
-            continue;
-        }
-
-        if (this->value_narrow != 0) {
-            this->SetMesWinTbl(code, 0, *x, *y);
-            *x = *x + (this->char_width >> 2) * 3;
-        } else {
-            this->SetMesWinTbl(code, 0, *x, *y);
-            *x = *x + this->char_width;
-        }
-    }
+    LayOutValue(*this, this->value, x, y);
 }
 
 void ClsMes::MakeMesWinTbl_value(int which, int *x, int *y) {
@@ -829,168 +779,34 @@ void ClsMes::MakeMesWinTbl_value(int which, int *x, int *y) {
         return;
     }
 
-    char text[128];
-
-    if (this->value_signed != 0 && this->values[which] > 0) {
-        sprintf(text, "+%d\n", this->values[which]);
-    } else {
-        sprintf(text, "%d\n", this->values[which]);
-    }
-
-    int len = strlen(text);
-
-    for (int i = 0; i < len; i++) {
-        int  code = -1;
-        char digit = text[i];
-
-        if (digit == '+') {
-            code = -0x2A4;
-        }
-
-        if (digit == '-') {
-            code = -0x2A3;
-        }
-
-        if (digit == '1') {
-            code = -0x290;
-        }
-
-        if (digit == '2') {
-            code = -0x28F;
-        }
-
-        if (digit == '3') {
-            code = -0x28E;
-        }
-
-        if (digit == '4') {
-            code = -0x28D;
-        }
-
-        if (digit == '5') {
-            code = -0x28C;
-        }
-
-        if (digit == '6') {
-            code = -0x28B;
-        }
-
-        if (digit == '7') {
-            code = -0x28A;
-        }
-
-        if (digit == '8') {
-            code = -0x289;
-        }
-
-        if (digit == '9') {
-            code = -0x288;
-        }
-
-        if (digit == '0') {
-            code = -0x291;
-        }
-
-        if (code == -1) {
-            continue;
-        }
-
-        if (this->value_narrow != 0) {
-            this->SetMesWinTbl(code, 0, *x, *y);
-            *x = *x + (this->char_width >> 2) * 3;
-        } else {
-            this->SetMesWinTbl(code, 0, *x, *y);
-            *x = *x + this->char_width;
-        }
-    }
+    LayOutValue(*this, this->values[which], x, y);
 }
 
 int ClsMes::MakeMesWinTbl_system(int code, int *x, int *y) {
-    short *at;
-    int    text_code;
+    const std::optional<int> no = ResolveSystemCode(*this, code);
 
-    if (code >= -0x500 && code < -0x400) {
-        code += 0x500;
-
-        if (code == 0xFF) {
-            return 0;
-        }
-
-        if (code == 0xFA) {
-            return 0;
-        }
-
-        if (code == 0xF9) {
-            return 0;
-        }
-
-        if (code == 0xF8) {
-            return 0;
-        }
-
-        if (code == 0xF7) {
-            return 0;
-        }
-
-        if (code == 0xF6) {
-            return 0;
-        }
-
-        if (code == 0xF5) {
-            return 0;
-        }
-
-        if (code == 0xF4) {
-            return 0;
-        }
-
-        if (code == 0xF3) {
-            return 0;
-        }
-
-        if (code == 0xFE) {
-            code = this->mes_no[0];
-        } else if (code == 0xFD) {
-            code = this->mes_no[1];
-        } else if (code == 0xFC) {
-            code = this->mes_no[2];
-        } else if (code == 0xFB) {
-            code = this->mes_no[3];
-        } else if (code == 0xF2) {
-            code = this->mes_no[4];
-        } else if (code == 0xF1) {
-            code = this->mes_no[5];
-        } else if (code == 0xF0) {
-            code = this->mes_no[6];
-        } else if (code == 0xEF) {
-            code = this->mes_no[7];
-        } else if (code == 0xEE) {
-            code = this->mes_no[8];
-        } else if (code == 0xED) {
-            code = this->mes_no[9];
-        }
-    } else {
+    if (!no) {
         return 0;
     }
 
-    if (this->buff_system == 0) {
+    if (this->buff_system == nullptr) {
         return 0;
     }
 
-    at = this->GetTextLineDataTop_system(code);
+    short *at = this->GetTextLineDataTop_system(*no);
 
-    if (at == 0) {
+    if (at == nullptr) {
         return 0;
     }
 
-    while (1) {
-        text_code = *at;
+    while (true) {
+        const int text_code = *at;
         at++;
 
         if (text_code >= -0x506 && text_code < -0x500) {
-            short *name = SetAndGetNameRegistTbl(text_code + 0x506);
+            const s16 *name = SetAndGetNameRegistTbl(text_code + 0x506);
 
-            if (name != 0) {
+            if (name != nullptr) {
                 int name_code = *name;
 
                 while (name_code != MES_CODE_NEWLINE && name_code != MES_CODE_END) {
@@ -1038,86 +854,26 @@ int ClsMes::MakeMesWinTbl_system(int code, int *x, int *y) {
 }
 
 int ClsMes::GetMesLen_system(int mes_no) {
-    int no;
+    const std::optional<int> no = ResolveSystemCode(*this, mes_no);
 
-    if (mes_no >= -0x500 && mes_no < -0x400) {
-        no = mes_no + 0x500;
-
-        if (no == 0xFF) {
-            return -1;
-        }
-
-        if (no == 0xFA) {
-            return -1;
-        }
-
-        if (no == 0xF9) {
-            return -1;
-        }
-
-        if (no == 0xF8) {
-            return -1;
-        }
-
-        if (no == 0xF7) {
-            return -1;
-        }
-
-        if (no == 0xF6) {
-            return -1;
-        }
-
-        if (no == 0xF5) {
-            return -1;
-        }
-
-        if (no == 0xF4) {
-            return -1;
-        }
-
-        if (no == 0xF3) {
-            return -1;
-        }
-
-        if (no == 0xFE) {
-            no = this->mes_no[0];
-        } else if (no == 0xFD) {
-            no = this->mes_no[1];
-        } else if (no == 0xFC) {
-            no = this->mes_no[2];
-        } else if (no == 0xFB) {
-            no = this->mes_no[3];
-        } else if (no == 0xF2) {
-            no = this->mes_no[4];
-        } else if (no == 0xF1) {
-            no = this->mes_no[5];
-        } else if (no == 0xF0) {
-            no = this->mes_no[6];
-        } else if (no == 0xEF) {
-            no = this->mes_no[7];
-        } else if (no == 0xEE) {
-            no = this->mes_no[8];
-        } else if (no == 0xED) {
-            no = this->mes_no[9];
-        }
-    } else {
+    if (!no) {
         return -1;
     }
 
-    if (this->buff_system == NULL) {
+    if (this->buff_system == nullptr) {
         return -1;
     }
 
-    short *at = this->GetTextLineDataTop_system(no);
+    short *at = this->GetTextLineDataTop_system(*no);
 
-    if (at == NULL) {
+    if (at == nullptr) {
         return -1;
     }
 
     int len[2] = {0, 0};
     int line = 0;
 
-    while (1) {
+    while (true) {
         short code = *at++;
 
         if (code >= -0x506 && code < -0x500) {
@@ -1135,6 +891,8 @@ int ClsMes::GetMesLen_system(int mes_no) {
                 }
 
                 return len[1];
+            default:
+                break;
         }
 
         len[line]++;
@@ -1142,20 +900,20 @@ int ClsMes::GetMesLen_system(int mes_no) {
 }
 
 int ClsMes::GetMesWidth_system(int mes_no) {
-    if (this->buff_system == NULL) {
+    if (this->buff_system == nullptr) {
         return -1;
     }
 
     short *at = this->GetTextLineDataTop_system(mes_no);
 
-    if (at == NULL) {
+    if (at == nullptr) {
         return -1;
     }
 
     int width[2] = {0, 0};
     int line = 0;
 
-    while (1) {
+    while (true) {
         short code = *at++;
 
         if (code >= -0x506 && code < -0x500) {
@@ -1173,6 +931,8 @@ int ClsMes::GetMesWidth_system(int mes_no) {
                 }
 
                 return width[1];
+            default:
+                break;
         }
 
         if (code >= -0x300 && code < -0x250) {
@@ -1184,25 +944,21 @@ int ClsMes::GetMesWidth_system(int mes_no) {
 }
 
 short *ClsMes::GetTextLineDataTop_system(int line) {
-    int    count = this->buff_system[0];
-    short *body = &this->buff_system[1];
+    const int count = this->buff_system[0];
+    short    *body = &this->buff_system[1];
 
     for (int i = 0; i < count; i++) {
         if (line == body[i * 2 + 1]) {
-            return &body[count] + body[i * 2 + 2];
+            return &body[count + body[i * 2 + 2]];
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void ClsMes::InitMesWinTbl() {
-    for (int i = 0; i < MES_WIN_LINE_MAX; i++) {
-        this->win_line[i].code = 0;
-        this->win_line[i].x = 0;
-        this->win_line[i].y = 0;
-        this->win_line[i].clut = 0;
-        this->win_line[i].space = 0;
+    for (MES_WIN_LINE &entry : this->win_line) {
+        entry = {};
     }
 
     this->win_line_num = 0;
@@ -1213,7 +969,7 @@ int ClsMes::CalcSpaceW(int width, int glyph_width, short *text) {
     int    used = 0;
     int    spaces = 0;
 
-    while (1) {
+    while (true) {
         short code = *at++;
 
         switch (code) {
@@ -1228,6 +984,8 @@ int ClsMes::CalcSpaceW(int width, int glyph_width, short *text) {
             case MES_CODE_SPACE:
                 spaces++;
                 continue;
+            default:
+                break;
         }
 
         if (code >= -0x300 && code < -0x250) {
@@ -1241,28 +999,23 @@ int ClsMes::CalcSpaceW(int width, int glyph_width, short *text) {
 }
 
 int ClsMes::MakeMesWinTbl(int mes_no) {
-    short *at;
-    int    x;
-    int    y;
-    int    code;
-
-    if (this->buff == 0) {
+    if (this->buff == nullptr) {
         return 0;
     }
 
-    at = this->GetTextLineDataTop(mes_no);
+    short *at = this->GetTextLineDataTop(mes_no);
 
-    if (at == 0) {
+    if (at == nullptr) {
         return 0;
     }
 
     this->InitMesWinTbl();
 
-    x = 0;
-    y = 0;
+    int x = 0;
+    int y = 0;
 
-    while (1) {
-        code = *at;
+    while (true) {
+        const int code = *at;
         at++;
 
         if (code == MES_CODE_PAGE || code == MES_CODE_NEWLINE || code == MES_CODE_END) {
@@ -1310,9 +1063,9 @@ int ClsMes::MakeMesWinTbl(int mes_no) {
                 } else if (code >= -0x700 && code < -0x600) {
                     x += code + 0x700;
                 } else if (code >= -0x506 && code < -0x500) {
-                    short *name = SetAndGetNameRegistTbl(code + 0x506);
+                    const s16 *name = SetAndGetNameRegistTbl(code + 0x506);
 
-                    if (name != 0) {
+                    if (name != nullptr) {
                         int name_code = *name;
 
                         while (name_code != MES_CODE_NEWLINE && name_code != MES_CODE_END) {
@@ -1326,10 +1079,8 @@ int ClsMes::MakeMesWinTbl(int mes_no) {
                     this->MakeMesWinTbl_value(&x, &y);
                 } else if (code >= -0x40D && code < -0x405) {
                     this->MakeMesWinTbl_value(-0x406 - code, &x, &y);
-                } else if (this->MakeMesWinTbl_system(code, &x, &y) == 0) {
-                    if (this->SetMesWinTbl(code, 0, x, y) != 0) {
-                        x += this->char_width;
-                    }
+                } else if (this->MakeMesWinTbl_system(code, &x, &y) == 0 && this->SetMesWinTbl(code, 0, x, y) != 0) {
+                    x += this->char_width;
                 }
 
                 break;
@@ -1337,65 +1088,60 @@ int ClsMes::MakeMesWinTbl(int mes_no) {
     }
 }
 
-void NeedMesWinWH_sub(int *len, int *max_len, int *width, int *max_width, int char_width, int count) {
+namespace {
+
+void NeedMesWinWH_sub(int &len, int &max_len, int &width, int &max_width, int char_width, int count) {
     if (count <= 0) {
         return;
     }
 
-    *len += count;
-
-    if (*max_len < *len) {
-        *max_len = *len;
-    }
-
-    *width += count * char_width;
-
-    if (*max_width < *width) {
-        *max_width = *width;
-    }
+    len += count;
+    max_len = std::max(max_len, len);
+    width += count * char_width;
+    max_width = std::max(max_width, width);
 }
 
+} // namespace
+
 void ClsMes::NeedMesWinWH(int mes_no, int *out) {
-    short *at;
-    int   *max_len;
-    int   *max_lines;
-    int   *max_width;
-    int   *max_height;
-    int    code;
-    int    len;
-    int    width;
-    int    lines;
-    int    height;
-    int    count;
-
-    if (this->buff == 0) {
+    if (this->buff == nullptr) {
         return;
     }
 
-    at = this->GetTextLineDataTop(mes_no);
+    short *at = this->GetTextLineDataTop(mes_no);
 
-    if (at == 0) {
+    if (at == nullptr) {
         return;
     }
 
-    max_len = &out[0];
-    max_lines = &out[1];
-    max_width = &out[2];
-    max_height = &out[3];
+    int &max_len = out[0];
+    int &max_lines = out[1];
+    int &max_width = out[2];
+    int &max_height = out[3];
 
-    *max_len = 0;
-    *max_lines = 0;
-    *max_width = 0;
-    *max_height = 0;
-    len = 0;
-    lines = 0;
-    width = 0;
-    height = 0;
-    count = 0;
+    max_len = 0;
+    max_lines = 0;
+    max_width = 0;
+    max_height = 0;
 
-    while (1) {
-        count++;
-        code = *at;
+    int len = 0;
+    int lines = 0;
+    int width = 0;
+    int height = 0;
+
+    auto add_value = [&](int value) {
+        if (this->value_show == 0 && value == 0) {
+            return;
+        }
+
+        const int digits = static_cast<int>(FormatValue(value, this->value_signed != 0).size());
+        const int glyph_width = this->value_narrow != 0 ? (this->char_width >> 2) * 3 : this->char_width;
+
+        NeedMesWinWH_sub(len, max_len, width, max_width, glyph_width, digits);
+    };
+
+    while (true) {
+        const int code = *at;
         at++;
 
         if (code == MES_CODE_PAGE || code == MES_CODE_NEWLINE || code == MES_CODE_END) {
@@ -1410,9 +1156,7 @@ void ClsMes::NeedMesWinWH(int mes_no, int *out) {
             case MES_CODE_SPACE:
                 len++;
 
-                if (*max_len < len) {
-                    *max_len = len;
-                }
+                max_len = std::max(max_len, len);
 
                 if (this->space_area >= 0 || this->space_width >= 0) {
                     width += this->space_width;
@@ -1420,9 +1164,7 @@ void ClsMes::NeedMesWinWH(int mes_no, int *out) {
                     width += this->char_width;
                 }
 
-                if (*max_width < width) {
-                    *max_width = width;
-                }
+                max_width = std::max(max_width, width);
 
                 break;
 
@@ -1430,16 +1172,12 @@ void ClsMes::NeedMesWinWH(int mes_no, int *out) {
                 len = 0;
                 lines++;
 
-                if (*max_lines < lines) {
-                    *max_lines = lines;
-                }
+                max_lines = std::max(max_lines, lines);
 
                 width = 0;
                 height += this->char_height;
 
-                if (*max_height < height) {
-                    *max_height = height;
-                }
+                max_height = std::max(max_height, height);
 
                 break;
 
@@ -1451,13 +1189,11 @@ void ClsMes::NeedMesWinWH(int mes_no, int *out) {
                 break;
 
             default:
-                if (code >= -0x200 && code <= -0x101) {
+                if ((code >= -0x200 && code <= -0x101) || (code >= -0x400 && code <= -0x301) || (code >= -0xA00 && code <= -0x901)) {
                     continue;
-                } else if (code >= -0x400 && code <= -0x301) {
-                    continue;
-                } else if (code >= -0xA00 && code <= -0x901) {
-                    continue;
-                } else if (code >= -0x900 && code < -0x800) {
+                }
+
+                if (code >= -0x900 && code < -0x800) {
                     this->space_area = (code + 0x900) * 4;
                     this->space_width = this->CalcSpaceW(this->space_area, this->char_width, at - 1);
                 } else if (code >= -0x800 && code < -0x700) {
@@ -1465,74 +1201,38 @@ void ClsMes::NeedMesWinWH(int mes_no, int *out) {
                 } else if (code >= -0x700 && code < -0x600) {
                     len++;
 
-                    if (*max_len < len) {
-                        *max_len = len;
-                    }
+                    max_len = std::max(max_len, len);
 
                     width += code + 0x700;
 
-                    if (*max_width < width) {
-                        *max_width = width;
-                    }
+                    max_width = std::max(max_width, width);
                 } else if (code == -0x401) {
-                    if (this->value_show != 0 || this->value != 0) {
-                        char text[128];
-
-                        if (this->value_signed != 0 && this->value > 0) {
-                            sprintf(text, "+%d\n", this->value);
-                        } else {
-                            sprintf(text, "%d\n", this->value);
-                        }
-
-                        if (this->value_narrow != 0) {
-                            NeedMesWinWH_sub(&len, max_len, &width, max_width, (this->char_width >> 2) * 3, strlen(text) - 1);
-                        } else {
-                            NeedMesWinWH_sub(&len, max_len, &width, max_width, this->char_width, strlen(text) - 1);
-                        }
-                    }
+                    add_value(this->value);
                 } else if (code >= -0x40D && code < -0x405) {
-                    if (this->value_show != 0 || this->values[-0x406 - code] != 0) {
-                        char text[128];
-
-                        if (this->value_signed != 0 && this->values[-0x406 - code] > 0) {
-                            sprintf(text, "+%d\n", this->values[-0x406 - code]);
-                        } else {
-                            sprintf(text, "%d\n", this->values[-0x406 - code]);
-                        }
-
-                        if (this->value_narrow != 0) {
-                            NeedMesWinWH_sub(&len, max_len, &width, max_width, (this->char_width >> 2) * 3, strlen(text) - 1);
-                        } else {
-                            NeedMesWinWH_sub(&len, max_len, &width, max_width, this->char_width, strlen(text) - 1);
-                        }
-                    }
+                    add_value(this->values[-0x406 - code]);
                 } else if (code == -0x405 || code == -0x404 || code == -0x403 || code == -0x402 || code == -0x411 || code == -0x410 || code == -0x40F || code == -0x40E) {
-                    NeedMesWinWH_sub(&len, max_len, &width, max_width, this->char_width, this->GetMesLen_system(code));
+                    NeedMesWinWH_sub(len, max_len, width, max_width, this->char_width, this->GetMesLen_system(code));
                 } else if (code >= -0x506 && code < -0x500) {
-                    NeedMesWinWH_sub(&len, max_len, &width, max_width, this->char_width, this->GetNameLen(code + 0x506));
+                    NeedMesWinWH_sub(len, max_len, width, max_width, this->char_width, this->GetNameLen(code + 0x506));
                 } else if (code >= -0x300 && code < -0x251) {
-                    len += *(int *) &EditGaijiTbl[code];
+                    // Reads the whole first word of the entry, not just its s16 width.
+                    int cells = 0;
+                    std::memcpy(&cells, &EditGaijiTbl[code], sizeof(cells));
+
+                    len += cells;
                     width += this->GetGaijiW(code);
 
-                    if (*max_len < len) {
-                        *max_len = len;
-                    }
+                    max_len = std::max(max_len, len);
 
-                    if (*max_width < width) {
-                        *max_width = width;
-                    }
+                    max_width = std::max(max_width, width);
                 } else {
-                    NeedMesWinWH_sub(&len, max_len, &width, max_width, this->char_width, 1);
+                    NeedMesWinWH_sub(len, max_len, width, max_width, this->char_width, 1);
                 }
 
                 break;
         }
     }
 }
-
-void MakeRandTbl(float lo, float hi);
-
-void MakeRandTbl2(float lo, float hi);
 
 int ClsMes::MakeMesWin(int mes_no) {
     if (this->mes_made == mes_no) {
@@ -1589,12 +1289,12 @@ void ClsMes::MakeMesTexture(int mes_no) {
     if (this->text_columns < 4) {
         this->win_width = this->char_width * 10;
     } else {
-        this->win_width = this->char_width * (int) (3.0f + (3.0f + (float) this->text_columns));
+        this->win_width = this->char_width * static_cast<int>(3.0f + (3.0f + static_cast<float>(this->text_columns)));
     }
 
-    this->win_height = this->char_height * (int) (1.5f + (1.5f + (float) this->text_rows));
-    this->win_x = this->text_x - (int) (3.0f * (float) this->char_width);
-    this->win_y = this->text_y - (int) (1.5f * (float) this->char_height);
+    this->win_height = this->char_height * static_cast<int>(1.5f + (1.5f + static_cast<float>(this->text_rows)));
+    this->win_x = this->text_x - static_cast<int>(3.0f * static_cast<float>(this->char_width));
+    this->win_y = this->text_y - static_cast<int>(1.5f * static_cast<float>(this->char_height));
 
     if (MakeMesWinTbl(mes_no) != 0) {
         this->text_len = this->win_line_num;
@@ -1604,25 +1304,31 @@ void ClsMes::MakeMesTexture(int mes_no) {
 void ClsMes::Myset2DSprite_Fuchi(sceVif1Packet *packet, CTexture *texture, int x, int y, int width, int height, int u, int v, int u_width, int v_height) {
     switch (this->style) {
         case MES_EDGE_WHITE:
-            set2DSprite_Core(packet, texture, CRect_i_(x + 1, y + 1, width, height), CRect_i_(u, v, u_width, v_height), 0xFF, 0xFF, 0xFF, this->edge_alpha < 0x40 ? this->edge_alpha : 0x40);
+            set2DSprite_Core(packet, texture, CRect_i_(x + 1, y + 1, width, height), CRect_i_(u, v, u_width, v_height), 0xFF, 0xFF, 0xFF, std::min(this->edge_alpha, 0x40));
             break;
         case MES_EDGE_BLACK:
-            set2DSprite_Core(packet, texture, CRect_i_(x + 1, y + 1, width, height), CRect_i_(u, v, u_width, v_height), 0, 0, 0, this->edge_alpha < 0x40 ? this->edge_alpha : 0x40);
+            set2DSprite_Core(packet, texture, CRect_i_(x + 1, y + 1, width, height), CRect_i_(u, v, u_width, v_height), 0, 0, 0, std::min(this->edge_alpha, 0x40));
             break;
         case MES_EDGE_TABLE:
-            for (int i = 0; FuchiTbl_E[i].alpha > 0; i++) {
-                set2DSprite_Core(packet, texture, CRect_i_(x + FuchiTbl_E[i].x, y + FuchiTbl_E[i].y, width, height), CRect_i_(u, v, u_width, v_height), FuchiTbl_E[i].r, FuchiTbl_E[i].g, FuchiTbl_E[i].b, this->edge_alpha < FuchiTbl_E[i].alpha ? this->edge_alpha : FuchiTbl_E[i].alpha);
+            for (const MES_FUCHI &pass : FuchiTbl_E) {
+                if (pass.alpha <= 0) {
+                    break;
+                }
+
+                set2DSprite_Core(packet, texture, CRect_i_(x + pass.x, y + pass.y, width, height), CRect_i_(u, v, u_width, v_height), pass.r, pass.g, pass.b, std::min(this->edge_alpha, pass.alpha));
             }
 
             break;
         case MES_EDGE_DOUBLE:
-            set2DSprite_Core(packet, texture, CRect_i_(x + 1, y + 1, width, height), CRect_i_(u, v, u_width, v_height), 0x40, 0x40, 0x40, this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
-            set2DSprite_Core(packet, texture, CRect_i_(x + 2, y + 2, width, height), CRect_i_(u, v, u_width, v_height), 0, 0, 0, this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
+            set2DSprite_Core(packet, texture, CRect_i_(x + 1, y + 1, width, height), CRect_i_(u, v, u_width, v_height), 0x40, 0x40, 0x40, std::min(this->edge_alpha, 0x80));
+            set2DSprite_Core(packet, texture, CRect_i_(x + 2, y + 2, width, height), CRect_i_(u, v, u_width, v_height), 0, 0, 0, std::min(this->edge_alpha, 0x80));
+            break;
+        default:
             break;
     }
 }
 
-void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough, int prim);
+namespace {
 
 void SetspRGBA(spRGBA *colour, int r, int g, int b, int a) {
     colour->r = r;
@@ -1631,16 +1337,11 @@ void SetspRGBA(spRGBA *colour, int r, int g, int b, int a) {
     colour->a = a;
 }
 
+} // namespace
+
 void ClsMes::DrawMesWin_sub(CTexture *texture, int dx, int dy, int frame) {
     int area[4];
     int pos[2];
-    int tex_x;
-    int tex_y;
-    int screen_y;
-    int draw_width;
-    int draw_height;
-    int screen_x;
-    int top;
 
     area[0] = this->win_x;
     area[1] = this->win_y;
@@ -1672,43 +1373,23 @@ void ClsMes::DrawMesWin_sub(CTexture *texture, int dx, int dy, int frame) {
     }
 
     int left = area[0];
-    top = area[1];
+    int top = area[1];
     int right = area[2];
     int bottom = area[3];
-    draw_width = right - left;
+    int draw_width = right - left;
     int height = bottom - top;
-    tex_x = (int) LinerInterpolation(this->grow_x, left, this->fade);
-    tex_y = (int) LinerInterpolation(this->grow_y, top, this->fade);
-    draw_width = (int) (draw_width * this->fade);
-    draw_height = (int) (height * this->fade);
-    screen_y = tex_y;
+    int tex_x = static_cast<int>(LinerInterpolation(this->grow_x, left, this->fade));
+    int tex_y = static_cast<int>(LinerInterpolation(this->grow_y, top, this->fade));
+    draw_width = static_cast<int>(draw_width * this->fade);
+    int draw_height = static_cast<int>(height * this->fade);
+    int screen_y = tex_y;
     tex_y -= top;
-    screen_x = tex_x + dx;
+    int screen_x = tex_x + dx;
     screen_y += dy;
 
     if (frame != 0) {
         spRGBA bright;
         spRGBA dim;
-        int    outer_x;
-        int    core_x;
-        int    outer_y;
-        int    outer_w;
-        int    outer_h;
-        int    core_y;
-        int    core_w;
-        int    core_h;
-        int    core_screen_y;
-        int    upper_screen_y;
-        int    middle_screen_y;
-        int    lower_screen_y;
-        int    upper_h;
-        int    lower_h;
-        int    lower_tex_y;
-        int    upper_tex_h;
-        int    lower_tex_h;
-        int    right_x;
-        int    left_w;
-        int    right_w;
 
         SetspRGBA(&bright, 0x80, 0x80, 0x80, 0x80);
         SetspRGBA(&dim, 0x60, 0x60, 0x60, 0x80);
@@ -1722,35 +1403,35 @@ void ClsMes::DrawMesWin_sub(CTexture *texture, int dx, int dy, int frame) {
         float win_w = this->win_width;
         float win_h = this->win_height;
 
-        outer_x = (int) LinerInterpolation(this->grow_x, win_left, this->fade);
-        outer_y = (int) LinerInterpolation(this->grow_y, win_top, this->fade);
-        outer_w = (int) (win_w * this->fade);
-        outer_h = (int) (win_h * this->fade);
+        int outer_x = static_cast<int>(LinerInterpolation(this->grow_x, win_left, this->fade));
+        int outer_y = static_cast<int>(LinerInterpolation(this->grow_y, win_top, this->fade));
+        int outer_w = static_cast<int>(win_w * this->fade);
+        int outer_h = static_cast<int>(win_h * this->fade);
 
         float core_left = this->win_x + this->win_width / 6.0f;
         float core_top = this->win_y + this->win_height / 6.0f;
         float core_width = 2.0f * this->win_width / 3.0f;
         float core_height = 2.0f * this->win_height / 3.0f;
 
-        core_x = (int) LinerInterpolation(this->grow_x, core_left, this->fade);
-        core_y = (int) LinerInterpolation(this->grow_y, core_top, this->fade);
-        core_w = (int) (core_width * this->fade);
-        core_h = (int) (core_height * this->fade);
+        int core_x = static_cast<int>(LinerInterpolation(this->grow_x, core_left, this->fade));
+        int core_y = static_cast<int>(LinerInterpolation(this->grow_y, core_top, this->fade));
+        int core_w = static_cast<int>(core_width * this->fade);
+        int core_h = static_cast<int>(core_height * this->fade);
 
-        right_x = core_x + core_w;
-        upper_screen_y = outer_y;
-        core_screen_y = core_y;
-        lower_screen_y = core_y + core_h;
-        left_w = core_x - outer_x;
-        right_w = outer_x + outer_w - core_x - core_w;
-        upper_h = core_y - outer_y;
-        lower_h = outer_y + outer_h - core_y - core_h;
+        int right_x = core_x + core_w;
+        int upper_screen_y = outer_y;
+        int core_screen_y = core_y;
+        int lower_screen_y = core_y + core_h;
+        int left_w = core_x - outer_x;
+        int right_w = outer_x + outer_w - core_x - core_w;
+        int upper_h = core_y - outer_y;
+        int lower_h = outer_y + outer_h - core_y - core_h;
         outer_y -= top;
         core_y -= top;
-        middle_screen_y = core_screen_y;
-        lower_tex_y = core_y + core_h;
-        upper_tex_h = core_y - outer_y;
-        lower_tex_h = outer_y + outer_h - core_y - core_h;
+        int middle_screen_y = core_screen_y;
+        int lower_tex_y = core_y + core_h;
+        int upper_tex_h = core_y - outer_y;
+        int lower_tex_h = outer_y + outer_h - core_y - core_h;
 
         if (MesAbsDrawOff == 0) {
             set2DSprite(Vif1Packet, texture, CRect_i_(outer_x, upper_screen_y, left_w, upper_h), CRect_i_(outer_x, outer_y, left_w, upper_tex_h), &dim, &dim, &dim, &bright, 1);
@@ -1764,26 +1445,23 @@ void ClsMes::DrawMesWin_sub(CTexture *texture, int dx, int dy, int frame) {
             set2DSprite(Vif1Packet, texture, CRect_i_(right_x, lower_screen_y, right_w, lower_h), CRect_i_(right_x, lower_tex_y, right_w, lower_tex_h), &bright, &dim, &dim, &dim, 1);
         }
     } else if (MesAbsDrawOff == 0) {
-        set2DSprite(Vif1Packet, texture, CRect_i_(screen_x, screen_y, draw_width, draw_height), CRect_i_(tex_x, tex_y, draw_width, draw_height), 0, 0, 0, this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
+        set2DSprite(Vif1Packet, texture, CRect_i_(screen_x, screen_y, draw_width, draw_height), CRect_i_(tex_x, tex_y, draw_width, draw_height), 0, 0, 0, std::min(this->edge_alpha, 0x80));
     }
 }
 
 /**
  * Draws a help window from nine texture pieces, stretching the edges and the
  * middle to the requested size.
- *
- * @mangled MyMenuHelpWinDraw__FiiiiiiiP8CTexture
- * @address 0x152930
- * @size 0x380
  */
 void MyMenuHelpWinDraw(int x, int y, int width, int height, int shade, int u, int v, CTexture *texture) {
     int bar_width = width < 0x20 ? 0 : width - 0x20;
     int bar_height = height < 0x1C ? 0 : height - 0x1C;
-    int alpha;
 
     setbilinear(0);
 
-    set2DSprite(Vif1Packet, texture, CRect_i_(x, y, 0x10, 0xE), CRect_i_(u, v, 0x10, 0xE), alpha = (shade * 100) >> 7);
+    const int alpha = (shade * 100) >> 7;
+
+    set2DSprite(Vif1Packet, texture, CRect_i_(x, y, 0x10, 0xE), CRect_i_(u, v, 0x10, 0xE), alpha);
     set2DSprite(Vif1Packet, texture, CRect_i_(x, y + 0xE, 0x10, bar_height), CRect_i_(u, v + 0xE, 0x10, 0x24), alpha);
     set2DSprite(Vif1Packet, texture, CRect_i_(x, bar_height + (y + 0xE), 0x10, 0xE), CRect_i_(u, v + 0x32, 0x10, 0xE), alpha);
     set2DSprite(Vif1Packet, texture, CRect_i_(x + 0x10, y, bar_width, 0xE), CRect_i_(u + 0x10, v, 0x20, 0xE), alpha);
@@ -1821,6 +1499,8 @@ void GetPos_AbsPosSet(int x, int y, int width, int height, int win_width, int wi
             }
 
             break;
+        default:
+            break;
     }
 
     switch (align) {
@@ -1849,6 +1529,7 @@ void GetPos_AbsPosSet(int x, int y, int width, int height, int win_width, int wi
             }
 
             break;
+        default:
+            break;
     }
 }
-

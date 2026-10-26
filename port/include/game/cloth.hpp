@@ -53,36 +53,51 @@ public:
 
     /**
      * Draws the simulated cloth through a temporary world-space frame.
-     *
-     * @mangled Draw__6CClothFv
-     * @address 0x13B640
-     * @size 0x160
      */
     void Draw();
 
+    /**
+     * Puts every vertex back where its frame says it rests and stops it moving.
+     */
     void Clear();
+
+    /**
+     * Runs one step of the cloth simulation against the frame, floor, bounds and wind.
+     */
     void Step(int step);
-    int  CreateVUData(u_int *packet);
+
+    /**
+     * Builds the packet that draws the cloth and returns its size in quadwords.
+     */
+    int CreateVUData(u_int *packet);
+
+    /**
+     * Gives the cloth its default grid size, stiffness and gravity.
+     */
     void InitParam();
 
     /**
      * Constructs a cloth grid with the requested dimensions and spacing.
-     *
-     * @mangled __ct__6CClothFiif
-     * @address 0x13CB70
-     * @size 0x78
      */
     CCloth(int grid_i = 16, int grid_j = 16, float grid_pitch = 1.0f);
 
+    /**
+     * Takes the vertex packet storage out of an arena and records rest lengths.
+     */
     virtual void Initialize(CDataAlloc2<1> *alloc);
+
+    /**
+     * Builds the grid from a model's mesh, then initialises from an arena.
+     */
     virtual void Initialize(MDT_HEADER *header, CDataAlloc2<1> *alloc);
+
     /**
      * Rebuilds the cloth's packet for this frame and draws it through the vector unit.
-     *
-     * @mangled DrawVu1__6CClothFPUiPA4_fP10RenderInfo11VU1_PROGRAMP1ii
-     * @address 0x13C470
-     * @size 0xC0
      */
     virtual int DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state, int unknown1, int unknown2);
+
+    /**
+     * Draws the cloth into a VIF packet.
+     */
     virtual int DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state, int unknown1, int unknown2);
 };
