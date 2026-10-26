@@ -247,21 +247,3 @@ public:
      */
     int CreateVUdataShadowCLIP(u_int *block, u_int *model_data, RenderInfo *info, float (*matrix)[4]);
 };
-
-/**
- * Writes material lighting data when supplied and returns the reserved packet length in words.
- *
- * @mangled SetMaterial__FPUiP12MDT_MATERIAL
- * @address 0x134D40
- * @size 0x74
- */
-int SetMaterial(u_int *packet, MDT_MATERIAL *material);
-
-/**
- * Writes the GS texture-register packet and returns its length in words.
- *
- * @mangled SetTEX0__FPUiUlUl
- * @address 0x134DC0
- * @size 0xFC
- */
-int SetTEX0(u_int *packet, u_long tex0, u_long tex1);
