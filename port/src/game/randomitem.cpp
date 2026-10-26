@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 1383
-
 #include "randomitem.hpp"
 
 #include <libvu0.h>
