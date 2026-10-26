@@ -1,11 +1,21 @@
 #include "effectgroup.hpp"
 
+#include <span>
+
 #include "effect.hpp"
 
+namespace {
+
+std::span<CEffect> Pool(CEffect *table, int count) {
+    return {table, static_cast<std::size_t>(count > 0 ? count : 0)};
+}
+
+} // namespace
+
 int CEffectGroup::EnterEffect(CEffectParam *parameters) {
-    for (int i = 0; i < capacity; i++) {
-        if (effect_table[i].active == 0) {
-            effect_table[i].SetEffect(parameters);
+    for (CEffect &effect : Pool(effect_table, capacity)) {
+        if (effect.active == 0) {
+            effect.SetEffect(parameters);
             return 1;
         }
     }
@@ -13,21 +23,21 @@ int CEffectGroup::EnterEffect(CEffectParam *parameters) {
     return 0;
 }
 
-void CEffectGroup::Step(int unused) {
-    for (int i = 0; i < capacity; i++) {
-        effect_table[i].Step(1);
+void CEffectGroup::Step(int /*unused*/) {
+    for (CEffect &effect : Pool(effect_table, capacity)) {
+        effect.Step(1);
     }
 }
 
 void CEffectGroup::Draw() {
-    for (int i = 0; i < capacity; i++) {
-        effect_table[i].Draw();
+    for (CEffect &effect : Pool(effect_table, capacity)) {
+        effect.Draw();
     }
 }
 
 void CEffectGroup::Clear() {
-    for (int i = 0; i < capacity; i++) {
-        effect_table[i].Initialize();
+    for (CEffect &effect : Pool(effect_table, capacity)) {
+        effect.Initialize();
     }
 }
 

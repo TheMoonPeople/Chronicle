@@ -3,13 +3,15 @@
 #include <libgraph.h>
 #include <libvu0.h>
 
+#include <algorithm>
+
 #include "mathutil.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
 
 void C3DSprite::Draw() {
-    if (texture == NULL) {
+    if (texture == nullptr) {
         return;
     }
 
@@ -49,7 +51,7 @@ void C3DSprite::Draw() {
 }
 
 void C3DSprite::Initialize() {
-    texture = NULL;
+    texture = nullptr;
     texel = CRect_i_(0, 0, 0, 0);
     colour.a = 128;
     colour.g = 128;
@@ -62,8 +64,8 @@ void C3DSprite::Initialize() {
 void CEffect::SetEffect(CEffectParam *parameters) {
     active = true;
     frame = 0;
-    draw_mode = (s16) parameters->draw_mode;
-    lifetime = (s16) parameters->lifetime;
+    draw_mode = static_cast<s16>(parameters->draw_mode);
+    lifetime = static_cast<s16>(parameters->lifetime);
     position_oscillation_flags = parameters->position_oscillation_flags;
     scale_oscillation_flags = parameters->scale_oscillation_flags;
     width = parameters->width;
@@ -92,16 +94,18 @@ void CEffect::SetEffect(CEffectParam *parameters) {
             break;
         case EFFECT_OPACITY_FADE_IN:
             opacity = parameters->opacity;
-            opacity_step = (1.0f - parameters->opacity) / (float) lifetime;
+            opacity_step = (1.0f - parameters->opacity) / static_cast<float>(lifetime);
             break;
         case EFFECT_OPACITY_FADE_OUT:
             opacity = parameters->opacity;
-            opacity_step = -parameters->opacity / (float) lifetime;
+            opacity_step = -parameters->opacity / static_cast<float>(lifetime);
+            break;
+        default:
             break;
     }
 }
 
-void CEffect::Step(int unused) {
+void CEffect::Step(int /*unused*/) {
     if (active == 0) {
         return;
     }
@@ -117,7 +121,7 @@ void CEffect::Step(int unused) {
     sceVu0AddVector(velocity, velocity, acceleration);
 
     if ((position_oscillation_flags & 1) != 0) {
-        float phase = (float) frame;
+        auto phase = static_cast<float>(frame);
 
         if (position_oscillation_scale[0] > 0.0f) {
             position[0] += position_oscillation_scale[0] * Sinf(phase * position_oscillation_rate[0]);
@@ -136,7 +140,7 @@ void CEffect::Step(int unused) {
     scale[1] += scale_velocity[1];
 
     if ((scale_oscillation_flags & 1) != 0) {
-        float phase = (float) frame;
+        auto phase = static_cast<float>(frame);
 
         if (scale_oscillation_scale[0] > 0.0f) {
             scale[0] += scale_oscillation_scale[0] * Sinf(phase * scale_oscillation_rate[0]);
@@ -149,17 +153,12 @@ void CEffect::Step(int unused) {
 
     opacity += opacity_step;
 
-    if (opacity < 0.0f) {
-        opacity = 0.0f;
-    }
-
-    if (opacity > 1.0f) {
-        opacity = 1.0f;
-    }
+    opacity = std::max(opacity, 0.0f);
+    opacity = std::min(opacity, 1.0f);
 }
 
 void CEffect::Draw() {
-    if (active == 0 || texture == NULL) {
+    if (active == 0 || texture == nullptr) {
         return;
     }
 
@@ -172,8 +171,8 @@ void CEffect::Draw() {
     float corner[4][4];
 
     if (draw_mode != 0) {
-        for (int i = 0; i < 4; i++) {
-            sceVu0CopyVector(corner[i], position);
+        for (auto &corner_position : corner) {
+            sceVu0CopyVector(corner_position, position);
         }
 
         corner[0][0] -= sprite_width / 2.0f;
@@ -218,18 +217,17 @@ void CEffect::Draw() {
     }
 
     // Texture changes lag their corresponding source rectangle by one draw.
-    CTexture            *draw_texture = texture;
-    CRect_i_             draw_texel = texel;
-    CEffectTextureFrame *animation;
+    CTexture *draw_texture = texture;
+    CRect_i_  draw_texel = texel;
 
-    if (texture_frames != NULL) {
+    if (texture_frames != nullptr) {
         int animation_frame = frame;
 
         if (texture_frame_period > 0) {
             animation_frame %= texture_frame_period;
         }
 
-        for (animation = texture_frames; animation != NULL; animation = animation->next) {
+        for (const CEffectTextureFrame *animation = texture_frames; animation != nullptr; animation = animation->next) {
             if (animation_frame < animation->end_frame) {
                 texture = animation->texture;
                 draw_texel = animation->texel;
@@ -238,7 +236,7 @@ void CEffect::Draw() {
         }
     }
 
-    spRGBA colour = {0x68, 0x80, 0x80, (int) (opacity * 128.0f)};
+    spRGBA colour = {.r = 0x68, .g = 0x80, .b = 0x80, .a = static_cast<u8>(static_cast<int>(opacity * 128.0f))};
 
     if (draw_mode != 0) {
         set3DSprite(GetVif1Packet(), draw_texture, draw_texel, screen[0], screen[1], screen[2], screen[3], &colour);
@@ -247,8 +245,8 @@ void CEffect::Draw() {
     }
 
     if (render_flags != 0) {
-        MGSetGsZBUF(NULL);
-        MGSetGsALPHA(NULL);
+        MGSetGsZBUF(nullptr);
+        MGSetGsALPHA(nullptr);
     }
 }
 
@@ -270,10 +268,10 @@ void CEffectParam::Initialize() {
     sceVu0CopyVector(scale_velocity, position);
     sceVu0CopyVector(scale_oscillation_scale, position);
     sceVu0CopyVector(scale_oscillation_rate, position);
-    texture = NULL;
+    texture = nullptr;
     texel = CRect_i_(0, 0, 0, 0);
     texture_frame_period = 0;
-    texture_frames = NULL;
+    texture_frames = nullptr;
 }
 
 void CEffect::Initialize() {
@@ -297,8 +295,8 @@ void CEffect::Initialize() {
     sceVu0CopyVector(scale_velocity, position);
     sceVu0CopyVector(scale_oscillation_scale, position);
     sceVu0CopyVector(scale_oscillation_rate, position);
-    texture = NULL;
+    texture = nullptr;
     texel = CRect_i_(0, 0, 0, 0);
-    texture_frames = NULL;
+    texture_frames = nullptr;
     texture_frame_period = 0;
 }

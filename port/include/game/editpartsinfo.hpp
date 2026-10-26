@@ -1,14 +1,13 @@
 #pragma once
 
-#include "common.h"
-
-struct EPARTS_FUNC_DATA;
-
 /**
  * @file
  * Declares what the game remembers about every part an edited map can hold.
  */
 
+#include "common.h"
+
+struct EPARTS_FUNC_DATA;
 class CSaveData;
 
 /**
@@ -110,6 +109,10 @@ struct EDITPARTS_INFO {
 
 STATIC_ASSERT(sizeof(EDITPARTS_INFO) == 0xE8);
 
+/**
+ * Catalogue of every editable part one georama map can hold, together with
+ * the villager requests and the player's progress on each part.
+ */
 class CEditPartsInfo {
 public:
     s32            parts_max;   /**< Parts the map's own catalogue holds. */
@@ -118,114 +121,64 @@ public:
     s32            unk_1624;
 
     /**
-     * Returns the record of one editable map part, or NULL.
-     *
-     * @mangled GetPartsInfo__14CEditPartsInfoFi
-     * @address 0x199FD0
-     * @size 0x44
+     * Returns the record of one editable map part, or nullptr.
      */
     EDITPARTS_INFO *GetPartsInfo(int index);
 
     /**
      * Reports whether one georama part has every element it wants.
-     *
-     * @mangled CheckComplete__14CEditPartsInfoFi
-     * @address 0x19A020
-     * @size 0x80
      */
     int CheckComplete(int index);
 
     /**
      * Sets whether one editable part has completed its associated event.
-     *
-     * @mangled SetCompEvent__14CEditPartsInfoFii
-     * @address 0x19A0A0
-     * @size 0x60
      */
     void SetCompEvent(int index, int completed);
 
     /**
      * Reports whether one editable part has completed its associated event.
-     *
-     * @mangled GetCompEvent__14CEditPartsInfoFi
-     * @address 0x19A100
-     * @size 0x40
      */
     int GetCompEvent(int index);
 
     /**
      * Gives the villager request one georama part belongs to.
-     *
-     * @mangled GetRequest__14CEditPartsInfoFi
-     * @address 0x19A140
-     * @size 0x38
      */
     int GetRequest(int index);
 
     /**
      * Counts the georama parts after one that still have work left.
-     *
-     * @mangled GetNextPartsNum__14CEditPartsInfoFi
-     * @address 0x19A180
-     * @size 0x88
      */
     int GetNextPartsNum(int index);
 
     /**
      * Returns the next valid editable part after an index, or -1.
-     *
-     * @mangled GetNextParts__14CEditPartsInfoFi
-     * @address 0x19A210
-     * @size 0x70
      */
     int GetNextParts(int index);
 
     /**
      * Empties every georama part definition.
-     *
-     * @mangled Clear__14CEditPartsInfoFv
-     * @address 0x19A280
-     * @size 0x40
      */
     void Clear();
 
     /**
      * Writes the georama part definitions into the save file.
-     *
-     * @mangled Save__14CEditPartsInfoFiP9CSaveData
-     * @address 0x19A2C0
-     * @size 0x128
      */
     void Save(int georama_no, CSaveData *save_data);
 
     /**
      * Reads the georama part definitions back out of the save file.
-     *
-     * @mangled Load__14CEditPartsInfoFiP9CSaveDatai
-     * @address 0x19A3F0
-     * @size 0x178
      */
     void Load(int georama_no, CSaveData *save_data, int load_requests);
 
     /**
      * Clears the georama part definitions of one map.
-     *
-     * @mangled Initialize__14CEditPartsInfoFi
-     * @address 0x19A570
-     * @size 0x1C8
      */
     void Initialize(int georama_no);
 
     /**
      * Fills one georama part definition from its packed header.
-     *
-     * @mangled Initialize__14CEditPartsInfoFiP18EPARTS_INFO_HEADER
-     * @address 0x19A740
-     * @size 0x64
      */
     void Initialize(int index, EPARTS_INFO_HEADER *header);
-
-private:
 };
 
 /** Shared editable-map part catalogue. */

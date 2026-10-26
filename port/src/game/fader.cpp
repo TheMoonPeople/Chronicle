@@ -1,12 +1,10 @@
 #include "fader.hpp"
 
+#include <algorithm>
+
 int Fader::In() {
     if (this->value < 0x80) {
-        this->value += 4;
-
-        if (this->value > 0x80) {
-            this->value = 0x80;
-        }
+        this->value = std::min(this->value + 4, 0x80);
 
         return 0;
     }
@@ -24,7 +22,7 @@ int Fader::Out() {
 }
 
 int Fader::Get(int maximum) {
-    float level = (float) this->value / 128.0f;
-    level *= (float) maximum;
-    return (int) level;
+    float level = static_cast<float>(this->value) / 128.0f;
+    level *= static_cast<float>(maximum);
+    return static_cast<int>(level);
 }

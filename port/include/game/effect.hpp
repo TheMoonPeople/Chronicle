@@ -66,10 +66,6 @@ public:
 
     /**
      * Initializes an effect description to its neutral defaults.
-     *
-     * @mangled Initialize__12CEffectParamFv
-     * @address 0x164770
-     * @size 0x100
      */
     void Initialize();
 };
@@ -120,37 +116,21 @@ public:
 
     /**
      * Copies an effect description into this pool slot and activates it.
-     *
-     * @mangled SetEffect__7CEffectFP12CEffectParam
-     * @address 0x163EE0
-     * @size 0x1D8
      */
     void SetEffect(CEffectParam *parameters);
 
     /**
      * Advances lifetime, motion, scale, and opacity by one frame.
-     *
-     * @mangled Step__7CEffectFi
-     * @address 0x1640C0
-     * @size 0x278
      */
     void Step(int unused);
 
     /**
      * Projects and draws the active effect with its requested render state.
-     *
-     * @mangled Draw__7CEffectFv
-     * @address 0x164340
-     * @size 0x424
      */
     void Draw();
 
     /**
      * Resets this effect pool slot to its inactive neutral state.
-     *
-     * @mangled Initialize__7CEffectFv
-     * @address 0x164870
-     * @size 0x10C
      */
     void Initialize();
 };
@@ -175,28 +155,16 @@ public:
 
     /**
      * Constructs a sprite with an empty source rectangle and no texture.
-     *
-     * @mangled __ct__9C3DSpriteFv
-     * @address 0x183760
-     * @size 0x40
      */
     C3DSprite();
 
     /**
      * Draws the sprite when its texture and projected rectangle are valid.
-     *
-     * @mangled Draw__9C3DSpriteFv
-     * @address 0x163D20
-     * @size 0x170
      */
     void Draw();
 
     /**
      * Clears sprite rendering state while preserving its placement and scale.
-     *
-     * @mangled Initialize__9C3DSpriteFv
-     * @address 0x163E90
-     * @size 0x4C
      */
     void Initialize();
 };

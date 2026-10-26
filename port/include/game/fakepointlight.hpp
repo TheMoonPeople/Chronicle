@@ -24,13 +24,8 @@ public:
     /**
      * Makes a light that is white, and that reaches from ten units away to
      * seventy.
-     *
-     * @mangled __ct__15CFakePointLightFv
-     * @address 0x156B60
-     * @size 0x34
      */
     CFakePointLight();
 };
 
 STATIC_ASSERT(sizeof(CFakePointLight) == 0x30);
-

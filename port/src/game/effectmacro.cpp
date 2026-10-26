@@ -11,11 +11,15 @@
 #include "rect.hpp"
 #include "texture.hpp"
 
+namespace {
+
 sceVu0FVECTOR wind_dir = {0.0f, 0.0f, 0.0f, 0.0f};
 int           effect_count;
 CTexture     *smoke_tex;
 CTexture     *sibuki_tex;
 CTexture     *hamon_tex;
+
+} // namespace
 
 void EffectMacroStep(float *wind) {
     sceVu0CopyVector(wind_dir, wind);
@@ -38,19 +42,19 @@ void EffectSmoke(CEffectGroup *group, float *position, float size, int period) {
     sceVu0CopyVector(effect.position, position);
 
     // Half the puffs drift, on a sine of their own in x and z.
-    if (rand() % 2 != 0) {
+    if (std::rand() % 2 != 0) {
         effect.position_oscillation_flags = 1;
-        effect.position_oscillation_scale[0] = 0.3f * (float) rand() / 2.1474836e9f;
-        effect.position_oscillation_rate[0] = PI / (30.0f + (float) (rand() * 20) / 2.1474836e9f);
-        effect.position_oscillation_scale[2] = 0.3f * (float) rand() / 2.1474836e9f;
-        effect.position_oscillation_rate[2] = PI / (30.0f + (float) (rand() * 20) / 2.1474836e9f);
+        effect.position_oscillation_scale[0] = 0.3f * static_cast<float>(std::rand()) / 2.1474836e9f;
+        effect.position_oscillation_rate[0] = PI / (30.0f + static_cast<float>(std::rand() * 20) / 2.1474836e9f);
+        effect.position_oscillation_scale[2] = 0.3f * static_cast<float>(std::rand()) / 2.1474836e9f;
+        effect.position_oscillation_rate[2] = PI / (30.0f + static_cast<float>(std::rand() * 20) / 2.1474836e9f);
     }
 
     effect.opacity_mode = EFFECT_OPACITY_FADE_OUT;
     effect.render_flags = 1;
     effect.opacity = 0.1f;
     sceVu0ScaleVector(effect.velocity, effect.velocity, 0.4f);
-    effect.velocity[1] += 0.2f + 0.2f * (float) rand() / 2.1474836e9f;
+    effect.velocity[1] += 0.2f + 0.2f * static_cast<float>(std::rand()) / 2.1474836e9f;
     effect.scale_velocity[0] = 0.02f;
     effect.scale_velocity[1] = 0.02f;
     effect.scale[0] = size;
@@ -59,7 +63,7 @@ void EffectSmoke(CEffectGroup *group, float *position, float size, int period) {
     effect.texture = smoke_tex;
 
     // The four puff shapes are the quarters of the texture.
-    switch (rand() % 4) {
+    switch (std::rand() % 4) {
         case 0:
             effect.texel = CRect_i_(0, 0, 0x40, 0x40);
             break;
@@ -71,6 +75,8 @@ void EffectSmoke(CEffectGroup *group, float *position, float size, int period) {
             break;
         case 3:
             effect.texel = CRect_i_(0x40, 0x40, 0x40, 0x40);
+            break;
+        default:
             break;
     }
 
@@ -95,13 +101,13 @@ void EffectWaterSpray(CEffectGroup *group, float *position, float *extent, int p
 
     float spread_x = 0.2f * extent[0];
     float spread_z = 0.2f * extent[2];
-    float rise = 0.1f * extent[1] * (1.0f + (float) rand() / 2.1474836e9f);
+    float rise = 0.1f * extent[1] * (1.0f + static_cast<float>(std::rand()) / 2.1474836e9f);
     float width_grown = rise + 0.5f * (extent[0] + extent[2]);
     float height_grown = extent[1] + rise;
 
-    effect.velocity[0] = spread_x * (float) rand() / 2.1474836e9f - 0.5f * spread_x;
-    effect.velocity[2] = (spread_x * (float) rand() / 2.1474836e9f - 0.5f * spread_z) - 0.5f;
-    effect.velocity[1] = 1.0f + 0.5f * (float) rand() / 2.1474836e9f;
+    effect.velocity[0] = spread_x * static_cast<float>(std::rand()) / 2.1474836e9f - 0.5f * spread_x;
+    effect.velocity[2] = (spread_x * static_cast<float>(std::rand()) / 2.1474836e9f - 0.5f * spread_z) - 0.5f;
+    effect.velocity[1] = 1.0f + 0.5f * static_cast<float>(std::rand()) / 2.1474836e9f;
     effect.acceleration[1] = -0.03f;
     effect.scale_velocity[0] = width_grown / 30.0f;
     effect.scale_velocity[1] = height_grown / 30.0f;
@@ -139,4 +145,3 @@ void EffectHamon(CEffectGroup *group, float *position, float size) {
     effect.height = size;
     group->EnterEffect(&effect);
 }
-

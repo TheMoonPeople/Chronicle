@@ -49,9 +49,9 @@ struct EDIT_PARTS_DATA {
  * Places one Atla that a dungeon hands out.
  */
 struct ATRA_APPEAR {
-    int id;    /**< Atla; -1 ends the table. */
-    int floor; /**< Floor it lies on counted from one, or -1 or -2 for any upper or lower floor. */
-    int count; /**< How many floors it is put on when the floor is not fixed. */
+    s32 id;    /**< Atla; -1 ends the table. */
+    s32 floor; /**< Floor it lies on counted from one, or -1 or -2 for any upper or lower floor. */
+    s32 count; /**< How many floors it is put on when the floor is not fixed. */
 };
 
 STATIC_ASSERT(sizeof(EDIT_ELEMENT_ATRA) == 0xC);
@@ -60,31 +60,49 @@ STATIC_ASSERT(sizeof(EDIT_PARTS_ATRA) == 0xBC);
 STATIC_ASSERT(sizeof(EDIT_PARTS_DATA) == 0x125C);
 STATIC_ASSERT(sizeof(ATRA_APPEAR) == 0xC);
 
-/** The part attribute records of each georama. */
+/**
+ * The part attribute records of each georama.
+ */
 extern EDIT_PARTS_DATA EditPartsData[6];
 
-/** The element attribute records of each georama. */
+/**
+ * The element attribute records of each georama.
+ */
 extern EDIT_ELEMENT_ATRA EditElementData[6][100];
 
-/** The Atla the first dungeon hands out, ended by an entry whose id is -1. */
+/**
+ * The Atla the first dungeon hands out, ended by an entry whose id is -1.
+ */
 extern ATRA_APPEAR AtraAppearData0[79];
 
-/** The Atla the second dungeon hands out, ended by an entry whose id is -1. */
+/**
+ * The Atla the second dungeon hands out, ended by an entry whose id is -1.
+ */
 extern ATRA_APPEAR AtraAppearData1[88];
 
-/** The Atla the third dungeon hands out, ended by an entry whose id is -1. */
+/**
+ * The Atla the third dungeon hands out, ended by an entry whose id is -1.
+ */
 extern ATRA_APPEAR AtraAppearData2[72];
 
-/** The Atla the fourth dungeon hands out, ended by an entry whose id is -1. */
+/**
+ * The Atla the fourth dungeon hands out, ended by an entry whose id is -1.
+ */
 extern ATRA_APPEAR AtraAppearData3[66];
 
-/** The Atla the fifth dungeon hands out, ended by an entry whose id is -1. */
+/**
+ * The Atla the fifth dungeon hands out, ended by an entry whose id is -1.
+ */
 extern ATRA_APPEAR AtraAppearData4[57];
 
-/** The Atla the sixth dungeon hands out, ended by an entry whose id is -1. */
+/**
+ * The Atla the sixth dungeon hands out, ended by an entry whose id is -1.
+ */
 extern ATRA_APPEAR AtraAppearData5[63];
 
-/** The Atla table of each dungeon. */
+/**
+ * The Atla table of each dungeon.
+ */
 extern ATRA_APPEAR *AtraAppearData[6];
 
 /**
