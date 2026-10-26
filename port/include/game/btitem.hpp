@@ -69,9 +69,6 @@ extern int GateKey_Sled;
 /** Marks that the party is holding a gate key. */
 extern int gateItemFlag;
 
-/** Model the escape presentation draws. */
-extern int escape_chr;
-
 /** Step the escape presentation is on. */
 extern int escape_sled;
 

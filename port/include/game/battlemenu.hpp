@@ -528,15 +528,6 @@ GRADATION_COLOR_INFO2 *GetGradationColorInfo2(int index);
 void SetEscapeDngFlag(int flag);
 
 /**
- * Returns the flag that says the party is escaping the dungeon.
- *
- * @mangled GetEscapeDngFlag__Fv
- * @address 0x1F3FB0
- * @size 0xC
- */
-int GetEscapeDngFlag();
-
-/**
  * Sets whether the party is leaving an interior area.
  *
  * @mangled SetInteriorOutFlag__Fi

@@ -1,21 +1,4 @@
 #include "stubs/battlemenu.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 2
-#pragma argument_flag 0
-#pragma argument_flag_ones 58, 65, 66, 144, 209, 238, 377, 387, 414, 419
-#pragma argument_flag_ones 447, 448, 499, 575, 577, 713, 729, 744, 746, 748
-#pragma argument_flag_ones 750
-#pragma argument_flag_ones 752, 753, 763, 765, 766, 792, 803, 816, 818, 827
-#pragma argument_flag_ones 975, 981, 994, 1033, 1054, 1156, 1185, 1325
-#pragma argument_flag_ones 1461, 1463, 1486, 1488, 2014, 2172, 2256, 2267, 2351, 2358
-#pragma argument_flag_ones 2374, 2406, 2407, 2433, 2434, 2441
-#pragma argument_flag_ones 2442, 2471, 2655, 2656, 2725, 2726, 2802, 2803, 2925, 2926
-#pragma argument_flag_ones 2964, 2965, 3099, 3100, 3144, 3156
-#pragma argument_flag_ones 3157, 3164, 3165, 3247, 3587, 3595, 3662, 3663, 3671, 3672
-#pragma argument_flag_ones 3688, 3690, 3696, 3697, 3698, 3730
-#pragma argument_flag_ones 3738, 3739, 3757, 3758, 3784, 3887, 3937, 3939, 4082, 4134
-#pragma argument_flag_ones 4167
 
 #include "battlemenu.hpp"
 
@@ -289,10 +272,6 @@ static int EscapeDungeonMode() {
 
 void SetEscapeDngFlag(int flag) {
     EscapeDngFlg = flag;
-}
-
-int GetEscapeDngFlag() {
-    return EscapeDngFlg;
 }
 
 void SetInteriorOutFlag(int flag) {
@@ -1268,8 +1247,6 @@ static void InitMenuChara(u_long128 *buffer) {
     CommonMenuMes2.MakeMesWin(message_no);
 }
 
-#pragma opt_propagation off
-
 int BattleMenuCharaKey() {
     switch (MenuChara.state) {
         case MENU_CHARA_CHANGE_LOAD:
@@ -1537,8 +1514,6 @@ int BattleMenuCharaKey() {
 
     return 1;
 }
-
-#pragma opt_propagation reset
 
 void DrawCharaSelect() {
     if (BtlMenuExReadFlag == 0) {
@@ -3337,7 +3312,6 @@ static int WeaponSelectKey() {
                 }
 
                 static int now = 0;
-                static int cnt = 0;
 
                 if (GamePad.Down2(PAD_SQUARE)) {
                     now++;

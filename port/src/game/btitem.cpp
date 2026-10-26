@@ -1,6 +1,3 @@
-#pragma name_counter 2
-#pragma literal_reload 0x3ECCCCCD, 0x3FA66666
-
 #include "common.h"
 
 #include <libvu0.h>
@@ -416,7 +413,6 @@ int BtMiniItemSelect_Sled;
 int GateKey_itemNo;
 int GateKey_Sled;
 int gateItemFlag;
-int escape_chr;
 int escape_sled;
 
 /**
