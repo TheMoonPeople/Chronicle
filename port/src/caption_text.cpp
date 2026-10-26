@@ -90,6 +90,9 @@ constexpr float kOutlineWidth = 1.6f;
 constexpr float kLeastShrink = 0.62f;
 
 std::array<std::optional<CaptionBounds>, kIcons> g_bounds;
+// The titles HelpTitle read last, and the language they are in.
+std::array<std::string, kIcons> g_help_titles;
+int                             g_help_language = -1;
 
 std::filesystem::path FindStatusFontPath() {
     std::filesystem::path p = LocalizeFindFile("SourceSansProSemibold.ttf");
@@ -160,13 +163,10 @@ char32_t Upper(char32_t ch) {
 }
 
 std::string HelpTitle(int icon) {
-    static std::array<std::string, kIcons> last_titles;
-    static int                             last_language = -1;
-    // The town menu draws its icons for a few frames before it reads allmenu.mes. Until then
-    // CommonMenuMes2 still points at the previous menu's messages, whose memory the town may have
-    // built an event's models over since, so those frames take the titles read last.
+    // The town menu draws its icons a few frames before it reads allmenu.mes, while CommonMenuMes2 still
+    // points at the previous menu's messages, memory the town may since have reused.
     if (EditSwitch == EDIT_MENU_START && EdMenuTextureReadEndFlag == 0) {
-        return LanguageCode == last_language ? last_titles[icon] : std::string{};
+        return LanguageCode == g_help_language ? g_help_titles[icon] : std::string{};
     }
     const MENU_ICON_INFO *info = GetMenuIconInfo(icon);
     if (info == nullptr || CommonMenuMes2.buff == nullptr) {
@@ -187,11 +187,11 @@ std::string HelpTitle(int icon) {
     while (!text.empty() && (text.back() == '"' || text.back() == ' ')) {
         text.pop_back();
     }
-    if (last_language != LanguageCode) {
-        last_titles = {};
-        last_language = LanguageCode;
+    if (g_help_language != LanguageCode) {
+        g_help_titles = {};
+        g_help_language = LanguageCode;
     }
-    last_titles[icon] = text;
+    g_help_titles[icon] = text;
     return text;
 }
 

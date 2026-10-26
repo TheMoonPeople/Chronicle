@@ -2022,7 +2022,7 @@ PORT_OVERRIDE int LoadTexture() {
         {"#frame_image#640#" SCREEN_HEIGHT_STR "#4",      0x13, 0},
     };
 
-    // Room for a zeroed entry after either list, which ends it as retail's 64-entry table did.
+    // Room for the zeroed entry that ends either list.
     auto blocks = std::make_unique<LOADTEXTURE_INFO2[]>(std::max(image_count, std::size(system_blocks)) + 1);
     memcpy(blocks.get(), system_blocks, sizeof(system_blocks));
     blocks[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "sys_cmn.img", nullptr));
