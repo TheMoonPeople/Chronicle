@@ -1,13 +1,6 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 338
-
 #include "common.h"
 
-#include <libgraph.h>
-#include <libpkt.h>
 #include <libvu0.h>
-#include <sifdev.h>
 
 #include <cmath>
 #include <cstdio>

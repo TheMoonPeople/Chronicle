@@ -34,10 +34,6 @@
 #include "sysmes.hpp"
 #include "texture.hpp"
 
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 517
-
 /**
  * Stores one event-battle key and its timing state.
  */
@@ -393,8 +389,6 @@ void EBInitialize() {
     CoolRect[6].width = 62;
     CoolRect[6].height = 16;
 }
-
-#pragma name_counter 518
 
 /* @ 0x168110 (0xE0 bytes) -- EBInit__Ff */
 void EBInit(float speed_mult) {
@@ -2050,7 +2044,6 @@ void EdMoveChara() {
     hook_weight = float_weight = -1.0f;
     follow_line = 0;
     static int bgm_vol = 0;
-    static int load_file = 0;
 
     if (EdMoveCharaInfo.fishing != 0) {
         EdViewModeOff();

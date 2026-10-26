@@ -127,9 +127,6 @@ static int camera_change_count;
 /** Number of camera markers the interior's parts define. */
 static int camera_num;
 
-/** Frames left of the door-opening sequence. */
-static int door_open_cnt;
-
 /** Camera the interior is drawn through this frame. */
 static CCamera *NowCamera;
 
@@ -159,18 +156,6 @@ static int start_event_no;
 
 /** Whether the start event is a system event. */
 static int start_system_event;
-
-/** Menu the interior leaves for. */
-static int goto_menu;
-
-/** Whether the pause key was pressed this frame. */
-static int goto_return_menu;
-
-/** Frames since any button was last held. */
-static int key_counter;
-
-/** Frames the interior loop has run. */
-static int loop_counter;
 
 /** Animated texture the interior's parts share. */
 static CTextureAnime TexAnime;
@@ -823,7 +808,6 @@ static void MoveCharacter() {
 
             EdMoveCharaInit();
             motion = 0;
-            door_open_cnt = 140;
 
             if (jump != NULL) {
                 GetDoorPos(jump->link_id, position, rotation, &EdInteriorDoorSound, &motion);

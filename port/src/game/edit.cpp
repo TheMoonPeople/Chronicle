@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 338
-
 #include "common.h"
 
 #include <libgraph.h>
@@ -124,8 +120,6 @@ static int AddStr(CDebugFont *font, char *str) {
 void EdDPrintChara(CMainChara *chara);
 
 void EdDPrintCamera(CCamera *camera);
-
-#pragma name_counter 421
 
 void EdDPrintVector(char *name, float *vector);
 
@@ -1584,126 +1578,6 @@ void EdStepOpenItemBox() {
         lid->SetRotation(0.2f * -close_angle, 0.0f, 0.0f);
     }
 }
-
-// The villager file names and script command names editmapscript's tables point at.
-const char EditCharaFileP47a[] = "p47a";
-const char EditCharaFileP12a[] = "p12a";
-const char EditCharaFileP07a[] = "p07a";
-const char EditCharaFileP01a[] = "p01a";
-const char EditCharaFileP13a[] = "p13a";
-const char EditCharaFileP06a[] = "p06a";
-const char EditCharaFileP09a[] = "p09a";
-const char EditCharaFileP08a[] = "p08a";
-const char EditCharaFileP05a[] = "p05a";
-const char EditCharaFileP03a[] = "p03a";
-const char EditCharaFileP04a[] = "p04a";
-const char EditCharaFileP02a[] = "p02a";
-const char EditCharaFileP10a[] = "p10a";
-const char EditCharaFileP14a[] = "p14a";
-const char EditCharaFileC04cat[] = "c04cat";
-const char EditCharaFileNone[] = "";
-const char EditCharaFileP27a[] = "p27a";
-const char EditCharaFileP30a[] = "p30a";
-const char EditCharaFileP29a[] = "p29a";
-const char EditCharaFileP28a[] = "p28a";
-const char EditCharaFileP31a[] = "p31a";
-const char EditCharaFileP25a[] = "p25a";
-const char EditCharaFileP59a[] = "p59a";
-const char EditCharaFileP24a[] = "p24a";
-const char EditCharaFileP26a[] = "p26a";
-const char EditCharaFileP23a[] = "p23a";
-const char EditCharaFileP21a[] = "p21a";
-const char EditCharaFileP22a[] = "p22a";
-const char EditCharaFileP49a[] = "p49a";
-const char EditCharaFileP35a[] = "p35a";
-const char EditCharaFileP37a[] = "p37a";
-const char EditCharaFileP36a[] = "p36a";
-const char EditCharaFileP41a[] = "p41a";
-const char EditCharaFileP39a[] = "p39a";
-const char EditCharaFileP33a[] = "p33a";
-const char EditCharaFileP40a[] = "p40a";
-const char EditCharaFileP43a[] = "p43a";
-const char EditCharaFileP45a[] = "p45a";
-const char EditCharaFileP44a[] = "p44a";
-const char EditCharaFileP34a[] = "p34a";
-const char EditCharaFileP42a[] = "p42a";
-const char EditCharaFileP48a[] = "p48a";
-const char EditCharaFileP46a[] = "p46a";
-const char EditCharaFileP50a[] = "p50a";
-const char EditCharaFileP51a[] = "p51a";
-const char EditCharaFileP52a[] = "p52a";
-const char EditCharaFileP53a[] = "p53a";
-const char EditCharaFileP54a[] = "p54a";
-const char EditCharaFileP55a[] = "p55a";
-const char EditCharaFileP56a[] = "p56a";
-const char EditCharaFileP57a[] = "p57a";
-const char EditCharaFileP58a[] = "p58a";
-const char EditCharaFileP64a[] = "p64a";
-const char EditCharaFileP62a[] = "p62a";
-const char EditCharaFileP63a[] = "p63a";
-const char EditCharaFileP61a[] = "p61a";
-const char EditCommandScn[] = "SCN";
-const char EditCommandLightNo[] = "LIGHT_NO";
-const char EditCommandAmbient[] = "AMBIENT";
-const char EditCommandLightC[] = "LIGHT_C";
-const char EditCommandFog[] = "FOG";
-const char EditCommandBgCol[] = "BG_COL";
-const char EditCommandBgCol2[] = "BG_COL2";
-const char EditCommandDof[] = "DOF";
-const char EditCommandCd[] = "CD";
-const char EditCommandGrdImg[] = "GRD_IMG";
-const char EditCommandBldImg[] = "BLD_IMG";
-const char EditCommandSkyImg[] = "SKY_IMG";
-const char EditCommandSunImg[] = "SUN_IMG";
-const char EditCommandWaterImg[] = "WATER_IMG";
-const char EditCommandFireImg[] = "FIRE_IMG";
-const char EditCommandFlerImg[] = "FLER_IMG";
-const char EditCommandImg[] = "IMG";
-const char EditCommandSky[] = "SKY";
-const char EditCommandSun[] = "SUN";
-const char EditCommandGround[] = "GROUND";
-const char EditCommandBuild[] = "BUILD";
-const char EditCommandWater[] = "WATER";
-const char EditCommandWaterSurface[] = "WATER_SURFACE";
-const char EditCommandWaterShake[] = "WATER_SHAKE";
-const char EditCommandEditarea[] = "EDITAREA";
-const char EditCommandBldParts[] = "BLD_PARTS";
-const char EditCommandGrdParts[] = "GRD_PARTS";
-const char EditCommandPartsInfo[] = "PARTS_INFO";
-const char EditCommandRoadParts[] = "ROAD_PARTS";
-const char EditCommandRoad[] = "ROAD";
-const char EditCommandRiverParts[] = "RIVER_PARTS";
-const char EditCommandRiver[] = "RIVER";
-const char EditCommandBridgeParts[] = "BRIDGE_PARTS";
-const char EditCommandLakeParts[] = "LAKE_PARTS";
-const char EditCommandOnRiverParts[] = "ON_RIVER_PARTS";
-const char EditCommandObjAnime[] = "OBJ_ANIME";
-const char EditCommandFire[] = "FIRE";
-const char EditCommandFlame[] = "FLAME";
-const char EditCommandBright[] = "BRIGHT";
-const char EditCommandObjectTimer[] = "OBJECT_TIMER";
-const char EditCommandEntrance[] = "ENTRANCE";
-const char EditCommandMapjump[] = "MAPJUMP";
-const char EditCommandPeople[] = "PEOPLE";
-const char EditCommandTimeTableNo[] = "TIME_TABLE_NO";
-const char EditCommandTimeTable[] = "TIME_TABLE";
-const char EditCommandTimeStop[] = "TIME_STOP";
-const char EditCommandSkyFollow[] = "SKY_FOLLOW";
-const char EditCommandShadowLevel[] = "SHADOW_LEVEL";
-const char EditCommandEditareaRect[] = "EDITAREA_RECT";
-const char EditCommandBgmNo[] = "BGM_NO";
-const char EditCommandSoundSet[] = "SOUND_SET";
-const char EditCommandReverbe[] = "REVERBE";
-const char EditCommandMotionParts[] = "MOTION_PARTS";
-const char EditCommandPeople2[] = "PEOPLE2";
-const char EditCommandSeAmbientOff[] = "SE_AMBIENT_OFF";
-const char EditCommandWind[] = "WIND";
-const char EditCommandTalkEvent[] = "TALK_EVENT";
-const char EditCommandCharaAmbient[] = "CHARA_AMBIENT";
-const char EditCommandTalkRot[] = "TALK_ROT";
-const char EditCommandTalkDir[] = "TALK_DIR";
-const char EditCommandPeopleList[] = "PEOPLE_LIST";
-const char EditFuncNameTest[] = "test";
 
 void EdDrawOpenItemBox() {
     sceVu0FVECTOR ambient;
