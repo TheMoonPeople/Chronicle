@@ -111,18 +111,6 @@ struct SE_INF_TABLE {
 
 STATIC_ASSERT(sizeof(SE_INF_TABLE) == 0x2EE4);
 
-/**
- *          One buffer of MIDI messages queued for the stream input module,
- *          copied across to the IOP once a frame.
- */
-struct MSIN_BUFFER {
-    s32 size;            /**< Size of the buffer in bytes. */
-    s32 length;          /**< Bytes of messages waiting to be sent. */
-    u8  messages[0x1F8]; /**< MIDI messages the stream input library queues for the IOP. */
-};
-
-STATIC_ASSERT(sizeof(MSIN_BUFFER) == 0x200);
-
 class CSound {
 public:
     /**

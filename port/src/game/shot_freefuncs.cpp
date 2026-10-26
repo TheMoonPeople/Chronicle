@@ -1,5 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
 #include "shot_freefuncs.hpp"
 
 #include "itemdata.hpp"
@@ -774,7 +772,6 @@ void BtStatusErrStep() {
     }
 
     BtStatusErrColorSet();
-#pragma name_counter 551
 }
 
 /**

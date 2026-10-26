@@ -1,4 +1,3 @@
-#pragma helper_mask_gpr 0x30
 #include "shot_firebar.hpp"
 
 #include <libvu0.h>

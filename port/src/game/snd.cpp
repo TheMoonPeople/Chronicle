@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 348
-
 #include "common.h"
 
 #include <libpkt.h>
@@ -975,7 +971,6 @@ void SndSePlay(int se_no, int vol, int voice) {
         }
 
         int        port = GetPortNo(se_no);
-        static int system_snd_id = (int) 0.0f;
 
         if (vol < 0) {
             CSnd.SE_Play(port, info->vol_no, voice);
