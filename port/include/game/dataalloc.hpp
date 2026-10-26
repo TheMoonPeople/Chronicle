@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <cstddef>
 #include <cstdio>
 
 #include "dataalloc_fwd.hpp"
@@ -9,11 +10,12 @@
 /**
  * Constructs an object inside allocator-owned quadword storage.
  */
-void *operator new(size_t size, u_long128 *block);
+void *operator new(std::size_t size, u_long128 *block);
+
 /**
  * Constructs an array inside allocator-owned quadword storage.
  */
-void *operator new[](size_t size, u_long128 *block);
+void *operator new[](std::size_t size, u_long128 *block);
 
 /**
  * Allocates sixteen-byte units from an externally supplied buffer.
@@ -26,13 +28,29 @@ public:
     int     used;   /**< Number of occupied quadwords. */
     int     limit;  /**< Maximum number of available quadwords. */
 
+    /**
+     * Creates an empty arena; a negative limit leaves the base unset.
+     */
     CDataAlloc2(int limit = -1);
 
+    /**
+     * Reserves the given number of quadwords and returns their start.
+     */
     u_char *Alloc(int quads);
-    u_char *Alloc64(int quads);
-    void    Align64();
 
-    /** Hands the whole arena back, without touching what is in it. */
+    /**
+     * Aligns to 64 bytes, then reserves the given number of quadwords.
+     */
+    u_char *Alloc64(int quads);
+
+    /**
+     * Rounds the used count up to the next 64-byte boundary.
+     */
+    void Align64();
+
+    /**
+     * Hands the whole arena back, without touching what is in it.
+     */
     void Reset() { used = 0; }
 };
 
@@ -45,13 +63,30 @@ public:
     u_long128 block[Size]; /**< Embedded allocation storage. */
     int       used;        /**< Number of occupied quadwords. */
 
-    CDataAlloc() { used = 0; }
+    /**
+     * Creates an empty arena.
+     */
+    CDataAlloc() : used(0) {}
 
+    /**
+     * Reserves the given number of quadwords and returns their start.
+     */
     u_char *Alloc(int quads);
+
+    /**
+     * Aligns to 64 bytes, then reserves the given number of quadwords.
+     */
     u_char *Alloc64(int quads);
-    void    Align64();
+
+    /**
+     * Rounds the used count up to the next 64-byte boundary.
+     */
+    void Align64();
 };
 
+/**
+ * Specialisation behind the game's scene arenas.
+ */
 template <>
 class CDataAlloc2<1> {
 public:
@@ -60,55 +95,107 @@ public:
     int     used;   /**< Number of occupied quadwords. */
     int     limit;  /**< Maximum number of available quadwords. */
 
+    /**
+     * Creates an empty arena with no limit and the base unset.
+     */
     CDataAlloc2();
+
+    /**
+     * Creates an empty arena; a negative limit leaves the base unset.
+     */
     CDataAlloc2(int limit);
 
+    /**
+     * Reserves the given number of quadwords and returns their start.
+     */
     u_char *Alloc(int quads);
-    u_char *Alloc64(int quads);
-    void    Align64();
 
-    /** Hands the whole arena back, without touching what is in it. */
+    /**
+     * Aligns to 64 bytes, then reserves the given number of quadwords.
+     */
+    u_char *Alloc64(int quads);
+
+    /**
+     * Rounds the used count up to the next 64-byte boundary.
+     */
+    void Align64();
+
+    /**
+     * Hands the whole arena back, without touching what is in it.
+     */
     void Reset() { used = 0; }
 };
 
+/**
+ * Embedded arena behind SystemMesBuffer.
+ */
 template <>
 class CDataAlloc<1, 6000> {
 public:
     u_long128 block[6000]; /**< Embedded allocation storage. */
     int       used;        /**< Number of occupied quadwords in the embedded arena. */
 
+    /**
+     * Creates an empty arena.
+     */
     CDataAlloc();
 
+    /**
+     * Reserves the given number of quadwords and returns their start.
+     */
     u_char *Alloc(int quads);
+
+    /**
+     * Aligns to 64 bytes, then reserves the given number of quadwords.
+     */
     u_char *Alloc64(int quads);
-    void    Align64();
+
+    /**
+     * Rounds the used count up to the next 64-byte boundary.
+     */
+    void Align64();
 };
 
+/**
+ * Embedded arena behind GlobalDataBuffer.
+ */
 template <>
 class CDataAlloc<1, 1690000> {
 public:
     u_long128 block[1690000]; /**< Embedded allocation storage. */
     int       used;           /**< Number of occupied quadwords. */
 
-    CDataAlloc() { used = 0; }
+    /**
+     * Creates an empty arena.
+     */
+    CDataAlloc() : used(0) {}
 
+    /**
+     * Reserves the given number of quadwords and returns their start.
+     */
     u_char *Alloc(int quads);
+
+    /**
+     * Aligns to 64 bytes, then reserves the given number of quadwords.
+     */
     u_char *Alloc64(int quads);
-    void    Align64();
+
+    /**
+     * Rounds the used count up to the next 64-byte boundary.
+     */
+    void Align64();
 };
 
 template <int Kind, int Size>
 u_char *CDataAlloc<Kind, Size>::Alloc(int quads) {
-    u_char *allocation;
-
     if (used + quads > Size) {
-        printf("Alocation Error! %d/%d\n", used, Size);
+        std::printf("Alocation Error! %d/%d\n", used, Size);
 
-        while (1)
-            ;
+        for (;;) {
+        }
     }
 
-    allocation = (u_char *) block + used * 16;
+    u_char *allocation = reinterpret_cast<u_char *>(&block[used]);
     used += quads;
     return allocation;
 }
@@ -117,19 +204,18 @@ template <int Kind, int Size>
 u_char *CDataAlloc<Kind, Size>::Alloc64(int quads) {
     Align64();
 
-    u_char *allocation = (u_char *) block + used * 16;
+    u_char *allocation = reinterpret_cast<u_char *>(&block[used]);
     used += quads;
 
     if (used >= Size) {
-        printf("Alocation Error! %d/%d\n", used, Size);
+        std::printf("Alocation Error! %d/%d\n", used, Size);
 
-        while (1)
-            ;
+        for (;;) {
+        }
     }
 
     return allocation;
 }
-
 
 /**
  * Supplies the main texture-loading allocation arena.
@@ -168,5 +254,7 @@ extern CDataAlloc<1, 1690000> GlobalDataBuffer;
  */
 extern CDataAlloc2<1> workbuffer;
 
-/** Buffer the common-menu effect models are read into. */
+/**
+ * Buffer the common-menu effect models are read into.
+ */
 extern CDataAlloc2<1> MenuEffectCashBuffer;

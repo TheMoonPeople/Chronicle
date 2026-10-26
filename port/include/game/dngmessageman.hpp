@@ -2,6 +2,10 @@
 
 #include "common.h"
 
+/**
+ * State of the dungeon message window: which message is shown, for how
+ * long, and the names and numbers inserted into its text.
+ */
 class CDngMessageMan {
 public:
     s32 enabled;        /**< Whether the message window may be shown; cleared while an event runs. */
@@ -18,33 +22,25 @@ public:
     /**
      * Selects the warning for the current dungeon restriction zone and
      * resets its display timer.
-     *
-     * @mangled LimmitZone__14CDngMessageManFv
-     * @address 0x1B5B90
-     * @size 0x98
      */
     void LimmitZone();
 
     /**
-     * Starts or clears the warnings for a character's remaining water.
-     *
-     * @mangled SetStatus_Dry__14CDngMessageManFfff
-     * @address 0x1B5C30
-     * @size 0x10C
+     * Starts or clears the low-water and no-water warnings from a
+     * character's maximum, previous and current water.
      */
     void SetStatus_Dry(float water_max, float water_before, float water_now);
 
     /**
-     * Queues one rotating dungeon message when the display is idle.
-     *
-     * @mangled SetSteevMes__14CDngMessageManFi
-     * @address 0x1B5D40
-     * @size 0x50
+     * Queues the next of ten rotating messages, numbered from first, in
+     * Steev's window when no message is on screen.
      */
     void SetSteevMes(int first);
 };
 
-/** Dungeon message state shared by battle and the dungeon loop. */
+/**
+ * Dungeon message state shared by battle and the dungeon loop.
+ */
 extern "C" CDngMessageMan DngMessMan;
 
 /**

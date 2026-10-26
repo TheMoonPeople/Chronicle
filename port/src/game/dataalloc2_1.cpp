@@ -1,11 +1,7 @@
 #include "dataalloc.hpp"
 
-CDataAlloc2<1>::CDataAlloc2(int limit) {
-    this->limit = limit;
-    used = 0;
-    buffer = 0;
-
-    /* A negative limit leaves the base alone rather than pointing it at nothing. */
+CDataAlloc2<1>::CDataAlloc2(int limit) : buffer(nullptr), used(0), limit(limit) {
+    // A negative limit leaves the base untouched.
     if (limit < 0) {
         return;
     }

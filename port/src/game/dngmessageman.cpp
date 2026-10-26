@@ -3,6 +3,12 @@
 #include "dun/gameloop.hpp"
 #include "userstatus.hpp"
 
+namespace {
+
+constexpr s32 kMessageDisplayFrames = 0xF0;
+
+} // namespace
+
 void CDngMessageMan::LimmitZone() {
     int zone = UserStatus->res_limit_zone_current;
 
@@ -19,8 +25,8 @@ void CDngMessageMan::LimmitZone() {
         message = 0xE;
     }
 
-    timer = 0xF0;
-    steev_window = false;
+    timer = kMessageDisplayFrames;
+    steev_window = 0;
 }
 
 void CDngMessageMan::SetStatus_Dry(float water_max, float water_before, float water_now) {
@@ -36,23 +42,22 @@ void CDngMessageMan::SetStatus_Dry(float water_max, float water_before, float wa
 
     if (threshold <= water_before + 0.5f && !(threshold <= water_now - 0.5f) && message == -1) {
         message = 0xAA;
-        timer = 0xF0;
-        steev_window = false;
+        timer = kMessageDisplayFrames;
+        steev_window = 0;
     }
 
     if (water_now <= 0.0f && (message == -1 || message == 0xAB)) {
         message = 0xAB;
         timer = 0x9FFF6;
-        steev_window = false;
+        steev_window = 0;
     }
 }
 
 void CDngMessageMan::SetSteevMes(int first) {
     if (timer <= 0) {
-        // The ten Steev lines are shown in turn, so the index rides on.
         message = first + steev_index;
-        timer = 0xF0;
-        steev_window = true;
+        timer = kMessageDisplayFrames;
+        steev_window = 1;
         steev_index++;
 
         if (steev_index > 9) {

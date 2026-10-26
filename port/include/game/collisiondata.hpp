@@ -51,10 +51,6 @@ class CTexture;
 
 /**
  * Builds a resource path by putting one of the fixed prefixes before a name.
- *
- * @mangled NameExchg__FPci
- * @address 0x1B5740
- * @size 0x60
  */
 char *NameExchg(char *name, int language);
 
@@ -155,28 +151,16 @@ public:
 
     /**
      * Records a hit, and returns the index of its record.
-     *
-     * @mangled Set__14CCollisionDataFPfiiffiiii
-     * @address 0x1B57A0
-     * @size 0x180
      */
     int Set(float *position, int damage, int life, float radius, float scale_rate, int target_mask, int kind, int flags, int attribute);
 
     /**
      * Reports which recorded hit reaches the player.
-     *
-     * @mangled CheckHitUser__14CCollisionDataFPfif
-     * @address 0x1B5920
-     * @size 0x1BC
      */
     int CheckHitUser(float *position, int mask, float height);
 
     /**
      * Records the push a hit gives whatever it struck.
-     *
-     * @mangled SetKickBack__14CCollisionDataFPfffi
-     * @address 0x1B5AE0
-     * @size 0xA4
      */
     void SetKickBack(float *origin, float speed, float decay, int mode);
 };
@@ -185,18 +169,10 @@ STATIC_ASSERT(sizeof(CCollisionData) == 0x3D90);
 
 /**
  * Tells whether a key item may be dropped on the floor.
- *
- * @mangled SetGateKeyStack__Fi
- * @address 0x1B5680
- * @size 0xB4
  */
 int SetGateKeyStack(int item);
 
 /**
  * Draws the caption naming the dungeon and floor the party has just entered.
- *
- * @mangled StartMessageDraw__FP8CTextureiiii
- * @address 0x1B8890
- * @size 0x4C8
  */
 void StartMessageDraw(CTexture *texture, int dungeon, int floor, int ura, int alpha);

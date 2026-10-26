@@ -1,7 +1,11 @@
 #include "collisiondata.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstdio>
-#include <cstring>
+#include <iterator>
+#include <print>
+#include <string>
 
 #include "camerafollow.hpp"
 #include "debugfont.hpp"
@@ -18,183 +22,494 @@
 #include "snd.hpp"
 #include "userstatus.hpp"
 
-/**
- * The action code of each debug overlay line, ended by -1.
- */
-int DebugInfoCode[15] = {DEBUG_INFO_MINIMAP_VIEW, DEBUG_INFO_COLLISION, DEBUG_INFO_BGM_PLAY, DEBUG_INFO_PARAMETER, DEBUG_INFO_VIEW_INFO, DEBUG_INFO_ULTRA_MAN, DEBUG_INFO_RELOAD_ENEMY, DEBUG_INFO_ITEM_PUT_ZONE, DEBUG_INFO_LIGHT_MODE, DEBUG_INFO_FLOOR_ATRA_GET, DEBUG_INFO_EVENT_TEST, DEBUG_INFO_SET_STATUS, DEBUG_INFO_SE_PLAY, DEBUG_INFO_SET_CHR_KEY, -1};
+namespace {
 
-// clang-format off
-/**
- * The format of each debug overlay line, ended by a null entry.
- */
-char *DebugInfoMsg[15] = {
-    DebugInfoMsgMiniMapView, DebugInfoMsgCollision,  DebugInfoMsgBgmPlay,     DebugInfoMsgParameter,
-    DebugInfoMsgViewInfo,    DebugInfoMsgUltraMan,   DebugInfoMsgReloadEnemy, DebugInfoMsgItemPutZone,
-    DebugInfoMsgLightMode,   DebugInfoMsgFloorAtraGet, DebugInfoMsgEventTest, DebugInfoMsgSetStatus,
-    DebugInfoMsgSePlay,      DebugInfoMsgSetChrKey,  NULL,
+/** The action code of each debug overlay line, ended by -1. */
+constexpr std::array<int, 15> DebugInfoCode = {
+    DEBUG_INFO_MINIMAP_VIEW,
+    DEBUG_INFO_COLLISION,
+    DEBUG_INFO_BGM_PLAY,
+    DEBUG_INFO_PARAMETER,
+    DEBUG_INFO_VIEW_INFO,
+    DEBUG_INFO_ULTRA_MAN,
+    DEBUG_INFO_RELOAD_ENEMY,
+    DEBUG_INFO_ITEM_PUT_ZONE,
+    DEBUG_INFO_LIGHT_MODE,
+    DEBUG_INFO_FLOOR_ATRA_GET,
+    DEBUG_INFO_EVENT_TEST,
+    DEBUG_INFO_SET_STATUS,
+    DEBUG_INFO_SE_PLAY,
+    DEBUG_INFO_SET_CHR_KEY,
+    -1,
 };
-// clang-format on
 
-/**
- * The debug overlay line the cursor is on.
- */
+/** The printf format of each debug overlay line, ended by a null entry. */
+const std::array<const char *, 15> DebugInfoMsg = {
+    DebugInfoMsgMiniMapView,
+    DebugInfoMsgCollision,
+    DebugInfoMsgBgmPlay,
+    DebugInfoMsgParameter,
+    DebugInfoMsgViewInfo,
+    DebugInfoMsgUltraMan,
+    DebugInfoMsgReloadEnemy,
+    DebugInfoMsgItemPutZone,
+    DebugInfoMsgLightMode,
+    DebugInfoMsgFloorAtraGet,
+    DebugInfoMsgEventTest,
+    DebugInfoMsgSetStatus,
+    DebugInfoMsgSePlay,
+    DebugInfoMsgSetChrKey,
+    nullptr,
+};
+
+constexpr std::array<const char *, 2> on_off_names = {"OFF", "ON"};
+constexpr std::array<const char *, 2> main_sub_names = {"MAIN", "SUB"};
+constexpr std::array<const char *, 6> condition_names = {"RESET", "STONE", "BIN2", "POISON", "CURSE", "NEBA2"};
+constexpr std::array<const char *, 3> power_names = {"HUMAN   ", "SUPERMAN", "ULTRAMAN"};
+
+/** The debug overlay line the cursor is on. */
 int DebugInfoNowCursor;
 
 /** Key items waiting to be dropped, one entry each, -1 where a slot is free. */
-int gateKeyStack[32];
+std::array<int, 32> gateKeyStack;
+
+/** The path NameExchg builds. */
+std::string nameblock;
+
+/** Where each language's caption centres each dungeon's floor number. */
+constexpr std::array<int, 7> center_us = {0xCE, 0x125, 0x101, 0x100, 0x87, 0x57, 0x101};
+constexpr std::array<int, 7> center_fr = {0xCD, 0x113, 0xF8, 0xF8, 0xB2, 0x59, 0xFF};
+constexpr std::array<int, 7> center_gr = {0xFE, 0x103, 0x13D, 0xFD, 0x78, 0x38, 0xFF};
+constexpr std::array<int, 7> center_it = {0xCC, 0x129, 0xF3, 0xFF, 0xFA, 0x75, 0xF9};
+constexpr std::array<int, 7> center_sp = {0xCE, 0x12C, 0xF2, 0xFA, 0x7C, 0xBA, 0xFA};
+
+/** Each language's floor-number centres, indexed by LanguageCode. */
+constexpr std::array<const std::array<int, 7> *, 7> center_ptr = {&center_sp, &center_us, &center_us, &center_fr, &center_gr, &center_it, &center_sp};
 
 /**
- * The path NameExchg builds.
+ * Appends printf-formatted text to the debug overlay's buffer. Without
+ * arguments the text is appended as it is, so it must hold no conversions.
  */
-char nameblock[64];
+template <typename... Args>
+void AppendDebugText(const char *format, Args... args) {
+    const std::size_t capacity = std::size(DbgMsg.text) - static_cast<std::size_t>(DbgMsg.length);
+
+    if constexpr (sizeof...(Args) == 0) {
+        DbgMsg.length += std::snprintf(&DbgMsg.text[DbgMsg.length], capacity, "%s", format);
+    } else {
+        DbgMsg.length += std::snprintf(&DbgMsg.text[DbgMsg.length], capacity, format, args...);
+    }
+}
+
+/**
+ * Flips a debug switch between off (0) and on (1).
+ */
+void ToggleDebugSwitch(s32 &value) { value = value == 0 ? 1 : 0; }
+
+/**
+ * Closes the debug overlay and returns the pad to normal input.
+ */
+void CloseDebugOverlay() {
+    DebugStatus[0] = 0;
+    GamePad.AutoRepeatOff();
+    GamePad.MenuModeOff();
+}
+
+/**
+ * Resets every runtime event record of the event manager to an idle, unheld state.
+ */
+void ClearEventData(CDungeonEventMan *event_man) {
+    for (CDungeonEventData &data : event_man->event) {
+        data.event = nullptr;
+        data.switch_on = false;
+        data.enabled = false;
+        data.hold = 0;
+        data.chara_done = -1;
+    }
+}
+
+/**
+ * Marks the floor's event places, treasure boxes, atla balls and room links unused and resets their counts.
+ */
+void ClearMapEvent(CDungeonMap *map) {
+    for (DUNGEON_EVENT &event : map->events) {
+        event.kind = DNG_EVENT_NONE;
+        event.reset_flag = 0;
+    }
+
+    for (TREASURE_BOX &box : map->boxes) {
+        box.used = 0;
+        box.lid_angle = 0;
+        box.trap_no = 0;
+    }
+
+    map->box_num = 0;
+
+    for (ATRA_BOLL &atra : map->atra) {
+        atra.used = 0;
+    }
+
+    map->atra_num = 0;
+
+    for (ROOM_LINK_RESULT &link : map->room_link) {
+        link.used = 0;
+    }
+}
+
+/**
+ * Fills the debug overlay with the player's and the camera's positions.
+ */
+void DrawViewInformation() {
+    sceVu0FVECTOR pos;
+    sceVu0FVECTOR rot;
+    sceVu0FVECTOR cam_pos;
+    sceVu0FVECTOR cam_ref;
+
+    DbgMsg.length = std::snprintf(DbgMsg.text, std::size(DbgMsg.text), " ---Infomation---\n");
+    sceVu0CopyVector(pos, CharaMain.pos);
+    CharaMain.GetRotation(rot);
+    NowCamera__3->GetPos(cam_pos);
+    NowCamera__3->GetRef(cam_ref);
+    const float angle = NowCamera__3->GetAngle();
+    const float distance = NowCamera__3->GetDistance();
+    const float height = NowCamera__3->GetHeight();
+
+    // Positions relative to the 160-unit floor tile the player stands on.
+    const int   tile_x = static_cast<int>((pos[0] - 80.0f) / 160.0f) * 160;
+    const float local_x = pos[0] - tile_x - 160.0f;
+    const float local_y = pos[1];
+    const int   tile_z = static_cast<int>((pos[2] - 80.0f) / 160.0f) * 160;
+    const float local_z = pos[2] - tile_z - 160.0f;
+    const float cam_local_x = cam_pos[0] - tile_x - 160.0f;
+    const float cam_local_y = cam_pos[1];
+    const float cam_local_z = cam_pos[2] - tile_z - 160.0f;
+    const float ref_local_x = cam_ref[0] - tile_x - 160.0f;
+    const float ref_local_y = cam_ref[1];
+    const float ref_local_z = cam_ref[2] - tile_z - 160.0f;
+
+    AppendDebugText("gpos %.2f/ %.2f/ %.2f\n", pos[0], pos[1], pos[2]);
+    AppendDebugText("lpos %.2f/ %.2f/ %.2f\n", local_x, local_y, local_z);
+    AppendDebugText("rot %.2f/ %.2f/ %.2f\n", rot[0], rot[1], rot[2]);
+    AppendDebugText("CAM\n");
+    AppendDebugText("cpos %.2f/ %.2f/ %.2f\n", cam_pos[0], cam_pos[1], cam_pos[2]);
+    AppendDebugText("cref %.2f/ %.2f/ %.2f\n", cam_ref[0], cam_ref[1], cam_ref[2]);
+    AppendDebugText("lcpos %.2f/ %.2f/ %.2f\n", cam_local_x, cam_local_y, cam_local_z);
+    AppendDebugText("lcref %.2f/ %.2f/ %.2f\n", ref_local_x, ref_local_y, ref_local_z);
+    AppendDebugText("Angle = %.3f\n", angle);
+    AppendDebugText("Dist = %.3f\n", distance);
+    AppendDebugText("Height = %.3f\n", height);
+    AppendDebugText("RANDOM MAP CODE = %d\n", NowDngMap->map_seed);
+    AppendDebugText("WeaponList Ver 2000/%d\n", VERSION_VOL);
+    NowEventMan->SearchDataSlotPos(pos);
+    AppendDebugText("EventID = %d\n", NowEventMan->GetDataNum());
+    MGFillBox(CRect_i_(0x200, 0x280, 0x1000, 0x780), 8, 8, 8, 0x60);
+    DbgMsg.Draw();
+}
+
+/**
+ * Applies the pad's left, right, L1 and R1 presses to the line the cursor is on.
+ */
+void AdjustDebugValue() {
+    const auto line_count = static_cast<int>(std::ranges::find(DebugInfoCode, -1) - DebugInfoCode.begin());
+
+    if (GamePad.Down(PAD_DOWN)) {
+        if (DebugInfoNowCursor == line_count - 1) {
+            DebugInfoNowCursor = 0;
+        } else {
+            DebugInfoNowCursor++;
+        }
+    }
+
+    if (GamePad.Down(PAD_UP)) {
+        if (DebugInfoNowCursor == 0) {
+            DebugInfoNowCursor = line_count - 1;
+        } else {
+            DebugInfoNowCursor--;
+        }
+    }
+
+    if (GamePad.Down(PAD_RIGHT)) {
+        switch (DebugInfoCode[DebugInfoNowCursor]) {
+            case DEBUG_INFO_MINIMAP_VIEW:
+                ToggleDebugSwitch(DebugStatus[3]);
+                break;
+            case DEBUG_INFO_COLLISION:
+                ToggleDebugSwitch(DebugStatus[5]);
+                break;
+            case DEBUG_INFO_ITEM_PUT_ZONE:
+                ToggleDebugSwitch(DebugStatus[6]);
+                break;
+            case DEBUG_INFO_VIEW_INFO:
+                ToggleDebugSwitch(DebugStatus[4]);
+                break;
+            case DEBUG_INFO_PARAMETER:
+                ToggleDebugSwitch(DebugStatus[10]);
+                break;
+            case DEBUG_INFO_ULTRA_MAN:
+                if (DebugStatus[20] == 2) {
+                    DebugStatus[20] = 0;
+                } else {
+                    DebugStatus[20]++;
+                }
+
+                break;
+            case DEBUG_INFO_RELOAD_ENEMY:
+                if (DebugStatus[14] < 4) {
+                    DebugStatus[14]++;
+                } else {
+                    DebugStatus[14] = 0;
+                }
+
+                break;
+            case DEBUG_INFO_BGM_PLAY:
+                DebugStatus[9]++;
+
+                if (DebugStatus[9] != -1) {
+                    SndBgmLoad(DebugStatus[9] * 10 + 100);
+                    SndBgmPlay(0);
+                } else {
+                    SndBgmStop();
+                }
+
+                break;
+            case DEBUG_INFO_EVENT_TEST:
+                DebugStatus[11]++;
+                break;
+            case DEBUG_INFO_LIGHT_MODE:
+                ToggleDebugSwitch(DebugStatus[16]);
+                break;
+            case DEBUG_INFO_SET_STATUS:
+                if (DebugStatus[17] == 5) {
+                    DebugStatus[17] = 0;
+                } else {
+                    DebugStatus[17]++;
+                }
+
+                break;
+            case DEBUG_INFO_SE_PLAY:
+                DebugStatus[18]++;
+                break;
+            case DEBUG_INFO_SET_CHR_KEY:
+                if (DebugStatus[19] >= 5) {
+                    DebugStatus[19] = 0;
+                } else {
+                    DebugStatus[19]++;
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (GamePad.Down(PAD_LEFT)) {
+        switch (DebugInfoCode[DebugInfoNowCursor]) {
+            case DEBUG_INFO_MINIMAP_VIEW:
+                ToggleDebugSwitch(DebugStatus[3]);
+                break;
+            case DEBUG_INFO_COLLISION:
+                ToggleDebugSwitch(DebugStatus[5]);
+                break;
+            case DEBUG_INFO_ITEM_PUT_ZONE:
+                ToggleDebugSwitch(DebugStatus[6]);
+                break;
+            case DEBUG_INFO_VIEW_INFO:
+                ToggleDebugSwitch(DebugStatus[4]);
+                break;
+            case DEBUG_INFO_PARAMETER:
+                ToggleDebugSwitch(DebugStatus[10]);
+                break;
+            case DEBUG_INFO_ULTRA_MAN:
+                if (DebugStatus[20] == 0) {
+                    DebugStatus[20] = 2;
+                } else {
+                    DebugStatus[20]--;
+                }
+
+                break;
+            case DEBUG_INFO_RELOAD_ENEMY:
+                if (DebugStatus[14] > 0) {
+                    DebugStatus[14]--;
+                } else {
+                    DebugStatus[14] = 4;
+                }
+
+                break;
+            case DEBUG_INFO_BGM_PLAY:
+                if (DebugStatus[9] > -1) {
+                    DebugStatus[9]--;
+                }
+
+                if (DebugStatus[9] != -1) {
+                    SndBgmLoad(DebugStatus[9] * 10 + 100);
+                    SndBgmPlay(0);
+                } else {
+                    SndBgmStop();
+                }
+
+                break;
+            case DEBUG_INFO_EVENT_TEST:
+                if (DebugStatus[11] > 0) {
+                    DebugStatus[11]--;
+                }
+
+                break;
+            case DEBUG_INFO_LIGHT_MODE:
+                ToggleDebugSwitch(DebugStatus[16]);
+                break;
+            case DEBUG_INFO_SET_STATUS:
+                if (DebugStatus[17] == 0) {
+                    DebugStatus[17] = 5;
+                } else {
+                    DebugStatus[17]--;
+                }
+
+                break;
+            case DEBUG_INFO_SE_PLAY:
+                DebugStatus[18]--;
+                break;
+            case DEBUG_INFO_SET_CHR_KEY:
+                if (DebugStatus[19] <= 0) {
+                    DebugStatus[19] = 5;
+                } else {
+                    DebugStatus[19]--;
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (GamePad.Down(PAD_L1)) {
+        switch (DebugInfoCode[DebugInfoNowCursor]) {
+            case DEBUG_INFO_EVENT_TEST:
+                if (DebugStatus[11] > 0) {
+                    DebugStatus[11] -= 10;
+                }
+
+                DebugStatus[11] = std::max(DebugStatus[11], 0);
+                break;
+            case DEBUG_INFO_RELOAD_ENEMY:
+                if (DebugStatus[15] > 0) {
+                    DebugStatus[15]--;
+                } else {
+                    DebugStatus[15] = 16;
+                }
+
+                break;
+            case DEBUG_INFO_SE_PLAY:
+                if (DebugStatus[18] > 0) {
+                    DebugStatus[18] -= 10;
+                }
+
+                DebugStatus[18] = std::max(DebugStatus[18], 0);
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (GamePad.Down(PAD_R1)) {
+        switch (DebugInfoCode[DebugInfoNowCursor]) {
+            case DEBUG_INFO_EVENT_TEST:
+                DebugStatus[11] += 10;
+                break;
+            case DEBUG_INFO_RELOAD_ENEMY:
+                if (DebugStatus[15] < 16) {
+                    DebugStatus[15]++;
+                } else {
+                    DebugStatus[15] = 0;
+                }
+
+                break;
+            case DEBUG_INFO_SE_PLAY:
+                DebugStatus[18] += 10;
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+} // namespace
 
 /**
  * Draws the dungeon debug overlay and its current menu selection.
- *
- * @mangled DebugInfomationDraw__Fv
- * @address 0x1B3780
- * @size 0xF70
  */
 void DebugInfomationDraw() {
     if (DebugStatus[0] != 1) {
         if (DebugStatus[4] != 0) {
-            sceVu0FVECTOR      pos;
-            sceVu0FVECTOR      rot;
-            sceVu0FVECTOR      cam_pos;
-            sceVu0FVECTOR      cam_ref;
-            float              angle;
-            float              distance;
-            float              height;
-            int                tile_x;
-            float              local_x;
-            int                tile_z;
-            float              local_z;
-            float              cam_local_x;
-            float              cam_local_y;
-            float              cam_local_z;
-            float              ref_local_x;
-            float              ref_local_y;
-            float              local_y;
-            float              ref_local_z;
-            CDungeonEventData *event_data;
-            int                event_count;
-
-            DbgMsg.length = sprintf(DbgMsg.text, " ---Infomation---\n");
-            sceVu0CopyVector(pos, CharaMain.pos);
-            CharaMain.GetRotation(rot);
-            NowCamera__3->GetPos(cam_pos);
-            NowCamera__3->GetRef(cam_ref);
-            angle = NowCamera__3->GetAngle();
-            distance = NowCamera__3->GetDistance();
-            height = NowCamera__3->GetHeight();
-            tile_x = (int) ((pos[0] - 80.0f) / 160.0f) * 160;
-            local_x = pos[0] - tile_x - 160.0f;
-            local_y = pos[1];
-            tile_z = (int) ((pos[2] - 80.0f) / 160.0f) * 160;
-            local_z = pos[2] - tile_z - 160.0f;
-            cam_local_x = cam_pos[0] - tile_x - 160.0f;
-            cam_local_y = cam_pos[1];
-            cam_local_z = cam_pos[2] - tile_z - 160.0f;
-            ref_local_x = cam_ref[0] - tile_x - 160.0f;
-            ref_local_y = cam_ref[1];
-            ref_local_z = cam_ref[2] - tile_z - 160.0f;
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "gpos %.2f/ %.2f/ %.2f\n", pos[0], pos[1], pos[2]);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "lpos %.2f/ %.2f/ %.2f\n", local_x, local_y, local_z);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "rot %.2f/ %.2f/ %.2f\n", rot[0], rot[1], rot[2]);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "CAM\n");
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "cpos %.2f/ %.2f/ %.2f\n", cam_pos[0], cam_pos[1], cam_pos[2]);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "cref %.2f/ %.2f/ %.2f\n", cam_ref[0], cam_ref[1], cam_ref[2]);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "lcpos %.2f/ %.2f/ %.2f\n", cam_local_x, cam_local_y, cam_local_z);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "lcref %.2f/ %.2f/ %.2f\n", ref_local_x, ref_local_y, ref_local_z);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "Angle = %.3f\n", angle);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "Dist = %.3f\n", distance);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "Height = %.3f\n", height);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "RANDOM MAP CODE = %d\n", NowDngMap->map_seed);
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "WeaponList Ver 2000/%d\n", VERSION_VOL);
-            event_data = NowEventMan->SearchDataSlotPos(pos);
-            event_count = 0;
-
-            if (event_data != NULL) {
-                event_count = 1;
-            }
-
-            event_count = NowEventMan->GetDataNum();
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "EventID = %d\n", event_count);
-            MGFillBox(CRect_i_(0x200, 0x280, 0x1000, 0x780), 8, 8, 8, 0x60);
-            DbgMsg.Draw();
+            DrawViewInformation();
         }
 
         return;
     }
 
-    DbgMsg.length = sprintf(DbgMsg.text, "");
-    char *on_off_names[2] = {"OFF", "ON"};
-    char *main_sub_names[2] = {"MAIN", "SUB"};
-    char *condition_names[6] = {"RESET", "STONE", "BIN2", "POISON", "CURSE", "NEBA2"};
-    char *power_names[3] = {"HUMAN   ", "SUPERMAN", "ULTRAMAN"};
-    char  bgm_text[32];
+    DbgMsg.length = 0;
+    DbgMsg.text[0] = '\0';
 
-    for (int i = 0; DebugInfoMsg[i] != NULL; i++) {
-        if (DebugInfoNowCursor == i) {
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], ">>");
-        } else {
-            DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], "  ");
-        }
+    for (int line = 0; DebugInfoMsg[line] != nullptr; line++) {
+        const char *format = DebugInfoMsg[line];
 
-        switch (DebugInfoCode[i]) {
+        AppendDebugText(DebugInfoNowCursor == line ? ">>" : "  ");
+
+        switch (DebugInfoCode[line]) {
             case DEBUG_INFO_NONE:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i]);
+                AppendDebugText(format);
                 break;
             case DEBUG_INFO_UNK_28:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], DebugStatus[8]);
+                AppendDebugText(format, DebugStatus[8]);
                 break;
             case DEBUG_INFO_BGM_PLAY:
                 if (DebugStatus[9] == -1) {
-                    DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], "OFF");
+                    AppendDebugText(format, "OFF");
                 } else {
-                    sprintf(bgm_text, "%d", DebugStatus[9] + 1);
-                    DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], bgm_text);
+                    const std::string bgm_text = std::to_string(DebugStatus[9] + 1);
+                    AppendDebugText(format, bgm_text.c_str());
                 }
 
                 break;
             case DEBUG_INFO_PARAMETER:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], on_off_names[DebugStatus[10]]);
+                AppendDebugText(format, on_off_names[DebugStatus[10]]);
                 break;
             case DEBUG_INFO_COLLISION:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], on_off_names[DebugStatus[5]]);
+                AppendDebugText(format, on_off_names[DebugStatus[5]]);
                 break;
             case DEBUG_INFO_VIEW_INFO:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], on_off_names[DebugStatus[4]]);
+                AppendDebugText(format, on_off_names[DebugStatus[4]]);
                 break;
             case DEBUG_INFO_ITEM_PUT_ZONE:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], on_off_names[DebugStatus[6]]);
+                AppendDebugText(format, on_off_names[DebugStatus[6]]);
                 break;
             case DEBUG_INFO_MINIMAP_VIEW:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], on_off_names[DebugStatus[3]]);
+                AppendDebugText(format, on_off_names[DebugStatus[3]]);
                 break;
             case DEBUG_INFO_ULTRA_MAN:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], power_names[DebugStatus[20]]);
+                AppendDebugText(format, power_names[DebugStatus[20]]);
                 break;
             case DEBUG_INFO_RELOAD_ENEMY:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], DebugStatus[14], DebugStatus[15]);
+                AppendDebugText(format, DebugStatus[14], DebugStatus[15]);
                 break;
             case DEBUG_INFO_FLOOR_ATRA_GET:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i]);
+                AppendDebugText(format);
                 break;
             case DEBUG_INFO_LIGHT_MODE:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], main_sub_names[DebugStatus[16]]);
+                AppendDebugText(format, main_sub_names[DebugStatus[16]]);
                 break;
             case DEBUG_INFO_EVENT_TEST:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], DebugStatus[11]);
+                AppendDebugText(format, DebugStatus[11]);
                 break;
             case DEBUG_INFO_SET_STATUS:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], condition_names[DebugStatus[17]]);
+                AppendDebugText(format, condition_names[DebugStatus[17]]);
                 break;
             case DEBUG_INFO_SE_PLAY:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], DebugStatus[18]);
+                AppendDebugText(format, DebugStatus[18]);
                 break;
             case DEBUG_INFO_SET_CHR_KEY:
-                DbgMsg.length += sprintf(&DbgMsg.text[DbgMsg.length], DebugInfoMsg[i], DebugStatus[19]);
+                AppendDebugText(format, DebugStatus[19]);
+                break;
+            default:
                 break;
         }
     }
@@ -205,10 +520,6 @@ void DebugInfomationDraw() {
 
 /**
  * Clears the debug overlay's state.
- *
- * @mangled DebugInfomationInit__Fv
- * @address 0x1B46F0
- * @size 0xC8
  */
 void DebugInfomationInit() {
     DebugStatus[0] = 0;
@@ -235,454 +546,66 @@ void DebugInfomationInit() {
 }
 
 /**
- * Resets every runtime event record of the event manager to an idle, unheld state.
- */
-static inline void ClearEventData(CDungeonEventMan *event_man) {
-    int i;
-
-    for (i = 0; i < 96; i++) {
-        CDungeonEventData *data = &event_man->event[i];
-
-        data->event = NULL;
-        data->switch_on = false;
-        data->enabled = false;
-        data->hold = 0;
-        data->chara_done = -1;
-    }
-}
-
-/**
- * Marks the floor's event places, treasure boxes, atla balls and room links unused and resets their counts.
- */
-static inline void ClearMapEvent(CDungeonMap *map) {
-    int i;
-
-    for (i = 0; i < 48; i++) {
-        map->events[i].kind = DNG_EVENT_NONE;
-        map->events[i].reset_flag = 0;
-    }
-
-    for (i = 0; i < 24; i++) {
-        map->boxes[i].used = 0;
-        map->boxes[i].lid_angle = 0;
-        map->boxes[i].trap_no = 0;
-    }
-
-    map->box_num = 0;
-
-    for (i = 0; i < 8; i++) {
-        map->atra[i].used = 0;
-    }
-
-    map->atra_num = 0;
-
-    for (i = 0; i < 4; i++) {
-        map->room_link[i].used = 0;
-    }
-}
-
-/**
  * Moves through the debug overlay's pages with the pad.
- *
- * @mangled DebugInfomationIF__Fv
- * @address 0x1B47C0
- * @size 0xE78
  */
 int DebugInfomationIF() {
-    int line_count;
-
     if (GamePad.Down(PAD_R3)) {
-        DebugStatus[0] = 0;
-        GamePad.AutoRepeatOff();
-        GamePad.MenuModeOff();
+        CloseDebugOverlay();
         return DEBUG_INFO_CLOSE;
     }
 
-    if (GamePad.Down(PAD_TRIANGLE)) {
-        switch (DebugInfoCode[DebugInfoNowCursor]) {
-            case DEBUG_INFO_EVENT_TEST:
-                DebugStatus[0] = 0;
-                DebugStatus[12] = 1;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
-                return DEBUG_INFO_UNK_28;
-        }
+    if (GamePad.Down(PAD_TRIANGLE) && DebugInfoCode[DebugInfoNowCursor] == DEBUG_INFO_EVENT_TEST) {
+        DebugStatus[12] = 1;
+        CloseDebugOverlay();
+        return DEBUG_INFO_UNK_28;
     }
 
     if (GamePad.Down(PAD_CIRCLE)) {
         switch (DebugInfoCode[DebugInfoNowCursor]) {
             case DEBUG_INFO_UNK_28:
-                DebugStatus[0] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 return DEBUG_INFO_UNK_28;
             case DEBUG_INFO_UNK_3C:
-                DebugStatus[0] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 return DEBUG_INFO_UNK_3C;
             case DEBUG_INFO_RELOAD_ENEMY:
-                DebugStatus[0] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 return DEBUG_INFO_RELOAD_ENEMY;
             case DEBUG_INFO_FLOOR_ATRA_GET:
-                DebugStatus[0] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 return DEBUG_INFO_FLOOR_ATRA_GET;
             case DEBUG_INFO_EVENT_TEST:
-                DebugStatus[0] = 0;
                 DebugStatus[12] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 return DEBUG_INFO_EVENT_TEST;
             case DEBUG_INFO_SET_STATUS:
-                DebugStatus[0] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 return DEBUG_INFO_SET_STATUS;
             case DEBUG_INFO_SE_PLAY:
                 SndSePlay(DebugStatus[18], -1, 0);
                 break;
             case DEBUG_INFO_SET_CHR_KEY:
-                DebugStatus[0] = 0;
-                GamePad.AutoRepeatOff();
-                GamePad.MenuModeOff();
+                CloseDebugOverlay();
                 ClearEventData(NowEventMan);
-                printf("trap num = %d\n", NowDngMap->SetCharaDoor(DebugStatus[19]));
+                std::println("trap num = {}", NowDngMap->SetCharaDoor(DebugStatus[19]));
                 ClearMapEvent(NowDngMap);
-                {
-                    int mode = NowDngMap->map_type;
-
-                    NowEventMan->SetupEvent(NowDngMap, mode);
-                }
+                NowEventMan->SetupEvent(NowDngMap, NowDngMap->map_type);
                 return DEBUG_INFO_SET_CHR_KEY;
+            default:
+                break;
         }
     }
 
-    for (line_count = 0; DebugInfoCode[line_count] != -1; line_count++) {
-    }
-
-    switch (DebugStatus[2]) {
-        case 0:
-            if (GamePad.Down(PAD_DOWN)) {
-                if (DebugInfoNowCursor == line_count - 1) {
-                    DebugInfoNowCursor = 0;
-                } else {
-                    DebugInfoNowCursor++;
-                }
-            }
-
-            if (GamePad.Down(PAD_UP)) {
-                if (DebugInfoNowCursor == 0) {
-                    DebugInfoNowCursor = line_count - 1;
-                } else {
-                    DebugInfoNowCursor--;
-                }
-            }
-
-            if (GamePad.Down(PAD_RIGHT)) {
-                switch (DebugInfoCode[DebugInfoNowCursor]) {
-                    case DEBUG_INFO_MINIMAP_VIEW:
-                        if (DebugStatus[3] == 0) {
-                            DebugStatus[3] = 1;
-                        } else {
-                            DebugStatus[3] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_COLLISION:
-                        if (DebugStatus[5] == 0) {
-                            DebugStatus[5] = 1;
-                        } else {
-                            DebugStatus[5] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_ITEM_PUT_ZONE:
-                        if (DebugStatus[6] == 0) {
-                            DebugStatus[6] = 1;
-                        } else {
-                            DebugStatus[6] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_VIEW_INFO:
-                        if (DebugStatus[4] == 0) {
-                            DebugStatus[4] = 1;
-                        } else {
-                            DebugStatus[4] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_PARAMETER:
-                        if (DebugStatus[10] == 0) {
-                            DebugStatus[10] = 1;
-                        } else {
-                            DebugStatus[10] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_ULTRA_MAN:
-                        if (DebugStatus[20] == 2) {
-                            DebugStatus[20] = 0;
-                        } else {
-                            DebugStatus[20]++;
-                        }
-
-                        break;
-                    case DEBUG_INFO_RELOAD_ENEMY:
-                        if (DebugStatus[14] < 4) {
-                            DebugStatus[14]++;
-                        } else {
-                            DebugStatus[14] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_BGM_PLAY:
-                        DebugStatus[9]++;
-
-                        if (DebugStatus[9] != -1) {
-                            SndBgmLoad(DebugStatus[9] * 10 + 100);
-                            SndBgmPlay(0);
-                        } else {
-                            SndBgmStop();
-                        }
-
-                        break;
-                    case DEBUG_INFO_EVENT_TEST:
-                        DebugStatus[11]++;
-                        break;
-                    case DEBUG_INFO_LIGHT_MODE:
-                        if (DebugStatus[16] == 0) {
-                            DebugStatus[16] = 1;
-                        } else {
-                            DebugStatus[16] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_SET_STATUS:
-                        if (DebugStatus[17] == 5) {
-                            DebugStatus[17] = 0;
-                        } else {
-                            DebugStatus[17]++;
-                        }
-
-                        break;
-                    case DEBUG_INFO_SE_PLAY:
-                        DebugStatus[18]++;
-                        break;
-                    case DEBUG_INFO_SET_CHR_KEY:
-                        if (DebugStatus[19] >= 5) {
-                            DebugStatus[19] = 0;
-                        } else {
-                            DebugStatus[19]++;
-                        }
-
-                        break;
-                }
-            }
-
-            if (GamePad.Down(PAD_LEFT)) {
-                switch (DebugInfoCode[DebugInfoNowCursor]) {
-                    case DEBUG_INFO_MINIMAP_VIEW:
-                        if (DebugStatus[3] == 0) {
-                            DebugStatus[3] = 1;
-                        } else {
-                            DebugStatus[3] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_COLLISION:
-                        if (DebugStatus[5] == 0) {
-                            DebugStatus[5] = 1;
-                        } else {
-                            DebugStatus[5] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_ITEM_PUT_ZONE:
-                        if (DebugStatus[6] == 0) {
-                            DebugStatus[6] = 1;
-                        } else {
-                            DebugStatus[6] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_VIEW_INFO:
-                        if (DebugStatus[4] == 0) {
-                            DebugStatus[4] = 1;
-                        } else {
-                            DebugStatus[4] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_PARAMETER:
-                        if (DebugStatus[10] == 0) {
-                            DebugStatus[10] = 1;
-                        } else {
-                            DebugStatus[10] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_ULTRA_MAN:
-                        if (DebugStatus[20] == 0) {
-                            DebugStatus[20] = 2;
-                        } else {
-                            DebugStatus[20]--;
-                        }
-
-                        break;
-                    case DEBUG_INFO_RELOAD_ENEMY:
-                        if (DebugStatus[14] > 0) {
-                            DebugStatus[14]--;
-                        } else {
-                            DebugStatus[14] = 4;
-                        }
-
-                        break;
-                    case DEBUG_INFO_BGM_PLAY:
-                        if (DebugStatus[9] > -1) {
-                            DebugStatus[9]--;
-                        }
-
-                        if (DebugStatus[9] != -1) {
-                            SndBgmLoad(DebugStatus[9] * 10 + 100);
-                            SndBgmPlay(0);
-                        } else {
-                            SndBgmStop();
-                        }
-
-                        break;
-                    case DEBUG_INFO_EVENT_TEST:
-                        if (DebugStatus[11] > 0) {
-                            DebugStatus[11]--;
-                        }
-
-                        break;
-                    case DEBUG_INFO_LIGHT_MODE:
-                        if (DebugStatus[16] == 0) {
-                            DebugStatus[16] = 1;
-                        } else {
-                            DebugStatus[16] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_SET_STATUS:
-                        if (DebugStatus[17] == 0) {
-                            DebugStatus[17] = 5;
-                        } else {
-                            DebugStatus[17]--;
-                        }
-
-                        break;
-                    case DEBUG_INFO_SE_PLAY:
-                        DebugStatus[18]--;
-                        break;
-                    case DEBUG_INFO_SET_CHR_KEY:
-                        if (DebugStatus[19] <= 0) {
-                            DebugStatus[19] = 5;
-                        } else {
-                            DebugStatus[19]--;
-                        }
-
-                        break;
-                }
-            }
-
-            if (GamePad.Down(PAD_L1)) {
-                switch (DebugInfoCode[DebugInfoNowCursor]) {
-                    case DEBUG_INFO_EVENT_TEST:
-                        if (DebugStatus[11] > 0) {
-                            DebugStatus[11] -= 10;
-                        }
-
-                        if (DebugStatus[11] < 0) {
-                            DebugStatus[11] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_RELOAD_ENEMY:
-                        if (DebugStatus[15] > 0) {
-                            DebugStatus[15]--;
-                        } else {
-                            DebugStatus[15] = 16;
-                        }
-
-                        break;
-                    case DEBUG_INFO_SE_PLAY:
-                        if (DebugStatus[18] > 0) {
-                            DebugStatus[18] -= 10;
-                        }
-
-                        if (DebugStatus[18] < 0) {
-                            DebugStatus[18] = 0;
-                        }
-
-                        break;
-                }
-            }
-
-            if (GamePad.Down(PAD_R1)) {
-                switch (DebugInfoCode[DebugInfoNowCursor]) {
-                    case DEBUG_INFO_EVENT_TEST:
-                        DebugStatus[11] += 10;
-                        break;
-                    case DEBUG_INFO_RELOAD_ENEMY:
-                        if (DebugStatus[15] < 16) {
-                            DebugStatus[15]++;
-                        } else {
-                            DebugStatus[15] = 0;
-                        }
-
-                        break;
-                    case DEBUG_INFO_SE_PLAY:
-                        DebugStatus[18] += 10;
-                        break;
-                }
-            }
-
-            break;
+    if (DebugStatus[2] == 0) {
+        AdjustDebugValue();
     }
 
     return DEBUG_INFO_NONE;
 }
 
-/**
- * Where the English caption centres each dungeon's floor number.
- */
-int center_us[7] = {0xCE, 0x125, 0x101, 0x100, 0x87, 0x57, 0x101};
-
-/**
- * Where the French caption centres each dungeon's floor number.
- */
-int center_fr[7] = {0xCD, 0x113, 0xF8, 0xF8, 0xB2, 0x59, 0xFF};
-
-/**
- * Where the German caption centres each dungeon's floor number.
- */
-int center_gr[7] = {0xFE, 0x103, 0x13D, 0xFD, 0x78, 0x38, 0xFF};
-
-/**
- * Where the Italian caption centres each dungeon's floor number.
- */
-int center_it[7] = {0xCC, 0x129, 0xF3, 0xFF, 0xFA, 0x75, 0xF9};
-
-/**
- * Where the Spanish caption centres each dungeon's floor number.
- */
-int center_sp[7] = {0xCE, 0x12C, 0xF2, 0xFA, 0x7C, 0xBA, 0xFA};
-
-/**
- * Each language's floor-number centres.
- */
-int *center_ptr[7] = {center_sp, center_us, center_us, center_fr, center_gr, center_it, center_sp};
-
 void StartMessageDraw(CTexture *texture, int dungeon, int floor, int ura, int alpha) {
-    int *centers = center_ptr[LanguageCode];
-    int  x = centers[dungeon] + 0x82;
-    int  digit_x;
+    const std::array<int, 7> &centers = *center_ptr[LanguageCode];
+    int                       x = centers[dungeon] + 0x82;
 
     set2DSprite(Vif1Packet, texture, CRect_i_(0x82, 0xAA, 0x17C, 0x32), CRect_i_(0, 0, 0x17C, 0x32), alpha);
 
@@ -694,28 +617,28 @@ void StartMessageDraw(CTexture *texture, int dungeon, int floor, int ura, int al
 
     if (floor < 10) {
         x -= 0x13;
-        digit_x = floor % 10 * 0x26;
-        set2DSprite(Vif1Packet, texture, CRect_i_(x, 0xAA, 0x26, 0x32), CRect_i_(digit_x, 0x32, 0x26, 0x32), alpha);
+        const int ones_x = floor % 10 * 0x26;
+        set2DSprite(Vif1Packet, texture, CRect_i_(x, 0xAA, 0x26, 0x32), CRect_i_(ones_x, 0x32, 0x26, 0x32), alpha);
     }
 
     if (floor >= 10 && floor < 100) {
         x -= 0x26;
-        digit_x = floor / 10 * 0x26;
-        set2DSprite(Vif1Packet, texture, CRect_i_(x, 0xAA, 0x26, 0x32), CRect_i_(digit_x, 0x32, 0x26, 0x32), alpha);
-        digit_x = floor % 10 * 0x26;
-        set2DSprite(Vif1Packet, texture, CRect_i_(x + 0x26, 0xAA, 0x26, 0x32), CRect_i_(digit_x, 0x32, 0x26, 0x32), alpha);
+        const int tens_x = floor / 10 * 0x26;
+        set2DSprite(Vif1Packet, texture, CRect_i_(x, 0xAA, 0x26, 0x32), CRect_i_(tens_x, 0x32, 0x26, 0x32), alpha);
+        const int ones_x = floor % 10 * 0x26;
+        set2DSprite(Vif1Packet, texture, CRect_i_(x + 0x26, 0xAA, 0x26, 0x32), CRect_i_(ones_x, 0x32, 0x26, 0x32), alpha);
     }
 
     if (floor >= 100) {
-        int digit = floor / 100;
+        const int hundreds = floor / 100;
+        const int hundreds_x = hundreds * 0x26;
 
-        digit_x = digit * 0x26;
-        floor -= digit * 100;
-        set2DSprite(Vif1Packet, texture, CRect_i_(x - 0x39, 0xAA, 0x26, 0x32), CRect_i_(digit_x, 0x32, 0x26, 0x32), alpha);
-        digit_x = floor / 10 * 0x26;
-        set2DSprite(Vif1Packet, texture, CRect_i_(x - 0x13, 0xAA, 0x26, 0x32), CRect_i_(digit_x, 0x32, 0x26, 0x32), alpha);
-        digit_x = floor % 10 * 0x26;
-        set2DSprite(Vif1Packet, texture, CRect_i_(x + 0x13, 0xAA, 0x26, 0x32), CRect_i_(digit_x, 0x32, 0x26, 0x32), alpha);
+        floor -= hundreds * 100;
+        set2DSprite(Vif1Packet, texture, CRect_i_(x - 0x39, 0xAA, 0x26, 0x32), CRect_i_(hundreds_x, 0x32, 0x26, 0x32), alpha);
+        const int tens_x = floor / 10 * 0x26;
+        set2DSprite(Vif1Packet, texture, CRect_i_(x - 0x13, 0xAA, 0x26, 0x32), CRect_i_(tens_x, 0x32, 0x26, 0x32), alpha);
+        const int ones_x = floor % 10 * 0x26;
+        set2DSprite(Vif1Packet, texture, CRect_i_(x + 0x13, 0xAA, 0x26, 0x32), CRect_i_(ones_x, 0x32, 0x26, 0x32), alpha);
     }
 
     if (ura != 0) {
@@ -730,16 +653,8 @@ void StartMessageDraw(CTexture *texture, int dungeon, int floor, int ura, int al
 
 /**
  * Empties the list of key items waiting to be dropped.
- *
- * @mangled ClearGateKeyStack__Fv
- * @address 0x1B5640
- * @size 0x3C
  */
-void ClearGateKeyStack() {
-    for (int i = 0; i < 32; i++) {
-        gateKeyStack[i] = -1;
-    }
-}
+void ClearGateKeyStack() { std::ranges::fill(gateKeyStack, -1); }
 
 int SetGateKeyStack(int item) {
     if (item == -1) {
@@ -747,15 +662,13 @@ int SetGateKeyStack(int item) {
     }
 
     // One of a key item is enough, so a second is refused rather than stacked.
-    for (int i = 0; i < 32; i++) {
-        if (item == gateKeyStack[i]) {
-            return 0;
-        }
+    if (std::ranges::contains(gateKeyStack, item)) {
+        return 0;
     }
 
-    for (int i = 0; i < 32; i++) {
-        if (gateKeyStack[i] == -1) {
-            gateKeyStack[i] = item;
+    for (int &slot : gateKeyStack) {
+        if (slot == -1) {
+            slot = item;
             return 1;
         }
     }
@@ -763,71 +676,62 @@ int SetGateKeyStack(int item) {
     return 0;
 }
 
-/**
- * Builds a resource path by putting one of the fixed prefixes before a name.
- *
- * @mangled NameExchg__FPci
- * @address 0x1B5740
- * @size 0x60
- */
-char *NameExchg(char *name, int language) {
-    strcpy(nameblock, LanguageStr[LanguageCode]);
-    strcat(nameblock, name);
-    return nameblock;
+char *NameExchg(char *name, [[maybe_unused]] int language) {
+    nameblock = LanguageStr[LanguageCode];
+    nameblock += name;
+    return nameblock.data();
 }
 
 int CCollisionData::Set(float *position, int damage, int life, float radius, float scale_rate, int target_mask, int kind, int flags, int attribute) {
     for (int i = 0; i < 96; i++) {
-        if (active[i] == 0) {
-            active[i] = 1;
-            sceVu0CopyVector(hit[i].pos, position);
-            hit[i].base_point[0] = hit[i].base_point[1] = hit[i].base_point[2] = 0.0f;
-            hit[i].base_point[3] = 1.0f;
-            hit[i].velocity[0] = hit[i].velocity[1] = hit[i].velocity[2] = 0.0f;
-            hit[i].velocity[0] = 1.0f;
-            hit[i].damage = damage;
-            hit[i].scale_rate = scale_rate;
-            hit[i].life = life;
-            hit[i].radius = radius;
-            hit[i].target_mask = target_mask;
-            hit[i].kind = kind;
-            hit[i].flags = flags;
-            hit[i].attribute = attribute;
-            hit[i].owner = -1;
-            hit[i].monster_no = -1;
-            hit[i].attack_no = -1;
-            hit[i].vs_monster = NULL;
-            hit[i].weapon_flags = 1;
-            hit[i].target_kind = -1;
-            hit[i].knockback_origin[0] = hit[i].knockback_origin[1] = hit[i].knockback_origin[2] = 0.0f;
-            hit[i].knockback_origin[3] = 1.0f;
-            hit[i].knockback_speed = 0.0f;
-            hit[i].knockback_decay = 0.0f;
-            hit[i].knockback_mode = 0;
-            hit[i].phase = hit[i].ready_phase = 0;
-            now_hit = i;
-            return i;
+        if (active[i] != 0) {
+            continue;
         }
+
+        COLLISION_HIT &record = hit[i];
+
+        active[i] = 1;
+        sceVu0CopyVector(record.pos, position);
+        record.base_point[0] = record.base_point[1] = record.base_point[2] = 0.0f;
+        record.base_point[3] = 1.0f;
+        record.velocity[0] = record.velocity[1] = record.velocity[2] = 0.0f;
+        record.velocity[0] = 1.0f;
+        record.damage = damage;
+        record.scale_rate = scale_rate;
+        record.life = life;
+        record.radius = radius;
+        record.target_mask = target_mask;
+        record.kind = kind;
+        record.flags = flags;
+        record.attribute = attribute;
+        record.owner = -1;
+        record.monster_no = -1;
+        record.attack_no = -1;
+        record.vs_monster = nullptr;
+        record.weapon_flags = 1;
+        record.target_kind = -1;
+        record.knockback_origin[0] = record.knockback_origin[1] = record.knockback_origin[2] = 0.0f;
+        record.knockback_origin[3] = 1.0f;
+        record.knockback_speed = 0.0f;
+        record.knockback_decay = 0.0f;
+        record.knockback_mode = 0;
+        record.phase = record.ready_phase = 0;
+        now_hit = i;
+        return i;
     }
-    // With every record in use nothing is set and no index is returned.
+
     return -1;
 }
 
-/**
- * Reports which recorded hit reaches the player.
- *
- * @mangled CheckHitUser__14CCollisionDataFPfif
- * @address 0x1B5920
- * @size 0x1BC
- */
 int CCollisionData::CheckHitUser(float *position, int mask, float height) {
     sceVu0FVECTOR user_position;
     sceVu0FVECTOR hit_position;
+
     sceVu0CopyVector(user_position, position);
     user_position[1] = 0.0f;
-    float user_top;
-    float user_bottom = position[1];
-    user_top = user_bottom + height;
+
+    const float user_bottom = position[1];
+    const float user_top = user_bottom + height;
 
     for (int i = 0; i < 96; i++) {
         if (active[i] == 0 || (mask & hit[i].target_mask) == 0 || hit[i].phase != hit[i].ready_phase) {
@@ -841,27 +745,28 @@ int CCollisionData::CheckHitUser(float *position, int mask, float height) {
             continue;
         }
 
-        int   miss = 1;
-        float hit_top = hit[i].pos[1] + hit[i].radius;
-        float hit_bottom = hit[i].pos[1] - hit[i].radius;
+        const float hit_top = hit[i].pos[1] + hit[i].radius;
+        const float hit_bottom = hit[i].pos[1] - hit[i].radius;
+        bool        overlaps = false;
 
+        // The negated comparisons are deliberate: they decide how NaN heights resolve.
         if (!(hit_top < user_top) && hit_bottom < user_top) {
-            miss = 0;
+            overlaps = true;
         }
 
         if (!(hit_top < user_bottom) && hit_bottom < user_bottom) {
-            miss = 0;
+            overlaps = true;
         }
 
         if (hit_top <= user_top && !(hit_bottom <= user_bottom)) {
-            miss = 0;
+            overlaps = true;
         }
 
         if (!(hit_top < user_top) && hit_bottom < user_bottom) {
-            miss = 0;
+            overlaps = true;
         }
 
-        if (miss == 0) {
+        if (overlaps) {
             return i;
         }
     }
@@ -869,18 +774,13 @@ int CCollisionData::CheckHitUser(float *position, int mask, float height) {
     return -1;
 }
 
-/**
- * Records the push a hit gives whatever it struck.
- *
- * @mangled SetKickBack__14CCollisionDataFPfffi
- * @address 0x1B5AE0
- * @size 0xA4
- */
 void CCollisionData::SetKickBack(float *origin, float speed, float decay, int mode) {
-    hit[now_hit].knockback_origin[0] = origin[0];
-    hit[now_hit].knockback_origin[1] = origin[1];
-    hit[now_hit].knockback_origin[2] = origin[2];
-    hit[now_hit].knockback_speed = speed;
-    hit[now_hit].knockback_decay = decay;
-    hit[now_hit].knockback_mode = mode;
+    COLLISION_HIT &record = hit[now_hit];
+
+    record.knockback_origin[0] = origin[0];
+    record.knockback_origin[1] = origin[1];
+    record.knockback_origin[2] = origin[2];
+    record.knockback_speed = speed;
+    record.knockback_decay = decay;
+    record.knockback_mode = mode;
 }
