@@ -34,11 +34,3 @@ public:
 
 STATIC_ASSERT(sizeof(CFakePointLight) == 0x30);
 
-/**
- * Constructor of CFakePointLight under the name main's array constructors call it by.
- *
- * @mangled __ct__15CFakePointLightFv
- * @address 0x156B60
- * @size 0x34
- */
-extern "C" void GeneratedFakePointLightCtor(void *object, int mode);

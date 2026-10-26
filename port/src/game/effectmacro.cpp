@@ -140,5 +140,3 @@ void EffectHamon(CEffectGroup *group, float *position, float size) {
     group->EnterEffect(&effect);
 }
 
-void DepthOfField(float *focus, int level, int alpha, int blur);
-
