@@ -1,7 +1,3 @@
-#pragma argument_flag 0
-#pragma argument_flag_ones 71, 99, 109, 124, 144, 182, 223, 240, 274, 305
-#pragma literal_reload 0x3C23D70A
-
 #include "weaponelement.hpp"
 
 #include <libvu0.h>

@@ -1,7 +1,3 @@
-#include "stubs/water.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-
 #include "water.hpp"
 
 #include <libpkt.h>
@@ -11,7 +7,6 @@
 #include "mglib.hpp"
 #include "texture.hpp"
 
-int SetTEX0(u_int *packet, u_long tex0, u_long tex1);
 void CWater::SetParam(float speed, float damping_rate, float scale, float shift) {
     wave_speed = speed;
     damping = damping_rate;
