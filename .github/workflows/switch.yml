@@ -1,0 +1,67 @@
+# The Nintendo Switch homebrew port (docs/SWITCH.md): ./build.sh switch in the toolchain image that
+# port/switch/Containerfile describes. Building that image compiles Mesa's NVK driver and takes hours, so it
+# is kept in GitHub's container registry under the tag port/switch/build.sh derives from its inputs: a run
+# pulls it, builds it only when the inputs changed, and a push to master publishes the new one.
+name: Switch build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  switch:
+    name: Build Nintendo Switch homebrew
+    runs-on: ubuntu-26.04
+    timeout-minutes: 360
+    env:
+      REGISTRY_IMAGE: ghcr.io/themoonpeople/chronicle-switch
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Log in to the container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A pull request from a fork reads the registry but cannot write to it.
+      - name: Fetch the toolchain image
+        id: image
+        run: |
+          image=$(port/switch/build.sh image)
+          tag=${image#*:}
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if docker pull "$REGISTRY_IMAGE:$tag"; then
+            docker tag "$REGISTRY_IMAGE:$tag" "$image"
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the Switch NRO
+        run: ./build.sh switch
+
+      - name: Publish the toolchain image
+        if: steps.image.outputs.built == 'true' && github.event_name == 'push'
+        run: |
+          docker tag "chronicle-switch:${{ steps.image.outputs.tag }}" "$REGISTRY_IMAGE:${{ steps.image.outputs.tag }}"
+          docker push "$REGISTRY_IMAGE:${{ steps.image.outputs.tag }}"
+
+      - name: Upload the Switch build
+        uses: actions/upload-artifact@v7
+        with:
+          name: chronicle-switch
+          path: |
+            port/build/switch/darkcloud.nro
+            port/build/switch/lang/**
+            port/build/switch/glyphs/**
+          if-no-files-found: error
