@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 221
-
 #include "common.h"
 
 #include <eekernel.h>
@@ -19,18 +15,8 @@
 #include "texture.hpp"
 #include "tim2.hpp"
 
-/* TEX0 with the block address ahead of the buffer width, which is not the order the SDK's own
-   macro puts the two in. The order decides which term the compiler computes first, so the two
-   spellings are not interchangeable and this file needs its own. */
-#define TEXTURE_TEX0(tbp0, tbw, psm, tw, th, tcc, tfx, cbp, cpsm, csm, csa, cld) ((u_long) (tbp0) | ((u_long) (tbw) << 14) | ((u_long) (psm) << 20) | ((u_long) (tw) << 26) | ((u_long) (th) << 30) | ((u_long) (tcc) << 34) | ((u_long) (tfx) << 35) | ((u_long) (cbp) << 37) | ((u_long) (cpsm) << 51) | ((u_long) (csm) << 55) | ((u_long) (csa) << 56) | ((u_long) (cld) << 61))
-
 /* The IMG archive's directory as the registry walks it: a header at the start of the buffer the
    file was read into and one fixed-size entry per picture behind it. */
-
-static u_long128 texData[100];
-
-static int BlockConv8to32(u_char *source, u_char *destination);
-static int Conv8to32(int width, int height, u_char *source, u_char *destination);
 
 CTexture::CTexture() {
     Initialize();
@@ -250,10 +236,6 @@ void CTextureManager::EnterIMGFile(u_char *buffer, int block, int mipmap, int ex
         entry += 48;
     }
 }
-
-/* The same region load the SDK writes into a GIF packet, written into a VIF1 chain instead so
-   that a frame's own packet can carry it. */
-int LoadImage(u_int *packet, int dbp, int dpsm, int dbw, u_long128 *source, int qwc, int dsax, int dsay, int rrw, int rrh);
 
 void CTextureManager::BeginEnterTextureBlock(int block) {
     if (block < 0 || block >= 72) {
@@ -531,187 +513,6 @@ int CTextureManager::LoadTextureBlockEX(int block, LOADTEXTURE_INFO2 *table) {
 int CTextureManager::EnterTextureFile(LOADTEXTURE_INFO *table) {
     file = table;
     return 1;
-}
-
-/* Eight-bit pixels reach the GS as a 32-bit image half as wide and half as tall, so the page the
-   hardware would read has to be assembled here: one page of blocks, each block reordered by the
-   table below, and the whole page written back in the order the GS stores it. */
-static int PageConv8to32(int width, int height, u_char *source, u_char *destination) {
-    static int block_table8[32] = {
-        0, 1, 4, 5, 16, 17, 20, 21,
-        2, 3, 6, 7, 18, 19, 22, 23,
-        8, 9, 12, 13, 24, 25, 28, 29,
-        10, 11, 14, 15, 26, 27, 30, 31};
-    static int block_table32[32] = {
-        0, 1, 4, 5, 16, 17, 20, 21,
-        2, 3, 6, 7, 18, 19, 22, 23,
-        8, 9, 12, 13, 24, 25, 28, 29,
-        10, 11, 14, 15, 26, 27, 30, 31};
-    int     block_column[32];
-    int     block_row[32];
-    u_char  work8[256];
-    u_char  work32[256];
-    u_char *work_cursor;
-    u_char *source_cursor;
-    u_char *destination_cursor;
-    int     blocks_down;
-    int     i;
-    int     j;
-    int     k;
-    int     entry;
-    int     blocks_across;
-    int     block_index;
-
-    entry = 0;
-
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 8; j++) {
-            block_column[block_table32[entry]] = j;
-            block_row[block_table32[entry]] = i;
-            entry++;
-        }
-    }
-
-    blocks_across = width >> 4;
-    blocks_down = height >> 4;
-
-    memset(work8, 0, 256);
-    memset(work32, 0, 256);
-
-    for (i = 0; i < blocks_down; i++) {
-        for (j = 0; j < blocks_across; j++) {
-            work_cursor = work8;
-            source_cursor = source + i * 2048 + j * 16;
-            block_index = block_table8[i * blocks_across + j];
-
-            for (k = 0; k < 16; k++) {
-                memcpy(work_cursor, source_cursor, 16);
-                work_cursor += 16;
-                source_cursor += 128;
-            }
-
-            BlockConv8to32(work8, work32);
-
-            work_cursor = work32;
-            destination_cursor = destination + block_row[block_index] * 2048 + block_column[block_index] * 32;
-
-            for (k = 0; k < 8; k++) {
-                memcpy(destination_cursor, work_cursor, 32);
-                work_cursor += 32;
-                destination_cursor += 256;
-            }
-        }
-    }
-
-    return 0;
-}
-
-/* One block of an 8-bit image reordered into the order the GS stores its bytes in. A block is four
-   columns of sixty-four bytes and a column's arrangement depends on whether its index is odd, so
-   the table is two permutations rather than one: the second half is the first with bit 2 of every
-   entry inverted, and the caller picks the half from the low bit of the column it is on. */
-static int BlockConv8to32(u_char *source, u_char *destination) {
-    static int lut[128] = {
-        0, 36, 8, 44, 1, 37, 9, 45,
-        2, 38, 10, 46, 3, 39, 11, 47,
-        4, 32, 12, 40, 5, 33, 13, 41,
-        6, 34, 14, 42, 7, 35, 15, 43,
-        16, 52, 24, 60, 17, 53, 25, 61,
-        18, 54, 26, 62, 19, 55, 27, 63,
-        20, 48, 28, 56, 21, 49, 29, 57,
-        22, 50, 30, 58, 23, 51, 31, 59,
-        4, 32, 12, 40, 5, 33, 13, 41,
-        6, 34, 14, 42, 7, 35, 15, 43,
-        0, 36, 8, 44, 1, 37, 9, 45,
-        2, 38, 10, 46, 3, 39, 11, 47,
-        20, 48, 28, 56, 21, 49, 29, 57,
-        22, 50, 30, 58, 23, 51, 31, 59,
-        16, 52, 24, 60, 17, 53, 25, 61,
-        18, 54, 26, 62, 19, 55, 27, 63};
-    u_int j;
-    u_int k;
-    u_int i;
-    int   lut_index;
-    int   out_index;
-    int   source_index;
-
-    out_index = 0;
-
-    for (i = 0; i < 4; i++) {
-        lut_index = (i & 1) * 64;
-
-        for (j = 0; j < 16; j++) {
-            for (k = 0; k < 4; k++) {
-                source_index = lut[lut_index];
-                lut_index++;
-                destination[out_index] = source[source_index];
-                out_index++;
-            }
-        }
-
-        source += 64;
-    }
-
-    return 0;
-}
-
-static int Conv8to32(int width, int height, u_char *source, u_char *destination) {
-    u_char work8[8192];
-    u_char work32[8192];
-    int    i;
-    int    j;
-    int    k;
-    int    pages_x;
-    int    pages_y;
-    int    row_bytes;
-    int    row_count;
-
-    memset(work8, 0, 8192);
-    memset(work32, 0, 8192);
-    pages_x = ((width - 1) >> 7) + 1;
-    pages_y = ((height - 1) >> 6) + 1;
-
-    if (pages_x == 1) {
-        row_bytes = width * 2;
-    } else {
-        width = 128;
-        row_bytes = 256;
-    }
-
-    if (pages_y == 1) {
-        row_count = height >> 1;
-    } else {
-        height = 64;
-        row_count = 32;
-    }
-
-    for (i = 0; i < pages_y; i++) {
-        for (j = 0; j < pages_x; j++) {
-            u_char *source_cursor = source + i * (pages_x * (width << 6)) + width * j;
-            u_char *work_cursor = work8;
-            u_char *destination_cursor;
-            u_char *work_out_cursor;
-
-            for (k = 0; k < height; k++) {
-                memcpy(work_cursor, source_cursor, width);
-                source_cursor += width * pages_x;
-                work_cursor += 128;
-            }
-
-            PageConv8to32(128, 64, work8, work32);
-
-            destination_cursor = destination + i * (pages_x * (row_bytes * row_count)) + row_bytes * j;
-            work_out_cursor = work32;
-
-            for (k = 0; k < row_count; k++) {
-                memcpy(destination_cursor, work_out_cursor, row_bytes);
-                destination_cursor += row_bytes * pages_x;
-                work_out_cursor += 256;
-            }
-        }
-    }
-
-    return 0;
 }
 
 void CTextureManager::print_buff_info() {
