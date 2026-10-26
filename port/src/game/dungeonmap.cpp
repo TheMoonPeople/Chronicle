@@ -2,12 +2,16 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
-#include <cstdio>
+#include <cstddef>
 #include <cstdlib>
-#include <cstring>
+#include <print>
+#include <span>
 
 #include "camera.hpp"
+#include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataset.hpp"
 #include "dun/gameloop.hpp"
@@ -62,19 +66,21 @@ struct PARTS_ADJACENT {
     int offset[4][2]; /**< Column and row offset of each cell. */
 };
 
-/* Tables that translate the cells that touch a cell into the map part it
- * draws, one row of adjacency mask, map part and direction each. */
+namespace {
+
+// Each row of a chain table holds an adjacency mask, the map part it draws and that part's direction.
+// clang-format off
 
 /** Gives the door that closes a corridor onto a room. */
-s32 chainTableDoor[4][3] = {
+constexpr std::array<std::array<s32, 3>, 4> chainTableDoor = {{
     {14, MAP_PARTS_ROOM_DOOR_NORTH, 0},
     {13, MAP_PARTS_ROOM_DOOR_EAST,  0},
     {7,  MAP_PARTS_ROOM_DOOR_SOUTH, 0},
     {11, MAP_PARTS_ROOM_DOOR_WEST,  0},
-};
+}};
 
 /** Gives the corridor that joins the cells that touch a corridor cell. */
-s32 chainTableRoad[15][3] = {
+constexpr std::array<std::array<s32, 3>, 15> chainTableRoad = {{
     {6,  MAP_PARTS_ROAD_STRAIGHT, 0},
     {9,  MAP_PARTS_ROAD_STRAIGHT, 1},
     {5,  MAP_PARTS_ROAD_CORNER,   0},
@@ -90,10 +96,10 @@ s32 chainTableRoad[15][3] = {
     {11, MAP_PARTS_ROAD_DEAD_END, 1},
     {14, MAP_PARTS_ROAD_DEAD_END, 2},
     {13, MAP_PARTS_ROAD_DEAD_END, 3},
-};
+}};
 
 /** Gives the wall that closes the edges of a room cell. */
-s32 chainTableRoom[8][3] = {
+constexpr std::array<std::array<s32, 3>, 8> chainTableRoom = {{
     {1,  MAP_PARTS_ROOM_WALL_NORTH,        0},
     {2,  MAP_PARTS_ROOM_WALL_EAST,         0},
     {8,  MAP_PARTS_ROOM_WALL_SOUTH,        0},
@@ -102,27 +108,29 @@ s32 chainTableRoom[8][3] = {
     {3,  MAP_PARTS_ROOM_CORNER_NORTH_EAST, 0},
     {10, MAP_PARTS_ROOM_CORNER_SOUTH_EAST, 0},
     {12, MAP_PARTS_ROOM_CORNER_SOUTH_WEST, 0},
-};
+}};
 
 /** Gives the wall that divides a room. */
-s32 chainTableDivid[6][3] = {
+constexpr std::array<std::array<s32, 3>, 6> chainTableDivid = {{
     {0xE8, MAP_PARTS_DIVIDE_END_NORTH,  0},
     {0xD4, MAP_PARTS_DIVIDE_END_EAST,   0},
     {0x71, MAP_PARTS_DIVIDE_END_SOUTH,  0},
     {0xB2, MAP_PARTS_DIVIDE_END_WEST,   0},
     {0xF9, MAP_PARTS_DIVIDE_WALL_NORTH, 0},
     {0xF6, MAP_PARTS_DIVIDE_WALL_EAST,  0},
-};
+}};
 
 /** Gives the door that opens a wall that divides a room. */
-s32 chainTableDividDoor[2][3] = {
+constexpr std::array<std::array<s32, 3>, 2> chainTableDividDoor = {{
     {9, MAP_PARTS_DIVIDE_DOOR_NORTH, 0},
     {6, MAP_PARTS_DIVIDE_DOOR_EAST,  0},
-};
+}};
+
+// clang-format on
+
+} // namespace
 
 void CDungeonMap::SetNPC(int npc_no, unsigned int *pack, int parts_no, sceVu0FVECTOR pos, sceVu0FVECTOR rot, int visible, int motion_no, CDataAlloc2<1> *alloc) {
-    int i;
-
     if (this->npc[npc_no].used != 0) {
         return;
     }
@@ -135,15 +143,15 @@ void CDungeonMap::SetNPC(int npc_no, unsigned int *pack, int parts_no, sceVu0FVE
 
     attr.fog_enable = true;
 
-    for (i = 0; i < 32; i++) {
+    for (int i = 0; i < 32; i++) {
         BtNPCTexAnimeData[npc_no][i].Initialize();
     }
 
     this->npc[npc_no].chara.InitializeTexAnime(BtNPCTexAnimeData[npc_no], 32);
     this->npc[npc_no].chara.LoadPackData2(pack, info_cfg_literal, alloc, npc_no + 64, alloc, 0);
 
-    if (this->npc[npc_no].chara.frame == NULL) {
-        printf("******* NPCEntryErr\n");
+    if (this->npc[npc_no].chara.frame == nullptr) {
+        std::println("******* NPCEntryErr");
     }
 
     this->npc[npc_no].chara.frame->SetAttr(attr, 1, 64);
@@ -167,7 +175,7 @@ void CDungeonMap::ClearNPC_Cash() {
 }
 
 void CDungeonMap::ReservNPC_Draw(int npc_no, float x, float y, float z, int direction) {
-    if (this->npc[npc_no].used != 0 && this->npc[npc_no].visible != 0 && this->npc[npc_no].chara.frame != NULL) {
+    if (this->npc[npc_no].used != 0 && this->npc[npc_no].visible != 0 && this->npc[npc_no].chara.frame != nullptr) {
         this->npc[npc_no].draw_pos[this->npc[npc_no].draw_num][0] = x;
         this->npc[npc_no].draw_pos[this->npc[npc_no].draw_num][1] = y;
         this->npc[npc_no].draw_pos[this->npc[npc_no].draw_num][2] = z;
@@ -178,23 +186,18 @@ void CDungeonMap::ReservNPC_Draw(int npc_no, float x, float y, float z, int dire
 
 void CDungeonMap::DrawNPCDraw() {
     float pos[4];
-    float unused[4];
-    int   i;
-    int   j;
 
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < this->npc[i].draw_num; j++) {
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < this->npc[i].draw_num; j++) {
             int   direction;
             float angle;
             float deg;
-            float turn;
 
-            if (this->npc[i].chara.frame == NULL) {
+            if (this->npc[i].chara.frame == nullptr) {
                 break;
             }
 
             sceVu0CopyVector(pos, this->npc[i].draw_pos[j]);
-            sceVu0CopyVector(unused, this->npc[i].draw_pos[j]);
             pos[0] += this->npc[i].pos[0];
             pos[1] += this->npc[i].pos[1];
             pos[2] += this->npc[i].pos[2];
@@ -233,7 +236,7 @@ void CDungeonMap::DrawNPCDraw() {
 
 void CDungeonMap::StepNPC() {
     for (int i = 0; i < 4; i++) {
-        if (this->npc[i].used != 0 && this->npc[i].visible != 0 && this->npc[i].chara.frame != NULL && this->npc[i].motion_no != -1) {
+        if (this->npc[i].used != 0 && this->npc[i].visible != 0 && this->npc[i].chara.frame != nullptr && this->npc[i].motion_no != -1) {
             this->npc[i].chara.Step();
         }
     }
@@ -256,12 +259,12 @@ CFrame *CDungeonMap::GetFrameSearch(char *name) {
     for (int i = 0; i < 72; i++) {
         CFrame *frame = this->parts[i].GetSearchFrame(name);
 
-        if (frame != NULL) {
+        if (frame != nullptr) {
             return frame;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void CDungeonMap::DrawMapFreeStyle() {
@@ -270,7 +273,7 @@ void CDungeonMap::DrawMapFreeStyle() {
 
     this->ClearNPC_Cash();
 
-    for (i = 0; this->parts[i].frame[0] != NULL; i++) {
+    for (i = 0; this->parts[i].frame[0] != nullptr; i++) {
         this->parts[i].pos[0] = 0.0;
         this->parts[i].pos[1] = 0.0;
         this->parts[i].pos[2] = 0.0;
@@ -287,7 +290,8 @@ void CDungeonMap::DrawMapFreeStyle() {
 }
 
 void CDungeonMap::DrawMapCalc(int mode) {
-    int row, col;
+    int row;
+    int col;
     int i;
 
     if (mode == 1) {
@@ -312,7 +316,7 @@ void CDungeonMap::DrawMapCalc(int mode) {
             }
         }
     } else {
-        for (i = 0; this->parts[i].frame[0] != NULL; i++) {
+        for (i = 0; this->parts[i].frame[0] != nullptr; i++) {
             this->parts[i].DrawCalc(0, 0, 0, mode);
         }
     }
@@ -326,7 +330,7 @@ void CDungeonMap::DrawBGModel(CCamera *camera) {
     pos[1] = 0.0f;
 
     for (int i = 0; i < 6; i++) {
-        if (this->bg_model[i] != NULL) {
+        if (this->bg_model[i] != nullptr) {
             this->bg_model[i]->SetPosition(pos);
             MGDraw(this->bg_model[i]);
         }
@@ -370,9 +374,9 @@ void CDungeonMap::DrawMiniMap(float *pos, float angle) {
         return;
     }
 
-    unsigned char red_table[3] = {0x20, 0x40, 0x60};
-    unsigned char green_table[3] = {0x60, 0x80, 0xA2};
-    unsigned char blue_table[3] = {0x40, 0x60, 0xA2};
+    constexpr std::array<unsigned char, 3> red_table = {0x20, 0x40, 0x60};
+    constexpr std::array<unsigned char, 3> green_table = {0x60, 0x80, 0xA2};
+    constexpr std::array<unsigned char, 3> blue_table = {0x40, 0x60, 0xA2};
 
     red = red_table[status];
     green = green_table[status];
@@ -423,10 +427,10 @@ void CDungeonMap::DrawMiniMap(float *pos, float angle) {
     player_src.y = 96;
     player_src.width = 12;
     player_src.height = 12;
-    map_x = (int) (pos[2] + 64.0f + 8.0f);
+    map_x = static_cast<int>(pos[2] + 64.0f + 8.0f);
     player_screen_x = pos[0] + 380.0f + 8.0f;
-    map_y = (int) player_screen_x;
-    player_dst.x = (int) player_screen_x;
+    map_y = static_cast<int>(player_screen_x);
+    player_dst.x = static_cast<int>(player_screen_x);
     player_dst.y = map_x;
     player_dst.width = 12;
     player_dst.height = 12;
@@ -439,10 +443,10 @@ void CDungeonMap::DrawMiniMap(float *pos, float angle) {
             continue;
         }
 
-        map_x = (int) (this->trap_circle[i].pos[0] * 0.1f);
-        map_y = (int) (this->trap_circle[i].pos[2] * 0.1f);
-        cellx = (int) ((80.0f + this->trap_circle[i].pos[0]) / 160.0f);
-        cell = cellx + (int) ((80.0f + this->trap_circle[i].pos[2]) / 160.0f) * 20;
+        map_x = static_cast<int>(this->trap_circle[i].pos[0] * 0.1f);
+        map_y = static_cast<int>(this->trap_circle[i].pos[2] * 0.1f);
+        cellx = static_cast<int>((80.0f + this->trap_circle[i].pos[0]) / 160.0f);
+        cell = cellx + static_cast<int>((80.0f + this->trap_circle[i].pos[2]) / 160.0f) * 20;
         show = this->mask[cell];
 
         if (BtEquipMasuisyou == 1) {
@@ -469,10 +473,10 @@ void CDungeonMap::DrawMiniMap(float *pos, float angle) {
             continue;
         }
 
-        map_x = (int) (this->boxes[i].pos[0] * 0.1f);
-        map_y = (int) (this->boxes[i].pos[2] * 0.1f);
-        cellx = (int) ((80.0f + this->boxes[i].pos[0]) / 160.0f);
-        cell = cellx + (int) ((80.0f + this->boxes[i].pos[2]) / 160.0f) * 20;
+        map_x = static_cast<int>(this->boxes[i].pos[0] * 0.1f);
+        map_y = static_cast<int>(this->boxes[i].pos[2] * 0.1f);
+        cellx = static_cast<int>((80.0f + this->boxes[i].pos[0]) / 160.0f);
+        cell = cellx + static_cast<int>((80.0f + this->boxes[i].pos[2]) / 160.0f) * 20;
         show = this->mask[cell];
 
         if (BtEquipMasuisyou == 1) {
@@ -499,10 +503,10 @@ void CDungeonMap::DrawMiniMap(float *pos, float angle) {
             continue;
         }
 
-        map_x = (int) (this->atra[i].pos[0] * 0.1f);
-        map_y = (int) (this->atra[i].pos[2] * 0.1f);
-        cellx = (int) ((80.0f + this->atra[i].pos[0]) / 160.0f);
-        cell = cellx + (int) ((80.0f + this->atra[i].pos[2]) / 160.0f) * 20;
+        map_x = static_cast<int>(this->atra[i].pos[0] * 0.1f);
+        map_y = static_cast<int>(this->atra[i].pos[2] * 0.1f);
+        cellx = static_cast<int>((80.0f + this->atra[i].pos[0]) / 160.0f);
+        cell = cellx + static_cast<int>((80.0f + this->atra[i].pos[2]) / 160.0f) * 20;
         show = this->mask[cell];
 
         if (BtEquipMasuisyou == 1) {
@@ -532,8 +536,8 @@ void CDungeonMap::checkMask(float x, float z) {
     int room;
 
     room = -1;
-    cell_x = (int) ((80.0f + x) / 160.0f);
-    cell_z = (int) ((80.0f + z) / 160.0f);
+    cell_x = static_cast<int>((80.0f + x) / 160.0f);
+    cell_z = static_cast<int>((80.0f + z) / 160.0f);
 
     // Find the room that holds the cell that the player stands in.
     for (int i = 0; i < this->room_num; i++) {
@@ -585,9 +589,6 @@ void CDungeonMap::FlushCheckMask() {
     }
 }
 
-/**
- * Draws free-style fires and updates the sound for the nearest active fire.
- */
 void CDungeonMap::DrawFireFreeStyle(CFrameVu1 *frame, CCameraFollow *camera) {
     float fire_pos[4];
     float part_pos[4];
@@ -601,7 +602,7 @@ void CDungeonMap::DrawFireFreeStyle(CFrameVu1 *frame, CCameraFollow *camera) {
     int   i;
 
     sceVu0CopyVector(frame_pos, frame->position);
-    ((CCamera *) camera)->GetPos(cam_pos);
+    camera->GetPos(cam_pos);
     sceVu0ScaleVectorXYZ(cam_pos, cam_pos, 0.1f);
 
     this->fire.SetTexture(TexManager.GetTexture("lightling", -1), TexManager.GetTexture("blender", -1));
@@ -609,7 +610,7 @@ void CDungeonMap::DrawFireFreeStyle(CFrameVu1 *frame, CCameraFollow *camera) {
 
     near_dist = 16000.0f;
 
-    for (i = 0; this->parts[i].frame[0] != NULL; i++) {
+    for (i = 0; this->parts[i].frame[0] != nullptr; i++) {
         sceVu0CopyVector(part_pos, this->parts[i].frame_offset[0]);
 
         for (j = 0; j < this->parts[i].fire_num; j++) {
@@ -652,7 +653,7 @@ void CDungeonMap::DrawFireFreeStyle(CFrameVu1 *frame, CCameraFollow *camera) {
             this->fire.pos[1] = 10.0f * world_y;
             this->fire.pos[2] = 10.0f * world_z;
             this->fire.pos[3] = 1.0f;
-            this->fire.DrawFire(1, 1, (CCamera *) camera, frame_pos, 1.0f, param, 15.0f);
+            this->fire.DrawFire(1, 1, camera, frame_pos, 1.0f, param, 15.0f);
 
             // The crackle comes from the fire that is nearest to the camera.
             dist = DistVector(cam_pos, fire_pos);
@@ -692,8 +693,8 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
     int   param;
 
     sceVu0CopyVector(frame_pos, frame->position);
-    ((CCamera *) camera)->GetPos(cam_pos);
-    ((CCamera *) camera)->GetPos(cam_near);
+    camera->GetPos(cam_pos);
+    camera->GetPos(cam_near);
     sceVu0ScaleVectorXYZ(cam_near, cam_near, 0.1f);
 
     this->fire.SetTexture(TexManager.GetTexture("lightling", -1), TexManager.GetTexture("blender", -1));
@@ -704,8 +705,8 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
     frame_near[1] /= 10.0f;
     frame_near[2] /= 10.0f;
 
-    cam_col = (int) (cam_pos[0] / 160.0f);
-    cam_row = (int) (cam_pos[2] / 160.0f);
+    cam_col = static_cast<int>(cam_pos[0] / 160.0f);
+    cam_row = static_cast<int>(cam_pos[2] / 160.0f);
     near_dist = 16000.0f;
 
     // Only the cells around the camera show their fires.
@@ -732,7 +733,7 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
                         param = part->fire_param[j];
 
                         // The point turns with the part that holds it.
-                        angle = (PI * (float) ((4 - this->cells[cell_no].direction) * 90)) / 180.0f;
+                        angle = (PI * static_cast<float>((4 - this->cells[cell_no].direction) * 90)) / 180.0f;
 
                         if (this->cells[cell_no].direction != 0) {
                             turn = -fire_pos[2] * sinf(angle);
@@ -745,8 +746,8 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
                             rot_z = fire_pos[2];
                         }
 
-                        fire_pos[0] = rot_x + 16.0f * (float) col;
-                        rot_z += 16.0f * (float) row;
+                        fire_pos[0] = rot_x + 16.0f * static_cast<float>(col);
+                        rot_z += 16.0f * static_cast<float>(row);
                         fire_pos[2] = rot_z;
                         height = fire_pos[1];
 
@@ -754,7 +755,7 @@ void CDungeonMap::DrawFire(CFrameVu1 *frame, CCameraFollow *camera) {
                         this->fire.pos[1] = 10.0f * height;
                         this->fire.pos[2] = 10.0f * rot_z;
                         this->fire.pos[3] = 1.0f;
-                        this->fire.DrawFire(1, 1, (CCamera *) camera, frame_pos, 1.0f, param, 15.0f);
+                        this->fire.DrawFire(1, 1, camera, frame_pos, 1.0f, param, 15.0f);
 
                         // The crackle comes from the fire that is nearest to the camera.
                         dist = DistVector(cam_near, fire_pos);
@@ -788,8 +789,8 @@ void CDungeonMap::DrawRaster(CFrameVu1 *frame) {
     int   cell_x;
 
     sceVu0CopyVector(pos, frame->position);
-    cell_x = (int) (pos[0] / 160.0f);
-    cell_z = (int) (pos[2] / 160.0f);
+    cell_x = static_cast<int>(pos[0] / 160.0f);
+    cell_z = static_cast<int>(pos[2] / 160.0f);
 
     // Only the cells around the player cast a raster.
     for (row = cell_z - 4; row < cell_z + 4; row++) {
@@ -814,7 +815,7 @@ void CDungeonMap::DrawRaster(CFrameVu1 *frame) {
                         z = part->fire_pos[i][2];
                         // The point turns with the part that holds it.
                         dir = this->cells[cell_no].direction;
-                        angle = (PI * (float) ((4 - dir) * 90)) / 180.0f;
+                        angle = (PI * static_cast<float>((4 - dir) * 90)) / 180.0f;
 
                         if (dir != 0) {
                             rot_x = -z * sinf(angle) - x * cosf(angle);
@@ -825,8 +826,8 @@ void CDungeonMap::DrawRaster(CFrameVu1 *frame) {
                             rot_z = z;
                         }
 
-                        x = rot_x + 16.0f * (float) col;
-                        z = rot_z + 16.0f * (float) row;
+                        x = rot_x + 16.0f * static_cast<float>(col);
+                        z = rot_z + 16.0f * static_cast<float>(row);
 
                         this->fire.pos[0] = 10.0f * x;
                         this->fire.pos[1] = 10.0f * y;
@@ -859,7 +860,7 @@ void CDungeonMap::DrawWater(float *pos, int mute) {
     int            best_col;
     int            best_row;
 
-    best = NULL;
+    best = nullptr;
     near_dist = 320.0f;
     sound_dist = 300.0f;
     shake = false;
@@ -894,9 +895,9 @@ void CDungeonMap::DrawWater(float *pos, int mute) {
                 continue;
             }
 
-            vec[0] = 160.0f * (float) col;
+            vec[0] = 160.0f * static_cast<float>(col);
             vec[1] = water->vertex[0][1];
-            vec[2] = 160.0f * (float) row;
+            vec[2] = 160.0f * static_cast<float>(row);
             dist = DistVector(pos, vec);
 
             if (dist < near_dist) {
@@ -915,7 +916,7 @@ void CDungeonMap::DrawWater(float *pos, int mute) {
         }
     }
 
-    if (best != NULL) {
+    if (best != nullptr) {
         this->water.SetVertex(best->vertex[0], best->vertex[1], best->vertex[2], best->vertex[3]);
         this->water.frame.SetPosition(best_pos);
         u8 red = best->red;
@@ -925,29 +926,20 @@ void CDungeonMap::DrawWater(float *pos, int mute) {
         this->water.SetColor(red, green, blue, 0x80);
 
         if (shake != 0) {
-            if (selectMapNo == DUNGEON_DIVINE_BEAST_CAVE && selectMapNo == DUNGEON_DEMON_SHAFT) {
-                float height = 1.0f;
-
-                this->water.SetParam(0.12f, 0.018f, height, 11.0f);
-            } else {
-                float speed = 11.0f;
-
-                this->water.SetParam(0.12f, 0.018f, 0.0f, speed);
-            }
-
+            this->water.SetParam(0.12f, 0.018f, 0.0f, 11.0f);
             this->water.Shake(16, 4, 2.15f);
         }
 
         this->water.Hamon();
-        DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(&this->water, &mgRenderInfo, Vif1Packet, NULL);
+        DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(&this->water, &mgRenderInfo, Vif1Packet, nullptr);
     }
 
-    if (best != NULL) {
+    if (best != nullptr) {
 
         // A waterfall stands at the cell that the surface came from.
-        if (best->has_fall != 0 && this->fall_model != NULL) {
-            float x = 160.0f * (float) best_col;
-            float z = 160.0f * (float) best_row;
+        if (best->has_fall != 0 && this->fall_model != nullptr) {
+            float x = 160.0f * static_cast<float>(best_col);
+            float z = 160.0f * static_cast<float>(best_row);
 
             this->fall_model->SetPosition(x, 0.0f, z);
             MGDraw(this->fall_model);
@@ -989,11 +981,11 @@ void CDungeonMap::DrawItemBox(float *pos) {
     int   i;
     float angle;
 
-    if (this->box_lid_model == NULL || this->box_body_model == NULL) {
+    if (this->box_lid_model == nullptr || this->box_body_model == nullptr) {
         return;
     }
 
-    if (this->chest_body_model == NULL || this->chest_lid_model == NULL) {
+    if (this->chest_body_model == nullptr || this->chest_lid_model == nullptr) {
         return;
     }
 
@@ -1041,8 +1033,8 @@ int CDungeonMap::CreateCollision(CCPoly *poly, CBoxVu0 box, int num) {
     sceVu0CopyVector(pos, CharaMain.frame->position);
     frame = this->collision_model;
 
-    // Retail returns no value here, which leaves whatever v0 happens to hold.
-    if (frame == NULL) {
+    // Deliberately returns no value, so the count that the caller gets is undefined.
+    if (frame == nullptr) {
         return;
     }
 
@@ -1057,6 +1049,9 @@ int CDungeonMap::CreateCollision(CCPoly *poly, CBoxVu0 box, int num) {
 
     return num;
 }
+
+// The builder reads and writes up to a row past either end of these grids, so
+// they stay plain globals with external linkage, defined in this order.
 
 /** Labels each room while a special linked room is selected. */
 s32 scanRoomInfoWork[256];
@@ -1073,9 +1068,12 @@ ROOM_INFO roomStack[16];
 /** Gives the number of rooms that the builder placed. */
 s32 roomStackCnt;
 
-static int buildRoom(int x, int y, int w, int h, int room_no) {
+namespace {
+
+int buildRoom(int x, int y, int w, int h, int room_no) {
     int ok = 1;
-    int i, j;
+    int i;
+    int j;
 
     // The room needs its own cells and a border of one cell around them, so
     // that two rooms never come out sharing a wall.
@@ -1104,9 +1102,8 @@ static int buildRoom(int x, int y, int w, int h, int room_no) {
     return 1;
 }
 
-/**
- * Converts the builder flags and adjacency data into drawable map parts.
- */
+} // namespace
+
 void mapPartsFilter() {
     int col;
     int row;
@@ -1260,7 +1257,7 @@ void mapPartsFilter() {
             }
 
             if ((buildMapDat[col + row * 20].content & BUILD_CELL_PILLAR) == BUILD_CELL_PILLAR) {
-                if ((100.0f * (float) rand()) / 2147483648.0f <= 50.0f) {
+                if ((100.0f * static_cast<float>(rand())) / 2147483648.0f <= 50.0f) {
                     buildMapDat[col + row * 20].kind = MAP_PARTS_PILLAR_1;
                 } else {
                     buildMapDat[col + row * 20].kind = MAP_PARTS_PILLAR_2;
@@ -1389,7 +1386,9 @@ void mapPartsFilter() {
     }
 }
 
-static void copyMapInfo(BUILD_MAP_INFO *dst, BUILD_MAP_INFO *src) {
+namespace {
+
+void copyMapInfo(BUILD_MAP_INFO *dst, const BUILD_MAP_INFO *src) {
     for (int i = 0; i < 400; i++) {
         dst[i].kind = src[i].kind;
 
@@ -1401,26 +1400,19 @@ static void copyMapInfo(BUILD_MAP_INFO *dst, BUILD_MAP_INFO *src) {
     }
 }
 
-/**
- * Joins two rooms with a corridor.
- *
- * @mangled joinRoom__Fii
- * @address 0x1C61C0
- * @size 0x878
- */
 int joinRoom(int from_room, int to_room) {
-    int          done;
-    int          target_x;
-    int          target_y;
-    int          dir;
-    int          distance;
-    int          step;
-    int          i;
-    int          cx;
-    int          cy;
-    int          steps;
-    register int dx;
-    register int dy;
+    int done;
+    int target_x;
+    int target_y;
+    int dir;
+    int distance;
+    int step;
+    int i;
+    int cx;
+    int cy;
+    int steps;
+    int dx;
+    int dy;
 
     copyMapInfo(buildMapWork, buildMapDat);
 
@@ -1621,7 +1613,7 @@ int joinRoom(int from_room, int to_room) {
     return 1;
 }
 
-static void setRoomObject() {
+void setRoomObject() {
     int i;
     int x;
     int y;
@@ -1646,7 +1638,7 @@ static void setRoomObject() {
                 }
             }
 
-            if ((100.0f * (float) rand()) / 2147483648.0f <= 30.0f) {
+            if ((100.0f * static_cast<float>(rand())) / 2147483648.0f <= 30.0f) {
                 if (found == 1) {
                     buildMapDat[found_x + found_y * 20].content |= BUILD_CELL_HEAL_SPRING;
                     num++;
@@ -1667,7 +1659,7 @@ static void setRoomObject() {
             }
         }
 
-        if ((100.0f * (float) rand()) / 2147483648.0f <= 30.0f) {
+        if ((100.0f * static_cast<float>(rand())) / 2147483648.0f <= 30.0f) {
             if (found == 1) {
                 buildMapDat[found_x + found_y * 20].content |= BUILD_CELL_PILLAR;
             }
@@ -1675,7 +1667,7 @@ static void setRoomObject() {
     }
 }
 
-static void setRoomDivid() {
+void setRoomDivid() {
     int line_x[64];
     int line_y[64];
     int line_len[64];
@@ -1732,32 +1724,32 @@ static void setRoomDivid() {
             continue;
         }
 
-        if (!((100.0f * (float) rand()) / 2147483648.0f <= 40.0f)) {
+        if (!((100.0f * static_cast<float>(rand())) / 2147483648.0f <= 40.0f)) {
             continue;
         }
 
         // The wall runs the whole length of the line, with one gap in it.
-        line_no = (int) (((float) line_num * (float) rand()) / 2147483648.0f);
+        line_no = static_cast<int>((static_cast<float>(line_num) * static_cast<float>(rand())) / 2147483648.0f);
 
         if (line_dir[line_no] == 0) {
             for (x = line_x[line_no]; x < line_x[line_no] + line_len[line_no]; x++) {
                 buildMapDat[x + line_y[line_no] * 20].content |= BUILD_CELL_DIVIDING_WALL;
             }
 
-            buildMapDat[line_x[line_no] + line_y[line_no] * 20 + (int) (((float) (line_len[line_no] - 2) * (float) rand()) / 2147483648.0f) + 1]
+            buildMapDat[line_x[line_no] + line_y[line_no] * 20 + static_cast<int>((static_cast<float>(line_len[line_no] - 2) * static_cast<float>(rand())) / 2147483648.0f) + 1]
                 .content |= BUILD_CELL_DIVIDING_DOOR;
         } else {
             for (y = line_y[line_no]; y < line_y[line_no] + line_len[line_no]; y++) {
                 buildMapDat[y * 20 + line_x[line_no]].content |= BUILD_CELL_DIVIDING_WALL;
             }
 
-            buildMapDat[line_x[line_no] + (line_y[line_no] + (int) (((float) (line_len[line_no] - 2) * (float) rand()) / 2147483648.0f) + 1) * 20]
+            buildMapDat[line_x[line_no] + (line_y[line_no] + static_cast<int>((static_cast<float>(line_len[line_no] - 2) * static_cast<float>(rand())) / 2147483648.0f) + 1) * 20]
                 .content |= BUILD_CELL_DIVIDING_DOOR;
         }
     }
 }
 
-static void setUnderDungeonStart() {
+void setUnderDungeonStart() {
     int safe[120];
     int safe_num;
     int i;
@@ -1790,8 +1782,8 @@ static void setUnderDungeonStart() {
     tries = 0;
 
     while (searching) {
-        pick = (int) (((float) safe_num * (float) rand()) / 2147483648.0f);
-        printf("[s]%d\n", pick);
+        pick = static_cast<int>((static_cast<float>(safe_num) * static_cast<float>(rand())) / 2147483648.0f);
+        std::println("[s]{}", pick);
         x = safe[pick * 2];
         y = safe[pick * 2 + 1];
 
@@ -1814,11 +1806,11 @@ static void setUnderDungeonStart() {
     }
 
     if (searching == 0) {
-        printf("safeNum = %d, escapeCnt = %d\n", safe_num, tries);
+        std::println("safeNum = {}, escapeCnt = {}", safe_num, tries);
     }
 }
 
-static void setStair() {
+void setStair() {
     int safe[120];
     int safe_num;
     int i;
@@ -1845,10 +1837,10 @@ static void setStair() {
         }
     }
 
-    pick = (int) (((float) safe_num * (float) rand()) / 2147483648.0f);
+    pick = static_cast<int>((static_cast<float>(safe_num) * static_cast<float>(rand())) / 2147483648.0f);
 
     if (safe_num <= 0) {
-        printf("ERR: DownStair!!\n");
+        std::println("ERR: DownStair!!");
         y = 1;
         x = 1;
     } else {
@@ -1880,10 +1872,10 @@ static void setStair() {
         }
     }
 
-    pick = (int) (((float) safe_num * (float) rand()) / 2147483648.0f);
+    pick = static_cast<int>((static_cast<float>(safe_num) * static_cast<float>(rand())) / 2147483648.0f);
 
     if (safe_num <= 0) {
-        printf("ERR: UpStair!!\n");
+        std::println("ERR: UpStair!!");
         y = 1;
         x = 1;
     } else {
@@ -1896,6 +1888,20 @@ static void setStair() {
     buildMapDat[x + (y + 1) * 20].link[buildMapDat[x + y * 20].kind] = 1;
     buildMapDat[x + (y + 1) * 20].direction = 2;
 }
+
+// Returns the first free event slot; running out of slots stops the game.
+int FindFreeEvent(std::span<const DUNGEON_EVENT> events) {
+    for (std::size_t i = 0; i < events.size(); i++) {
+        if (events[i].kind == DNG_EVENT_NONE) {
+            return static_cast<int>(i);
+        }
+    }
+
+    std::println("ivent buffer over !!");
+    exit__2(-1);
+}
+
+} // namespace
 
 void CDungeonMap::initTrapCircle() {
     for (int i = 0; i < 3; i++) {
@@ -1912,7 +1918,7 @@ float *CDungeonMap::CheckTrapCircle(float *pos, float dist) {
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void CDungeonMap::SetupTrapCircle(float *pos) {
@@ -1923,7 +1929,7 @@ void CDungeonMap::SetupTrapCircle(float *pos) {
         if (is_free) {
             sceVu0CopyVector(this->trap_circle[i].pos, pos);
             this->trap_circle[i].state = 1;
-            this->trap_circle[i].kind = (int) ((10.0f * (float) rand()) / 2147483648.0f);
+            this->trap_circle[i].kind = static_cast<int>((10.0f * static_cast<float>(rand())) / 2147483648.0f);
 
             if (this->trap_circle[i].kind >= TRAP_CIRCLE_COUNT) {
                 this->trap_circle[i].kind = 9;
@@ -1980,7 +1986,7 @@ MAP_TRAP_CIRCLE *CDungeonMap::DistTrapCircle() {
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void CDungeonMap::StepTrapCircle() {
@@ -2021,25 +2027,13 @@ int CDungeonMap::CheckAtra(float *pos, float dist) {
 }
 
 void CDungeonMap::SetAtraBoll(float *pos, int atra_no) {
-    int i;
-    int event_no;
-
     sceVu0CopyVector(this->atra[this->atra_num].pos, pos);
     this->atra[this->atra_num].phase = 0.0f;
     this->atra[this->atra_num].atra_no = atra_no;
     this->atra[this->atra_num].used = 1;
 
-    for (i = 0; i < 48; i++) {
-        if (this->events[i].kind == DNG_EVENT_NONE) {
-            event_no = i;
-            goto found;
-        }
-    }
+    int event_no = FindFreeEvent(this->events);
 
-    printf("ivent buffer over !!\n");
-    exit__2(-1);
-
-found:
     this->events[event_no].kind = DNG_EVENT_ATRA;
     this->events[event_no].placed_flag = 0;
     this->events[event_no].index = this->atra_num;
@@ -2048,19 +2042,10 @@ found:
     this->atra_num++;
 }
 
-/**
- * Adds a treasure box to an open slot and creates its matching map event.
- * The event stores the box coordinates and interaction radius.
- */
 int CDungeonMap::SetTreasureBox(float *pos, int item_no, int kind, int trap_no) {
-    int box_no;
-    int event_no;
-    int i;
-    int j;
+    int box_no = -1;
 
-    box_no = -1;
-
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         if (this->boxes[i].used == 0) {
             box_no = i;
             break;
@@ -2079,21 +2064,12 @@ int CDungeonMap::SetTreasureBox(float *pos, int item_no, int kind, int trap_no) 
     this->boxes[box_no].closed = 1;
     this->boxes[box_no].trap_no = trap_no;
 
-    for (j = 0; j < 48; j++) {
-        if (this->events[j].kind == DNG_EVENT_NONE) {
-            event_no = j;
-            goto found;
-        }
-    }
+    int event_no = FindFreeEvent(this->events);
 
-    printf("ivent buffer over !!\n");
-    exit__2(-1);
-
-found:
     this->events[event_no].kind = DNG_EVENT_TREASURE_BOX;
     this->events[event_no].placed_flag = 0;
-    this->events[event_no].origin_x = (int) pos[0];
-    this->events[event_no].origin_z = (int) pos[2];
+    this->events[event_no].origin_x = static_cast<int>(pos[0]);
+    this->events[event_no].origin_z = static_cast<int>(pos[2]);
     this->events[event_no].index = this->box_num;
 
     // The event sits in front of the box, and a small box stands nearer to it.
@@ -2116,17 +2092,13 @@ found:
     return event_no;
 }
 
-/**
- * Places treasure boxes, trap circles, and atla events on one floor.
- */
 void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
     float box_pos[4];
     float object_pos[4];
-    int   atra_no[8]; /* BtAtraFloorCyoice fills and counts all eight of a floor's atla slots. */
+    int   atra_no[8]; // BtAtraFloorCyoice fills and counts all eight of a floor's atla slots.
     int   special;
     int   object_count;
     int   valid;
-    int   event_no;
     int   event_x;
     int   event_y;
     int   target_count;
@@ -2142,7 +2114,7 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
     }
 
     object_count = 0;
-    target_count = (int) ((4.0f * (float) rand()) / 2147483648.0f) + 1;
+    target_count = static_cast<int>((4.0f * static_cast<float>(rand())) / 2147483648.0f) + 1;
 
     while (object_count < target_count + 3) {
         SearchiDoPutArea(this->cells, 0, 0, 20, 20, box_pos);
@@ -2156,16 +2128,16 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
             valid = 0;
         }
 
-        if (this->CheckTrapCircle(box_pos, 20.0f) != NULL) {
+        if (this->CheckTrapCircle(box_pos, 20.0f) != nullptr) {
             valid = 0;
         }
 
         if (valid != 0) {
-            if ((100.0f * (float) rand()) / 2147483648.0f >= 88.0f && object_count >= 2) {
+            if ((100.0f * static_cast<float>(rand())) / 2147483648.0f >= 88.0f && object_count >= 2) {
                 int item_no = PresetSmallItemNo_Get(selectMapNo, floor_no, special, 0);
 
                 if (item_no != -1) {
-                    int trap_no = (int) ((6.0f * (float) rand()) / 2147483648.0f);
+                    int trap_no = static_cast<int>((6.0f * static_cast<float>(rand())) / 2147483648.0f);
 
                     if (trap_no < 0 || trap_no >= 6) {
                         trap_no = 1;
@@ -2198,7 +2170,7 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
     this->initTrapCircle();
 
     for (int i = 0; i < 3; i++) {
-        if ((int) ((100.0f * (float) rand()) / 2147483648.0f) < 21) {
+        if (static_cast<int>((100.0f * static_cast<float>(rand())) / 2147483648.0f) < 21) {
             SearchiDoPutArea(this->cells, 0, 0, 20, 20, object_pos);
             valid = 1;
 
@@ -2210,7 +2182,7 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
                 valid = 0;
             }
 
-            if (this->CheckTrapCircle(object_pos, 20.0f) != NULL) {
+            if (this->CheckTrapCircle(object_pos, 20.0f) != nullptr) {
                 valid = 0;
             }
 
@@ -2236,7 +2208,7 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
                 valid = 0;
             }
 
-            if (this->CheckTrapCircle(object_pos, 20.0f) != NULL) {
+            if (this->CheckTrapCircle(object_pos, 20.0f) != nullptr) {
                 valid = 0;
             }
 
@@ -2246,17 +2218,8 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
                 this->atra[this->atra_num].atra_no = atra_no[object_count];
                 this->atra[this->atra_num].used = 1;
 
-                for (int k = 0; k < 48; k++) {
-                    if (this->events[k].kind == DNG_EVENT_NONE) {
-                        event_no = k;
-                        goto found_atla_event;
-                    }
-                }
+                int event_no = FindFreeEvent(this->events);
 
-                printf("ivent buffer over !!\n");
-                exit__2(-1);
-
-            found_atla_event:
                 this->events[event_no].kind = DNG_EVENT_ATRA;
                 this->events[event_no].placed_flag = 0;
                 this->events[event_no].origin_x = event_x;
@@ -2273,18 +2236,14 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
 
 void CDungeonMap::SetMimicEvent(float x, float y, float z, int item_no, int kind) {
     float pos[4];
-    int   box_no;
-    int   event_no;
-    int   i;
-    int   j;
 
     pos[0] = x;
     pos[1] = y;
     pos[2] = z;
 
-    box_no = -1;
+    int box_no = -1;
 
-    for (i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++) {
         if (this->boxes[i].used == 0) {
             box_no = i;
             break;
@@ -2295,20 +2254,7 @@ void CDungeonMap::SetMimicEvent(float x, float y, float z, int item_no, int kind
         return;
     }
 
-    for (j = 0; j < 48; j++) {
-        if (this->events[j].kind == DNG_EVENT_NONE) {
-            event_no = j;
-            goto found;
-        }
-    }
-
-    printf("ivent buffer over !!\n");
-    exit__2(-1);
-
-found:
-    if (event_no == -1) {
-        return;
-    }
+    int event_no = FindFreeEvent(this->events);
 
     // The mimic looks like a treasure box, so it takes a box slot as well.
     this->events[event_no].kind = DNG_EVENT_MIMIC;
@@ -2354,10 +2300,6 @@ int CDungeonMap::GetActiveIvent(CFrameVu1 *frame) {
 
     sceVu0CopyVector(pos, frame->position);
 
-    // The grid cell that the player stands on. Calculated but not used.
-    (void) (int) ((float) (int) (80.0f + pos[0]) / 160.0f);
-    (void) (int) ((float) (int) (80.0f + pos[2]) / 160.0f);
-
     for (int i = 0; i < 48; i++) {
         if (this->events[i].kind != DNG_EVENT_NONE && DistVector(this->events[i].pos, pos) <= this->events[i].radius) {
             return i;
@@ -2384,9 +2326,9 @@ void CDungeonMap::buildDummyModel() {
     this->dummy_num = 0;
 
     while (num < 8) {
-        x = (int) ((21.0f * (float) rand()) / 2147483648.0f) - 1;
-        z = (int) ((21.0f * (float) rand()) / 2147483648.0f) - 1;
-        shape = (int) ((3.0f * (float) rand()) / 2147483648.0f);
+        x = static_cast<int>((21.0f * static_cast<float>(rand())) / 2147483648.0f) - 1;
+        z = static_cast<int>((21.0f * static_cast<float>(rand())) / 2147483648.0f) - 1;
+        shape = static_cast<int>((3.0f * static_cast<float>(rand())) / 2147483648.0f);
         kind = -1;
 
         // Each kind covers a different footprint, and only goes down where
@@ -2497,9 +2439,6 @@ void CDungeonMap::buildDummyModel() {
     }
 }
 
-/**
- * Selects a special door, labels its connected area, and places its key item.
- */
 void CDungeonMap::GetRoomLinkInfo() {
     int   door_pos[32][2];
     int   room_list[32];
@@ -2554,7 +2493,7 @@ void CDungeonMap::GetRoomLinkInfo() {
         }
     }
 
-    int door_no = (int) (((float) door_count * (float) rand()) / 2147483648.0f);
+    int door_no = static_cast<int>((static_cast<float>(door_count) * static_cast<float>(rand())) / 2147483648.0f);
     x = door_pos[door_no][0];
     y = door_pos[door_no][1];
     scanRoomInfoWork[x + y * 16] = 9;
@@ -2603,7 +2542,7 @@ void CDungeonMap::GetRoomLinkInfo() {
             scanRoomInfoWork[x + y * 16 - 1] = 1;
             break;
         default:
-            printf("ERROR !!\n");
+            std::println("ERROR !!");
             return;
     }
 
@@ -2709,14 +2648,14 @@ void CDungeonMap::GetRoomLinkInfo() {
     }
 
     if (room_count == 0) {
-        printf("//////--------> SET NOOMAL DOOR PUTERR!![%d] ///////// \n", target_label);
+        std::println("//////--------> SET NOOMAL DOOR PUTERR!![{}] ///////// ", target_label);
         active = false;
     }
 
     while (active != 0) {
         int valid;
 
-        int list_no = (int) (((float) room_count * (float) rand()) / 2147483648.0f);
+        int list_no = static_cast<int>((static_cast<float>(room_count) * static_cast<float>(rand())) / 2147483648.0f);
 
         if (list_no < 0 || list_no > room_count) {
             list_no = 0;
@@ -2733,7 +2672,7 @@ void CDungeonMap::GetRoomLinkInfo() {
             valid = 0;
         }
 
-        if (this->CheckTrapCircle(pos, 20.0f) != NULL) {
+        if (this->CheckTrapCircle(pos, 20.0f) != nullptr) {
             valid = 0;
         }
 
@@ -2834,7 +2773,7 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
 
     // A floor that is built for the first time picks the seed it is built from.
     if (first_build != 0) {
-        this->map_seed = (int) ((float) rand() / (float) 100000);
+        this->map_seed = static_cast<int>(static_cast<float>(rand()) / 100000.0f);
         srand(this->map_seed);
     }
 
@@ -2884,10 +2823,10 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
         retry = 0;
 
         while (done == 0) {
-            w = (int) ((2.0f * (float) rand()) / 2147483648.0f) + 3;
-            h = (int) ((2.0f * (float) rand()) / 2147483648.0f) + 3;
-            x = (int) (((float) (16 - w) * (float) rand()) / 2147483648.0f);
-            y = (int) (((float) (16 - h) * (float) rand()) / 2147483648.0f);
+            w = static_cast<int>((2.0f * static_cast<float>(rand())) / 2147483648.0f) + 3;
+            h = static_cast<int>((2.0f * static_cast<float>(rand())) / 2147483648.0f) + 3;
+            x = static_cast<int>((static_cast<float>(16 - w) * static_cast<float>(rand())) / 2147483648.0f);
+            y = static_cast<int>((static_cast<float>(16 - h) * static_cast<float>(rand())) / 2147483648.0f);
 
             if (buildRoom(x, y, w, h, roomStackCnt) == 1) {
                 roomStack[roomStackCnt].x = x;
@@ -2914,10 +2853,10 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
         retry = 0;
 
         while (done == 0) {
-            w = (int) ((2.0f * (float) rand()) / 2147483648.0f) + 3;
-            h = (int) ((2.0f * (float) rand()) / 2147483648.0f) + 3;
-            x = (int) (((float) (16 - w) * (float) rand()) / 2147483648.0f);
-            y = (int) (((float) (16 - h) * (float) rand()) / 2147483648.0f);
+            w = static_cast<int>((2.0f * static_cast<float>(rand())) / 2147483648.0f) + 3;
+            h = static_cast<int>((2.0f * static_cast<float>(rand())) / 2147483648.0f) + 3;
+            x = static_cast<int>((static_cast<float>(16 - w) * static_cast<float>(rand())) / 2147483648.0f);
+            y = static_cast<int>((static_cast<float>(16 - h) * static_cast<float>(rand())) / 2147483648.0f);
 
             if (buildRoom(x, y, w, h, roomStackCnt) == 1) {
                 roomStack[roomStackCnt].x = x;
@@ -2932,7 +2871,7 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
                     w = (roomStack[roomStackCnt - 1].x + roomStack[roomStackCnt - 1].width / 2) - (roomStack[j].x + roomStack[j].width / 2);
                     h = (roomStack[roomStackCnt - 1].y + roomStack[roomStackCnt - 1].height / 2) - (roomStack[j].y + roomStack[j].height / 2);
 
-                    dist = (int) sqrt((double) (w * w + h * h));
+                    dist = static_cast<int>(std::sqrt(static_cast<double>(w * w + h * h)));
 
                     if (dist < near_dist) {
                         near_no = j;
@@ -2958,11 +2897,7 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
         setRoomDivid();
     }
 
-    if (first_build != 0) {
-        setUnderDungeonStart();
-    } else {
-        setUnderDungeonStart();
-    }
+    setUnderDungeonStart();
 
     if (first_build != 0) {
         setStair();
@@ -2971,7 +2906,7 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
     mapPartsFilter();
 
     this->room_num = roomStackCnt;
-    memcpy(this->rooms, roomStack, 0x100);
+    std::ranges::copy(roomStack, this->rooms);
 
     for (row = 0; row < 20; row++) {
         for (col = 0; col < 20; col++) {
@@ -2984,7 +2919,7 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
         this->buildDummyModel();
     }
 
-    if ((int) ((100.0f * (float) rand()) / 2147483648.0f) < 0x33 && first_build != 0) {
+    if (static_cast<int>((100.0f * static_cast<float>(rand())) / 2147483648.0f) < 0x33 && first_build != 0) {
         this->GetRoomLinkInfo();
     }
 
@@ -3015,8 +2950,8 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
     }
 
     if (selectMapNo == DUNGEON_WISE_OWL_FOREST) {
-        int pick = (int) ((3.0f * (float) rand()) / 2147483648.0f);
-        int gate_keys[3] = {0xC4, 0xC6, 0xCD};
+        int                          pick = static_cast<int>((3.0f * static_cast<float>(rand())) / 2147483648.0f);
+        constexpr std::array<int, 3> gate_keys = {0xC4, 0xC6, 0xCD};
 
         if (pick < 0 || pick > 2) {
             pick = 0;
@@ -3026,7 +2961,7 @@ void CDungeonMap::buildRandomMap(int room_max, int first_build) {
     }
 
     this->SetUnderLoad();
-    printf("map build success!!\n");
+    std::println("map build success!!");
 }
 
 void CDungeonMap::initSubmap(CDataAlloc2<1> *alloc) {
@@ -3034,20 +2969,20 @@ void CDungeonMap::initSubmap(CDataAlloc2<1> *alloc) {
     int j;
 
     for (i = 0; i < 6; i++) {
-        this->bg_model[i] = NULL;
+        this->bg_model[i] = nullptr;
     }
 
     for (i = 0; i < 3; i++) {
-        this->dummy_frame[i] = NULL;
+        this->dummy_frame[i] = nullptr;
     }
 
-    this->box_lid_model = NULL;
-    this->box_body_model = NULL;
-    this->box_collision_model = NULL;
-    this->chest_lid_model = NULL;
-    this->chest_body_model = NULL;
-    this->chest_collision_model = NULL;
-    this->fall_model = NULL;
+    this->box_lid_model = nullptr;
+    this->box_body_model = nullptr;
+    this->box_collision_model = nullptr;
+    this->chest_lid_model = nullptr;
+    this->chest_body_model = nullptr;
+    this->chest_collision_model = nullptr;
+    this->fall_model = nullptr;
 
     for (i = 0; i < 24; i++) {
         this->boxes[i].used = 0;
@@ -3112,20 +3047,20 @@ void CDungeonMap::initalize() {
     int j;
 
     for (i = 0; i < 6; i++) {
-        this->bg_model[i] = NULL;
+        this->bg_model[i] = nullptr;
     }
 
     for (i = 0; i < 3; i++) {
-        this->dummy_frame[i] = NULL;
+        this->dummy_frame[i] = nullptr;
     }
 
-    this->box_lid_model = NULL;
-    this->box_body_model = NULL;
-    this->box_collision_model = NULL;
-    this->chest_lid_model = NULL;
-    this->chest_body_model = NULL;
-    this->chest_collision_model = NULL;
-    this->fall_model = NULL;
+    this->box_lid_model = nullptr;
+    this->box_body_model = nullptr;
+    this->box_collision_model = nullptr;
+    this->chest_lid_model = nullptr;
+    this->chest_body_model = nullptr;
+    this->chest_collision_model = nullptr;
+    this->fall_model = nullptr;
 
     for (i = 0; i < 24; i++) {
         this->boxes[i].used = 0;

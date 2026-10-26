@@ -34,7 +34,7 @@ STATIC_ASSERT(sizeof(CDungeonEvent) == 0x40);
  */
 class CDungeonEventData {
 public:
-    CDungeonEvent *event; /**< Event that the floor laid out, or zero for a free slot. */
+    CDungeonEvent *event; /**< Event that the floor laid out, or null for a free slot. */
     u8             unk_04[0xC];
     sceVu0FVECTOR  pos;        /**< World position that the event plays at. */
     sceVu0FVECTOR  dir;        /**< Way that the event faces. */
@@ -45,37 +45,21 @@ public:
 
     /**
      * Initializes this runtime slot from a dungeon event definition.
-     *
-     * @mangled Set__17CDungeonEventDataFP13CDungeonEvent
-     * @address 0x1CC820
-     * @size 0x5C
      */
     void Set(CDungeonEvent *source);
 
     /**
      * Reports whether this event slot is enabled and ready to run.
-     *
-     * @mangled CheckSwitch__17CDungeonEventDataFv
-     * @address 0x1CC880
-     * @size 0x48
      */
     int CheckSwitch();
 
     /**
      * Disables this event slot.
-     *
-     * @mangled Stop__17CDungeonEventDataFv
-     * @address 0x1CC8D0
-     * @size 0xC
      */
     void Stop();
 
     /**
      * Enables this event slot.
-     *
-     * @mangled Start__17CDungeonEventDataFv
-     * @address 0x1CC8E0
-     * @size 0x10
      */
     void Start();
 };

@@ -1,10 +1,10 @@
 #include "dungeoneventdata.hpp"
 
-#include <cstdio>
+#include <print>
 
 void CDungeonEventData::Set(CDungeonEvent *source) {
-    if (source == NULL) {
-        printf("******** event NULL !!\n");
+    if (source == nullptr) {
+        std::println("******** event NULL !!");
 
         for (;;) {
         }
@@ -13,26 +13,22 @@ void CDungeonEventData::Set(CDungeonEvent *source) {
     event = source;
     hold = source->hold;
     switch_on = source->switch_on;
-    enabled = true;
+    enabled = 1;
     chara_done = -1;
 }
 
 int CDungeonEventData::CheckSwitch() {
-    if (event == NULL) {
+    if (event == nullptr) {
         return 0;
     }
 
-    if (enabled != 0 && switch_on != 0) {
-        return 1;
-    }
-
-    return 0;
+    return (enabled != 0 && switch_on != 0) ? 1 : 0;
 }
 
 void CDungeonEventData::Stop() {
-    switch_on = false;
+    switch_on = 0;
 }
 
 void CDungeonEventData::Start() {
-    switch_on = true;
+    switch_on = 1;
 }

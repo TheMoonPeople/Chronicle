@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file
+ * Declares the dungeon map and the objects that it holds.
+ */
+
 #include "common.h"
 
 #include <libvu0.h>
@@ -68,15 +73,7 @@ enum MapDirection {
 
 // clang-format on
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCameraFollow;
-
-/**
- * @file
- * Declares the dungeon map and the objects that it holds.
- */
 
 /**
  * Describes one cell of the 20 x 20 dungeon floor grid.
@@ -88,7 +85,7 @@ struct MAPPARTS {
     s32   visible;     /**< 1 if the last draw showed the cell. */
 };
 
-typedef MAPPARTS MAP_CELL;
+using MAP_CELL = MAPPARTS;
 
 /**
  * Describes the position and the extent of one room, in grid cells.
@@ -183,11 +180,6 @@ struct MAP_NPC_MODEL {
 
     /**
      * Copies one slot over another, field by field.
-     *
-     * @mangled __as__13MAP_NPC_MODELFRC13MAP_NPC_MODEL
-     * @address 0x142C90
-     * @size 0x104
-     * @unknownret
      */
     MAP_NPC_MODEL &operator=(const MAP_NPC_MODEL &other);
 };
@@ -238,420 +230,245 @@ public:
 
     /**
      * Puts one non-player character on the floor.
-     *
-     * @mangled SetNPC__11CDungeonMapFiPUiiPfPfiiP14CDataAlloc2_1_
-     * @address 0x1C1C00
-     * @size 0x26C
      */
     void SetNPC(int npc_no, unsigned int *pack, int parts_no, sceVu0FVECTOR pos, sceVu0FVECTOR rot, int visible, int motion_no, CDataAlloc2<1> *alloc);
 
     /**
      * Sets the number of copies to draw of every character to zero.
-     *
-     * @mangled ClearNPC_Cash__11CDungeonMapFv
-     * @address 0x1C1E70
-     * @size 0x3C
      */
     void ClearNPC_Cash();
 
     /**
      * Adds one copy of a character to the list of copies to draw.
-     *
-     * @mangled ReservNPC_Draw__11CDungeonMapFifffi
-     * @address 0x1C1EB0
-     * @size 0xC4
      */
     void ReservNPC_Draw(int npc_no, float x, float y, float z, int direction);
 
     /**
-     * @mangled DrawNPCDraw__11CDungeonMapFv
-     * @address 0x1C1F80
-     * @size 0x264
-     * @unknownret
+     * Draws every copy of every character that was reserved since the last clear.
      */
     void DrawNPCDraw();
 
     /**
      * Takes one step with every character that is active and visible.
-     *
-     * @mangled StepNPC__11CDungeonMapFv
-     * @address 0x1C21F0
-     * @size 0xC0
-     * @unknownret
      */
     void StepNPC();
 
     /**
      * Starts a motion on a character.
-     *
-     * @mangled NPCSetMotion__11CDungeonMapFii
-     * @address 0x1C22B0
-     * @size 0x3C
      */
     void NPCSetMotion(int npc_no, int motion_no);
 
     /**
      * Starts a motion on a character at a given speed.
-     *
-     * @mangled NPCSetMotion__11CDungeonMapFiifi
-     * @address 0x1C22F0
-     * @size 0x40
      */
     void NPCSetMotion(int npc_no, int motion_no, float speed, int motion_flags);
 
     /**
-     * Returns the frame with the given name from the map parts, or zero if no part holds it.
-     *
-     * @mangled GetFrameSearch__11CDungeonMapFPc
-     * @address 0x1C2330
-     * @size 0x90
+     * Returns the frame with the given name from the map parts, or nullptr if no part holds it.
      */
     CFrame *GetFrameSearch(char *name);
 
     /**
      * Draws every map part at the origin, and reserves a copy of each character
      * that stands on one.
-     *
-     * @mangled DrawMapFreeStyle__11CDungeonMapFv
-     * @address 0x1C23C0
-     * @size 0xF8
      */
     void DrawMapFreeStyle();
 
     /**
-     * @mangled DrawMapCalc__11CDungeonMapFi
-     * @address 0x1C24C0
-     * @size 0x1C8
-     * @unknownret
+     * Prepares every map part for the coming draw, placing each one at its grid
+     * cell when mode is 1, or leaving it where it stands otherwise.
      */
     void DrawMapCalc(int mode);
 
     /**
      * Draws the floor's rooms and corridors.
-     *
-     * @mangled DrawMap__11CDungeonMapFP13CCameraFollowP9CFrameVu1
-     * @address 0x1C2690
-     * @size 0x92C
      */
     void DrawMap(CCameraFollow *camera, CFrameVu1 *player);
 
     /**
      * Draws the background models at the position of the camera.
-     *
-     * @mangled DrawBGModel__11CDungeonMapFP7CCamera
-     * @address 0x1C2FC0
-     * @size 0x94
-     * @unknownret
      */
     void DrawBGModel(CCamera *camera);
 
     /**
      * Draws every dummy model that the camera is near enough to.
-     *
-     * @mangled DrawDummyModel__11CDungeonMapFP7CCamera
-     * @address 0x1C3060
-     * @size 0x120
      */
     void DrawDummyModel(CCamera *camera);
 
     /**
      * Draws the corner map of the floor.
-     *
-     * @mangled DrawMiniMap__11CDungeonMapFPff
-     * @address 0x1C3180
-     * @size 0x840
      */
     void DrawMiniMap(float *pos, float angle);
 
     /**
      * Marks the cell at a position, and the room that holds it, as found.
-     *
-     * @mangled checkMask__11CDungeonMapFff
-     * @address 0x1C39C0
-     * @size 0x23C
-     * @unknownret
      */
     void checkMask(float x, float z);
 
     /**
      * Hides every cell of the mini map, then shows the cells that hold a stair.
-     *
-     * @mangled FlushCheckMask__11CDungeonMapFv
-     * @address 0x1C3C00
-     * @size 0xB4
      */
     void FlushCheckMask();
 
     /**
      * Draws the floor's freely placed fires.
-     *
-     * @mangled DrawFireFreeStyle__11CDungeonMapFP9CFrameVu1P13CCameraFollow
-     * @address 0x1C3CC0
-     * @size 0x3F4
      */
     void DrawFireFreeStyle(CFrameVu1 *frame, CCameraFollow *camera);
 
     /**
      * Draws the fires standing on the floor's parts.
-     *
-     * @mangled DrawFire__11CDungeonMapFP9CFrameVu1P13CCameraFollow
-     * @address 0x1C40C0
-     * @size 0x548
      */
     void DrawFire(CFrameVu1 *frame, CCameraFollow *camera);
 
     /**
      * Draws the light the floor's fires cast on the ground.
-     *
-     * @mangled DrawRaster__11CDungeonMapFP9CFrameVu1
-     * @address 0x1C4610
-     * @size 0x324
      */
     void DrawRaster(CFrameVu1 *frame);
 
     /**
      * Draws the water surface nearest to a position, with its waterfall, and
      * sets the volume of the water sound.
-     *
-     * @mangled DrawWater__11CDungeonMapFPfi
-     * @address 0x1C4940
-     * @size 0x494
-     * @unknownret
      */
     void DrawWater(float *pos, int mute);
 
     /**
      * Draws the floor's treasure chests.
-     *
-     * @mangled DrawItemBox__11CDungeonMapFPf
-     * @address 0x1C4DE0
-     * @size 0x318
      */
     void DrawItemBox(float *pos);
 
     /**
      * Draws every atla ball that the camera is near enough to, bobbing on the spot.
-     *
-     * @mangled DrawAtraBoll__11CDungeonMapFPf
-     * @address 0x1C5100
-     * @size 0x170
      */
     void DrawAtraBoll(float *pos);
 
     /**
      * Adds a collision polygon for every atla ball near the player, and returns
      * the new total.
-     *
-     * @mangled CreateCollision__11CDungeonMapFP6CCPoly7CBoxVu0i
-     * @address 0x1C5270
-     * @size 0x144
      */
     int CreateCollision(CCPoly *poly, CBoxVu0 box, int num);
 
     /**
      * Sets every trap circle slot to free.
-     *
-     * @mangled initTrapCircle__11CDungeonMapFv
-     * @address 0x1C79B0
-     * @size 0x38
      */
     void initTrapCircle();
 
     /**
-     * Returns the trap circle that is nearer to a position than a distance, or zero if there is none.
-     *
-     * @mangled CheckTrapCircle__11CDungeonMapFPff
-     * @address 0x1C79F0
-     * @size 0xC0
+     * Returns the trap circle that is nearer to a position than a distance, or nullptr if there is none.
      */
     float *CheckTrapCircle(float *pos, float dist);
 
     /**
      * Puts a trap circle of a random kind in the first free slot at a position.
-     *
-     * @mangled SetupTrapCircle__11CDungeonMapFPf
-     * @address 0x1C7AB0
-     * @size 0x118
      */
     void SetupTrapCircle(float *pos);
 
     /**
-     * @mangled DrawTrapCircle__11CDungeonMapFv
-     * @address 0x1C7BD0
-     * @size 0x1A4
-     * @unknownret
+     * Draws every trap circle that the player is near enough to.
      */
     void DrawTrapCircle();
 
     /**
      * Starts the fade of the trap circle that the player stands on, and returns its position.
-     *
-     * @mangled DistTrapCircle__11CDungeonMapFv
-     * @address 0x1C7D80
-     * @size 0xE0
      */
     MAP_TRAP_CIRCLE *DistTrapCircle();
 
     /**
      * Moves every trap circle that fades one step further, and frees the ones that finished.
-     *
-     * @mangled StepTrapCircle__11CDungeonMapFv
-     * @address 0x1C7E60
-     * @size 0x7C
      */
     void StepTrapCircle();
 
     /**
      * Returns 1 if no treasure box is nearer to a position than a distance.
-     *
-     * @mangled CheckTreasureBox__11CDungeonMapFPff
-     * @address 0x1C7EE0
-     * @size 0xBC
      */
     int CheckTreasureBox(float *pos, float dist);
 
     /**
      * Returns 1 if no atla ball is nearer to a position than a distance.
-     *
-     * @mangled CheckAtra__11CDungeonMapFPff
-     * @address 0x1C7FA0
-     * @size 0xD8
      */
     int CheckAtra(float *pos, float dist);
 
     /**
-     * @mangled SetAtraBoll__11CDungeonMapFPfi
-     * @address 0x1C8080
-     * @size 0x1C0
-     * @unknownret
+     * Puts an atla ball on the floor at a position, with the event that picks it up.
      */
     void SetAtraBoll(float *pos, int atra_no);
 
     /**
      * Puts a treasure chest on the floor.
-     *
-     * @mangled SetTreasureBox__11CDungeonMapFPfiii
-     * @address 0x1C8240
-     * @size 0x2F4
      */
     int SetTreasureBox(float *pos, int item_no, int kind, int trap_no);
 
     /**
      * Lays the floor's events out over its rooms.
-     *
-     * @mangled buildEventData__11CDungeonMapFiii
-     * @address 0x1C8540
-     * @size 0x680
      */
     void buildEventData(int floor_no, int enabled, int place_atla);
 
     /**
-     * @mangled SetMimicEvent__11CDungeonMapFfffii
-     * @address 0x1C8BC0
-     * @size 0x28C
-     * @unknownret
+     * Puts a mimic on the floor, as a treasure box and the event that opens it.
      */
     void SetMimicEvent(float x, float y, float z, int item_no, int kind);
 
     /**
      * Frees every mimic event, and the treasure box that each one shows.
-     *
-     * @mangled RsetMimicEvent__11CDungeonMapFv
-     * @address 0x1C8E50
-     * @size 0x7C
      */
     void RsetMimicEvent();
 
     /**
      * Returns the event that the player stands in, or -1 if the player stands in none.
-     *
-     * @mangled GetActiveIvent__11CDungeonMapFP9CFrameVu1
-     * @address 0x1C8ED0
-     * @size 0x144
      */
     int GetActiveIvent(CFrameVu1 *frame);
 
     /**
-     * @mangled buildDummyModel__11CDungeonMapFv
-     * @address 0x1C9020
-     * @size 0x5B0
-     * @unknownret
+     * Scatters up to eight dummy models over the empty cells of the grid.
      */
     void buildDummyModel();
 
     /**
      * Gives the table saying which of the floor's rooms join up.
-     *
-     * @mangled GetRoomLinkInfo__11CDungeonMapFv
-     * @address 0x1C95D0
-     * @size 0xC70
      */
     void GetRoomLinkInfo();
 
     /**
      * Puts the part that closes the right edge of the grid in every row.
-     *
-     * @mangled SetUnderLoad__11CDungeonMapFv
-     * @address 0x1CA240
-     * @size 0x50
      */
     void SetUnderLoad();
 
     /**
-     * @mangled CreatPartsList__11CDungeonMapFPiiii
-     * @address 0x1CA290
-     * @size 0x1E4
+     * Fills list with the column and row of each cell that holds a part from
+     * first_part to last_part, or with first_part alone when last_part is -1,
+     * and returns how many cells it found.
      */
     int CreatPartsList(int *list, int max, int first_part, int last_part);
 
     /**
-     * @mangled BuildCharaSpecialParts__11CDungeonMapFv
-     * @address 0x1CA480
-     * @size 0xDA4
-     * @unknownret
+     * Puts the doors that the party characters open on the floor.
      */
     void BuildCharaSpecialParts();
 
     /**
-     * @mangled SetCharaDoor__11CDungeonMapFi
-     * @address 0x1CB230
-     * @size 0x438
+     * Puts the door that a party character opens on a map part that suits it, and
+     * returns the number of cells that could take it.
      */
     int SetCharaDoor(int chara_no);
 
     /**
      * Builds a floor: places the rooms, joins them with corridors, fills the
      * grid with map parts and picks the set of parts that the floor draws with.
-     *
-     * @mangled buildRandomMap__11CDungeonMapFii
-     * @address 0x1CB670
-     * @size 0xA80
      */
     void buildRandomMap(int room_max, int first_build);
 
     /**
-     * @mangled initSubmap__11CDungeonMapFP14CDataAlloc2_1_
-     * @address 0x1CC0F0
-     * @size 0x3A0
-     * @unknownret
+     * Empties the floor and sizes the water surface from an allocator.
      */
     void initSubmap(CDataAlloc2<1> *alloc);
 
     /**
-     * @mangled initalize__11CDungeonMapFv
-     * @address 0x1CC490
-     * @size 0x390
-     * @unknownret
+     * Empties the floor and resets the draw distance.
      */
     void initalize();
 };
 
 /**
  * Turns the grid that the builder worked on into the map parts that draw it.
- *
- * @mangled mapPartsFilter__Fv
- * @address 0x1C5550
- * @size 0xBDC
  */
 void mapPartsFilter();
 

@@ -1,13 +1,18 @@
 #include "stubs/dun/gameloop.hpp"
 
-#include "dun/gameloop.hpp"
-
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
+#include <print>
+#include <string>
+#include <string_view>
 
 #include "battlemenu.hpp"
 #include "btactstatus.hpp"
@@ -24,16 +29,19 @@
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dataset.hpp"
+#include "debugfont.hpp"
 #include "dispctrl.hpp"
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dun/gameloop.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
 #include "editloop3.hpp"
 #include "frame.hpp"
 #include "frameattr.hpp"
+#include "framevu1.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
@@ -70,6 +78,7 @@
 #include "shot_freefuncs.hpp"
 #include "snd.hpp"
 #include "stealitem.hpp"
+#include "sysmes.hpp"
 #include "texture.hpp"
 #include "textureanime.hpp"
 #include "userstatus.hpp"
@@ -105,39 +114,16 @@ struct BOMB_INFO {
 
 STATIC_ASSERT(sizeof(BOMB_INFO) == 0x20);
 
-/**
- * Draws a window of debug text over the picture.
- */
-class CDebugFont {
-public:
-    s32   x;            /**< Distance of the left edge from the left of the screen. */
-    s32   y;            /**< Distance of the top edge from the top of the screen. */
-    s32   width;        /**< Distance from the left edge to the right edge. */
-    s32   height;       /**< Distance from the top edge to the bottom edge. */
-    char *texture_name; /**< Name of the texture the window draws its glyphs from. */
-    s32   alpha;        /**< Alpha the window composites its texture with. */
-    s32   length;       /**< Characters the text holds now. */
-    char  text[0x200];  /**< The text the window draws. */
-
-    /**
-     * @mangled Draw__10CDebugFontFv
-     * @address 0x13DF40
-     * @size 0x59C
-     * @unknownret
-     */
-    void Draw();
-};
-
-STATIC_ASSERT(sizeof(CDebugFont) == 0x21C);
+namespace {
 
 /* The weapon each character starts with. */
-s32 defWeapon__6[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
+constexpr std::array<s32, 6> defWeapon__6 = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
 
 /**
  * How far one character reaches when the game picks what to lock on to.
  */
-static inline float CharaRangeRate(CUserStatus *status) {
-    float range_rate[6] = {1.2f, 1.4f, 1.1f, 1.5f, 1.0f, 1.8f};
+float CharaRangeRate(CUserStatus *status) {
+    constexpr std::array<float, 6> range_rate = {1.2f, 1.4f, 1.1f, 1.5f, 1.0f, 1.8f};
 
     return range_rate[status->cur_chara];
 }
@@ -145,11 +131,101 @@ static inline float CharaRangeRate(CUserStatus *status) {
 /**
  * How tall one character stands, and how wide their collision reaches.
  */
-static inline float CharaHeight(CUserStatus *status) {
-    float chara_height[6] = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
+float CharaHeight(CUserStatus *status) {
+    constexpr std::array<float, 6> chara_height = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
 
     return chara_height[status->cur_chara];
 }
+
+/**
+ * First free byte of an arena, past the quadwords it has handed out.
+ */
+u_char *ArenaFree(CDataAlloc2<1> &arena) {
+    return arena.base + (static_cast<std::ptrdiff_t>(arena.used) * 16);
+}
+
+/**
+ * Puts every placed event of a floor back to idle.
+ */
+void ClearEventData(CDungeonEventMan &man) {
+    for (CDungeonEventData &state : man.event) {
+        state.event = nullptr;
+        state.switch_on = false;
+        state.enabled = false;
+        state.hold = 0;
+        state.chara_done = -1;
+    }
+}
+
+/**
+ * Empties a floor of its events, treasure boxes, Atla and room links before it is rebuilt.
+ */
+void ClearMapObjects(CDungeonMap &map) {
+    for (DUNGEON_EVENT &event : map.events) {
+        event.kind = DNG_EVENT_NONE;
+        event.reset_flag = 0;
+    }
+
+    for (TREASURE_BOX &box : map.boxes) {
+        box.used = 0;
+        box.lid_angle = 0.0f;
+        box.trap_no = 0;
+    }
+
+    map.box_num = 0;
+
+    for (ATRA_BOLL &atra : map.atra) {
+        atra.used = 0;
+    }
+
+    map.atra_num = 0;
+
+    for (ROOM_LINK_RESULT &link : map.room_link) {
+        link.used = 0;
+    }
+}
+
+/**
+ * Frees every item slot of a floor and sets the texture its gold draws with.
+ */
+void ClearRandomItems(CRandomItem &items, CTexture *gold) {
+    for (int slot = 0; slot < 32; slot++) {
+        items.id[slot] = -1;
+        items.pickup_event[slot] = -1;
+        items.pickup_blocked[slot] = 0;
+    }
+
+    items.gold_texture = gold;
+}
+
+/**
+ * Gives the weapon trail the grey it draws with when the weapon has no element.
+ */
+void SetWeaponTrailDefaultColour() {
+    CWeaponFx.colour[0].r = CWeaponFx.colour[2].r = 0x40;
+    CWeaponFx.colour[0].g = CWeaponFx.colour[2].g = 0x40;
+    CWeaponFx.colour[0].b = CWeaponFx.colour[2].b = 0x40;
+    CWeaponFx.colour[1].r = CWeaponFx.colour[3].r = 6;
+    CWeaponFx.colour[1].g = CWeaponFx.colour[3].g = 6;
+    CWeaponFx.colour[1].b = CWeaponFx.colour[3].b = 6;
+}
+
+/**
+ * Empties the weapon trail and puts its colour back to the default.
+ */
+void ClearWeaponTrail() {
+    for (auto &used : CWeaponFx.used) {
+        used = 0;
+    }
+
+    SetWeaponTrailDefaultColour();
+    CWeaponFx.cursor = 0;
+    CWeaponFx.timer = 0;
+}
+
+void LoadData();
+
+} // namespace
 
 /**
  * Names what the dungeon hands the Georama editor to follow.
@@ -160,194 +236,29 @@ struct GAME_ENV {
 };
 
 /**
- * Turns the stick into the motion the player's character walks with.
- *
- * @mangled keyCtrl__FffP11MOTION_INFO
- */
-int keyCtrl(float x, float y, MOTION_INFO *motion);
-
-/**
- * Puts one system message on the screen.
- *
- * @mangled SetSystemMes__FiiiiPiPi
- */
-void SetSystemMes(int mes_no, int frames, int x, int y, int *result, int *unk);
-
-/**
- * Tells the player that only Toan can take an atla.
- *
- * @mangled NotGetAtraMes__Fii
- */
-void NotGetAtraMes(int chara, int frames);
-
-/**
- * Tells the player that a character has died.
- *
- * @mangled DeadMes__Fii
- */
-void DeadMes(int chara, int frames);
-
-/**
- * Tells the player that the whole party has died.
- *
- * @mangled AllDeadMes__Fi
- */
-void AllDeadMes(int frames);
-
-/**
- * Runs the debug information overlay and gives back what the player chose.
- *
- * @mangled DebugInfomationIF__Fv
- */
-int DebugInfomationIF();
-
-/**
- * Puts every sound effect sequence the dungeon is playing back to silence.
- *
- * @mangled SndSeSeqAllStop__Fv
- */
-void SndSeSeqAllStop();
-
-/**
- * @mangled BtMiniChrSelect_Loop__Fv
- */
-int BtMiniChrSelect_Loop();
-
-/**
- * @mangled BtEscape_Loop__Fv
- */
-int BtEscape_Loop();
-
-/**
- * Starts the large treasure box opening.
- *
- * @mangled BtGetTreasureboxBig_Init__Fv
- */
-void BtGetTreasureboxBig_Init();
-
-/**
- * @mangled BtGetTreasureboxBig_Loop__Fv
- */
-int BtGetTreasureboxBig_Loop();
-
-/**
- * Starts the small treasure box opening.
- *
- * @mangled BtGetTreasureboxSmall_Init__Fi
- */
-void BtGetTreasureboxSmall_Init(int dungeon);
-
-/**
- * @mangled BtGetTreasureboxSmall_Loop__Fv
- */
-int BtGetTreasureboxSmall_Loop();
-
-/**
- * Starts the short atla pickup.
- *
- * @mangled BtAtraGetShort_Init__Fv
- */
-void BtAtraGetShort_Init();
-
-/**
- * @mangled BtAtraGetShort_Loop__Fii
- */
-int BtAtraGetShort_Loop(int dungeon, int floor);
-
-/**
- * @mangled BtGetGateKey_Loop__Fv
- */
-int BtGetGateKey_Loop();
-
-/**
- * Plays the action that each character fires with the action button.
- *
- * @mangled ToanKey_On__Fv
- */
-void ToanKey_On();
-
-/**
- * @mangled ToanKey_Play__Fv
- */
-void ToanKey_Play();
-
-/**
- * @mangled GoroKey_On__Fv
- */
-void GoroKey_On();
-
-/**
- * @mangled GoroKey_Play__Fv
- */
-void GoroKey_Play();
-
-/**
- * @mangled UngagaKey_On__Fv
- */
-void UngagaKey_On();
-
-/**
- * @mangled UngagaKey_Play__Fv
- */
-void UngagaKey_Play();
-
-/**
- * Takes every system message off the screen.
- *
- * @mangled ClearSystemMes__Fv
- */
-void ClearSystemMes();
-
-/**
  * Reads the models of the items the player can run out of a pack file.
- *
- * @mangled BtSetActiveItemModel__FPUi
  */
 void BtSetActiveItemModel(unsigned int *pack);
 
 /**
  * Forgets every gate key the player carried into the dungeon.
- *
- * @mangled ClearGateKeyStack__Fv
  */
 void ClearGateKeyStack();
 
 /**
- * @mangled SndAmbientSetVol__Fi
+ * Sets the volume of the dungeon's ambient sound.
  */
 void SndAmbientSetVol(int volume);
 
 /**
- * Puts the battle music back to the start.
- *
- * @mangled BtBattleMusic_Init__Fv
- */
-void BtBattleMusic_Init();
-
-/**
  * Builds the list of Atlamillia the dungeon lays out.
- *
- * @mangled BtAtraListMake__Fi
  */
 void BtAtraListMake(int dungeon);
 
 /**
  * Puts the debug information overlay back to the start.
- *
- * @mangled DebugInfomationInit__Fv
  */
 void DebugInfomationInit();
-
-/**
- * @mangled LoadData__Fv__3
- * @address 0x1DBA930
- * @size 0x6A0
- * @unknownret
- * @note disambiguated by disassembler ("__3" suffix); real retail name has no suffix
- */
-static void LoadData();
-
-/* The overlay's large data, in the order retail's link lays it out. */
 
 /* The battle status of every character in the party. */
 BT_ACT_STATUS BtActStatus;
@@ -397,8 +308,12 @@ CWeaponElement CWeaponElFx[4];
 /* The five Atlamillia effects. */
 CSHOT_EFFECT MasekiEffect[5];
 
+namespace {
+
 /* The effect the player's own character shoots. */
 CSHOT_EFFECT CharaMainEffect;
+
+} // namespace
 
 /* The effect the player's own character breaks things with. */
 CSHOT_EFFECT CharaMainEffectCrash;
@@ -412,10 +327,15 @@ CCharacter CharaHand;
 /* The weapon models the player's character can hold. */
 CCharacter MainWeapon;
 CCharacter DefaultWeapon;
+
+namespace {
+
 CCharacter CrashWeapon;
 
 /* The weapon that the player has equipped. */
 WEAPON_HAVE WeaponHave;
+
+} // namespace
 
 /* The messages the dungeon shows over the picture. */
 CDngMessageMan DngMessMan;
@@ -436,8 +356,13 @@ CNPCharacter NPCUnit[6];
 CCharacter Water_Splash;
 
 /* The circle a trap draws on the floor, and its texture animations. */
-CCharacter    Trap_Circle;
+CCharacter Trap_Circle;
+
+namespace {
+
 CTexAnimeData Trap_Circle_TexAnim[16];
+
+} // namespace
 
 /* The effect that plays as the player escapes the dungeon. */
 CCharacter EscapeEffect;
@@ -475,8 +400,12 @@ BOMB_INFO BombInfo;
 /* The dust the player kicks up as they run. */
 CRunEffect CRunFx__2;
 
+namespace {
+
 /* The wind that blows across the dungeon. */
 CWind kaze;
+
+} // namespace
 
 /* Where the marker over an event stands. */
 sceVu0FVECTOR iventPos;
@@ -507,11 +436,17 @@ CMainItemModel mainItemModel;
 /* The models of the items the player is running. */
 CActiveItemPack activeItem;
 
+namespace {
+
 /* How square on to the player each monster of the floor stands. */
 float MonstorPicupInner[36];
 
+} // namespace
+
 /* The damage numbers the dungeon draws. */
 CHitValue HitValue[32];
+
+namespace {
 
 /* The shots the player's character has in the air. */
 CSHOT ShotData;
@@ -522,20 +457,30 @@ CSHOT_EFFECT_PACK ShotEffect;
 /* The machine gun that Osmond's rapid-fire action shoots. */
 CSHOT_MACHINGUN OzumondShot;
 
+} // namespace
+
 /* The flame that Osmond's flamethrower action shoots. */
 CSHOT_FIREBAR OzumondFire;
 
 /* The bullets that Osmond's machine gun shoots. */
 CHIT_MACHINGUN_EFFECT OzumondShotEffect;
 
+namespace {
+
 /* The collisions of the floor the player is on. */
 CCollisionData CColData;
+
+} // namespace
 
 /* The bombs the player has thrown. */
 CItemBombEffect CBomb__2[3];
 
+namespace {
+
 /* The shock wave the dungeon can run. */
 CShockWave ShockWave;
+
+} // namespace
 
 /* How fast the player fell the frame before. */
 sceVu0FVECTOR veloOld;
@@ -547,19 +492,36 @@ CTexAnimeData BtTexAnimeData[96];
 /* The texture animations of each character that walks the dungeon. */
 CTexAnimeData BtNPCTexAnimeData[4][32];
 
+namespace {
+
 /* One texture animation for every texture the player's model draws. */
 CTexAnimeData CharaMainTexAnim[64];
 
 /* The buffers the dungeon loads its models, messages and scripts into. */
 CDataAlloc2<1> MainModelBuffer(-1);
+
+} // namespace
+
 CDataAlloc2<1> MapModelBuffer(-1);
+
+namespace {
+
 CDataAlloc2<1> CharaModelBuffer(-1);
 CDataAlloc2<1> WeaponModelBuffer(-1);
 CDataAlloc2<1> WEffectModelBuffer(-1);
 CDataAlloc2<1> MasekiModelBuffer(-1);
 CDataAlloc2<1> BtMesBuffer(-1);
+
+} // namespace
+
 CDataAlloc2<1> BtSteebMesBuffer(-1);
+
+namespace {
+
 CDataAlloc2<1> BtStartLogoBuffer(-1);
+
+} // namespace
+
 CDataAlloc2<1> MonstorModelBuffer(-1);
 
 /* Script working memory, one block per monster on the floor. */
@@ -569,7 +531,13 @@ CDataAlloc2<1> MonstorScriptBuffer[16];
 CDataAlloc2<1> BtItemCashArea[6];
 CDataAlloc2<1> BtScriptWorkBuffer(-1);
 CDataAlloc2<1> BtCashBuffer(-1);
+
+namespace {
+
 CDataAlloc2<1> BtScriptBuffer(-1);
+
+} // namespace
+
 CDataAlloc2<1> BtSystemScriptFileBuffer(-1);
 
 /* The name of the texture that the floor number draws with. */
@@ -578,6 +546,8 @@ char floor_name[32];
 /* Where the camera looks, relative to what it follows. */
 sceVu0FVECTOR ref_off;
 
+namespace {
+
 /* Where Ruby's shot starts, and the way it flies. */
 sceVu0FVECTOR ruby_effect_pos;
 sceVu0FVECTOR ruby_effect_vec;
@@ -585,159 +555,161 @@ sceVu0FVECTOR ruby_effect_vec;
 /* The colour the ambient-colour animation drives the player's model to. */
 float unitAmbientAnime_rgb[3];
 
+} // namespace
+
 /* The debug message overlay. */
 CDebugFont CDbgMsg;
 
-/* The overlay's initialised data, in the order retail's link lays it out. */
+namespace {
 
 // clang-format off
 /* The effect each playable character, and each of Ruby's and Osmond's forms, draws. */
 BT_SHOT_EFFECT MyEntryEffect_TOAN = {
-    "c01_fuusya", 0, 0,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {20.0f, 0.0f, 0.0f, 0.0f},
-    160, 8, 8, 2, 2,
-    {0, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "c01_fuusya", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {20.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 160, .damage = 8, .hit_flags = 8, .hit_kind = 2, .target = 2,
+    .motion = {0, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_SYAO = {
-    "mgan01", 0, 0,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {1.5f, 0.0f, 0.0f, 0.0f},
-    160, 8, 0, 2, 2,
-    {0, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "mgan01", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {1.5f, 0.0f, 0.0f, 0.0f},
+    .life_time = 160, .damage = 8, .hit_flags = 0, .hit_kind = 2, .target = 2,
+    .motion = {0, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_GORO = {
-    "c06a_tameex", 0, 0,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {15.0f, 0.0f, 0.0f, 0.0f},
-    160, 8, 0, 2, 2,
-    {0, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "c06a_tameex", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {15.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 160, .damage = 8, .hit_flags = 0, .hit_kind = 2, .target = 2,
+    .motion = {0, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_RUBY_F1 = {
-    "c05_f03", 0, 1,
-    {2.5f, 2.5f, 0.0f, 0.0f}, {5.0f, 5.0f, 0.0f, 0.0f},
-    180, 8, 1, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, 101, -1},
+    .model_name = "c05_f03", .stationary = 0, .face_flight = 1,
+    .speed = {2.5f, 2.5f, 0.0f, 0.0f}, .radius = {5.0f, 5.0f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 1, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, 101, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_RUBY_C1 = {
-    "c05_r03", 0, 1,
-    {2.5f, 2.5f, 0.0f, 0.0f}, {5.0f, 5.0f, 0.0f, 0.0f},
-    180, 8, 2, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, 102, -1},
+    .model_name = "c05_r03", .stationary = 0, .face_flight = 1,
+    .speed = {2.5f, 2.5f, 0.0f, 0.0f}, .radius = {5.0f, 5.0f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 2, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, 102, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_RUBY_T1 = {
-    "c05_t03", 0, 1,
-    {2.5f, 2.5f, 0.0f, 0.0f}, {5.0f, 5.0f, 0.0f, 0.0f},
-    180, 8, 4, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, 103, -1},
+    .model_name = "c05_t03", .stationary = 0, .face_flight = 1,
+    .speed = {2.5f, 2.5f, 0.0f, 0.0f}, .radius = {5.0f, 5.0f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 4, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, 103, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_RUBY_W1 = {
-    "c05_e03", 0, 1,
-    {2.5f, 2.5f, 0.0f, 0.0f}, {5.0f, 5.0f, 0.0f, 0.0f},
-    180, 8, 8, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, 104, -1},
+    .model_name = "c05_e03", .stationary = 0, .face_flight = 1,
+    .speed = {2.5f, 2.5f, 0.0f, 0.0f}, .radius = {5.0f, 5.0f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 8, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, 104, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_RUBY_H1 = {
-    "c05_h03", 0, 1,
-    {2.5f, 2.5f, 0.0f, 0.0f}, {5.0f, 5.0f, 0.0f, 0.0f},
-    180, 8, 16, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, 105, -1},
+    .model_name = "c05_h03", .stationary = 0, .face_flight = 1,
+    .speed = {2.5f, 2.5f, 0.0f, 0.0f}, .radius = {5.0f, 5.0f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 16, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, 105, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_UNGAGA = {
-    "c10a_ex", 0, 1,
-    {0.2f, 0.9f, 0.2f, 0.2f}, {8.0f, 8.0f, 6.0f, 6.0f},
-    90, 20, 8, 3, 2,
-    {0, 1, 2, 2}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "c10a_ex", .stationary = 0, .face_flight = 1,
+    .speed = {0.2f, 0.9f, 0.2f, 0.2f}, .radius = {8.0f, 8.0f, 6.0f, 6.0f},
+    .life_time = 90, .damage = 20, .hit_flags = 8, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, 2}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_OZUMOND_M = {
-    "mgan01", 0, 0,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f},
-    10, 8, 0, 3, 2,
-    {1, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "mgan01", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {0.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 10, .damage = 8, .hit_flags = 0, .hit_kind = 3, .target = 2,
+    .motion = {1, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_OZUMOND_H = {
-    "rgan01", 0, 1,
-    {3.5f, 3.5f, 0.2f, 0.2f}, {0.0f, 4.5f, 0.0f, 0.0f},
-    180, 8, 0, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "rgan01", .stationary = 0, .face_flight = 1,
+    .speed = {3.5f, 3.5f, 0.2f, 0.2f}, .radius = {0.0f, 4.5f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 0, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_OZUMOND_H2 = {
-    "rgan02", 0, 1,
-    {3.5f, 3.5f, 0.2f, 0.2f}, {0.0f, 4.5f, 0.0f, 0.0f},
-    180, 8, 0, 3, 2,
-    {0, 1, 2, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "rgan02", .stationary = 0, .face_flight = 1,
+    .speed = {3.5f, 3.5f, 0.2f, 0.2f}, .radius = {0.0f, 4.5f, 0.0f, 0.0f},
+    .life_time = 180, .damage = 8, .hit_flags = 0, .hit_kind = 3, .target = 2,
+    .motion = {0, 1, 2, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_OZUMOND_V2 = {
-    "mgan02", 0, 0,
-    {0.0f, 0.5f, 0.2f, 0.2f}, {0.0f, 1.5f, 0.0f, 0.0f},
-    10, 8, 0, 3, 2,
-    {1, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "mgan02", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.5f, 0.2f, 0.2f}, .radius = {0.0f, 1.5f, 0.0f, 0.0f},
+    .life_time = 10, .damage = 8, .hit_flags = 0, .hit_kind = 3, .target = 2,
+    .motion = {1, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_OZUMOND_G = {
-    "mgan03", 0, 0,
-    {0.0f, 0.5f, 0.2f, 0.2f}, {0.0f, 1.5f, 0.0f, 0.0f},
-    10, 8, 0, 3, 2,
-    {1, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "mgan03", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.5f, 0.2f, 0.2f}, .radius = {0.0f, 1.5f, 0.0f, 0.0f},
+    .life_time = 10, .damage = 8, .hit_flags = 0, .hit_kind = 3, .target = 2,
+    .motion = {1, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_OZUMOND_S = {
-    "mgan04", 0, 0,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f},
-    10, 8, 0, 3, 2,
-    {1, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "mgan04", .stationary = 0, .face_flight = 0,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {0.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 10, .damage = 8, .hit_flags = 0, .hit_kind = 3, .target = 2,
+    .motion = {1, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
@@ -763,53 +735,55 @@ BT_SHOT_EFFECT *MyEffectEntry_Tbl[15] = {
 // clang-format off
 /* The effect each of the five Atlamillia draws as it is taken. */
 BT_SHOT_EFFECT MyEntryEffect_Maseki00 = {
-    "maseki_ex", 0, 1,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f, 0.0f},
-    3, 35, 1, 3, 2,
-    {0, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "maseki_ex", .stationary = 0, .face_flight = 1,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {10.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 3, .damage = 35, .hit_flags = 1, .hit_kind = 3, .target = 2,
+    .motion = {0, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_Maseki01 = {
-    "maseki_ex", 0, 1,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f, 0.0f},
-    3, 35, 2, 3, 2,
-    {1, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "maseki_ex", .stationary = 0, .face_flight = 1,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {10.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 3, .damage = 35, .hit_flags = 2, .hit_kind = 3, .target = 2,
+    .motion = {1, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_Maseki02 = {
-    "maseki_ex", 0, 1,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f, 0.0f},
-    3, 35, 4, 3, 2,
-    {3, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "maseki_ex", .stationary = 0, .face_flight = 1,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {10.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 3, .damage = 35, .hit_flags = 4, .hit_kind = 3, .target = 2,
+    .motion = {3, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_Maseki03 = {
-    "maseki_ex", 0, 1,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f, 0.0f},
-    3, 35, 8, 3, 2,
-    {2, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "maseki_ex", .stationary = 0, .face_flight = 1,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {10.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 3, .damage = 35, .hit_flags = 8, .hit_kind = 3, .target = 2,
+    .motion = {2, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
 
 // clang-format off
 BT_SHOT_EFFECT MyEntryEffect_Maseki04 = {
-    "maseki_ex", 0, 1,
-    {0.0f, 0.0f, 0.0f, 0.0f}, {10.0f, 0.0f, 0.0f, 0.0f},
-    3, 35, 16, 3, 2,
-    {4, -1, -1, -1}, -1, {0, 0}, 0.0f, 0,
-    {-1, -1, -1, -1},
+    .model_name = "maseki_ex", .stationary = 0, .face_flight = 1,
+    .speed = {0.0f, 0.0f, 0.0f, 0.0f}, .radius = {10.0f, 0.0f, 0.0f, 0.0f},
+    .life_time = 3, .damage = 35, .hit_flags = 16, .hit_kind = 3, .target = 2,
+    .motion = {4, -1, -1, -1}, .end_effect = -1, .unk_056 = {0, 0}, .bomb_scale = 0.0f, .bomb_damage = 0,
+    .sound = {-1, -1, -1, -1},
 };
 // clang-format on
+
+} // namespace
 
 /* A matrix of zeros, which every light of a field starts from. */
 sceVu0FMATRIX ZeroMatrix = {
@@ -823,6 +797,8 @@ sceVu0FMATRIX ZeroMatrix = {
 float main_fogRate[4] = {1000.0f, 3500.0f, 0.0f, 255.0f};
 float sub_fogRate[4] = {1000.0f, 3500.0f, 0.0f, 255.0f};
 
+namespace {
+
 /* The ambient light every field starts from. */
 sceVu0FVECTOR def_ambientlight = {64.0f, 64.0f, 64.0f, 128.0f};
 
@@ -834,11 +810,24 @@ sceVu0FMATRIX def_lightcolor = {
     {0.0f,   0.0f,   0.0f,   0.0f  }
 };
 
+} // namespace
+
 /* How the treasure-box models, and the effects over them, play their opening motions. */
-MOTION_INFO itemOpenSmall_info = {10, 80, 0.5f, 0};
-MOTION_INFO itemOpenSmallFx_info = {10, 80, 0.5f, 0};
-MOTION_INFO itemOpenBig_info = {10, 80, 0.5f, 0};
-MOTION_INFO itemOpenBigFx_info = {10, 80, 0.5f, 0};
+MOTION_INFO itemOpenSmall_info = {.start = 10, .end = 80, .speed = 0.5f, .unk_0C = 0};
+
+namespace {
+
+MOTION_INFO itemOpenSmallFx_info = {.start = 10, .end = 80, .speed = 0.5f, .unk_0C = 0};
+
+} // namespace
+
+MOTION_INFO itemOpenBig_info = {.start = 10, .end = 80, .speed = 0.5f, .unk_0C = 0};
+
+namespace {
+
+MOTION_INFO itemOpenBigFx_info = {.start = 10, .end = 80, .speed = 0.5f, .unk_0C = 0};
+
+} // namespace
 
 /* How fast the player is being thrown. */
 sceVu0FVECTOR velo__2 = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -851,36 +840,38 @@ sceVu0FVECTOR blowVelo = {0.0f, 0.0f, 0.0f, 0.0f};
 
 /* Every texture the dungeon loads on its way in, and the block each goes to. */
 LOADTEXTURE_INFO2 texdata__2[] = {
-    {"#frame_image#640#" SCREEN_HEIGHT_STR "#4",     1,  0},
-    {"dun/etc/cursor.img",                           1,  0},
-    {"gatekey00.img",                                1,  0},
-    {"#water#640#" HALF_BUFFER_HEIGHT_STR "#4",      13, 0},
-    {"dun/etc/atrtx.img",                            22, 0},
-    {"wepready.img",                                 2,  0},
-    {"#shadow_buf#640#" HALF_BUFFER_HEIGHT_STR "#3", 15, 0},
-    {"dun/effect/basefx00.img",                      18, 0},
-    {"basefx01.img",                                 18, 0},
-    {"dun/d01/effect/fx_foot.img",                   18, 0},
-    {"dun/effect/bombfx00.img",                      19, 0},
-    {"pause.img",                                    7,  0},
-    {"#dbgwork#640#" SCREEN_HEIGHT_STR "#3",         12, 0},
-    {"check/ankfont.img",                            12, 0},
-    {"element.img",                                  18, 0},
-    {"igetfx.img",                                   22, 0},
-    {0,                                              0,  0},
+    {.name = "#frame_image#640#" SCREEN_HEIGHT_STR "#4",     .block_no = 1,  .mipmap = 0},
+    {.name = "dun/etc/cursor.img",                           .block_no = 1,  .mipmap = 0},
+    {.name = "gatekey00.img",                                .block_no = 1,  .mipmap = 0},
+    {.name = "#water#640#" HALF_BUFFER_HEIGHT_STR "#4",      .block_no = 13, .mipmap = 0},
+    {.name = "dun/etc/atrtx.img",                            .block_no = 22, .mipmap = 0},
+    {.name = "wepready.img",                                 .block_no = 2,  .mipmap = 0},
+    {.name = "#shadow_buf#640#" HALF_BUFFER_HEIGHT_STR "#3", .block_no = 15, .mipmap = 0},
+    {.name = "dun/effect/basefx00.img",                      .block_no = 18, .mipmap = 0},
+    {.name = "basefx01.img",                                 .block_no = 18, .mipmap = 0},
+    {.name = "dun/d01/effect/fx_foot.img",                   .block_no = 18, .mipmap = 0},
+    {.name = "dun/effect/bombfx00.img",                      .block_no = 19, .mipmap = 0},
+    {.name = "pause.img",                                    .block_no = 7,  .mipmap = 0},
+    {.name = "#dbgwork#640#" SCREEN_HEIGHT_STR "#3",         .block_no = 12, .mipmap = 0},
+    {.name = "check/ankfont.img",                            .block_no = 12, .mipmap = 0},
+    {.name = "element.img",                                  .block_no = 18, .mipmap = 0},
+    {.name = "igetfx.img",                                   .block_no = 22, .mipmap = 0},
+    {.name = nullptr,                                        .block_no = 0,  .mipmap = 0},
 };
+
+namespace {
 
 /* The textures the loading screen itself draws with. */
 LOADTEXTURE_INFO texdata2[3] = {
-    {"#dbgwork#640#" SCREEN_HEIGHT_STR "#3", 12, 0},
-    {"check/ankfont.img",                    12, 0},
-    {"",                                     0,  0},
+    {.name = "#dbgwork#640#" SCREEN_HEIGHT_STR "#3", .block_no = 12, .mipmap = 0},
+    {.name = "check/ankfont.img",                    .block_no = 12, .mipmap = 0},
+    {.name = "",                                     .block_no = 0,  .mipmap = 0},
 };
-
-/* The overlay's initialised small data, in the order retail's link lays it out. */
 
 /* How far the camera is allowed to pull back. */
 s32 camera_dist_mode__3 = 1;
+
+} // namespace
 
 /* The colour the fog draws, on the front and the back floors. */
 u8 main_fogColor[3] = {0x60, 0xA0, 0xEF};
@@ -894,21 +885,24 @@ s32 oldUnitNow = -1;
 
 /* Distances the camera keeps from what it follows. */
 float camera_up_near_dist = 60.0f;
+
+namespace {
+
 float camera_near_dist__2 = 10.0f;
 float camera_far_dist__2 = 80.0f;
 
 /* The colours the enemy life gauge draws the life it has left with. */
-spRGBA ELife1 = {0xFF, 0x00, 0x00, 0x80};
-spRGBA ELife2 = {0xFF, 0xB4, 0x00, 0x80};
+spRGBA ELife1 = {.r = 0xFF, .g = 0x00, .b = 0x00, .a = 0x80};
+spRGBA ELife2 = {.r = 0xFF, .g = 0xB4, .b = 0x00, .a = 0x80};
 
 /* The colours the enemy life gauge draws its border with. */
-spRGBA ELifeB1 = {0x80, 0x9B, 0xFF, 0x80};
-spRGBA ELifeB2 = {0x80, 0x9B, 0xFF, 0x80};
+spRGBA ELifeB1 = {.r = 0x80, .g = 0x9B, .b = 0xFF, .a = 0x80};
+spRGBA ELifeB2 = {.r = 0x80, .g = 0x9B, .b = 0xFF, .a = 0x80};
 
 /* The colour the enemy life gauge draws the life it has lost with. */
-spRGBA ELifeN1 = {0x00, 0x00, 0x20, 0x80};
+spRGBA ELifeN1 = {.r = 0x00, .g = 0x00, .b = 0x20, .a = 0x80};
 
-/* The overlay's own small data, in the order retail's link lays it out. */
+} // namespace
 
 /* What the dungeon hands the Georama editor to follow. */
 GAME_ENV GameEnv;
@@ -916,12 +910,21 @@ GAME_ENV GameEnv;
 /* The player's dungeon progress and party. */
 CUserStatus *UserStatus;
 
+namespace {
+
 /* How long the dungeon has been waiting for the player, in frames. */
 s32 timeOutCount;
+
+} // namespace
+
 s32 BtRubyDoorKey;
+
+namespace {
 
 /* Whether the debug overlay draws. */
 s32 BtDebugFlag;
+
+} // namespace
 
 /* Whether the game is playing itself for the attract loop. */
 s32 autoDemo;
@@ -954,7 +957,13 @@ float viewAngleV__2;
 
 /* Which way the player is looking. */
 s32 viewMode__2;
+
+namespace {
+
 s32 faceEyeCount;
+
+} // namespace
+
 s32 cameraAuto;
 
 /* Whether the camera was moving itself before that. */
@@ -963,7 +972,7 @@ s32 cameraAutoOld;
 /* Whether the player is in the back dungeon rather than the main one. */
 s32 BtUraDongeon;
 
-/** Provides the current dungeon map. */
+/* Provides the current dungeon map. */
 CDungeonMap *NowDngMap;
 
 /* The Dran field being drawn. */
@@ -995,8 +1004,12 @@ s32 CMonUnitHyde;
 /* Whether the player's character holds an item out. */
 s32 CharaMainHandViewFlag;
 
+namespace {
+
 /* Whether the monsters draw this frame. */
 s32 MonstorViewFlag;
+
+} // namespace
 
 /* The effect the player's character is shooting now. */
 CSHOT_EFFECT *NowMainEffect;
@@ -1010,8 +1023,12 @@ WEAPON_HAVE *NowWeaponHave;
 /* The items lying on the floor the dungeon is drawing. */
 CRandomItem *RandomItem;
 
-/** Provides the model used when an item is stolen. */
+namespace {
+
+/* Provides the model used when an item is stolen. */
 CFrameVu1 *StealModel;
+
+} // namespace
 
 /* The frame that the player's model hangs off. */
 CFrameVu1 *CharaFrame;
@@ -1144,8 +1161,12 @@ CSHOT *NowShotData;
 /* The shot effects the dungeon has running. */
 CSHOT_EFFECT_PACK *NowShotEffect;
 
+namespace {
+
 /* The effect data Osmond's default weapon shoots. */
 unsigned int *ozumond_default_effect;
+
+} // namespace
 
 /* The collisions the dungeon tests against. */
 CCollisionData *NowColData;
@@ -1176,11 +1197,16 @@ s32 BtEventMode;
 /* The texture that the floor number draws with. */
 CTexture *TEX_Floor1;
 CTexture *TEX_WepGage;
+
+namespace {
+
 CTexture *TEX_Stayframe;
 CTexture *TEX_Shadow;
 
 /* The texture a dropped pile of gold draws with. */
 CTexture *GoldTex;
+
+} // namespace
 
 /* How long the camera waits before it moves itself, in frames. */
 s32 defCameraWait;
@@ -1188,75 +1214,66 @@ s32 defCameraWait;
 /* Whether the monster names are hidden. */
 s32 MonstorNameOff;
 
-void LoadBaseTexture();
-
 int LoadTempTexture(char **files, int block, char *buffer) {
-    LOADTEXTURE_INFO2 info[7] = {0};
-    int               i;
-    int               total;
-    int               size;
+    std::array<LOADTEXTURE_INFO2, 7> info{};
+    int                              total = 0;
 
-    i = 0;
-    total = 0;
+    for (int i = 0; files[i] != nullptr; i++) {
+        int size = 0;
 
-    while (files[i] != NULL) {
         LoadFile(files[i], buffer, &size);
         wait_now_loading_vsync();
         total += size;
         info[i].block_no = block;
         info[i].name = buffer;
+        // Each file starts on the next 64-byte boundary after the previous one.
         buffer += ((size >> 6) + 1) << 6;
-        i++;
     }
 
     TexManager.DeleteTextureBlock(block);
-    TexManager.LoadTextureBlockEX(block, info);
+    TexManager.LoadTextureBlockEX(block, info.data());
     return total;
 }
 
 void SetTempTexture(int block, char *name) {
-    LOADTEXTURE_INFO2 info[2] = {0};
+    std::array<LOADTEXTURE_INFO2, 2> info{};
 
     info[0].block_no = block;
     info[0].name = name;
     TexManager.DeleteTextureBlock(block);
-    TexManager.LoadTextureBlockEX(block, info);
+    TexManager.LoadTextureBlockEX(block, info.data());
 }
 
 void MemoryMapDump() {
-    printf("MainVisualData  \t%d/%d\n", MainModelBuffer.used, 0x9470);
-    printf("MotionData      \t%d/%d\n", MotionData.used, 10000);
-    printf("CharaModelBuffer\t%d/%d\n", CharaModelBuffer.used, 0x33450);
-    printf("MasekiModelBuffer\t%d/%d\n", MasekiModelBuffer.used, 0xFDE8);
-    printf("MapVisualData   \t%d/%d\n", MapModelBuffer.used, 0xA7F80);
-    s32 monster_size = MonstorModelBuffer.limit;
-
-    printf("MonstorModelBuffer\t%d/%d\n", MonstorModelBuffer.used, monster_size);
-    printf("SystemScriptBuffer\t%d/%d\n", BtSystemScriptFileBuffer.used, 0x88B8);
-    printf("StartLogoBuffer\t    %d/%d\n", BtStartLogoBuffer.used, 5000);
-    printf("BtMesBuffer\t        %d/%d\n", BtMesBuffer.used, 0x2904);
-    printf("BtSteebMesBuffer\t%d/%d\n", BtSteebMesBuffer.used, 0xDAC);
+    std::println("MainVisualData  \t{}/{}", MainModelBuffer.used, 0x9470);
+    std::println("MotionData      \t{}/{}", MotionData.used, 10000);
+    std::println("CharaModelBuffer\t{}/{}", CharaModelBuffer.used, 0x33450);
+    std::println("MasekiModelBuffer\t{}/{}", MasekiModelBuffer.used, 0xFDE8);
+    std::println("MapVisualData   \t{}/{}", MapModelBuffer.used, 0xA7F80);
+    std::println("MonstorModelBuffer\t{}/{}", MonstorModelBuffer.used, MonstorModelBuffer.limit);
+    std::println("SystemScriptBuffer\t{}/{}", BtSystemScriptFileBuffer.used, 0x88B8);
+    std::println("StartLogoBuffer\t    {}/{}", BtStartLogoBuffer.used, 5000);
+    std::println("BtMesBuffer\t        {}/{}", BtMesBuffer.used, 0x2904);
+    std::println("BtSteebMesBuffer\t{}/{}", BtSteebMesBuffer.used, 0xDAC);
     TexManager.print_buff_info();
 }
 
 void GameInit() {
-    int    size;
-    char   name[64];
-    char   gate_name[32];
-    short *mes;
+    int         size = 0;
+    std::string name;
+    short      *mes = nullptr;
 
     BtDebugFlag = 0;
     exitMenuFlag = 0;
     BtAllDrawFlag = 0;
     selectMapNo = main_select_menu_no;
-    UserStatus = (CUserStatus *) SaveData->GetDngStatus();
+    UserStatus = SaveData->GetDngStatus();
     UserStatus->Init();
 
     if (BtEventInfo.no_status_recover != 1) {
-        int          i;
         CUserStatus *status = UserStatus;
 
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; i++) {
             status->hp[i] = status->max_hp[i];
             status->ailments[i] = 0;
             status->ailment_frames[i] = 0;
@@ -1289,12 +1306,12 @@ void GameInit() {
     SetDataBuffer(&BtStartLogoBuffer, 5000);
     SetDataBuffer(&BtScriptWorkBuffer, 100000);
 
-    for (int i = 0; i < 6; i++) {
-        SetDataBuffer(&BtItemCashArea[i], 2501);
+    for (auto &arena : BtItemCashArea) {
+        SetDataBuffer(&arena, 2501);
     }
 
-    for (int i = 0; i < 16; i++) {
-        SetDataBuffer(&MonstorScriptBuffer[i], 1875);
+    for (auto &arena : MonstorScriptBuffer) {
+        SetDataBuffer(&arena, 1875);
     }
 
     SetDataBuffer(&MapModelBuffer, 0xA7F80);
@@ -1319,25 +1336,15 @@ void GameInit() {
     NowDngMap->initalize();
     BtTexAnime.Initialize(BtTexAnimeData, 96);
 
-    for (int i = 0; i < 64; i++) {
-        CDungeonEvent *slot = &DngEventMan.slot[i];
-
-        slot->name[0] = '\0';
-        slot->script_no = -1;
-        slot->parts_id = -1;
-        slot->switch_on = false;
-        slot->enabled = false;
+    for (CDungeonEvent &slot : DngEventMan.slot) {
+        slot.name[0] = '\0';
+        slot.script_no = -1;
+        slot.parts_id = -1;
+        slot.switch_on = false;
+        slot.enabled = false;
     }
 
-    for (int i = 0; i < 96; i++) {
-        CDungeonEventData *state = &DngEventMan.event[i];
-
-        state->event = NULL;
-        state->switch_on = false;
-        state->enabled = false;
-        state->hold = 0;
-        state->chara_done = -1;
-    }
+    ClearEventData(DngEventMan);
 
     NowEventMan = &DngEventMan;
     lightingMode = 0;
@@ -1346,7 +1353,7 @@ void GameInit() {
         CDranMapField *field = &DranMapField.field[i];
 
         field->Initialize();
-        DranMapField.collision[i] = 0;
+        DranMapField.collision[i] = nullptr;
         DranMapField.state[i] = 3;
     }
 
@@ -1355,22 +1362,22 @@ void GameInit() {
     NowDranMapField = DranMapField.field;
     NowColData = &CColData;
 
-    for (int i = 0; i < 12; i++) {
-        ShotData.used[i] = 0;
+    for (auto &used : ShotData.used) {
+        used = 0;
     }
 
     NowShotData = &ShotData;
     HealEffect.active = false;
     WaterSplash_Init();
 
-    for (int i = 0; i < 5; i++) {
-        ShotEffect.effect[i].Initialize();
+    for (auto &effect : ShotEffect.effect) {
+        effect.Initialize();
     }
 
     NowShotEffect = &ShotEffect;
 
-    for (int i = 0; i < 5; i++) {
-        MasekiEffect[i].Initialize();
+    for (auto &effect : MasekiEffect) {
+        effect.Initialize();
     }
 
     for (int i = 0; i < 16; i++) {
@@ -1387,19 +1394,19 @@ void GameInit() {
     EscapeFlag = 0;
     WeaponCrashEffect.Initialize();
 
-    for (int i = 0; i < 16; i++) {
-        HitMark[i].Initialize();
+    for (auto &mark : HitMark) {
+        mark.Initialize();
     }
 
-    for (int i = 0; i < 16; i++) {
-        OzumondShotEffect.timer[i] = -1;
+    for (auto &timer : OzumondShotEffect.timer) {
+        timer = -1;
     }
 
     NewChangeFxFlag = 0;
 
-    for (int i = 0; i < 32; i++) {
-        HitValue[i].active = false;
-        HitValue[i].frame = NULL;
+    for (auto &value : HitValue) {
+        value.active = false;
+        value.frame = nullptr;
     }
 
     NowHitValue = HitValue;
@@ -1425,12 +1432,12 @@ void GameInit() {
     TexManager.Initialize(0x3FE0);
     LoadBaseTexture();
 
-    LoadFileMenuData("itempack.img", (unsigned int *) read_buffer);
+    LoadFileMenuData("itempack.img", read_buffer);
     wait_now_loading_vsync();
-    TexManager.EnterIMGFile((unsigned char *) read_buffer, -1, 0, 0);
-    LoadFileMenuData("stayframe.img", (unsigned int *) read_buffer);
+    TexManager.EnterIMGFile(reinterpret_cast<u_char *>(read_buffer), -1, 0, 0);
+    LoadFileMenuData("stayframe.img", read_buffer);
     wait_now_loading_vsync();
-    TexManager.EnterFixTextureZ((unsigned char *) read_buffer);
+    TexManager.EnterFixTextureZ(reinterpret_cast<u_char *>(read_buffer));
 
     mainItemModel.Initialize();
 
@@ -1553,12 +1560,12 @@ void GameInit() {
     DngMesStb.mes_made = -1;
     DngMesStb.edge_alpha = 128;
 
-    for (int i = 0; i < 10; i++) {
-        DngMesStb.mes_no[i] = -1;
+    for (auto &mes_no : DngMesStb.mes_no) {
+        mes_no = -1;
     }
 
-    for (int i = 0; i < 8; i++) {
-        DngMesStb.values[i] = 0;
+    for (auto &value : DngMesStb.values) {
+        value = 0;
     }
 
     DngMesStb.value = 0;
@@ -1571,9 +1578,9 @@ void GameInit() {
     DngMesStb.cursor_y = 0;
     DngMesStb.cursor_lit = false;
 
-    for (int i = 0; i < 10; i++) {
-        DngMesStb.line_pos[i].x = -1;
-        DngMesStb.line_pos[i].y = -1;
+    for (auto &pos : DngMesStb.line_pos) {
+        pos.x = -1;
+        pos.y = -1;
     }
 
     DngMesStb.Preset(MES_PRESET_NAME);
@@ -1619,9 +1626,9 @@ void GameInit() {
     BtEventMes1.page_arrow = true;
     BtEventMes1.tex_buff = MesWinTexBuff_02;
 
-    mes = (short *) (BtMesBuffer.base + BtMesBuffer.used * 16);
-    sprintf(name, "dun/message/ww_mes/dunmsd00_%d.mes", LanguageCode);
-    LoadFile(name, mes, &size);
+    mes = reinterpret_cast<short *>(ArenaFree(BtMesBuffer));
+    name = std::format("dun/message/ww_mes/dunmsd00_{}.mes", LanguageCode);
+    LoadFile(name.data(), mes, &size);
     wait_now_loading_vsync();
     DngMes1.SetBuff(mes);
     DngMes2.SetBuff(mes);
@@ -1630,15 +1637,15 @@ void GameInit() {
     BtMesBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
     BtMesBuffer.Align64();
 
-    mes = (short *) (BtMesBuffer.base + BtMesBuffer.used * 16);
-    sprintf(name, "dun/message/ww_mes/font18_%d.mes", LanguageCode);
-    LoadFile(name, mes, &size);
+    mes = reinterpret_cast<short *>(ArenaFree(BtMesBuffer));
+    name = std::format("dun/message/ww_mes/font18_{}.mes", LanguageCode);
+    LoadFile(name.data(), mes, &size);
     wait_now_loading_vsync();
     BtEventMes1.SetBuff(mes);
     BtMesBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
     BtMesBuffer.Align64();
 
-    mes = (short *) (BtMesBuffer.base + BtMesBuffer.used * 16);
+    mes = reinterpret_cast<short *>(ArenaFree(BtMesBuffer));
     LoadFile("meswin/system14e.bin", mes, &size);
     wait_now_loading_vsync();
     BtMesBuffer.Alloc((size >> 4) + 1);
@@ -1657,21 +1664,10 @@ void GameInit() {
     DefaultWeapon.Initialize();
     CrashWeapon.Initialize();
 
-    for (int i = 0; i < 32; i++) {
-        CWeaponFx.used[i] = 0;
-    }
+    ClearWeaponTrail();
 
-    CWeaponFx.colour[0].r = CWeaponFx.colour[2].r = 0x40;
-    CWeaponFx.colour[0].g = CWeaponFx.colour[2].g = 0x40;
-    CWeaponFx.colour[0].b = CWeaponFx.colour[2].b = 0x40;
-    CWeaponFx.colour[1].r = CWeaponFx.colour[3].r = 6;
-    CWeaponFx.colour[1].g = CWeaponFx.colour[3].g = 6;
-    CWeaponFx.colour[1].b = CWeaponFx.colour[3].b = 6;
-    CWeaponFx.cursor = 0;
-    CWeaponFx.timer = 0;
-
-    for (int i = 0; i < 4; i++) {
-        CWeaponElFx[i].Initialize();
+    for (auto &element : CWeaponElFx) {
+        element.Initialize();
     }
 
     SndSetReadBuffer(read_buffer);
@@ -1731,8 +1727,8 @@ void GameInit() {
     rogoY3 = 32;
     BtStatusAlarmInit();
 
-    for (int i = 0; i < 3; i++) {
-        CBomb__2[i].Initialize();
+    for (auto &bomb : CBomb__2) {
+        bomb.Initialize();
     }
 
     NowBombEffect = CBomb__2;
@@ -1771,11 +1767,12 @@ void GameInit() {
     TEX_WepGage = TexManager.GetTexture("wepready", -1);
     TEX_Stayframe = TexManager.GetTexture("stayframe", -1);
     TEX_Shadow = TexManager.GetTexture("shadow_buf", -1);
-    sprintf(gate_name, "gatekey0%d", selectMapNo + 1);
-    GoldTex = TexManager.GetTexture(gate_name, -1);
+    std::string gate_name = std::format("gatekey0{}", selectMapNo + 1);
 
-    if (GoldTex == NULL) {
-        printf("******** ERR\n");
+    GoldTex = TexManager.GetTexture(gate_name.data(), -1);
+
+    if (GoldTex == nullptr) {
+        std::println("******** ERR");
     }
 
     BtMapJumpCashClear();
@@ -1783,7 +1780,7 @@ void GameInit() {
     CDungeonMap *map_now = NowDngMap;
 
     map_now->draw_dist_scale = 4.0f;
-    ((CDngStatusData *) UserStatus)->SetNowFloor(0);
+    static_cast<CDngStatusData *>(UserStatus)->SetNowFloor(0);
 
     CUserStatus *status_now = UserStatus;
 
@@ -1812,9 +1809,6 @@ void GameInit() {
 }
 
 int GameLoop() {
-    float fade[4];
-    int   i;
-
     switch (BtGameModeFlag) {
         case BT_GAME_MODE_PLAY:
             MoveChara();
@@ -1824,6 +1818,8 @@ int GameLoop() {
                 BtGameModeFlag = BT_GAME_MODE_PLAY;
             }
 
+            break;
+        default:
             break;
     }
 
@@ -1844,12 +1840,12 @@ int GameLoop() {
             int floor = DunEnterMenuLoop();
 
             if (floor != -1) {
-                if (BtEventInfo.entrance_result != NULL) {
+                if (BtEventInfo.entrance_result != nullptr) {
                     BtEventInfo.entrance_result->i = floor;
                 }
 
-                BtEventInfo.entrance_result = NULL;
-                ((CDngStatusData *) UserStatus)->SetNowFloor(floor);
+                BtEventInfo.entrance_result = nullptr;
+                static_cast<CDngStatusData *>(UserStatus)->SetNowFloor(floor);
                 BtGameModeFlag = BT_GAME_MODE_PLAY;
             }
 
@@ -1859,11 +1855,11 @@ int GameLoop() {
             int answer = DngEscapeMsgLoop();
 
             if (answer > 0) {
-                if (BtEventInfo.escape_result != NULL) {
+                if (BtEventInfo.escape_result != nullptr) {
                     BtEventInfo.escape_result->i = answer;
                 }
 
-                BtEventInfo.escape_result = NULL;
+                BtEventInfo.escape_result = nullptr;
                 BtGameModeFlag = BT_GAME_MODE_PLAY;
             }
 
@@ -1880,6 +1876,8 @@ int GameLoop() {
 
             break;
         }
+        default:
+            break;
     }
 
     if (existFlag != 0) {
@@ -1895,14 +1893,16 @@ int GameLoop() {
             SndStopAllSe();
         }
 
-        EdGetFadeColor(fade);
-        MGSetBGColor(fade);
-        ((CDngStatusData *) UserStatus)->LostGateKey();
+        std::array<float, 4> fade{};
+
+        EdGetFadeColor(fade.data());
+        MGSetBGColor(fade.data());
+        static_cast<CDngStatusData *>(UserStatus)->LostGateKey();
 
         if (BtEventInfo.no_status_recover == 0) {
             CUserStatus *status = UserStatus;
 
-            for (i = 0; i < 6; i++) {
+            for (int i = 0; i < 6; i++) {
                 status->hp[i] = status->max_hp[i];
                 status->ailments[i] = 0;
                 status->ailment_frames[i] = 0;
@@ -1952,7 +1952,6 @@ void Draw_MainUnitShadow() {
     float light[4][4];
     float colour[4][4];
     float saved[4][4];
-    int   i;
 
     // The shadows are drawn under a dimmed light and the real one goes back
     // afterwards.
@@ -1963,7 +1962,7 @@ void Draw_MainUnitShadow() {
     MGSetPLight(light, colour);
 
     TexManager.ReloadTexture(Vif1Packet, 15);
-    MGBeginDrawShadow(*(sceGsTex0 *) &TexManager.GetTexture("shadow_buf", -1)->tex0);
+    MGBeginDrawShadow(std::bit_cast<sceGsTex0>(TexManager.GetTexture("shadow_buf", -1)->tex0));
 
     if (BtActStatus.shadow_visible != 0 && EdEventInfo.player_shadow_draw != 0 && EdEventInfo.player_draw != 0 && BtActStatus.player_visible != 0) {
         CharaMain.DrawShadow();
@@ -1974,7 +1973,7 @@ void Draw_MainUnitShadow() {
     }
 
     if (BtEventMode != 0) {
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; i++) {
             if (EdEventInfo.npc_shadow_draw[i] != 0 && EdEventInfo.npc_draw[i] != 0) {
                 NPCUnit[i].DrawShadow();
             }
@@ -2024,9 +2023,7 @@ void Draw_MainUnit() {
 
         float dist = sqrt(towards[0] * towards[0] + towards[1] * towards[1] + towards[2] * towards[2]);
 
-        if (dist <= 10.0f) {
-            dist = 10.0f;
-        }
+        dist = std::max(dist, 10.0f);
 
         float power = 5.0f * (100.0f / (dist * dist));
 
@@ -2090,7 +2087,7 @@ void Draw_MainUnit() {
     CharaMain.TextureAnime(0x11);
     CharaMain.Draw();
 
-    if (NowWeapon != NULL && NowWeapon->frame != NULL && BtActStatus.weapon_visible != 0) {
+    if (NowWeapon != nullptr && NowWeapon->frame != nullptr && BtActStatus.weapon_visible != 0) {
         TexManager.ReloadTexture(Vif1Packet, 0x1D);
         NowWeapon->Draw();
     }
@@ -2101,38 +2098,18 @@ void Draw_MainUnit() {
     MGSetPLight(light, colour);
 }
 
-void MainDraw();
-
+/* The camera height and angle MoveChara saves to restore later. */
 float oldCameraHeight;
 float oldCameraAngle;
 
 /* How hard the player is turning the camera. */
 float inputH1;
 
-/**
- * Drops the model an active item slot shows, once its last use is gone.
- */
-static inline void DeleteItemModel(int slot) {
-    if (activeItem.model[slot] != -1) {
-        activeItem.models->DeleteModel(activeItem.model[slot]);
-        activeItem.model[slot] = -1;
-    }
-}
-
-/**
- *              Runs the dungeon for one frame.
- *
- * `gameTask` holds the GameTask the dungeon is running. Every task ends by
- * stepping the models.
- */
-void MoveChara();
-
 void motionDrive() {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR rotation;
     sceVu0FVECTOR hand;
     int           chara = UserStatus->cur_chara;
-    int           i;
 
     if (BtAllDrawFlag == 0) {
         return;
@@ -2192,7 +2169,7 @@ void motionDrive() {
             CFrame *tail = CharaMain.frame->SearchFrame("tukene1");
             CFrame *tail_shadow = CharaMain.shadow_frame->SearchFrame("obj46");
 
-            if (tail != NULL) {
+            if (tail != nullptr) {
                 static float y = 0.0f;
 
                 y += 0.35699910f;
@@ -2204,7 +2181,7 @@ void motionDrive() {
                 tail->SetRotType(2);
                 tail->SetRotation(0.0f, AngleLimit(y), 0.0f);
 
-                if (tail_shadow != NULL) {
+                if (tail_shadow != nullptr) {
                     tail_shadow->SetRotType(2);
                     tail_shadow->SetRotation(0.0f, AngleLimit(y), 0.0f);
                 }
@@ -2212,7 +2189,7 @@ void motionDrive() {
         }
 
         if (lockOnTargetFlag != 0 && UserStatus->cur_chara == CHARA_XIAO && CharaMainHandViewFlag == 0) {
-            CharaMain.motion_type.state.look_frame = (CFrameVu1 *) CharaFrame->SearchFrame("jnt2_1");
+            CharaMain.motion_type.state.look_frame = static_cast<CFrameVu1 *>(CharaFrame->SearchFrame("jnt2_1"));
             sceVu0CopyVector(CharaMain.motion_type.state.look_position, BtActStatus.target_position);
             CharaMain.motion_type.state.look_at = true;
             CharaMain.motion_type.state.look_constraint = FRAME_CONSTRAINT_X;
@@ -2302,30 +2279,13 @@ void motionDrive() {
 
     // A weapon that is nearly broken keeps saying so.
     if (BtEventMode == 0) {
-        WEAPON_HAVE *weapon;
-        CUserStatus *status;
-        s8          *slots;
-        s8          *check_slots;
-        s8           owner;
-        s8           check_owner;
+        CUserStatus *status = UserStatus;
+        s8           owner = status->cur_chara;
+        WEAPON_HAVE *weapon = &status->chara_weapons[owner][status->equipped_weapon_slot[owner]];
 
-        status = UserStatus;
-        owner = check_owner = status->cur_chara;
-        slots = status->equipped_weapon_slot;
-        check_slots = status->equipped_weapon_slot;
-        weapon = &status->chara_weapons[owner][(s8) slots[owner]];
-
-        if (weapon->durability_f <= 10.0f && status->chara_weapons[check_owner][(s8) check_slots[check_owner]].item_no != defWeapon__6[(s8) owner]) {
-            static int  warning_cnt;
-            static char init;
-            int         wait;
-
-            if (init == 0) {
-                warning_cnt = 0;
-                init = 1;
-            }
-
-            wait = (int) weapon->durability_f * 10;
+        if (weapon->durability_f <= 10.0f && weapon->item_no != defWeapon__6[owner]) {
+            static int warning_cnt = 0;
+            auto       wait = static_cast<int>(weapon->durability_f) * 10;
 
             if (wait < 11) {
                 wait = 10;
@@ -2351,7 +2311,7 @@ void motionDrive() {
     if (Water_Splash_actFlag != 0) {
         Water_Splash.Step();
 
-        float end = (float) Water_Splash.motion_type.motion_info[0].end;
+        auto end = static_cast<float>(Water_Splash.motion_type.motion_info[0].end);
 
         if (Water_Splash.motion_type.state.time >= end - 0.5f && Water_Splash.motion_type.state.time < end) {
             Water_Splash_actFlag = 0;
@@ -2389,45 +2349,43 @@ void motionDrive() {
     // Every hit that is still in the air counts down and drifts.
     CCollisionData *collision = NowColData;
 
-    for (i = 0; i < 96; i++) {
+    for (int i = 0; i < 96; i++) {
         if (collision->active[i] == 0) {
             continue;
         }
 
-        if (collision->hit[i].phase > 0) {
-            collision->hit[i].phase--;
+        auto &hit = collision->hit[i];
+
+        if (hit.phase > 0) {
+            hit.phase--;
         } else {
-            collision->hit[i].phase = collision->hit[i].ready_phase;
+            hit.phase = hit.ready_phase;
         }
 
-        collision->hit[i].life--;
+        hit.life--;
 
-        if (collision->hit[i].life <= 0) {
+        if (hit.life <= 0) {
             collision->active[i] = 0;
-            collision->hit[i].scale_rate = 0.0f;
+            hit.scale_rate = 0.0f;
             continue;
         }
 
-        collision->hit[i].radius += collision->hit[i].unk_40;
+        hit.radius += hit.unk_40;
 
-        if (collision->hit[i].scale_rate != 0.0f) {
-            sceVu0ScaleVectorXYZ(collision->hit[i].base_point, collision->hit[i].base_point, collision->hit[i].scale_rate);
+        if (hit.scale_rate != 0.0f) {
+            sceVu0ScaleVectorXYZ(hit.base_point, hit.base_point, hit.scale_rate);
         }
     }
 
     if (StatusErrCheck(AILMENT_FREEZE) != 0 || StatusErrCheck(AILMENT_STAMINA) != 0) {
         CUserStatus *status = UserStatus;
         s8           owner = status->cur_chara;
-        s16         *left = status->ailment_frames;
 
-        if (left[status->cur_chara] > 0) {
-            left[owner]--;
+        if (status->ailment_frames[owner] > 0) {
+            status->ailment_frames[owner]--;
 
-            CUserStatus *now = UserStatus;
-            s8           who = now->cur_chara;
-
-            if (now->ailment_frames[now->cur_chara] == 0) {
-                now->ailments[who] = 0;
+            if (status->ailment_frames[owner] == 0) {
+                status->ailments[owner] = 0;
                 BtActStatus.movement_locked = 0;
             }
         }
@@ -2438,12 +2396,12 @@ void motionDrive() {
     }
 
     // The action gauge fills back up at a rate the weapon sets.
-    if ((int) BtActStatus.action_gauge < 100) {
+    if (static_cast<int>(BtActStatus.action_gauge) < 100) {
         if (BtActStatus.refill_frames < 10) {
             BtActStatus.refill_frames++;
         }
 
-        float gain = (float) NowWeaponHave->speed / 30.0f;
+        auto gain = static_cast<float>(NowWeaponHave->speed) / 30.0f;
 
         if (StatusErrCheck(AILMENT_GOO) != 0) {
             gain /= 2.0f;
@@ -2453,14 +2411,12 @@ void motionDrive() {
             gain *= 2.0f;
         }
 
-        if (gain < 1.0f) {
-            gain = 1.0f;
-        }
+        gain = std::max(gain, 1.0f);
 
-        CUserStatus *status = UserStatus;
-        s8          *who_ref = &status->cur_chara;
+        s8 who = UserStatus->cur_chara;
 
-        if (status->cur_chara == CHARA_TOAN) {
+        // Toan and Ungaga recharge slowly, and not at all on a frame they swing.
+        if (who == CHARA_TOAN || who == CHARA_UNGAGA) {
             if (BtActStatus.swinging == 0) {
                 gain *= 0.25f;
             } else {
@@ -2470,20 +2426,7 @@ void motionDrive() {
             BtActStatus.swinging = 0;
         }
 
-        if (*who_ref == CHARA_UNGAGA) {
-            if (BtActStatus.swinging == 0) {
-                gain *= 0.25f;
-            } else {
-                gain = 0.0f;
-            }
-
-            BtActStatus.swinging = 0;
-        }
-
-        s8 who = *who_ref;
-        s8 who_copy = *who_ref;
-
-        if (*who_ref == CHARA_OSMOND) {
+        if (who == CHARA_OSMOND) {
             if (BtActStatus.gun_type != 1) {
                 if (BtActStatus.gauge_exhausted == 0) {
                     gain = 0.0f;
@@ -2495,17 +2438,13 @@ void motionDrive() {
             }
         }
 
-        if (who == CHARA_XIAO) {
-            gain *= 1.5f;
-        }
-
-        if (who_copy == CHARA_RUBY) {
+        if (who == CHARA_XIAO || who == CHARA_RUBY) {
             gain *= 1.5f;
         }
 
         BtActStatus.action_gauge += gain;
 
-        if (!((int) BtActStatus.action_gauge < 100)) {
+        if (!(static_cast<int>(BtActStatus.action_gauge) < 100)) {
             BtActStatus.action_gauge = 100.0f;
             BtActStatus.gauge_flash = 10;
             BtActStatus.gauge_exhausted = 0;
@@ -2515,7 +2454,7 @@ void motionDrive() {
     }
 
     if (BtActStatus.hud_shake_frames > 0) {
-        BtActStatus.hud_shake_y = (int) (16.0f * (float) rand() / 2147483648.0f) - 8;
+        BtActStatus.hud_shake_y = static_cast<int>(16.0f * static_cast<float>(rand()) / 2147483648.0f) - 8;
         BtActStatus.hud_shake_frames--;
     }
 
@@ -2530,16 +2469,15 @@ void motionDrive() {
     }
 
     CUserStatus *status = UserStatus;
-    s8          *healed_ref = &status->cur_chara;
-    float        water_max = status->water_max[*healed_ref];
-    float        water_now = status->water_now[*healed_ref];
+    float        water_max = status->water_max[status->cur_chara];
+    float        water_now = status->water_now[status->cur_chara];
     static int   heal_counter = 0;
 
     heal_counter++;
 
     if (!(heal_counter < 240)) {
-        if ((NowWeaponHave->flags & 0x800) && status->hp[*healed_ref] > 0) {
-            status->AddNowLife((s8) *healed_ref, 1, 255.0f);
+        if ((NowWeaponHave->flags & 0x800) && status->hp[status->cur_chara] > 0) {
+            status->AddNowLife(status->cur_chara, 1, 255.0f);
         }
 
         heal_counter = 0;
@@ -2561,12 +2499,12 @@ void motionDrive() {
     map->fire.RasterStep();
     CWeaponFx.Step();
 
-    for (int i = 0; i < 4; i++) {
-        CWeaponElFx[i].Step();
+    for (auto &element : CWeaponElFx) {
+        element.Step();
     }
 
-    for (int i = 0; i < 32; i++) {
-        HitValue[i].Step();
+    for (auto &value : HitValue) {
+        value.Step();
     }
 
     mainItemModel.Step();
@@ -2581,7 +2519,7 @@ void motionDrive() {
     if (NewChangeFxFlag != 0) {
         NewChangeFx.Step();
 
-        float end = (float) NewChangeFx.motion_type.motion_info[0].end;
+        auto end = static_cast<float>(NewChangeFx.motion_type.motion_info[0].end);
 
         if (NewChangeFx.motion_type.state.time >= end - 0.3f && NewChangeFx.motion_type.state.time < end) {
             NewChangeFxFlag = 0;
@@ -2609,7 +2547,7 @@ void motionDrive() {
     if (BtActStatus.camera_shake_frames > 0) {
         float shake = BtActStatus.camera_shake;
 
-        BtActStatus.camera_shake_offset = 2.0f * (shake * (float) rand()) / 2147483648.0f - shake;
+        BtActStatus.camera_shake_offset = 2.0f * (shake * static_cast<float>(rand())) / 2147483648.0f - shake;
         BtActStatus.camera_shake -= BtActStatus.camera_shake_decay;
         BtActStatus.camera_shake_frames--;
     } else {
@@ -2633,19 +2571,19 @@ void motionDrive() {
     RandomItem->Step();
     StealItem.Step();
 
-    for (int i = 0; i < 3; i++) {
-        CBomb__2[i].Step();
+    for (auto &bomb : CBomb__2) {
+        bomb.Step();
     }
 
-    for (int i = 0; i < 5; i++) {
-        MasekiEffect[i].Step();
+    for (auto &effect : MasekiEffect) {
+        effect.Step();
     }
 
     NowShockWave->Step();
 
     CSHOT_EFFECT *effects = NowShotEffect->effect;
 
-    for (i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++) {
         effects[i].Step();
     }
 
@@ -2658,137 +2596,36 @@ void motionDrive() {
 }
 
 void BtCleatRandomMap() {
-    CTexture         *gold;
-    int               i;
-    int               item_slot;
-    int               j;
-    int               k;
-    CDungeonEventMan *man;
-    CDungeonMap      *map;
-
     NowDngMap = &MainDungeonMap;
     NowEventMan = &DngEventMan;
-    ((CDngStatusData *) UserStatus)->LostGateKey();
+    static_cast<CDngStatusData *>(UserStatus)->LostGateKey();
 
-    man = NowEventMan;
-
-    for (i = 0; i < 96; i++) {
-        CDungeonEventData *slot = &man->event[i];
-
-        slot->event = NULL;
-        slot->switch_on = false;
-        slot->enabled = false;
-        slot->hold = 0;
-        slot->chara_done = -1;
-    }
-
-    map = NowDngMap;
-
-    for (i = 0; i < 48; i++) {
-        map->events[i].kind = DNG_EVENT_NONE;
-        map->events[i].reset_flag = 0;
-    }
-
-    for (i = 0; i < 24; i++) {
-        map->boxes[i].used = 0;
-        map->boxes[i].lid_angle = 0.0f;
-        map->boxes[i].trap_no = 0;
-    }
-
-    map->box_num = 0;
-
-    for (i = 0; i < 8; i++) {
-        map->atra[i].used = 0;
-    }
-
-    map->atra_num = 0;
-
-    for (i = 0; i < 4; i++) {
-        map->room_link[i].used = 0;
-    }
-
-    gold = GoldTex;
-
-    for (item_slot = 0; item_slot < 32; item_slot++) {
-        MainRandomItem.id[item_slot] = -1;
-        MainRandomItem.pickup_event[item_slot] = -1;
-        MainRandomItem.pickup_blocked[item_slot] = 0;
-    }
-
-    MainRandomItem.gold_texture = gold;
-
-    for (item_slot = 0; item_slot < 32; item_slot++) {
-        SubRandomItem.id[item_slot] = -1;
-        SubRandomItem.pickup_event[item_slot] = -1;
-        SubRandomItem.pickup_blocked[item_slot] = 0;
-    }
-
-    SubRandomItem.gold_texture = GoldTex;
+    ClearEventData(*NowEventMan);
+    ClearMapObjects(*NowDngMap);
+    ClearRandomItems(MainRandomItem, GoldTex);
+    ClearRandomItems(SubRandomItem, GoldTex);
     RandomItem = &MainRandomItem;
 
     NowDngMap->buildRandomMap(6, 1);
-
-    s32 map_no = NowDngMap->map_type;
-
-    NowDngMap->buildEventData(UserStatus->cur_floor, map_no, 1);
+    NowDngMap->buildEventData(UserStatus->cur_floor, NowDngMap->map_type, 1);
     NowDngMap->FlushCheckMask();
     NowDngMap->DrawMapCalc(NowDngMap->map_type);
+    NowEventMan->SetupEvent(NowDngMap, NowDngMap->map_type);
 
-    s32 event_no = NowDngMap->map_type;
-
-    NowEventMan->SetupEvent(NowDngMap, event_no);
-
+    // The back floor starts as a copy of the front one and is rebuilt on its own.
     NowDngMap = &UraDungeonMap;
     NowEventMan = &UraEventMan;
     UraDungeonMap = MainDungeonMap;
     UraEventMan = DngEventMan;
 
-    for (k = 0; k < 96; k++) {
-        CDungeonEventData *slot = &UraEventMan.event[k];
-
-        slot->event = NULL;
-        slot->switch_on = false;
-        slot->enabled = false;
-        slot->hold = 0;
-        slot->chara_done = -1;
-    }
-
-    for (j = 0; j < 48; j++) {
-        UraDungeonMap.events[j].kind = DNG_EVENT_NONE;
-        UraDungeonMap.events[j].reset_flag = 0;
-    }
-
-    for (j = 0; j < 24; j++) {
-        UraDungeonMap.boxes[j].used = 0;
-        UraDungeonMap.boxes[j].lid_angle = 0.0f;
-        UraDungeonMap.boxes[j].trap_no = 0;
-    }
-
-    UraDungeonMap.box_num = 0;
-
-    for (j = 0; j < 8; j++) {
-        UraDungeonMap.atra[j].used = 0;
-    }
-
-    UraDungeonMap.atra_num = 0;
-
-    for (j = 0; j < 4; j++) {
-        UraDungeonMap.room_link[j].used = 0;
-    }
+    ClearEventData(UraEventMan);
+    ClearMapObjects(UraDungeonMap);
 
     UraDungeonMap.buildRandomMap(6, 0);
-
-    s32 ura_map_no = UraDungeonMap.map_type;
-
-    UraDungeonMap.buildEventData(UserStatus->cur_floor, ura_map_no, 0);
+    UraDungeonMap.buildEventData(UserStatus->cur_floor, UraDungeonMap.map_type, 0);
     UraDungeonMap.FlushCheckMask();
-    s32 ura_draw_no = UraDungeonMap.map_type;
-
-    UraDungeonMap.DrawMapCalc(ura_draw_no);
-
-    s32 ura_event_no = UraDungeonMap.map_type;
-
-    UraEventMan.SetupEvent(&UraDungeonMap, ura_event_no);
+    UraDungeonMap.DrawMapCalc(UraDungeonMap.map_type);
+    UraEventMan.SetupEvent(&UraDungeonMap, UraDungeonMap.map_type);
 
     NowDngMap = &MainDungeonMap;
     NowEventMan = &DngEventMan;
@@ -2799,28 +2636,12 @@ void BtCleatRandomMap() {
 }
 
 void BtCleatFreeMap() {
-    int i;
-    s32 map_no = MainDungeonMap.map_type;
-
-    MainDungeonMap.buildEventData(UserStatus->cur_floor, map_no, 1);
+    MainDungeonMap.buildEventData(UserStatus->cur_floor, MainDungeonMap.map_type, 1);
     MainDungeonMap.FlushCheckMask();
-    s32 draw_no = MainDungeonMap.map_type;
+    MainDungeonMap.DrawMapCalc(MainDungeonMap.map_type);
+    DngEventMan.SetupEvent(&MainDungeonMap, MainDungeonMap.map_type);
 
-    MainDungeonMap.DrawMapCalc(draw_no);
-
-    s32 event_no = MainDungeonMap.map_type;
-
-    DngEventMan.SetupEvent(&MainDungeonMap, event_no);
-
-    CTexture *gold = GoldTex;
-
-    for (i = 0; i < 32; i++) {
-        MainRandomItem.id[i] = -1;
-        MainRandomItem.pickup_event[i] = -1;
-        MainRandomItem.pickup_blocked[i] = 0;
-    }
-
-    MainRandomItem.gold_texture = gold;
+    ClearRandomItems(MainRandomItem, GoldTex);
     RandomItem = &MainRandomItem;
 
     UserStatus->ClearEventFlag();
@@ -2837,30 +2658,23 @@ void BtArrengeMonstor() {
 }
 
 void BtLoadMonstor(int ura) {
-    int             count;
-    BT_ENEMY_FLOOR *layout;
-    int             monster;
-    int             i;
-    int             slot;
-
     MonstorModelBuffer.used = 0;
 
-    s32           ura_dungeon = BtUraDongeon;
     CMonstorUnit *unit = NowMonstorUnit;
 
     unit->model_count = 0;
     unit->current_monster = 0;
 
-    for (slot = 0; slot < 16; slot++) {
+    for (int slot = 0; slot < 16; slot++) {
         unit->script[slot] = &MonstorScriptBuffer[slot];
     }
 
     unit->requested_event = -1;
-    unit->CleanViewMonstor(ura_dungeon);
+    unit->CleanViewMonstor(BtUraDongeon);
     BtSetEventExtendTable();
 
-    for (i = 0; i < 320; i++) {
-        MonsterTexAnim[i].Initialize();
+    for (auto &anime : MonsterTexAnim) {
+        anime.Initialize();
     }
 
     TexManager.DeleteTextureBlock(0x2A);
@@ -2868,45 +2682,33 @@ void BtLoadMonstor(int ura) {
     TexManager.CleanUpBuffer();
     TexManager.CleanUpTextureList();
 
-    LoadFile("dun/etc/atrcol.mds", read_buffer, NULL);
+    LoadFile("dun/etc/atrcol.mds", read_buffer, nullptr);
     wait_now_loading_vsync();
     NowMonstorUnit->collision = LoadCollisionFile(read_buffer, &MonstorModelBuffer);
 
     CSHOT_EFFECT *effects = NowShotEffect->effect;
 
-    for (i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++) {
         effects[i].Initialize();
     }
 
-    count = 0;
+    BT_ENEMY_FLOOR       *floors = ura == 0 ? BtEnemyLayoutList[selectMapNo] : BtUraEnemyLayoutList[selectMapNo];
+    const BT_ENEMY_FLOOR &layout = floors[UserStatus->cur_floor];
+    int                   count = 0;
 
-    if (ura == 0) {
-        layout = BtEnemyLayoutList[selectMapNo];
-    } else {
-        layout = BtUraEnemyLayoutList[selectMapNo];
-    }
-
-    layout += UserStatus->cur_floor;
-
-    for (monster = 0; monster < 9; monster++) {
-        if (layout->monster[monster].monster_no == -1) {
+    for (const auto &entry : layout.monster) {
+        if (entry.monster_no == -1) {
             break;
         }
 
-        count += NowMonstorUnit->SetupBaseModel(count, layout->monster[monster].monster_no, 0x26, &MonstorModelBuffer);
+        count += NowMonstorUnit->SetupBaseModel(count, entry.monster_no, 0x26, &MonstorModelBuffer);
     }
 
     MemoryMapDump();
 }
 
 void EquipReAttach(CCharacter *equipment, int held_out) {
-    CFrame *hand;
-
-    if (held_out != 0) {
-        hand = CharaHand.frame->SearchFrame("pati1");
-    } else {
-        hand = CharaMain.frame->SearchFrame("weapon");
-    }
+    CFrame *hand = held_out != 0 ? CharaHand.frame->SearchFrame("pati1") : CharaMain.frame->SearchFrame("weapon");
 
     equipment->SetPosition(0.0f, 0.0f, 0.0f);
     equipment->SetRotation(0.0f, 0.0f, 0.0f);
@@ -2914,19 +2716,12 @@ void EquipReAttach(CCharacter *equipment, int held_out) {
 }
 
 void EquipWeaponFrame(CCharacter *weapon, int chara, int held_out) {
-    CFrame *hand;
-    int     i;
-
     NowWeapon = weapon;
 
-    if (held_out != 0 && chara == CHARA_XIAO) {
-        hand = CharaHand.frame->SearchFrame("pati1");
-    } else {
-        hand = CharaMain.frame->SearchFrame("weapon");
-    }
+    CFrame *hand = held_out != 0 && chara == CHARA_XIAO ? CharaHand.frame->SearchFrame("pati1") : CharaMain.frame->SearchFrame("weapon");
 
-    if (hand == NULL) {
-        printf("no weapon frame !!\n");
+    if (hand == nullptr) {
+        std::println("no weapon frame !!");
         return;
     }
 
@@ -2937,29 +2732,14 @@ void EquipWeaponFrame(CCharacter *weapon, int chara, int held_out) {
     NowWeapon->frame->SetReference(hand);
     NowWeapon->Step();
 
-    for (i = 0; i < 32; i++) {
-        CWeaponFx.used[i] = 0;
-    }
-
-    CWeaponFx.colour[0].r = CWeaponFx.colour[2].r = 0x40;
-    CWeaponFx.colour[0].g = CWeaponFx.colour[2].g = 0x40;
-    CWeaponFx.colour[0].b = CWeaponFx.colour[2].b = 0x40;
-    CWeaponFx.colour[1].r = CWeaponFx.colour[3].r = 6;
-    CWeaponFx.colour[1].g = CWeaponFx.colour[3].g = 6;
-    CWeaponFx.colour[1].b = CWeaponFx.colour[3].b = 6;
-    CWeaponFx.cursor = 0;
-    CWeaponFx.timer = 0;
+    ClearWeaponTrail();
     CWeaponFx.InitSet(NowWeapon->frame, "dcol0", "dcol1");
     SetWeaponColor();
 }
 
 void LoadWeapon2(unsigned int *crash_data, unsigned int *default_data, unsigned int *main_data, int chara, int reload) {
-    int  weapon_kind[6] = {1, 4, 6, 5, 10, 7};
-    int  weapon_first[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
-    char weapon_name[64];
-    char weapon_model_path[64];
-    // The kind each character's weapon counts as; nothing reads it any more.
-    int *kind = &weapon_kind[chara];
+    std::array<char, 64> weapon_name{};
+    std::array<char, 64> weapon_model_path{};
 
     // A reload gives the weapon blocks back before the new models go in.
     if (reload != 0) {
@@ -2971,13 +2751,13 @@ void LoadWeapon2(unsigned int *crash_data, unsigned int *default_data, unsigned 
         WEffectModelBuffer.used = 0;
     }
 
-    BtGetWeaponNamePath2(weapon_name, weapon_model_path, chara, 0);
+    BtGetWeaponNamePath2(weapon_name.data(), weapon_model_path.data(), chara, 0);
     CrashWeapon.Initialize();
-    CrashWeapon.LoadPackData3(crash_data, weapon_model_path, &WeaponModelBuffer, 0x1D, &WeaponModelBuffer, 1, 0);
+    CrashWeapon.LoadPackData3(crash_data, weapon_model_path.data(), &WeaponModelBuffer, 0x1D, &WeaponModelBuffer, 1, 0);
 
-    BtGetWeaponNamePath2(weapon_name, weapon_model_path, chara, 1);
+    BtGetWeaponNamePath2(weapon_name.data(), weapon_model_path.data(), chara, 1);
     DefaultWeapon.Initialize();
-    DefaultWeapon.LoadPackData3(default_data, weapon_model_path, &WeaponModelBuffer, 0x1D, &WeaponModelBuffer, 1, 0);
+    DefaultWeapon.LoadPackData3(default_data, weapon_model_path.data(), &WeaponModelBuffer, 0x1D, &WeaponModelBuffer, 1, 0);
 
     CUserStatus *status = UserStatus;
     s8           owner = status->cur_chara;
@@ -2985,44 +2765,30 @@ void LoadWeapon2(unsigned int *crash_data, unsigned int *default_data, unsigned 
     // The weapon's item number, counted from its character's first weapon.
     int model_no = status->chara_weapons[owner][status->equipped_weapon_slot[owner]].item_no;
 
-    model_no -= weapon_first[chara];
-    BtGetWeaponNamePath2(weapon_name, weapon_model_path, chara, model_no);
+    model_no -= defWeapon__6[chara];
+    BtGetWeaponNamePath2(weapon_name.data(), weapon_model_path.data(), chara, model_no);
     MainWeapon.Initialize();
-    MainWeapon.LoadPackData3(main_data, weapon_model_path, &WeaponModelBuffer, 0x1D, &WeaponModelBuffer, 1, 0);
+    MainWeapon.LoadPackData3(main_data, weapon_model_path.data(), &WeaponModelBuffer, 0x1D, &WeaponModelBuffer, 1, 0);
     EquipWeaponFrame(&MainWeapon, chara, CharaMainHandViewFlag);
 
     // The effect models take whatever the weapon models leave.
-    u8 *free_start;
-    u8 *weapon_end;
-    int used = WeaponModelBuffer.used;
-
-    weapon_end = WeaponModelBuffer.base + used * 16;
-    free_start = weapon_end;
-    s64 free_size = 0x33450 - CharaModelBuffer.used - used;
-
-    WEffectModelBuffer.base = free_start;
-    WEffectModelBuffer.limit = free_size;
+    WEffectModelBuffer.base = ArenaFree(WeaponModelBuffer);
+    WEffectModelBuffer.limit = 0x33450 - CharaModelBuffer.used - WeaponModelBuffer.used;
     WEffectModelBuffer.used = 0;
 
-    CUserStatus *equipped = UserStatus;
-    s8           chara_no = equipped->cur_chara;
-
-    WEAPON_HAVE *have = &equipped->chara_weapons[chara_no][equipped->equipped_weapon_slot[chara_no]];
-
-    MenuWeaponSpSet(NowWeapon, have);
+    MenuWeaponSpSet(NowWeapon, &status->chara_weapons[owner][status->equipped_weapon_slot[owner]]);
     BtActStatus.action_gauge = 100.0f;
     BtActStatus.gauge_exhausted = 0;
 }
 
 void SwordDmgCheck1(float amount, int kind) {
-    int          broke;
     CUserStatus *status = UserStatus;
     s8           chara = status->cur_chara;
     WEAPON_HAVE *weapon = &status->chara_weapons[chara][status->equipped_weapon_slot[chara]];
     float        was = weapon->durability_f;
-    float        warn = (float) (weapon->durability * 0.2);
+    auto         warn = static_cast<float>(weapon->durability * 0.2);
 
-    broke = BattleSubWeaponDmg(amount, kind);
+    int broke = BattleSubWeaponDmg(amount, kind);
 
     // The Chronicle sword says so once, as its durability crosses a fifth.
     if (weapon->item_no == ITEM_WEAPON_LAMB_S_SWORD && weapon->durability_f <= warn && was >= warn) {
@@ -3047,33 +2813,25 @@ void SwordDmgCheck1(float amount, int kind) {
 
     CFrame *hand = CharaMain.frame->SearchFrame("weapon");
 
-    if (hand != NULL) {
+    if (hand != nullptr) {
         hand->GetWorldPosition(world, offset);
         WeaponCrashEffect.Set(world, spread, 4, 1.5f, 0.01f, 0.01f, 0.3f, 0x20, pos[1]);
     }
 
-    if (broke == 1) {
-        EquipWeaponFrame(&CrashWeapon, UserStatus->cur_chara, CharaMainHandViewFlag);
+    // 1 leaves the broken weapon in hand, 2 the character's default one.
+    if (broke == 1 || broke == 2) {
+        EquipWeaponFrame(broke == 1 ? &CrashWeapon : &DefaultWeapon, UserStatus->cur_chara, CharaMainHandViewFlag);
         s8 owner = UserStatus->cur_chara;
 
-        if (owner == 5 || (s8) owner == 3) {
-            NowMainEffect = &CharaMainEffectCrash;
-            BtActStatus.gun_type = 0;
-            BtActStatus.action_on = 0;
-        }
-    }
-
-    if (broke == 2) {
-        EquipWeaponFrame(&DefaultWeapon, UserStatus->cur_chara, CharaMainHandViewFlag);
-        s8 owner = UserStatus->cur_chara;
-
-        if (owner == 5 || (s8) owner == 3) {
+        if (owner == CHARA_OSMOND || owner == CHARA_RUBY) {
             NowMainEffect = &CharaMainEffectCrash;
             BtActStatus.gun_type = 0;
             BtActStatus.action_on = 0;
         }
     }
 }
+
+namespace {
 
 // clang-format off
 /* The colour each weapon element gives the trail the weapon leaves. */
@@ -3082,21 +2840,17 @@ u8 wep_rgb[5][3] = {
 };
 // clang-format on
 
+} // namespace
+
 void SetWeaponColor() {
-    u8 red, green, blue;
     s8 element = NowWeaponHave->best_elem;
 
     if (element == WEAPON_ELEMENT_NONE) {
-        CWeaponFx.colour[0].r = CWeaponFx.colour[2].r = 0x40;
-        CWeaponFx.colour[0].g = CWeaponFx.colour[2].g = 0x40;
-        CWeaponFx.colour[0].b = CWeaponFx.colour[2].b = 0x40;
-        CWeaponFx.colour[1].r = CWeaponFx.colour[3].r = 6;
-        CWeaponFx.colour[1].g = CWeaponFx.colour[3].g = 6;
-        CWeaponFx.colour[1].b = CWeaponFx.colour[3].b = 6;
+        SetWeaponTrailDefaultColour();
     } else if (element >= 0 && element < 6) {
-        blue = wep_rgb[element][2] >> 2;
-        green = wep_rgb[element][1] >> 2;
-        red = wep_rgb[element][0] >> 2;
+        u8 blue = wep_rgb[element][2] >> 2;
+        u8 green = wep_rgb[element][1] >> 2;
+        u8 red = wep_rgb[element][0] >> 2;
 
         CWeaponFx.colour[0].r = CWeaponFx.colour[2].r = red;
         CWeaponFx.colour[0].g = CWeaponFx.colour[2].g = green;
@@ -3173,16 +2927,18 @@ BT_SHOT_EFFECT *Get_Main_EffectPtr(int chara, int form) {
 
             return MyEffectEntry_Tbl[9 + entry];
         }
+        default:
+            break;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void MainChara_Effect(BT_SHOT_EFFECT *effect, unsigned int *data, int reload) {
     CharaMainEffect.Initialize();
     CharaMainEffectCrash.Initialize();
 
-    if (effect == NULL) {
+    if (effect == nullptr) {
         return;
     }
 
@@ -3195,21 +2951,17 @@ void MainChara_Effect(BT_SHOT_EFFECT *effect, unsigned int *data, int reload) {
     }
 
     if (CharaMainEffect.Entry2(effect, data, 0x10, &WEffectModelBuffer, 6) == 0) {
-        printf("effect entry err!!\n");
+        std::println("effect entry err!!");
     } else {
-        printf("set eff sucsess !\n");
+        std::println("set eff sucsess !");
     }
 
     if (UserStatus->cur_chara == CHARA_OSMOND) {
-        unsigned int *crash = ozumond_default_effect;
-
-        CharaMainEffectCrash.Entry2(MyEffectEntry_Tbl[9], crash, 0x10, &WEffectModelBuffer, 6);
+        CharaMainEffectCrash.Entry2(MyEffectEntry_Tbl[9], ozumond_default_effect, 0x10, &WEffectModelBuffer, 6);
     }
 
     if (UserStatus->cur_chara == CHARA_RUBY) {
-        unsigned int *crash = ozumond_default_effect;
-
-        CharaMainEffectCrash.Entry2(MyEffectEntry_Tbl[3], crash, 0x10, &WEffectModelBuffer, 6);
+        CharaMainEffectCrash.Entry2(MyEffectEntry_Tbl[3], ozumond_default_effect, 0x10, &WEffectModelBuffer, 6);
     }
 
     NowMainEffect = &CharaMainEffect;
@@ -3219,7 +2971,6 @@ void LoadChara2(int chara, int keep_place, unsigned int *chara_data, unsigned in
     CFrameAttr    frame_attr;
     sceVu0FVECTOR pos;
     sceVu0FVECTOR rotation;
-    int           i;
 
     frame_attr.fog_enable = true;
     frame_attr.clip_enable = false;
@@ -3240,30 +2991,21 @@ void LoadChara2(int chara, int keep_place, unsigned int *chara_data, unsigned in
 
     CharaMain.Initialize();
 
-    for (i = 0; i < 64; i++) {
-        CharaMainTexAnim[i].Initialize();
+    for (CTexAnimeData &anime : CharaMainTexAnim) {
+        anime.Initialize();
     }
 
     CharaMain.InitializeTexAnime(CharaMainTexAnim, 64);
     CharaMain.LoadPackData2(chara_data, "base.cfg", &CharaModelBuffer, 0x11, &CharaModelBuffer, 0);
-    NowWeapon = NULL;
+    NowWeapon = nullptr;
     CharaHand.Initialize();
 
-    if (chara == CHARA_XIAO) {
+    if (chara == CHARA_XIAO || chara == CHARA_RUBY) {
         CFrameAttr hand_attr;
 
         hand_attr.clip_enable = true;
         hand_attr.unk_09 = 0;
-        CharaHand.LoadPackData(chara_data, "hand_up.cfg", &CharaModelBuffer, &CharaModelBuffer, NULL);
-        CharaHand.frame->SetAttr(hand_attr, 1, 0);
-    }
-
-    if (chara == CHARA_RUBY) {
-        CFrameAttr hand_attr;
-
-        hand_attr.clip_enable = true;
-        hand_attr.unk_09 = 0;
-        CharaHand.LoadPackData(chara_data, "hand_up.cfg", &CharaModelBuffer, &CharaModelBuffer, NULL);
+        CharaHand.LoadPackData(chara_data, "hand_up.cfg", &CharaModelBuffer, &CharaModelBuffer, nullptr);
         CharaHand.frame->SetAttr(hand_attr, 1, 0);
     }
 
@@ -3276,80 +3018,76 @@ void LoadChara2(int chara, int keep_place, unsigned int *chara_data, unsigned in
         CharaMain.SetRotation(rotation[0], rotation[1], rotation[2]);
     }
 
-    CharaFrame = (CFrameVu1 *) CharaMain.frame;
+    CharaFrame = static_cast<CFrameVu1 *>(CharaMain.frame);
 
     if (chara == CHARA_OSMOND) {
-        LOADTEXTURE_INFO2 info[2] = {
-            {NULL, 0x46, 0},
-            {NULL, 0x46, 0}
+        std::array<LOADTEXTURE_INFO2, 2> info = {
+            {
+             {.name = nullptr, .block_no = 0x46, .mipmap = 0},
+             {.name = nullptr, .block_no = 0x46, .mipmap = 0},
+             }
         };
-        int size;
+        int size = 0;
 
-        u_int *hand_texture = GetPackFile(chara_data, "c05w_h.img", &size);
-        u8    *at = CharaModelBuffer.base + CharaModelBuffer.used * 16;
+        u_int  *hand_texture = GetPackFile(chara_data, "c05w_h.img", &size);
+        u_char *at = ArenaFree(CharaModelBuffer);
 
         memcpy(at, hand_texture, size);
-        size = (((size >> 6) + 1) << 6) >> 4;
-        CharaModelBuffer.Alloc(size);
-        info[0].name = (char *) at;
+        CharaModelBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
+        info[0].name = reinterpret_cast<char *>(at);
         TexManager.DeleteTextureBlock(0x46);
-        TexManager.LoadTextureBlockEX(0x46, info);
+        TexManager.LoadTextureBlockEX(0x46, info.data());
 
         u_int *effect = GetPackFile(chara_data, "mgan01.chr", &size);
 
-        ozumond_default_effect = (unsigned int *) (CharaModelBuffer.base + CharaModelBuffer.used * 16);
+        ozumond_default_effect = reinterpret_cast<unsigned int *>(ArenaFree(CharaModelBuffer));
         memcpy(ozumond_default_effect, effect, size);
-        size = (((size >> 6) + 1) << 6) >> 4;
-        CharaModelBuffer.Alloc(size);
+        CharaModelBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
     }
 
     if (chara == CHARA_RUBY) {
-        int    size;
+        int    size = 0;
         u_int *effect = GetPackFile(chara_data, "c05_f03.chr", &size);
 
-        ozumond_default_effect = (unsigned int *) (CharaModelBuffer.base + CharaModelBuffer.used * 16);
+        ozumond_default_effect = reinterpret_cast<unsigned int *>(ArenaFree(CharaModelBuffer));
         memcpy(ozumond_default_effect, effect, size);
-        size = (((size >> 6) + 1) << 6) >> 4;
-        CharaModelBuffer.Alloc(size);
+        CharaModelBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
     }
 
     // The weapon models take whatever the character models leave.
-    s32 used = CharaModelBuffer.used;
-    u8 *free_start = CharaModelBuffer.base + used * 16;
-    s64 free_size = 0x33450 - used;
-
-    WeaponModelBuffer.base = free_start;
-    WeaponModelBuffer.limit = free_size;
+    WeaponModelBuffer.base = ArenaFree(CharaModelBuffer);
+    WeaponModelBuffer.limit = 0x33450 - CharaModelBuffer.used;
     WeaponModelBuffer.used = 0;
     LoadWeapon2(crash_data, default_data, main_data, chara, 0);
     MemoryMapDump();
 }
 
-static void LoadData() {
-    CFrameAttr frame_attr;
-    char       weapon_model_path[64];
-    char       weapon_name[64];
-    char       weapon_effect_name[64];
-    char       steal_model_name[64];
-    int        character_size;
-    int        weapon_0_size;
-    int        weapon_1_size;
-    int        equipped_weapon_size;
+namespace {
 
-    // Configure the model attributes used by the loaded dungeon objects.
+/**
+ * Loads Toan, his weapons and the models and effects every dungeon floor shares.
+ */
+void LoadData() {
+    CFrameAttr           frame_attr;
+    std::array<char, 64> weapon_name{};
+    std::array<char, 64> weapon_effect_name{};
+    int                  character_size = 0;
+    int                  weapon_0_size = 0;
+    int                  weapon_1_size = 0;
+    int                  equipped_weapon_size = 0;
+
     frame_attr.fog_enable = true;
     frame_attr.clip_depth = 100.0f;
     frame_attr.clip_enable = false;
     frame_attr.program_option = 0;
 
     UserStatus->cur_chara = 0;
-    BtGetWeaponNamePath3(weapon_name, weapon_effect_name, UserStatus->chara_weapons[0][UserStatus->equipped_weapon_slot[0]].item_no);
-    printf("[%d] %s\n", UserStatus->chara_weapons[0][UserStatus->equipped_weapon_slot[0]].item_no, weapon_name);
+    BtGetWeaponNamePath3(weapon_name.data(), weapon_effect_name.data(), UserStatus->chara_weapons[0][UserStatus->equipped_weapon_slot[0]].item_no);
+    std::println("[{}] {}", UserStatus->chara_weapons[0][UserStatus->equipped_weapon_slot[0]].item_no, weapon_name.data());
 
-    strcpy(weapon_model_path, "commenu/weapon/");
-    strcat(weapon_model_path, weapon_name);
+    std::string weapon_model_path = std::string("commenu/weapon/") + weapon_name.data();
 
-    // Load the character and weapon data into consecutive 64-byte regions.
+    // The character and weapon files load one after another, each on a 64-byte boundary.
     LoadFile("dun/mainchara/c01d.chr", read_buffer, &character_size);
     unsigned int  aligned_size = ((character_size >> 6) + 1) << 6;
     unsigned int *weapon_data_0 = read_buffer + (aligned_size >> 2);
@@ -3362,7 +3100,7 @@ static void LoadData() {
     aligned_size = ((weapon_1_size >> 6) + 1) << 6;
     unsigned int *equipped_weapon_data = weapon_data_1 + (aligned_size >> 2);
 
-    LoadFile(weapon_model_path, equipped_weapon_data, &equipped_weapon_size);
+    LoadFile(weapon_model_path.data(), equipped_weapon_data, &equipped_weapon_size);
     wait_now_loading_vsync();
     LoadChara2(UserStatus->cur_chara, 1, read_buffer, weapon_data_0, weapon_data_1, equipped_weapon_data);
     float chara_z = 150.0f;
@@ -3370,20 +3108,17 @@ static void LoadData() {
     CharaFrame->SetPosition(200.0f, 0.0f, chara_z);
 
     BT_SHOT_EFFECT *main_effect = Get_Main_EffectPtr(UserStatus->cur_chara, 0);
-    LoadFile("dun/mainchara/wep_eff/c01_fuusya.chr", read_buffer, NULL);
+    LoadFile("dun/mainchara/wep_eff/c01_fuusya.chr", read_buffer, nullptr);
     wait_now_loading_vsync();
     MainChara_Effect(main_effect, read_buffer, 0);
 
     if (SndVoiceLoad(0) != 0) {
-        printf("voice err \n");
+        std::println("voice err ");
     } else {
-        printf("snd load\n");
+        std::println("snd load");
     }
 
-    // Load the shared dungeon pack and its models.
-    unsigned int *main_pack = read_buffer;
-
-    LoadFile("dun/pack/maindat.pac", main_pack, NULL);
+    LoadFile("dun/pack/maindat.pac", read_buffer, nullptr);
     wait_now_loading_vsync();
     cursorFrame = LoadMDSFilePack(read_buffer, "dun/etc/cursor.mds", &MainModelBuffer);
     bombCursorFrame = LoadMDSFilePack(read_buffer, "dun/etc/bomblock.mds", &MainModelBuffer);
@@ -3394,23 +3129,23 @@ static void LoadData() {
     NowDngMap->collision_model = LoadCollisionFilePack(read_buffer, "dun/etc/atrcol.mds", &MainModelBuffer);
     NowDngMap->atra_model->SetAttr(frame_attr, 1, 0);
 
-    NewChangeFx.LoadPackData2((unsigned int *) GetPackFile(read_buffer, "ceffe_s.chr", NULL), "info.cfg", &MainModelBuffer, 11, &MainModelBuffer, 0);
+    NewChangeFx.LoadPackData2(GetPackFile(read_buffer, "ceffe_s.chr", nullptr), "info.cfg", &MainModelBuffer, 11, &MainModelBuffer, 0);
     itemOpenSmallFx.LoadPack(read_buffer, "igetfx", &MainModelBuffer, &MotionData, &itemOpenSmallFx_info, 0);
     itemOpenBigFx.LoadPack(read_buffer, "igetfxb", &MainModelBuffer, &MotionData, &itemOpenBigFx_info, 0);
 
-    Water_Splash.LoadPackData2((unsigned int *) GetPackFile(read_buffer, "water_sp.chr", NULL), "info.cfg", &MainModelBuffer, 6, &MainModelBuffer, 0);
+    Water_Splash.LoadPackData2(GetPackFile(read_buffer, "water_sp.chr", nullptr), "info.cfg", &MainModelBuffer, 6, &MainModelBuffer, 0);
 
-    unsigned int *effect_data = (unsigned int *) GetPackFile(read_buffer, "trap01.chr", NULL);
+    unsigned int *effect_data = GetPackFile(read_buffer, "trap01.chr", nullptr);
     Trap_Circle.InitializeTexAnime(Trap_Circle_TexAnim, 16);
     Trap_Circle.LoadPackData2(effect_data, "info.cfg", &MainModelBuffer, 71, &MainModelBuffer, 0);
     Trap_Circle.frame->SetAttr(frame_attr, 1, 0x40);
 
-    sprintf(steal_model_name, "kara0%d.mds", selectMapNo + 1);
-    unsigned int *steal_model_data = (unsigned int *) GetPackFile(read_buffer, steal_model_name, NULL);
-    StealModel = (CFrameVu1 *) LoadMDSFile(steal_model_data, &MainModelBuffer, 0, NULL, NULL);
+    std::string   steal_model_name = std::format("kara0{}.mds", selectMapNo + 1);
+    unsigned int *steal_model_data = GetPackFile(read_buffer, steal_model_name.data(), nullptr);
+    StealModel = static_cast<CFrameVu1 *>(LoadMDSFile(steal_model_data, &MainModelBuffer, 0, nullptr, nullptr));
 
     MasekiModelBuffer.used = 0;
-    LoadFile("dun/effect/maseki_ex.chr", read_buffer, NULL);
+    LoadFile("dun/effect/maseki_ex.chr", read_buffer, nullptr);
     wait_now_loading_vsync();
     MasekiEffect[0].Entry2(&MyEntryEffect_Maseki00, read_buffer, 6, &MasekiModelBuffer, 3);
 
@@ -3424,7 +3159,37 @@ static void LoadData() {
     MasekiEffect[4].ReEntry(&MyEntryEffect_Maseki04, &MasekiModelBuffer);
 }
 
-int BtCheckDamageProc();
+} // namespace
+
+namespace {
+
+/**
+ * Spends one use of the selected active item, taking it away on its last use.
+ */
+void SpendActiveItem() {
+    s16 *slots = UserStatus->active_item;
+
+    // The counts follow the three item numbers.
+    if (slots[itemNowSel + 3] == 1) {
+        slots[itemNowSel] = -1;
+        slots[itemNowSel + 3] = 0;
+    } else {
+        slots[itemNowSel + 3]--;
+    }
+}
+
+/**
+ * Drops the model of the item the player holds out.
+ */
+void DropHeldItemModel() {
+    if (activeItem.model[8] != -1) {
+        activeItem.models->DeleteModel(activeItem.model[8]);
+    }
+
+    activeItem.model[8] = -1;
+}
+
+} // namespace
 
 void BattleActionThlow() {
     sceVu0FVECTOR stood;
@@ -3455,7 +3220,7 @@ void BattleActionThlow() {
             }
 
             float heading = atan2f(aim[0] - stood[0], aim[2] - stood[2]);
-            float turned = unitRotation((CFrameVu1 *) CharaFrame, heading);
+            float turned = unitRotation(CharaFrame, heading);
             float zero = 0.0f;
 
             CharaFrame->SetRotation(zero, turned, zero);
@@ -3468,31 +3233,20 @@ void BattleActionThlow() {
     }
 
     if (BombInfo.throw_step == 1) {
-        float throw_frame[6] = {548.0f, 452.0f, 267.0f, 347.0f, 188.0f, 321.0f};
-        float end = (float) CharaMain.motion_type.motion_info[27].end;
-        float start = throw_frame[UserStatus->cur_chara];
+        constexpr std::array<float, 6> throw_frame = {548.0f, 452.0f, 267.0f, 347.0f, 188.0f, 321.0f};
+        auto                           end = static_cast<float>(CharaMain.motion_type.motion_info[27].end);
+        float                          start = throw_frame[UserStatus->cur_chara];
 
         if (CharaMain.motion_type.state.time >= start && CharaMain.motion_type.state.time <= end) {
             SndSePlay(SE_THROW, -1, 0);
 
-            s16 *slots = UserStatus->active_item;
-
-            if (slots[itemNowSel + 3] == 1) {
-                slots[itemNowSel] = -1;
-                slots[itemNowSel + 3] = 0;
-            } else {
-                slots[itemNowSel + 3]--;
-            }
+            SpendActiveItem();
 
             if (lockOnTargetFlag == 0) {
                 sceVu0FVECTOR vector;
                 sceVu0FVECTOR from;
 
-                if (activeItem.model[8] != -1) {
-                    activeItem.models->DeleteModel(activeItem.model[8]);
-                }
-
-                activeItem.model[8] = -1;
+                DropHeldItemModel();
 
                 float offset[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 
@@ -3510,16 +3264,12 @@ void BattleActionThlow() {
                 sceVu0FVECTOR lock_vector;
                 sceVu0FVECTOR lock_from;
 
-                if (activeItem.model[8] != -1) {
-                    activeItem.models->DeleteModel(activeItem.model[8]);
-                }
-
-                activeItem.model[8] = -1;
+                DropHeldItemModel();
 
                 float   lock_offset[4] = {0.0f, 0.0f, 0.0f, 1.0f};
                 CFrame *hand = CharaMain.frame->SearchFrame("item");
 
-                if (hand != NULL) {
+                if (hand != nullptr) {
                     hand->GetWorldPosition(lock_from, lock_offset);
                 }
 
@@ -3545,7 +3295,7 @@ void BattleActionThlow() {
     if (BombInfo.throw_step == 2) {
         BtActStatus.motion_no = 0x1B;
 
-        float end = (float) CharaMain.motion_type.motion_info[27].end;
+        auto  end = static_cast<float>(CharaMain.motion_type.motion_info[27].end);
         float now = CharaMain.motion_type.state.time;
 
         if (now >= end - 2.0f && now <= end) {
@@ -3565,18 +3315,16 @@ void BattleActionThlow() {
 }
 
 void BattleActionDrink() {
-    float frame;
-    float now;
-
     if (BtActStatus.action_on != 3) {
         return;
     }
 
-    float drink_frame[6] = {628.0f, 474.0f, 285.0f, 474.0f, 474.0f, 474.0f};
+    constexpr std::array<float, 6> drink_frame = {628.0f, 474.0f, 285.0f, 474.0f, 474.0f, 474.0f};
 
     BtActStatus.motion_no = 0x1C;
-    frame = drink_frame[UserStatus->cur_chara];
-    now = CharaMain.motion_type.state.time;
+
+    float frame = drink_frame[UserStatus->cur_chara];
+    float now = CharaMain.motion_type.state.time;
 
     if (now >= frame && now < frame + 0.3f) {
         SndSePlay(SE_DRINK, -1, 0);
@@ -3587,28 +3335,15 @@ void BattleActionDrink() {
         SndSePlay(SE_EFFECT_CHIME, -1, 0);
     }
 
-    float end = (float) CharaMain.motion_type.motion_info[28].end;
+    auto end = static_cast<float>(CharaMain.motion_type.motion_info[28].end);
 
     if (CharaMain.motion_type.state.time >= end - 1.0f && CharaMain.motion_type.state.time <= end) {
         s32 running = activeItem.item[activeItem.now];
 
         usedActiveItem(UserStatus, running);
 
-        s16 *slots = UserStatus->active_item;
-
-        // The last use takes the item away; anything else just spends one.
-        if (slots[itemNowSel + 3] == 1) {
-            slots[itemNowSel] = -1;
-            slots[itemNowSel + 3] = 0;
-        } else {
-            slots[itemNowSel + 3]--;
-        }
-
-        if (activeItem.model[8] != -1) {
-            activeItem.models->DeleteModel(activeItem.model[8]);
-        }
-
-        activeItem.model[8] = -1;
+        SpendActiveItem();
+        DropHeldItemModel();
         SndSePlay(SE_CHARA_RECOVER, -1, 0);
 
         BtActStatus.action_on = 0;
@@ -3626,14 +3361,52 @@ void BattleActionDrink() {
     }
 }
 
+namespace {
+
 /* How long until Ozumond's action plays its sound again, in frames. */
 s32 ozumond_snd_cnt;
 
 /* How long until the player can be damaged again, in frames. */
 s32 dmg_check_wait;
 
+/**
+ * Ends the running action; a locked-on player turns back to the target unless told not to.
+ */
+void EndAction(bool face_target = true) {
+    BtActStatus.unk_028 = 0;
+    BtActStatus.motion_no = 0;
+    BtActStatus.action_on = 0;
+
+    if (lockOnTargetFlag != 0 && face_target) {
+        BtActStatus.motion_no = 0x12;
+    }
+}
+
+/**
+ * Puts a shot from the player's character in the first free slot, if there is one.
+ */
+void SpawnShot(sceVu0FVECTOR world, sceVu0FVECTOR vector, int damage) {
+    CSHOT *shots = NowShotData;
+
+    for (int i = 0; i < 12; i++) {
+        if (shots->used[i] == 0) {
+            sceVu0CopyVector(shots->pos[i], world);
+            sceVu0CopyVector(shots->vector[i], vector);
+            shots->life[i] = 0x78;
+            shots->damage[i] = damage;
+            shots->size[i] = 1.0f;
+            shots->halted[i] = 0;
+            shots->start_flag[i] = 0;
+            shots->used[i] = 1;
+            break;
+        }
+    }
+}
+
+} // namespace
+
 void BattleActionOn_Jinn() {
-    if (BtActStatus.action_on == 0 && (s32) BtActStatus.action_gauge == 100) {
+    if (BtActStatus.action_on == 0 && static_cast<s32>(BtActStatus.action_gauge) == 100) {
         BtActStatus.action_step = 0;
         BtActStatus.charge_time = 0.0f;
         BtActStatus.action_no = 11;
@@ -3647,7 +3420,6 @@ void BattleActionOn_Jinn() {
 void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
     float now = chara->motion_type.state.time;
     int   damage = NowWeaponHave->attack;
-    int   i;
 
     // A poisoned weapon hits twice as hard.
     if (StatusErrCheck(AILMENT_STAMINA) != 0) {
@@ -3661,7 +3433,7 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
 
         BtActStatus.motion_no = 11;
 
-        float end = (float) chara->motion_type.motion_info[11].end;
+        auto end = static_cast<float>(chara->motion_type.motion_info[11].end);
 
         // Letting go before the wind-up ends holds the swing; keeping it
         // pressed goes straight on to the throw.
@@ -3687,7 +3459,7 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
                 float         offset[4] = {0.0f, 0.0f, 0.0f, 1.0f};
                 CFrame       *hand = NowWeapon->frame->SearchFrame("eff30");
 
-                if (hand != NULL) {
+                if (hand != nullptr) {
                     hand->GetWorldPosition(world, offset);
 
                     if (lockOnTargetFlag == 0) {
@@ -3704,21 +3476,7 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
                         vector[2] *= 5.0f;
                     }
 
-                    CSHOT *shots = NowShotData;
-
-                    for (i = 0; i < 12; i++) {
-                        if (shots->used[i] == 0) {
-                            sceVu0CopyVector(shots->pos[i], world);
-                            sceVu0CopyVector(shots->vector[i], vector);
-                            shots->life[i] = 0x78;
-                            shots->damage[i] = damage;
-                            shots->size[i] = 1.0f;
-                            shots->halted[i] = 0;
-                            shots->start_flag[i] = 0;
-                            shots->used[i] = 1;
-                            break;
-                        }
-                    }
+                    SpawnShot(world, vector, damage);
 
                     BtActStatus.frames_since_attack = 0;
                 }
@@ -3735,25 +3493,11 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
                 float         offset[4] = {0.0f, 0.0f, 0.0f, 1.0f};
                 CFrame       *hand = NowWeapon->frame->SearchFrame("eff30");
 
-                if (hand != NULL) {
+                if (hand != nullptr) {
                     hand->GetWorldPosition(world, offset);
                     setShotVector(vector, 3.5f, viewAngleH__2, viewAngleV__2);
 
-                    CSHOT *shots = NowShotData;
-
-                    for (i = 0; i < 12; i++) {
-                        if (shots->used[i] == 0) {
-                            sceVu0CopyVector(shots->pos[i], world);
-                            sceVu0CopyVector(shots->vector[i], vector);
-                            shots->life[i] = 0x78;
-                            shots->damage[i] = damage;
-                            shots->size[i] = 1.0f;
-                            shots->halted[i] = 0;
-                            shots->start_flag[i] = 0;
-                            shots->used[i] = 1;
-                            break;
-                        }
-                    }
+                    SpawnShot(world, vector, damage);
 
                     BtActStatus.frames_since_attack = 0;
                 }
@@ -3762,21 +3506,10 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
             }
         }
 
-        float end = (float) chara->motion_type.motion_info[13].end;
+        auto end = static_cast<float>(chara->motion_type.motion_info[13].end);
 
         if (now >= end - 2.0f && now <= end) {
-            BtActStatus.unk_028 = 0;
-            BtActStatus.motion_no = 0;
-            BtActStatus.action_on = 0;
-
-            if (lockOnTargetFlag != 0) {
-                BtActStatus.motion_no = 0x12;
-            }
-
-            // Retail tests the task here and does nothing with the answer.
-            if (gameTask == GAME_TASK_EYE_CAMERA) {
-                now = now;
-            }
+            EndAction();
         }
     }
 
@@ -3796,7 +3529,7 @@ void BattleActionPlay_Jinn(CCharacter *chara, int aimed) {
 }
 
 void BattleActionOn_Ruby() {
-    if (BtActStatus.action_on == 0 && (s32) BtActStatus.action_gauge == 100) {
+    if (BtActStatus.action_on == 0 && static_cast<s32>(BtActStatus.action_gauge) == 100) {
         BtActStatus.action_step = 0;
         BtActStatus.action_no = 11;
         BtActStatus.action_on = 1;
@@ -3811,7 +3544,7 @@ void BattleActionShotRuby(CCharacter *chara, int aimed, float scale, int repeat)
     int          element = weapon->best_elem;
     int          damage = (weapon->attack >> 1) + (weapon->magic >> 1);
 
-    damage = (int) ((float) damage * scale);
+    damage = static_cast<int>(static_cast<float>(damage) * scale);
 
     // A poisoned weapon hits twice as hard.
     if (StatusErrCheck(AILMENT_STAMINA) != 0) {
@@ -3820,7 +3553,7 @@ void BattleActionShotRuby(CCharacter *chara, int aimed, float scale, int repeat)
 
     // A repeat shot reuses the start and the way the first one took.
     if (repeat != 0) {
-        if (NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, NULL, 1) != -1) {
+        if (NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, nullptr, 1) != -1) {
             NowMainEffect->SetWepStatus(NowWeaponHave->flags);
             NowMainEffect->SetVsMonster(NowWeaponHave->vs_monster);
             NowMainEffect->SetDmg(damage);
@@ -3832,22 +3565,18 @@ void BattleActionShotRuby(CCharacter *chara, int aimed, float scale, int repeat)
     }
 
     if (aimed == 0) {
-        int shot_no;
-
-        getFramePos((CFrameVu1 *) chara->frame, "weapon", ruby_effect_pos);
+        getFramePos(static_cast<CFrameVu1 *>(chara->frame), "weapon", ruby_effect_pos);
 
         if (lockOnTargetFlag == 0) {
             getCharacterVector(ruby_effect_vec, 0.0f);
             ruby_effect_vec[0] += ruby_effect_pos[0];
             ruby_effect_vec[1] += ruby_effect_pos[1];
             ruby_effect_vec[2] += ruby_effect_pos[2];
-            shot_no = NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, NULL, 1);
         } else {
             sceVu0CopyVector(ruby_effect_vec, BtActStatus.target_position);
-            shot_no = NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, NULL, 1);
         }
 
-        if (shot_no == -1) {
+        if (NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, nullptr, 1) == -1) {
             return;
         }
 
@@ -3865,7 +3594,7 @@ void BattleActionShotRuby(CCharacter *chara, int aimed, float scale, int repeat)
     ruby_effect_vec[1] += ruby_effect_pos[1];
     ruby_effect_vec[2] += ruby_effect_pos[2];
 
-    if (NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, NULL, 1) != -1) {
+    if (NowMainEffect->Set(ruby_effect_pos, ruby_effect_vec, 3, element, 0, nullptr, 1) != -1) {
         NowMainEffect->SetWepStatus(NowWeaponHave->flags);
         NowMainEffect->SetVsMonster(NowWeaponHave->vs_monster);
         NowMainEffect->SetDmg(damage);
@@ -3884,56 +3613,30 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
         BtActStatus.motion_no = 11;
         ruby_effect_id = -1;
 
-        if (aimed == 0) {
-            if (now >= 126.0f && now < 126.3f && BtActStatus.action_step == 0) {
-                sceVu0FVECTOR pos;
-                sceVu0FVECTOR aim;
+        // Holding the button past the wind-up starts a charge; the shot leaves either way.
+        if (now >= 126.0f && now < 126.3f && BtActStatus.action_step == 0) {
+            sceVu0FVECTOR pos;
+            sceVu0FVECTOR aim;
 
-                BtActStatus.motion_no = 14;
-                BtActStatus.action_no = 14;
-                BtActStatus.charge_time = 0.0f;
-                ruby_effect_id = NowMainEffect->Set(pos, aim, 3, element, 0, chara->frame->SearchFrame("item"), 0);
-                NowMainEffect->SetLoop(1);
-            }
-
-            if (now >= 128.0f && now < 128.3f) {
-                BattleActionShotRuby(chara, aimed, 1.0f, 0);
-                BtActStatus.frames_since_attack = 0;
-                SwordDmgCheck1(0.8f, 0);
-                SndSePlay(SE_CHARA_ACTION, -1, 0);
-                SndSePlay(SE_CHARA_SHOUT, -1, 0);
-            }
-        } else {
-            if (now >= 126.0f && now < 126.3f && BtActStatus.action_step == 0) {
-                sceVu0FVECTOR pos;
-                sceVu0FVECTOR aim;
-
-                BtActStatus.motion_no = 14;
-                BtActStatus.action_no = 14;
-                BtActStatus.charge_time = 0.0f;
-                ruby_effect_id = NowMainEffect->Set(pos, aim, 3, element, 0, chara->frame->SearchFrame("item"), 0);
-                NowMainEffect->SetLoop(1);
-            }
-
-            if (now >= 128.0f && now < 128.3f) {
-                BattleActionShotRuby(chara, aimed, 1.0f, 0);
-                BtActStatus.frames_since_attack = 0;
-                SwordDmgCheck1(0.8f, 0);
-                SndSePlay(SE_CHARA_ACTION, -1, 0);
-                SndSePlay(SE_CHARA_SHOUT, -1, 0);
-            }
+            BtActStatus.motion_no = 14;
+            BtActStatus.action_no = 14;
+            BtActStatus.charge_time = 0.0f;
+            ruby_effect_id = NowMainEffect->Set(pos, aim, 3, element, 0, chara->frame->SearchFrame("item"), 0);
+            NowMainEffect->SetLoop(1);
         }
 
-        float end = (float) chara->motion_type.motion_info[11].end;
+        if (now >= 128.0f && now < 128.3f) {
+            BattleActionShotRuby(chara, aimed, 1.0f, 0);
+            BtActStatus.frames_since_attack = 0;
+            SwordDmgCheck1(0.8f, 0);
+            SndSePlay(SE_CHARA_ACTION, -1, 0);
+            SndSePlay(SE_CHARA_SHOUT, -1, 0);
+        }
+
+        auto end = static_cast<float>(chara->motion_type.motion_info[11].end);
 
         if (now >= end - 1.0f && now <= end) {
-            BtActStatus.unk_028 = 0;
-            BtActStatus.motion_no = 0;
-            BtActStatus.action_on = 0;
-
-            if (lockOnTargetFlag != 0 && aimed == 0) {
-                BtActStatus.motion_no = 0x12;
-            }
+            EndAction(aimed == 0);
         }
     }
 
@@ -3947,9 +3650,7 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
 
         BtActStatus.charge_time += 1.0f;
 
-        if (BtActStatus.charge_time >= 60.0f) {
-            BtActStatus.charge_time = 60.0f;
-        }
+        BtActStatus.charge_time = std::min(BtActStatus.charge_time, 60.0f);
 
         if (BtActStatus.charge_time >= 58.0f && BtActStatus.charge_time < 58.5f) {
             setUnitAmbientAnime(15.0f, 1.0f, 0.0f, 122.0f, 208.0f);
@@ -4006,16 +3707,10 @@ void BattleActionPlay_Ruby(CCharacter *chara, int aimed) {
             }
         }
 
-        float end = (float) chara->motion_type.motion_info[16].end;
+        auto end = static_cast<float>(chara->motion_type.motion_info[16].end);
 
         if (now >= end - 1.0f && now <= end) {
-            BtActStatus.unk_028 = 0;
-            BtActStatus.motion_no = 0;
-            BtActStatus.action_on = 0;
-
-            if (lockOnTargetFlag != 0 && aimed == 0) {
-                BtActStatus.motion_no = 0x12;
-            }
+            EndAction(aimed == 0);
         }
     }
 }
@@ -4034,7 +3729,7 @@ void BattleActionOn_Ozumond() {
 }
 
 void BattleActionOn_Ozumond_H() {
-    if (BtActStatus.action_on == 0 && (s32) BtActStatus.action_gauge == 100) {
+    if (BtActStatus.action_on == 0 && static_cast<s32>(BtActStatus.action_gauge) == 100) {
         BtActStatus.action_no = 11;
         BtActStatus.action_on = 1;
         BtActStatus.action_step = 0;
@@ -4064,7 +3759,6 @@ void BattleActionPlay_Ozumond(int aimed) {
     sceVu0FVECTOR pos;
     sceVu0FVECTOR aim;
     sceVu0FVECTOR shot;
-    float         drain;
 
     WEAPON_HAVE *weapon = NowWeaponHave;
     int          damage = (weapon->attack >> 1) + (weapon->magic >> 1);
@@ -4074,7 +3768,7 @@ void BattleActionPlay_Ozumond(int aimed) {
         damage *= 2;
     }
 
-    drain = 1.5f - 0.01f * (float) NowWeaponHave->speed;
+    float drain = 1.5f - 0.01f * static_cast<float>(NowWeaponHave->speed);
 
     if (BtActStatus.action_no != 11) {
         return;
@@ -4090,20 +3784,14 @@ void BattleActionPlay_Ozumond(int aimed) {
     BtActStatus.action_gauge -= drain;
 
     if (BtActStatus.action_gauge <= 0.0f) {
-        BtActStatus.unk_028 = 0;
-        BtActStatus.motion_no = 0;
-        BtActStatus.action_on = 0;
+        EndAction();
         BtActStatus.gauge_exhausted = 1;
-
-        if (lockOnTargetFlag != 0) {
-            BtActStatus.motion_no = 0x12;
-        }
     }
 
     BtActStatus.motion_no = 11;
 
     if (aimed == 0) {
-        getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol0", pos);
+        getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol0", pos);
         getCharacterVector(aim, 0.0f);
     } else {
         setShotVector(aim, 3.5f, viewAngleH__2, viewAngleV__2);
@@ -4148,13 +3836,7 @@ void BattleActionPlay_Ozumond(int aimed) {
     }
 
     if (BtActStatus.action_step == 1) {
-        BtActStatus.unk_028 = 0;
-        BtActStatus.motion_no = 0;
-        BtActStatus.action_on = 0;
-
-        if (lockOnTargetFlag != 0) {
-            BtActStatus.motion_no = 0x12;
-        }
+        EndAction();
 
         NowMainEffect->OffEffect(-1);
     }
@@ -4193,7 +3875,7 @@ void BattleActionPlay_Ozumond_H(int aimed) {
         SndSeSeqPlayStop(0x199, 5, 0);
 
         if (aimed == 0) {
-            getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol0", pos);
+            getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol0", pos);
             getCharacterVector(aim, 0.0f);
         } else {
             setShotVector(aim, 3.5f, viewAngleH__2, viewAngleV__2);
@@ -4206,15 +3888,9 @@ void BattleActionPlay_Ozumond_H(int aimed) {
         aim[1] += pos[1];
         aim[2] += pos[2];
 
-        int shot_no;
+        float *target = lockOnTargetFlag != 0 ? BtActStatus.target_position : aim;
 
-        if (lockOnTargetFlag != 0) {
-            shot_no = NowMainEffect->Set(pos, BtActStatus.target_position, 5, element, 0, NULL, -1);
-        } else {
-            shot_no = NowMainEffect->Set(pos, aim, 5, element, 0, NULL, -1);
-        }
-
-        if (shot_no != -1) {
+        if (NowMainEffect->Set(pos, target, 5, element, 0, nullptr, -1) != -1) {
             NowMainEffect->SetVsMonster(NowWeaponHave->vs_monster);
             NowMainEffect->SetWepStatus(NowWeaponHave->flags);
             NowMainEffect->SetAttribute(GetWeaponElementAttr(NowWeaponHave->best_elem));
@@ -4227,13 +3903,7 @@ void BattleActionPlay_Ozumond_H(int aimed) {
     }
 
     if (BtActStatus.action_step == 1) {
-        BtActStatus.unk_028 = 0;
-        BtActStatus.motion_no = 0;
-        BtActStatus.action_on = 0;
-
-        if (lockOnTargetFlag != 0) {
-            BtActStatus.motion_no = 0x12;
-        }
+        EndAction();
     }
 }
 
@@ -4264,7 +3934,7 @@ void BattleActionPlay_Ozumond_F(int aimed) {
             BtActStatus.frames_since_attack = 0;
 
             if (aimed == 0) {
-                getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol0", start);
+                getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol0", start);
                 getCharacterVector(start_dir, 0.0f);
             } else {
                 setShotVector(start_dir, 1.0f, viewAngleH__2, viewAngleV__2);
@@ -4276,13 +3946,7 @@ void BattleActionPlay_Ozumond_F(int aimed) {
         }
 
         if (GamePad.On(PadInput_OK) == 0) {
-            BtActStatus.unk_028 = 0;
-            BtActStatus.motion_no = 0;
-            BtActStatus.action_on = 0;
-
-            if (lockOnTargetFlag != 0) {
-                BtActStatus.motion_no = 0x12;
-            }
+            EndAction();
 
             wait_cnt = 10;
         }
@@ -4299,18 +3963,12 @@ void BattleActionPlay_Ozumond_F(int aimed) {
     BtActStatus.action_gauge -= 0.5f;
 
     if (BtActStatus.action_gauge <= 0.0f) {
-        BtActStatus.unk_028 = 0;
-        BtActStatus.motion_no = 0;
-        BtActStatus.action_on = 0;
+        EndAction();
         BtActStatus.gauge_exhausted = 1;
-
-        if (lockOnTargetFlag != 0) {
-            BtActStatus.motion_no = 0x12;
-        }
     }
 
     if (aimed == 0) {
-        getFramePos((CFrameVu1 *) NowWeapon->frame, "dcol0", pos);
+        getFramePos(static_cast<CFrameVu1 *>(NowWeapon->frame), "dcol0", pos);
         getCharacterVector(aim, 0.0f);
     } else {
         setShotVector(aim, 3.5f, viewAngleH__2, viewAngleV__2);
@@ -4329,13 +3987,7 @@ void BattleActionPlay_Ozumond_F(int aimed) {
     }
 
     if (GamePad.On(PadInput_OK) == 0) {
-        BtActStatus.unk_028 = 0;
-        BtActStatus.motion_no = 0;
-        BtActStatus.action_on = 0;
-
-        if (lockOnTargetFlag != 0) {
-            BtActStatus.motion_no = 0x12;
-        }
+        EndAction();
 
         OzumondFire.Rset();
         wait_cnt = 10;
@@ -4343,16 +3995,17 @@ void BattleActionPlay_Ozumond_F(int aimed) {
     }
 }
 
+namespace {
+
+/* How far back the camera can go before something blocks its view. */
 float camera_far_dist_limmit;
 
-/* The overlay's own copy of the camera walk is static, so only `autoCamTrial`
- * names it. It compiles to retail's code exactly, but while that caller is
- * still supplied by its marker the marker's `jal` needs the disambiguated
- * global the reference dump carries, so both flip together. */
-static void CameraAutoMove(CCameraFollow *camera, CCPoly *poly, float *position, float from, float to) {
+/**
+ * Pulls the camera in to a point that blocks its view and swings it round a little.
+ */
+void CameraAutoMove(CCameraFollow *camera, float *position, float from, float to) {
     float reference[4];
     float offset[4];
-    float step;
 
     camera->GetRef(reference);
     offset[0] = position[0] - reference[0];
@@ -4360,7 +4013,7 @@ static void CameraAutoMove(CCameraFollow *camera, CCPoly *poly, float *position,
     offset[1] = 0.0f;
     camera->SetDistance(0.1f + DistVector(offset));
 
-    step = 0.0f;
+    float step = 0.0f;
     float over = camera->GetDistance() - camera_near_dist__2;
 
     if (over < step) {
@@ -4371,13 +4024,8 @@ static void CameraAutoMove(CCameraFollow *camera, CCPoly *poly, float *position,
         step = over / 30.0f;
     }
 
-    if (step > 2.0f) {
-        step = 2.0f;
-    }
-
-    if (step < 0.05f) {
-        step = 0.05f;
-    }
+    step = std::min(step, 2.0f);
+    step = std::max(step, 0.05f);
 
     if (over < 0.0f) {
         step *= 2.0f;
@@ -4395,6 +4043,8 @@ static void CameraAutoMove(CCameraFollow *camera, CCPoly *poly, float *position,
         camera->AddHeight(1.0f);
     }
 }
+
+} // namespace
 
 void autoCamTrial() {
     sceVu0FVECTOR eye;
@@ -4416,9 +4066,6 @@ void autoCamTrial() {
     sceVu0FVECTOR near_chara;
     sceVu0FVECTOR locked;
     float         world[4][4];
-    CCPoly       *poly;
-    int           i;
-    int           count;
 
     if (DebugStatus[5] == 0) {
         return;
@@ -4440,9 +4087,8 @@ void autoCamTrial() {
     // the line from the eye to what it looks at is then tested against.
     WorkBuffer__2->used = 0;
 
-    poly = (CCPoly *) WorkBuffer__2->Alloc(0x280);
-
-    count = 0;
+    auto *poly = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x280));
+    int   count = 0;
 
     box.max[0] = look[0] > eye[0] ? look[0] : eye[0];
     box.max[1] = look[1] > eye[1] ? look[1] : eye[1];
@@ -4452,27 +4098,16 @@ void autoCamTrial() {
     box.min[2] = look[2] < eye[2] ? look[2] : eye[2];
 
     if (NowDngMap->map_type != 1) {
-        CFrame *frame;
-        int     i;
+        for (int i = 0; NowDngMap->parts[i].frame[0] != nullptr; i++) {
+            CDungeonParts *part = &NowDngMap->parts[i];
+            CFrame        *frame = part->camera_collision;
 
-        i = 0;
-
-        while (NowDngMap->parts[i].frame[0] != NULL) {
-            if (i == -1) {
-                frame = NULL;
-            } else {
-                frame = NowDngMap->parts[i].camera_collision;
-            }
-
-            if (frame != NULL) {
-                CDungeonParts *part = &NowDngMap->parts[i];
-
+            if (frame != nullptr) {
                 sceVu0CopyVector(eye, part->frame_offset[0]);
 
-                CDungeonMap *map = NowDngMap;
-                int          turn = (int) ((CDungeonMap *) map)->parts[i].frame_turn[0];
+                auto turn = static_cast<int>(part->frame_turn[0]);
 
-                turn += i == -1 ? 0 : map->parts[i].camera_collision_turn;
+                turn += part->camera_collision_turn;
 
                 if (turn > 3) {
                     turn -= 3;
@@ -4486,28 +4121,16 @@ void autoCamTrial() {
                 frame->SetPosition(eye);
                 count += frame->PickUpNearPoly(&poly[count], box);
             }
-
-            i++;
         }
     } else {
-        CFrame *frame;
-        int     i;
-        int     j;
-
-        for (j = 0; j < 20; j++) {
-            for (i = 0; i < 20; i++) {
+        for (int j = 0; j < 20; j++) {
+            for (int i = 0; i < 20; i++) {
                 CDungeonMap *map = NowDngMap;
-                s32          parts_no = map->cells[i + j * 20].parts_no;
+                MAP_CELL    *cell = &map->cells[i + j * 20];
+                s32          parts_no = cell->parts_no;
+                CFrame      *frame = parts_no == -1 ? nullptr : map->parts[parts_no].camera_collision;
 
-                if (parts_no == -1) {
-                    frame = NULL;
-                } else {
-                    frame = map->parts[parts_no].camera_collision;
-                }
-
-                MAP_CELL *cell = &map->cells[i + j * 20];
-
-                if (frame == NULL) {
+                if (frame == nullptr) {
                     continue;
                 }
 
@@ -4515,7 +4138,7 @@ void autoCamTrial() {
                     continue;
                 }
 
-                int turn = map->cells[i + j * 20].direction;
+                int turn = cell->direction;
 
                 turn += parts_no == -1 ? 0 : map->parts[parts_no].camera_collision_turn;
 
@@ -4532,14 +4155,6 @@ void autoCamTrial() {
                 count += frame->PickUpNearPoly(&poly[count], box);
             }
         }
-    }
-
-    static int cnt = 0;
-
-    cnt++;
-
-    if (cnt > 60) {
-        cnt = 0;
     }
 
     NowCamera__3->GetPos(pos);
@@ -4562,12 +4177,11 @@ void autoCamTrial() {
     }
 
     if (hits > 0) {
-        int last;
+        int last = -1;
 
         sceVu0InnerProduct(forward, poly[hit_poly[0]].normal);
-        last = -1;
 
-        for (i = 0; i < hits; i++) {
+        for (int i = 0; i < hits; i++) {
             sceVu0SubVector(towards, hit_point[i], pos);
 
             if (sceVu0InnerProduct(forward, towards) < 0.0f) {
@@ -4585,21 +4199,21 @@ void autoCamTrial() {
                     float away = DistVector(pos, hit_point[last + 1]);
 
                     if (away - DistVector(pos, hit_point[last]) < 0.0f) {
-                        CameraAutoMove(NowCamera__3, &poly[hit_poly[last + 1]], hit_point[last + 1], 1000000.0f, 1000000.0f);
+                        CameraAutoMove(NowCamera__3, hit_point[last + 1], 1000000.0f, 1000000.0f);
                     } else {
-                        CameraAutoMove(NowCamera__3, &poly[hit_poly[last]], hit_point[last], 1000000.0f, 1000000.0f);
+                        CameraAutoMove(NowCamera__3, hit_point[last], 1000000.0f, 1000000.0f);
                     }
                 } else if (camera_far_dist_limmit >= camera_near_dist__2 && camera_far_dist_limmit < camera_far_dist__2) {
                     NowCamera__3->SetPos(hit_point[0]);
                 } else {
-                    CameraAutoMove(NowCamera__3, &poly[hit_poly[last]], hit_point[last], 1000000.0f, 1000000.0f);
+                    CameraAutoMove(NowCamera__3, hit_point[last], 1000000.0f, 1000000.0f);
                 }
             }
         } else {
             sceVu0CopyVector(facing_last, poly[hit_poly[0]].normal);
 
             if (sceVu0InnerProduct(forward, facing_last) < 0.0f) {
-                CameraAutoMove(NowCamera__3, &poly[hit_poly[0]], hit_point[0], 1000000.0f, 1000000.0f);
+                CameraAutoMove(NowCamera__3, hit_point[0], 1000000.0f, 1000000.0f);
             }
         }
     }
@@ -4608,11 +4222,9 @@ void autoCamTrial() {
     sceVu0CopyVector(reach, pos);
     reach[1] += 20.0f;
 
-    if (CheckHitVertical(poly, count, reach, -100.0f, at, 0) >= 0) {
-        if (pos[1] - at[1] < 25.0f) {
-            pos[1] = 25.0f + at[1];
-            NowCamera__3->SetHeight(pos[1] - ref[1] - 0.01f);
-        }
+    if (CheckHitVertical(poly, count, reach, -100.0f, at, 0) >= 0 && pos[1] - at[1] < 25.0f) {
+        pos[1] = 25.0f + at[1];
+        NowCamera__3->SetHeight(pos[1] - ref[1] - 0.01f);
     }
 
     sceVu0CopyVector(chara, CharaMain.pos);
@@ -4634,9 +4246,7 @@ void autoCamTrial() {
             float over = NowCamera__3->GetHeight() - 5.0f;
             float step = over * rate;
 
-            if (step < 0.15f) {
-                step = 0.15f;
-            }
+            step = std::max(step, 0.15f);
 
             if (!(step <= 0.5f)) {
                 step = 0.5f;
@@ -4664,9 +4274,7 @@ void autoCamTrial() {
         inputH1 = inputH1 * (DistVector(ref_off) / 1.3f / 2.0f);
 
         if (!(inputH1 <= 0.1f)) {
-            if (turn < 0.4f) {
-                turn = 0.4f;
-            }
+            turn = std::max(turn, 0.4f);
 
             if (!(turn <= 1.0f)) {
                 turn = 1.0f;
@@ -4680,9 +4288,7 @@ void autoCamTrial() {
                 turn = -0.4f;
             }
 
-            if (turn < -1.0f) {
-                turn = -1.0f;
-            }
+            turn = std::max(turn, -1.0f);
 
             NowCamera__3->AddAngle(2.5f * (-DEG_TO_RAD * turn));
         }
@@ -4698,7 +4304,7 @@ void autoCamTrial() {
         if (!(away <= 30.0f)) {
             CharaMain.frame->GetLWMatrix(world);
 
-            float want = (float) (atan2f(world[2][0], world[2][2]) - PI_D);
+            auto want = static_cast<float>(atan2f(world[2][0], world[2][2]) - PI_D);
 
             if (!(want <= PI_SHORT)) {
                 want -= TWO_PI_SHORT;
@@ -4717,9 +4323,7 @@ void autoCamTrial() {
                 range = 90.0f;
             }
 
-            if (range < 0.0f) {
-                range = 0.0f;
-            }
+            range = std::max(range, 0.0f);
 
             if (!(away <= 80.0f)) {
                 range = 10.0f;
@@ -4738,8 +4342,6 @@ void autoCamTrial() {
 }
 
 void DelActiveItem(int slot) {
-    // The two arrays are adjacent, and retail walks the second one off the
-    // first rather than off the save data again.
     s16 *slots = UserStatus->active_item;
 
     // The last use takes the item away; anything else just spends one.
@@ -4756,41 +4358,22 @@ void DelActiveItem(int slot) {
     }
 }
 
-#define CHARA_WEAPONS_OFFSET 0x450c
-STATIC_ASSERT((int) &((CUserStatus *) 0)->chara_weapons == CHARA_WEAPONS_OFFSET);
-
 int Run_TrapCircle(MAP_TRAP_CIRCLE *trap) {
-    if (trap == NULL) {
+    if (trap == nullptr) {
         return;
     }
 
-    int          element;
-    int          se;
-    int          kind;
-    WEAPON_HAVE *weapon;
-    CUserStatus *status;
-    int          had;
-    u16         *wallet;
-    s8           chara;
-    s8          *slots;
-    s8           slot;
+    CUserStatus *status = UserStatus;
+    int          had = status->money;
+    int          had_copy = status->money;
+    s8           chara = status->cur_chara;
+    WEAPON_HAVE *weapon = &status->chara_weapons[chara][status->equipped_weapon_slot[chara]];
+    int          element = -1;
+    int          se = 0;
+    int          kind = trap->kind;
+    s16          item_no = weapon->item_no;
 
-    status = UserStatus;
-    wallet = &status->money;
-    had = status->money;
-    int had_copy = *wallet;
-    chara = status->cur_chara;
-    slots = status->equipped_weapon_slot;
-    slot = slots[chara];
-    int slot_bytes = slot * (int) sizeof(WEAPON_HAVE);
-    int row_bytes = chara * (int) sizeof(status->chara_weapons[0]);
-    weapon = (WEAPON_HAVE *) ((char *) status + row_bytes + slot_bytes + CHARA_WEAPONS_OFFSET);
-    element = -1;
-    se = 0;
-    kind = trap->kind;
-
-    s16 item_no = status->chara_weapons[status->cur_chara][slot].item_no;
-
+    // The first two weapons of each character turn every trap into the stamina trap.
     if (item_no == defWeapon__6[chara] || item_no == defWeapon__6[chara] + 1) {
         kind = TRAP_CIRCLE_STAMINA;
     }
@@ -4830,13 +4413,11 @@ int Run_TrapCircle(MAP_TRAP_CIRCLE *trap) {
             se = 0xE2;
             break;
         case TRAP_CIRCLE_MONEY_DOWN: {
-            had_copy = (int) (had_copy - 0.2f * had_copy);
+            had_copy = static_cast<int>(had_copy - 0.2f * had_copy);
 
-            if (had_copy <= 0) {
-                had_copy = 0;
-            }
+            had_copy = std::max(had_copy, 0);
 
-            *wallet = had_copy;
+            status->money = had_copy;
             se = 0xE2;
             break;
         }
@@ -4851,6 +4432,8 @@ int Run_TrapCircle(MAP_TRAP_CIRCLE *trap) {
         case TRAP_CIRCLE_WHP_QUARTER:
             element = RGATE_WHP_QUARTER;
             se = 0xE2;
+            break;
+        default:
             break;
     }
 
@@ -4876,8 +4459,6 @@ void DrawTargetLife() {
     CRect_i_ border;
     CRect_i_ ground;
     CRect_i_ life;
-    s32      x;
-    s32      width;
 
     if (EnemyLifeGage.on == 0) {
         return;
@@ -4887,13 +4468,16 @@ void DrawTargetLife() {
         return;
     }
 
-    if (((s32 *) SaveData->GetConfigData())[11] != 0) {
+    // The twelfth word of the options hides the gauge.
+    if (static_cast<s32 *>(SaveData->GetConfigData())[11] != 0) {
         return;
     }
 
-    x = EnemyLifeGage.x - 32;
+    s32 x = EnemyLifeGage.x - 32;
+
     EnemyLifeGage.y = (EnemyLifeGage.y >> 1) << 1;
-    width = (s32) (64.0f / EnemyLifeGage.life_max * EnemyLifeGage.life);
+
+    auto width = static_cast<s32>(64.0f / EnemyLifeGage.life_max * EnemyLifeGage.life);
 
     if (x >= 577 || x < 0) {
         return;
@@ -4903,40 +4487,37 @@ void DrawTargetLife() {
         return;
     }
 
-    s32 top = EnemyLifeGage.y - 1;
-
     border.x = x - 1;
-    border.y = top;
+    border.y = EnemyLifeGage.y - 1;
     border.width = 66;
     border.height = 6;
     set2DSpriteC4(Vif1Packet, border, &ELifeB1, &ELifeB2, &ELifeB1, &ELifeB2);
 
-    s32 ground_top = EnemyLifeGage.y;
-
     ground.x = x;
-    ground.y = ground_top;
+    ground.y = EnemyLifeGage.y;
     ground.width = 64;
     ground.height = 4;
     set2DSpriteC4(Vif1Packet, ground, &ELifeN1, &ELifeN1, &ELifeN1, &ELifeN1);
 
-    s32 life_top = EnemyLifeGage.y;
-
     life.x = x;
-    life.y = life_top;
+    life.y = EnemyLifeGage.y;
     life.width = width;
     life.height = 4;
     set2DSpriteC4(Vif1Packet, life, &ELife1, &ELife2, &ELife1, &ELife2);
 }
 
+namespace {
+
 /* How long the lock-on cursor stays on screen, in frames. */
 float targetCursorCnt;
+
+} // namespace
 
 void DrawtargetCursor(float *world, float width, float height, float alpha) {
     int       top_left[4];
     int       bottom_right[4];
-    CTexture *texture;
+    CTexture *texture = TexManager.GetTexture("d01e04", -1);
 
-    texture = TexManager.GetTexture("d01e04", -1);
     setbilinear(0);
     world[3] = 1.0f;
 
@@ -4952,7 +4533,7 @@ void DrawtargetCursor(float *world, float width, float height, float alpha) {
         bottom_right[0] >>= 4;
         bottom_right[1] >>= 3;
 
-        static int rate = (int) (16.0f * alpha);
+        static int rate = static_cast<int>(16.0f * alpha);
 
         set2DSprite(Vif1Packet, texture, CRect_i_(top_left[0], top_left[1], 0x10, 0x10), CRect_i_(0, 0x20, 0x10, 0x10), rate);
         set2DSprite(Vif1Packet, texture, CRect_i_(bottom_right[0], top_left[1], 0x10, 0x10), CRect_i_(0, 0, 0x10, 0x10), rate);
@@ -4971,23 +4552,10 @@ int SetNearLockOnTarget(int from, int nearest_only) {
     sceVu0FVECTOR pos[16];
     float         dist[16];
     int           found[16];
-    float         away;
-    float         rate;
-    int           place;
-    int           i;
-    int           count;
-    int           slot;
-    int           nearest;
-    int           other;
-
-    rate = CharaRangeRate(status);
+    float         rate = CharaRangeRate(status);
 
     CharaFrame->GetRotation(at);
 
-    // Declared here rather than with the rest: mwcc emits a local array's
-    // template copy where the declaration stands, and retail's lands after
-    // the two calls above, not before them. The slots still come out where
-    // they do above, because everything ahead of these is still ahead of them.
     sceVu0FVECTOR forward = {0.0f, 0.0f, 1.0f, 1.0f};
     sceVu0FMATRIX unit;
     sceVu0FMATRIX turn;
@@ -4999,16 +4567,15 @@ int SetNearLockOnTarget(int from, int nearest_only) {
     sceVu0ApplyMatrix(forward, turn, forward);
     sceVu0Normalize(forward, forward);
 
-    count = 0;
+    int count = 0;
+
     sceVu0CopyVector(at, CharaFrame->position);
 
-    for (i = 0; i < 16; i++) {
-        found[i] = -1;
+    for (int &monster : found) {
+        monster = -1;
     }
 
-    for (i = 0; i < 16; i++) {
-        int on;
-
+    for (int i = 0; i < 16; i++) {
         MonstorPicupInner[i] = 0.0f;
 
         CMonstorUnit *monsters = NowMonstorUnit;
@@ -5021,11 +4588,7 @@ int SetNearLockOnTarget(int from, int nearest_only) {
             continue;
         }
 
-        if (i >= 0 && i < 17) {
-            on = monsters->monster[i].revealed;
-        }
-
-        if (on == 0) {
+        if (monsters->monster[i].revealed == 0) {
             continue;
         }
 
@@ -5035,7 +4598,7 @@ int SetNearLockOnTarget(int from, int nearest_only) {
 
         monsters->chara[i][0].GetPosition(pos[i]);
 
-        away = DistVector(at, pos[i]);
+        float away = DistVector(at, pos[i]);
 
         if (!(away < NowMonstorUnit->monster[i].lock_range * rate)) {
             continue;
@@ -5063,17 +4626,13 @@ int SetNearLockOnTarget(int from, int nearest_only) {
         return 0;
     }
 
-    // Split from the loop below: mwcc emits the initialisation where the
-    // statement stands, which is ahead of the loop that clears order[].
-    place = 0;
-
-    for (slot = 0; slot < 16; slot++) {
-        order[slot] = -1;
+    for (int &monster : order) {
+        monster = -1;
     }
 
     // The nearest one that is still free goes into each place in turn.
-    for (; place < count; place++) {
-        nearest = 0;
+    for (int place = 0; place < count; place++) {
+        int nearest = 0;
 
         while (found[nearest] == -1) {
             nearest++;
@@ -5081,7 +4640,7 @@ int SetNearLockOnTarget(int from, int nearest_only) {
 
         float best = dist[nearest];
 
-        for (other = 0; other < count; other++) {
+        for (int other = 0; other < count; other++) {
             if (other == place) {
                 continue;
             }
@@ -5100,7 +4659,7 @@ int SetNearLockOnTarget(int from, int nearest_only) {
         found[nearest] = -1;
     }
 
-    int target;
+    int target = 0;
 
     if (nearest_only == 0) {
         if (count == 1) {
@@ -5168,14 +4727,11 @@ void setTargetCursor(int on) {
     sceVu0FVECTOR flat_stood;
     sceVu0FVECTOR flat_target;
     int           screen[4];
-    float         width;
-    float         height;
-    int           keep;
 
     float rate = CharaRangeRate(status);
 
     if (on != 0) {
-        keep = 1;
+        int keep = 1;
 
         if (NowMonstorUnit->monster[lockOnTargetNo].state != 2 || NowMonstorUnit->monster[lockOnTargetNo].hp <= 0) {
             keep = 0;
@@ -5218,14 +4774,14 @@ void setTargetCursor(int on) {
         target[1] += 8.0f;
         target[3] = 1.0f;
 
-        if (NowMonstorUnit->monster[lockOnTargetNo].lockon_frame != 0) {
+        if (NowMonstorUnit->monster[lockOnTargetNo].lockon_frame != nullptr) {
             sceVu0CopyVector(target, NowMonstorUnit->monster[lockOnTargetNo].lockon_position);
         }
 
         sceVu0CopyVector(BtActStatus.target_position, target);
 
-        width = (12.0f + targetCursorCnt) * NowMonstorUnit->monster[lockOnTargetNo].lockon_scale_x;
-        height = (6.0f + targetCursorCnt / 2.0f) * NowMonstorUnit->monster[lockOnTargetNo].lockon_scale_y;
+        float width = (12.0f + targetCursorCnt) * NowMonstorUnit->monster[lockOnTargetNo].lockon_scale_x;
+        float height = (6.0f + targetCursorCnt / 2.0f) * NowMonstorUnit->monster[lockOnTargetNo].lockon_scale_y;
 
         if (NowMonstorUnit->monster[lockOnTargetNo].name_no > 0 && NowMonstorUnit->monster[lockOnTargetNo].kind != MONSTER_KIND_NO_LOCK_ON) {
             EnemyLifeGage.life_max = NowMonstorUnit->monster[lockOnTargetNo].max_hp;
@@ -5255,7 +4811,7 @@ void setTargetCursor(int on) {
         // player holds a weapon that talks to him.
         s16 weapon = NowWeaponHave->item_no;
 
-        if ((weapon == ITEM_WEAPON_STEVE || weapon == ITEM_WEAPON_SUPER_STEVE) && lockOnTargetFlag != 0 && NowMonstorUnit->monster[lockOnTargetNo].name_no > 0 && (int) (100.0f * (float) rand() / 2147483648.0f) < 3) {
+        if ((weapon == ITEM_WEAPON_STEVE || weapon == ITEM_WEAPON_SUPER_STEVE) && lockOnTargetFlag != 0 && NowMonstorUnit->monster[lockOnTargetNo].name_no > 0 && static_cast<int>(100.0f * static_cast<float>(rand()) / 2147483648.0f) < 3) {
             DngMessMan.SetSteevMes(NowMonstorUnit->monster[lockOnTargetNo].name_no * 10 + 4000);
         }
 
@@ -5323,17 +4879,21 @@ float setUnitDamageColor(int hit) {
     return dmgColor;
 }
 
+namespace {
+
 /* How fast the ambient-colour animation runs. */
 float unitAmbientAnime_Speed;
 
 /* How far through the ambient-colour animation the player's model is. */
 float unitAmbientAnime_Count;
 
-/* How long the ambient-colour animation runs for, in frames. */
+/* How much longer the ambient-colour animation keeps repeating. */
 s32 unitAmbientAnime_Timer;
 
 /* Whether the ambient-colour animation is running on the player's model. */
 s32 unitAmbientAnime_flag;
+
+} // namespace
 
 void RsetUnitAmbientAnime() {
     unitAmbientAnime_flag = 0;
@@ -5345,7 +4905,7 @@ void setUnitAmbientAnime(float speed, float time, float red, float green, float 
     unitAmbientAnime_rgb[2] = blue;
     unitAmbientAnime_Count = 0;
     unitAmbientAnime_Speed = speed;
-    unitAmbientAnime_Timer = (s32) time;
+    unitAmbientAnime_Timer = static_cast<s32>(time);
     unitAmbientAnime_flag = 1;
 }
 
@@ -5394,27 +4954,30 @@ int LoadStartLogo(int map) {
         "floor05",
         "floor06",
     };
-    char *files[5];
-    int   size;
-    int   blocks;
+    // Only the one texture is loaded; the nullptr after it ends the list.
+    std::array<char *, 5> files{};
 
-    // Only the one texture is loaded; the NULL after it ends the list.
     files[0] = NameExchg(dungeon_name[map], 0);
-    files[1] = NULL;
     BtStartLogoBuffer.used = 0;
-    size = LoadTempTexture(files, 8, (char *) BtStartLogoBuffer.base);
-    blocks = (((size >> 6) + 1) << 6) >> 4;
+
+    int size = LoadTempTexture(files.data(), 8, reinterpret_cast<char *>(BtStartLogoBuffer.base));
+    int blocks = (((size >> 6) + 1) << 6) >> 4;
+
     BtStartLogoBuffer.Alloc(blocks);
 
     char *name = floor_texture[map];
 
     TEX_Floor1 = TexManager.GetTexture(name, -1);
-    strcpy(floor_name, name);
+
+    const std::string_view floor = name;
+
+    std::ranges::copy(floor, floor_name);
+    floor_name[floor.size()] = '\0';
     return blocks;
 }
 
 // clang-format off
-/* The map info file each dungeon loads its floors from. */
+/* The names of the seven dungeons. */
 char *MapInfoNameArea[7] = {
     "Cave of the Sacred Beast", "Forest of the Own", "Sunken Ship", "Shrine of Sun and Moon", "MoonOcean",
     "DarkHeven Castle", "Deamon Shaft",
@@ -5436,6 +4999,8 @@ void SetMIniMapStatus(int on) {
             break;
         case 1:
             infoMap = infoMapOld;
+            break;
+        default:
             break;
     }
 }
@@ -5493,8 +5058,6 @@ void LoaderInit() {
     EdEventInfo.map_jump_bgm_play = true;
 }
 
-int LoaderLoop();
-
 void InitEyeCamera() {
     sceVu0FVECTOR pos;
 
@@ -5502,6 +5065,3 @@ void InitEyeCamera() {
     viewAngleV__2 = 0.0f;
     sceVu0CopyVector(pos, CharaMain.pos);
 }
-
-void EyeCamera();
-

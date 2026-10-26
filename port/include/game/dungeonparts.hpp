@@ -1,17 +1,16 @@
 #pragma once
 
-#include "common.h"
-
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
-class CFrame;
-struct MAPPARTS;
-
 /**
  * @file
  * Declares one part of a dungeon floor and the operations on it.
  */
+
+#include "common.h"
+
+class CCPoly;
+class CDungeonMap;
+class CFrame;
+struct MAPPARTS;
 
 /**
  * Names each map part that a dungeon floor is built from.
@@ -168,47 +167,28 @@ public:
 
 public:
     /**
-     * Returns the frame with the given name, or zero if the part does not hold it.
-     *
-     * @mangled GetSearchFrame__13CDungeonPartsFPc
-     * @address 0x1C1590
-     * @size 0xD8
+     * Returns the frame with the given name, or null if the part does not hold it.
      */
     CFrame *GetSearchFrame(char *name);
 
     /**
      * Places a healing zone within one dungeon part.
-     *
-     * @mangled SetHealZone__13CDungeonPartsFPfff
-     * @address 0x1C1670
-     * @size 0x58
      */
     void SetHealZone(float *position, float width, float depth);
 
     /**
      * Draws one dungeon part and everything standing on it.
-     *
-     * @mangled Draw__13CDungeonPartsFv
-     * @address 0x1C16D0
-     * @size 0x17C
      */
     void Draw();
 
     /**
-     * Chooses the level of detail each of a part's frames draws at.
-     *
-     * @mangled DrawCalc__13CDungeonPartsFiiii
-     * @address 0x1C1850
-     * @size 0x348
+     * Turns and places each of a part's models, and its collision model, for
+     * the grid cell at x, z.
      */
     void DrawCalc(int x, int z, int turn, int map_type);
 
     /**
      * Clears one dungeon part.
-     *
-     * @mangled initalize__13CDungeonPartsFv
-     * @address 0x1C1BA0
-     * @size 0x5C
      */
     void initalize();
 };
@@ -251,19 +231,11 @@ extern ITEM_PUT_SET *ItemPutListPtr[14];
 
 /**
  * Gives the two items the clown offers on one floor.
- *
- * @mangled GetPieroItem__FiiPiPi
- * @address 0x1BFAB0
- * @size 0x440
  */
 void GetPieroItem(int map_no, int ura_dungeon, int *item0, int *item1);
 
 /**
  * Selects one item preset for a treasure box on a floor.
- *
- * @mangled PresetSmallItemNo_Get__Fiiii
- * @address 0x1BFEF0
- * @size 0x4CC
  */
 int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small);
 
@@ -294,41 +266,31 @@ struct ITEM_FREE_AREA {
 STATIC_ASSERT(sizeof(ITEM_FREE_RECT) == 0x18);
 STATIC_ASSERT(sizeof(ITEM_FREE_AREA) == 0x64);
 
-/** The areas where items can be put down on each map. */
-extern "C" ITEM_FREE_AREA *ItemFreeAreaAll[7];
+/**
+ * The areas where items can be put down on each map.
+ */
+extern ITEM_FREE_AREA *ItemFreeAreaAll[7];
 
 /**
  * Selects a random open world position in a rectangular group of cells, and
  * returns how many placement boxes the cells offered.
- *
- * @mangled SearchiDoPutArea__FP8MAPPARTSiiiiPf
- * @address 0x1C03C0
- * @size 0x578
  */
 int SearchiDoPutArea(MAPPARTS *cells, int x, int y, int width, int height, float *pos);
 
 /**
  * Selects the atla identifiers that appear on a floor.
- *
- * @mangled BtAtraFloorCyoice__FiiPi
- * @address 0x1C0D20
- * @size 0x2A0
  */
 int BtAtraFloorCyoice(int map_no, int floor_no, int *atra_no);
 
-class CDungeonMap;
-class CCPoly;
-
 /**
  * Gathers the floor's polygons within reach of a position, and returns how many.
- *
- * @mangled setCollisionData__FP11CDungeonMapP6CCPolyPfff
- * @address 0x1C0FC0
- * @size 0x5D0
  */
 int setCollisionData(CDungeonMap *map, CCPoly *poly, float *position, float radius, float height);
 
-/** The treasure box item lists of the twelfth dungeon table; dngstatusdata reads the owning character out of it by byte offset. */
+/**
+ * The treasure box item lists of the twelfth dungeon table; dngstatusdata
+ * reads the owning character out of it by byte offset.
+ */
 extern ITEM_PUT_SET ItemPutListTbl12[3];
 
 /**

@@ -42,46 +42,26 @@ public:
 
     /**
      * Loads one Dran field model into the next free slot.
-     *
-     * @mangled LoadModel__13CDranMapFieldFPUiP14CDataAlloc2_1_
-     * @address 0x1CD3C0
-     * @size 0x14C
      */
     void LoadModel(unsigned int *pack, CDataAlloc2<1> *arena);
 
     /**
      * Appends polygons near the active Dran field collision frames.
-     *
-     * @mangled AddCollision__13CDranMapFieldFP6CCPolyi7CBoxVu0
-     * @address 0x1CD510
-     * @size 0xF8
      */
     int AddCollision(CCPoly *poly, int count, CBoxVu0 box);
 
     /**
      * Loads one Dran field collision frame into the next free slot.
-     *
-     * @mangled LoadCollision__13CDranMapFieldFPUiP14CDataAlloc2_1_
-     * @address 0x1CD610
-     * @size 0x110
      */
     void LoadCollision(unsigned int *pack, CDataAlloc2<1> *arena);
 
     /**
      * Draws every active Dran field model that has finished loading.
-     *
-     * @mangled Draw__13CDranMapFieldFv
-     * @address 0x1CD720
-     * @size 0xAC
      */
     void Draw();
 
     /**
      * Advances the timed state of every loaded Dran field model.
-     *
-     * @mangled Step__13CDranMapFieldFv
-     * @address 0x1CD7D0
-     * @size 0x134
      */
     void Step();
 };
@@ -106,7 +86,7 @@ STATIC_ASSERT(sizeof(DRAN_MAP_FIELD_SET) == 0xD4B0);
 /**
  * Dran field models and runtime state for the current dungeon.
  */
-extern "C" DRAN_MAP_FIELD_SET DranMapField;
+extern DRAN_MAP_FIELD_SET DranMapField;
 
 /**
  * Message LoadModel prints when a field's model table overflows.

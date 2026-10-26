@@ -2,10 +2,11 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <memory>
 
 #include "boxvu0.hpp"
 #include "collision.hpp"
@@ -19,6 +20,8 @@
 #include "frame.hpp"
 #include "mglib.hpp"
 #include "userstatus.hpp"
+
+namespace {
 
 /** The areas where items can be put down on map 1. */
 ITEM_FREE_AREA ItemFreeAreaD01[27] = {
@@ -786,6 +789,8 @@ ITEM_PUT_SET ItemPutListTbl11[3] = {
 };
 // clang-format on
 
+} // namespace
+
 // clang-format off
 /** The treasure box item lists of dungeon 5's back floors. */
 ITEM_PUT_SET ItemPutListTbl12[3] = {
@@ -825,6 +830,8 @@ ITEM_PUT_SET ItemPutListTbl12[3] = {
 };
 // clang-format on
 
+namespace {
+
 // clang-format off
 /** The treasure box item lists of dungeon 6's back floors. */
 ITEM_PUT_SET ItemPutListTbl13[3] = {
@@ -858,6 +865,8 @@ ITEM_PUT_SET ItemPutListTbl13[3] = {
 };
 // clang-format on
 
+} // namespace
+
 /** The treasure box item lists, seven dungeons and then their back floors. */
 ITEM_PUT_SET *ItemPutListPtr[14] = {
     ItemPutListTbl0,
@@ -875,6 +884,8 @@ ITEM_PUT_SET *ItemPutListPtr[14] = {
     ItemPutListTbl12,
     ItemPutListTbl13,
 };
+
+namespace {
 
 // clang-format off
 /** The clown's item lists of dungeon 0. */
@@ -1437,6 +1448,8 @@ PIERO_ITEM_SET PieroItemList13[2] = {
 };
 // clang-format on
 
+} // namespace
+
 /** The clown's item lists, seven dungeons and then their back floors. */
 PIERO_ITEM_SET *PieroItemListPtr[14] = {
     PieroItemList0,
@@ -1480,243 +1493,111 @@ ITEM_FREE_AREA *ItemFreeAreaAll[7] = {
 /** The floor that divides each dungeon's lower item lists from its upper ones. */
 int floorNum[7] = {8, 9, 9, 9, 8, 12, 50};
 
+char info_cfg_literal[] = "info.cfg";
+
+namespace {
+
 /** The floors dungeon 0 keeps Atla off, ended by -1. */
-static int noEntryTbl00[] = {4, 8, 11, -1};
+constexpr int noEntryTbl00[] = {4, 8, 11, -1};
 
 /** The floors dungeon 1 keeps Atla off, ended by -1. */
-static int noEntryTbl01[] = {4, 9, 12, -1};
+constexpr int noEntryTbl01[] = {4, 9, 12, -1};
 
 /** The floors dungeon 2 keeps Atla off, ended by -1. */
-static int noEntryTbl02[] = {5, 9, 12, -1};
+constexpr int noEntryTbl02[] = {5, 9, 12, -1};
 
 /** The floors dungeon 3 keeps Atla off, ended by -1. */
-static int noEntryTbl03[] = {5, 9, 13, -1};
+constexpr int noEntryTbl03[] = {5, 9, 13, -1};
 
 /** The floors dungeon 4 keeps Atla off, ended by -1. */
-static int noEntryTbl04[] = {4, 8, 11, -1};
+constexpr int noEntryTbl04[] = {4, 8, 11, -1};
 
 /** The floors dungeon 5 keeps Atla off, ended by -1. */
-static int noEntryTbl05[] = {19, 20, 21, 22, 23, -1};
+constexpr int noEntryTbl05[] = {19, 20, 21, 22, 23, -1};
 
 /** The floors each dungeon keeps Atla off, one list per dungeon. */
-static int *noEntryTbl[6] = {noEntryTbl00, noEntryTbl01, noEntryTbl02, noEntryTbl03, noEntryTbl04, noEntryTbl05};
+constexpr std::array<const int *, 6> noEntryTbl = {noEntryTbl00, noEntryTbl01, noEntryTbl02, noEntryTbl03, noEntryTbl04, noEntryTbl05};
 
 /** The floor each dungeon's upper half ends on. */
-int CenterFloorTbl[6] = {8, 9, 9, 9, 8, 13};
+constexpr std::array<int, 6> CenterFloorTbl = {8, 9, 9, 9, 8, 13};
 
 /** The number of floors in each dungeon. */
-static int MaxFloorTbl[6] = {15, 17, 18, 18, 15, 25};
+constexpr std::array<int, 6> MaxFloorTbl = {15, 17, 18, 18, 15, 25};
+
+/** Most placement boxes SearchiDoPutArea gathers. */
+constexpr int kMaxPutQuads = 196;
+
+/** Width of a dungeon floor's grid, in cells. */
+constexpr int kGridWidth = 20;
+
+/** Side of one grid cell in world units. */
+constexpr float kCellSize = 160.0f;
+
+/** The cell and its eight neighbours, as x and z offsets, in the order their collision is gathered. */
+constexpr std::array<std::array<int, 2>, 9> kNeighbourOffsets{
+    {{0, 0}, {-1, 0}, {0, -1}, {1, 0}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
+};
 
 /**
- * Gives the two items the clown offers on one floor.
- *
- * @mangled GetPieroItem__FiiPiPi
- * @address 0x1BFAB0
- * @size 0x440
+ * Scales a random number onto 0 to range through float, as retail does.
  */
-void GetPieroItem(int map_no, int ura_dungeon, int *item0, int *item1) {
-    PIERO_ITEM_SET *list = PieroItemListPtr[map_no + ura_dungeon * 7];
-    s16            *rate = ItemSetRateTbl[map_no];
-    int             count0;
-    int             count1;
-    int             pick0;
-    int             pick1;
-    int             chance;
-
-    if (UserStatus->cur_floor < floorNum[map_no]) {
-        count0 = list[0].count[0];
-        count1 = list[0].count[1];
-        pick1 = pick0 = -1;
-
-        while (pick0 == -1) {
-            pick0 = (int) (((float) count0 * (float) rand()) / 2.1474836e9f);
-
-            if (pick0 >= count0) {
-                pick0 = 0;
-            }
-
-            chance = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
-
-            if (rate[list[0].item[0][pick0] - 1] >= chance) {
-                pick0 = -1;
-            }
-        }
-
-        while (pick1 == -1) {
-            pick1 = (int) (((float) count1 * (float) rand()) / 2.1474836e9f);
-
-            if (pick1 >= count1) {
-                pick1 = 0;
-            }
-
-            chance = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
-
-            if (rate[list[0].item[1][pick1] - 1] >= chance) {
-                pick1 = -1;
-            }
-        }
-
-        *item0 = list[0].item[0][pick0];
-        *item1 = list[0].item[1][pick1];
-        return;
-    }
-
-    count0 = list[1].count[0];
-    count1 = list[1].count[1];
-    pick1 = pick0 = -1;
-
-    while (pick0 == -1) {
-        pick0 = (int) (((float) count0 * (float) rand()) / 2.1474836e9f);
-
-        if (pick0 >= count0) {
-            pick0 = 0;
-        }
-
-        chance = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
-
-        if (rate[list[1].item[0][pick0] - 1] >= chance) {
-            pick0 = -1;
-        }
-    }
-
-    while (pick1 == -1) {
-        pick1 = (int) (((float) count1 * (float) rand()) / 2.1474836e9f);
-
-        if (pick1 >= count1) {
-            pick1 = 0;
-        }
-
-        chance = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
-
-        if (rate[list[1].item[1][pick1] - 1] >= chance) {
-            pick1 = -1;
-        }
-    }
-
-    *item0 = list[1].item[0][pick0];
-    *item1 = list[1].item[1][pick1];
+float ScaledRand(float range) {
+    // Retail divides by the PS2's RAND_MAX of 2^31 - 1 whatever the host's RAND_MAX is.
+    return (range * static_cast<float>(std::rand())) / 2.1474836e9f;
 }
 
-int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small);
+/**
+ * Truncates ScaledRand to an index.
+ */
+int RandBelow(float range) {
+    return static_cast<int>(ScaledRand(range));
+}
 
-char info_cfg_literal[] __attribute__((section(".rodata"))) = "info.cfg";
+CDngStatusData *DungeonStatus() {
+    return static_cast<CDngStatusData *>(UserStatus);
+}
+
+/**
+ * Draws one item from one of the clown's two lists, turning items down at the
+ * dungeon's rates until one is kept.
+ */
+int PickPieroItem(const PIERO_ITEM_SET &set, int list_no, const s16 *rate) {
+    const int count = set.count[list_no];
+    int       pick = -1;
+
+    while (pick == -1) {
+        pick = RandBelow(static_cast<float>(count));
+
+        if (pick >= count) {
+            pick = 0;
+        }
+
+        const int chance = RandBelow(100.0f);
+
+        if (rate[set.item[list_no][pick] - 1] >= chance) {
+            pick = -1;
+        }
+    }
+
+    return set.item[list_no][pick];
+}
 
 /**
  * Scales a coordinate from the item area table up to world scale.
  */
-static inline float ToWorldScale(float coordinate) {
+float ToWorldScale(float coordinate) {
     return coordinate * 10.0f;
-}
-
-int SearchiDoPutArea(MAPPARTS *cells, int x, int y, int width, int height, float *pos) {
-    float           quad[196][4][3];
-    float           px[4];
-    float           py[4];
-    float           pz[4];
-    int             count = 0;
-    ITEM_FREE_AREA *areas = ItemFreeAreaAll[selectMapNo];
-
-    for (int row = y; row < y + height; row++) {
-        for (int col = x; col < x + width; col++) {
-            int parts_no = (cells + row * 20)[col].parts_no;
-            int direction = (cells + row * 20)[col].direction;
-
-            for (int area_no = 0; areas[area_no].parts_no != -1 && count < 196; area_no++) {
-                if (parts_no != areas[area_no].parts_no) {
-                    continue;
-                }
-
-                for (int rect_no = 0; rect_no < areas[area_no].rect_num; rect_no++) {
-                    int turn = areas[area_no].direction;
-                    turn += direction;
-
-                    if (turn > 3) {
-                        turn -= 4;
-                    }
-
-                    float angle = (PI * (90.0f * (float) (4 - turn))) / 180.0f;
-                    px[0] = ToWorldScale(areas[area_no].rect[rect_no].x0);
-                    py[0] = areas[area_no].rect[rect_no].y0 * 10.0f;
-                    pz[0] = areas[area_no].rect[rect_no].z0 * 10.0f;
-                    px[3] = areas[area_no].rect[rect_no].x1 * 10.0f;
-                    py[3] = areas[area_no].rect[rect_no].y1 * 10.0f;
-                    pz[3] = areas[area_no].rect[rect_no].z1 * 10.0f;
-                    px[1] = px[3];
-                    py[1] = py[0];
-                    pz[1] = pz[0];
-                    px[2] = px[0];
-                    py[2] = py[0];
-                    pz[2] = pz[3];
-
-                    for (int corner = 0; corner < 4; corner++) {
-                        if (count < 196) {
-                            float corner_z;
-                            float corner_x;
-                            quad[count][corner][0] = -(corner_z = pz[corner]) * sinf(angle) - (corner_x = px[corner]) * cosf(angle);
-                            quad[count][corner][2] = -corner_x * sinf(angle) + corner_z * cosf(angle);
-                            quad[count][corner][0] *= -1.0f;
-                            quad[count][corner][0] += 160.0f * (float) col;
-                            quad[count][corner][2] += 160.0f * (float) row;
-                            quad[count][corner][1] = py[corner];
-                        }
-                    }
-
-                    count++;
-
-                    if (count >= 196) {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    int   pick = (int) (((float) count * (float) rand()) / 2.1474836e9f);
-    float max_x = quad[pick][0][0];
-    float min_x = max_x;
-    float max_z = quad[pick][0][2];
-    float min_z = max_z;
-
-    for (int corner = 1; corner < 4; corner++) {
-        if (min_x > quad[pick][corner][0]) {
-            min_x = quad[pick][corner][0];
-        }
-
-        if (max_x < quad[pick][corner][0]) {
-            max_x = quad[pick][corner][0];
-        }
-
-        if (min_z > quad[pick][corner][2]) {
-            min_z = quad[pick][corner][2];
-        }
-
-        if (max_z < quad[pick][corner][2]) {
-            max_z = quad[pick][corner][2];
-        }
-    }
-
-    float span_x = max_x - min_x;
-    float span_z = max_z - min_z;
-    pos[0] = min_x + (span_x * (float) rand()) / 2.1474836e9f;
-    pos[1] = quad[pick][0][1];
-    pos[2] = min_z + (span_z * (float) rand()) / 2.1474836e9f;
-    pos[3] = 1.0f;
-    return count;
 }
 
 /**
  * Reports whether an Atla may be placed on one floor.
- *
- * @mangled chkAtraFloor__Fii
- * @address 0x1C0940
- * @size 0x74
  */
 int chkAtraFloor(int dungeon, int floor) {
     if (dungeon >= DUNGEON_DEMON_SHAFT) {
         return 0;
     }
 
-    int *floors = noEntryTbl[dungeon];
+    const int *floors = noEntryTbl[dungeon];
 
     for (int i = 0; floors[i] != -1; i++) {
         if (floor == floors[i]) {
@@ -1730,31 +1611,165 @@ int chkAtraFloor(int dungeon, int floor) {
 /**
  * Records that one Atla lies on one floor of a dungeon.
  */
-static inline void RegisterAtra(int dungeon, int floor, int atra_id) {
-    ((CDngStatusData *) UserStatus)->SetGetAtra(dungeon, floor, atra_id);
+void RegisterAtra(int dungeon, int floor, int atra_id) {
+    DungeonStatus()->SetGetAtra(dungeon, floor, atra_id);
+}
+
+/**
+ * Gives a map part's collision model, or null for an empty cell.
+ */
+CFrame *PartsCollision(CDungeonMap *map, int parts_no) {
+    if (parts_no == -1) {
+        return nullptr;
+    }
+
+    return map->parts[parts_no].collision;
+}
+
+/**
+ * Gives the quarter turns a map part's collision model is given, or 0 for an empty cell.
+ */
+int PartsCollisionTurn(CDungeonMap *map, int parts_no) {
+    if (parts_no == -1) {
+        return 0;
+    }
+
+    return map->parts[parts_no].collision_turn;
+}
+
+/**
+ * Converts quarter turns into the rotation a model is given, wrapping a turn
+ * of 3 to -1 as retail does.
+ */
+float QuarterTurnAngle(float turn) {
+    if (3.0f == turn) {
+        turn = -1.0f;
+    }
+
+    return (PI * (-90.0f * turn)) / 180.0f;
+}
+
+} // namespace
+
+void GetPieroItem(int map_no, int ura_dungeon, int *item0, int *item1) {
+    const PIERO_ITEM_SET *list = PieroItemListPtr[map_no + ura_dungeon * 7];
+    const s16            *rate = ItemSetRateTbl[map_no];
+    const PIERO_ITEM_SET &set = UserStatus->cur_floor < floorNum[map_no] ? list[0] : list[1];
+
+    const int first = PickPieroItem(set, 0, rate);
+    const int second = PickPieroItem(set, 1, rate);
+    *item0 = first;
+    *item1 = second;
+}
+
+int SearchiDoPutArea(MAPPARTS *cells, int x, int y, int width, int height, float *pos) {
+    using Quad = std::array<std::array<float, 3>, 4>;
+
+    auto                  quads = std::make_unique<Quad[]>(kMaxPutQuads);
+    std::array<float, 4>  px{};
+    std::array<float, 4>  py{};
+    std::array<float, 4>  pz{};
+    int                   count = 0;
+    const ITEM_FREE_AREA *areas = ItemFreeAreaAll[selectMapNo];
+
+    for (int row = y; row < y + height; row++) {
+        for (int col = x; col < x + width; col++) {
+            const int parts_no = cells[(row * kGridWidth) + col].parts_no;
+            const int direction = cells[(row * kGridWidth) + col].direction;
+
+            for (int area_no = 0; areas[area_no].parts_no != -1 && count < kMaxPutQuads; area_no++) {
+                const ITEM_FREE_AREA &area = areas[area_no];
+
+                if (parts_no != area.parts_no) {
+                    continue;
+                }
+
+                for (int rect_no = 0; rect_no < area.rect_num; rect_no++) {
+                    const ITEM_FREE_RECT &rect = area.rect[rect_no];
+                    int                   turn = area.direction;
+                    turn += direction;
+
+                    if (turn > 3) {
+                        turn -= 4;
+                    }
+
+                    const float angle = (PI * (90.0f * static_cast<float>(4 - turn))) / 180.0f;
+                    px[0] = ToWorldScale(rect.x0);
+                    py[0] = ToWorldScale(rect.y0);
+                    pz[0] = ToWorldScale(rect.z0);
+                    px[3] = ToWorldScale(rect.x1);
+                    py[3] = ToWorldScale(rect.y1);
+                    pz[3] = ToWorldScale(rect.z1);
+                    px[1] = px[3];
+                    py[1] = py[0];
+                    pz[1] = pz[0];
+                    px[2] = px[0];
+                    py[2] = py[0];
+                    pz[2] = pz[3];
+
+                    Quad &quad = quads[count];
+
+                    for (int corner = 0; corner < 4; corner++) {
+                        const float corner_x = px[corner];
+                        const float corner_z = pz[corner];
+                        quad[corner][0] = -corner_z * sinf(angle) - corner_x * cosf(angle);
+                        quad[corner][2] = -corner_x * sinf(angle) + corner_z * cosf(angle);
+                        quad[corner][0] *= -1.0f;
+                        quad[corner][0] += kCellSize * static_cast<float>(col);
+                        quad[corner][2] += kCellSize * static_cast<float>(row);
+                        quad[corner][1] = py[corner];
+                    }
+
+                    count++;
+
+                    if (count >= kMaxPutQuads) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    const Quad &quad = quads[RandBelow(static_cast<float>(count))];
+    float       max_x = quad[0][0];
+    float       min_x = max_x;
+    float       max_z = quad[0][2];
+    float       min_z = max_z;
+
+    for (int corner = 1; corner < 4; corner++) {
+        min_x = std::min(min_x, quad[corner][0]);
+        max_x = std::max(max_x, quad[corner][0]);
+
+        min_z = std::min(min_z, quad[corner][2]);
+        max_z = std::max(max_z, quad[corner][2]);
+    }
+
+    const float span_x = max_x - min_x;
+    const float span_z = max_z - min_z;
+    pos[0] = min_x + ScaledRand(span_x);
+    pos[1] = quad[0][1];
+    pos[2] = min_z + ScaledRand(span_z);
+    pos[3] = 1.0f;
+    return count;
 }
 
 /**
  * Builds the list of Atla one dungeon may hand out.
- *
- * @mangled BtAtraListMake__Fi
- * @address 0x1C09C0
- * @size 0x358
  */
 void BtAtraListMake(int dungeon) {
     if (dungeon >= DUNGEON_DEMON_SHAFT) {
         return;
     }
 
-    ATRA_APPEAR *appear = AtraAppearData[dungeon];
-    int          center = CenterFloorTbl[dungeon];
-    int          max = MaxFloorTbl[dungeon];
-    int          count = 0;
-    int          upper = 0;
-    int          lower = 0;
+    const ATRA_APPEAR *appear = AtraAppearData[dungeon];
+    const int          center = CenterFloorTbl[dungeon];
+    const int          floor_count = MaxFloorTbl[dungeon];
+    int                count = 0;
+    int                upper = 0;
+    int                lower = 0;
 
     for (; appear[count].id != -1; count++) {
-        int floor = appear[count].floor;
+        const int floor = appear[count].floor;
 
         if (floor == -1) {
             upper += appear[count].count;
@@ -1765,89 +1780,68 @@ void BtAtraListMake(int dungeon) {
         }
 
         if (floor != -1 && floor != -2) {
-            RegisterAtra(dungeon, --floor, count);
+            RegisterAtra(dungeon, floor - 1, count);
         }
     }
 
-    int i;
+    for (int placed_num = 0; placed_num < upper; placed_num++) {
+        bool placed = false;
 
-    for (i = 0; i < upper; i++) {
-        int placed = false;
+        while (!placed) {
+            const int floor = RandBelow(static_cast<float>(center - 1));
 
-        while (placed == 0) {
-            int floor = (int) (((float) (center - 1) * (float) rand()) / 2.1474836e9f);
-
-            if (((CDngStatusData *) UserStatus)->GetMaxAtraNum(dungeon, floor) < 8 && chkAtraFloor(dungeon, floor + 1) != 0) {
+            if (DungeonStatus()->GetMaxAtraNum(dungeon, floor) < 8 && chkAtraFloor(dungeon, floor + 1) != 0) {
                 RegisterAtra(dungeon, floor, -2);
                 placed = true;
             }
         }
     }
 
-    for (i = 0; i < lower; i++) {
-        int placed = false;
+    for (int placed_num = 0; placed_num < lower; placed_num++) {
+        bool placed = false;
 
-        while (placed == 0) {
-            int floor = (int) (((float) ((max - center) - 1) * (float) rand()) / 2.1474836e9f);
-            floor += center;
+        while (!placed) {
+            const int floor = RandBelow(static_cast<float>((floor_count - center) - 1)) + center;
 
-            if (((CDngStatusData *) UserStatus)->GetMaxAtraNum(dungeon, floor) < 8 && chkAtraFloor(dungeon, floor + 1) != 0) {
+            if (DungeonStatus()->GetMaxAtraNum(dungeon, floor) < 8 && chkAtraFloor(dungeon, floor + 1) != 0) {
                 RegisterAtra(dungeon, floor, -2);
                 placed = true;
             }
         }
     }
 
-    for (int j = 0; j < count; j++) {
-        UserStatus->atra_registry[dungeon][j].id = appear[j].id;
-        UserStatus->atra_registry[dungeon][j].floor = appear[j].floor;
-        UserStatus->atra_registry[dungeon][j].refcount = appear[j].count;
+    for (int i = 0; i < count; i++) {
+        ATRA_SAVE &entry = UserStatus->atra_registry[dungeon][i];
+        entry.id = appear[i].id;
+        entry.floor = appear[i].floor;
+        entry.refcount = appear[i].count;
     }
 }
 
-/**
- * Selects the atla identifiers that appear on a floor: keeps the fixed ones,
- * draws each open slot from the dungeon's list for its half, packs them to the
- * front and returns how many there are.
- *
- * @mangled BtAtraFloorCyoice__FiiPi
- * @address 0x1C0D20
- * @size 0x2A0
- */
 int BtAtraFloorCyoice(int map_no, int floor_no, int *atra_no) {
-    ATRA_SAVE registry[128];
-    int       packed[8];
-
     if (map_no >= 6) {
         return 0;
     }
 
-    ((CDngStatusData *) UserStatus)->GetMaxAtraNum(map_no, floor_no);
-    int center = CenterFloorTbl[map_no];
-    ((CDngStatusData *) UserStatus)->SetCopyAtraList(map_no, floor_no, atra_no);
+    DungeonStatus()->GetMaxAtraNum(map_no, floor_no);
+    const int center = CenterFloorTbl[map_no];
+    DungeonStatus()->SetCopyAtraList(map_no, floor_no, atra_no);
 
-    for (int j = 0; j < 100; j++) {
-        registry[j].id = UserStatus->atra_registry[map_no][j].id;
-        registry[j].floor = UserStatus->atra_registry[map_no][j].floor;
-        registry[j].refcount = UserStatus->atra_registry[map_no][j].refcount;
-    }
+    // Larger than the 100 registry entries: a roll can land on index 100.
+    std::array<ATRA_SAVE, 128> registry{};
+    std::ranges::copy(UserStatus->atra_registry[map_no], registry.begin());
 
-    int half = -1;
-
-    if (floor_no > center - 1) {
-        half = -2;
-    }
-
-    int count = 0;
+    const int half = floor_no > center - 1 ? -2 : -1;
+    int       count = 0;
 
     for (int i = 0; i < 8; i++) {
         if (atra_no[i] >= 0) {
             count++;
         } else if (atra_no[i] == -2) {
-            int placed = false;
+            bool placed = false;
 
-            while (placed == 0) {
-                int pick = (int) ((100.0f * (float) rand()) / 2.1474836e9f);
+            while (!placed) {
+                const int pick = RandBelow(100.0f);
 
                 if (registry[pick].id != -1 && registry[pick].refcount > 0 && half == registry[pick].floor) {
                     atra_no[i] = pick;
@@ -1860,50 +1854,23 @@ int BtAtraFloorCyoice(int map_no, int floor_no, int *atra_no) {
         }
     }
 
-    for (int k = 0; k < 8; k++) {
-        packed[k] = -1;
-    }
-
+    std::array<int, 8> packed{};
+    packed.fill(-1);
     int packed_num = 0;
 
-    for (int m = 0; m < 8; m++) {
-        if (atra_no[m] >= 0) {
-            packed[packed_num++] = atra_no[m];
+    for (int i = 0; i < 8; i++) {
+        if (atra_no[i] >= 0) {
+            packed[packed_num++] = atra_no[i];
         }
     }
 
-    memcpy(atra_no, packed, sizeof(packed));
+    std::ranges::copy(packed, atra_no);
     return count;
-}
-
-/**
- * Gives a map part's collision model, or null for an empty cell.
- */
-static inline CFrame *PartsCollision(CDungeonMap *map, int parts_no) {
-    if (parts_no == -1) {
-        return NULL;
-    }
-
-    return map->parts[parts_no].collision;
-}
-
-/**
- * Gives the quarter turns a map part's collision model is given, or 0 for an empty cell.
- */
-static inline int PartsCollisionTurn(CDungeonMap *map, int parts_no) {
-    if (parts_no == -1) {
-        return 0;
-    }
-
-    return map->parts[parts_no].collision_turn;
 }
 
 int setCollisionData(CDungeonMap *map, CCPoly *poly, float *position, float radius, float height) {
     CBoxVu0 box;
     int     count = 0;
-    CFrame *collision;
-    int     i;
-    int     turn;
 
     box.max[0] = position[0] + radius;
     box.max[1] = position[1] + radius * height;
@@ -1911,148 +1878,112 @@ int setCollisionData(CDungeonMap *map, CCPoly *poly, float *position, float radi
     box.min[0] = position[0] - radius;
     box.min[1] = position[1] - radius * height;
     box.min[2] = position[2] - radius;
-    int around[9][2] = {
-        {0,  0 },
-        {-1, 0 },
-        {0,  -1},
-        {1,  0 },
-        {0,  1 },
-        {-1, -1},
-        {1,  -1},
-        {-1, 1 },
-        {1,  1 }
-    };
 
     if (map->map_type != 1) {
         sceVu0FVECTOR part_pos;
 
-        for (i = 0; map->parts[i].frame[0] != NULL; i++) {
-            if (i == -1) {
-                collision = NULL;
-            } else {
-                collision = map->parts[i].collision;
-            }
+        for (int i = 0; map->parts[i].frame[0] != nullptr; i++) {
+            CFrame *collision = map->parts[i].collision;
 
-            if (collision == NULL) {
+            if (collision == nullptr) {
                 continue;
             }
 
             sceVu0CopyVector(part_pos, map->parts[i].frame_offset[0]);
-            turn = (int) map->parts[i].frame_turn[0];
+            int turn = static_cast<int>(map->parts[i].frame_turn[0]);
             turn += PartsCollisionTurn(map, i);
 
             if (turn > 3) {
                 turn -= 3;
             }
 
-            if (turn == 3) {
-                turn = -1;
-            }
-
-            float angle = (PI * (-90.0f * (float) turn)) / 180.0f;
-            collision->SetRotation(0.0f, angle, 0.0f);
+            collision->SetRotation(0.0f, QuarterTurnAngle(static_cast<float>(turn)), 0.0f);
             collision->SetPosition(part_pos);
             count += collision->PickUpNearPoly(&poly[count], box);
         }
 
-        for (i = 0; i < 24; i++) {
-            if (map->boxes[i].used != 0) {
-                collision = map->box_collision_model;
-                collision->SetPosition(map->boxes[i].pos);
+        for (auto &treasure_box : map->boxes) {
+            if (treasure_box.used != 0) {
+                CFrame *collision = map->box_collision_model;
+                collision->SetPosition(treasure_box.pos);
                 count += collision->PickUpNearPoly(&poly[count], box);
             }
         }
 
         count = map->CreateCollision(poly, box, count);
-        count = NowDranMapField->AddCollision(poly, count, box);
-    } else {
-        CFrame *model;
-
-        for (int j = 0; j < 9; j++) {
-            int x = (int) (position[0] / 160.0f);
-            int z = (int) (position[2] / 160.0f);
-            x += around[j][0];
-            z += around[j][1];
-
-            if (x < 0 || x > 19 || z < 0 || z > 19) {
-                continue;
-            }
-
-            model = PartsCollision(map, map->cells[x + z * 20].parts_no);
-
-            if (model == NULL) {
-                continue;
-            }
-
-            float angle = (float) map->cells[x + z * 20].direction;
-            angle += (float) PartsCollisionTurn(map, map->cells[x + z * 20].parts_no);
-
-            if (angle > 3.0f) {
-                angle -= 3.0f;
-            }
-
-            if (angle == 3.0f) {
-                angle = -1.0f;
-            }
-
-            angle = (PI * (-90.0f * angle)) / 180.0f;
-            model->SetRotation(0.0f, angle, 0.0f);
-            model->SetPosition(160.0f * (float) x, 0.0f, 160.0f * (float) z);
-            count += model->PickUpNearPoly(&poly[count], box);
-        }
-
-        for (int k = 0; k < 24; k++) {
-            if (map->boxes[k].used != 0) {
-                model = map->box_collision_model;
-                model->SetPosition(map->boxes[k].pos);
-                count += model->PickUpNearPoly(&poly[count], box);
-            }
-        }
-
-        count = map->CreateCollision(poly, box, count);
+        return NowDranMapField->AddCollision(poly, count, box);
     }
 
-    return count;
+    for (const auto &offset : kNeighbourOffsets) {
+        int x = static_cast<int>(position[0] / kCellSize);
+        int z = static_cast<int>(position[2] / kCellSize);
+        x += offset[0];
+        z += offset[1];
+
+        if (x < 0 || x > 19 || z < 0 || z > 19) {
+            continue;
+        }
+
+        const auto &cell = map->cells[x + (z * kGridWidth)];
+        CFrame     *model = PartsCollision(map, cell.parts_no);
+
+        if (model == nullptr) {
+            continue;
+        }
+
+        auto angle = static_cast<float>(cell.direction);
+        angle += static_cast<float>(PartsCollisionTurn(map, cell.parts_no));
+
+        if (angle > 3.0f) {
+            angle -= 3.0f;
+        }
+
+        model->SetRotation(0.0f, QuarterTurnAngle(angle), 0.0f);
+        model->SetPosition(kCellSize * static_cast<float>(x), 0.0f, kCellSize * static_cast<float>(z));
+        count += model->PickUpNearPoly(&poly[count], box);
+    }
+
+    for (auto &treasure_box : map->boxes) {
+        if (treasure_box.used != 0) {
+            CFrame *model = map->box_collision_model;
+            model->SetPosition(treasure_box.pos);
+            count += model->PickUpNearPoly(&poly[count], box);
+        }
+    }
+
+    return map->CreateCollision(poly, box, count);
 }
 
 CFrame *CDungeonParts::GetSearchFrame(char *name) {
-    for (int i = 0; i < 6; i++) {
-        if (frame[i] != NULL) {
-            CFrame *found = frame[i]->SearchFrame(name);
+    for (CFrame *model : frame) {
+        if (model != nullptr) {
+            CFrame *found = model->SearchFrame(name);
 
-            if (found != NULL) {
+            if (found != nullptr) {
                 return found;
             }
         }
     }
 
-    // The collision and the second model are searched after the drawn ones.
-    if (collision != NULL) {
+    if (collision != nullptr) {
         CFrame *found = collision->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             return found;
         }
     }
 
-    if (camera_collision != NULL) {
+    if (camera_collision != nullptr) {
         CFrame *found = camera_collision->SearchFrame(name);
 
-        if (found != NULL) {
+        if (found != nullptr) {
             return found;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
-/**
- * Places a healing zone within one dungeon part.
- *
- * @mangled SetHealZone__13CDungeonPartsFPfff
- * @address 0x1C1670
- * @size 0x58
- */
 void CDungeonParts::SetHealZone(float *position, float width, float depth) {
     sceVu0CopyVector(heal_pos, position);
     heal_width = width;
@@ -2060,36 +1991,23 @@ void CDungeonParts::SetHealZone(float *position, float width, float depth) {
     heal_on = 1;
 }
 
-/**
- * Draws one dungeon part and everything standing on it.
- *
- * @mangled Draw__13CDungeonPartsFv
- * @address 0x1C16D0
- * @size 0x17C
- */
 void CDungeonParts::Draw() {
     sceVu0FVECTOR position;
 
     for (int i = 0; i < 6; i++) {
-        if (frame[i] == NULL) {
+        if (frame[i] == nullptr) {
             continue;
         }
 
-        int turn = (int) ((float) direction + frame_turn[i]);
+        int turn = static_cast<int>(static_cast<float>(direction) + frame_turn[i]);
 
         if (turn > 3) {
             turn -= 3;
         }
 
-        float angle = (float) turn;
+        frame[i]->SetRotation(0.0f, QuarterTurnAngle(static_cast<float>(turn)), 0.0f);
 
-        if (3.0f == angle) {
-            angle = -1.0f;
-        }
-
-        angle = (PI * (-90.0f * angle)) / 180.0f;
-        frame[i]->SetRotation(0.0f, angle, 0.0f);
-
+        // frame_offset has five rows; the sixth model reads the fields that follow it.
         sceVu0CopyVector(position, pos);
         position[0] += frame_offset[i][0];
         position[1] += frame_offset[i][1];
@@ -2100,104 +2018,68 @@ void CDungeonParts::Draw() {
     }
 }
 
-/**
- * Chooses the level of detail each of a part's frames draws at.
- *
- * @mangled DrawCalc__13CDungeonPartsFiiii
- * @address 0x1C1850
- * @size 0x348
- */
 void CDungeonParts::DrawCalc(int x, int z, int turn, int map_type) {
     sceVu0FVECTOR position;
 
     for (int i = 0; i < 6; i++) {
         CFrame *model = frame[i];
 
-        if (model == NULL) {
+        if (model == nullptr) {
             continue;
         }
 
-        int model_turn = (int) ((float) direction + frame_turn[i]);
+        int model_turn = static_cast<int>(static_cast<float>(direction) + frame_turn[i]);
 
         if (model_turn > 3) {
             model_turn -= 3;
         }
 
-        float angle = (float) model_turn;
-
-        if (3.0f == angle) {
-            angle = -1.0f;
-        }
-
-        angle = (PI * (-90.0f * angle)) / 180.0f;
-        model->SetRotation(0.0f, angle, 0.0f);
+        model->SetRotation(0.0f, QuarterTurnAngle(static_cast<float>(model_turn)), 0.0f);
 
         sceVu0CopyVector(position, pos);
         position[0] += frame_offset[i][0];
         position[1] += frame_offset[i][1];
         position[2] += frame_offset[i][2];
         position[3] = 1.0f;
-        frame[i]->SetPosition(position);
+        model->SetPosition(position);
     }
 
-    CFrame *model = collision;
-
-    if (model == NULL) {
+    if (collision == nullptr) {
         return;
     }
 
     if (map_type == 1) {
-        int collision_turn = turn + this->collision_turn;
+        int model_turn = turn + this->collision_turn;
 
-        if (collision_turn > 3) {
-            collision_turn -= 3;
+        if (model_turn > 3) {
+            model_turn -= 3;
         }
 
-        if (collision_turn == 3) {
-            collision_turn = -1;
-        }
-
-        model->SetRotation(0.0f, (PI * (-90.0f * (float) collision_turn)) / 180.0f, 0.0f);
-        float y = 0.0f;
-        collision->SetPosition(160.0f * (float) x, y, 160.0f * (float) z);
+        collision->SetRotation(0.0f, QuarterTurnAngle(static_cast<float>(model_turn)), 0.0f);
+        collision->SetPosition(kCellSize * static_cast<float>(x), 0.0f, kCellSize * static_cast<float>(z));
         return;
     }
 
-    int collision_turn = (int) (frame_turn[0] + (float) this->collision_turn);
+    int model_turn = static_cast<int>(frame_turn[0] + static_cast<float>(this->collision_turn));
 
-    if (collision_turn > 3) {
-        collision_turn -= 3;
+    if (model_turn > 3) {
+        model_turn -= 3;
     }
 
-    if (collision_turn == 3) {
-        collision_turn = -1;
-    }
-
-    model->SetRotation(0.0f, (PI * (-90.0f * (float) collision_turn)) / 180.0f, 0.0f);
-    sceVu0CopyVector(position, pos);
-    position[0] += frame_offset[0][0];
-    position[1] += frame_offset[0][1];
-    position[2] += frame_offset[0][2];
-    position[3] = 1.0f;
+    collision->SetRotation(0.0f, QuarterTurnAngle(static_cast<float>(model_turn)), 0.0f);
+    // The collision model sits at the first frame's offset alone, not offset from the part's position.
     collision->SetPosition(frame_offset[0]);
 }
 
-/**
- * Clears one dungeon part.
- *
- * @mangled initalize__13CDungeonPartsFv
- * @address 0x1C1BA0
- * @size 0x5C
- */
 void CDungeonParts::initalize() {
     for (int i = 0; i < 6; i++) {
-        frame[i] = NULL;
+        frame[i] = nullptr;
         frame_turn[i] = 0.0f;
     }
 
     direction_offset = 0;
-    collision = NULL;
-    camera_collision = NULL;
+    collision = nullptr;
+    camera_collision = nullptr;
     camera_collision_turn = 0;
     collision_turn = 0;
     fire_num = 0;

@@ -10,52 +10,32 @@ class ClsMes;
 extern ClsMes EastKingMsgCls;
 
 /**
- * Stores the background-music volume saved before the East King event.
+ * Background-music volume saved before the East King event.
  */
 extern s16 PrevEastKingSndVol;
 
 /**
  * Finalizes the East King event's asynchronously loaded texture and sound data.
- *
- * @mangled EastKingTextureEnter__Fv
- * @address 0x00232830
- * @size 0x430
  */
 void EastKingTextureEnter();
 
 /**
- * Restores the background-music volume saved before the East King event.
- *
- * @mangled GetPrevEastKingSndVol__Fv
- * @address 0x00232E00
- * @size 0x24
+ * Saves the current background-music volume so it can be restored after the East King event.
  */
 void GetPrevEastKingSndVol();
 
 /**
- * Initializes one East King event and begins loading its resources.
- *
- * @mangled InitEastKingEvent__FiPiP1
- * @address 0x00232E30
- * @size 0x1A8
+ * Initializes one East King event and begins loading its resources into load_buffer.
  */
 int InitEastKingEvent(int event_no, int *texture_block, u_long128 *load_buffer);
 
 /**
- * Processes input and state transitions for the East King event.
- *
- * @mangled EastKingEventKey__Fv
- * @address 0x00232FE0
- * @size 0x354
+ * Processes input and state transitions for the East King event; returns 1 once it has finished.
  */
 int EastKingEventKey();
 
 /**
  * Draws the East King event image, message, and fade overlay.
- *
- * @mangled EastKingEventDraw__Fv
- * @address 0x00233340
- * @size 0x1E0
  */
 void EastKingEventDraw();
 

@@ -9,172 +9,128 @@ class CDngStatusData : public CUserStatus {
 public:
     char unk_8B20[0x17C];
 
-    /** Returns the number of active party members. */
+    /**
+     * Returns the number of active party members.
+     */
     s8 GetPartySize() const { return party_size; }
 
-    /** Sets the number of active party members. */
+    /**
+     * Sets the number of active party members.
+     */
     void SetPartySize(s8 size) { party_size = size; }
 
     /**
-     * @mangled SetNowFloor__14CDngStatusDataFi
-     * @address 0x1BD900
-     * @size 0x34
+     * Moves the party to a floor, remembering the previous floor and the deepest one reached.
      */
     void SetNowFloor(int floor);
 
     /**
-     * @mangled SearchItemIndexNo__14CDngStatusDataFi
-     * @address 0x1BD940
-     * @size 0x180
+     * Returns the slot holding an item among the quick slots, pack, attachments or party weapons, or -1.
      */
     int SearchItemIndexNo(int item_id);
 
     /**
-     * @mangled LostItem__14CDngStatusDataFi
-     * @address 0x1BDB60
-     * @size 0x54
+     * Empties the first pack slot holding an item and returns that slot, or -1 if none holds it.
      */
     int LostItem(int item_id);
 
     /**
-     * @mangled LostGateKey__14CDngStatusDataFv
-     * @address 0x1BDBC0
-     * @size 0x12C
+     * Removes every gate key and floor key item from the pack.
      */
     void LostGateKey();
 
     /**
-     * @mangled GetLiveUnit__14CDngStatusDataFv
-     * @address 0x1BDCF0
-     * @size 0x44
+     * Returns how many party members have life left.
      */
     int GetLiveUnit();
 
     /**
-     * @mangled CheckItemGet__14CDngStatusDataFi
-     * @address 0x1BDD40
-     * @size 0x184
+     * Returns 1 if the pack is full, 2 if the attachments are full, or 0 if the item can be picked up.
      */
     int CheckItemGet(int item_id);
 
     /**
-     * @mangled CheckWeaponUser__14CDngStatusDataFi
-     * @address 0x1BDED0
-     * @size 0xB4
+     * Returns the character a weapon belongs to, judged by its item id, or -1.
      */
     int CheckWeaponUser(int weapon_id);
 
     /**
-     * @mangled CheckWeaponRot__14CDngStatusDataFi
-     * @address 0x1BDF90
-     * @size 0xBC
+     * Returns how many weapons the owner of a weapon carries, or -1 if the item is not a weapon.
      */
     int CheckWeaponRot(int weapon_id);
 
     /**
-     * @mangled ClearDeamonShaft__14CDngStatusDataFv
-     * @address 0x1BE050
-     * @size 0x10
+     * Forgets how deep the party has reached in the Demon Shaft.
      */
     void ClearDeamonShaft();
 
     /**
-     * @mangled GetItem__14CDngStatusDataFii
-     * @address 0x1BE060
-     * @size 0x3F8
+     * Puts an item in the pack, the attachments or its owner's weapons and returns its slot, or -1.
      */
     int GetItem(int item_id, int qty);
 
     /**
-     * @mangled CheckActItemSlot__14CDngStatusDataFi
-     * @address 0x1BE460
-     * @size 0x44
+     * Returns the quick slot holding an item, or -1.
      */
     int CheckActItemSlot(int item_id);
 
     /**
-     * @mangled CheckDefaultWeapon__14CDngStatusDataFi
-     * @address 0x1BE4B0
-     * @size 0x5C
+     * Returns 0 if a character has their starting weapon equipped, 1 otherwise.
      */
     int CheckDefaultWeapon(int chara_no);
 
     /**
      * Halves the Gilda carried by the party after a death.
-     *
-     * @mangled SetDead__14CDngStatusDataFv
-     * @address 0x1BEEF0
-     * @size 0x14
      */
     void SetDead();
 
     /**
-     * @mangled SetResLimmitZone__14CDngStatusDataFv
-     * @address 0x1BEF10
-     * @size 0x44
+     * Fences the party into the current floor's restriction zone, if the floor has one.
      */
     void SetResLimmitZone();
 
     /**
-     * @mangled InitResLimmitZone__14CDngStatusDataFv
-     * @address 0x1BEF60
-     * @size 0x3E0
+     * Places thirst and fixed-weapon restriction zones on random floors of dungeons one to five.
      */
     void InitResLimmitZone();
 
     /**
-     * @mangled Initialize__14CDngStatusDataFv
-     * @address 0x1BF340
-     * @size 0x3BC
+     * Resets the party, inventory and dungeon progress to the state of a new game.
      */
     void Initialize();
 
     /**
-     * @mangled AddKills__14CDngStatusDataFv
-     * @address 0x1BF700
-     * @size 0x3C
+     * Counts one more monster defeated on the current floor.
      */
     void AddKills();
 
     /**
-     * @mangled ChkKills__14CDngStatusDataFii
-     * @address 0x1BF740
-     * @size 0x2C
+     * Returns how many monsters have been defeated on a dungeon floor.
      */
     s16 ChkKills(int georama_no, int floor);
 
     /**
-     * @mangled GetAtraNum__14CDngStatusDataFii
-     * @address 0x1BF770
-     * @size 0x74
+     * Returns how many atla slots of a dungeon floor have been collected.
      */
     int GetAtraNum(int georama_no, int floor);
 
     /**
-     * @mangled GetMaxAtraNum__14CDngStatusDataFii
-     * @address 0x1BF7F0
-     * @size 0x74
+     * Returns how many atla slots a dungeon floor has.
      */
     int GetMaxAtraNum(int georama_no, int floor);
 
     /**
-     * @mangled SetGetAtra__14CDngStatusDataFiii
-     * @address 0x1BF870
-     * @size 0x80
+     * Puts an atla in a dungeon floor's first free slot and returns that slot, or -1 if none is free.
      */
     int SetGetAtra(int georama_no, int floor, int atra_id);
 
     /**
-     * @mangled SetCopyAtraList__14CDngStatusDataFiiPi
-     * @address 0x1BF8F0
-     * @size 0x5C
+     * Copies a dungeon floor's eight atla slots into out_list.
      */
     void SetCopyAtraList(int georama_no, int floor, int *out_list);
 
     /**
-     * @mangled GetAtraData__14CDngStatusDataFiii
-     * @address 0x1BF950
-     * @size 0x160
+     * Marks the floor slot asking for an atla, or failing that one asking for any atla, collected.
      */
     void GetAtraData(int georama_no, int floor, int atra_id);
 
@@ -189,4 +145,4 @@ public:
     s8 GetEquipWeaponSlot(int chara_no) { return equipped_weapon_slot[chara_no]; }
 };
 
-STATIC_ASSERT(sizeof(CDngStatusData) == 0x8C9C);
+static_assert(sizeof(CDngStatusData) == 0x8C9C);

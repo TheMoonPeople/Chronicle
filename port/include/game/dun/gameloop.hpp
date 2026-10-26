@@ -107,9 +107,6 @@ class CShockWave;
 struct MOTION_INFO;
 class CHealEffect;
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCharacter;
 class CCameraFollow;
 class CCPoly;
@@ -180,70 +177,104 @@ extern CUserStatus *UserStatus;
  */
 extern CMonstorUnit *NowMonstorUnit;
 
-/** Player character. */
+/**
+ * Player character.
+ */
 extern "C" CCharacter CharaMain;
 
-/** Character currently controlled by the player. */
+/**
+ * Character currently controlled by the player.
+ */
 extern s32 nowUnitNow;
 
-/** Debug switches shared by dungeon rendering. */
+/**
+ * Debug switches shared by dungeon rendering.
+ */
 extern "C" s32 DebugStatus[21];
 
-/** Message window the dungeon shows. */
+/**
+ * Message window the dungeon shows.
+ */
 extern "C" CDngMessageMan DngMessMan;
 
-/** Item the player is stealing back from a monster. */
+/**
+ * Item the player is stealing back from a monster.
+ */
 extern "C" CStealItem StealItem;
 
-/** Item count animation of the dungeon's menus. */
+/**
+ * Item count animation of the dungeon's menus.
+ */
 extern "C" CMenuItemStep ItemVolumeStep;
 
-/** Model used to draw the monster cursor. */
+/**
+ * Model used to draw the monster cursor.
+ */
 extern CFrame *cursorFrame;
 
-/** Dungeon the player is in. */
+/**
+ * Dungeon the player is in.
+ */
 extern s32 selectMapNo;
 
-/** Items lying on the floor. */
+/**
+ * Items lying on the floor.
+ */
 extern CRandomItem *RandomItem;
 
-/** Whether the player is currently using the movement speed boost. */
+/**
+ * Whether the player is currently using the movement speed boost.
+ */
 extern s32 BtBySpeedFlag;
 
-/** Whether the party is in the back area of the current dungeon floor. */
+/**
+ * Whether the party is in the back area of the current dungeon floor.
+ */
 extern s32 BtUraDongeon;
 
-/** Whether the player has the current floor map. */
+/**
+ * Whether the player has the current floor map.
+ */
 extern s32 BtEquipMap;
 
-/** Whether the player has the magical crystal that reveals monsters on the minimap. */
+/**
+ * Whether the player has the magical crystal that reveals monsters on the minimap.
+ */
 extern s32 BtEquipMasuisyou;
 
-/** Map of the floor the player is on. */
+/**
+ * Map of the floor the player is on.
+ */
 extern CDungeonMap *NowDngMap;
 
-/** Drainage-field set used by the current dungeon floor. */
+/**
+ * Drainage-field set used by the current dungeon floor.
+ */
 extern CDranMapField *NowDranMapField;
 
-/** Damage numbers the dungeon shows. */
+/**
+ * Damage numbers the dungeon shows.
+ */
 extern CHitValue *NowHitValue;
 
 /**
  * Stores the machine-gun hit flashes used by dungeon projectile effects.
- *
- * @mangled OzumondShotEffect
- * @address 0x1EFC000
- * @size 0x140
  */
 extern "C" CHIT_MACHINGUN_EFFECT OzumondShotEffect;
 
-/** Projectile effects the dungeon has running. */
+/**
+ * Projectile effects the dungeon has running.
+ */
 extern CSHOT_EFFECT_PACK *NowShotEffect;
 
-/** Hits the collision test found this frame. */
+/**
+ * Hits the collision test found this frame.
+ */
 extern CCollisionData *NowColData;
 
-/** Weapon currently equipped by the player character. */
+/**
+ * Weapon currently equipped by the player character.
+ */
 extern WEAPON_HAVE *NowWeaponHave;
 
 /**
@@ -262,607 +293,371 @@ extern float atraGetStatusRate__2;
 extern u_int *old_read_buffer;
 
 /**
- * @mangled LoadBaseTexture__Fv
- * @address 0x1DABD80
- * @size 0x14C
- * @unknownret
+ * Loads the textures every dungeon floor draws with.
  */
 void LoadBaseTexture();
 
 /**
- * @mangled LoadTempTexture__FPPciPc
- * @address 0x1DABED0
- * @size 0x120
+ * Reads a null-terminated list of texture files one after another into a buffer and loads them into a
+ * texture block, returning the bytes read.
  */
 int LoadTempTexture(char **files, int block, char *buffer);
 
 /**
- * @mangled SetTempTexture__FiPc
- * @address 0x1DABFF0
- * @size 0x74
- * @unknownret
+ * Loads one texture image already in memory into a texture block, replacing what the block held.
  */
 void SetTempTexture(int block, char *name);
 
 /**
- * @mangled MemoryMapDump__Fv
- * @address 0x1DAC070
- * @size 0x14C
- * @unknownret
+ * Prints how much of each dungeon model and data arena is in use.
  */
 void MemoryMapDump();
 
 /**
- * @mangled GameInit__Fv
- * @address 0x1DAC1C0
- * @size 0x17B8
- * @unknownret
+ * Sets up the dungeon: its arenas, cameras, message windows, the player's models and the floor's system
+ * script.
  */
 void GameInit();
 
 /**
- * @mangled GameLoop__Fv
- * @address 0x1DAD980
- * @size 0x2BC
- * @unknownret
+ * Runs the dungeon for one frame and returns nonzero once the player leaves it.
  */
 int GameLoop();
 
 /**
- * @mangled Draw_MainUnitShadow__Fv
- * @address 0x1DADC40
- * @size 0x1D0
- * @unknownret
+ * Draws the shadows of the player, the monsters and, during events, the walkers, under a dimmed light.
  */
 void Draw_MainUnitShadow();
 
 /**
- * @mangled Draw_MainUnit__Fv
- * @address 0x1DADE10
- * @size 0x490
- * @unknownret
+ * Draws the player's model and weapon under the lighting their status and the Atlamillia give them.
  */
 void Draw_MainUnit();
 
 /**
- * @mangled MainDraw__Fv__3
- * @address 0x1DAE2A0
- * @size 0x25F8
- * @unknownret
- * @note disambiguated by disassembler ("__3" suffix); real retail name has no suffix
+ * Draws one frame of the dungeon.
  */
 void MainDraw();
 
 /**
- * @mangled MoveChara__Fv__2
- * @address 0x1DB08A0
- * @size 0x6BA8
- * @unknownret
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
+ * Runs the dungeon for one frame. gameTask holds the GameTask being run; every task ends by stepping
+ * the models.
  */
 void MoveChara();
 
 /**
- * @mangled motionDrive__Fv
- * @address 0x1DB7450
- * @size 0x1338
- * @unknownret
+ * Steps the dungeon's models, effects and gauges once the player's input has been handled.
  */
 void motionDrive();
 
 /**
- * @mangled BtCleatRandomMap__Fv
- * @address 0x1DB8790
- * @size 0xA24
- * @unknownret
+ * Builds a new random floor and its back floor, clearing what the last floor left behind.
  */
 void BtCleatRandomMap();
 
 /**
- * @mangled BtCleatFreeMap__Fv
- * @address 0x1DB91C0
- * @size 0x120
- * @unknownret
+ * Sets up the events and items of the fixed floor that is loaded.
  */
 void BtCleatFreeMap();
 
 /**
  * Clears the monsters that the player can see and spreads them over the floor again.
- *
- * @mangled BtArrengeMonstor__Fv
- * @address 0x1DB92E0
- * @size 0x48
  */
 void BtArrengeMonstor();
 
 /**
- * Loads the monsters assigned to the current floor.
- *
- * @mangled BtLoadMonstor__Fi
- * @address 0x1DB9330
- * @size 0x25C
+ * Loads the monsters assigned to the current floor, or to its back floor when ura is nonzero.
  */
 void BtLoadMonstor(int ura);
 
 /**
- * @mangled EquipReAttach__FP10CCharacteri
- * @address 0x1DB9590
- * @size 0xC8
- * @unknownret
+ * Hangs a model off the player's weapon hand, or off the raised hand when held_out is nonzero.
  */
 void EquipReAttach(CCharacter *equipment, int held_out);
 
 /**
- * @mangled EquipWeaponFrame__FP10CCharacterii
- * @address 0x1DB9660
- * @size 0x1E0
- * @unknownret
+ * Makes a weapon model the one the player holds, hangs it off their hand and resets its trail.
  */
 void EquipWeaponFrame(CCharacter *weapon, int chara, int held_out);
 
 /**
- * Loads a character's crash, default and equipped weapon models, releasing the
- * old weapon textures first on a reload.
- *
- * @mangled LoadWeapon2__FPUiPUiPUiii
- * @address 0x1DB9840
- * @size 0x2F0
+ * Loads a character's broken, default and equipped weapon models, releasing the old weapon textures
+ * first on a reload.
  */
 void LoadWeapon2(unsigned int *crash_data, unsigned int *default_data, unsigned int *main_data, int chara, int reload);
 
 /**
- * @mangled SwordDmgCheck1__Ffi
- * @address 0x1DB9B30
- * @size 0x2C8
- * @unknownret
+ * Wears the player's weapon down after a hit, swapping in the broken or default model if it breaks.
  */
 void SwordDmgCheck1(float amount, int kind);
 
 /**
  * Colours the trail of the player's weapon from the element that the weapon leans on.
- *
- * @mangled SetWeaponColor__Fv
- * @address 0x1DB9E00
- * @size 0x260
  */
 void SetWeaponColor();
 
 /**
- * @mangled Get_Main_EffectPtr__Fii
- * @address 0x1DBA060
- * @size 0x1CC
- * @unknownret
+ * Gives back the shot effect a character fires, picked by Ruby's form or Osmond's weapon (which also
+ * sets his gun type), or nullptr for an unknown character.
  */
 BT_SHOT_EFFECT *Get_Main_EffectPtr(int chara, int form);
 
 /**
- * @mangled MainChara_Effect__FP14BT_SHOT_EFFECTPUii
- * @address 0x1DBA230
- * @size 0x18C
- * @unknownret
+ * Loads the player's shot effect, and the crash effect Osmond and Ruby fall back on, from effect data.
  */
 void MainChara_Effect(BT_SHOT_EFFECT *effect, unsigned int *data, int reload);
 
 /**
- * @mangled LoadChara2__FiiPUiPUiPUiPUi
- * @address 0x1DBA3C0
- * @size 0x568
- * @unknownret
+ * Loads a character and their weapons; unless keep_place is nonzero, the model stays where the old one
+ * stood.
  */
 void LoadChara2(int chara, int keep_place, unsigned int *chara_data, unsigned int *crash_data, unsigned int *default_data, unsigned int *main_data);
 
 /**
- * @mangled BtCheckDamageProc__Fv
- * @address 0x1DBAFD0
- * @size 0xF0C
+ * Applies the damage that reached the player this frame; returns nonzero when they took any.
  */
 int BtCheckDamageProc();
 
 /**
- * @mangled BattleActionThlow__Fv
- * @address 0x1DBBEE0
- * @size 0x720
- * @unknownret
+ * Runs the throw of an active item: the player walks its landing point around, then throws it.
  */
 void BattleActionThlow();
 
 /**
- * @mangled BattleActionDrink__Fv
- * @address 0x1DBC600
- * @size 0x294
- * @unknownret
+ * Runs the drinking of an active item, spending it once the motion ends.
  */
 void BattleActionDrink();
 
 /**
- * Starts Xiao's gun action, if the player is free and the gauge is full.
- *
- * @mangled BattleActionOn_Jinn__Fv
- * @address 0x1DBC8A0
- * @size 0x8C
+ * Starts Xiao's slingshot action, if the player is free and the gauge is full.
  */
 void BattleActionOn_Jinn();
 
 /**
- * @mangled BattleActionPlay_Jinn__FP10CCharacteri
- * @address 0x1DBC930
- * @size 0x5CC
- * @unknownret
+ * Runs Xiao's slingshot action; aimed is nonzero in the first-person view.
  */
 void BattleActionPlay_Jinn(CCharacter *chara, int aimed);
 
 /**
  * Starts Ruby's magic action, if the player is free and the gauge is full.
- *
- * @mangled BattleActionOn_Ruby__Fv
- * @address 0x1DBCF00
- * @size 0x78
  */
 void BattleActionOn_Ruby();
 
 /**
- * @mangled BattleActionShotRuby__FP10CCharacterifi
- * @address 0x1DBCF80
- * @size 0x3CC
- * @unknownret
+ * Fires one of Ruby's magic shots at the given strength; a repeat follows the last shot's path.
  */
 void BattleActionShotRuby(CCharacter *chara, int aimed, float scale, int repeat);
 
 /**
- * @mangled BattleActionPlay_Ruby__FP10CCharacteri
- * @address 0x1DBD350
- * @size 0x7F0
- * @unknownret
+ * Runs Ruby's magic action, which charges while the button stays held.
  */
 void BattleActionPlay_Ruby(CCharacter *chara, int aimed);
 
 /**
- * Starts Osmond's action, if the player is free and nothing blocks it.
- *
- * @mangled BattleActionOn_Ozumond__Fv
- * @address 0x1DBDB40
- * @size 0x8C
+ * Starts Osmond's machine gun, if the player is free and nothing blocks it.
  */
 void BattleActionOn_Ozumond();
 
 /**
  * Starts Osmond's charged action, if the player is free and the gauge is full.
- *
- * @mangled BattleActionOn_Ozumond_H__Fv
- * @address 0x1DBDBD0
- * @size 0xA0
  */
 void BattleActionOn_Ozumond_H();
 
 /**
- * Starts Osmond's flight action, if the player is free and nothing blocks it.
- *
- * @mangled BattleActionOn_Ozumond_F__Fv
- * @address 0x1DBDC70
- * @size 0x80
+ * Starts Osmond's flame action, if the player is free and nothing blocks it.
  */
 void BattleActionOn_Ozumond_F();
 
 /**
- * @mangled BattleActionPlay_Ozumond__Fi
- * @address 0x1DBDCF0
- * @size 0x3C4
- * @unknownret
+ * Runs Osmond's machine gun while the button is held and the gauge lasts.
  */
 void BattleActionPlay_Ozumond(int aimed);
 
 /**
- * @mangled BattleActionPlay_Ozumond_H__Fi
- * @address 0x1DBE0C0
- * @size 0x2D8
- * @unknownret
+ * Runs Osmond's charged shot.
  */
 void BattleActionPlay_Ozumond_H(int aimed);
 
 /**
- * @mangled BattleActionPlay_Ozumond_F__Fi
- * @address 0x1DBE3A0
- * @size 0x3C0
- * @unknownret
+ * Runs Osmond's flame while the button is held and the gauge lasts.
  */
 void BattleActionPlay_Ozumond_F(int aimed);
 
 /**
- * @mangled autoCamTrial__Fv
- * @address 0x1DBE970
- * @size 0x1054
- * @unknownret
+ * Keeps the camera clear of the floor's walls and turns it towards a locked-on monster.
  */
 void autoCamTrial();
 
 /**
- * @mangled DelActiveItem__Fi
- * @address 0x1DBF9D0
- * @size 0x98
- * @unknownret
+ * Spends one use of an active item slot, dropping its model on the last use.
  */
 void DelActiveItem(int slot);
 
 /**
  * Applies the trap selected by a dungeon-floor trap circle.
- *
- * @mangled Run_TrapCircle__FP15MAP_TRAP_CIRCLE
- * @address 0x1DBFA70
- * @size 0x264
  */
 int Run_TrapCircle(MAP_TRAP_CIRCLE *trap);
 
 /**
  * Drops the lock-on, and with it the cursor and the life gauge.
- *
- * @mangled LockOffTargte__Fv
- * @address 0x1DBFCE0
- * @size 0x28
  */
 void LockOffTargte();
 
 /**
  * Draws the life gauge of the enemy that the player has locked on to.
- *
- * @mangled DrawTargetLife__Fv
- * @address 0x1DBFD10
- * @size 0x1B4
  */
 void DrawTargetLife();
 
 /**
- * @mangled DrawtargetCursor__FPffff
- * @address 0x1DBFED0
- * @size 0x288
- * @unknownret
+ * Draws the four corners of the lock-on cursor around a point, then the target's life gauge.
  */
 void DrawtargetCursor(float *world, float width, float height, float alpha);
 
 /**
- * @mangled SetNearLockOnTarget__Fii
- * @address 0x1DC0160
- * @size 0x638
+ * Locks on to a monster in front of the player, the nearest or the next one after from, and returns how
+ * many could be locked on to.
  */
 int SetNearLockOnTarget(int from, int nearest_only);
 
 /**
- * @mangled setTargetCursor__Fi
- * @address 0x1DC07A0
- * @size 0x6DC
- * @unknownret
+ * Keeps the lock-on cursor on its monster while on is nonzero, dropping it once the monster is out of
+ * reach; otherwise looks for the nearest monster.
  */
 void setTargetCursor(int on);
 
 /**
  * Turns the player's model to face the way a blow throws them.
- *
- * @mangled unitBlowActionRot__FPf
- * @address 0x1DC0E80
- * @size 0x94
  */
 void unitBlowActionRot(float *velocity);
 
 /**
- * @mangled setUnitDamageColor__Fi
- * @address 0x1DC0F20
- * @size 0xCC
+ * Steps the flash a hit gives the player's model and returns its brightness; a nonzero hit restarts it.
  */
 float setUnitDamageColor(int hit);
 
 /**
  * Stops the ambient-colour animation on the player's model.
- *
- * @mangled RsetUnitAmbientAnime__Fv
- * @address 0x1DC0FF0
- * @size 0xC
  */
 void RsetUnitAmbientAnime();
 
 /**
  * Starts an ambient-colour animation on the player's model.
- *
- * @mangled setUnitAmbientAnime__Ffffff
- * @address 0x1DC1000
- * @size 0x50
  */
 void setUnitAmbientAnime(float speed, float time, float red, float green, float blue);
 
 /**
  * Steps the ambient-colour animation and writes the colour it reaches.
- *
- * @mangled unitAmbientAnime__FPf
- * @address 0x1DC1050
- * @size 0x12C
  */
 int unitAmbientAnime(float *colour);
 
 /**
- * @mangled LoadStartLogo__Fi
- * @address 0x1DC1180
- * @size 0x110
+ * Loads the dungeon's title texture and finds its floor number texture, returning the quadwords used.
  */
 int LoadStartLogo(int map);
 
 /**
  * Brings the floor title on screen.
- *
- * @mangled FloorTitleOn__Fv
- * @address 0x1DC1290
- * @size 0x24
  */
 void FloorTitleOn();
 
 /**
  * Takes the mini-map away, or gives back what it drew before.
- *
- * @mangled SetMIniMapStatus__Fi
- * @address 0x1DC12C0
- * @size 0x40
  */
 void SetMIniMapStatus(int on);
 
 /**
  * Puts the player back into the state a floor starts in.
- *
- * @mangled ResetStatusInfo__Fv
- * @address 0x1DC1300
- * @size 0xF8
  */
 void ResetStatusInfo();
 
 /**
  * Takes away the push that the player's action gives them.
- *
- * @mangled ResetMovePower__Fv
- * @address 0x1DC1400
- * @size 0x18
  */
 void ResetMovePower();
 
 /**
- * @mangled LoaderInit__Fv
- * @address 0x1DC1420
- * @size 0xE4
- * @unknownret
+ * Sets up the debug map loader screen.
  */
 void LoaderInit();
 
 /**
- * @mangled LoaderLoop__Fv
- * @address 0x1DC1510
- * @size 0x278
+ * Runs the debug map loader screen for one frame and returns nonzero once a map is chosen.
  */
 int LoaderLoop();
 
 /**
  * Points the first-person camera the way the player faces.
- *
- * @mangled InitEyeCamera__Fv
- * @address 0x1DC1790
- * @size 0x48
  */
 void InitEyeCamera();
 
 /**
- * @mangled EyeCamera__Fv
- * @address 0x1DC17E0
- * @size 0x2A0
- * @unknownret
+ * Runs the first-person camera for one frame.
  */
 void EyeCamera();
 
 /**
  * Carries the Georama editor's own fade on by one step.
- *
- * @mangled EdFadeInOut__Fv
- * @address 0x189860
- * @size 0x1B0
- * @unknownret
  */
 void EdFadeInOut();
 
 /**
  * Blurs whatever lies outside the depth the focus names.
- *
- * @mangled DepthOfField__FPfiii
- * @address 0x1652C0
- * @size 0x9D0
- * @unknownret
  */
 void DepthOfField(float *focus, int level, int alpha, int blur);
 
 /**
  * Draws the bee that follows one of the walkers.
- *
- * @mangled DrawBee__FP6CFramei
- * @address 0x1D9590
- * @size 0x270
- * @unknownret
  */
 void DrawBee(CFrame *frame, int count);
 
 /**
  * Draws the event battle's own overlay.
- *
- * @mangled EBDraw__Fv
- * @address 0x168B80
- * @size 0x560
  */
 void EBDraw();
 
 /**
  * Draws the Georama editor's debug text.
- *
- * @mangled EdDDrawFont__Fv
- * @address 0x170270
- * @size 0xB0
- * @unknownret
  */
 void EdDDrawFont();
 
 /**
  * Draws the debug overlay.
- *
- * @mangled DebugInfomationDraw__Fv
- * @address 0x1B3780
- * @size 0xF70
- * @unknownret
  */
 void DebugInfomationDraw();
 
 /**
  * Carries the system message on by one step.
- *
- * @mangled SystemMesStep__Fv
- * @address 0x160120
- * @size 0xB4
- * @unknownret
  */
 void SystemMesStep();
 
 /**
  * Draws the system message.
- *
- * @mangled SystemMesDraw__Fv
- * @address 0x1601E0
- * @size 0xB0
- * @unknownret
  */
 void SystemMesDraw();
 
 /**
  * Gives back the floor number that one of the deeper dungeons shows.
- *
- * @mangled BtGetFloorLevel__Fi
- * @address 0x1B77C0
- * @size 0x3C
  */
 int BtGetFloorLevel(int floor);
 
 /**
  * Copies the textures the item list holds into the frame it draws from.
- *
- * @mangled DngActiveItemTextureCopy__Fv
- * @address 0x22A5A0
- * @size 0x104
- * @unknownret
  */
 int DngActiveItemTextureCopy();
 
 /**
- * The same, for the weapon the player holds.
- *
- * @mangled DngActiveWeaponTextureCopy__Fv
- * @address 0x22A6B0
- * @size 0x130
- * @unknownret
+ * Copies the texture of the weapon the player holds into the frame the item list draws from.
  */
 int DngActiveWeaponTextureCopy();
 
-/** The weapon models the player's character can hold. */
+/**
+ * The model of the character's default weapon.
+ */
 extern CCharacter DefaultWeapon;
 
-/** The weapon models the player's character can hold. */
+/**
+ * The model of the weapon the player has equipped.
+ */
 extern CCharacter MainWeapon;
 
 /**
@@ -870,10 +665,14 @@ extern CCharacter MainWeapon;
  */
 extern CSHOT_EFFECT *NowMainEffect;
 
-/** The effect the player's own character breaks things with. */
+/**
+ * The effect the player's own character breaks things with.
+ */
 extern CSHOT_EFFECT CharaMainEffectCrash;
 
-/** Whether the player's character holds an item out. */
+/**
+ * Whether the player's character holds an item out.
+ */
 extern s32 CharaMainHandViewFlag;
 
 /**
@@ -926,7 +725,9 @@ extern int CEffectHyde;
  */
 extern CDataAlloc2<1> BtCashBuffer;
 
-/** The trail that the player's weapon leaves as it swings. */
+/**
+ * The trail that the player's weapon leaves as it swings.
+ */
 extern CWeaponEffect CWeaponFx;
 
 /**
@@ -934,7 +735,9 @@ extern CWeaponEffect CWeaponFx;
  */
 extern CCharacter *NowWeapon;
 
-/** Whether the item list the menu caches is still good. */
+/**
+ * Whether the item list the menu caches is still good.
+ */
 extern s32 BtItemListCashFlag;
 
 /**
@@ -942,19 +745,29 @@ extern s32 BtItemListCashFlag;
  */
 extern CFrame *itemBoxModel;
 
-/** The model the item a gate holds draws with. */
+/**
+ * Whether the large treasure box presentation is running.
+ */
 extern s32 itemOpenBigFlag;
 
-/** Whether the Atlamillia message board is up. */
+/**
+ * Whether the small treasure box presentation is running.
+ */
 extern s32 itemOpenSmallFlag;
 
-/** The model the item a gate holds draws with. */
+/**
+ * Scale a weapon shown by a treasure box presentation draws at.
+ */
 extern float itemWeponScale;
 
-/** Whether the Atlamillia message board is up. */
+/**
+ * Scale any other item shown by a treasure box presentation draws at.
+ */
 extern float itemNormalScale;
 
-/** Which event the player is standing on, or -1 for none. */
+/**
+ * Which event the player is standing on, or -1 for none.
+ */
 extern s32 iventActive;
 
 /**
@@ -972,31 +785,49 @@ extern CCameraFollow MainCamera__4;
  */
 extern CCameraFollow *NowCamera__3;
 
-/** Which short Atlamillia use is running. */
+/**
+ * Which short Atlamillia use is running.
+ */
 extern s32 atraShortGetType;
 
-/** Which short Atlamillia use is running. */
+/**
+ * Whether the Atlamillia pickup is lighting the player.
+ */
 extern s32 atraGetStatus;
 
-/** Whether the Atlamillia message board is up. */
+/**
+ * Whether the Atlamillia message board is up.
+ */
 extern s32 atraGetMsgBord;
 
-/** Whether the Atlamillia message board is up. */
+/**
+ * How far the Atlamillia message board has faded in.
+ */
 extern float atraGetMsgBordRate;
 
-/** Where the player took the Atlamillia they last picked up. */
+/**
+ * Where the player took the Atlamillia they last picked up.
+ */
 extern sceVu0FVECTOR atraGetPos;
 
-/** Which way the player faced as they took it. */
+/**
+ * Which way the player faced as they took it.
+ */
 extern sceVu0FVECTOR atraGetRot;
 
-/** The fade the dungeon draws over the picture. */
+/**
+ * The fade the dungeon draws over the picture.
+ */
 extern CDispCtrl DispFade__3;
 
-/** Whether the player's model skips interpolation on its next drive step. */
+/**
+ * Whether the player's model skips interpolation on its next drive step.
+ */
 extern s32 driveNoInterpolate;
 
-/** Whether the player is escaping the dungeon. */
+/**
+ * Whether the player is escaping the dungeon.
+ */
 extern s32 EscapeFlag;
 
 /**
@@ -1009,73 +840,119 @@ extern u_int *itemOpenItemChr;
  */
 extern u_int *shortAtraEffectPtr;
 
-/** The models of the items the player is running. */
+/**
+ * The models of the items the player is running.
+ */
 extern CActiveItemPack activeItem;
 
-/** The models an opened treasure box shows, and the effects that play over them. */
+/**
+ * The model a large treasure box opens with.
+ */
 extern CMotionModel itemOpenBig;
 
-/** The models an opened treasure box shows, and the effects that play over them. */
+/**
+ * The effect that plays over a large treasure box as it opens.
+ */
 extern CMotionModel itemOpenBigFx;
 
-/** The models an opened treasure box shows, and the effects that play over them. */
+/**
+ * The model a small treasure box opens with.
+ */
 extern CMotionModel itemOpenSmall;
 
-/** The models an opened treasure box shows, and the effects that play over them. */
+/**
+ * The effect that plays over a small treasure box as it opens.
+ */
 extern CMotionModel itemOpenSmallFx;
 
-/** The effect that a short Atlamillia use lights the player with. */
+/**
+ * The effect that a short Atlamillia use lights the player with.
+ */
 extern CCharacter shortAtraEffect;
 
-/** The effect that plays as the player escapes the dungeon. */
+/**
+ * The effect that plays as the player escapes the dungeon.
+ */
 extern CCharacter EscapeEffect;
 
-/** Randomized element the current floor's sealed door wants. */
+/**
+ * Randomized element the current floor's sealed door wants.
+ */
 extern int BtRubyDoorKey;
 
-/** Nonzero while the dungeon floor is drawn at all. */
+/**
+ * Nonzero while the dungeon floor is drawn at all.
+ */
 extern s32 BtAllDrawFlag;
 
-/** The dungeon floor that the player is on. */
+/**
+ * The dungeon floor that the player is on.
+ */
 extern CDungeonMap MainDungeonMap;
 
-/** The events of the floor that the player is on. */
+/**
+ * The events of the floor that the player is on.
+ */
 extern CDungeonEventMan DngEventMan;
 
-/** The events of the back dungeon's floor. */
+/**
+ * The events of the back dungeon's floor.
+ */
 extern CDungeonEventMan UraEventMan;
 
-/** The characters that walk the dungeon alongside the player. */
+/**
+ * The characters that walk the dungeon alongside the player.
+ */
 extern CNPCharacter NPCUnit[];
 
-/** Nonzero while a system event script holds the dungeon. */
+/**
+ * Nonzero while a system event script holds the dungeon.
+ */
 extern s32 BtEventMode;
 
-/** Nonzero while a system event script clears the dungeon's usual work. */
+/**
+ * Nonzero while a system event script clears the dungeon's usual work.
+ */
 extern s32 BtAllClear;
 
-/** Message window the system script talks through first. */
+/**
+ * Message window the system script talks through first.
+ */
 extern ClsMes BtEventMes0;
 
-/** Message window the system script talks through second. */
+/**
+ * Message window the system script talks through second.
+ */
 extern ClsMes BtEventMes1;
 
-/** File buffer the current floor's system script is read into. */
+/**
+ * File buffer the current floor's system script is read into.
+ */
 extern CDataAlloc2<1> BtSystemScriptFileBuffer;
 
-/** Whether an enemy is locked on. */
+/**
+ * Whether an enemy is locked on.
+ */
 extern s32 lockOnTargetFlag;
 
-/** Which button fires an action. */
+/**
+ * Which button fires an action.
+ */
 extern s32 PadInput_OK;
 
-/** The debug text window the dungeon draws. */
+/**
+ * The debug text window the dungeon draws.
+ */
 extern CDebugFont DbgMsg;
 
-/** One texture animation for every part of every character in the dungeon. */
+/**
+ * The texture animations of each character that walks the dungeon.
+ */
 extern CTexAnimeData BtNPCTexAnimeData[][32];
 
-/** The model a trap circle draws with. */
+/**
+ * The model a trap circle draws with.
+ */
 extern CCharacter Trap_Circle;
 
 /**
@@ -1088,52 +965,84 @@ extern CItemBombEffect *NowBombEffect;
  */
 extern CShockWave *NowShockWave;
 
-/** Scratch arena used while loading the current map. */
+/**
+ * Scratch arena used while loading the current map.
+ */
 extern CDataAlloc2<1> MapModelBuffer;
 
-/** Texture animation state initialized after the ground texture archive loads. */
+/**
+ * Texture animation state initialized after the ground texture archive loads.
+ */
 extern CTextureAnime BtTexAnime;
 
-/** The texture animations every dungeon texture runs. */
+/**
+ * The texture animations every dungeon texture runs.
+ */
 extern CTexAnimeData BtTexAnimeData[];
 
-/** Scene-wide values filled from model-definition directives. */
+/**
+ * The light directions of the front floor.
+ */
 extern sceVu0FMATRIX main_light;
 
-/** The lighting the dungeon draws the field and the models under. */
+/**
+ * The light colours of the front floor.
+ */
 extern sceVu0FMATRIX main_lightcolor;
 
-/** The lighting the dungeon draws the field and the models under. */
+/**
+ * The light directions of the back floor.
+ */
 extern sceVu0FMATRIX sub_light;
 
-/** The lighting the dungeon draws the field and the models under. */
+/**
+ * The light colours of the back floor.
+ */
 extern sceVu0FMATRIX sub_lightcolor;
 
-/** The lighting the dungeon draws the field and the models under. */
+/**
+ * The ambient light of the front floor.
+ */
 extern sceVu0FVECTOR main_ambientlight;
 
-/** The lighting the dungeon draws the field and the models under. */
+/**
+ * The ambient light of the back floor.
+ */
 extern sceVu0FVECTOR sub_ambientlight;
 
-/** How far the fog reaches and how it thickens, on the front and the back floors. */
+/**
+ * How far the fog reaches and how it thickens on the front floor.
+ */
 extern float main_fogRate[4];
 
-/** How far the fog reaches and how it thickens, on the front and the back floors. */
+/**
+ * How far the fog reaches and how it thickens on the back floor.
+ */
 extern float sub_fogRate[4];
 
-/** The colour the fog draws, on the front and the back floors. */
+/**
+ * The colour the fog draws on the front floor.
+ */
 extern u8 main_fogColor[];
 
-/** The colour the fog draws, on the front and the back floors. */
+/**
+ * The colour the fog draws on the back floor.
+ */
 extern u8 sub_fogColor[];
 
-/** The events of the floor the dungeon is drawing. */
+/**
+ * The background colour of the front floor.
+ */
 extern u8 main_bgColor[];
 
-/** The events of the floor the dungeon is drawing. */
+/**
+ * The background colour of the back floor.
+ */
 extern u8 sub_bgColor[];
 
-/** The buffers the dungeon's item cache and battle scripts run out of. */
+/**
+ * The arenas the dungeon's item cache runs out of.
+ */
 extern CDataAlloc2<1> BtItemCashArea[6];
 
 /**
