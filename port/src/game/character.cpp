@@ -1,11 +1,3 @@
-/* Retail compiled this unit before anything had passed two doubles to a helper,
- * so only $a0 was marked read at a helper call and SetEvent's loop counter
- * could take $a1. See re/ai/compiler/leaked_state.md; without this the counter
- * lands in $a2. Ignored by mwcc, read by scripts/build/statefix.py. */
-#pragma helper_mask_gpr 0x10
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 648
-
 #include "character.hpp"
 
 #include <libvu0.h>

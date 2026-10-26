@@ -1,11 +1,4 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 187
-
 #include "common.h"
-#include "sce/libcdvd.h"
-#include "sce/sifdev.h"
-#include "sce/sifrpc.h"
 
 #include <libpkt.h>
 

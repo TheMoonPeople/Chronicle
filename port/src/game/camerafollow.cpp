@@ -1,5 +1,3 @@
-#pragma helper_mask_fpr 0x1000
-
 #include "camerafollow.hpp"
 
 #include <libvu0.h>

@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 821
-
 #include "clsmes.hpp"
 
 #include <libpkt.h>
@@ -1627,10 +1623,6 @@ void ClsMes::Myset2DSprite_Fuchi(sceVif1Packet *packet, CTexture *texture, int x
 }
 
 void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough, int prim);
-
-#pragma opt_propagation off
-
-#pragma opt_propagation reset
 
 void SetspRGBA(spRGBA *colour, int r, int g, int b, int a) {
     colour->r = r;
