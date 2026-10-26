@@ -1,14 +1,22 @@
 #include "stubs/battlemenu.hpp"
 
-#include "battlemenu.hpp"
-
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <format>
+#include <string>
+#include <string_view>
 
+#include "battle_globals.hpp"
+#include "battlemenu.hpp"
+#include "btactstatus.hpp"
 #include "camera.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
+#include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
@@ -23,47 +31,41 @@
 #include "menu_manual.hpp"
 #include "menu_misc.hpp"
 #include "menu_save.hpp"
+#include "menuetc.hpp"
 #include "menuiconautoget.hpp"
+#include "menuitemstep.hpp"
 #include "mglib.hpp"
 #include "monstorunit.hpp"
+#include "rect.hpp"
 #include "savedata.hpp"
 #include "shop.hpp"
+#include "shot_effect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "userstatus.hpp"
+#include "vutext.hpp"
 #include "weapon_buildup.hpp"
 #include "weaponlevelup.hpp"
 
-static int GetVisitInfo(int place, int menu_mode);
+namespace {
 
-#include <cstdlib>
+int  GetVisitInfo(int place, int menu_mode);
+void DrawStatusNumberNowAndMax(int *values, int x, int y, int color, int alpha);
+void BattleMenuAppear();
+int  BattleMenuExit();
+void InitItemTrushStart();
+int  BattleMenuAtoraKey();
+void BattleMenuOptionKey();
+void BattleMenuSaveKey();
+void BattleManualDraw();
+int  WeaponSelectKey();
+void WeaponMenuActWepKey();
+void WeaponMenuAttachWepKey();
+void WeaponMenuAttachKey();
+int  WorldMapMoveKey();
+void DrawWorldMap(int alpha);
 
-#include "battle_globals.hpp"
-#include "btactstatus.hpp"
-#include "dataalloc.hpp"
-#include "menuetc.hpp"
-#include "menuitemstep.hpp"
-#include "rect.hpp"
-#include "shot_effect.hpp"
-#include "userstatus.hpp"
-#include "vutext.hpp"
-
-static void DrawStatusNumberNowAndMax(int *values, int x, int y, int color, int alpha);
-static void BattleMenuAppear();
-static int  BattleMenuExit();
-static void InitItemTrushStart();
-static int  BattleMenuAtoraKey();
-static void BattleMenuOptionKey();
-static void BattleMenuSaveKey();
-static void BattleManualDraw();
-static void InitItemMode(int mode, int chara);
-static void InitMenuChara(u_long128 *buffer);
-static void InitWeaponSelect(int mode, int chara);
-static int  WeaponSelectKey();
-static void WeaponMenuActWepKey();
-static void WeaponMenuAttachWepKey();
-static void WeaponMenuAttachKey();
-static int  WorldMapMoveKey();
-static void DrawWorldMap(int alpha);
+} // namespace
 
 MenuClsMes          MenuMes;
 CDataAlloc2<1>      MenuExCashBuffer(-1);
@@ -138,7 +140,7 @@ GRADATION_COLOR_INFO2 MenuColorInfo2[26] = {
     {{{0xFF, 0x80, 0x00, 0x80}, {0xFF, 0x20, 0x00, 0x80}, {0xFF, 0x80, 0x00, 0x80}, {0xFF, 0x20, 0x00, 0x80}}},
 };
 
-s16 BtlMenuNowLang = 1;
+s16   BtlMenuNowLang = 1;
 s32   BattleMenuFlag = BTLMENU_STATE_APPEAR;
 float chara_r_long = 118.0f;
 s16   TrushMoveMax[3] = {3, 1, 3};
@@ -155,7 +157,7 @@ s32             BtlMenuReadEndFlag;
 s32             ItemMenuWeaponIconReadBlock;
 s32             ItemMenuAlreadyReadWepIconTexFlag;
 s32             MenuShadowReadBlock;
-s32 BtlMenuExtBlock;
+s32             BtlMenuExtBlock;
 s32             BtlMenuExReadBlock;
 s32             BtlMenuExReadFlag;
 s32             MenuExtendReadBlock;
@@ -173,25 +175,25 @@ CTexture       *WepStatus;
 CTexture       *BtlAlpha;
 CTexture       *BtlHira;
 CTexture       *BtlKata;
-CTexture *BtlEuro;
-float      HelpWinHead[2];
-u8         BtlWakuMake2;
-s32        BtlHelpWinAlpha;
-float      BtlHelpWinW;
-float      BtlHelpWinH;
-s32        MenuSelect[2];
-ITEM_PACK *MenuItemPackPt;
-s16        EscapeDngFlg;
-s16        RoomOutFlag;
-float      MenuCharaMove;
-float      PosAngle;
-IHAVEITEM *BtlHaveItemPt;
-float      WepFrameRate;
-float      WeaponPos;
-float      WepPolyPos;
-float      BtlEffectCt;
-s32        MenuWarningMsgFlag;
-u_long128 *BtlMenuCharaChangeBuf;
+CTexture       *BtlEuro;
+float           HelpWinHead[2];
+u8              BtlWakuMake2;
+s32             BtlHelpWinAlpha;
+float           BtlHelpWinW;
+float           BtlHelpWinH;
+s32             MenuSelect[2];
+ITEM_PACK      *MenuItemPackPt;
+s16             EscapeDngFlg;
+s16             RoomOutFlag;
+float           MenuCharaMove;
+float           PosAngle;
+IHAVEITEM      *BtlHaveItemPt;
+float           WepFrameRate;
+float           WeaponPos;
+float           WepPolyPos;
+float           BtlEffectCt;
+s32             MenuWarningMsgFlag;
+u_long128      *BtlMenuCharaChangeBuf;
 
 int GetDefaultWeaponNo(int character_no) {
     return MenuDefaultWeaponNo[character_no];
@@ -199,7 +201,7 @@ int GetDefaultWeaponNo(int character_no) {
 
 int IsDefaultWeapon(int weapon_no) {
     int owner = -1;
-    int chara;
+    int chara = 0;
 
     for (chara = 0; chara <= 5; chara++) {
         int default_weapon_no = GetDefaultWeaponNo(chara);
@@ -221,7 +223,7 @@ void SetNowEquipWeaponDataForMsg(int item_no, int slot) {
 void GetNowEquipWeaponDataForMsg(int &item_no, int &slot) {
     COM_ITEM_INFO *item_info = GetCommonItemInfo(ItemMenuMode.message_item_no);
 
-    if (item_info != NULL) {
+    if (item_info != nullptr) {
         item_no = item_info->msg;
     } else {
         item_no = 0;
@@ -234,14 +236,12 @@ GRADATION_COLOR_INFO2 *GetGradationColorInfo2(int index) {
     return &MenuColorInfo2[index];
 }
 
+namespace {
+
 /**
  * Gives the weapon the weapon menu's cursor is on.
- *
- * @mangled GetNowSelectWeapon__Fv
- * @address 0x1F3F00
- * @size 0x3C
  */
-static WEAPON_HAVE *GetNowSelectWeapon() {
+WEAPON_HAVE *GetNowSelectWeapon() {
     int             chara = WepMenu.chara;
     CDngStatusData *status = BtlMenuStatusPt;
     WEAPON_HAVE    *row = status->chara_weapons[chara];
@@ -251,12 +251,8 @@ static WEAPON_HAVE *GetNowSelectWeapon() {
 /**
  * Reports whether the party may leave the floor: freely, with an escape item, or not at
  * all.
- *
- * @mangled EscapeDungeonMode__Fv
- * @address 0x1F3F40
- * @size 0x5C
  */
-static int EscapeDungeonMode() {
+int EscapeDungeonMode() {
     int mode = ESCAPE_DNG_PAY;
 
     if (BtlMenuStatusPt->SearchItemIndexNo(ITEM_ESCAPE_POWDER) >= 0) {
@@ -270,6 +266,8 @@ static int EscapeDungeonMode() {
     return mode;
 }
 
+} // namespace
+
 void SetEscapeDngFlag(int flag) {
     EscapeDngFlg = flag;
 }
@@ -282,14 +280,12 @@ int GetInteriorOutFlag() {
     return RoomOutFlag;
 }
 
+namespace {
+
 /**
  * Draws the two-line yes-or-no plate the dungeon menu asks with.
- *
- * @mangled DrawDngYesNoDialog__Fiii
- * @address 0x1F3FE0
- * @size 0xB8
  */
-static void DrawDngYesNoDialog(int x, int y, int alpha) {
+void DrawDngYesNoDialog(int x, int y, int alpha) {
     CRect_i_ dst(x, y, 0x60, 0x20);
     CRect_i_ src(0, 0, 0x60, 0x20);
 
@@ -303,13 +299,9 @@ static void DrawDngYesNoDialog(int x, int y, int alpha) {
 /**
  * Gives how many icons the battle menu ring shows, which depends on the menu mode and
  * whether the manual entry is enabled.
- *
- * @mangled GetMenuModeMax__Fv
- * @address 0x1F40A0
- * @size 0x68
  */
-static int GetMenuModeMax() {
-    int icon_count;
+int GetMenuModeMax() {
+    int icon_count = 0;
 
     switch (BtlMenuMode) {
         case BATTLE_MENU_MODE_DUNGEON:
@@ -317,6 +309,8 @@ static int GetMenuModeMax() {
             break;
         case BATTLE_MENU_MODE_TOWN:
             icon_count = 8;
+            break;
+        default:
             break;
     }
 
@@ -330,7 +324,7 @@ static int GetMenuModeMax() {
 /**
  * Writes the screen coordinates of one icon on the battle menu ring.
  */
-static void GetMenuIconPos(int icon, int *position) {
+void GetMenuIconPos(int icon, int *position) {
     int next = icon + 1;
     int x = next * 16 + 80;
     int y = icon * 40 + 54;
@@ -345,12 +339,8 @@ static void GetMenuIconPos(int icon, int *position) {
 
 /**
  * Fills in the icon numbers the menu bar draws for one mode.
- *
- * @mangled BtlMenuMekeIconInfo__FPii
- * @address 0x1F4160
- * @size 0xE8
  */
-static void BtlMenuMekeIconInfo(int *icons, int menu_mode) {
+void BtlMenuMekeIconInfo(int *icons, int menu_mode) {
     int icon_count = GetMenuModeMax();
 
     for (int i = 0; i < icon_count; i++) {
@@ -358,7 +348,7 @@ static void BtlMenuMekeIconInfo(int *icons, int menu_mode) {
     }
 
     if (BtlMenuMode != BATTLE_MENU_MODE_DUNGEON) {
-        int special_icon;
+        int special_icon = 0;
 
         switch (NowGetGameFlagForBtlMenu(BtlMenuMode)) {
             case MENU_MOVE_LOCKED:
@@ -371,6 +361,8 @@ static void BtlMenuMekeIconInfo(int *icons, int menu_mode) {
             case MENU_MOVE_INTERIOR_OUT:
                 special_icon = 0xC;
                 break;
+            default:
+                break;
         }
 
         icons[4] = special_icon;
@@ -380,35 +372,27 @@ static void BtlMenuMekeIconInfo(int *icons, int menu_mode) {
 /**
  * Draws the battle menu ring and its icons, fading them out with the closing effect and
  * dimming them while a warning message is shown.
- *
- * @mangled DrawBtlMenuBar__Fv
- * @address 0x1F4250
- * @size 0x294
  */
-static void DrawBtlMenuBar() {
-    int alpha;
-    int icon_alpha;
-    int i;
-    int x;
-    int menu_flag;
-    int brightness;
-    int selected;
-    int y;
+void DrawBtlMenuBar() {
+    int alpha = 0;
+    int icon_alpha = 0;
+    int i = 0;
+    int x = 0;
+    int menu_flag = 0;
+    int brightness = 0;
+    int selected = 0;
+    int y = 0;
 
     if (BtlEffectFlag == BTLEFFECT_PAGE_CLOSE || BattleMenuFlag == BTLMENU_STATE_APPEAR) {
         alpha = 10.0f * BtlEffectCt;
 
-        if (alpha >= 128) {
-            alpha = 128;
-        }
+        alpha = std::min(alpha, 128);
     }
 
     if (BtlEffectFlag == BTLEFFECT_PAGE_OPEN || BattleMenuFlag == BTLMENU_STATE_EXIT) {
         alpha = 128.0f - 10.0f * BtlEffectCt;
 
-        if (alpha < 0) {
-            alpha = 0;
-        }
+        alpha = std::max(alpha, 0);
     } else {
         alpha = 128;
     }
@@ -456,8 +440,10 @@ static void DrawBtlMenuBar() {
     }
 }
 
+} // namespace
+
 int GetLimmitMsg() {
-    int message;
+    int message = 0;
 
     switch (BtlMenuStatusPt->res_limit_zone_current) {
         case RES_LIMIT_ZONE_NONE:
@@ -477,12 +463,12 @@ int GetLimmitMsg() {
         case RES_LIMIT_ZONE_OSMOND:
             message = 0x1A0;
             break;
+        default:
+            break;
     }
 
     return message;
 }
-
-void DrawBattleMain();
 
 void DrawOtherCharaStatus(int x, int y, int chara, int alpha) {
     int bar_x = x - 5;
@@ -496,30 +482,26 @@ void DrawOtherCharaStatus(int x, int y, int chara, int alpha) {
     float           hp = status->hp[chara];
     float           max_hp = status->max_hp[chara];
 
-    if (max_hp < 1.0f) {
-        max_hp = 1.0f;
-    }
+    max_hp = std::max(max_hp, 1.0f);
 
     int          slot = status->equipped_weapon_slot[chara];
     WEAPON_HAVE *weapons = status->chara_weapons[chara];
     WEAPON_HAVE *weapon = &weapons[slot];
 
-    if (weapon == NULL) {
+    if (weapon == nullptr) {
         return;
     }
 
     float whp = weapon->durability_f;
     float max_whp = weapon->durability;
 
-    if (max_whp < 1.0f) {
-        max_whp = 1.0f;
-    }
+    max_whp = std::max(max_whp, 1.0f);
 
-    int   water = (int) status->water_now[chara];
-    int   max_water = (int) status->water_max[chara];
+    int   water = static_cast<int>(status->water_now[chara]);
+    int   max_water = static_cast<int>(status->water_max[chara]);
     float values[4] = {hp, max_hp, whp, max_whp};
     MGFillBox(CRect_i_((bar_x - 3) * 16, ((bar_y - 2) >> 1) * 16, 0x3A0, 0x30), 0x14, 0x14, 0x14, alpha);
-    int hp_len = (int) (52.0f * hp / max_hp);
+    int hp_len = static_cast<int>(52.0f * hp / max_hp);
     MGFillBox(CRect_i_(bar_x * 16, (bar_y >> 1) * 16, 0x340, 0x20), 0x4F, 0x4F, 0x4F, alpha);
     CRect_i_ hp_rect(bar_x * 16, (bar_y >> 1) * 16, hp_len * 16, 0x20);
     int      r = 0x4D;
@@ -535,9 +517,9 @@ void DrawOtherCharaStatus(int x, int y, int chara, int alpha) {
     MGFillBox(hp_rect, r, g, b, alpha);
     MGFillBox(CRect_i_((bar_x + 1) * 16, ((bar_y + 4) >> 1) * 16, 0x3A0, 0x30), 0x14, 0x14, 0x14, alpha);
     float whp_len = 52.0f * whp / max_whp;
-    int   whp_width = (int) whp_len;
+    int   whp_width = static_cast<int>(whp_len);
     MGFillBox(CRect_i_((bar_x + 4) * 16, ((bar_y + 6) >> 1) * 16, 0x340, 0x20), 0x4F, 0x4F, 0x4F, alpha);
-    MGFillBox(CRect_i_((bar_x + 4) * 16, ((bar_y + 6) >> 1) * 16, (int) whp_len * 16, 0x20), 0xFF, 0xB1, 0x49, alpha);
+    MGFillBox(CRect_i_((bar_x + 4) * 16, ((bar_y + 6) >> 1) * 16, static_cast<int>(whp_len) * 16, 0x20), 0xFF, 0xB1, 0x49, alpha);
     MGFillBox(CRect_i_((bar_x + 5) * 16, ((bar_y + 10) >> 1) * 16, 0x3A0, 0x40), 0x14, 0x14, 0x14, alpha);
     int water_len = water * 0x34 / max_water;
     MGFillBox(CRect_i_((bar_x + 8) * 16, ((bar_y + 12) >> 1) * 16, 0x340, 0x20), 0x4F, 0x4F, 0x4F, alpha);
@@ -547,8 +529,8 @@ void DrawOtherCharaStatus(int x, int y, int chara, int alpha) {
 void DngComStatus(int x, int y, int chara, int alpha) {
     CTexture *texture = TexManager.GetTexture("charastb", -1);
     int       left = x - 6;
-    int       fill;
-    int       row_y;
+    int       fill = 0;
+    int       row_y = 0;
     float     unused_scale[2] = {0.0f, 0.0f};
     float     hp = BtlMenuStatusPt->hp[chara];
     float     max_hp = BtlMenuStatusPt->max_hp[chara];
@@ -561,7 +543,7 @@ void DngComStatus(int x, int y, int chara, int alpha) {
     WEAPON_HAVE *weapons = BtlMenuStatusPt->chara_weapons[chara];
     WEAPON_HAVE *weapon = &weapons[slot];
 
-    if (weapon == NULL) {
+    if (weapon == nullptr) {
         return;
     }
 
@@ -586,11 +568,11 @@ void DngComStatus(int x, int y, int chara, int alpha) {
     }
 
     for (int i = 0; i < 2; i++) {
-        int length = (int) (148.0f * values[i][1] / full[i]);
+        int length = static_cast<int>(148.0f * values[i][1] / full[i]);
         DrawMenu2DSprite(texture, CRect_i_(left + 0x10, y + 5, 4, 0xF), CRect_i_(0x10, 0xB0, 4, 0x10), alpha);
         DrawMenu2DSprite(texture, CRect_i_(left + 0x14, y + 5, length, 0xF), CRect_i_(0x14, 0xB0, 4, 0x10), alpha);
         DrawMenu2DSprite(texture, CRect_i_(left + 0x13 + length, y + 5, 4, 0xF), CRect_i_(0x18, 0xB0, 4, 0x10), alpha);
-        fill = (int) ((float) length * values[i][0] / values[i][1]);
+        fill = static_cast<int>(static_cast<float>(length) * values[i][0] / values[i][1]);
 
         if (i == 0) {
             if (hp < 0.3f * max_hp) {
@@ -602,7 +584,7 @@ void DngComStatus(int x, int y, int chara, int alpha) {
             }
         }
 
-        GRADATION_COLOR_INFO2 colours;
+        GRADATION_COLOR_INFO2 colours{};
         memcpy(&colours, GetGradationColorInfo2(colour_no[i]), sizeof(colours));
         colours.colors[3].a = alpha;
         colours.colors[2].a = alpha;
@@ -623,7 +605,7 @@ void DngComStatus(int x, int y, int chara, int alpha) {
         row_y += 0x10;
     }
 
-    int drops = (int) BtlMenuStatusPt->water_max[chara] / 10;
+    int drops = static_cast<int>(BtlMenuStatusPt->water_max[chara]) / 10;
     int drop_x = left + 0x12;
 
     for (int i = 0; i < drops - 1; i++) {
@@ -633,48 +615,48 @@ void DngComStatus(int x, int y, int chara, int alpha) {
 
     DrawMenu2DSprite(texture, CRect_i_(drop_x, y + 5, 0x18, 0x14), CRect_i_(0x34, 0x9C, 0x18, 0x14), alpha);
     int water_alpha = (alpha * 0x50) >> 7;
-    int full_drops = (int) BtlMenuStatusPt->water_now[chara] / 10;
+    int full_drops = static_cast<int>(BtlMenuStatusPt->water_now[chara]) / 10;
 
     for (int i = 0; i < full_drops; i++) {
         DrawMenu2DSprite(texture, CRect_i_(left + 0x13 + i * 0x12, y, 0x10, 0x14), CRect_i_(0, 0x88, 0x10, 0x14), water_alpha);
     }
 
-    int rest = (int) BtlMenuStatusPt->water_now[chara] % 10;
+    int rest = static_cast<int>(BtlMenuStatusPt->water_now[chara]) % 10;
 
     if (rest != 0) {
-        DrawMenu2DSprite(texture, CRect_i_(left + 0x13 + full_drops * 0x12, y, 0x10, 0x14), CRect_i_((3 - (int) ((float) rest / 2.5f)) * 16, 0x88, 0x10, 0x14), water_alpha);
+        DrawMenu2DSprite(texture, CRect_i_(left + 0x13 + full_drops * 0x12, y, 0x10, 0x14), CRect_i_((3 - static_cast<int>(static_cast<float>(rest) / 2.5f)) * 16, 0x88, 0x10, 0x14), water_alpha);
     }
 }
 
 void DrawSelCharaStatus(float x, float y, int chara, int alpha, int face_size, int face_alpha, int face_x, int face_y) {
-    int   u;
-    int   v;
-    int   px = (int) (x - 144.0f);
-    float top = 1.0f + y;
-    int   py = (int) (top - 24.0f);
+    int       u = 0;
+    int       v = 0;
+    int       px = static_cast<int>(x - 144.0f);
+    float     top = 1.0f + y;
+    int       py = static_cast<int>(top - 24.0f);
     CTexture *texture = TexManager.GetTexture("charastb", -1);
 
     DrawMenu2DSprite(texture, CRect_i_(px, py - 1, 0x100, 0x88), CRect_i_(0, 0, 0x100, 0x88), alpha);
     RECT digits = {0x40, 0x88, 0xC, 0xE};
-    DrawMenuNumber((int) BtlMenuStatusPt->defense[chara], px + 0x5E, py + 0x72, texture, digits, 1, alpha);
+    DrawMenuNumber(static_cast<int>(BtlMenuStatusPt->defense[chara]), px + 0x5E, py + 0x72, texture, digits, 1, alpha);
 
-    px = (int) (x - 132.0f);
-    py = (int) (10.0f + y);
+    px = static_cast<int>(x - 132.0f);
+    py = static_cast<int>(10.0f + y);
     DngComStatus(px, py, chara, alpha);
-    px = (int) (x - 110.0f);
-    py = (int) (top - 18.0f);
+    px = static_cast<int>(x - 110.0f);
+    py = static_cast<int>(top - 18.0f);
     CTexture *fonts[4] = {BtlAlpha, BtlKata, BtlHira, BtlEuro};
-    CharaSelectNameDraw2(px, py, (short *) BtlMenuSaveDataPt->GetCharaName(chara), fonts, alpha);
-    px = (int) (x - 118.0f - 12.0f);
-    py = (int) (70.0f + y);
+    CharaSelectNameDraw2(px, py, static_cast<short *>(BtlMenuSaveDataPt->GetCharaName(chara)), fonts, alpha);
+    px = static_cast<int>(x - 118.0f - 12.0f);
+    py = static_cast<int>(70.0f + y);
     int          slot = BtlMenuStatusPt->equipped_weapon_slot[chara];
     WEAPON_HAVE *row = BtlMenuStatusPt->chara_weapons[chara];
     WEAPON_HAVE *weapon = &row[slot];
 
-    if (weapon != NULL) {
+    if (weapon != nullptr) {
         CTexture *icon = RetCTex(weapon->item_no, u, v);
 
-        if (icon != NULL) {
+        if (icon != nullptr) {
             WEAPON_HAVE total;
             WeaponAllValueSet(weapon, &total, 0);
             DrawMenu2DSprite(icon, CRect_i_(px + 2, py + 2, 0x20, 0x20), CRect_i_(u, v, 0x20, 0x20), alpha);
@@ -682,47 +664,41 @@ void DrawSelCharaStatus(float x, float y, int chara, int alpha, int face_size, i
         }
     }
 
-    px = (int) (x - 34.0f);
-    py = (int) (64.0f + y);
-    px = (int) (x - 40.0f);
-    CharaStatusMsgDraw(px, (int) (68.0f + y), chara, 1, alpha);
+    px = static_cast<int>(x - 34.0f);
+    py = static_cast<int>(64.0f + y);
+    px = static_cast<int>(x - 40.0f);
+    CharaStatusMsgDraw(px, static_cast<int>(68.0f + y), chara, 1, alpha);
 }
+
+namespace {
 
 /**
  * Draws the battle menu's Atora selection screen.
  */
-static void DrawBtlAtoraSelect() {
+void DrawBtlAtoraSelect() {
     DrawMenuAtoraSelect();
 }
 
 /**
  * Draws the battle menu options and restores unfiltered rendering.
  */
-static void BtlDrawOption() {
+void BtlDrawOption() {
     DrawMenuOption();
     setbilinear(0);
 }
 
 /**
  * Draws the saving notice over the menu and restores unfiltered rendering.
- *
- * @mangled BtlDrawSave__Fv
- * @address 0x1F5860
- * @size 0x34
  */
-static void BtlDrawSave() {
+void BtlDrawSave() {
     DrawMenuSave("frame_image");
     setbilinear(0);
 }
 
 /**
  * Looks the battle menu's fixed textures up in the texture manager and keeps them.
- *
- * @mangled BtlMenuTexBlockEnter__Fv
- * @address 0x1F58A0
- * @size 0x118
  */
-static void BtlMenuTexBlockEnter() {
+void BtlMenuTexBlockEnter() {
     MenuCharaFace = TexManager.GetTexture("charaface", BtlMenuReadBlock);
     BtStatus = TexManager.GetTexture("btstatus2", BtlMenuReadBlock);
     WepIcon = TexManager.GetTexture("wepicon", -1);
@@ -733,14 +709,16 @@ static void BtlMenuTexBlockEnter() {
     VillageBar = TexManager.GetTexture("viltag", -1);
 }
 
+} // namespace
+
 void BattleMenuTexEnter() {
     LOADTEXTURE_INFO2 textures[6] = {
         {"#frame_image#640#480#4",   0, 0},
         {"#dbgwork_menu#256#256#3",  0, 0},
-        {NULL,                       0, 0},
+        {nullptr,                    0, 0},
         {"#frame_image_2#640#480#4", 0, 0},
-        {NULL,                       0, 0},
-        {NULL,                       0, 0}
+        {nullptr,                    0, 0},
+        {nullptr,                    0, 0}
     };
 
     textures[0].block_no = BtlMenuReadBlock;
@@ -749,8 +727,8 @@ void BattleMenuTexEnter() {
     textures[3].block_no = BtlMenuExtBlock;
     textures[4].block_no = BtlMenuExtBlock;
     BG_READ_INFO *file = GetReadBGFile(0);
-    textures[2].name = (char *) GetPackFile((u_int *) file->buffer, "btlmenu.img", NULL);
-    textures[4].name = (char *) GetPackFile((u_int *) file->buffer, "btlmenu2.img", NULL);
+    textures[2].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "btlmenu.img", nullptr));
+    textures[4].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "btlmenu2.img", nullptr));
     int blocks[3] = {0, 0, -1};
     blocks[0] = BtlMenuReadBlock;
     blocks[1] = BtlMenuExtBlock;
@@ -758,8 +736,8 @@ void BattleMenuTexEnter() {
     TexManager.CleanUpTextureList();
     TexManager.LoadTextureBlockEX(-1, textures);
     BtlMenuTexBlockEnter();
-    GetAtraMsgReadBuf = (short *) GetPackFile((u_int *) file->buffer, "atrames.bin", NULL);
-    short *mes = (short *) GetPackFile((u_int *) file->buffer, "allmenu.mes", NULL);
+    GetAtraMsgReadBuf = reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "atrames.bin", nullptr));
+    auto *mes = reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "allmenu.mes", nullptr));
     InitMenuMesSet(MENU_MES_SET_ALLMENU, mes);
     CommonMenuMes2.stay_frame = false;
     BtlMenuReadEndFlag = 1;
@@ -767,24 +745,25 @@ void BattleMenuTexEnter() {
 }
 
 void ExitBattleMenu(int unused) {
-    int  count = 0;
-    s16 *item = MenuItemPackPt->item;
+    int count = 0;
 
-    for (int i = 0; i < MenuItemPackPt->num; i++, item++) {
-        if (*item >= ITEM_DUNGEON_START) {
+    for (int i = 0; i < MenuItemPackPt->num; i++) {
+        s16 &item = MenuItemPackPt->item[i];
+
+        if (item >= ITEM_DUNGEON_START) {
             count++;
         } else {
-            *item = -1;
+            item = -1;
         }
     }
 
-    item = MenuItemPackPt->quick_item_slot;
+    for (int i = 0; i < 3; i++) {
+        s16 &item = MenuItemPackPt->quick_item_slot[i];
 
-    for (int i = 0; i < 3; i++, item++) {
-        if (*item >= ITEM_DUNGEON_START) {
+        if (item >= ITEM_DUNGEON_START) {
             count += MenuItemPackPt->quick_item_qty[i];
         } else {
-            *item = -1;
+            item = -1;
             MenuItemPackPt->quick_item_qty[i] = 0;
         }
     }
@@ -807,12 +786,14 @@ void ExitBattleMenu(int unused) {
         case BATTLE_MENU_MODE_DUNGEON: {
             LOADTEXTURE_INFO2 textures[2] = {
                 {"#frame_image0#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                {NULL,                                        0, 0}
+                {nullptr,                                     0, 0}
             };
             textures[0].block_no = BtlMenuReadBlock;
             TexManager.LoadTextureBlock(-1, textures);
             break;
         }
+        default:
+            break;
     }
 
     SndSetBgmVol(BtlMenuBGMvol);
@@ -838,7 +819,7 @@ void BattleMenuInit(int *texture_blocks, int mode) {
         case BATTLE_MENU_MODE_DUNGEON: {
             LOADTEXTURE_INFO2 texture[2] = {
                 {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                {NULL,                                       0, 0}
+                {nullptr,                                    0, 0}
             };
             texture[0].block_no = BtlMenuReadBlock;
             int blocks[7] = {0, 0, 0, 0, 0, 0, -1};
@@ -854,6 +835,8 @@ void BattleMenuInit(int *texture_blocks, int mode) {
             TexManager.LoadTextureBlockEX(-1, texture);
             break;
         }
+        default:
+            break;
     }
 
     BtlMenuReadBuf = BtlMenuBufferSet(BtlMenuMode);
@@ -872,22 +855,24 @@ void BattleMenuInit(int *texture_blocks, int mode) {
     BtlMenuReadBuf += 0x11;
     BtlMenuReadBuf = MenuCalcBufAlignment(BtlMenuReadBuf);
     StayTex = TexManager.GetTexture("stayframe", -1);
-    WepIcon = NULL;
-    ItemIcon = NULL;
-    ItemIcon2 = NULL;
-    AttachIcon = NULL;
+    WepIcon = nullptr;
+    ItemIcon = nullptr;
+    ItemIcon2 = nullptr;
+    AttachIcon = nullptr;
     BtlMenuSaveDataPt = SaveData;
 
     switch (BtlMenuMode) {
         case BATTLE_MENU_MODE_DUNGEON:
             MenuMapJumpMode = 0;
-            BtlMenuStatusPt = (CDngStatusData *) UserStatus;
+            BtlMenuStatusPt = static_cast<CDngStatusData *>(UserStatus);
             SetEscapeDngFlag(EscapeDungeonMode());
             break;
         case BATTLE_MENU_MODE_TOWN:
             MenuMapJumpMode = -1;
             BtlMenuStatusPt = SaveData->GetDngStatus();
             SetEscapeDngFlag(ESCAPE_DNG_PAY);
+            break;
+        default:
             break;
     }
 
@@ -918,7 +903,7 @@ void BattleMenuInit(int *texture_blocks, int mode) {
         NorMenuIcon[i].y = i * 0x28 + 0x30;
     }
 
-    if (CheckItemThrow(NULL, NULL) != 0) {
+    if (CheckItemThrow(nullptr, nullptr) != 0) {
         BattleMenuFlag = BTLMENU_STATE_ITEM_TRUSH;
         BtlEffectFlag = BTLEFFECT_NONE;
         BtlMenuStatusPt->overflow_flag = true;
@@ -941,14 +926,12 @@ void BattleMenuInit(int *texture_blocks, int mode) {
     BtlMenuBGMvol = SndGetBgmVol();
 }
 
+namespace {
+
 /**
  * Suppresses a draw flag while an Atla event or a character page is showing.
- *
- * @mangled BtlMenuDrawSpecialFlag__Fi
- * @address 0x1F6150
- * @size 0x88
  */
-static int BtlMenuDrawSpecialFlag(int flag) {
+int BtlMenuDrawSpecialFlag(int flag) {
     if ((BattleMenuFlag == BTLMENU_STATE_ATLA_OPEN || BattleMenuFlag == BTLMENU_STATE_ATLA || BattleMenuFlag == BTLMENU_STATE_ATLA_CLOSE) && GetMenuAtraEventFlag() != 0) {
         flag = 0;
     }
@@ -960,13 +943,13 @@ static int BtlMenuDrawSpecialFlag(int flag) {
     return flag;
 }
 
-void BattleMenuDraw();
+} // namespace
 
 int BattleMenuCursor() {
-    int result;
+    int result = 0;
 
     ReadBG();
-    ((CUserStatus *) BtlMenuStatusPt)->Step(1);
+    static_cast<CUserStatus *>(BtlMenuStatusPt)->Step(1);
     ItemVolumeStep.LoopStep(0x3C);
     ItemVolumeStep.CheckItemVolume();
     result = 1;
@@ -1025,6 +1008,8 @@ int BattleMenuCursor() {
         case BTLMENU_STATE_MANUAL_CLOSE:
             BattleManualKey();
             break;
+        default:
+            break;
     }
 
     MenuWepLevelUp.StepSnd();
@@ -1033,21 +1018,21 @@ int BattleMenuCursor() {
         case BATTLE_MENU_MODE_DUNGEON:
             SetEscapeDngFlag(EscapeDungeonMode());
             break;
+        default:
+            break;
     }
 
     return result;
 }
 
+namespace {
+
 /**
  * Slides the bar icons into place and opens the menu once they have all arrived.
- *
- * @mangled BattleMenuAppear__Fv
- * @address 0x1F68C0
- * @size 0x17C
  */
-static void BattleMenuAppear() {
+void BattleMenuAppear() {
     int arrived = false;
-    int i;
+    int i = 0;
     int position[2];
 
     for (i = 0; i < GetMenuModeMax(); i++) {
@@ -1086,13 +1071,9 @@ static void BattleMenuAppear() {
 
 /**
  * Slides the bar icons off the screen and closes the menu once they are gone.
- *
- * @mangled BattleMenuExit__Fv
- * @address 0x1F6A40
- * @size 0xDC
  */
-static int BattleMenuExit() {
-    int i;
+int BattleMenuExit() {
+    int i = 0;
 
     for (i = 0; i < GetMenuModeMax(); i++) {
         NorMenuIcon[i].x += (-198.0f - NorMenuIcon[i].x) / 4.0f;
@@ -1108,7 +1089,7 @@ static int BattleMenuExit() {
     return 1;
 }
 
-int BattleMenuSelect();
+} // namespace
 
 int ToFromSelect(int out) {
     if (out < 0 || out > 1) {
@@ -1125,7 +1106,7 @@ int ToFromSelect(int out) {
         {80,  40},
         {70,  28}
     };
-    int pos[2];
+    int   pos[2];
     float hide_x = -240.0f;
 
     if (BtlMenuNowLang > LANG_JAPANESE) {
@@ -1141,24 +1122,24 @@ int ToFromSelect(int out) {
         if (out != 0) {
             GetMenuIconPos(i, pos);
         } else if (i != MenuSelect[1]) {
-            pos[0] = (int) hide_x;
+            pos[0] = static_cast<int>(hide_x);
             pos[1] = i * 0x28 + 0x48;
         } else {
             pos[0] = home[i][0];
             pos[1] = home[i][1];
         }
 
-        float dx = (float) pos[0] - NorMenuIcon[i].x;
-        float dy = (float) pos[1] - NorMenuIcon[i].y;
+        float dx = static_cast<float>(pos[0]) - NorMenuIcon[i].x;
+        float dy = static_cast<float>(pos[1]) - NorMenuIcon[i].y;
         NorMenuIcon[i].x += dx / 4.0f;
         NorMenuIcon[i].y += dy / 4.0f;
 
-        if ((float) abs((int) dx) < 2.0f) {
+        if (static_cast<float>(abs(static_cast<int>(dx))) < 2.0f) {
             NorMenuIcon[i].x = pos[0];
             axes++;
         }
 
-        if ((float) abs((int) dy) < 2.0f) {
+        if (static_cast<float>(abs(static_cast<int>(dy))) < 2.0f) {
             NorMenuIcon[i].y = pos[1];
             axes++;
         }
@@ -1175,14 +1156,12 @@ int ToFromSelect(int out) {
     return done;
 }
 
+namespace {
+
 /**
  * Puts the menu cursor back on the icon of the mode the menu is returning to.
- *
- * @mangled ForBackMenu__Fv
- * @address 0x1F7200
- * @size 0xE0
  */
-static void ForBackMenu() {
+void ForBackMenu() {
     int position[2];
 
     BtlEffectCt = 0.0f;
@@ -1203,14 +1182,12 @@ static void ForBackMenu() {
     SysCur[1] = position[1] + 20;
 }
 
+} // namespace
+
 /**
  * Reads the character page's models and textures and starts its turntable.
- *
- * @mangled InitMenuChara__FP1
- * @address 0x1F72E0
- * @size 0x158
  */
-static void InitMenuChara(u_long128 *buffer) {
+void InitMenuChara(u_long128 *buffer) {
     StartReadBG();
     LoadFileBGMenuData("charatex.img", buffer);
     ReadBG();
@@ -1277,13 +1254,13 @@ int BattleMenuCharaKey() {
                 if (ReadBGSync() == 0) {
                     LOADTEXTURE_INFO2 texture[3] = {
                         {"#frame_image_charamenu#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                        {NULL,                                                 0, 0},
-                        {NULL,                                                 0, 0}
+                        {nullptr,                                              0, 0},
+                        {nullptr,                                              0, 0}
                     };
                     texture[0].block_no = BtlMenuExReadBlock;
                     texture[1].block_no = BtlMenuExReadBlock;
                     BG_READ_INFO *file = GetReadBGFile(0);
-                    texture[1].name = (char *) file->buffer;
+                    texture[1].name = reinterpret_cast<char *>(file->buffer);
                     BtlMenuCharaChangeBuf = file->buffer + (file->size >> 4) + 1;
                     BtlMenuCharaChangeBuf = MenuCalcBufAlignment(BtlMenuCharaChangeBuf);
                     int blocks[2] = {0, -1};
@@ -1364,9 +1341,9 @@ int BattleMenuCharaKey() {
                     }
                 }
 
-                for (int i = 0; i < 6; i++) {
-                    if (SysChara[i].place == 0) {
-                        int chara = SysChara[i].chara;
+                for (auto &sys_chara : SysChara) {
+                    if (sys_chara.place == 0) {
+                        int chara = sys_chara.chara;
                         int mes_no = chara + 0x1E;
 
                         if (BtlMenuStatusPt->party_size - 1 < chara) {
@@ -1427,9 +1404,9 @@ int BattleMenuCharaKey() {
             } else if (GamePad.Down(PAD_CROSS) != 0) {
                 switch (BtlMenuMode) {
                     case BATTLE_MENU_MODE_DUNGEON: {
-                        int             i;
+                        int             i = 0;
                         CDngStatusData *status = BtlMenuStatusPt;
-                        s8              cur;
+                        s8              cur = 0;
                         char           *active = &status->cur_chara;
                         cur = *active;
 
@@ -1457,7 +1434,7 @@ int BattleMenuCharaKey() {
                                     return 1;
                                 }
 
-                                if (chara != (s8) cur) {
+                                if (chara != cur) {
                                     *active = chara;
                                     ComMenuSePlay(MENU_SOUND_CONFIRM);
                                     MenuChara.state = MENU_CHARA_CHANGE_LOAD;
@@ -1475,7 +1452,7 @@ int BattleMenuCharaKey() {
                 }
             }
 
-            if (old != MenuChara.chara && MenuChara.chara < BtlMenuStatusPt->party_size && BtlMenuCharaChangeBuf != NULL && BtlMenuMode == BATTLE_MENU_MODE_DUNGEON) {
+            if (old != MenuChara.chara && MenuChara.chara < BtlMenuStatusPt->party_size && BtlMenuCharaChangeBuf != nullptr && BtlMenuMode == BATTLE_MENU_MODE_DUNGEON) {
                 BreakReadBG();
                 CharaChangeInitToGL(BtlMenuCharaChangeBuf, MenuChara.chara);
             }
@@ -1510,6 +1487,8 @@ int BattleMenuCharaKey() {
 
             break;
         }
+        default:
+            break;
     }
 
     return 1;
@@ -1522,17 +1501,17 @@ void DrawCharaSelect() {
 
     int bright = 0x80;
     int ring_alpha = 0x80;
-    int status_alpha;
-    int face_alpha;
-    int panel_alpha;
+    int status_alpha = 0;
+    int face_alpha = 0;
+    int panel_alpha = 0;
 
     switch (MenuChara.state) {
         case MENU_CHARA_OPEN:
-            bright = (int) (10.0f * MenuChara.timer);
+            bright = static_cast<int>(10.0f * MenuChara.timer);
             ring_alpha = bright;
             break;
         case MENU_CHARA_CLOSE:
-            bright = (int) (128.0f - 12.0f * MenuChara.timer);
+            bright = static_cast<int>(128.0f - 12.0f * MenuChara.timer);
             ring_alpha = bright;
             break;
         case MENU_CHARA_CHANGE_LOAD:
@@ -1540,19 +1519,15 @@ void DrawCharaSelect() {
             bright = 0x80 - MenuChara.change_counter * 3;
             ring_alpha = 0x80 - MenuChara.change_counter * 10;
             break;
+        default:
+            break;
     }
 
-    if (ring_alpha > 0x80) {
-        ring_alpha = 0x80;
-    }
+    ring_alpha = std::min(ring_alpha, 0x80);
 
-    if (ring_alpha < 0) {
-        ring_alpha = 0;
-    }
+    ring_alpha = std::max(ring_alpha, 0);
 
-    if (bright < 0) {
-        bright = 0;
-    }
+    bright = std::max(bright, 0);
 
     MenuTextureReload(BtlMenuExReadBlock);
     sceGsAlpha blend = mgAlpha;
@@ -1562,7 +1537,7 @@ void DrawCharaSelect() {
     blend.bits.d = 1;
     MGSetGsALPHA(&blend);
     DrawMenu2DSprite(TexManager.GetTexture("dgring", -1), CRect_i_(0x12A, 0x32, 0x118, 0x118), CRect_i_(0, 0, 0x80, 0x80), (ring_alpha * 0x8C) >> 7);
-    MGSetGsALPHA(NULL);
+    MGSetGsALPHA(nullptr);
 
     switch (MenuChara.state) {
         case MENU_CHARA_OPEN:
@@ -1595,15 +1570,17 @@ void DrawCharaSelect() {
             }
 
             break;
+        default:
+            break;
     }
 
-    float size;
-    float draw_x;
-    float move;
-    float face_x;
-    float time;
-    float grow;
-    float face_y;
+    float size = 0.0f;
+    float draw_x = 0.0f;
+    float move = 0.0f;
+    float face_x = 0.0f;
+    float time = 0.0f;
+    float grow = 0.0f;
+    float face_y = 0.0f;
 
     for (int i = 0; i < MenuChara.slot_count; i++) {
         face_x = 394.0f + SysChara[i].x;
@@ -1614,11 +1591,13 @@ void DrawCharaSelect() {
         status_alpha = bright;
         panel_alpha = 0;
 
-        if ((!((move = MenuCharaMove) <= 0.0f) && MenuChara.slot_count - 1 == SysChara[i].place) || (move < 0.0f && SysChara[i].place == 1)) {
+        move = MenuCharaMove;
+
+        if ((!(move <= 0.0f) && MenuChara.slot_count - 1 == SysChara[i].place) || (move < 0.0f && SysChara[i].place == 1)) {
             float step = 0.6666667f * MenuChara.timer;
             draw_x = face_x - step;
             size += step;
-            panel_alpha = (int) (128.0f * MenuChara.timer / 21.0f);
+            panel_alpha = static_cast<int>(128.0f * MenuChara.timer / 21.0f);
             status_alpha = 0x80 - panel_alpha;
         }
 
@@ -1628,13 +1607,13 @@ void DrawCharaSelect() {
             draw_x = face_x + scale * (time - 20.0f - 1.0f);
             grow = scale * time;
             size = 106.0f - grow;
-            status_alpha = (int) ((float) bright * time / 21.0f);
+            status_alpha = static_cast<int>(static_cast<float>(bright) * time / 21.0f);
 
             if (move == 0.0f) {
                 face_alpha = 0x80;
                 panel_alpha = 0x80;
             } else if (MenuChara.state == MENU_CHARA_TURN) {
-                panel_alpha = (int) (128.0f - 10.0f * time);
+                panel_alpha = static_cast<int>(128.0f - 10.0f * time);
             }
 
             switch (MenuChara.state) {
@@ -1648,6 +1627,8 @@ void DrawCharaSelect() {
                     face_alpha = bright;
                     panel_alpha = bright;
                     break;
+                default:
+                    break;
             }
         }
 
@@ -1655,38 +1636,30 @@ void DrawCharaSelect() {
             float box_x = 23.0f + face_x;
             float box_y = 86.0f + face_y;
 
-            if (status_alpha > 0x80) {
-                status_alpha = 0x80;
-            }
+            status_alpha = std::min(status_alpha, 0x80);
 
-            if (status_alpha < 0) {
-                status_alpha = 0;
-            }
+            status_alpha = std::max(status_alpha, 0);
 
-            DrawOtherCharaStatus((int) box_x, (int) box_y, i, status_alpha);
+            DrawOtherCharaStatus(static_cast<int>(box_x), static_cast<int>(box_y), i, status_alpha);
             box_x = 394.0f + SysChara[i].x - 29.0f;
             box_y = 120.0f + SysChara[i].y - 3.0f;
 
-            if (panel_alpha > 0x80) {
-                panel_alpha = 0x80;
-            }
+            panel_alpha = std::min(panel_alpha, 0x80);
 
-            if (panel_alpha < 0) {
-                panel_alpha = 0;
-            }
+            panel_alpha = std::max(panel_alpha, 0);
 
-            if (box_x < -300.0f || (float) 0x28A < box_x || face_y < -130.0f || 1280.0f < face_y) {
+            if (box_x < -300.0f || static_cast<float>(0x28A) < box_x || face_y < -130.0f || 1280.0f < face_y) {
                 continue;
             }
 
             MenuTextureReload(BtlMenuExReadBlock);
-            DrawSelCharaStatus(box_x, box_y, i, panel_alpha, (int) size, face_alpha, (int) draw_x, (int) face_y);
+            DrawSelCharaStatus(box_x, box_y, i, panel_alpha, static_cast<int>(size), face_alpha, static_cast<int>(draw_x), static_cast<int>(face_y));
         }
 
         MenuTextureReload(BtlMenuExReadBlock);
         CTexture *face = MenuCharaFace;
         int       u = 0;
-        int       v;
+        int       v = 0;
         int       width = 0x6A;
         v = i * 0x6A;
 
@@ -1721,24 +1694,18 @@ void DrawCharaSelect() {
             shade = 0x80;
         }
 
-        if (face_alpha > 0x80) {
-            face_alpha = 0x80;
-        }
+        face_alpha = std::min(face_alpha, 0x80);
 
-        if (face_alpha < 0) {
-            face_alpha = 0;
-        }
+        face_alpha = std::max(face_alpha, 0);
 
         if (MenuChara.state == MENU_CHARA_CHANGE_EXIT || MenuChara.state == MENU_CHARA_CHANGE_LOAD) {
             face_alpha = 0x80 - MenuChara.change_counter * 2;
 
-            if (face_alpha < 0) {
-                face_alpha = 0;
-            }
+            face_alpha = std::max(face_alpha, 0);
         }
 
         if (0.0f < draw_x && draw_x < 640.0f && 0.0f < face_y && face_y < SCREEN_HEIGHT_F) {
-            DrawMenu2DSprite(face, CRect_i_((int) draw_x, (int) face_y, (int) size, (int) size), CRect_i_(u, v, width, width), shade, shade, shade, face_alpha);
+            DrawMenu2DSprite(face, CRect_i_(static_cast<int>(draw_x), static_cast<int>(face_y), static_cast<int>(size), static_cast<int>(size)), CRect_i_(u, v, width, width), shade, shade, shade, face_alpha);
         }
     }
 
@@ -1764,7 +1731,7 @@ void DrawCharaSelect() {
             face_y = 120.0f + chara_r_long * sinf(angle) - 26.0f;
             int width = 0x102;
             int cursor_x = 0x3C;
-            int i;
+            int i = 0;
 
             for (i = 0; i < 6; i++) {
                 if (SysChara[i].place == 0) {
@@ -1774,14 +1741,14 @@ void DrawCharaSelect() {
 
             if (BtlMenuStatusPt->party_size <= SysChara[i].chara) {
                 cursor_x = 0xA0;
-                waku_x = (float) (0x18A + chara_r_long * cos(angle) - 30.0);
+                waku_x = static_cast<float>(0x18A + chara_r_long * cos(angle) - 30.0);
                 width = 0x6E;
             }
 
-            SysCur[0] += ((float) cursor_x - SysCur[0]) / 4.0f;
-            int draw_x = (int) SysCur[0];
+            SysCur[0] += (static_cast<float>(cursor_x) - SysCur[0]) / 4.0f;
+            int draw_x = static_cast<int>(SysCur[0]);
             DrawMenuWaku(waku_x, face_y, width, 0x82, 1, StayTex, 0x80);
-            DrawMenuObjectVibe(draw_x, (int) SysCur[1], 1, 0x40);
+            DrawMenuObjectVibe(draw_x, static_cast<int>(SysCur[1]), 1, 0x40);
             break;
         }
     }
@@ -1789,21 +1756,17 @@ void DrawCharaSelect() {
 
 void DrawWepDamageDraw(RECT rect, WEAPON_HAVE *weapon, int alpha) {
     int x = rect.x;
-    int max_exp;
-    int exp;
+    int max_exp = 0;
+    int exp = 0;
     int y = rect.y;
     int durability = weapon->durability;
     int now = GetDispVolumeForFloat(weapon->durability_f);
     max_exp = GetWeaponMaxExp(weapon);
     exp = weapon->experience;
 
-    if (max_exp < exp) {
-        exp = max_exp;
-    }
+    exp = std::min(max_exp, exp);
 
-    if (exp < 0) {
-        exp = 0;
-    }
+    exp = std::max(exp, 0);
 
     if (max_exp <= 0) {
         max_exp = 99;
@@ -1815,7 +1778,7 @@ void DrawWepDamageDraw(RECT rect, WEAPON_HAVE *weapon, int alpha) {
     warningcnt++;
 
     if (weapon->durability_f <= 0.1f * weapon->durability || max_exp == exp) {
-        abs((int) (60.0f * sinf((float) warningcnt / 18.0f)));
+        abs(static_cast<int>(60.0f * sinf(static_cast<float>(warningcnt) / 18.0f)));
         warningcnt++;
 
         if (warningcnt > 1000000) {
@@ -1824,7 +1787,7 @@ void DrawWepDamageDraw(RECT rect, WEAPON_HAVE *weapon, int alpha) {
     }
 
     MGFillBox(CRect_i_(rect.x * 16, ((y - 1) >> 1) * 16, (durability + 1) * 16, 0x50), 0x4F, 0x4F, 0x4F, alpha);
-    GRADATION_COLOR_INFO2 colours;
+    GRADATION_COLOR_INFO2 colours{};
     memcpy(&colours, GetGradationColorInfo2(25), sizeof(colours));
     colours.colors[3].a = alpha;
     colours.colors[2].a = alpha;
@@ -1867,7 +1830,7 @@ void DrawWepStatus(int x, int y, WEAPON_HAVE *weapon, int selected, int alpha) {
 void DrawWepVolumeDisplay(int x, int y, WEAPON_HAVE *weapon, int alpha) {
     WEAPON_DATA *data = GetWeaponData(weapon->item_no);
 
-    if (data == NULL) {
+    if (data == nullptr) {
         return;
     }
 
@@ -1891,27 +1854,23 @@ void DrawWepVolumeDisplay(int x, int y, WEAPON_HAVE *weapon, int alpha) {
     values[3] = total.magic;
     float rate = GetNowWeaponRate(&total);
     int   limit[4] = {data->attack_max, 99, 99, data->magic_max};
-    limit[0] = (int) ((float) limit[0] * rate);
-    limit[3] = (int) ((float) limit[3] * rate);
+    limit[0] = static_cast<int>(static_cast<float>(limit[0]) * rate);
+    limit[3] = static_cast<int>(static_cast<float>(limit[3]) * rate);
 
     for (int i = 0; i < 4; i++, dest.y += source.height, source.y += source.height) {
-        if (limit[i] < values[i]) {
-            values[i] = limit[i];
-        }
+        values[i] = std::min(limit[i], values[i]);
 
         DrawMenu2DSprite(WepStatus, dest, source, alpha);
         DrawMenuNumber(values[i], dest.x + source.width + digits.width * 3 - 2, dest.y + 2, WepStatus, digits, 1, alpha);
     }
 }
 
+namespace {
+
 /**
  * Draws the board a weapon's name sits on.
- *
- * @mangled DrawWeaponNameBoard__Fiiiii
- * @address 0x1F9580
- * @size 0x13C
  */
-static void DrawWeaponNameBoard(int x, int y, int width, int alpha, int brightness) {
+void DrawWeaponNameBoard(int x, int y, int width, int alpha, int brightness) {
     CRect_i_ left(x, y + 1, 0x28, 0x1F);
     CRect_i_ middle(x + 0x28, y + 1, 0x99, 0x1F);
     CRect_i_ right(x + 0xAC, y + 1, 0x20, 0x1F);
@@ -1921,14 +1880,18 @@ static void DrawWeaponNameBoard(int x, int y, int width, int alpha, int brightne
     DrawMenu2DSprite(WepStatus, right, CRect_i_(0xD4, 0x1D4, 0x20, 0x20), brightness, brightness, brightness, alpha);
 }
 
+} // namespace
+
 s32 GetWeaponNamePutX(s32 center_x, s32 width) {
     return center_x - (width >> 1);
 }
 
+namespace {
+
 /**
  * Places one line of a message window, ignoring lines past the window's ten.
  */
-static inline void SetLinePos(ClsMes *window, int line, int x, int y) {
+void SetLinePos(ClsMes *window, int line, int x, int y) {
     if (line >= 0 && line < 10) {
         window->line_pos[line].x = x;
         window->line_pos[line].y = y;
@@ -1941,12 +1904,8 @@ static inline void SetLinePos(ClsMes *window, int line, int x, int y) {
  * Weapons off screen, or hidden by the page's current mode, get the blank message. The window
  * is laid out again whenever a name or level changed, and the name frame is drawn under it while
  * the page is at its top level.
- *
- * @mangled WeaponNameDraw__Fiii
- * @address 0x1F96D0
- * @size 0x550
  */
-static void WeaponNameDraw(int y, int selected_only, int alpha) {
+void WeaponNameDraw(int y, int selected_only, int alpha) {
     int previous_mes[4];
     int previous_level[4];
 
@@ -1962,7 +1921,7 @@ static void WeaponNameDraw(int y, int selected_only, int alpha) {
     AtoraNameMes.value_signed = true;
 
     for (int i = 0; i < 3; i++) {
-        int mes_no;
+        int mes_no = 0;
         int level = 0;
 
         if (x < -140 || x > 630 || (selected_only == 1 && slot != WepMenu.weapon_slot) || slot < 0 || slot > 9 || ((WepMenu.state == WEP_STATE_STATUS_BREAK_EFFECT || WepMenu.state == WEP_STATE_BUILDUP_EFFECT) && slot == WepMenu.weapon_slot) || (WepMenu.mode > WEP_MENU_LIST && slot != WepMenu.weapon_slot) || (WepMenu.state != WEP_STATE_REPAIR_EFFECT && WepMenu.state >= WEP_STATE_STATUS_BREAK_EFFECT && WepMenu.state < WEP_STATE_WARNING) || (WepMenu.state == WEP_STATE_LEVELUP_EFFECT && slot != WepMenu.weapon_slot)) {
@@ -2020,38 +1979,36 @@ static void WeaponNameDraw(int y, int selected_only, int alpha) {
     if (WepMenu.mode == WEP_MENU_LIST && WepMenu.state == WEP_STATE_IDLE) {
         CTexture *frame = TexManager.GetTexture("frame_image", -1);
 
-        if (frame != NULL) {
+        if (frame != nullptr) {
             TexManager.ReloadTexture(GetVif1Packet(), frame->block);
-            ((sceGsTex0 *) &frame->tex0)->bits.tcc = 0;
+            (reinterpret_cast<sceGsTex0 *>(&frame->tex0))->bits.tcc = 0;
             sceGsTexa texa = mgTexa;
             texa.AEM = 1;
             texa.TA0 = 0x80;
             MGSetGsTEXA(&texa);
             CRect_i_ rect(0, 0x14A, 0x104, 0x76);
             set2DSprite(GetVif1Packet(), frame, rect, rect, 0x40, 0x40, 0x40, alpha);
-            MGSetGsTEXA(NULL);
+            MGSetGsTEXA(nullptr);
         }
     }
 }
 
+} // namespace
+
 RECT WeaponVolumeNumberRect = {212, 500, 12, 13};
+
+namespace {
 
 /**
  * Draws one weapon-status bar, filled to the value's share of its maximum.
- *
- * @mangled WepStatusVolumeDraw__F4RECTiPiiiii
- * @address 0x1F9C20
- * @size 0x220
  */
-static void WepStatusVolumeDraw(RECT rect, int width, int *volume, int color, int alpha, int build, int gain) {
+void WepStatusVolumeDraw(RECT rect, int width, int *volume, int color, int alpha, int build, int gain) {
     int y = rect.y;
-    int fill = (float) (volume[1] * width) / (float) volume[0];
+    int fill = static_cast<float>(volume[1] * width) / static_cast<float>(volume[0]);
 
-    if (fill > width) {
-        fill = width;
-    }
+    fill = std::min(fill, width);
 
-    GRADATION_COLOR_INFO2 gradation;
+    GRADATION_COLOR_INFO2 gradation{};
     memcpy(&gradation, GetGradationColorInfo2(color), sizeof(gradation));
     gradation.colors[3].a = alpha;
     gradation.colors[2].a = alpha;
@@ -2059,11 +2016,9 @@ static void WepStatusVolumeDraw(RECT rect, int width, int *volume, int color, in
     gradation.colors[0].a = alpha;
     CRect_i_ bar(rect.x, y, fill, 8);
     DrawMenuColorGradation(bar, &gradation.colors[0], &gradation.colors[1], &gradation.colors[2], &gradation.colors[3]);
-    fill = (float) (volume[2] * width) / (float) volume[0];
+    fill = static_cast<float>(volume[2] * width) / static_cast<float>(volume[0]);
 
-    if (fill > width) {
-        fill = width;
-    }
+    fill = std::min(fill, width);
 
     int number_alpha = 1.5f * alpha;
 
@@ -2074,6 +2029,8 @@ static void WepStatusVolumeDraw(RECT rect, int width, int *volume, int color, in
     }
 }
 
+} // namespace
+
 void DrawWeaponStatusWaku(int x, int y, int width, int limit) {
     spRGBA colours[2][2] = {
         {{0x3B, 0x68, 0x56, 0x80}, {0x3B, 0x68, 0x56, 0x80}},
@@ -2083,21 +2040,21 @@ void DrawWeaponStatusWaku(int x, int y, int width, int limit) {
     DrawMenuSideGradation(rect, &colours[limit][0], &colours[limit][1]);
 }
 
+namespace {
+
 /**
  * Draws the mark that says a weapon value has reached its ceiling.
- *
- * @mangled DrawLimmitMax__Fiii
- * @address 0x1F9EB0
- * @size 0x60
  */
-static void DrawLimmitMax(int x, int y, int alpha) {
+void DrawLimmitMax(int x, int y, int alpha) {
     DrawMenu2DSprite(WepStatus, CRect_i_(x, y, 0x1E, 0xA), CRect_i_(0xF8, 0x158, 0x1E, 0xA), alpha);
 }
+
+} // namespace
 
 void DrawBtlMenuLRCursor(int x, int y, int width, int alpha) {
     int      count = CursorVibeCnt % 79;
     double   pi = PI;
-    int      draw_y = (int) ((float) y + 4.0f * sinf((float) (pi * ((double) count - 40.0) / 40.0)));
+    int      draw_y = static_cast<int>(static_cast<float>(y) + 4.0f * sinf(static_cast<float>(pi * (static_cast<double>(count) - 40.0) / 40.0)));
     CRect_i_ source(0x62, 0x14, 0x1A, 0x18);
     DrawMenu2DSprite(PerBoardTex, CRect_i_(x, draw_y, source.width, source.height), source, alpha);
     source.x += source.width;
@@ -2105,7 +2062,7 @@ void DrawBtlMenuLRCursor(int x, int y, int width, int alpha) {
 }
 
 void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_no, int alpha) {
-    WEAPON_DATA *built = NULL;
+    WEAPON_DATA *built = nullptr;
 
     if (build == 1) {
         built = GetWeaponData(weapon_no);
@@ -2115,29 +2072,27 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     pos.x = x + 0x4B;
     pos.y = y + 0x30;
     s16   gauge[2] = {0, 0};
-    int   number_x;
-    int   bar_y;
+    int   number_x = 0;
+    int   bar_y = 0;
     float now = weapon->durability_f;
-    gauge[0] = (int) now;
+    gauge[0] = static_cast<int>(now);
     int value = weapon->durability;
     gauge[1] = value;
     number_x = pos.x;
     bar_y = pos.y;
-    int shown = (int) now;
+    int shown = static_cast<int>(now);
 
-    if ((float) shown < now) {
-        shown = (int) (1.0f + now);
+    if (static_cast<float>(shown) < now) {
+        shown = static_cast<int>(1.0f + now);
     }
 
     int full = value * 0x7E / 99;
     int fill = shown * full / value;
 
-    if (fill >= 0x7E) {
-        fill = 0x7E;
-    }
+    fill = std::min(fill, 0x7E);
 
     MGFillBox(CRect_i_(pos.x * 16, (bar_y >> 1) * 16, full * 16, 0x40), 0x4F, 0x4F, 0x4F, alpha);
-    GRADATION_COLOR_INFO2 colours;
+    GRADATION_COLOR_INFO2 colours{};
     memcpy(&colours, GetGradationColorInfo2(25), sizeof(colours));
     colours.colors[3].a = alpha;
     colours.colors[2].a = alpha;
@@ -2160,9 +2115,7 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     int max_exp = GetWeaponMaxExp(weapon);
     int exp_len = (weapon->experience << 7) / max_exp;
 
-    if (exp_len > 0x7E) {
-        exp_len = 0x7E;
-    }
+    exp_len = std::min(exp_len, 0x7E);
 
     DrawMenu2DSprite(WepStatus, CRect_i_(pos.x, bar_y, exp_len, 8), CRect_i_(0x100, 0x78, 8, 8), alpha);
     bar_y += pos.height;
@@ -2182,7 +2135,7 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     int bonus[4] = {0, 0, 0, 0};
     int target[4] = {0, 0, 0, 0};
 
-    if (build == 1 && built != NULL) {
+    if (build == 1 && built != nullptr) {
         target[0] = built->attack;
         target[1] = built->endurance;
         target[2] = built->speed;
@@ -2196,9 +2149,7 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
         for (int i = 0; i < 4; i++) {
             bonus[i] = GetWeaponAttachStatusUp(weapon, i + 1);
 
-            if (bonus[i] < 0) {
-                bonus[i] = 0;
-            }
+            bonus[i] = std::max(bonus[i], 0);
         }
     }
 
@@ -2209,8 +2160,8 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     }
 
     if (!(rate <= 1.0f)) {
-        limit[0] = (int) ((float) limit[0] * rate);
-        limit[3] = (int) ((float) limit[3] * rate);
+        limit[0] = static_cast<int>(static_cast<float>(limit[0]) * rate);
+        limit[3] = static_cast<int>(static_cast<float>(limit[3]) * rate);
     }
 
     RECT row = {0, 0, -4, -2};
@@ -2223,7 +2174,7 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
         int limited = 0;
         value = values[i];
         volume[1] = value + bonus[i];
-        volume[1] = (int) ((float) volume[1] * rate);
+        volume[1] = static_cast<int>(static_cast<float>(volume[1]) * rate);
 
         if (volume[1] >= limit[i]) {
             volume[1] = limit[i];
@@ -2232,15 +2183,11 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
 
         volume[2] = value;
 
-        if (volume[2] >= limit[i]) {
-            volume[2] = limit[i];
-        }
+        volume[2] = std::min(volume[2], limit[i]);
 
-        int length = (int) ((float) (volume[1] << 7) / (float) volume[0]);
+        int length = static_cast<int>(static_cast<float>(volume[1] << 7) / static_cast<float>(volume[0]));
 
-        if (length > 0x80) {
-            length = 0x80;
-        }
+        length = std::min(length, 0x80);
 
         int diff = target[i] - value;
         DrawWeaponStatusWaku(row.x, row.y, length, limited);
@@ -2255,7 +2202,7 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
 }
 
 void DrawWeaponElemTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_no, int alpha) {
-    WEAPON_DATA *built = NULL;
+    WEAPON_DATA *built = nullptr;
 
     if (build == 1) {
         built = GetWeaponData(weapon_no);
@@ -2282,7 +2229,7 @@ void DrawWeaponElemTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_
         }
     }
 
-    if (build == 1 && built != NULL) {
+    if (build == 1 && built != nullptr) {
         for (int i = 0; i < 5; i++) {
             target[i] = built->elem[i];
         }
@@ -2294,7 +2241,7 @@ void DrawWeaponElemTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_
     for (int i = 0; i < 5; i++) {
         int limited = 0;
         volume[1] = weapon->elem[i] + bonus[i];
-        volume[1] = (int) ((float) volume[1] * rate);
+        volume[1] = static_cast<int>(static_cast<float>(volume[1]) * rate);
 
         if (volume[1] >= 99) {
             volume[1] = 99;
@@ -2303,13 +2250,11 @@ void DrawWeaponElemTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_
 
         volume[2] = weapon->elem[i];
 
-        if (volume[2] >= 99) {
-            volume[2] = 99;
-        }
+        volume[2] = std::min(volume[2], 99);
 
-        float length = (float) (volume[1] << 7) / (float) volume[0];
-        int   width = (int) length;
-        DrawWeaponStatusWaku(row.x, row.y, (int) length, limited);
+        float length = static_cast<float>(volume[1] << 7) / static_cast<float>(volume[0]);
+        int   width = static_cast<int>(length);
+        DrawWeaponStatusWaku(row.x, row.y, static_cast<int>(length), limited);
         int diff = target[i] - weapon->elem[i];
         WepStatusVolumeDraw(row, 0x80, volume, i + 7, alpha, build, diff);
 
@@ -2327,7 +2272,7 @@ void DrawWeaponElemTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_
 }
 
 void DrawWeaponVsMonster(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_no, int alpha) {
-    WEAPON_DATA *built = NULL;
+    WEAPON_DATA *built = nullptr;
 
     if (build == 1) {
         built = GetWeaponData(weapon_no);
@@ -2358,7 +2303,7 @@ void DrawWeaponVsMonster(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     for (int i = 0; i < 10; i++) {
         int limited = 0;
         volume[1] = weapon->vs_monster[i] + bonus[i];
-        volume[1] = (int) ((float) volume[1] * rate);
+        volume[1] = static_cast<int>(static_cast<float>(volume[1]) * rate);
 
         if (volume[1] >= 99) {
             limited = 1;
@@ -2367,13 +2312,11 @@ void DrawWeaponVsMonster(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
 
         volume[2] = weapon->vs_monster[i];
 
-        if (volume[2] >= 99) {
-            volume[2] = 99;
-        }
+        volume[2] = std::min(volume[2], 99);
 
-        float length = (float) (volume[1] << 6) / (float) volume[0];
-        int   width = (int) length;
-        DrawWeaponStatusWaku(row.x, row.y, (int) length, limited);
+        float length = static_cast<float>(volume[1] << 6) / static_cast<float>(volume[0]);
+        int   width = static_cast<int>(length);
+        DrawWeaponStatusWaku(row.x, row.y, static_cast<int>(length), limited);
         int diff = target[i] - weapon->vs_monster[i];
         WepStatusVolumeDraw(row, 0x40, volume, i + 12, alpha, build, diff);
 
@@ -2390,14 +2333,12 @@ void DrawWeaponVsMonster(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     }
 }
 
+namespace {
+
 /**
  * Draws the three tag pages of a weapon and highlights the one the cursor is on.
- *
- * @mangled DrawWeaponTagBoard__FiiP11WEAPON_HAVEiii
- * @address 0x1FAFF0
- * @size 0x210
  */
-static void DrawWeaponTagBoard(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_no, int alpha) {
+void DrawWeaponTagBoard(int x, int y, WEAPON_HAVE *weapon, int build, int weapon_no, int alpha) {
     int page = WepMenu.tag_page;
     int tag = 0;
     int i = 0;
@@ -2426,7 +2367,7 @@ static void DrawWeaponTagBoard(int x, int y, WEAPON_HAVE *weapon, int build, int
         tag += step;
     }
 
-    if (weapon != NULL) {
+    if (weapon != nullptr) {
         switch (page) {
             case WEP_TAG_STATUS:
                 DrawWeaponStatusTag(x, y, weapon, build, weapon_no, alpha);
@@ -2437,23 +2378,17 @@ static void DrawWeaponTagBoard(int x, int y, WEAPON_HAVE *weapon, int build, int
             case WEP_TAG_VS_MONSTER:
                 DrawWeaponVsMonster(x, y, weapon, build, weapon_no, alpha);
                 break;
+            default:
+                break;
         }
     }
 }
 
-void DrawAallWeapon(int x, int y, float depth, CCharacter *model, WEAPON_HAVE *weapon, int equipped, int selected, int alpha);
-
-void BtlWeaponDraw(int x, float depth, int chara, int alpha);
-
 /**
  * Reports whether a weapon can be repaired, built up, or neither, as a set of flags.
- *
- * @mangled NowWeaponStatusValue__FP11WEAPON_HAVE
- * @address 0x1FBEB0
- * @size 0x11C
  */
-static int NowWeaponStatusValue(WEAPON_HAVE *weapon) {
-    if (weapon == NULL) {
+int NowWeaponStatusValue(WEAPON_HAVE *weapon) {
+    if (weapon == nullptr) {
         return 0;
     }
 
@@ -2490,12 +2425,12 @@ static int NowWeaponStatusValue(WEAPON_HAVE *weapon) {
 /**
  * Returns the restriction on selecting no element for a weapon.
  */
-static int EnableWeaponElemNone(int weapon_no) {
+int EnableWeaponElemNone(int weapon_no) {
     if (WhoIsWeaponEquip(weapon_no) == CHARA_RUBY) {
         return 1;
     }
 
-    if ((unsigned int) (weapon_no - ITEM_WEAPON_BLESSING_GUN) <= 1U || weapon_no == ITEM_WEAPON_HEXA_BLASTER || weapon_no == ITEM_WEAPON_SUPERNOVA) {
+    if (static_cast<unsigned int>(weapon_no - ITEM_WEAPON_BLESSING_GUN) <= 1U || weapon_no == ITEM_WEAPON_HEXA_BLASTER || weapon_no == ITEM_WEAPON_SUPERNOVA) {
         return 2;
     }
 
@@ -2504,12 +2439,8 @@ static int EnableWeaponElemNone(int weapon_no) {
 
 /**
  * Drops a weapon's active element where the attachment no longer supports it.
- *
- * @mangled WeaponMenuCheckElemValue__FP11WEAPON_HAVEP11WEAPON_HAVE
- * @address 0x1FC050
- * @size 0xB8
  */
-static void WeaponMenuCheckElemValue(WEAPON_HAVE *weapon, WEAPON_HAVE *attachment) {
+void WeaponMenuCheckElemValue(WEAPON_HAVE *weapon, WEAPON_HAVE *attachment) {
     if (0 <= weapon->best_elem && weapon->best_elem < 5 && attachment->elem[weapon->best_elem] <= 0) {
         weapon->best_elem = 5;
     }
@@ -2524,12 +2455,8 @@ static void WeaponMenuCheckElemValue(WEAPON_HAVE *weapon, WEAPON_HAVE *attachmen
 
 /**
  * Reports whether an element may be put on a weapon, and complains where it may not.
- *
- * @mangled WeaponMenuCheckEnableSetElem__FP11WEAPON_HAVEP11WEAPON_HAVEi
- * @address 0x1FC110
- * @size 0x10C
  */
-static int WeaponMenuCheckEnableSetElem(WEAPON_HAVE *weapon, WEAPON_HAVE *attachment, int elem) {
+int WeaponMenuCheckEnableSetElem(WEAPON_HAVE *weapon, WEAPON_HAVE *attachment, int elem) {
     int refused = 0;
 
     if (weapon->best_elem == elem) {
@@ -2548,7 +2475,7 @@ static int WeaponMenuCheckEnableSetElem(WEAPON_HAVE *weapon, WEAPON_HAVE *attach
         refused = 1;
     }
 
-    if (weapon != NULL) {
+    if (weapon != nullptr) {
         printf("now elem = %d\n", weapon->best_elem);
 
         if (weapon->best_elem != 5) {
@@ -2559,17 +2486,13 @@ static int WeaponMenuCheckEnableSetElem(WEAPON_HAVE *weapon, WEAPON_HAVE *attach
     return refused;
 }
 
-void DrawWeaponSelectDialog(int x, int y, int alpha);
+} // namespace
 
 /**
  * Opens the weapon page in one of its modes and puts the cursor where it was left.
- *
- * @mangled InitWeaponSelect__Fii
- * @address 0x1FC750
- * @size 0x3CC
  */
-static void InitWeaponSelect(int mode, int chara) {
-    InitPersonalBoardMode((CUserStatus *) BtlMenuStatusPt, &WepMenu.board, PERSONAL_BOARD_WEAPON_ATTACH, BOARD_PAGE_ATTACH);
+void InitWeaponSelect(int mode, int chara) {
+    InitPersonalBoardMode(static_cast<CUserStatus *>(BtlMenuStatusPt), &WepMenu.board, PERSONAL_BOARD_WEAPON_ATTACH, BOARD_PAGE_ATTACH);
     WepMenu.open_mode = mode;
     WepMenu.mode = WEP_MENU_LIST;
     WepMenu.chara = chara;
@@ -2583,6 +2506,7 @@ static void InitWeaponSelect(int mode, int chara) {
             WepMenu.state = WEP_STATE_IDLE;
             break;
         case WEP_OPEN_VIEW_ONLY:
+        default:
             break;
     }
 
@@ -2609,9 +2533,9 @@ static void InitWeaponSelect(int mode, int chara) {
     SysCur[1] = 165.0f;
     WepMenu.chara = chara;
 
-    for (int i = 0; i < 6; i++) {
-        SysChara[i].x = (SysChara[i].chara - WepMenu.chara) * 110 + 270;
-        SysChara[i].y = 14.0f;
+    for (auto &sys_chara : SysChara) {
+        sys_chara.x = (sys_chara.chara - WepMenu.chara) * 110 + 270;
+        sys_chara.y = 14.0f;
     }
 
     WeaponPos = 0xE8 - WepMenu.weapon_slot * 0xD6;
@@ -2642,14 +2566,12 @@ static void InitWeaponSelect(int mode, int chara) {
     MenuMes.message->init_030 = 0x10;
 }
 
+namespace {
+
 /**
  * Rebuilds the player's equipped weapon model and gives the menu's textures back.
- *
- * @mangled ExitWeaponMenuSelect__Fv
- * @address 0x1FCB20
- * @size 0x2CC
  */
-static void ExitWeaponMenuSelect() {
+void ExitWeaponMenuSelect() {
     int chara = BtlMenuStatusPt->cur_chara;
 
     if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON && chara == WepMenu.chara) {
@@ -2681,12 +2603,12 @@ static void ExitWeaponMenuSelect() {
     CommonMenuMes3.mes_made = -1;
     CommonMenuMes3.edge_alpha = 128;
 
-    for (int slot = 0; slot < 10; slot++) {
-        CommonMenuMes3.mes_no[slot] = -1;
+    for (int &message : CommonMenuMes3.mes_no) {
+        message = -1;
     }
 
-    for (int slot = 0; slot < 8; slot++) {
-        CommonMenuMes3.values[slot] = 0;
+    for (int &value : CommonMenuMes3.values) {
+        value = 0;
     }
 
     CommonMenuMes3.value = 0;
@@ -2699,9 +2621,9 @@ static void ExitWeaponMenuSelect() {
     CommonMenuMes3.cursor_y = 0;
     CommonMenuMes3.cursor_lit = false;
 
-    for (int line = 0; line < 10; line++) {
-        CommonMenuMes3.line_pos[line].x = -1;
-        CommonMenuMes3.line_pos[line].y = -1;
+    for (auto &position : CommonMenuMes3.line_pos) {
+        position.x = -1;
+        position.y = -1;
     }
 
     CommonMenuMes3.Preset(MES_PRESET_SYSTEM);
@@ -2717,6 +2639,8 @@ static void ExitWeaponMenuSelect() {
     BattleMenuFlag = BTLMENU_STATE_MAIN;
 }
 
+} // namespace
+
 void WeaponMenuSelect() {
     int direction = -1;
 
@@ -2726,6 +2650,8 @@ void WeaponMenuSelect() {
             break;
         case WEP_STATE_CLOSE:
             direction = 1;
+            break;
+        default:
             break;
     }
 
@@ -2764,6 +2690,8 @@ void WeaponMenuSelect() {
             }
 
             break;
+        default:
+            break;
     }
 
     if (WepMenu.state != WEP_STATE_IDLE) {
@@ -2774,7 +2702,7 @@ void WeaponMenuSelect() {
 
     switch (WepMenu.state) {
         case WEP_STATE_OPEN:
-            if (!((float) WepMenu.counter <= 18.0f) && done != 0 && MenuExTextureReadFlag != MENU_EX_TEX_UNREAD) {
+            if (!(static_cast<float>(WepMenu.counter) <= 18.0f) && done != 0 && MenuExTextureReadFlag != MENU_EX_TEX_UNREAD) {
                 BattleMenuFlag = BTLMENU_STATE_WEAPON;
                 WepMenu.state = WEP_STATE_IDLE;
                 WepMenu.counter = 0;
@@ -2800,8 +2728,8 @@ void WeaponMenuSelect() {
                         weapon->level++;
                         weapon->synthesis_count += MenuWepLevelUp.synthesis_count;
 
-                        for (int i = 0; i < 6; i++) {
-                            memset(&weapon->attach[i], 0, sizeof(weapon->attach[i]));
+                        for (auto &attachment : weapon->attach) {
+                            memset(&attachment, 0, sizeof(attachment));
                         }
 
                         break;
@@ -2817,6 +2745,7 @@ void WeaponMenuSelect() {
                     }
                     case WEP_STATE_BUILDUP_EFFECT:
                     case WEP_STATE_REPAIR_EFFECT:
+                    default:
                         break;
                 }
 
@@ -2918,11 +2847,11 @@ void WeaponMenuSelect() {
                 WepMenu.state = WEP_STATE_IDLE;
             }
         case WEP_STATE_IDLE: {
-            int slot;
-            int cursor;
-            int chara;
-            int elem;
-            int page;
+            int slot = 0;
+            int cursor = 0;
+            int chara = 0;
+            int elem = 0;
+            int page = 0;
             slot = WepMenu.weapon_slot;
             cursor = WepMenu.board.cursor;
             page = WepMenu.mode;
@@ -2953,6 +2882,8 @@ void WeaponMenuSelect() {
                 case WEP_MENU_ATTACH_TAGS:
                     WeaponMenuAttachModeKey();
                     break;
+                default:
+                    break;
             }
 
             if (slot != WepMenu.weapon_slot || (page == WepMenu.mode && cursor != WepMenu.board.cursor) || chara != WepMenu.chara || elem != WepMenu.element) {
@@ -2961,18 +2892,20 @@ void WeaponMenuSelect() {
 
             break;
         }
+        default:
+            break;
     }
 
     int              help_no = 0;
-    int              mes_no;
+    int              mes_no = 0;
     int              name_mes = -1;
     int              name_no = -0x1F3;
     int              value = 0;
     WEP_BUILDUP_INFO builds[4];
-    ATTACH_LIST     *attachments = (ATTACH_LIST *) ((CUserStatus *) BtlMenuStatusPt)->consumable_items;
+    auto            *attachments = reinterpret_cast<ATTACH_LIST *>(static_cast<CUserStatus *>(BtlMenuStatusPt)->consumable_items);
     WEAPON_HAVE     *weapon = &DngWepHavePt[WepMenu.weapon_slot];
 
-    if (weapon != NULL) {
+    if (weapon != nullptr) {
         name_no = GetWeaponMsgNo2(weapon->item_no);
     }
 
@@ -3004,19 +2937,20 @@ void WeaponMenuSelect() {
                 case WEP_STATE_SCRAP_REFUSED:
                     mes_no = 0xA4;
                     break;
+                default:
+                    break;
             }
 
             break;
         case WEP_MENU_BUILDUP_SELECT:
-        case WEP_MENU_BUILDUP_PREVIEW:
+        case WEP_MENU_BUILDUP_PREVIEW: {
             EnableBuildUpModel(builds, weapon);
-            int i;
-            i = 0;
+            int i = 0;
 
             while (builds[i].weapon_no != -1) {
                 COM_ITEM_INFO *info = GetCommonItemInfo(builds[i].weapon_no);
 
-                if (info != NULL) {
+                if (info != nullptr) {
                     builds[i].weapon_no = info->msg;
 
                     if (builds[i].enabled == 0) {
@@ -3032,9 +2966,9 @@ void WeaponMenuSelect() {
             }
 
             if (WepMenu.mode == WEP_MENU_BUILDUP_SELECT) {
-                s16 enabled;
+                s16 enabled = builds[WepMenu.board.cursor].enabled;
 
-                if ((enabled = builds[WepMenu.board.cursor].enabled) != 0) {
+                if (enabled != 0) {
                     mes_no = 0xAE;
                     name_mes = builds[WepMenu.board.cursor].weapon_no;
                 }
@@ -3045,6 +2979,7 @@ void WeaponMenuSelect() {
             }
 
             break;
+        }
         case WEP_MENU_LIST: {
             int item_no = weapon->item_no;
 
@@ -3120,8 +3055,12 @@ void WeaponMenuSelect() {
                 case PERSONAL_BOARD_AREA_TRASH:
                     mes_no = 0xBE;
                     break;
+                default:
+                    break;
             }
 
+            break;
+        default:
             break;
     }
 
@@ -3195,6 +3134,8 @@ void WeaponMenuSelect() {
             case WEP_STATE_SCRAP_REFUSED:
                 CommonMenuMes1.stay_frame = true;
                 break;
+            default:
+                break;
         }
 
         CommonMenuMes1.mes_made = -1;
@@ -3202,10 +3143,12 @@ void WeaponMenuSelect() {
     }
 }
 
+namespace {
+
 /**
  * Finds the preceding enabled customization row, wrapping from the top row.
  */
-static int WeaponMenuKastumSelectUp(int row, int enabled_rows) {
+int WeaponMenuKastumSelectUp(int row, int enabled_rows) {
     if (row == 0) {
         row = 7;
     }
@@ -3227,7 +3170,7 @@ static int WeaponMenuKastumSelectUp(int row, int enabled_rows) {
 /**
  * Finds the following enabled customization row, wrapping to the top row.
  */
-static int WeaponMenuKastumSelectDown(int row, int enabled_rows) {
+int WeaponMenuKastumSelectDown(int row, int enabled_rows) {
     int selected_row = 0;
 
     while (row <= 6) {
@@ -3244,12 +3187,8 @@ static int WeaponMenuKastumSelectDown(int row, int enabled_rows) {
 
 /**
  * Moves the cursor across the weapon list and opens what it settles on.
- *
- * @mangled WeaponSelectKey__Fv
- * @address 0x1FDF20
- * @size 0x178C
  */
-static int WeaponSelectKey() {
+int WeaponSelectKey() {
     int result = 0;
     int chara_num = 6;
     int prev_chara = WepMenu.chara;
@@ -3291,12 +3230,12 @@ static int WeaponSelectKey() {
                     weapon->durability = 99;
                     weapon->durability_f = 99.0f;
 
-                    for (int i = 0; i < 5; i++) {
-                        weapon->elem[i] = 99;
+                    for (char &element : weapon->elem) {
+                        element = 99;
                     }
 
-                    for (int i = 0; i < 10; i++) {
-                        weapon->vs_monster[i] = 99;
+                    for (char &vs_value : weapon->vs_monster) {
+                        vs_value = 99;
                     }
 
                     weapon->synthesis_count = 49;
@@ -3321,48 +3260,48 @@ static int WeaponSelectKey() {
                     }
 
                     if (now == 0) {
-                        for (int i = 0; i < 5; i++) {
-                            weapon->elem[i] = 0;
+                        for (char &element : weapon->elem) {
+                            element = 0;
                         }
 
-                        for (int i = 0; i < 10; i++) {
-                            weapon->vs_monster[i] = 0;
+                        for (char &vs_value : weapon->vs_monster) {
+                            vs_value = 0;
                         }
 
                         printf("now 0%\n");
                     }
 
                     if (now == 1) {
-                        for (int i = 0; i < 5; i++) {
-                            weapon->elem[i] = 20;
+                        for (char &element : weapon->elem) {
+                            element = 20;
                         }
 
-                        for (int i = 0; i < 10; i++) {
-                            weapon->vs_monster[i] = 20;
+                        for (char &vs_value : weapon->vs_monster) {
+                            vs_value = 20;
                         }
 
                         printf("now 20%\n");
                     }
 
                     if (now == 2) {
-                        for (int i = 0; i < 5; i++) {
-                            weapon->elem[i] = 50;
+                        for (char &element : weapon->elem) {
+                            element = 50;
                         }
 
-                        for (int i = 0; i < 10; i++) {
-                            weapon->vs_monster[i] = 50;
+                        for (char &vs_value : weapon->vs_monster) {
+                            vs_value = 50;
                         }
 
                         printf("now 50%\n");
                     }
 
                     if (now == 3) {
-                        for (int i = 0; i < 5; i++) {
-                            weapon->elem[i] = 100;
+                        for (char &element : weapon->elem) {
+                            element = 100;
                         }
 
-                        for (int i = 0; i < 10; i++) {
-                            weapon->vs_monster[i] = 100;
+                        for (char &vs_value : weapon->vs_monster) {
+                            vs_value = 100;
                         }
 
                         printf("now 100%\n");
@@ -3390,6 +3329,8 @@ static int WeaponSelectKey() {
                         WepMenu.state = WEP_STATE_CLOSE;
                         WepMenu.counter = 0;
                         break;
+                    default:
+                        break;
                 }
 
                 done = 1;
@@ -3404,6 +3345,8 @@ static int WeaponSelectKey() {
                             ComMenuSePlay(MENU_SOUND_CONFIRM);
                         }
 
+                        break;
+                    default:
                         break;
                 }
 
@@ -3461,13 +3404,12 @@ static int WeaponSelectKey() {
                 switch (WepMenu.board.cursor) {
                     case WEP_ACTION_EQUIP: {
                         CDngStatusData *status_data = BtlMenuStatusPt;
-                        int             zone;
 
                         if (status_data->GetActiveCharaStatus(WepMenu.chara) & AILMENT_CURSE) {
                             ComMenuSePlay(MENU_SOUND_REFUSE);
                             WepMenu.state = WEP_STATE_WARNING;
                             WepMenu.warning_no = 3;
-                        } else if ((zone = BtlMenuStatusPt->res_limit_zone_current) == RES_LIMIT_ZONE_NO_WEAPON_CHANGE) {
+                        } else if (BtlMenuStatusPt->res_limit_zone_current == RES_LIMIT_ZONE_NO_WEAPON_CHANGE) {
                             WepMenu.state = WEP_STATE_WARNING;
                             WepMenu.warning_no = 4;
                             ComMenuSePlay(MENU_SOUND_REFUSE);
@@ -3479,7 +3421,7 @@ static int WeaponSelectKey() {
                             BtlMenuStatusPt->equipped_weapon_slot[WepMenu.chara] = slot;
                             WepFrameRate = 0.0f;
                             WepMenu.state = WEP_STATE_EQUIP;
-                            int chara = ((CUserStatus *) BtlMenuStatusPt)->cur_chara;
+                            int chara = static_cast<CUserStatus *>(BtlMenuStatusPt)->cur_chara;
 
                             if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON && ((chara == CHARA_OSMOND && WepMenu.chara == CHARA_OSMOND) || (chara == CHARA_RUBY && WepMenu.chara == CHARA_RUBY))) {
                                 StartReadBG();
@@ -3511,9 +3453,7 @@ static int WeaponSelectKey() {
 
                             switch (WepMenu.mode) {
                                 case WEP_MENU_ATTACH_SOCKETS:
-                                    if (holes - 1 < WepMenu.board.cursor) {
-                                        WepMenu.board.cursor = holes - 1;
-                                    }
+                                    WepMenu.board.cursor = std::min(holes - 1, WepMenu.board.cursor);
 
                                     break;
                                 case WEP_MENU_ATTACH_BOARD:
@@ -3536,6 +3476,7 @@ static int WeaponSelectKey() {
                                     WepMenu.board.cursor = 0;
                                     break;
                                 case WEP_MENU_ATTACH_TAGS:
+                                default:
                                     break;
                             }
                         } else {
@@ -3554,15 +3495,9 @@ static int WeaponSelectKey() {
                             }
                         }
 
-                        if (holes <= 0) {
-                            WepMenu.sockets_enabled = false;
-                        } else {
-                            WepMenu.sockets_enabled = true;
-                        }
+                        WepMenu.sockets_enabled = holes > 0;
 
-                        if (WepMenu.board.cursor < 0) {
-                            WepMenu.board.cursor = 0;
-                        }
+                        WepMenu.board.cursor = std::max(WepMenu.board.cursor, 0);
 
                         int pages = max / 5;
                         WepMenu.board.y = 127 - WepMenu.board.top_row * 40;
@@ -3585,8 +3520,8 @@ static int WeaponSelectKey() {
                         if (GetNowItemNum(ITEM_REPAIR_POWDER, MenuItemPackPt) <= 0) {
                             ComMenuSePlay(MENU_SOUND_REFUSE);
                         } else {
-                            int          chara = WepMenu.chara;
-                            CUserStatus *status_data = (CUserStatus *) BtlMenuStatusPt;
+                            int   chara = WepMenu.chara;
+                            auto *status_data = static_cast<CUserStatus *>(BtlMenuStatusPt);
 
                             if (ItemUseFunc(status_data, ITEM_REPAIR_POWDER, chara, ITEM_USE_ON_BOARD_WEAPON, weapon) == 2) {
                                 DeleteItemAfterUseItem(ITEM_REPAIR_POWDER, MenuItemPackPt);
@@ -3628,8 +3563,8 @@ static int WeaponSelectKey() {
                         break;
                     }
                     case WEP_ACTION_STATUS_BREAK: {
-                        int             count;
-                        int             i;
+                        int             count = 0;
+                        int             i = 0;
                         DNG_CONSUMABLE *items = BtlMenuStatusPt->consumable_items;
                         count = 0;
 
@@ -3655,6 +3590,8 @@ static int WeaponSelectKey() {
                         WepMenu.mode = WEP_MENU_BUILDUP_SELECT;
                         WepMenu.board.cursor = 0;
                         ComMenuSePlay(MENU_SOUND_CONFIRM);
+                        break;
+                    default:
                         break;
                 }
             } else if (GamePad.Down(PAD_CIRCLE)) {
@@ -3692,7 +3629,7 @@ static int WeaponSelectKey() {
             } else if (GamePad.Down(PAD_CIRCLE)) {
                 WepMenu.mode = WEP_MENU_ACTION;
 
-                if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON && ((CUserStatus *) BtlMenuStatusPt)->cur_chara == CHARA_RUBY && WepMenu.chara == CHARA_RUBY) {
+                if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON && static_cast<CUserStatus *>(BtlMenuStatusPt)->cur_chara == CHARA_RUBY && WepMenu.chara == CHARA_RUBY) {
                     StartReadBG();
                     DngWepEffectReadStart();
                 }
@@ -3743,8 +3680,8 @@ static int WeaponSelectKey() {
                 WepMenu.board.cursor = WEP_ACTION_STATUS_BREAK;
                 ComMenuSePlay(MENU_SOUND_REFUSE);
             } else if (WepMenu.board.cursor == 0 && GamePad.Down(PAD_CROSS)) {
-                int             slot = WepMenu.weapon_slot;
-                CWeaponLevelUp *buffer = (CWeaponLevelUp *) (MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
+                int   slot = WepMenu.weapon_slot;
+                auto *buffer = reinterpret_cast<CWeaponLevelUp *>(MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
                 MenuWepLevelUp.SetStatusBreak(&DngWepHavePt[slot], &DngWeaponFrm[slot], buffer, BtlMenuExReadBlock);
                 WepMenu.state = WEP_STATE_STATUS_BREAK_EFFECT;
                 WepMenu.mode = WEP_MENU_LIST;
@@ -3756,7 +3693,7 @@ static int WeaponSelectKey() {
         case WEP_MENU_BUILDUP_SELECT: {
             WEAPON_HAVE     *weapon = GetNowSelectWeapon();
             WEP_BUILDUP_INFO info[7];
-            int              build_up;
+            int              build_up = 0;
             EnableBuildUpModel(info, weapon);
             int count = WeaponStatusBuildUp(weapon, build_up);
 
@@ -3855,10 +3792,12 @@ static int WeaponSelectKey() {
             }
 
             break;
+        default:
+            break;
     }
 
     if (prev_chara != WepMenu.chara) {
-        int chara = ((CUserStatus *) BtlMenuStatusPt)->cur_chara;
+        int chara = static_cast<CUserStatus *>(BtlMenuStatusPt)->cur_chara;
 
         if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON && chara == prev_chara) {
             DngWeaponEquipModelBuild(chara, MenuExtendReadBlock, BtlMenuReadBuf);
@@ -3874,8 +3813,8 @@ static int WeaponSelectKey() {
             WepMenu.counter = 0;
 
             if (abs(prev_chara - WepMenu.chara) > 1) {
-                for (int i = 0; i < 6; i++) {
-                    SysChara[i].x = (SysChara[i].chara - WepMenu.chara) * 110 + 270;
+                for (auto &sys_chara : SysChara) {
+                    sys_chara.x = (sys_chara.chara - WepMenu.chara) * 110 + 270;
                 }
             }
 
@@ -3904,41 +3843,39 @@ static int WeaponSelectKey() {
 /**
  * Stores a menu's cursor position in the saved menu cursors.
  */
-static inline void SetCursorPos(CMenuCursor *cursor, int menu, int pos) {
+void SetCursorPos(CMenuCursor *cursor, int menu, int pos) {
     cursor->pos[menu] = pos;
 }
 
 /**
  * Stores the party member the item menu shows in the saved menu cursors.
  */
-static inline void SetCursorChara(CMenuCursor *cursor, int chara) {
+void SetCursorChara(CMenuCursor *cursor, int chara) {
     cursor->chara_no = chara;
 }
 
 /**
  * Puts the attachment the weapon menu is holding back where it came from.
- *
- * @mangled WepAttachHaveCancel__Fv
- * @address 0x1FF6B0
- * @size 0x198
  */
-static void WepAttachHaveCancel() {
-    ATTACH_LIST *slot;
+void WepAttachHaveCancel() {
+    ATTACH_LIST *slot = nullptr;
     s16          held = BtlHaveItemPt->item_no;
 
     if (held >= ITEM_ATTACH_START) {
         switch (BtlHaveItemPt->from_page) {
             case WEP_MENU_ATTACH_BOARD: {
-                ATTACH_LIST *items = (ATTACH_LIST *) BtlMenuStatusPt->consumable_items;
+                auto *items = reinterpret_cast<ATTACH_LIST *>(BtlMenuStatusPt->consumable_items);
                 slot = &items[BtlHaveItemPt->from_slot];
                 break;
             }
             case WEP_MENU_ATTACH_SOCKETS:
                 slot = &DngWepHavePt[WepMenu.weapon_slot].attach[BtlHaveItemPt->from_slot];
                 break;
+            default:
+                break;
         }
 
-        if (slot != NULL) {
+        if (slot != nullptr) {
             s16 item_no = slot->item_no;
             MenuDataSwap(slot, &WepMenu.board.held_attach);
             BtlHaveItemPt->item_no = item_no;
@@ -3968,6 +3905,8 @@ static void WepAttachHaveCancel() {
     }
 }
 
+} // namespace
+
 void WeaponMenuAttachModeKey() {
     switch (WepMenu.mode) {
         case WEP_MENU_ATTACH_TAGS:
@@ -3995,15 +3934,15 @@ void WeaponMenuAttachModeKey() {
             if (page != WepMenu.tag_page) {
                 int rows[3] = {5, 4, 9};
 
-                if (rows[WepMenu.tag_page] < WepMenu.tag_row) {
-                    WepMenu.tag_row = rows[WepMenu.tag_page];
-                }
+                WepMenu.tag_row = std::min<int>(rows[WepMenu.tag_page], WepMenu.tag_row);
 
                 ComMenuSePlay(MENU_SOUND_CURSOR);
             }
 
             break;
         }
+        default:
+            break;
     }
 
     int row = WepMenu.tag_row;
@@ -4023,6 +3962,8 @@ void WeaponMenuAttachModeKey() {
         case WEP_MENU_ATTACH_BOARD:
             WeaponMenuAttachKey();
             break;
+        default:
+            break;
     }
 
     if ((row != WepMenu.tag_row || mode != WepMenu.mode) && GamePad.Down(PAD_CIRCLE) == 0) {
@@ -4030,14 +3971,12 @@ void WeaponMenuAttachModeKey() {
     }
 }
 
+namespace {
+
 /**
  * Handles input on the weapon menu's equipped weapon row.
- *
- * @mangled WeaponMenuActWepKey__Fv
- * @address 0x1FFA90
- * @size 0xCC
  */
-static void WeaponMenuActWepKey() {
+void WeaponMenuActWepKey() {
     if (GamePad.Down(PAD_RIGHT) != 0) {
         WepMenu.mode = WEP_MENU_ATTACH_BOARD;
         WepMenu.board.cursor = WepMenu.board.top_row * 5 + 10;
@@ -4050,17 +3989,15 @@ static void WeaponMenuActWepKey() {
     }
 }
 
+} // namespace
+
 void WeaponMenuTagKey() {
     int moved = 0;
     s16 rows[3] = {5, 4, 10};
 
-    if (WepMenu.tag_row < 0) {
-        WepMenu.tag_row = 0;
-    }
+    WepMenu.tag_row = std::max<s8>(WepMenu.tag_row, 0);
 
-    if (rows[WepMenu.tag_page] < WepMenu.tag_row) {
-        WepMenu.tag_row = rows[WepMenu.tag_page];
-    }
+    WepMenu.tag_row = std::min<int>(rows[WepMenu.tag_page], WepMenu.tag_row);
 
     GetWeaponHoleNum(GetNowSelectWeapon()->item_no);
 
@@ -4132,6 +4069,8 @@ void WeaponMenuTagKey() {
                             }
 
                             break;
+                        default:
+                            break;
                     }
                 }
 
@@ -4173,6 +4112,8 @@ void WeaponMenuTagKey() {
                             }
 
                             break;
+                        default:
+                            break;
                     }
                 }
 
@@ -4184,6 +4125,8 @@ void WeaponMenuTagKey() {
                             }
 
                             break;
+                        default:
+                            break;
                     }
                 }
 
@@ -4194,6 +4137,8 @@ void WeaponMenuTagKey() {
                                 weapon->durability--;
                             }
 
+                            break;
+                        default:
                             break;
                     }
                 }
@@ -4211,6 +4156,8 @@ void WeaponMenuTagKey() {
                             break;
                         case WEP_TAG_ROW_MAGIC:
                             weapon->magic = 99;
+                            break;
+                        default:
                             break;
                     }
                 }
@@ -4313,6 +4260,8 @@ void WeaponMenuTagKey() {
             }
 
             break;
+        default:
+            break;
     }
 
     if (moved != 0) {
@@ -4341,18 +4290,18 @@ void WeaponMenuTagKey() {
                 WepMenu.mode = WEP_MENU_ATTACH_BOARD;
                 WepMenu.board.cursor = (WepMenu.board.top_row + 2) * 5;
                 break;
+            default:
+                break;
         }
     }
 }
 
+namespace {
+
 /**
  * Moves the cursor across the sockets of the selected weapon and fits or takes off the attachment held.
- *
- * @mangled WeaponMenuAttachWepKey__Fv
- * @address 0x200120
- * @size 0x414
  */
-static void WeaponMenuAttachWepKey() {
+void WeaponMenuAttachWepKey() {
     int          moved = 0;
     WEAPON_HAVE *weapon = GetNowSelectWeapon();
 
@@ -4446,9 +4395,7 @@ static void WeaponMenuAttachWepKey() {
         if (WepMenu.board.cursor < holes - 1) {
             WepMenu.board.cursor++;
 
-            if (WepMenu.board.cursor <= 0) {
-                WepMenu.board.cursor = 0;
-            }
+            WepMenu.board.cursor = std::max(WepMenu.board.cursor, 0);
         } else {
             WepMenu.mode = WEP_MENU_ATTACH_BOARD;
             WepMenu.board.cursor = WepMenu.board.top_row * 5;
@@ -4461,16 +4408,16 @@ static void WeaponMenuAttachWepKey() {
     }
 }
 
+} // namespace
+
 s32 WeaponMenuSelectKeyLockFlag;
+
+namespace {
 
 /**
  * Handles input while an attachment is being moved on the weapon menu.
- *
- * @mangled WeaponMenuAttachKey__Fv
- * @address 0x200540
- * @size 0x270
  */
-static void WeaponMenuAttachKey() {
+void WeaponMenuAttachKey() {
     if (PersonalBoardKey()) {
         if (WepMenu.sockets_enabled) {
             WepMenu.mode = WEP_MENU_ATTACH_SOCKETS;
@@ -4487,7 +4434,7 @@ static void WeaponMenuAttachKey() {
                 break;
             case PERSONAL_BOARD_AREA_CELLS: {
                 DNG_CONSUMABLE *items = BtlMenuStatusPt->consumable_items;
-                ATTACH_LIST    *slot = (ATTACH_LIST *) &items[WepMenu.board.cursor];
+                auto           *slot = reinterpret_cast<ATTACH_LIST *>(&items[WepMenu.board.cursor]);
 
                 if (slot->item_no >= ITEM_ATTACH_START || BtlHaveItemPt->item_no >= ITEM_ATTACH_START) {
                     ComMenuSePlay(MENU_SOUND_CONFIRM);
@@ -4511,19 +4458,23 @@ static void WeaponMenuAttachKey() {
 
                 break;
             }
+            default:
+                break;
         }
     } else if (GamePad.Down(PAD_CIRCLE)) {
         ComMenuSePlay(MENU_SOUND_REFUSE);
         WepAttachHaveCancel();
     } else if (GamePad.Down(PAD_SQUARE)) {
-        SeitonAttachBoard((ATTACH_LIST *) BtlMenuStatusPt->consumable_items);
+        SeitonAttachBoard(reinterpret_cast<ATTACH_LIST *>(BtlMenuStatusPt->consumable_items));
         ComMenuSePlay(MENU_SOUND_CONFIRM);
     }
 }
 
+} // namespace
+
 void RepairAndLevelUpDraw(int x, int y, int alpha) {
-    int u;
-    int v;
+    int u = 0;
+    int v = 0;
 
     float widths[7] = {10.7f, 10.7f, 10.7f, 15.3f, 11.8f, 12.2f, 12.3f};
     MenuHelpWinDraw(x - 10, y, widths[BtlMenuNowLang], 2.2f, alpha);
@@ -4532,11 +4483,9 @@ void RepairAndLevelUpDraw(int x, int y, int alpha) {
     u8 items[2] = {ITEM_REPAIR_POWDER, ITEM_POWERUP_POWDER};
     u8 shift[7] = {0, 0, 0, 58, 8, 22, 22};
 
-    for (int i = 0; i < 2; i++) {
-        int count;
-        int item_no = items[i];
-        count = GetNowItemNum(item_no, MenuItemPackPt);
-        CTexture *icon = RetCTex((u8) item_no, u, v);
+    for (int item_no : items) {
+        int       count = GetNowItemNum(item_no, MenuItemPackPt);
+        CTexture *icon = RetCTex(static_cast<u8>(item_no), u, v);
         DrawMenu2DSprite(icon, CRect_i_(x + 0x10, row_y, 0x20, 0x20), CRect_i_(u, v, 0x20, 0x20), alpha);
         DrawMenu2DSprite(BtStatus, CRect_i_(x + 0x9A + shift[BtlMenuNowLang], row_y + 8, 0x10, 0x10), CRect_i_(0x60, 0x58, 0x10, 0x10), alpha);
         int number_x = x + 0xC0 + shift[BtlMenuNowLang];
@@ -4554,7 +4503,7 @@ void RepairAndLevelUpDraw(int x, int y, int alpha) {
     if (BtlMenuNowLang > LANG_JAPANESE) {
         s8  count_shift[6] = {20, 20, 0, 12, -6, -4};
         int name_x = x + 0x36;
-        int count_x;
+        int count_x = 0;
         CommonMenuMes3.line_pos[0].x = name_x;
         CommonMenuMes3.line_pos[0].y = y + 0xC;
         count_x = name_x + count_shift[BtlMenuNowLang - 1];
@@ -4577,26 +4526,20 @@ void RepairAndLevelUpDraw(int x, int y, int alpha) {
     CommonMenuMes3.DrawMesWin();
 }
 
-void DrawBuildUpWeaponSelect(int x, int y, int cursor);
-
-void WeaponMenuDraw();
+namespace {
 
 /**
  * Swaps the item the menu is holding with the one in the given slot of the page it is on.
  *
  * Weapons are only taken when they are not a party member's default weapon and belong to the
  * party member holding the menu's slot.
- *
- * @mangled ItemTrushKey__FPiPii
- * @address 0x201E30
- * @size 0x2F0
  */
-static int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
+int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
     int swapped = 0;
     int page = ItemMenuMode.board.page;
     int kind = WhatIsKindofItem(BtlHaveItemPt->item_no);
     s16 held = BtlHaveItemPt->item_no;
-    s16 item_no;
+    s16 item_no = 0;
 
     switch (page) {
         case BOARD_PAGE_ITEM:
@@ -4610,7 +4553,7 @@ static int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
         case BOARD_PAGE_WEAPON:
             if (kind == BOARD_PAGE_WEAPON || kind == BOARD_PAGE_NONE) {
                 int          owner = -1;
-                WEAPON_HAVE *weapon;
+                WEAPON_HAVE *weapon = nullptr;
                 int          equip = WhoIsWeaponEquip(held);
 
                 if (equip < 0) {
@@ -4619,8 +4562,8 @@ static int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
                         WEAPON_HAVE    *row = status->chara_weapons[i];
                         weapon = &row[10];
 
-                        if (weapon != NULL && weapon->item_no >= ITEM_WEAPON_START) {
-                            owner = (s8) GetWeaponData(weapon->item_no)->owner;
+                        if (weapon != nullptr && weapon->item_no >= ITEM_WEAPON_START) {
+                            owner = static_cast<s8>(GetWeaponData(weapon->item_no)->owner);
                             break;
                         }
                     }
@@ -4629,7 +4572,7 @@ static int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
                     WEAPON_HAVE    *row = status->chara_weapons[equip];
                     weapon = &row[10];
 
-                    if (weapon != NULL) {
+                    if (weapon != nullptr) {
                         owner = equip;
                     }
                 }
@@ -4673,7 +4616,7 @@ static int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
         case BOARD_PAGE_ATTACH:
             if (kind == BOARD_PAGE_ATTACH || kind == BOARD_PAGE_NONE) {
                 DNG_CONSUMABLE *items = BtlMenuStatusPt->consumable_items;
-                ATTACH_LIST    *attach = (ATTACH_LIST *) &items[slot] + 40;
+                ATTACH_LIST    *attach = reinterpret_cast<ATTACH_LIST *>(&items[slot]) + 40;
                 item_no = attach->item_no;
                 MenuDataSwap(attach, &ItemMenuMode.board.held_attach);
                 BtlHaveItemPt->item_no = item_no;
@@ -4682,10 +4625,14 @@ static int ItemTrushKey(int *thrown, int *thrown_vol, int slot) {
             }
 
             break;
+        default:
+            break;
     }
 
     return swapped;
 }
+
+} // namespace
 
 void DrawTrushItem() {
     int items[7];
@@ -4707,7 +4654,7 @@ void DrawTrushItem() {
     int y = 0x7E;
     MenuTextureReload(ItemMenuWeaponIconReadBlock);
     static int ncnt = 0;
-    int        bright = (int) (112.0f + 48.0f * sinf(PI * (float) (ncnt - 0x3C) / 60.0f));
+    int        bright = static_cast<int>(112.0f + 48.0f * sinf(PI * static_cast<float>(ncnt - 0x3C) / 60.0f));
 
     for (int i = 0; i < 3; i++) {
         if ((ItemMenuMode.overflow_pages & (1 << (i + 1))) && page == i) {
@@ -4739,14 +4686,12 @@ void DrawTrushItem() {
     DrawMenuClsMes(&AtoraNameMes, 0x34, 0x152);
 }
 
+namespace {
+
 /**
  * Remembers where the item page's cursor stood and closes it.
- *
- * @mangled ExitItemSelect__Fv
- * @address 0x202420
- * @size 0x88
  */
-static void ExitItemSelect() {
+void ExitItemSelect() {
     CommonMenuMes3.rows = 3;
     CommonMenuMes3.narrow_gaiji = false;
     CommonMenuMes3.char_width = 11;
@@ -4763,27 +4708,25 @@ static void ExitItemSelect() {
 
 /**
  * Starts reading the item page's weapon icons in the background.
- *
- * @mangled StartBGReadItemMenuWepIcon__FP1Ri
- * @address 0x2024B0
- * @size 0x54
  */
-static void StartBGReadItemMenuWepIcon(u_long128 *buffer, int &size) {
+void StartBGReadItemMenuWepIcon(u_long128 *buffer, int &size) {
     StartReadBG();
     size = LoadFileBGMenuData("wepchara.img", buffer);
     ItemMenuAlreadyReadWepIconTexFlag = 0;
 }
 
+} // namespace
+
 void ReadSyncItemMenuWepIcon() {
     BG_READ_INFO     *file = GetReadBGFile(0);
     LOADTEXTURE_INFO2 textures[3] = {
         {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-        {NULL,                                       0, 0},
-        {NULL,                                       0, 0}
+        {nullptr,                                    0, 0},
+        {nullptr,                                    0, 0}
     };
 
     textures[0].block_no = ItemMenuWeaponIconReadBlock;
-    textures[1].name = (char *) file->buffer;
+    textures[1].name = reinterpret_cast<char *>(file->buffer);
     textures[1].block_no = ItemMenuWeaponIconReadBlock;
     CharaStatus = TexManager.GetTexture("status", -1);
     TexManager.DeleteTextureBlock(ItemMenuWeaponIconReadBlock);
@@ -4796,17 +4739,13 @@ void ReadSyncItemMenuWepIcon() {
  *
  * When the pack holds more than it can carry, the page opens on the first list that overflows
  * so the player throws something away.
- *
- * @mangled InitItemMode__Fii
- * @address 0x2025E0
- * @size 0x624
  */
-static void InitItemMode(int mode, int chara) {
-    CMenuCursor *cursor;
-    int          max;
+void InitItemMode(int mode, int chara) {
+    CMenuCursor *cursor = nullptr;
+    int          max = 0;
     int          thrown[7];
 
-    InitPersonalBoardMode((CUserStatus *) BtlMenuStatusPt, &ItemMenuMode.board, PERSONAL_BOARD_ITEM, BOARD_PAGE_ITEM);
+    InitPersonalBoardMode(static_cast<CUserStatus *>(BtlMenuStatusPt), &ItemMenuMode.board, PERSONAL_BOARD_ITEM, BOARD_PAGE_ITEM);
     ItemMenuMode.mode = ITEM_MENU_BOARD;
     ItemMenuMode.chara = chara;
     cursor = SaveData->GetMenuCursor();
@@ -4822,9 +4761,7 @@ static void InitItemMode(int mode, int chara) {
         ItemMenuMode.board.cursor = cursor->pos[0];
         ItemMenuMode.board.top_row = ItemMenuMode.board.cursor / 5 - 3;
 
-        if (ItemMenuMode.board.top_row < 0) {
-            ItemMenuMode.board.top_row = 0;
-        }
+        ItemMenuMode.board.top_row = std::max(ItemMenuMode.board.top_row, 0);
     } else {
         ItemMenuMode.mode = ITEM_MENU_BOARD;
         ItemMenuMode.board.cursor = 0;
@@ -4834,14 +4771,14 @@ static void InitItemMode(int mode, int chara) {
 
     memset(thrown, 0, sizeof(thrown));
 
-    for (int i = 0; i < 3; i++) {
-        ItemMenuMode.overflow_count[i] = 0;
+    for (short &count : ItemMenuMode.overflow_count) {
+        count = 0;
     }
 
     ItemMenuMode.overflow_pages = 0;
     ItemMenuMode.overflow = false;
 
-    if (CheckItemThrow(thrown, NULL)) {
+    if (CheckItemThrow(thrown, nullptr)) {
         for (int i = 0; i < 3; i++) {
             if (thrown[i] >= ITEM_DUNGEON_START) {
                 ItemMenuMode.overflow_count[0]++;
@@ -4876,13 +4813,9 @@ static void InitItemMode(int mode, int chara) {
             ItemMenuMode.board.cursor = WhoIsWeaponEquip(thrown[3]) * 10;
             ItemMenuMode.board.top_row = ItemMenuMode.board.cursor / 5;
 
-            if (ItemMenuMode.board.top_row < 0) {
-                ItemMenuMode.board.top_row = 0;
-            }
+            ItemMenuMode.board.top_row = std::max(ItemMenuMode.board.top_row, 0);
 
-            if (ItemMenuMode.board.top_row > 9) {
-                ItemMenuMode.board.top_row = 9;
-            }
+            ItemMenuMode.board.top_row = std::min(ItemMenuMode.board.top_row, 9);
         }
 
         ItemMenuMode.overflow = true;
@@ -4896,7 +4829,7 @@ static void InitItemMode(int mode, int chara) {
     ItemMenuMode.state = ITEM_MENU_STATE_LOADING;
     ItemMenuMode.counter = 0;
     u_long128 *buffer = BtlMenuReadBuf;
-    int        size;
+    int        size = 0;
     StartBGReadItemMenuWepIcon(buffer, size);
     buffer += (size >> 4) + 1;
     ItemMenuCharaReadBuf = MenuCalcBufAlignment(buffer);
@@ -4927,21 +4860,19 @@ static void InitItemMode(int mode, int chara) {
     WEAPON_HAVE    *row = status->chara_weapons[member];
     WEAPON_HAVE    *weapon = &row[slot];
 
-    if (weapon != NULL) {
+    if (weapon != nullptr) {
         SetNowEquipWeaponDataForMsg(weapon->item_no, weapon->level);
     } else {
         SetNowEquipWeaponDataForMsg(0, 0);
     }
 }
 
+namespace {
+
 /**
  * Waits for the item page's data and opens it on the throw-away mode.
- *
- * @mangled InitItemTrushStart__Fv
- * @address 0x202C10
- * @size 0x74
  */
-static void InitItemTrushStart() {
+void InitItemTrushStart() {
     if (ReadBGSync() == 0) {
         BattleMenuTexEnter();
 
@@ -4955,6 +4886,8 @@ static void InitItemTrushStart() {
         BtlEffectCt = 0.0f;
     }
 }
+
+} // namespace
 
 void ExistItemMenu() {
     int blocks[3] = {0, 0, -1};
@@ -4976,14 +4909,12 @@ void ExistItemMenu() {
     ForBackMenu();
 }
 
+namespace {
+
 /**
  * Moves the item page from one party member to the next.
- *
- * @mangled ChangeMenuChara__Fv
- * @address 0x202D50
- * @size 0x1C0
  */
-static void ChangeMenuChara() {
+void ChangeMenuChara() {
     if (MenuWepLevelUp.operation_kind < WEP_EFFECT_CURE_HEAL_HP || MenuWepLevelUp.operation_kind > WEP_EFFECT_CURE_POCKET) {
         int previous = ItemMenuMode.chara;
         int party_size = BtlMenuStatusPt->party_size;
@@ -5017,7 +4948,7 @@ static void ChangeMenuChara() {
                 WEAPON_HAVE    *row = status->chara_weapons[chara];
                 WEAPON_HAVE    *weapon = &row[slot];
 
-                if (weapon != NULL) {
+                if (weapon != nullptr) {
                     SetNowEquipWeaponDataForMsg(weapon->item_no, weapon->level);
                 } else {
                     SetNowEquipWeaponDataForMsg(0, 0);
@@ -5032,58 +4963,60 @@ static void ChangeMenuChara() {
 /**
  * Returns a party member's current life from the battle menu's status data.
  */
-static inline int DebugGetHp(int chara) {
+int DebugGetHp(int chara) {
     return BtlMenuStatusPt->hp[chara];
 }
 
 /**
  * Returns a party member's maximum life from the battle menu's status data.
  */
-static inline int DebugGetMaxHp(int chara) {
+int DebugGetMaxHp(int chara) {
     return BtlMenuStatusPt->max_hp[chara];
 }
 
 /**
  * Sets a party member's current life in the battle menu's status data.
  */
-static inline void DebugSetHp(int chara, int hp) {
+void DebugSetHp(int chara, int hp) {
     BtlMenuStatusPt->hp[chara] = hp;
 }
 
 /**
  * Returns the water a party member holds from the battle menu's status data.
  */
-static inline float DebugGetWater(int chara) {
+float DebugGetWater(int chara) {
     return BtlMenuStatusPt->water_now[chara];
 }
 
 /**
  * Sets the water a party member holds in the battle menu's status data.
  */
-static inline void DebugSetWater(int chara, float water) {
+void DebugSetWater(int chara, float water) {
     BtlMenuStatusPt->water_now[chara] = water;
 }
 
 /**
  * Returns a party member's defense from the battle menu's status data.
  */
-static inline int DebugGetDefense(int chara) {
+int DebugGetDefense(int chara) {
     return BtlMenuStatusPt->defense[chara];
 }
 
 /**
  * Sets a party member's defense in the battle menu's status data.
  */
-static inline void DebugSetDefense(int chara, int defense) {
+void DebugSetDefense(int chara, int defense) {
     BtlMenuStatusPt->defense[chara] = defense;
 }
+
+} // namespace
 
 /**
  * Handles item-menu input, item use, equipment changes, and inventory transfers.
  */
 int ItemMenuMainKey() {
-    float effect_x;
-    float effect_y;
+    float effect_x = 0.0f;
+    float effect_y = 0.0f;
 
     switch (MenuExTextureReadFlag) {
         case MENU_EX_TEX_UNREAD:
@@ -5113,6 +5046,8 @@ int ItemMenuMainKey() {
             }
 
             break;
+        default:
+            break;
     }
 
     int old_mode = ItemMenuMode.mode;
@@ -5141,7 +5076,7 @@ int ItemMenuMainKey() {
 
     if (IconAutoGet.IsMoveIcon() == 0 && result == 0 && overflowing == 0 && BtlHaveItemPt->item_no < ITEM_ATTACH_START) {
         ItemMenuMode.overflow = false;
-        ((CUserStatus *) BtlMenuStatusPt)->overflow_flag = false;
+        static_cast<CUserStatus *>(BtlMenuStatusPt)->overflow_flag = false;
         DeleteMenuTrushMark();
     }
 
@@ -5212,7 +5147,7 @@ int ItemMenuMainKey() {
                     s16          item_no = BtlHaveItemPt->item_no;
                     int          result = ItemUseFunc(BtlMenuStatusPt, item_no, ItemMenuMode.chara, ITEM_USE_ON_EQUIP_WEAPON, weapon);
 
-                    if ((u32) (result - 1) < 2) {
+                    if (static_cast<u32>(result - 1) < 2) {
                         int sounds[2] = {1, 0x18};
                         ComMenuSePlay(sounds[result - 1]);
                     }
@@ -5223,12 +5158,12 @@ int ItemMenuMainKey() {
                     }
 
                     if (ItemMenuMode.use_target == ITEM_USE_ON_BOARD_WEAPON) {
-                        effect_x = 4.3f + 3.2f * (float) (ItemMenuMode.board.cursor % 5);
-                        effect_y = 6.7f - 3.2f * (float) (ItemMenuMode.board.cursor / 5 - ItemMenuMode.board.top_row);
+                        effect_x = 4.3f + 3.2f * static_cast<float>(ItemMenuMode.board.cursor % 5);
+                        effect_y = 6.7f - 3.2f * static_cast<float>(ItemMenuMode.board.cursor / 5 - ItemMenuMode.board.top_row);
                     }
 
-                    CWeaponLevelUp *effect = (CWeaponLevelUp *) (MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
-                    MenuWepLevelUp.CureEffect((int) effect_x, (int) effect_y, effect, BtlMenuExReadBlock, WEP_EFFECT_CURE_REPAIR);
+                    auto *effect = reinterpret_cast<CWeaponLevelUp *>(MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
+                    MenuWepLevelUp.CureEffect(static_cast<int>(effect_x), static_cast<int>(effect_y), effect, BtlMenuExReadBlock, WEP_EFFECT_CURE_REPAIR);
                     InitHaveData(BtlHaveItemPt);
                     ItemMenuMode.state = ITEM_MENU_STATE_IDLE;
                     ComMenuSePlay(SE_WEAPON_REPAIR);
@@ -5271,18 +5206,16 @@ int ItemMenuMainKey() {
                             ItemMenuMode.mode = ITEM_MENU_TRUSH;
                             ItemMenuMode.board.cursor = row;
 
-                            if (ItemMenuMode.board.cursor > count - 1) {
-                                ItemMenuMode.board.cursor = count - 1;
-                            }
+                            ItemMenuMode.board.cursor = std::min(ItemMenuMode.board.cursor, count - 1);
 
-                            if (ItemMenuMode.board.cursor <= 0) {
-                                ItemMenuMode.board.cursor = 0;
-                            }
+                            ItemMenuMode.board.cursor = std::max(ItemMenuMode.board.cursor, 0);
                         }
                     }
 
                     break;
                 }
+                default:
+                    break;
             }
 
             if (MenuExTextureReadFlag >= MENU_EX_TEX_READY && MenuWepLevelUp.operation_kind == WEP_EFFECT_NONE) {
@@ -5301,14 +5234,14 @@ int ItemMenuMainKey() {
                             } else {
                                 s16       *slot_item = &MenuItemPackPt->quick_item_slot[cursor];
                                 s16       *slot_qty = &MenuItemPackPt->quick_item_qty[cursor];
-                                ITEM_DATA *slot_data = NULL;
+                                ITEM_DATA *slot_data = nullptr;
 
                                 if (*slot_item >= ITEM_DUNGEON_START) {
                                     slot_data = GetItemData(*slot_item);
                                 }
 
                                 int        held_kind = 0;
-                                ITEM_DATA *held_data = NULL;
+                                ITEM_DATA *held_data = nullptr;
 
                                 if (BtlHaveItemPt->item_no >= ITEM_DUNGEON_START) {
                                     held_data = GetItemData(BtlHaveItemPt->item_no);
@@ -5323,7 +5256,7 @@ int ItemMenuMainKey() {
                                     case ITEM_STACK_NEVER:
                                         break;
                                     case ITEM_STACK_SINGLE:
-                                        if (slot_data == NULL) {
+                                        if (slot_data == nullptr) {
                                             ok = 1;
                                         } else {
                                             switch (slot_data->stack_kind) {
@@ -5338,12 +5271,14 @@ int ItemMenuMainKey() {
                                                     }
 
                                                     break;
+                                                default:
+                                                    break;
                                             }
                                         }
 
                                         break;
                                     case ITEM_STACK_MULTI:
-                                        if (slot_data == NULL) {
+                                        if (slot_data == nullptr) {
                                             ok = 1;
                                         } else {
                                             ok = 1;
@@ -5355,7 +5290,7 @@ int ItemMenuMainKey() {
                                                     } else {
                                                         ok = 0;
                                                     }
-                                                } else if (held_data == NULL) {
+                                                } else if (held_data == nullptr) {
                                                     take = 1;
                                                 } else if (*slot_qty >= 2) {
                                                     ok = 0;
@@ -5363,6 +5298,8 @@ int ItemMenuMainKey() {
                                             }
                                         }
 
+                                        break;
+                                    default:
                                         break;
                                 }
 
@@ -5389,8 +5326,8 @@ int ItemMenuMainKey() {
                                         }
                                     } else if (ok != 0) {
                                         MenuDataSwap(slot_item, &BtlHaveItemPt->item_no);
-                                        CUserStatus *status = (CUserStatus *) BtlMenuStatusPt;
-                                        int          vol = status->active_item_vol[cursor];
+                                        auto *status = static_cast<CUserStatus *>(BtlMenuStatusPt);
+                                        int   vol = status->active_item_vol[cursor];
                                         status->active_item_vol[cursor] = BtlHaveItemPt->volume;
                                         BtlHaveItemPt->volume = vol;
 
@@ -5413,15 +5350,15 @@ int ItemMenuMainKey() {
                             break;
                         }
                         case ITEM_MENU_CHARA:
-                            if (info == NULL) {
+                            if (info == nullptr) {
                                 ComMenuSePlay(MENU_SOUND_REFUSE);
                             } else if (info->kind != ITEMKIND_ITEM) {
                                 ComMenuSePlay(MENU_SOUND_REFUSE);
                             } else {
                                 int chara = ItemMenuMode.chara;
-                                int result = ItemUseFunc(BtlMenuStatusPt, BtlHaveItemPt->item_no, chara, ITEM_USE_ON_CHARA, NULL);
+                                int result = ItemUseFunc(BtlMenuStatusPt, BtlHaveItemPt->item_no, chara, ITEM_USE_ON_CHARA, nullptr);
                                 int sounds[4] = {2, 1, 0x18, -1};
-                                int sound;
+                                int sound = 0;
 
                                 if (result < 4) {
                                     sound = sounds[result];
@@ -5461,7 +5398,7 @@ int ItemMenuMainKey() {
                                         }
 
                                         if ((data->kind_flags & 1) && ((data->use_flags & 0x4000) || (data->use_flags & 0x8000) || (data->use_flags & 0x10000) || (data->use_flags & 0x20000) || (data->use_flags & 0x3C000))) {
-                                            int message;
+                                            int message = 0;
 
                                             switch (BtlHaveItemPt->item_no) {
                                                 case ITEM_ANTIDOTE_DRINK:
@@ -5538,8 +5475,8 @@ int ItemMenuMainKey() {
 
                                         if (effect > 0) {
                                             ItemMenuMode.state = ITEM_MENU_STATE_EFFECT;
-                                            CWeaponLevelUp *buffer = (CWeaponLevelUp *) (MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
-                                            MenuWepLevelUp.CureEffect((int) effect_x, (int) effect_y, buffer, BtlMenuExReadBlock, effect);
+                                            auto *buffer = reinterpret_cast<CWeaponLevelUp *>(MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
+                                            MenuWepLevelUp.CureEffect(static_cast<int>(effect_x), static_cast<int>(effect_y), buffer, BtlMenuExReadBlock, effect);
                                         }
 
                                         InitHaveData(BtlHaveItemPt);
@@ -5584,19 +5521,19 @@ int ItemMenuMainKey() {
                                 int result = ItemUseFunc(BtlMenuStatusPt, held, ItemMenuMode.chara, ITEM_USE_ON_BOARD_WEAPON, weapon);
                                 int after = ItemMenuMode.target_weapon->item_no;
 
-                                if ((u32) (result - 1) < 2) {
+                                if (static_cast<u32>(result - 1) < 2) {
                                     s16 sounds[2] = {1, 0x18};
                                     ComMenuSePlay(sounds[result - 1]);
-                                    MenuWepLevelUp.CureEffect(-0x10, 1, (CWeaponLevelUp *) (MenuExCashBuffer.base + MenuExCashBuffer.used * 16), BtlMenuExReadBlock, WEP_EFFECT_CURE_REPAIR);
+                                    MenuWepLevelUp.CureEffect(-0x10, 1, reinterpret_cast<CWeaponLevelUp *>(MenuExCashBuffer.base + MenuExCashBuffer.used * 16), BtlMenuExReadBlock, WEP_EFFECT_CURE_REPAIR);
 
                                     if (BtlMenuMode == BATTLE_MENU_MODE_DUNGEON) {
                                         if (before != after) {
-                                            int who = ((CUserStatus *) BtlMenuStatusPt)->cur_chara;
+                                            int who = static_cast<CUserStatus *>(BtlMenuStatusPt)->cur_chara;
 
                                             if (ItemMenuMode.chara == who) {
                                                 EquipWeaponFrame(&DefaultWeapon, ItemMenuMode.chara, CharaMainHandViewFlag);
 
-                                                if (((CUserStatus *) BtlMenuStatusPt)->cur_chara == CHARA_OSMOND) {
+                                                if (static_cast<CUserStatus *>(BtlMenuStatusPt)->cur_chara == CHARA_OSMOND) {
                                                     NowMainEffect = &CharaMainEffectCrash;
                                                     BtActStatus.gun_type = 0;
                                                 }
@@ -5661,12 +5598,12 @@ int ItemMenuMainKey() {
 
                                     ComMenuSePlay(MENU_SOUND_CONFIRM);
                                 } else if (result == 2) {
-                                    float x = 4.3f + 3.2f * (float) (ItemMenuMode.board.cursor % 5);
-                                    float y = 6.7f - 3.2f * (float) (ItemMenuMode.board.cursor / 5 - ItemMenuMode.board.top_row);
+                                    float x = 4.3f + 3.2f * static_cast<float>(ItemMenuMode.board.cursor % 5);
+                                    float y = 6.7f - 3.2f * static_cast<float>(ItemMenuMode.board.cursor / 5 - ItemMenuMode.board.top_row);
 
                                     if (item == ITEM_REPAIR_POWDER) {
-                                        CWeaponLevelUp *effect = (CWeaponLevelUp *) (MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
-                                        MenuWepLevelUp.CureEffect((int) x, (int) y, effect, BtlMenuExReadBlock, WEP_EFFECT_CURE_REPAIR);
+                                        auto *effect = reinterpret_cast<CWeaponLevelUp *>(MenuExCashBuffer.base + MenuExCashBuffer.used * 16);
+                                        MenuWepLevelUp.CureEffect(static_cast<int>(x), static_cast<int>(y), effect, BtlMenuExReadBlock, WEP_EFFECT_CURE_REPAIR);
                                     }
 
                                     if (ItemMenuMode.board.page == BOARD_PAGE_WEAPON) {
@@ -5710,6 +5647,8 @@ int ItemMenuMainKey() {
                             }
 
                             break;
+                        default:
+                            break;
                     }
                 } else if (GamePad.Down(PAD_CIRCLE) != 0) {
                     ComMenuSePlay(MENU_SOUND_REFUSE);
@@ -5722,6 +5661,8 @@ int ItemMenuMainKey() {
                             case BATTLE_MENU_MODE_DUNGEON:
                                 BtlMenuExReadFlag = DngActItemModelReadStart(buffer);
                                 break;
+                            default:
+                                break;
                         }
 
                         ExitItemSelect();
@@ -5731,10 +5672,10 @@ int ItemMenuMainKey() {
                         ComMenuSePlay(MENU_SOUND_REFUSE);
                         break;
                     } else {
-                        s16 *slot_item;
-                        s16 *slot_qty;
-                        s16  vol;
-                        s16  item_no;
+                        s16 *slot_item = nullptr;
+                        s16 *slot_qty = nullptr;
+                        s16  vol = 0;
+                        s16  item_no = 0;
                         s16  held = BtlHaveItemPt->item_no;
 
                         switch (BtlHaveItemPt->slot_state) {
@@ -5762,13 +5703,15 @@ int ItemMenuMainKey() {
                                         break;
                                     }
                                     case BOARD_PAGE_ATTACH: {
-                                        ATTACH_LIST *attach = &((ATTACH_LIST *) BtlMenuStatusPt->consumable_items)[BtlHaveItemPt->from_slot];
+                                        ATTACH_LIST *attach = &(reinterpret_cast<ATTACH_LIST *>(BtlMenuStatusPt->consumable_items))[BtlHaveItemPt->from_slot];
                                         item_no = attach->item_no;
                                         MenuDataSwap(attach, &ItemMenuMode.board.held_attach);
                                         BtlHaveItemPt->item_no = item_no;
                                         attach->item_no = held;
                                         break;
                                     }
+                                    default:
+                                        break;
                                 }
 
                                 break;
@@ -5779,18 +5722,16 @@ int ItemMenuMainKey() {
                                 int slot = BtlHaveItemPt->from_slot;
                                 slot_item = &MenuItemPackPt->quick_item_slot[slot];
                                 slot_qty = &MenuItemPackPt->quick_item_qty[slot];
-                                CUserStatus *status = (CUserStatus *) BtlMenuStatusPt;
+                                auto *status = static_cast<CUserStatus *>(BtlMenuStatusPt);
                                 vol = status->active_item_vol[slot];
 
                                 if (*slot_qty < 2 && *slot_item != held && held >= ITEM_DUNGEON_START) {
                                     MenuDataSwap(slot_item, &BtlHaveItemPt->item_no);
                                     int held_vol = BtlHaveItemPt->volume;
 
-                                    if (held_vol <= 0) {
-                                        held_vol = 0;
-                                    }
+                                    held_vol = std::max(held_vol, 0);
 
-                                    status = (CUserStatus *) BtlMenuStatusPt;
+                                    status = static_cast<CUserStatus *>(BtlMenuStatusPt);
                                     status->active_item_vol[slot] = held_vol;
                                     BtlHaveItemPt->volume = vol;
                                     *slot_qty = 1;
@@ -5800,11 +5741,9 @@ int ItemMenuMainKey() {
                                             MenuDataSwap(slot_item, &BtlHaveItemPt->item_no);
                                             int held_vol = BtlHaveItemPt->volume;
 
-                                            if (held_vol <= 0) {
-                                                held_vol = 0;
-                                            }
+                                            held_vol = std::max(held_vol, 0);
 
-                                            status = (CUserStatus *) BtlMenuStatusPt;
+                                            status = static_cast<CUserStatus *>(BtlMenuStatusPt);
                                             status->active_item_vol[slot] = held_vol;
                                             BtlHaveItemPt->volume = vol;
                                             *slot_qty = 1;
@@ -5813,6 +5752,8 @@ int ItemMenuMainKey() {
                                         case ITEM_STACK_MULTI:
                                             (*slot_qty)++;
                                             InitHaveData(BtlHaveItemPt);
+                                            break;
+                                        default:
                                             break;
                                     }
 
@@ -5823,27 +5764,29 @@ int ItemMenuMainKey() {
 
                                 break;
                             }
+                            default:
+                                break;
                         }
                     }
                 } else if (GamePad.Down(PAD_SQUARE) != 0) {
                     switch (ItemMenuMode.mode) {
                         case ITEM_MENU_QUICK_SLOTS: {
-                            int          cursor = ItemMenuMode.board.cursor;
-                            ITEM_PACK   *pack = MenuItemPackPt;
-                            s16         *items = pack->item;
-                            s16         *vols = pack->item_vol;
-                            s16         *slot_item = &pack->quick_item_slot[cursor];
-                            s16         *slot_qty = &pack->quick_item_qty[cursor];
-                            int          i;
-                            CUserStatus *status = (CUserStatus *) BtlMenuStatusPt;
-                            s16          vol = status->active_item_vol[cursor];
+                            int        cursor = ItemMenuMode.board.cursor;
+                            ITEM_PACK *pack = MenuItemPackPt;
+                            s16       *items = pack->item;
+                            s16       *vols = pack->item_vol;
+                            s16       *slot_item = &pack->quick_item_slot[cursor];
+                            s16       *slot_qty = &pack->quick_item_qty[cursor];
+                            int        i = 0;
+                            auto      *status = static_cast<CUserStatus *>(BtlMenuStatusPt);
+                            s16        vol = status->active_item_vol[cursor];
 
                             if (*slot_item > 0) {
                                 for (i = 0; 0 < *slot_qty || i < MenuItemPackPt->num; i++) {
                                     if (items[i] < 0) {
                                         items[i] = *slot_item;
                                         vols[i] = vol;
-                                        CUserStatus *holder = (CUserStatus *) BtlMenuStatusPt;
+                                        auto *holder = static_cast<CUserStatus *>(BtlMenuStatusPt);
                                         holder->active_item_vol[cursor] = 0;
                                         (*slot_qty)--;
 
@@ -5855,9 +5798,9 @@ int ItemMenuMainKey() {
                                 }
                             }
 
-                            if (((CUserStatus *) BtlMenuStatusPt)->overflow_flag != 0) {
+                            if (static_cast<CUserStatus *>(BtlMenuStatusPt)->overflow_flag != 0) {
                                 DeleteMenuTrushMark();
-                                SetMenuTrushMark((ITEM_PACK *) ((CUserStatus *) BtlMenuStatusPt)->active_item);
+                                SetMenuTrushMark(reinterpret_cast<ITEM_PACK *>(static_cast<CUserStatus *>(BtlMenuStatusPt)->active_item));
                             }
 
                             ComMenuSePlay(MENU_SOUND_REFUSE);
@@ -5870,18 +5813,22 @@ int ItemMenuMainKey() {
                                 case BOARD_PAGE_ITEM:
                                     SeitonItemBoard(MenuItemPackPt);
 
-                                    if (((CUserStatus *) BtlMenuStatusPt)->overflow_flag != 0) {
-                                        SetMenuTrushMark((ITEM_PACK *) ((CUserStatus *) BtlMenuStatusPt)->active_item);
+                                    if (static_cast<CUserStatus *>(BtlMenuStatusPt)->overflow_flag != 0) {
+                                        SetMenuTrushMark(reinterpret_cast<ITEM_PACK *>(static_cast<CUserStatus *>(BtlMenuStatusPt)->active_item));
                                     }
 
                                     ComMenuSePlay(MENU_SOUND_CONFIRM);
                                     break;
                                 case BOARD_PAGE_ATTACH:
-                                    SeitonAttachBoard((ATTACH_LIST *) BtlMenuStatusPt->consumable_items);
+                                    SeitonAttachBoard(reinterpret_cast<ATTACH_LIST *>(BtlMenuStatusPt->consumable_items));
                                     ComMenuSePlay(MENU_SOUND_CONFIRM);
+                                    break;
+                                default:
                                     break;
                             }
 
+                            break;
+                        default:
                             break;
                     }
                 } else if (GamePad.Down(PAD_TRIANGLE) != 0) {
@@ -5932,7 +5879,7 @@ int ItemMenuMainKey() {
                                             int want = *slot_item;
 
                                             if ((want < ITEM_DUNGEON_START || want == items[i]) && (want >= ITEM_DUNGEON_START || held == items[i])) {
-                                                int y = (int) (ItemMenuMode.board.y + (float) (i / 5 * 0x28));
+                                                int y = static_cast<int>(ItemMenuMode.board.y + static_cast<float>(i / 5 * 0x28));
 
                                                 if (y >= 0x78 && y < 0x119) {
                                                     int x = i % 5 * 0x28 + 0x168;
@@ -5942,7 +5889,7 @@ int ItemMenuMainKey() {
                                                         want = held;
                                                     }
 
-                                                    IconAutoGet.IconMoveTarSet(space, cursor, want, vol, (float) x, (float) y);
+                                                    IconAutoGet.IconMoveTarSet(space, cursor, want, vol, static_cast<float>(x), static_cast<float>(y));
                                                 } else {
                                                     if (want <= 0) {
                                                         *slot_item = held;
@@ -6010,7 +5957,7 @@ int ItemMenuMainKey() {
 
                                 int vol = MenuItemPackPt->item_vol[ItemMenuMode.board.cursor];
                                 int same = 0;
-                                int slot;
+                                int slot = 0;
                                 int empty = -1;
 
                                 for (slot = 0; slot < 3; slot++) {
@@ -6042,10 +5989,10 @@ int ItemMenuMainKey() {
                                         target = empty;
                                     }
 
-                                    int y = (int) (ItemMenuMode.board.y + (float) (pos / 5 * 0x28));
+                                    int y = static_cast<int>(ItemMenuMode.board.y + static_cast<float>(pos / 5 * 0x28));
 
                                     if (y >= 0x78 && y < 0x119) {
-                                        IconAutoGet.IconMoveTarSet(space, target, item_no, vol, (float) (pos % 5 * 0x28 + 0x176), (float) y);
+                                        IconAutoGet.IconMoveTarSet(space, target, item_no, vol, static_cast<float>(pos % 5 * 0x28 + 0x176), static_cast<float>(y));
                                     } else {
                                         MenuItemPackPt->quick_item_qty[target]++;
                                     }
@@ -6057,6 +6004,8 @@ int ItemMenuMainKey() {
                                 }
                             }
 
+                            break;
+                        default:
                             break;
                     }
                 }
@@ -6110,6 +6059,8 @@ int ItemMenuMainKey() {
                         DebugSetDefense(ItemMenuMode.chara, defense);
                         break;
                     }
+                    default:
+                        break;
                 }
 
                 if (GamePad.On2(PAD_SQUARE)) {
@@ -6117,13 +6068,13 @@ int ItemMenuMainKey() {
                         case ITEM_MENU_CHARA: {
                             float water = DebugGetWater(ItemMenuMode.chara) - 1.0f;
 
-                            if (water < 0.0f) {
-                                water = 0.0f;
-                            }
+                            water = std::max(water, 0.0f);
 
                             DebugSetWater(ItemMenuMode.chara, water);
                             break;
                         }
+                        default:
+                            break;
                     }
                 }
 
@@ -6143,6 +6094,8 @@ int ItemMenuMainKey() {
 
                             break;
                         }
+                        default:
+                            break;
                     }
                 }
 
@@ -6158,6 +6111,8 @@ int ItemMenuMainKey() {
                 ItemMenuMode.state = ITEM_MENU_STATE_IDLE;
             }
 
+            break;
+        default:
             break;
     }
 
@@ -6175,7 +6130,7 @@ int ItemMenuMainKey() {
     int             value = -1;
     int             name_mes = -1;
 
-    if (GetCommonItemInfo(BtlHaveItemPt->item_no) != NULL) {
+    if (GetCommonItemInfo(BtlHaveItemPt->item_no) != nullptr) {
         chara_mes = -1;
     }
 
@@ -6236,7 +6191,7 @@ int ItemMenuMainKey() {
 
                     break;
                 case BOARD_PAGE_ATTACH: {
-                    ATTACH_LIST *attach = (ATTACH_LIST *) BtlMenuStatusPt->consumable_items + cursor + 40;
+                    ATTACH_LIST *attach = reinterpret_cast<ATTACH_LIST *>(BtlMenuStatusPt->consumable_items) + cursor + 40;
 
                     if (attach->item_no >= ITEM_ATTACH_START) {
                         message = attach->item_no + 0x1F4;
@@ -6250,6 +6205,8 @@ int ItemMenuMainKey() {
 
                     break;
                 }
+                default:
+                    break;
             }
 
             break;
@@ -6280,7 +6237,7 @@ int ItemMenuMainKey() {
                             break;
                         }
                         case BOARD_PAGE_ATTACH: {
-                            ATTACH_LIST *attach = (ATTACH_LIST *) &board->consumables[ItemMenuMode.board.cursor];
+                            auto *attach = reinterpret_cast<ATTACH_LIST *>(&board->consumables[ItemMenuMode.board.cursor]);
 
                             if (attach->item_no >= ITEM_ATTACH_START) {
                                 message = attach->item_no + 0x1F4;
@@ -6293,6 +6250,8 @@ int ItemMenuMainKey() {
 
                             break;
                         }
+                        default:
+                            break;
                     }
 
                     break;
@@ -6302,14 +6261,16 @@ int ItemMenuMainKey() {
                     }
 
                     break;
+                default:
+                    break;
             }
 
             break;
+        default:
+            break;
     }
 
-    if (message < 0) {
-        message = 0;
-    }
+    message = std::max(message, 0);
 
     if (ItemMenuMode.state != ITEM_MENU_STATE_DEBUG_ITEMS) {
         int remake = 0;
@@ -6361,6 +6322,8 @@ int ItemMenuMainKey() {
 
                 break;
             }
+            default:
+                break;
         }
     }
 
@@ -6381,7 +6344,7 @@ void ItemMenuModeDraw() {
             ActiveItemDraw(0x3A, 0x4A, 0x80);
             DrawPersonalBoard(0x154, 0x78, ItemMenuMode.board.page, 0x80, 0);
             CommonTrushDraw(0x232, 0x10C, 0x80);
-            CommonMoneyBoardDraw(0x163, 0x120, ((CUserStatus *) BtlMenuStatusPt)->money, 0x80);
+            CommonMoneyBoardDraw(0x163, 0x120, static_cast<CUserStatus *>(BtlMenuStatusPt)->money, 0x80);
             DrawTrushItem();
             IconAutoGet.IconAutoMove();
             IconAutoGet.IconAutoMoveDraw();
@@ -6409,6 +6372,8 @@ void ItemMenuModeDraw() {
                     arrow_y = 0x2A;
                     arrow_w = 0xE6;
                     break;
+                default:
+                    break;
             }
 
             if (0 < arrow_x) {
@@ -6417,6 +6382,8 @@ void ItemMenuModeDraw() {
 
             break;
         }
+        default:
+            break;
     }
 
     if (ItemMenuMode.overflow == 0) {
@@ -6468,8 +6435,12 @@ void ItemMenuModeDraw() {
                     x = 0x216;
                     y = 0x110;
                     break;
+                default:
+                    break;
             }
 
+            break;
+        default:
             break;
     }
 
@@ -6502,7 +6473,7 @@ void ItemMenuModeDraw() {
                 break;
             }
             case ITEM_MENU_TRUSH:
-            case ITEM_MENU_BOARD:
+            case ITEM_MENU_BOARD: {
                 int cursor = ItemMenuMode.board.cursor;
 
                 if (SearchBoardNowPosItemExist(ItemMenuMode.board.page, cursor) >= ITEM_ATTACH_START) {
@@ -6513,6 +6484,9 @@ void ItemMenuModeDraw() {
                     vibe = 0;
                 }
 
+                break;
+            }
+            default:
                 break;
         }
     }
@@ -6525,8 +6499,8 @@ void ItemMenuModeDraw() {
     x += vibe_offset[vibe][0];
     y += vibe_offset[vibe][1];
     vibe = (vibe << 5) + 0x40;
-    SysCur[0] += ((float) x - SysCur[0]) / 4.0f;
-    SysCur[1] += ((float) y - SysCur[1]) / 4.0f;
+    SysCur[0] += (static_cast<float>(x) - SysCur[0]) / 4.0f;
+    SysCur[1] += (static_cast<float>(y) - SysCur[1]) / 4.0f;
     int big = 1;
 
     if (vibe >= 0x80) {
@@ -6537,11 +6511,11 @@ void ItemMenuModeDraw() {
         ItemNaviCursor(board->held_item.item_no);
         COM_ITEM_INFO *info = GetCommonItemInfo(board->held_item.item_no);
 
-        if (info != NULL && (info->kind == ITEMKIND_WEAPON || info->kind == ITEMKIND_ATTACH)) {
+        if (info != nullptr && (info->kind == ITEMKIND_WEAPON || info->kind == ITEMKIND_ATTACH)) {
             MenuTextureReload(ItemMenuWeaponIconReadBlock);
         }
 
-        DrawMenuVibeItem((int) SysCur[0], (int) SysCur[1], 2, -0xC, 0x80);
+        DrawMenuVibeItem(static_cast<int>(SysCur[0]), static_cast<int>(SysCur[1]), 2, -0xC, 0x80);
     }
 
     switch (ItemMenuMode.state) {
@@ -6560,15 +6534,13 @@ void ItemMenuModeDraw() {
                 case ITEM_MENU_STATE_CLOSE:
                     alpha = ItemMenuMode.counter * 5 + 0x40;
                     break;
+                default:
+                    break;
             }
 
-            if (alpha < 0) {
-                alpha = 0;
-            }
+            alpha = std::max(alpha, 0);
 
-            if (alpha > 0x80) {
-                alpha = 0x80;
-            }
+            alpha = std::min(alpha, 0x80);
 
             FrameImageDraw(0x40, alpha);
             break;
@@ -6618,18 +6590,20 @@ void ItemMenuModeDraw() {
                     MenuTextureReload(BtlMenuReadBlock);
                     DrawDngYesNoDialog(0x114, 0xE6, 0x80);
                     int yes_y = ItemMenuMode.confirm * 0x1C + 0xE0;
-                    DrawMenuWaku(268.0f, (float) (yes_y - 2), 0x60, 0x18, 0, StayTex, 0x80);
+                    DrawMenuWaku(268.0f, static_cast<float>(yes_y - 2), 0x60, 0x18, 0, StayTex, 0x80);
                     DrawMenuObjectVibe(0xF2, yes_y, 0, 0x40);
                     break;
                 }
+                default:
+                    break;
             }
 
             break;
         }
         default:
             if (ItemMenuMode.state != ITEM_MENU_STATE_DEBUG_ITEMS && ItemMenuMode.state != ITEM_MENU_STATE_EFFECT) {
-                DrawMenuWaku((float) frame_x, (float) frame_y, frame_w, frame_h, 0, StayTex, 0x80);
-                DrawMenuObjectVibe((int) SysCur[0], (int) SysCur[1], big, vibe);
+                DrawMenuWaku(static_cast<float>(frame_x), static_cast<float>(frame_y), frame_w, frame_h, 0, StayTex, 0x80);
+                DrawMenuObjectVibe(static_cast<int>(SysCur[0]), static_cast<int>(SysCur[1]), big, vibe);
             }
 
             break;
@@ -6657,9 +6631,7 @@ int ItemMenuModeKey() {
                     ItemMenuMode.board.cursor--;
                 }
 
-                if (ItemMenuMode.board.cursor < 0) {
-                    ItemMenuMode.board.cursor = 0;
-                }
+                ItemMenuMode.board.cursor = std::max(ItemMenuMode.board.cursor, 0);
 
                 break;
             default:
@@ -6679,9 +6651,7 @@ int ItemMenuModeKey() {
                     ItemMenuMode.board.cursor = count - 1;
                 }
 
-                if (ItemMenuMode.board.cursor < 0) {
-                    ItemMenuMode.board.cursor = 0;
-                }
+                ItemMenuMode.board.cursor = std::max(ItemMenuMode.board.cursor, 0);
 
                 break;
             }
@@ -6713,6 +6683,8 @@ int ItemMenuModeKey() {
             case ITEM_MENU_TRUSH:
                 ItemMenuMode.mode = ITEM_MENU_CHARA;
                 ItemMenuMode.board.cursor = 0;
+                break;
+            default:
                 break;
         }
     }
@@ -6747,6 +6719,8 @@ int ItemMenuModeKey() {
                 ItemMenuMode.board.cursor_area = PERSONAL_BOARD_AREA_CELLS;
                 ItemMenuMode.board.cursor = ItemMenuMode.board.top_row * 5 + 5;
                 break;
+            default:
+                break;
         }
 
         if (old_mode != ITEM_MENU_TRUSH && ItemMenuMode.mode == ITEM_MENU_BOARD) {
@@ -6755,9 +6729,7 @@ int ItemMenuModeKey() {
             if ((ItemMenuMode.overflow_pages & (1 << (ItemMenuMode.board.page + 1))) && ItemMenuMode.overflow != 0) {
                 ItemMenuMode.board.cursor = rows[old_mode];
 
-                if (ItemMenuMode.board.cursor > ItemMenuMode.overflow_count[ItemMenuMode.board.page] - 1) {
-                    ItemMenuMode.board.cursor = ItemMenuMode.overflow_count[ItemMenuMode.board.page] - 1;
-                }
+                ItemMenuMode.board.cursor = std::min(ItemMenuMode.board.cursor, ItemMenuMode.overflow_count[ItemMenuMode.board.page] - 1);
 
                 ItemMenuMode.mode = ITEM_MENU_TRUSH;
             }
@@ -6772,7 +6744,7 @@ void ActiveItemDraw(int x, int y, int alpha) {
 
     MenuTextureReload(ItemMenuWeaponIconReadBlock);
     int slot_x = x + 0xE;
-    int slot_y;
+    int slot_y = 0;
     DrawMenu2DSprite(CharaStatus, CRect_i_(slot_x, y + 1, 0xE0, 0x4F), CRect_i_(0, 0, 0xE0, 0x50), alpha);
     s16 *items = MenuItemPackPt->quick_item_slot;
     s16 *counts = MenuItemPackPt->quick_item_qty;
@@ -6800,17 +6772,17 @@ void ActiveItemDraw(int x, int y, int alpha) {
         case BATTLE_MENU_MODE_DUNGEON:
             DngActiveItemTextureCopy();
             break;
+        default:
+            break;
     }
 }
 
+namespace {
+
 /**
  * Steps and draws the party member's model on the item page.
- *
- * @mangled MenuCharaPolyDraw__Fv
- * @address 0x206AB0
- * @size 0x84
  */
-static void MenuCharaPolyDraw() {
+void MenuCharaPolyDraw() {
     SetNowCharaMotionNo(ItemMenuMode.chara);
     SetItemMenuColor(ItemMenuMode.chara);
     MenuCharaFrame.Step();
@@ -6823,11 +6795,13 @@ static void MenuCharaPolyDraw() {
     SetItemMenuOldAmbient();
 }
 
-void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
-    int draw_x;
-    int draw_y;
+} // namespace
 
-    if (CharaStatus != NULL) {
+void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
+    int draw_x = 0;
+    int draw_y = 0;
+
+    if (CharaStatus != nullptr) {
         MenuTextureReload(ItemMenuWeaponIconReadBlock);
         DrawMenu2DSprite(CharaStatus, CRect_i_(x, y + 1, 0xFC, 0x85), CRect_i_(0, 0x50, 0xFC, 0x86), alpha);
         int  level = BtlMenuStatusPt->defense[chara];
@@ -6862,7 +6836,7 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
             max_hp = 1;
         }
 
-        WEAPON_HAVE *weapon;
+        WEAPON_HAVE *weapon = nullptr;
         int          slot = status->equipped_weapon_slot[chara];
 
         if (slot < 0) {
@@ -6872,11 +6846,10 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
             weapon = &row[slot];
         }
 
-        float durability;
-        float durability_max;
-        durability_max = durability = 0.0f;
+        float durability = 0.0f;
+        float durability_max = durability = 0.0f;
 
-        if (weapon != NULL) {
+        if (weapon != nullptr) {
             durability = weapon->durability_f;
             durability_max = weapon->durability;
         }
@@ -6908,31 +6881,31 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
         DrawMenu2DSprite(CharaStatus, CRect_i_(draw_x, draw_y + 2, 0x18, 0x15), CRect_i_(0x166, 0x10, 0x18, 0x14), alpha);
         draw_x = x + 0x1F;
         draw_y = y + 0x47;
-        float hp_fill = (float) (hp_width * hp) / (float) max_hp;
+        float hp_fill = static_cast<float>(hp_width * hp) / static_cast<float>(max_hp);
         int   color = 0;
-        float low_hp = 0.3f * (float) max_hp;
+        float low_hp = 0.3f * static_cast<float>(max_hp);
 
-        if ((float) hp < low_hp) {
+        if (static_cast<float>(hp) < low_hp) {
             color++;
         }
 
-        if ((float) hp < 0.15f * (float) max_hp) {
+        if (static_cast<float>(hp) < 0.15f * static_cast<float>(max_hp)) {
             color++;
         }
 
         GRADATION_COLOR_INFO2 *info = GetGradationColorInfo2(color + 0x16);
-        GRADATION_COLOR_INFO2  gradation;
+        GRADATION_COLOR_INFO2  gradation{};
         memcpy(&gradation, info, sizeof(gradation));
         gradation.colors[3].a = alpha;
         gradation.colors[2].a = alpha;
         gradation.colors[1].a = alpha;
         gradation.colors[0].a = alpha;
-        DrawMenuColorGradation(CRect_i_(draw_x, draw_y - 1, (int) hp_fill, 6), &info->colors[0], &info->colors[1], &info->colors[2], &info->colors[3]);
+        DrawMenuColorGradation(CRect_i_(draw_x, draw_y - 1, static_cast<int>(hp_fill), 6), &info->colors[0], &info->colors[1], &info->colors[2], &info->colors[3]);
         int values[2] = {hp, max_hp};
         draw_x = x + 0x3C + hp_width;
         draw_y = y + 0x47;
         DrawStatusNumberNowAndMax(values, draw_x, draw_y, 1, alpha);
-        int motion;
+        int motion = 0;
         int now_motion = MenuCharaFrame.motion_no;
 
         if (hp_fill < low_hp) {
@@ -6947,8 +6920,8 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
 
         draw_x = x + 0x1F;
         draw_y = y + 0x56;
-        hp_fill = (float) durability_width * durability / durability_max;
-        int durability_color;
+        hp_fill = static_cast<float>(durability_width) * durability / durability_max;
+        int durability_color = 0;
 
         if (durability < 0.3f * durability_max) {
             durability_color = 0x1A;
@@ -6962,25 +6935,25 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
         gradation.colors[2].a = alpha;
         gradation.colors[1].a = alpha;
         gradation.colors[0].a = alpha;
-        DrawMenuColorGradation(CRect_i_(draw_x, draw_y, (int) hp_fill, 6), &gradation.colors[0], &gradation.colors[1], &gradation.colors[2], &gradation.colors[3]);
+        DrawMenuColorGradation(CRect_i_(draw_x, draw_y, static_cast<int>(hp_fill), 6), &gradation.colors[0], &gradation.colors[1], &gradation.colors[2], &gradation.colors[3]);
         draw_x = x + 0x3C + durability_width;
         draw_y = y + 0x57;
         values[0] = GetDispVolumeForFloat(durability);
-        values[1] = (int) durability_max;
+        values[1] = static_cast<int>(durability_max);
         DrawStatusNumberNowAndMax(values, draw_x, draw_y, 1, alpha);
         draw_x = x + 0x20;
         draw_y = y + 0x60;
-        int drops = (int) BtlMenuStatusPt->water_now[chara] / 10;
+        int drops = static_cast<int>(BtlMenuStatusPt->water_now[chara]) / 10;
 
         for (int i = 0; i < drops; i++) {
             DrawMenu2DSprite(CharaStatus, CRect_i_(draw_x, draw_y, 0x10, 0x14), CRect_i_(0x128, 0x2C, 0x10, 0x14), alpha);
             draw_x += 0x12;
         }
 
-        drops = (int) BtlMenuStatusPt->water_now[chara] % 10;
+        drops = static_cast<int>(BtlMenuStatusPt->water_now[chara]) % 10;
 
         if (drops != 0) {
-            DrawMenu2DSprite(CharaStatus, CRect_i_(draw_x, draw_y, 0x10, 0x14), CRect_i_(0x128 + (3 - (int) (drops / 2.5f)) * 0x10, 0x2C, 0x10, 0x14), alpha);
+            DrawMenu2DSprite(CharaStatus, CRect_i_(draw_x, draw_y, 0x10, 0x14), CRect_i_(0x128 + (3 - static_cast<int>(drops / 2.5f)) * 0x10, 0x2C, 0x10, 0x14), alpha);
         }
 
         draw_y = y - 0x14;
@@ -6988,8 +6961,8 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
         int tab = 0;
         int i = 0;
         int after = 0;
-        int tex_x;
-        int tex_y;
+        int tex_x = 0;
+        int tex_y = 0;
 
         for (; i <= party_size; i++) {
             if (tab == chara) {
@@ -7029,7 +7002,7 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
         RetCTex(item_no, tex_x, tex_y);
         CTexture *icon = TexManager.GetTexture("wepicon", -1);
 
-        if (icon != NULL && item_no >= ITEM_WEAPON_START) {
+        if (icon != nullptr && item_no >= ITEM_WEAPON_START) {
             MenuTextureReload(ItemMenuWeaponIconReadBlock);
             WEAPON_HAVE total;
             WeaponAllValueSet(weapon, &total, 0);
@@ -7058,7 +7031,7 @@ void ItemNaviCursor(int item_no) {
     s8         shown[3] = {0, 0, 0};
     ITEM_DATA *data = GetItemData(item_no);
 
-    if (data == NULL) {
+    if (data == nullptr) {
         return;
     }
 
@@ -7076,7 +7049,7 @@ void ItemNaviCursor(int item_no) {
 
             break;
         case ITEM_SORT_POWDER:
-            if ((u32) (item_no - ITEM_REPAIR_POWDER) < 2) {
+            if (static_cast<u32>(item_no - ITEM_REPAIR_POWDER) < 2) {
                 shown[2] = 1;
             }
 
@@ -7085,7 +7058,7 @@ void ItemNaviCursor(int item_no) {
                 int             chara = ItemMenuMode.chara;
                 CDngStatusData *status = BtlMenuStatusPt;
 
-                if ((float) status->hp[chara] <= 0.0f) {
+                if (static_cast<float>(status->hp[chara]) <= 0.0f) {
                     shown[0] = 1;
                 }
             }
@@ -7135,8 +7108,8 @@ void ItemNaviCursor(int item_no) {
 void CharaStatusMsgDraw(int x, int y, int chara, int per_member, int alpha) {
     static float statusCnt = -PI;
 
-    int bob_y = (int) ((float) y + 4.0f * sinf(statusCnt));
-    int condition;
+    int bob_y = static_cast<int>(static_cast<float>(y) + 4.0f * sinf(statusCnt));
+    int condition = 0;
     int icon = -1;
     condition = BtlMenuStatusPt->GetActiveCharaStatus(chara);
 
@@ -7170,7 +7143,7 @@ void CharaStatusMsgDraw(int x, int y, int chara, int per_member, int alpha) {
         DrawMenu2DSprite(BtStatus, CRect_i_(x, bob_y, 0x44, 0x23), CRect_i_(u, v, 0x44, 0x24), alpha);
     }
 
-    float period;
+    float period = 0.0f;
 
     if (per_member != 0) {
         float count = BtlMenuStatusPt->GetPartySize();
@@ -7186,14 +7159,12 @@ void CharaStatusMsgDraw(int x, int y, int chara, int per_member, int alpha) {
     }
 }
 
+namespace {
+
 /**
  * Runs the Atla page and returns to the menu bar when it closes.
- *
- * @mangled BattleMenuAtoraKey__Fv
- * @address 0x207DF0
- * @size 0xFC
  */
-static int BattleMenuAtoraKey() {
+int BattleMenuAtoraKey() {
     switch (BtlEffectFlag) {
         case BTLEFFECT_PAGE_OPEN:
             if (ToFromSelect(0) != 0) {
@@ -7218,6 +7189,7 @@ static int BattleMenuAtoraKey() {
                     BtlEffectCt = 0.0f;
                     break;
                 case ATORA_SELECT_NONE:
+                default:
                     break;
             }
 
@@ -7233,9 +7205,11 @@ static int BattleMenuAtoraKey() {
     return 1;
 }
 
-static int IsLoadMapNo();
+int IsLoadMapNo();
 
-static int MapNoTransFunc(int map_no);
+int MapNoTransFunc(int map_no);
+
+} // namespace
 
 s16           MenuGrobalMapNoTbl[16] = {0, 200, 1, 201, 14, 2, 202, 3, 42, 203, 23, 4, 204, 40, 205, 60};
 WORLD_MAP_POS TownOrDngPos[16] = {
@@ -7263,14 +7237,14 @@ char     *NextWorldPos;
 CFrame   *MapMoveCursor;
 CTexture *MenuMoveTex;
 
+namespace {
+
 /**
  * Starts reading one region's world map in the background.
- *
- * @mangled StartLoadWorldMap__FiP1
- * @address 0x209F80
- * @size 0xBC
  */
-static void StartLoadWorldMap(int region, u_long128 *buffer);
+void StartLoadWorldMap(int region, u_long128 *buffer);
+
+} // namespace
 
 void InitMenuMove(int mode, int texture_block, u_long128 *buffer) {
     BtlMenuSaveDataPt = SaveData;
@@ -7286,8 +7260,8 @@ void InitMenuMove(int mode, int texture_block, u_long128 *buffer) {
             CommonMenuMes3.rows = 3;
             CommonMenuMes3.auto_pos = MES_POS_NONE;
             SysCur[1] = MenuMove.cursor * 26 + 174;
-            MapMoveCursor = NULL;
-            MenuMoveTex = NULL;
+            MapMoveCursor = nullptr;
+            MenuMoveTex = nullptr;
             break;
         case MENU_MOVE_WORLD_MAP_DIRECT:
             BtlMenuStatusPt = BtlMenuSaveDataPt->GetDngStatus();
@@ -7295,7 +7269,7 @@ void InitMenuMove(int mode, int texture_block, u_long128 *buffer) {
             GamePad.MenuModeOn(0x78);
             GamePad.SetAutoRepeat(PAD_DPAD, 30, 5);
         case MENU_MOVE_WORLD_MAP:
-            if (((s32 *) SaveData->GetConfigData())[14] != 0 && SaveData->VisitMap(MenuGrobalMapNoTbl[WORLD_PLACE_FIELD_S30], 0) > 0) {
+            if ((static_cast<s32 *>(SaveData->GetConfigData()))[14] != 0 && SaveData->VisitMap(MenuGrobalMapNoTbl[WORLD_PLACE_FIELD_S30], 0) > 0) {
                 printf("clear!!!!\n");
 
                 if (SaveData->VisitMap(MenuGrobalMapNoTbl[WORLD_PLACE_DEMON_SHAFT] <= 0, 0) != 0) {
@@ -7303,7 +7277,7 @@ void InitMenuMove(int mode, int texture_block, u_long128 *buffer) {
                     printf("demon shaft On!!!!!\n");
                 }
             } else {
-                if (((s32 *) SaveData->GetConfigData())[14] == 0) {
+                if ((static_cast<s32 *>(SaveData->GetConfigData()))[14] == 0) {
                     printf("not clear \n");
                 }
 
@@ -7333,7 +7307,7 @@ void InitMenuMove(int mode, int texture_block, u_long128 *buffer) {
             MenuMove.ready = 0;
             CommonMenuMes3.Preset(MES_PRESET_NAME);
             CommonMenuMes3.rows = 1;
-            MapMoveCursor = NULL;
+            MapMoveCursor = nullptr;
             break;
         case MENU_MOVE_FIRST_DUNGEON:
             MenuMove.cursor = 1;
@@ -7341,6 +7315,8 @@ void InitMenuMove(int mode, int texture_block, u_long128 *buffer) {
             CommonMenuMes3.Preset(MES_PRESET_SYSTEM);
             CommonMenuMes3.rows = 3;
             SysCur[1] = MenuMove.cursor * 26 + 174;
+            break;
+        default:
             break;
     }
 
@@ -7363,7 +7339,7 @@ void GetTownOrDngPos() {
     for (int i = 0; i < 16; i++) {
         WORLD_MAP_POS *place = &TownOrDngPos[i];
 
-        if (place != NULL) {
+        if (place != nullptr) {
             if (GetVisitInfo(i, MenuMove.mode) == 0) {
                 place->visited = -1;
             } else {
@@ -7372,7 +7348,7 @@ void GetTownOrDngPos() {
 
             CFrame *frame = MenuCharaFrame.frame->SearchFrame(place->frame);
 
-            if (frame == NULL) {
+            if (frame == nullptr) {
                 printf("%d is NULL nothing\n", i);
             } else {
                 int screen[2];
@@ -7389,7 +7365,7 @@ int MenuMoveKey() {
     int decided = 0;
     int message = CommonMenuMes3.mes_made;
     int help = 0;
-    int done;
+    int done = 0;
 
     switch (MenuMove.state) {
         case MENU_MOVE_STATE_OPEN: {
@@ -7424,12 +7400,13 @@ int MenuMoveKey() {
                     }
 
                     break;
+                default:
+                    break;
             }
 
             if (done != 0 && MenuMove.counter > 0x14 && MenuMove.ready != 0 && ready != 0) {
                 switch (MenuMove.mode) {
                     case MENU_MOVE_WORLD_MAP_DIRECT:
-                        break;
                     default:
                         BattleMenuFlag = BTLMENU_STATE_MOVE;
                         break;
@@ -7446,6 +7423,8 @@ int MenuMoveKey() {
                     case MENU_MOVE_WORLD_MAP:
                         SysCur[0] = 328.0f;
                         SysCur[1] = 164.0f;
+                        break;
+                    default:
                         break;
                 }
             }
@@ -7474,8 +7453,8 @@ int MenuMoveKey() {
                         break;
                 }
 
-                for (int i = 0; i < 10; i++) {
-                    CommonMenuMes3.mes_no[i] = -1;
+                for (int &message : CommonMenuMes3.mes_no) {
+                    message = -1;
                 }
 
                 for (int i = 0; i < 4; i++) {
@@ -7582,9 +7561,9 @@ int MenuMoveKey() {
                                             BtlMenuStatusPt->LostItem(ITEM_ESCAPE_POWDER);
                                             break;
                                         case ESCAPE_DNG_PAY: {
-                                            u16          money;
-                                            int          half;
-                                            CUserStatus *status = (CUserStatus *) BtlMenuStatusPt;
+                                            u16   money = 0;
+                                            int   half = 0;
+                                            auto *status = static_cast<CUserStatus *>(BtlMenuStatusPt);
                                             money = status->money;
                                             half = money >> 1;
 
@@ -7596,6 +7575,8 @@ int MenuMoveKey() {
 
                                             break;
                                         }
+                                        default:
+                                            break;
                                     }
 
                                     MenuMapJumpMode = 1;
@@ -7609,6 +7590,8 @@ int MenuMoveKey() {
                                     MenuMove.state = MENU_MOVE_STATE_INTERIOR_FADE;
                                     MenuMove.counter = 0;
                                     stay = 1;
+                                    break;
+                                default:
                                     break;
                             }
 
@@ -7632,6 +7615,8 @@ int MenuMoveKey() {
                             break;
                         case MENU_MOVE_INTERIOR_OUT:
                             message = 0x137;
+                            break;
+                        default:
                             break;
                     }
 
@@ -7706,6 +7691,8 @@ int MenuMoveKey() {
 
                     message = 0x138;
                     break;
+                default:
+                    break;
             }
 
             if (old_cursor != MenuMove.cursor) {
@@ -7725,6 +7712,8 @@ int MenuMoveKey() {
                         break;
                     case MENU_MOVE_INTERIOR_OUT:
                         SetInteriorOutFlag(0);
+                        break;
+                    default:
                         break;
                 }
 
@@ -7748,6 +7737,8 @@ int MenuMoveKey() {
             }
 
             break;
+        default:
+            break;
     }
 
     int names[16] = {0, 1, 2, 3, 4, 5, 6, 7, 13, 8, 9, 10, 11, 14, 12, 15};
@@ -7758,7 +7749,7 @@ int MenuMoveKey() {
         CommonMenuMes3.mes_made = -1;
     }
 
-    if ((u32) (help - 0x139) < 2 && CommonMenuMes2.mes_no[0] != name) {
+    if (static_cast<u32>(help - 0x139) < 2 && CommonMenuMes2.mes_no[0] != name) {
         CommonMenuMes2.mes_no[0] = name;
         GetMsgLengthMenu(&CommonMenuMes2, name);
         help = 0x13A;
@@ -7777,25 +7768,23 @@ int MenuMoveKey() {
     return stay;
 }
 
-void DrawMenuMove();
-
 void DrawEscapeItem(int x, int y, int alpha) {
     float widths[7] = {8.6f, 9.0f, 9.0f, 11.0f, 9.0f, 9.0f, 9.0f};
-    int u;
-    int v;
+    int   u = 0;
+    int   v = 0;
 
     float height = 1.0f;
     MenuHelpWinDraw(x, y, widths[BtlMenuNowLang], height, alpha);
     int row_y = y + 0x10;
     MenuTextureReload(BtlMenuReadBlock);
 
-    if (PerBoardTex == NULL) {
+    if (PerBoardTex == nullptr) {
         PerBoardTex = TexManager.GetTexture("perbrd", -1);
     }
 
-    int money = ((CUserStatus *) BtlMenuStatusPt)->money;
+    int money = static_cast<CUserStatus *>(BtlMenuStatusPt)->money;
     CommonMoneyBoardDraw(x, y - 0x1E, money, alpha);
-    s8 shift[7] = {0, 0, 0, 34, 0, 0, 0};
+    s8        shift[7] = {0, 0, 0, 34, 0, 0, 0};
     int       count = GetNowItemNum(ITEM_ESCAPE_POWDER, MenuItemPackPt);
     CTexture *icon = RetCTex(0xAF, u, v);
     DrawMenu2DSprite(icon, CRect_i_(x + 0x14, row_y, 0x20, 0x20), CRect_i_(u, v, 0x20, 0x20), alpha);
@@ -7824,53 +7813,53 @@ void DrawEscapeItem(int x, int y, int alpha) {
     DrawMenuClsMes(&CommonMenuMes1, x + 0x38, row_y - 0x10);
 }
 
+namespace {
+
 /**
  * Appends the world map archive name of a region to a path.
  */
-inline void AddWorldMapFileName(char *path, int region) {
-    char *files[6] = {"matatagi.pac", "queen.pac", "musuka.pac", "moon.pac", "dark.pac", "lastdng.pac"};
+void AddWorldMapFileName(std::string &path, int region) {
+    constexpr std::array<std::string_view, 6> files = {"matatagi.pac", "queen.pac", "musuka.pac", "moon.pac", "dark.pac", "lastdng.pac"};
 
-    strcat(path, files[region]);
+    path += files[region];
 }
 
-static void StartLoadWorldMap(int region, u_long128 *buffer) {
-    char path[64];
-    int  size;
+void StartLoadWorldMap(int region, u_long128 *buffer) {
+    std::array<char, 64> lang_path{};
+    int                  size = 0;
 
     if (region < 0 || region > 5) {
         return;
     }
 
-    GetPathReadDifferntLang(path);
-    strcat(path, "map/");
+    GetPathReadDifferntLang(lang_path.data());
+    std::string path = std::string(lang_path.data()) + "map/";
     AddWorldMapFileName(path, region);
     StartReadBG();
-    LoadFileBG(path, buffer, &size);
+    LoadFileBG(path.data(), buffer, &size);
 }
+
+} // namespace
 
 int LoadWorldMap() {
     if (ReadBGSync() == 0) {
-        BG_READ_INFO *file = GetReadBGFile(0);
-        char          img_format[32] = "w_map_1%d.img";
-        char          cfg_format[32] = "w_map1%d.cfg";
-        char          img[32];
-        char          cfg[32];
-        sprintf(img, img_format, MenuMove.load_map + 1);
-        sprintf(cfg, cfg_format, MenuMove.load_map + 1);
+        BG_READ_INFO     *file = GetReadBGFile(0);
+        std::string       img = std::format("w_map_1{}.img", MenuMove.load_map + 1);
+        std::string       cfg = std::format("w_map1{}.cfg", MenuMove.load_map + 1);
         LOADTEXTURE_INFO2 textures[5] = {
             {"#frame_imagemove#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-            {NULL,                                           0, 0},
-            {NULL,                                           0, 0},
-            {NULL,                                           0, 0},
-            {NULL,                                           0, 0}
+            {nullptr,                                        0, 0},
+            {nullptr,                                        0, 0},
+            {nullptr,                                        0, 0},
+            {nullptr,                                        0, 0}
         };
         textures[0].block_no = MenuMove.tex_block;
         textures[1].block_no = MenuMove.tex_block;
         textures[2].block_no = MenuMove.tex_block;
         textures[3].block_no = MenuMove.tex_block;
-        textures[1].name = (char *) GetPackFile((u_int *) file->buffer, "w_map_02.img", NULL);
-        textures[2].name = (char *) GetPackFile((u_int *) file->buffer, img, NULL);
-        textures[3].name = (char *) GetPackFile((u_int *) file->buffer, "menumove.img", NULL);
+        textures[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "w_map_02.img", nullptr));
+        textures[2].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), img.data(), nullptr));
+        textures[3].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "menumove.img", nullptr));
         TexManager.DeleteTextureBlock(MenuMove.tex_block);
         int blocks[2] = {0, -1};
         blocks[0] = MenuMove.tex_block;
@@ -7881,15 +7870,15 @@ int LoadWorldMap() {
         MenuMoveTex = TexManager.GetTexture("menumove", -1);
 
         if (MenuMove.mode == MENU_MOVE_WORLD_MAP_DIRECT) {
-            InitMenuMesSet(MENU_MES_SET_WORLD_MAP, (short *) GetPackFile((u_int *) file->buffer, "allmenu.mes", NULL));
+            InitMenuMesSet(MENU_MES_SET_WORLD_MAP, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "allmenu.mes", nullptr)));
         }
 
         u_long128 *model = file->buffer + ((((file->size >> 6) + 1) << 6) >> 4);
         MenuCharaFrame.Initialize();
-        MenuExCashBuffer.base = (u_char *) model;
+        MenuExCashBuffer.base = reinterpret_cast<u_char *>(model);
         MenuExCashBuffer.limit = 0xCF80;
         MenuExCashBuffer.used = 0;
-        MenuCharaFrame.LoadPackData((u_int *) file->buffer, cfg, &MenuExCashBuffer, &MenuExCashBuffer, NULL);
+        MenuCharaFrame.LoadPackData(reinterpret_cast<u_int *>(file->buffer), cfg.data(), &MenuExCashBuffer, &MenuExCashBuffer, nullptr);
         mapo[2] = 0.0f;
         mapo[1] = 0.0f;
         mapo[0] = 0.0f;
@@ -7905,14 +7894,12 @@ int LoadWorldMap() {
     return 0;
 }
 
+namespace {
+
 /**
  * Steps and draws the party's marker over the world map.
- *
- * @mangled LocalDrawWorldMap__Fv
- * @address 0x20A370
- * @size 0x6C
  */
-static void LocalDrawWorldMap() {
+void LocalDrawWorldMap() {
     MenuCharaFrame.SetScale(2.2f, 2.2f, 2.2f);
     MenuCharaFrame.SetPosition(mapo);
     MenuCharaFrame.Step();
@@ -7921,18 +7908,16 @@ static void LocalDrawWorldMap() {
 
 /**
  * Draws the world map with the party's marker over it.
- *
- * @mangled DrawWorldMap__Fi
- * @address 0x20A3E0
- * @size 0x48
  */
-static void DrawWorldMap(int alpha) {
+void DrawWorldMap(int alpha) {
     MenuTextureReload(MenuMove.tex_block);
     MenuPolygonDraw(alpha, LocalDrawWorldMap);
 }
 
+} // namespace
+
 void MenuDataSwap(MAP_JUMP_COMPARE *first, MAP_JUMP_COMPARE *second) {
-    MAP_JUMP_COMPARE saved;
+    MAP_JUMP_COMPARE saved{};
 
     memcpy(&saved, first, sizeof(MAP_JUMP_COMPARE));
     memcpy(first, second, sizeof(MAP_JUMP_COMPARE));
@@ -7944,10 +7929,10 @@ int GetNearWorldPos(int direction, int *position) {
         return -1;
     }
 
-    int            up;
-    int            down;
-    int            right;
-    int            left;
+    int            up = 0;
+    int            down = 0;
+    int            right = 0;
+    int            left = 0;
     WORLD_MAP_POS *from = &TownOrDngPos[MenuMove.cursor];
     float          dx = 0.0f;
     float          dy = dx;
@@ -8035,26 +8020,22 @@ int GetNearWorldPos(int direction, int *position) {
     int nearest = -1;
     int nearest_sq = 600000;
 
-    for (int i = 0; i < 16; i++) {
-        MAP_JUMP_COMPARE *place = &places[i];
-
-        if (place->reachable > 0 && (!up || place->dy < 0) && (!down || place->dy > 0) && (!right || place->dx > 0) && (!left || place->dx < 0) && place->distance_sq < nearest_sq) {
-            nearest = place->index;
-            nearest_sq = place->distance_sq;
+    for (const MAP_JUMP_COMPARE &place : places) {
+        if (place.reachable > 0 && (!up || place.dy < 0) && (!down || place.dy > 0) && (!right || place.dx > 0) && (!left || place.dx < 0) && place.distance_sq < nearest_sq) {
+            nearest = place.index;
+            nearest_sq = place.distance_sq;
         }
     }
 
     return nearest;
 }
 
+namespace {
+
 /**
  * Moves the world-map cursor to the place nearest the direction pressed.
- *
- * @mangled WorldMapMoveKey__Fv
- * @address 0x20A860
- * @size 0x148
  */
-static int WorldMapMoveKey() {
+int WorldMapMoveKey() {
     int position[2];
 
     position[0] = SysCur[0];
@@ -8090,12 +8071,10 @@ static int WorldMapMoveKey() {
     return 1;
 }
 
+} // namespace
+
 /**
  * Marks every world-map place the party has already reached.
- *
- * @mangled DrawMapCheck__Fi
- * @address 0x20A9B0
- * @size 0x150
  */
 void DrawMapCheck(int alpha) {
     CRect_i_ dst(0, 0, 0x10, 0xF);
@@ -8104,10 +8083,10 @@ void DrawMapCheck(int alpha) {
     for (int i = 0; i < 16; i++) {
         WORLD_MAP_POS *place = &TownOrDngPos[i];
 
-        if (place->frame != NULL && place->visited > 0) {
+        if (place->visited > 0) {
             CFrame *frame = MenuCharaFrame.frame->SearchFrame(place->frame);
 
-            if (frame != NULL) {
+            if (frame != nullptr) {
                 int pos[2];
 
                 Get3DPosTo2DPos(frame, pos);
@@ -8125,16 +8104,14 @@ void DrawMapCheck(int alpha) {
     }
 }
 
+namespace {
+
 /**
  * Gives how often a world-map place has been visited, or how far its dungeon has been cleared.
- *
- * @mangled GetVisitInfo__Fii
- * @address 0x20AB00
- * @size 0x164
  */
-static int GetVisitInfo(int place, int menu_mode) {
-    int visits;
-    int dungeon;
+int GetVisitInfo(int place, int menu_mode) {
+    int visits = 0;
+    int dungeon = 0;
     int map_no = MenuGrobalMapNoTbl[place];
 
     if (map_no >= 200) {
@@ -8170,6 +8147,8 @@ static int GetVisitInfo(int place, int menu_mode) {
                 }
 
                 break;
+            default:
+                break;
         }
     } else {
         visits = BtlMenuSaveDataPt->QuestDungeon(map_no, 0);
@@ -8180,12 +8159,8 @@ static int GetVisitInfo(int place, int menu_mode) {
 
 /**
  * Gives the region whose world map should be read for the party's position.
- *
- * @mangled IsLoadMapNo__Fv
- * @address 0x20AC70
- * @size 0x110
  */
-static int IsLoadMapNo() {
+int IsLoadMapNo() {
     int region = -1;
     s8  map_region[80] = {
         0,
@@ -8271,13 +8246,9 @@ static int IsLoadMapNo() {
 
 /**
  * Turns a map number into the world-map place that stands for it.
- *
- * @mangled MapNoTransFunc__Fi
- * @address 0x20AD80
- * @size 0xD8
  */
-static int MapNoTransFunc(int map_no) {
-    int place;
+int MapNoTransFunc(int map_no) {
+    int place = 0;
 
     if (map_no < 10) {
         s16 towns[5] = {WORLD_PLACE_NORUNE, WORLD_PLACE_MATATAKI, WORLD_PLACE_QUEENS, WORLD_PLACE_MUSKA_LACKA, WORLD_PLACE_YELLOW_DROPS};
@@ -8352,12 +8323,8 @@ static int MapNoTransFunc(int map_no) {
 
 /**
  * Runs the options page and returns to the menu bar when it closes.
- *
- * @mangled BattleMenuOptionKey__Fv
- * @address 0x20AE60
- * @size 0x108
  */
-static void BattleMenuOptionKey() {
+void BattleMenuOptionKey() {
     int transition_done = 0;
 
     switch (BtlEffectFlag) {
@@ -8372,6 +8339,8 @@ static void BattleMenuOptionKey() {
             break;
         case BTLEFFECT_PAGE_CLOSE:
             transition_done = ToFromSelect(1);
+            break;
+        default:
             break;
     }
 
@@ -8397,12 +8366,8 @@ static void BattleMenuOptionKey() {
 
 /**
  * Runs the save page and returns to the menu bar when it closes.
- *
- * @mangled BattleMenuSaveKey__Fv
- * @address 0x20AF70
- * @size 0xF4
  */
-static void BattleMenuSaveKey() {
+void BattleMenuSaveKey() {
     int transition_done = 0;
 
     switch (BtlEffectFlag) {
@@ -8417,6 +8382,8 @@ static void BattleMenuSaveKey() {
             break;
         case BTLEFFECT_PAGE_CLOSE:
             transition_done = ToFromSelect(1);
+            break;
+        default:
             break;
     }
 
@@ -8441,6 +8408,8 @@ static void BattleMenuSaveKey() {
     }
 }
 
+} // namespace
+
 void BattleManualInit(int *result, u_long128 *load_buffer) {
     InitMenuManual(result, load_buffer);
 }
@@ -8460,6 +8429,8 @@ int BattleManualKey() {
             break;
         case BTLEFFECT_PAGE_CLOSE:
             transition_done = ToFromSelect(1);
+            break;
+        default:
             break;
     }
 
@@ -8486,18 +8457,16 @@ int BattleManualKey() {
     return 0;
 }
 
-static void BattleManualDraw() {
+namespace {
+
+void BattleManualDraw() {
     MenuManualDraw();
 }
 
 /**
  * Draws a current-over-maximum pair, reddening it as the value runs low.
- *
- * @mangled DrawStatusNumberNowAndMax__FPiiiii
- * @address 0x20B1B0
- * @size 0x128
  */
-static void DrawStatusNumberNowAndMax(int *values, int x, int y, int color, int alpha) {
+void DrawStatusNumberNowAndMax(int *values, int x, int y, int color, int alpha) {
     RECT digits = NumberSprite[0];
 
     if (values[0] < 0.3f * values[1]) {
@@ -8509,12 +8478,14 @@ static void DrawStatusNumberNowAndMax(int *values, int x, int y, int color, int 
     DrawMenuNumber(values[0], end - 11, y, StayTex, digits, color, alpha);
 }
 
+} // namespace
+
 void DrawWepHole(int x, int y, WEAPON_HAVE *weapon, int selected, int alpha) {
     if (x < 10 || x > 620) {
         return;
     }
 
-    if (weapon == NULL) {
+    if (weapon == nullptr) {
         return;
     }
 
@@ -8547,7 +8518,7 @@ void DrawWepHole(int x, int y, WEAPON_HAVE *weapon, int selected, int alpha) {
 
         CRect_i_ src(0xD4, src_y, 0x2A, 0x2A);
         DrawMenu2DSprite(WepStatus, CRect_i_(x + 1, y + 2, 0x2A, 0x29), src, 0, 0, 0, alpha * 80 >> 7);
-        u8 *color;
+        u8 *color = nullptr;
 
         if (data->hole[i] == 2) {
             color = colors[1];
@@ -8601,12 +8572,12 @@ void MenuClsMes::SetBuffInfo(short *buffer) {
     mes->mes_made = -1;
     mes->edge_alpha = 0x80;
 
-    for (int i = 0; i < 10; i++) {
-        mes->mes_no[i] = -1;
+    for (int &message : mes->mes_no) {
+        message = -1;
     }
 
-    for (int i = 0; i < 8; i++) {
-        mes->values[i] = 0;
+    for (int &value : mes->values) {
+        value = 0;
     }
 
     mes->value = 0;
@@ -8619,9 +8590,9 @@ void MenuClsMes::SetBuffInfo(short *buffer) {
     mes->cursor_y = 0;
     mes->cursor_lit = false;
 
-    for (int i = 0; i < 10; i++) {
-        mes->line_pos[i].x = -1;
-        mes->line_pos[i].y = -1;
+    for (auto &position : mes->line_pos) {
+        position.x = -1;
+        position.y = -1;
     }
 
     message->tex_buff = work_area;
@@ -8647,11 +8618,11 @@ void MenuClsMes::NowWeaponStatus(WEAPON_HAVE *selected_weapon) {
     option_flags = 1;
     option_count = 0;
 
-    if (selected_weapon != NULL) {
+    if (selected_weapon != nullptr) {
         option_flags = selected_weapon->flags;
 
-        for (int slot = 0; slot < 6; slot++) {
-            ATTACH_LIST *attachment = &weapon->attach[slot];
+        for (auto &slot : weapon->attach) {
+            ATTACH_LIST *attachment = &slot;
             s16          attachment_flags = attachment->sphere_flags;
 
             if (attachment_flags != 0 && attachment_flags != 1) {
@@ -8661,7 +8632,7 @@ void MenuClsMes::NowWeaponStatus(WEAPON_HAVE *selected_weapon) {
 
         option_flags = CheckWeaponOptionStatus(option_flags);
         option_count = 0;
-        int clear_slot;
+        int clear_slot = 0;
         int changed = 0;
 
         for (int bit = 1; bit <= 13; bit++) {
@@ -8692,7 +8663,7 @@ void MenuClsMes::NowWeaponStatus(WEAPON_HAVE *selected_weapon) {
 }
 
 void MenuClsMes::Step() {
-    if (message != NULL) {
+    if (message != nullptr) {
         switch (mode) {
             case MENU_CLSMES_OFF:
                 break;
@@ -8701,21 +8672,27 @@ void MenuClsMes::Step() {
                 NowWeaponStatus(GetNowSelectWeapon());
                 message->Step();
                 break;
+            default:
+                break;
         }
     }
 }
 
+namespace {
+
 /**
  * Shifts a message line's x left by five pixels for each of its characters.
  */
-static inline int MesLineX(int x, int len) {
+int MesLineX(int x, int len) {
     return x - len * 5;
 }
 
+} // namespace
+
 void MenuClsMes::Draw1(int x, int y, int draw_alpha) {
-    if (message != NULL && weapon != NULL) {
+    if (message != nullptr && weapon != nullptr) {
         int row_y = y;
-        int option;
+        int option = 0;
 
         switch (mode) {
             case MENU_CLSMES_OFF:
@@ -8771,7 +8748,7 @@ void MenuClsMes::Draw1(int x, int y, int draw_alpha) {
                 }
 
                 MenuTextureReload(message->tex_block);
-                x = (int) (x + 0xB);
+                x += 0xB;
                 row_y = y - option_count * 10;
 
                 for (option = 0; option < option_count; option++, row_y += left.height) {

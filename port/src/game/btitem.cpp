@@ -2,59 +2,74 @@
 
 #include <libvu0.h>
 
+#include <array>
+#include <cstddef>
+#include <format>
+#include <print>
+#include <string>
+
 #include "btactstatus.hpp"
 #include "btitem.hpp"
 #include "btmisc.hpp"
+#include "camerafollow.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
+#include "collision.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dispctrl.hpp"
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
-#include "frame.hpp"
-#include "framevu1.hpp"
-#include "gamepad.hpp"
-#include "menu_draw.hpp"
-#include "menu_dungeon.hpp"
-#include "menu_save.hpp"
-#include "nowload.hpp"
-#include "snd.hpp"
-#include "sysmes.hpp"
-#include "userstatus.hpp"
-
-/* Battle item handling: treasure boxes, pickups and thrown items. */
-
-#include <cstdio>
-#include <cstring>
-
-#include "btmisc.hpp"
-#include "camerafollow.hpp"
-#include "collision.hpp"
-#include "dispctrl.hpp"
 #include "dungeonmap.hpp"
 #include "dungeonparts.hpp"
 #include "edit.hpp"
 #include "editloop3.hpp"
+#include "frame.hpp"
+#include "framevu1.hpp"
+#include "gamepad.hpp"
 #include "mainitemmodel.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
+#include "menu_draw.hpp"
+#include "menu_dungeon.hpp"
+#include "menu_save.hpp"
 #include "monstorunit.hpp"
 #include "motionmodel.hpp"
+#include "nowload.hpp"
 #include "savedata.hpp"
+#include "snd.hpp"
+#include "sysmes.hpp"
 #include "texture.hpp"
+#include "userstatus.hpp"
 #include "vector.hpp"
 #include "weaponeffect.hpp"
 
-/** Weapon each party member is handed when first brought into the party. */
-static int defWeapon[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
+namespace {
 
+/**
+ * Weapon each party member is handed when first brought into the party.
+ */
+constexpr std::array<int, 6> defWeapon = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
+
+/**
+ * Character file of each party member, as selectChrUnit loads it.
+ */
 // clang-format off
-char *charaNameTbl[6] = {
+constexpr std::array<const char *, 6> charaNameTbl = {
     "dun/mainchara/c01d.chr", "dun/mainchara/c04b.chr", "dun/mainchara/c06b.chr",
     "dun/mainchara/c05a.chr", "dun/mainchara/c10b.chr", "dun/mainchara/c18a.chr",
 };
 // clang-format on
+
+char BtAtraShortEffectFile[] = "dun/effect/saget.chr";
+
+/**
+ * Empty name the model table gives the items that have no model of their own.
+ */
+constexpr char no_item_name[] = "";
+
+} // namespace
 
 int   BtGetTreasurebox_Sled;
 int   BtGetAtraBoll_Sled;
@@ -69,160 +84,95 @@ int   BtMiniChrSelecter_Sled;
 int   BtMiniChrSel_Type;
 int   BtMiniChrSelectNo;
 
-/**
- * Computes the quantity represented by an acquired attachment.
- */
-int createAttachVolume(int item_no, int dungeon);
-
 void selectChrUnit(int chara_no, int reload) {
-    char weapon0_name[64];
-    char weapon1_name[64];
-    char weapon2_name[64];
-    char path[64];
-    char effect_path[64];
-    int  size;
+    std::array<char, 64> weapon0_name{};
+    std::array<char, 64> weapon1_name{};
+    std::array<char, 64> weapon2_name{};
+    std::array<char, 64> unused_cfg_name{};
+    int                  size = 0;
 
-    printf("%d -> %d\n", UserStatus->cur_chara, chara_no);
+    std::println("{} -> {}", UserStatus->cur_chara, chara_no);
 
     if (chara_no == UserStatus->cur_chara && reload == 0) {
         return;
     }
 
     UserStatus->cur_chara = chara_no;
-    LoadFile(charaNameTbl[chara_no], read_buffer, &size);
+    LoadFile(const_cast<char *>(charaNameTbl[chara_no]), read_buffer, &size);
     wait_now_loading_vsync();
-    size = (u_int) (((size >> 6) + 1) << 6) >> 2;
+    size = static_cast<int>(static_cast<u_int>(((size >> 6) + 1) << 6) >> 2);
     u_int *weapon0 = &read_buffer[size];
-    int    default_weapon = defWeapon[chara_no];
-    BtGetWeaponNamePath3(weapon0_name, path, default_weapon);
-    BtGetWeaponNamePath3(weapon1_name, path, defWeapon[chara_no] + 1);
-    BtGetWeaponNamePath3(weapon2_name, path, UserStatus->chara_weapons[chara_no][UserStatus->equipped_weapon_slot[chara_no]].item_no);
-    sprintf(path, "commenu/weapon/%s", weapon0_name);
-    LoadFile(path, weapon0, &size);
-    u_int *weapon1 = &weapon0[(u_int) (((size >> 6) + 1) << 6) >> 2];
-    sprintf(path, "commenu/weapon/%s", weapon1_name);
-    LoadFile(path, weapon1, NULL);
-    u_int *weapon2 = &weapon1[(u_int) (((size >> 6) + 1) << 6) >> 2];
-    sprintf(path, "commenu/weapon/%s", weapon2_name);
-    LoadFile(path, weapon2, NULL);
+    BtGetWeaponNamePath3(weapon0_name.data(), unused_cfg_name.data(), defWeapon[chara_no]);
+    BtGetWeaponNamePath3(weapon1_name.data(), unused_cfg_name.data(), defWeapon[chara_no] + 1);
+    BtGetWeaponNamePath3(weapon2_name.data(), unused_cfg_name.data(), UserStatus->chara_weapons[chara_no][UserStatus->equipped_weapon_slot[chara_no]].item_no);
+    std::string path = std::format("commenu/weapon/{}", weapon0_name.data());
+    LoadFile(path.data(), weapon0, &size);
+    // Weapons 1 and 2 are both placed using weapon 0's size.
+    u_int *weapon1 = &weapon0[static_cast<u_int>(((size >> 6) + 1) << 6) >> 2];
+    path = std::format("commenu/weapon/{}", weapon1_name.data());
+    LoadFile(path.data(), weapon1, nullptr);
+    u_int *weapon2 = &weapon1[static_cast<u_int>(((size >> 6) + 1) << 6) >> 2];
+    path = std::format("commenu/weapon/{}", weapon2_name.data());
+    LoadFile(path.data(), weapon2, nullptr);
     wait_now_loading_vsync();
     LoadChara2(chara_no, 0, read_buffer, weapon0, weapon1, weapon2);
     SetWeaponAttachStatus(NowWeaponHave);
     BT_SHOT_EFFECT *effect = Get_Main_EffectPtr(chara_no, NowWeaponHave->best_elem);
-    sprintf(effect_path, "dun/mainchara/wep_eff/%s.chr", (char *) effect);
-    printf("[%d] %s\n", chara_no, effect_path);
-    LoadFile(effect_path, read_buffer, &size);
+    std::string     effect_path = std::format("dun/mainchara/wep_eff/{}.chr", static_cast<const char *>(effect->model_name));
+    std::println("[{}] {}", chara_no, effect_path);
+    LoadFile(effect_path.data(), read_buffer, &size);
     wait_now_loading_vsync();
-    printf("fsize = %d\n", size);
+    std::println("fsize = {}", size);
     MainChara_Effect(effect, read_buffer, 0);
     CWeaponFx.InitSet(NowWeapon->frame, "dcol0", "dcol1");
     SetWeaponColor();
     SndVoiceLoad(UserStatus->cur_chara);
-    unsigned int *buffer = read_buffer;
-    LoadFileMenuData("itemlst.img", buffer);
-    wait_now_loading_vsync();
-    SetTempTexture(0x28, (char *) read_buffer);
-    BtItemListCashFlag = 1;
+    LoadActiveItemIcon();
     nowUnitNow = UserStatus->cur_chara;
 
     if (UserStatus->CheckLife() == 0) {
-        CUserStatus *user = UserStatus;
-        int          cur_chara = user->cur_chara;
-        user->hp[cur_chara] = 1;
+        UserStatus->hp[UserStatus->cur_chara] = 1;
     }
 }
 
-/**
- * Loads the image used by the active item icons.
- *
- * @mangled LoadActiveItemIcon__Fv
- * @address 0x1D13A0
- * @size 0x4C
- */
 void LoadActiveItemIcon() {
-    unsigned int *buffer = read_buffer;
-    LoadFileMenuData("itemlst.img", buffer);
+    LoadFileMenuData("itemlst.img", read_buffer);
     wait_now_loading_vsync();
-    SetTempTexture(0x28, (char *) read_buffer);
+    SetTempTexture(0x28, reinterpret_cast<char *>(read_buffer));
     BtItemListCashFlag = 1;
 }
 
 /**
- * Opens the large treasure chest and starts its presentation.
- *
- * @mangled BtGetTreasureboxBig_Init__Fv
- * @address 0x1D13F0
- * @size 0x418
- */
-void BtGetTreasureboxBig_Init();
-
-/**
- * Runs the large treasure chest's presentation and reports when it ends.
- *
- * @mangled BtGetTreasureboxBig_Loop__Fv
- * @address 0x1D1810
- * @size 0x7A8
- */
-int BtGetTreasureboxBig_Loop();
-
-/**
- * Opens the small treasure chest and starts its presentation.
- *
- * @mangled BtGetTreasureboxSmall_Init__Fi
- * @address 0x1D1FC0
- * @size 0x4A0
- */
-void BtGetTreasureboxSmall_Init(int dungeon);
-
-/**
- * Runs the small treasure chest's presentation and reports when it ends.
- *
- * @mangled BtGetTreasureboxSmall_Loop__Fv
- * @address 0x1D2460
- * @size 0x690
- */
-int BtGetTreasureboxSmall_Loop();
-
-/**
  * Starts the short presentation for picking up an Atla.
- *
- * @mangled BtAtraGetShort_Init__Fv
- * @address 0x1D2AF0
- * @size 0x180
  */
 void BtAtraGetShort_Init() {
-    int size;
+    int  size = 0;
+    auto next_block = [] { return reinterpret_cast<u_int *>(&BtCashBuffer.base[static_cast<std::ptrdiff_t>(BtCashBuffer.used) * 16]); };
 
     atraShortGetType = 1;
-    BtCashBuffer.base = (u_char *) read_buffer;
+    BtCashBuffer.base = reinterpret_cast<u_char *>(read_buffer);
     BtCashBuffer.limit = 0x445C0;
     BtCashBuffer.used = 0;
     StartReadBG();
-    LoadFileBG(BtAtraShortCharaFile, (u_long128 *) (itemOpenItemChr = (u_int *) (BtCashBuffer.base + BtCashBuffer.used * 16)), &size);
+    itemOpenItemChr = next_block();
+    LoadFileBG(BtAtraShortCharaFile, reinterpret_cast<u_long128 *>(itemOpenItemChr), &size);
     BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    LoadFileBG(BtAtraShortEffectFile, (u_long128 *) (shortAtraEffectPtr = (u_int *) (BtCashBuffer.base + BtCashBuffer.used * 16)), &size);
+    shortAtraEffectPtr = next_block();
+    LoadFileBG(BtAtraShortEffectFile, reinterpret_cast<u_long128 *>(shortAtraEffectPtr), &size);
     BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    SndSPSeLoadBG(1, (u_int *) (BtCashBuffer.base + BtCashBuffer.used * 16), &size);
+    SndSPSeLoadBG(1, next_block(), &size);
     BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
     DngMessMan.enabled = false;
     ResetMovePower();
-    CUserStatus *status = UserStatus;
-    int          one = 1;
-    status->step_disable = one;
+    UserStatus->step_disable = 1;
     BtAtraGetNo = iventActive;
     iventActive = -1;
     BtGetAtraBoll_Sled = 0;
-    BtActStatus.in_presentation = one;
+    BtActStatus.in_presentation = 1;
 }
-
-char BtAtraShortEffectFile[] __attribute__((section(".rodata"))) = "dun/effect/saget.chr";
 
 /**
  * Runs the Atla pickup presentation and reports when it ends.
- *
- * @mangled BtAtraGetShort_Loop__Fii
- * @address 0x1D2C70
- * @size 0x61C
  */
 int BtAtraGetShort_Loop(int map_no, int floor) {
     sceVu0FVECTOR position;
@@ -231,9 +181,9 @@ int BtAtraGetShort_Loop(int map_no, int floor) {
     switch (BtGetAtraBoll_Sled) {
         case 0:
             if (SndSPSeSyncBG() == 0 && ReadBGSync() == 0) {
-                CharaMain.LoadPackData((u_int *) itemOpenItemChr, "base2.cfg", &BtCashBuffer, &BtCashBuffer);
+                CharaMain.LoadPackData(itemOpenItemChr, "base2.cfg", &BtCashBuffer, &BtCashBuffer);
                 BtActStatus.shadow_visible = false;
-                shortAtraEffect.LoadPackData2((u_int *) shortAtraEffectPtr, "info.cfg", &BtCashBuffer, 0x1C, &BtCashBuffer, 0);
+                shortAtraEffect.LoadPackData2(shortAtraEffectPtr, "info.cfg", &BtCashBuffer, 0x1C, &BtCashBuffer, 0);
                 SetMIniMapStatus(0);
                 iventInfo = DNG_EVENT_NONE;
                 atraGetStatus = 1;
@@ -249,8 +199,8 @@ int BtAtraGetShort_Loop(int map_no, int floor) {
                 shortAtraEffect.SetRotation(0.0f, 0.0f, 0.0f);
                 shortAtraEffect.SetMotion(0, 6);
                 atraGetStatusRate__2 = 0.0f;
-                CDngStatusData *status = (CDngStatusData *) UserStatus;
-                int             atra_id = status->atra_registry[map_no][NowDngMap->atra[index].atra_no].id;
+                auto *status = static_cast<CDngStatusData *>(UserStatus);
+                int   atra_id = status->atra_registry[map_no][NowDngMap->atra[index].atra_no].id;
                 BtAtraGetID = atra_id;
                 NowDngMap->atra[NowDngMap->events[BtAtraGetNo].index].used = 0;
                 NowDngMap->events[BtAtraGetNo].kind = DNG_EVENT_NONE;
@@ -341,18 +291,13 @@ int BtAtraGetShort_Loop(int map_no, int floor) {
             BtActStatus.in_presentation = 0;
             done = 1;
             break;
+        default:
+            break;
     }
 
     return done;
 }
 
-/**
- * Opens the small character-select window in the given selection mode.
- *
- * @mangled BtMiniChrSelect_Init__Fi
- * @address 0x1D3290
- * @size 0x40
- */
 void BtMiniChrSelect_Init(int type) {
     SetMIniMapStatus(0);
     DngMessMan.enabled = false;
@@ -362,10 +307,6 @@ void BtMiniChrSelect_Init(int type) {
 
 /**
  * Runs the small character-select window and reports the choice.
- *
- * @mangled BtMiniChrSelect_Loop__Fv
- * @address 0x1D32D0
- * @size 0x128
  */
 int BtMiniChrSelect_Loop() {
     static int frameWait;
@@ -389,8 +330,8 @@ int BtMiniChrSelect_Loop() {
         case 2: {
             frameCaputer = 0;
             driveStepHold = 0;
-            int blocks[2] = {0x128, 0xD8};
-            StartQuickChange((u_long128 *) read_buffer, 0x17, blocks, BtMiniChrSel_Type);
+            std::array<int, 2> blocks = {0x128, 0xD8};
+            StartQuickChange(reinterpret_cast<u_long128 *>(read_buffer), 0x17, blocks.data(), BtMiniChrSel_Type);
             BtGameModeFlag = BT_GAME_MODE_CHARA_CHANGE;
             BtMiniChrSelecter_Sled++;
             autoCamTrial();
@@ -404,6 +345,8 @@ int BtMiniChrSelect_Loop() {
             ResetStatusInfo();
             autoCamTrial();
             break;
+        default:
+            break;
     }
 
     return done;
@@ -415,46 +358,12 @@ int GateKey_Sled;
 int gateItemFlag;
 int escape_sled;
 
-/**
- * Opens the small item-select window.
- *
- * @mangled BtMiniItemSelect__Fv
- * @address 0x1D3400
- * @size 0x38
- */
 void BtMiniItemSelect() {
     SetMIniMapStatus(0);
     DngMessMan.enabled = false;
     BtMiniItemSelect_Sled = 0;
     driveStepHold = 1;
 }
-
-/**
- * Runs one frame of the small item-select window, and reports when it closes.
- *
- * @mangled BtMiniItemSelect_Loop__Fv
- * @address 0x1D3440
- * @size 0x118
- */
-int BtMiniItemSelect_Loop();
-
-/**
- * Starts the gate-key pickup presentation for the given item.
- *
- * @mangled BtGetGateKey_Init__Fi
- * @address 0x1D3560
- * @size 0x13C
- */
-void BtGetGateKey_Init(int item_no);
-
-/**
- * Runs the gate-key presentation and reports when it ends.
- *
- * @mangled BtGetGateKey_Loop__Fv
- * @address 0x1D36A0
- * @size 0x3D0
- */
-int BtGetGateKey_Loop();
 
 void BtGetAttach_Init(int dungeon, int item_no) {
     int volume = 0;
@@ -465,18 +374,11 @@ void BtGetAttach_Init(int dungeon, int item_no) {
 
     BtGetTreasureboxSmall_itemNo = item_no;
     BtGetTreasureboxSmall_itemVolume = volume;
-    ((CDngStatusData *) UserStatus)->GetItem(item_no, volume);
+    static_cast<CDngStatusData *>(UserStatus)->GetItem(item_no, volume);
     ClearSystemMes();
     ItemGetMes(BtGetTreasureboxSmall_itemNo, BtGetTreasureboxSmall_itemVolume, 0x78, 0);
 }
 
-/**
- * Runs one frame of the attachment pickup message, and reports when it ends.
- *
- * @mangled BtGetAttach_Loop__Fv
- * @address 0x1D3B00
- * @size 0xF0
- */
 int BtGetAttach_Loop() {
     int done = 0;
 
@@ -504,103 +406,57 @@ int BtGetAttach_Loop() {
             }
 
             break;
+        default:
+            break;
     }
 
     return done;
 }
 
 /**
- * Starts the presentation that carries the party off the floor.
- *
- * @mangled BtEscape_Init__Fv
- * @address 0x1D3BF0
- * @size 0x14C
- */
-void BtEscape_Init();
-
-/**
- * Runs the escape presentation and reports when it ends.
- *
- * @mangled BtEscape_Loop__Fv
- * @address 0x1D3D40
- * @size 0x18C
- */
-int BtEscape_Loop();
-
-/**
  * Builds the models of the items in the active slots.
- *
- * @mangled BtSetActiveItemModel__FPUi
- * @address 0x1D3ED0
- * @size 0x1B0
  */
 void BtSetActiveItemModel(u_int *buffer) {
-    u_int     *texture;
-    int        i;
-    int        size;
-    ITEM_PACK *pack;
-    int        item_no;
-    char       model_path[64];
-    char       texture_path[64];
-    int        model_size;
-    int        texture_size;
-    pack = &UserStatus->item_pack;
+    const ITEM_PACK &pack = UserStatus->item_pack;
 
-    for (i = 0; i < 3; i++) {
-        item_no = pack->quick_item_slot[i];
+    for (int slot = 0; slot < 3; slot++) {
+        int item_no = pack.quick_item_slot[slot];
 
         if (item_no == -1) {
             continue;
         }
 
-        BtGetItemNamePath(model_path, texture_path, item_no);
-        LoadFile(model_path, buffer, &model_size);
+        std::array<char, 64> model_path{};
+        std::array<char, 64> texture_path{};
+        int                  model_size = 0;
+        int                  texture_size = 0;
+        BtGetItemNamePath(model_path.data(), texture_path.data(), item_no);
+        LoadFile(model_path.data(), buffer, &model_size);
         wait_now_loading_vsync();
-        model_size = (u_int) (((model_size >> 6) + 1) << 6) >> 2;
-        LoadFile(texture_path, &buffer[model_size], &texture_size);
+        model_size = static_cast<int>(static_cast<u_int>(((model_size >> 6) + 1) << 6) >> 2);
+        u_int *texture = &buffer[model_size];
+        LoadFile(texture_path.data(), texture, &texture_size);
         wait_now_loading_vsync();
 
-        if (activeItem.model[i + 1] != -1) {
-            activeItem.models->DeleteModel(activeItem.model[i + 1]);
-            activeItem.model[i + 1] = -1;
+        if (activeItem.model[slot + 1] != -1) {
+            activeItem.models->DeleteModel(activeItem.model[slot + 1]);
+            activeItem.model[slot + 1] = -1;
         }
 
-        size = texture_size;
-        texture = &buffer[model_size];
-
-        if (activeItem.model[i + 1] != -1) {
-            activeItem.models->DeleteModel(activeItem.model[i + 1]);
-        }
-
-        activeItem.model[i + 1] = activeItem.models->SetCashModel(item_no, buffer, texture, size);
-        activeItem.model[i + 5] = 0;
-        activeItem.item[i + 1] = item_no;
+        activeItem.model[slot + 1] = activeItem.models->SetCashModel(item_no, buffer, texture, texture_size);
+        activeItem.model[slot + 5] = 0;
+        activeItem.item[slot + 1] = item_no;
     }
 }
 
-/**
- * Computes the velocity needed to move an object between two points in time.
- *
- * @mangled ParabolicInitialVector__FPfPfPfff
- * @address 0x1D4080
- * @size 0x7C
- */
 void ParabolicInitialVector(float *velocity, float *from, float *to, float gravity, float time) {
     velocity[0] = (to[0] - from[0]) / time;
     velocity[1] = (2.0f * (to[1] - from[1]) - time * (gravity * time)) / (2.0f * time);
     velocity[2] = (to[2] - from[2]) / time;
     velocity[3] = 1.0f;
-    float negative_one = -1.0f;
-    velocity[1] = velocity[1] * negative_one;
+    velocity[1] *= -1.0f;
 }
 
-/**
- * Builds the velocity of a shot fired at the given speed and angles.
- *
- * @mangled setShotVector__FPffff
- * @address 0x1D4100
- * @size 0x98
- */
 void setShotVector(float *velocity, float speed, float angle_y, float angle_x) {
     sceVu0FMATRIX rotation;
     sceVu0FMATRIX identity;
@@ -615,9 +471,7 @@ void setShotVector(float *velocity, float speed, float angle_y, float angle_x) {
     sceVu0ApplyMatrix(velocity, rotation, velocity);
 }
 
-char no_item_name[] __attribute__((section(".rodata"))) = "";
-
-char *ITEM_NAME_TBL_NEW[] = {
+const char *const ITEM_NAME_TBL_NEW[] = {
     "atfire",
     "atice",
     "atthunde",
@@ -813,10 +667,6 @@ void getCharacterVector(float *vector, float pitch) {
 
 /**
  * Advances a thrown item along its arc.
- *
- * @mangled ItemThrowStep__FPfPf
- * @address 0x1D4260
- * @size 0x2D4
  */
 int ItemThrowStep(float *position, float *velocity) {
     sceVu0FVECTOR next_position;
@@ -840,8 +690,8 @@ int ItemThrowStep(float *position, float *velocity) {
     }
 
     WorkBuffer__2->used = 0;
-    CCPoly *polys = (CCPoly *) WorkBuffer__2->Alloc(2000);
-    int     hit_poly = CheckHit(polys, setCollisionData(NowDngMap, polys, position, 20.0f, 1.5f), position, next_position, hit_point, 1, 4);
+    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+    int   hit_poly = CheckHit(polys, setCollisionData(NowDngMap, polys, position, 20.0f, 1.5f), position, next_position, hit_point, 1, 4);
 
     if (hit_poly >= 0) {
         sceVu0CopyVector(normal, polys[hit_poly].normal);

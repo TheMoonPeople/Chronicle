@@ -16,60 +16,91 @@ enum TreasureboxItemPose {
 /**
  * Base name of each item's model and texture files, beginning with attachments.
  */
-extern char *ITEM_NAME_TBL_NEW[];
+extern const char *const ITEM_NAME_TBL_NEW[];
 
-/** Character file of each party member, as selectChrUnit loads it. */
-extern char *charaNameTbl[6];
-
-/** Step the large-treasure-box presentation is on. */
+/**
+ * Step the large-treasure-box presentation is on.
+ */
 extern int BtGetTreasurebox_Sled;
 
-/** Step the atla-ball pickup presentation is on. */
+/**
+ * Step the atla-ball pickup presentation is on.
+ */
 extern int BtGetAtraBoll_Sled;
 
-/** Item the large-treasure-box presentation is showing. */
+/**
+ * Item the large-treasure-box presentation is showing.
+ */
 extern int TreasureboxBig_itemNo;
 
-/** Kind of the item the large-treasure-box presentation is showing. */
+/**
+ * Kind of the item the large-treasure-box presentation is showing.
+ */
 extern int TreasureboxBig_itemType;
 
-/** Scale the large-treasure-box presentation draws its item at. */
+/**
+ * Scale the large-treasure-box presentation draws its item at.
+ */
 extern float TreasureboxBig_itemScale;
 
-/** Item identifier shown by the small-treasure and attachment pickup flows. */
+/**
+ * Item identifier shown by the small-treasure and attachment pickup flows.
+ */
 extern int BtGetTreasureboxSmall_itemNo;
 
-/** Item quantity shown by the small-treasure and attachment pickup flows. */
+/**
+ * Item quantity shown by the small-treasure and attachment pickup flows.
+ */
 extern int BtGetTreasureboxSmall_itemVolume;
 
-/** Atla the atla-ball pickup presentation collected. */
+/**
+ * Atla the atla-ball pickup presentation collected.
+ */
 extern int BtAtraGetID;
 
-/** Map event the atla-ball pickup presentation was started from. */
+/**
+ * Map event the atla-ball pickup presentation was started from.
+ */
 extern int BtAtraGetNo;
 
-/** Step the small character-select window is on. */
+/**
+ * Step the small character-select window is on.
+ */
 extern int BtMiniChrSelecter_Sled;
 
-/** Selection mode the small character-select window was opened with. */
+/**
+ * Selection mode the small character-select window was opened with.
+ */
 extern int BtMiniChrSel_Type;
 
-/** Party member the small character-select window returned. */
+/**
+ * Party member the small character-select window returned.
+ */
 extern int BtMiniChrSelectNo;
 
-/** Step the small item-select window is on. */
+/**
+ * Step the small item-select window is on.
+ */
 extern int BtMiniItemSelect_Sled;
 
-/** Item the gate-key presentation is showing. */
+/**
+ * Item the gate-key presentation is showing.
+ */
 extern int GateKey_itemNo;
 
-/** Step the gate-key and attachment pickup presentations are on. */
+/**
+ * Step the gate-key and attachment pickup presentations are on.
+ */
 extern int GateKey_Sled;
 
-/** Marks that the party is holding a gate key. */
+/**
+ * Marks that the party is holding a gate key.
+ */
 extern int gateItemFlag;
 
-/** Step the escape presentation is on. */
+/**
+ * Step the escape presentation is on.
+ */
 extern int escape_sled;
 
 /**
@@ -177,16 +208,6 @@ void getCharacterVector(float *vector, float pitch);
 extern char BtAtraShortCharaFile[];
 
 /**
- * Effect file of the short Atlamillia presentation.
- */
-extern char BtAtraShortEffectFile[];
-
-/**
  * Effect configuration entry inside an effect pack, shared by the pickup and escape presentations.
  */
 extern char BtEffectInfoFile[];
-
-/**
- * Empty name the model table gives the items that have no model of their own.
- */
-extern char no_item_name[];

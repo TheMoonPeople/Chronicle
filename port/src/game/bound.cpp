@@ -1,10 +1,32 @@
 #include "stubs/bound.hpp"
+
 #include "bound.hpp"
-
 #include "frame.hpp"
-int CBound::InCheck(float *point, float *result) {
-    float length;
 
+namespace {
+
+// A non-positive extent keeps its previous reciprocal.
+void SetExtent(CBound &bound, float half_width, float half_height, float half_depth) {
+    bound.extent[0] = half_width;
+    bound.extent[1] = half_height;
+    bound.extent[2] = half_depth;
+
+    if (!(bound.extent[0] <= 0.0f)) {
+        bound.reciprocal[0] = 1.0f / half_width;
+    }
+
+    if (!(bound.extent[1] <= 0.0f)) {
+        bound.reciprocal[1] = 1.0f / half_height;
+    }
+
+    if (!(bound.extent[2] <= 0.0f)) {
+        bound.reciprocal[2] = 1.0f / half_depth;
+    }
+}
+
+} // namespace
+
+int CBound::InCheck(float *point, float *result) {
     result[0] = point[0] - position[0];
     result[1] = point[1] - position[1];
     result[2] = point[2] - position[2];
@@ -38,7 +60,7 @@ int CBound::InCheck(float *point, float *result) {
     result[0] = result[0] * reciprocal[0];
     result[1] = result[1] * reciprocal[1];
     result[2] = result[2] * reciprocal[2];
-    length = vuabs(result);
+    float length = vuabs(result);
 
     if (length < 1.0f) {
         if (length == 0.0f) {
@@ -64,29 +86,11 @@ int CBound::InCheck(float *point, float *result) {
 }
 
 void CBound::SetDir(CFrame *frame, float *from_position, float *to_position, float *up_direction, float half_width, float half_height) {
-    follow_mode = BOUND_FOLLOW_FRAME;
+    follow_mode = BoundFollowMode::Frame;
     from_frame = frame;
-    to_frame = NULL;
+    to_frame = nullptr;
     ChangeDir(from_position, to_position, up_direction);
-
-    // The depth is whatever the box already had; only the two across the
-    // span are given here.
-    float half_depth = extent[2];
-    extent[0] = half_width;
-    extent[1] = half_height;
-    extent[2] = half_depth;
-
-    if (!(extent[0] <= 0.0f)) {
-        reciprocal[0] = 1.0f / half_width;
-    }
-
-    if (!(extent[1] <= 0.0f)) {
-        reciprocal[1] = 1.0f / half_height;
-    }
-
-    if (!(extent[2] <= 0.0f)) {
-        reciprocal[2] = 1.0f / half_depth;
-    }
+    SetExtent(*this, half_width, half_height, extent[2]);
 }
 
 void CBound::ChangeDir(float *from_position, float *to_position, float *up_direction) {
@@ -102,7 +106,7 @@ void CBound::UpDateDir() {
     sceVu0FVECTOR world_up;
     sceVu0FMATRIX frame_matrix;
 
-    if (from_frame != NULL) {
+    if (from_frame != nullptr) {
         from_frame->GetLWMatrix(frame_matrix);
         sceVu0ApplyMatrix(world_from, frame_matrix, from);
         sceVu0ApplyMatrix(world_to, frame_matrix, to);
@@ -121,28 +125,7 @@ void CBound::UpDateDir() {
     }
 
     SetDir(span, world_up);
-    float half_width;
-    float half_height;
-    float half_depth;
-
-    half_depth = extent[2];
-    half_height = extent[1];
-    half_width = extent[0];
-    extent[0] = half_width;
-    extent[1] = half_height;
-    extent[2] = half_depth;
-
-    if (!(extent[0] <= 0.0f)) {
-        reciprocal[0] = 1.0f / half_width;
-    }
-
-    if (!(extent[1] <= 0.0f)) {
-        reciprocal[1] = 1.0f / half_height;
-    }
-
-    if (!(extent[2] <= 0.0f)) {
-        reciprocal[2] = 1.0f / half_depth;
-    }
+    SetExtent(*this, extent[0], extent[1], extent[2]);
 }
 
 void CBound::SetDir(float *direction, float *up_direction) {
@@ -161,11 +144,9 @@ void CBound::SetDir(float *new_direction) {
     direction[1] = saved_y;
 
     float horizontal_sine = 0.0f;
-    float horizontal_cosine;
+    float horizontal_cosine = 1.0f;
 
-    if (horizontal_length == 0.0f) {
-        horizontal_cosine = 1.0f;
-    } else {
+    if (horizontal_length != 0.0f) {
         horizontal_cosine = direction[2] / horizontal_length;
         horizontal_sine = -direction[0] / horizontal_length;
     }
@@ -201,7 +182,7 @@ void CBound::UpDateDirPos() {
     sceVu0FVECTOR end_extension;
     sceVu0FVECTOR start_extension;
 
-    if (from_frame != NULL) {
+    if (from_frame != nullptr) {
         from[3] = 1.0f;
         from_frame->GetLWMatrix(frame_matrix);
         sceVu0ApplyMatrix(world_from, frame_matrix, from);
@@ -209,7 +190,7 @@ void CBound::UpDateDirPos() {
         sceVu0CopyVector(world_from, from);
     }
 
-    if (to_frame != NULL) {
+    if (to_frame != nullptr) {
         to[3] = 1.0f;
         to_frame->GetLWMatrix(frame_matrix);
         sceVu0ApplyMatrix(world_to, frame_matrix, to);
@@ -227,43 +208,23 @@ void CBound::UpDateDirPos() {
     sceVu0SubVector(world_from, world_from, start_extension);
     sceVu0SubVector(span, world_to, world_from);
 
-    float half_width;
-    float half_height;
-    float half_depth;
-
-    half_depth = extent[2];
-    half_height = extent[1];
-    half_width = extent[0];
-    extent[0] = half_width;
-    extent[1] = half_height;
-    extent[2] = half_depth;
-
-    if (!(extent[0] <= 0.0f)) {
-        reciprocal[0] = 1.0f / half_width;
-    }
-
-    if (!(extent[1] <= 0.0f)) {
-        reciprocal[1] = 1.0f / half_height;
-    }
-
-    if (!(extent[2] <= 0.0f)) {
-        reciprocal[2] = 1.0f / half_depth;
-    }
-
+    SetExtent(*this, extent[0], extent[1], extent[2]);
     SetDir(span);
 }
 
 void CBound::UpDate() {
     switch (follow_mode) {
-        case BOUND_FOLLOW_FRAME:
+        case BoundFollowMode::None:
+            break;
+        case BoundFollowMode::Frame:
             UpDateDir();
             break;
-        case BOUND_FOLLOW_SPAN:
+        case BoundFollowMode::Span:
             UpDateDirPos();
             break;
     }
 
-    if (next) {
+    if (next != nullptr) {
         next->UpDate();
     }
 }
@@ -273,10 +234,10 @@ void CBound::InitParam() {
     position[1] = 0.0f;
     position[2] = 0.0f;
     position[3] = 1.0f;
-    next = 0;
+    next = nullptr;
     mask_bit = 0;
     friction = 0.5f;
-    from_frame = to_frame = 0;
+    from_frame = to_frame = nullptr;
     sceVu0CopyVector(from, position);
     sceVu0CopyVector(to, position);
     to_stretch = from_stretch = 1.0f;
@@ -284,21 +245,7 @@ void CBound::InitParam() {
 
 CBound::CBound(float half_width, float half_height, float half_depth) {
     InitParam();
-    extent[0] = half_width;
-    extent[1] = half_height;
-    extent[2] = half_depth;
-
-    if (!(extent[0] <= 0.0f)) {
-        reciprocal[0] = 1.0f / half_width;
-    }
-
-    if (!(extent[1] <= 0.0f)) {
-        reciprocal[1] = 1.0f / half_height;
-    }
-
-    if (!(extent[2] <= 0.0f)) {
-        reciprocal[2] = 1.0f / half_depth;
-    }
+    SetExtent(*this, half_width, half_height, half_depth);
 
     sceVu0FVECTOR forward = {0.0f, 0.0f, 1.0f, 0.0f};
     SetDir(forward);

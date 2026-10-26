@@ -1,5 +1,6 @@
 #include "battle_globals.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -7,6 +8,7 @@
 #include "clsmes.hpp"
 #include "dataread.hpp"
 #include "gamepad.hpp"
+#include "gameutil.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
@@ -14,6 +16,7 @@
 #include "rect.hpp"
 #include "runscript.hpp"
 #include "savedata.hpp"
+#include "snd.hpp"
 #include "texture.hpp"
 
 /**
@@ -33,12 +36,12 @@ enum NameInputMode {
  * Parts of the name-entry screen the cursor can be in, as NAME_SELECT::area holds them.
  */
 // clang-format off
-enum NameSelectArea {
-    NAME_AREA_KEYBOARD     = 4, /**< The keyboard's keys and voicing column. */
-    NAME_AREA_TABS         = 5, /**< The tabs above the keyboard. */
-    NAME_AREA_HELP         = 6, /**< The help message. */
-    NAME_AREA_CONFIRM      = 7, /**< The prompt confirming the name. */
-    NAME_AREA_EMPTY_NOTICE = 8, /**< The notice that an empty name became the default name. */
+enum class NameSelectArea : s16 {
+    Keyboard    = 4, /**< The keyboard's keys and voicing column. */
+    Tabs        = 5, /**< The tabs above the keyboard. */
+    Help        = 6, /**< The help message. */
+    Confirm     = 7, /**< The prompt confirming the name. */
+    EmptyNotice = 8, /**< The notice that an empty name became the default name. */
 };
 
 // clang-format on
@@ -47,13 +50,13 @@ enum NameSelectArea {
  * What the name-entry screen is doing, as NAME_SELECT::state holds it.
  */
 // clang-format off
-enum NameSelectState {
-    NAME_STATE_IDLE      = 0, /**< Taking input. */
-    NAME_STATE_FADE_IN   = 1, /**< Fading in. */
-    NAME_STATE_FADE_OUT  = 2, /**< Fading out. */
-    NAME_STATE_EXIT      = 3, /**< Closing. */
-    NAME_STATE_TAB_FLASH = 6, /**< Flashing the tab that was pressed. */
-    NAME_STATE_HELP      = 8, /**< Showing the help message. */
+enum class NameSelectState : s16 {
+    Idle     = 0, /**< Taking input. */
+    FadeIn   = 1, /**< Fading in. */
+    FadeOut  = 2, /**< Fading out. */
+    Exit     = 3, /**< Closing. */
+    TabFlash = 6, /**< Flashing the tab that was pressed. */
+    Help     = 8, /**< Showing the help message. */
 };
 
 // clang-format on
@@ -82,21 +85,49 @@ enum NameSelectTab {
  * Actions the name-entry screen's input asks for in one frame.
  */
 // clang-format off
-enum NameEnterAction {
-    NAME_ACTION_NONE           = -1,  /**< Nothing. */
-    NAME_ACTION_DECIDE         = 49,  /**< Checks the name and asks to confirm it. */
-    NAME_ACTION_FINISH         = 50,  /**< Accepts the name and fades out. */
-    NAME_ACTION_INPUT          = 100, /**< Enters the key under the cursor. */
-    NAME_ACTION_DELETE         = 200, /**< Deletes the character under the name's cursor. */
-    NAME_ACTION_BACKSPACE      = 250, /**< Blanks the character before the name's cursor. */
-    NAME_ACTION_INSERT         = 300, /**< Inserts a space under the name's cursor. */
-    NAME_ACTION_NEXT_MODE      = 400, /**< Shows the next keyboard. */
-    NAME_ACTION_PREV_MODE      = 450, /**< Shows the previous keyboard. */
-    NAME_ACTION_LEFT           = 500, /**< Moves the name's cursor left. */
-    NAME_ACTION_RIGHT          = 600, /**< Moves the name's cursor right. */
-    NAME_ACTION_DEFAULT_NAME   = 700, /**< Restores the default name. */
-    NAME_ACTION_HELP           = 800, /**< Shows the help message. */
-    NAME_ACTION_TOGGLE_VOICING = 900, /**< Toggles the voicing or case of the character under the name's cursor; never requested. */
+enum class NameEnterAction : s32 {
+    None          = -1,  /**< Nothing. */
+    Decide        = 49,  /**< Checks the name and asks to confirm it. */
+    Finish        = 50,  /**< Accepts the name and fades out. */
+    Input         = 100, /**< Enters the key under the cursor. */
+    Delete        = 200, /**< Deletes the character under the name's cursor. */
+    Backspace     = 250, /**< Blanks the character before the name's cursor. */
+    Insert        = 300, /**< Inserts a space under the name's cursor. */
+    NextMode      = 400, /**< Shows the next keyboard. */
+    PrevMode      = 450, /**< Shows the previous keyboard. */
+    Left          = 500, /**< Moves the name's cursor left. */
+    Right         = 600, /**< Moves the name's cursor right. */
+    DefaultName   = 700, /**< Restores the default name. */
+    Help          = 800, /**< Shows the help message. */
+    ToggleVoicing = 900, /**< Toggles the voicing or case of the character under the name's cursor; never requested. */
+};
+
+// clang-format on
+
+/**
+ * What CheckName reports.
+ */
+// clang-format off
+enum class NameCheckResult : s32 {
+    Rejected = 0, /**< Rejected and cleared. */
+    Ok       = 1, /**< Accepted. */
+    Empty    = 2, /**< Blank; the default name is restored. */
+};
+
+// clang-format on
+
+/**
+ * Steps of the opening book, as OPENING_BOOK::step holds them.
+ */
+// clang-format off
+enum class OpeningBookStep : s16 {
+    Load      = 0, /**< Loading and fading the cover. */
+    TextIn    = 1, /**< Text fading in. */
+    Wait      = 2, /**< Waiting for cross. */
+    TextOut   = 3, /**< Text fading out. */
+    Finish    = 4, /**< Fading out before name entry. */
+    NameEntry = 5, /**< Name entry. */
+    Unk6      = 6, /**< Drawn but never set. */
 };
 
 // clang-format on
@@ -105,21 +136,21 @@ enum NameEnterAction {
  * Holds the state of the name-entry screen.
  */
 struct NAME_SELECT {
-    s16   chara_no;      /**< The party member being named. */
-    s16   area;          /**< The part of the screen the cursor is in. @see NameSelectArea. */
-    s16   name_pos;      /**< The position in the name the next character goes to. */
-    s16   side_row;      /**< The row of the voicing column the cursor is on, or 0 when it is on the keyboard. */
-    s16   pushed_tab;    /**< The tab that was last pressed. @see NameSelectTab. */
-    s16   input_mode;    /**< The keyboard being shown. @see NameInputMode. */
-    s32   cursor;        /**< The key or tab the cursor is on. @see NameSelectTab. */
-    s16   state;         /**< What the screen is doing: fading, flashing a tab or leaving. @see NameSelectState. */
-    s32   state_count;   /**< How many frames the state has lasted. */
-    float cursor_x;      /**< Where the hand cursor is drawn across the screen. */
-    float cursor_y;      /**< Where the hand cursor is drawn down the screen. */
-    s32   frame;         /**< How many frames the screen has been drawn, for the cursor's sway. */
-    s16   language;      /**< The language the menus are in. */
-    s16   texture_block; /**< The texture block the screen's textures are read into. */
-    s16   loaded;        /**< Whether the screen's textures have been read. */
+    s16             chara_no;      /**< The party member being named. */
+    NameSelectArea  area;          /**< The part of the screen the cursor is in. */
+    s16             name_pos;      /**< The position in the name the next character goes to. */
+    s16             side_row;      /**< The row of the voicing column the cursor is on, or 0 when it is on the keyboard. */
+    s16             pushed_tab;    /**< The tab that was last pressed. @see NameSelectTab. */
+    s16             input_mode;    /**< The keyboard being shown. @see NameInputMode. */
+    s32             cursor;        /**< The key or tab the cursor is on. @see NameSelectTab. */
+    NameSelectState state;         /**< What the screen is doing: fading, flashing a tab or leaving. */
+    s32             state_count;   /**< How many frames the state has lasted. */
+    float           cursor_x;      /**< Where the hand cursor is drawn across the screen. */
+    float           cursor_y;      /**< Where the hand cursor is drawn down the screen. */
+    s32             frame;         /**< How many frames the screen has been drawn, for the cursor's sway. */
+    s16             language;      /**< The language the menus are in. */
+    s16             texture_block; /**< The texture block the screen's textures are read into. */
+    s16             loaded;        /**< Whether the screen's textures have been read. */
 };
 
 STATIC_ASSERT(sizeof(NAME_SELECT) == 0x2C);
@@ -127,27 +158,32 @@ STATIC_ASSERT(sizeof(NAME_SELECT) == 0x2C);
 /** The state of the name-entry screen. */
 NAME_SELECT NameSelect;
 
-/** The name currently being edited. */
-extern "C" {
-s16 *CharaName;
-}
-
-/** The face of the party member being named. */
-CTexture *CharaFace;
-
 /** The name-entry screen's frame, tabs and cursor. */
 CTexture *NameTemp;
 
-/** The hiragana keyboard's characters. */
+namespace {
+
+/**
+ * State of the storybook that plays before the game begins.
+ */
+struct OPENING_BOOK {
+    s16             open;           /**< Whether the storybook's pages have been read and it draws. */
+    s16             tex_block;      /**< Texture block the storybook's pages are loaded into. */
+    s16             name_tex_block; /**< Texture block handed to the name-entry screen that follows the storybook. */
+    s16             page;           /**< Index of the page being shown; its message is page plus 100. */
+    OpeningBookStep step;           /**< Which part of the opening the storybook is showing. */
+    s16             fade;           /**< Strength of the full-screen fade drawn over the storybook. */
+    s16             text_alpha;     /**< Alpha the page text fades in and out through. */
+};
+
+STATIC_ASSERT(sizeof(OPENING_BOOK) == 0xE);
+
+s16 *CharaName;
+
+CTexture *CharaFace;
 CTexture *HiraTex;
-
-/** The katakana keyboard's characters. */
 CTexture *KataTex;
-
-/** The alphabet and symbol keyboards' characters. */
 CTexture *AlphaTex;
-
-/** The accented European characters' keyboard. */
 CTexture *EuroTex;
 
 /** How many keys each keyboard has in a row. */
@@ -161,36 +197,30 @@ s8 InputModeMovetbl[4][2] = {
     {0x26, 0x1A}
 };
 
-#include "gameutil.hpp"
-#include "snd.hpp"
+char NameEntryImageDescriptor[] = "#frame_image_name#640#" SCREEN_HEIGHT_STR "#4";
+char NameEntryTextureFile[] = "nameregi.img";
+char NameEntryTempTexture[] = "nametemp";
+char NameEntryHiraganaTexture[] = "hira";
+char NameEntryKatakanaTexture[] = "kata";
+char NameEntryAlphabetTexture[] = "alphabet";
+char NameEntryFaceTexture[] = "charaface";
+char NameEntryMessageFile[] = "nameregi.bin";
+char NameEntryMessageFile2[] = "nameregi2.bin";
+char NameEntryFrameTexture[] = "frame_image";
 
-/**
- * Gives every party member their default name.
- *
- * @mangled GlobalNameInit__Fv
- * @address 0x238450
- * @size 0x48
- */
+} // namespace
+
 void GlobalNameInit() {
     for (int chara_no = 0; chara_no < 6; chara_no++) {
         NameDefaultSet(chara_no);
     }
 }
 
-/**
- * Opens the name-entry screen and reads its textures.
- *
- * @mangled InitNameRegist__FiiP1
- * @address 0x2384A0
- * @size 0x190
- */
 void InitNameRegist(int chara_no, int texture_block, u_long128 *buffer) {
     StartReadBG();
 
-    if (buffer == NULL) {
-        buffer = (u_long128 *) read_buffer;
-    } else {
-        buffer = (u_long128 *) buffer;
+    if (buffer == nullptr) {
+        buffer = reinterpret_cast<u_long128 *>(read_buffer);
     }
 
     LoadFileBGMenuData("nameregi.pak", MenuCalcBufAlignment(buffer));
@@ -199,20 +229,17 @@ void InitNameRegist(int chara_no, int texture_block, u_long128 *buffer) {
     GamePad.SetAutoRepeat(PAD_DPAD, 30, 9);
 
     NameSelect.chara_no = chara_no;
-    NameSelect.area = NAME_AREA_KEYBOARD;
+    NameSelect.area = NameSelectArea::Keyboard;
     NameSelect.cursor = 0;
 
-    switch (NameSelect.language) {
-        case LANG_JAPANESE:
-            NameSelect.input_mode = NAME_INPUT_KATAKANA;
-            break;
-        default:
-            NameSelect.input_mode = NAME_INPUT_ALPHABET;
-            break;
+    if (NameSelect.language == LANG_JAPANESE) {
+        NameSelect.input_mode = NAME_INPUT_KATAKANA;
+    } else {
+        NameSelect.input_mode = NAME_INPUT_ALPHABET;
     }
 
     NameSelect.side_row = 0;
-    NameSelect.state = NAME_STATE_FADE_IN;
+    NameSelect.state = NameSelectState::FadeIn;
     NameSelect.state_count = 0;
     NameSelect.loaded = false;
     NameSelect.texture_block = texture_block;
@@ -224,13 +251,6 @@ void InitNameRegist(int chara_no, int texture_block, u_long128 *buffer) {
     NameSelect.name_pos = 0;
 }
 
-/**
- * Gives the name-entry screen's textures back and closes it.
- *
- * @mangled ExitNameEnterFunc__Fv
- * @address 0x238630
- * @size 0x68
- */
 void ExitNameEnterFunc() {
     int texture_blocks[2] = {NameSelect.texture_block, -1};
     MenuTextureDelete(texture_blocks);
@@ -239,15 +259,13 @@ void ExitNameEnterFunc() {
     GamePad.MenuModeOff();
 }
 
+namespace {
+
 /**
  * Gives the texture and cell one name character draws from.
- *
- * @mangled GetNameTextureInfo__FPP8CTextureiRiRi
- * @address 0x2386A0
- * @size 0xBC
  */
 CTexture *GetNameTextureInfo(CTexture **textures, int char_code, int &cell_x, int &cell_y) {
-    CTexture *texture;
+    CTexture *texture = nullptr;
 
     if (char_code == 0) {
         char_code = 0xE6;
@@ -272,19 +290,15 @@ CTexture *GetNameTextureInfo(CTexture **textures, int char_code, int &cell_x, in
 }
 
 /**
- * Draws a party member's name.
- *
- * @mangled DrawCharaName__Fiiiii
- * @address 0x238760
- * @size 0x118
+ * Draws the name being entered.
  */
-void DrawCharaName(int chara_no, int x, int y, int brightness, int blend_mode) {
-    int draw_x = x;
+void DrawCharaName(int x, int y, int brightness, int blend_mode) {
+    int       draw_x = x;
     CTexture *textures[4] = {AlphaTex, KataTex, HiraTex, EuroTex};
 
     for (int slot = 0; slot < 10; slot++) {
-        int       cell_x;
-        int       cell_y;
+        int       cell_x = 0;
+        int       cell_y = 0;
         CTexture *texture = GetNameTextureInfo(textures, CharaName[slot], cell_x, cell_y);
         DrawMenu2DSprite(texture, CRect_i_(draw_x, y, 22, 22), CRect_i_(cell_x, cell_y, 22, 22), brightness, brightness, brightness, blend_mode);
         draw_x += 22;
@@ -293,10 +307,6 @@ void DrawCharaName(int chara_no, int x, int y, int brightness, int blend_mode) {
 
 /**
  * Draws the four corners of the frame around the name being entered, pulling them inward as the frame counter cycles.
- *
- * @mangled DrawNameRegiWaku__Fiiiii
- * @address 0x238880
- * @size 0x1F0
  */
 void DrawNameRegiWaku(int x, int y, int size, int brightness, int blend_mode) {
     float inset = 0.1f * (NameSelect.frame % 29);
@@ -320,26 +330,20 @@ void DrawNameRegiWaku(int x, int y, int size, int brightness, int blend_mode) {
     };
 
     for (int corner_no = 0; corner_no < 4; corner_no++) {
-        DrawMenu2DSprite(NameTemp, CRect_i_(corner[corner_no][0], corner[corner_no][1], 12, 12), CRect_i_(cell[corner_no][0], cell[corner_no][1], 16, 16), (u8) brightness, (u8) brightness, (u8) brightness, blend_mode);
+        DrawMenu2DSprite(NameTemp, CRect_i_(corner[corner_no][0], corner[corner_no][1], 12, 12), CRect_i_(cell[corner_no][0], cell[corner_no][1], 16, 16), static_cast<u8>(brightness), static_cast<u8>(brightness), static_cast<u8>(brightness), blend_mode);
     }
 }
 
 /**
  * Draws the top of the name-entry screen: the party member's face and title, the name being entered and the cursor over it.
- *
- * @mangled DrawCharaNameUp__Fiiii
- * @address 0x238A70
- * @size 0x628
  */
 void DrawCharaNameUp(int x, int y, int brightness, int blend_mode) {
-    int left;
-    int top;
     int chara_no = NameSelect.chara_no;
-    left = x - 2;
-    top = y + 14;
+    int left = x - 2;
+    int top = y + 14;
     int face_x = 0;
     int face_y = chara_no * 106;
-    int name_length;
+    int name_length = 0;
 
     if (chara_no > 2) {
         face_x = 106;
@@ -348,9 +352,9 @@ void DrawCharaNameUp(int x, int y, int brightness, int blend_mode) {
 
     DrawMenu2DSprite(CharaFace, CRect_i_(left, top, 88, 88), CRect_i_(face_x, face_y, 106, 106), blend_mode);
     DrawMenuHelpWindow(TexManager.GetTexture("window", -1), -1, left + 102, top + 16, 8.6f, 1.0f, blend_mode);
-    DrawMenu2DSprite(NameTemp, CRect_i_(left + 97, top + 16, 26, 23), CRect_i_(0, 256, 26, 24), (u8) brightness, (u8) brightness, (u8) brightness, blend_mode);
-    DrawMenu2DSprite(NameTemp, CRect_i_(left + 123, top + 16, 210, 23), CRect_i_(26, 256, 172, 24), (u8) brightness, (u8) brightness, (u8) brightness, blend_mode);
-    DrawMenu2DSprite(NameTemp, CRect_i_(left + 333, top + 16, 26, 23), CRect_i_(198, 256, 26, 24), (u8) brightness, (u8) brightness, (u8) brightness, blend_mode);
+    DrawMenu2DSprite(NameTemp, CRect_i_(left + 97, top + 16, 26, 23), CRect_i_(0, 256, 26, 24), static_cast<u8>(brightness), static_cast<u8>(brightness), static_cast<u8>(brightness), blend_mode);
+    DrawMenu2DSprite(NameTemp, CRect_i_(left + 123, top + 16, 210, 23), CRect_i_(26, 256, 172, 24), static_cast<u8>(brightness), static_cast<u8>(brightness), static_cast<u8>(brightness), blend_mode);
+    DrawMenu2DSprite(NameTemp, CRect_i_(left + 333, top + 16, 26, 23), CRect_i_(198, 256, 26, 24), static_cast<u8>(brightness), static_cast<u8>(brightness), static_cast<u8>(brightness), blend_mode);
 
     MenuTextureReload(AtoraNameMes.tex_block);
     int   message_length = AtoraNameMes.GetMesLen_system(chara_no - 1220);
@@ -363,7 +367,7 @@ void DrawCharaNameUp(int x, int y, int brightness, int blend_mode) {
     AtoraNameMes.DrawMesWin();
     MenuTextureReload(NameSelect.texture_block);
 
-    if (NameSelect.area < NAME_AREA_HELP) {
+    if (NameSelect.area < NameSelectArea::Help) {
         CRect_i_ destination(left + 89, top + 25, 24, 24);
         CRect_i_ source(24, 472, 24, 24);
         DrawMenu2DSprite(NameTemp, destination, source, blend_mode);
@@ -374,12 +378,12 @@ void DrawCharaNameUp(int x, int y, int brightness, int blend_mode) {
 
     left = x + 120;
     top = y + 58;
-    DrawCharaName(chara_no, left, top, brightness, blend_mode);
+    DrawCharaName(left, top, brightness, blend_mode);
 
     left = x + 122;
     top = y + 82;
 
-    if (NameSelect.area == NAME_AREA_CONFIRM) {
+    if (NameSelect.area == NameSelectArea::Confirm) {
         for (name_length = 10; name_length > 0; name_length--) {
             if (CharaName[name_length - 1] != 0 && CharaName[name_length - 1] != 0xE6) {
                 break;
@@ -390,11 +394,11 @@ void DrawCharaNameUp(int x, int y, int brightness, int blend_mode) {
     for (int slot = 0; slot < 10; slot++) {
         int underline_brightness = brightness;
 
-        if (NameSelect.area == NAME_AREA_CONFIRM && name_length <= slot) {
+        if (NameSelect.area == NameSelectArea::Confirm && name_length <= slot) {
             underline_brightness = 0x38;
         }
 
-        DrawMenu2DSprite(NameTemp, CRect_i_(left, top, 18, 2), CRect_i_(470, 328, 18, 2), (u8) underline_brightness, (u8) underline_brightness, (u8) underline_brightness, blend_mode);
+        DrawMenu2DSprite(NameTemp, CRect_i_(left, top, 18, 2), CRect_i_(470, 328, 18, 2), static_cast<u8>(underline_brightness), static_cast<u8>(underline_brightness), static_cast<u8>(underline_brightness), blend_mode);
         left += 22;
     }
 
@@ -408,25 +412,27 @@ void DrawCharaNameUp(int x, int y, int brightness, int blend_mode) {
     top = y + 48;
 
     switch (NameSelect.state) {
-        case NAME_STATE_FADE_IN:
-        case NAME_STATE_FADE_OUT:
+        case NameSelectState::FadeIn:
+        case NameSelectState::FadeOut:
             break;
         default:
-            if (NameSelect.area < NAME_AREA_HELP) {
+            if (NameSelect.area < NameSelectArea::Help) {
                 DrawNameRegiWaku(left, top, 30, brightness, blend_mode);
                 int bob_frame = NameSelect.frame - 15;
 
-                if (NameSelect.area >= NAME_AREA_HELP) {
+                if (NameSelect.area >= NameSelectArea::Help) {
                     bob_frame = 0;
                 }
 
                 top = (top - 20) + 4.0f * sinf(0.20943952f * (bob_frame % 31));
-                DrawMenu2DSprite(NameTemp, CRect_i_(left + 20, top, 24, 24), CRect_i_(488, 328, 24, 24), (u8) brightness, (u8) brightness, (u8) brightness, blend_mode);
+                DrawMenu2DSprite(NameTemp, CRect_i_(left + 20, top, 24, 24), CRect_i_(488, 328, 24, 24), static_cast<u8>(brightness), static_cast<u8>(brightness), static_cast<u8>(brightness), blend_mode);
             }
 
             break;
     }
 }
+
+} // namespace
 
 /** Keyboard key of each symbol, indexing the symbol keyboard's characters. */
 s8 menu_kigoutbl[40] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 17, 18, 19, 20, 21, 41, 42, 43, 44, 16, 16, 16, 16, 16, 16, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37};
@@ -458,18 +464,16 @@ s16 menu_euro_codetbl[5][2][13] = {
 /** How many rows of the accented-character keyboard each language uses. */
 s8 euro_code_linelimmit[5] = {2, 2, 1, 2, 1};
 
-void DrawEuroSpecialFont(int x, int y, int language, int brightness, int blend_mode) {
-    int key_x;
-    int key_y;
-    int cell_x;
-    int cell_y;
-    int row;
-    int column;
+namespace {
 
+/**
+ * Draws the accented-character rows of the alphabet keyboard for one European language. PAL only.
+ */
+void DrawEuroSpecialFont(int x, int y, int language, int brightness, int blend_mode) {
     EuroTex = TexManager.GetTexture("euro", -1);
 
-    for (row = 0; row < 2; row++) {
-        for (column = 0; column < 13; column++) {
+    for (int row = 0; row < 2; row++) {
+        for (int column = 0; column < 13; column++) {
             int key = column + row * 13;
 
             if (key >= 26) {
@@ -483,12 +487,12 @@ void DrawEuroSpecialFont(int x, int y, int language, int brightness, int blend_m
             }
 
             if (char_code >= 0) {
-                cell_x = (char_code % 10) * 22;
-                cell_y = (char_code / 10) * 22;
-                key_x = x + column * 34;
-                key_y = y + row * 26;
+                int cell_x = (char_code % 10) * 22;
+                int cell_y = (char_code / 10) * 22;
+                int key_x = x + column * 34;
+                int key_y = y + row * 26;
                 DrawMenu2DSprite(EuroTex, CRect_i_(key_x + 1, key_y + 1, 22, 22), CRect_i_(cell_x, cell_y, 22, 23), 0, 0, 0, (blend_mode * 80) >> 7);
-                DrawMenu2DSprite(EuroTex, CRect_i_(key_x, key_y, 22, 22), CRect_i_(cell_x, cell_y, 22, 23), (u8) brightness, (u8) brightness, (u8) brightness, blend_mode);
+                DrawMenu2DSprite(EuroTex, CRect_i_(key_x, key_y, 22, 22), CRect_i_(cell_x, cell_y, 22, 23), static_cast<u8>(brightness), static_cast<u8>(brightness), static_cast<u8>(brightness), blend_mode);
             }
         }
     }
@@ -496,12 +500,8 @@ void DrawEuroSpecialFont(int x, int y, int language, int brightness, int blend_m
 
 /**
  * Gives where a keyboard tab is drawn across the name-entry frame for a language. PAL only.
- *
- * @mangled Get_NameTemp_PutX__Fii
- * @address 0x23F700
- * @size 0x70
  */
-static s16 Get_NameTemp_PutX(int language, int tab) {
+s16 Get_NameTemp_PutX(int language, int tab) {
     s16 tab_x[7][11] = {
         {40, 125, 209, 261, 311, 378, 40, 74, 111, 168, 223},
         {0,  0,   40,  223, 303, 384, 40, 74, 111, 168, 223},
@@ -514,35 +514,19 @@ static s16 Get_NameTemp_PutX(int language, int tab) {
     return tab_x[language][tab];
 }
 
-char NameEntryImageDescriptor[] __attribute__((section(".rodata"))) = "#frame_image_name#640#" SCREEN_HEIGHT_STR "#4";
-char NameEntryTextureFile[] __attribute__((section(".rodata"))) = "nameregi.img";
-char NameEntryTempTexture[] __attribute__((section(".rodata"))) = "nametemp";
-char NameEntryHiraganaTexture[] __attribute__((section(".rodata"))) = "hira";
-char NameEntryKatakanaTexture[] __attribute__((section(".rodata"))) = "kata";
-char NameEntryAlphabetTexture[] __attribute__((section(".rodata"))) = "alphabet";
-char NameEntryEuroTextureFormat[] __attribute__((section(".rodata"))) = "euro tex is %p\n";
-char NameEntryFaceTexture[] __attribute__((section(".rodata"))) = "charaface";
-char NameEntryMessageFile[] __attribute__((section(".rodata"))) = "nameregi.bin";
-char NameEntryMessageFile2[] __attribute__((section(".rodata"))) = "nameregi2.bin";
-char NameEntryFrameTexture[] __attribute__((section(".rodata"))) = "frame_image";
-
 /**
  * Draws the character keyboard the name is entered from.
- *
- * @mangled DrawNameTemplete__Fiiii
- * @address 0x2390A0
- * @size 0x930
  */
-static void DrawNameTemplete(int x, int y, int brightness, int blend_mode) {
+void DrawNameTemplete(int x, int y, int brightness, int blend_mode) {
     int input_mode = NameSelect.input_mode;
     int pushed_tab = NameSelect.pushed_tab;
-    int draw_x;
-    int draw_y;
-    int tex_u;
-    int tex_v;
-    int i;
-    int key_x;
-    int key_y;
+    int draw_x = 0;
+    int draw_y = 0;
+    int tex_u = 0;
+    int tex_v = 0;
+    int i = 0;
+    int key_x = 0;
+    int key_y = 0;
     s16 key_count[4] = {89, 88, 52, 40};
 
     DrawMenu2DSprite(NameTemp, CRect_i_(x, y, 0x200, 0x100), CRect_i_(0, 0, 0x200, 0x100), brightness, brightness, brightness, blend_mode);
@@ -559,7 +543,7 @@ static void DrawNameTemplete(int x, int y, int brightness, int blend_mode) {
         {0,  0,  86,  145, 95, 70, 24, 24, 48, 48, 112},
     };
 
-    if (NameSelect.state == NAME_STATE_TAB_FLASH) {
+    if (NameSelect.state == NameSelectState::TabFlash) {
         draw_x = x + Get_NameTemp_PutX(language, pushed_tab);
         draw_y = y + 6 + (pushed_tab / 6) * 27;
 
@@ -596,7 +580,7 @@ static void DrawNameTemplete(int x, int y, int brightness, int blend_mode) {
 
     int       base_x = x + 0x38;
     int       base_y = y + 0x54;
-    CTexture *texture;
+    CTexture *texture = nullptr;
 
     draw_y = base_y;
 
@@ -663,6 +647,8 @@ static void DrawNameTemplete(int x, int y, int brightness, int blend_mode) {
                             if (input_mode == NAME_INPUT_HIRAGANA) {
                                 key = 0x4F;
                             }
+
+                            [[fallthrough]];
                         default:
                             draw_x += 0x26;
                             break;
@@ -710,17 +696,15 @@ static void DrawNameTemplete(int x, int y, int brightness, int blend_mode) {
             }
 
             break;
+        default:
+            break;
     }
 }
 
 /**
- * Reports whether two names are the same.
- *
- * @mangled NameCompare__FPsPs
- * @address 0x2399D0
- * @size 0x6C
+ * Reports whether two names differ: 0 when all ten characters match, 1 otherwise.
  */
-static int NameCompare(short *first, short *second) {
+int NameCompare(const short *first, const short *second) {
     int matching = 0;
 
     for (int i = 0; i < 10; i++) {
@@ -729,7 +713,6 @@ static int NameCompare(short *first, short *second) {
         }
     }
 
-    // Every character has to agree before the names count as one.
     if (matching >= 10) {
         return 0;
     }
@@ -739,12 +722,8 @@ static int NameCompare(short *first, short *second) {
 
 /**
  * Reports whether the entered name may be used.
- *
- * @mangled CheckName__Fv
- * @address 0x239A40
- * @size 0x160
  */
-int CheckName() {
+NameCheckResult CheckName() {
     s16 blank_names[2][10] = {
         {0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
         {230, 230, 230, 230, 230, 230, 230, 230, 230, 230},
@@ -758,38 +737,29 @@ int CheckName() {
     }
 
     if (blank_count >= 10) {
-        return NAME_CHECK_EMPTY;
+        return NameCheckResult::Empty;
     }
 
-    for (int blank_no = 0; blank_no < 2; blank_no++) {
-        if (NameCompare(CharaName, blank_names[blank_no]) == 0) {
-            return NAME_CHECK_REJECTED;
+    for (const auto &blank_name : blank_names) {
+        if (NameCompare(CharaName, blank_name) == 0) {
+            return NameCheckResult::Rejected;
         }
     }
 
     for (int other_chara_no = NameSelect.chara_no - 1; 0 <= other_chara_no; other_chara_no--) {
         if (NameCompare(CharaName, SaveData->GetCharaName(other_chara_no)) == 0) {
-            return NAME_CHECK_REJECTED;
+            return NameCheckResult::Rejected;
         }
     }
 
-    return NAME_CHECK_OK;
+    return NameCheckResult::Ok;
 }
 
-/**
- * Draws the name-entry screen.
- *
- * @mangled NameEnterDraw__Fv
- * @address 0x239BA0
- * @size 0xC9C
- */
+} // namespace
+
 void NameEnterDraw() {
-    int   language;
-    int   chara_no;
-    int   fade;
-    int   brightness;
-    float cursor_x;
-    float cursor_y;
+    float cursor_x = 0.0f;
+    float cursor_y = 0.0f;
 
     setbilinear(0);
 
@@ -802,16 +772,13 @@ void NameEnterDraw() {
 
         if (ReadBGSync() == 0) {
             LOADTEXTURE_INFO2 info[3] = {
-                {NameEntryImageDescriptor, 0, 0},
-                {NULL,                     0, 0},
-                {NULL,                     0, 0}
+                {.name = NameEntryImageDescriptor, .block_no = NameSelect.texture_block, .mipmap = 0},
+                {.name = nullptr,                  .block_no = NameSelect.texture_block, .mipmap = 0},
+                {.name = nullptr,                  .block_no = 0,                        .mipmap = 0},
             };
 
-            info[0].block_no = NameSelect.texture_block;
-            info[1].block_no = NameSelect.texture_block;
-
             BG_READ_INFO *read_file = GetReadBGFile(0);
-            info[1].name = (char *) GetPackFile((u_int *) read_file->buffer, NameEntryTextureFile, NULL);
+            info[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(read_file->buffer), NameEntryTextureFile, nullptr));
             TexManager.DeleteTextureBlock(NameSelect.texture_block);
             TexManager.LoadTextureBlockEX(-1, info);
             NameTemp = TexManager.GetTexture(NameEntryTempTexture, -1);
@@ -819,12 +786,13 @@ void NameEnterDraw() {
             KataTex = TexManager.GetTexture(NameEntryKatakanaTexture, -1);
             AlphaTex = TexManager.GetTexture(NameEntryAlphabetTexture, -1);
             EuroTex = TexManager.GetTexture("euro", -1);
-            printf(NameEntryEuroTextureFormat, EuroTex);
+            printf("euro tex is %p\n", static_cast<void *>(EuroTex));
             CharaFace = TexManager.GetTexture(NameEntryFaceTexture, -1);
             NameSelect.loaded = true;
 
-            short *messages = (short *) GetPackFile((u_int *) read_file->buffer, NameEntryMessageFile, NULL);
-            short *messages2 = (short *) GetPackFile((u_int *) read_file->buffer, NameEntryMessageFile2, NULL);
+            auto *pack = reinterpret_cast<u_int *>(read_file->buffer);
+            auto *messages = reinterpret_cast<short *>(GetPackFile(pack, NameEntryMessageFile, nullptr));
+            auto *messages2 = reinterpret_cast<short *>(GetPackFile(pack, NameEntryMessageFile2, nullptr));
             InitMenuMesSet(MENU_MES_SET_NAME_ENTRY, messages);
             CommonMenuMes2.SetBuff(messages2);
 
@@ -850,30 +818,28 @@ void NameEnterDraw() {
         }
     }
 
-    language = NameSelect.language;
+    int language = NameSelect.language;
     MenuTextureReload(NameSelect.texture_block);
-    chara_no = NameSelect.chara_no;
-    brightness = fade = 0x80;
+    int chara_no = NameSelect.chara_no;
+    int fade = 0x80;
+    int brightness = 0x80;
 
-    switch (NameSelect.state) {
-        case NAME_STATE_FADE_IN:
-            fade = NameSelect.state_count * 5;
+    if (NameSelect.state == NameSelectState::FadeIn) {
+        fade = NameSelect.state_count * 5;
 
-            if (fade > 0x80) {
-                fade = 0x80;
-                NameSelect.state = NAME_STATE_IDLE;
-            }
-
-            break;
+        if (fade > 0x80) {
+            fade = 0x80;
+            NameSelect.state = NameSelectState::Idle;
+        }
     }
 
-    if (NameSelect.area >= NAME_AREA_HELP) {
+    if (NameSelect.area >= NameSelectArea::Help) {
         brightness = 0x38;
     }
 
     CTexture *frame_texture = TexManager.GetTexture(NameEntryFrameTexture, -1);
 
-    if ((chara_no != 0 || NameSelect.loaded == 0) && frame_texture != NULL) {
+    if ((chara_no != 0 || NameSelect.loaded == 0) && frame_texture != nullptr) {
         FrameImageDraw(0x80, 0x80);
     }
 
@@ -884,7 +850,7 @@ void NameEnterDraw() {
 
         int name_color = brightness;
 
-        if (NameSelect.area >= NAME_AREA_HELP) {
+        if (NameSelect.area >= NameSelectArea::Help) {
             name_color = 0x80;
         }
 
@@ -892,7 +858,7 @@ void NameEnterDraw() {
         DrawNameTemplete(0x42, 0x9E, brightness, fade);
 
         switch (NameSelect.area) {
-            case NAME_AREA_TABS:
+            case NameSelectArea::Tabs:
                 switch (language) {
                     case LANG_JAPANESE: {
                         s16 tab_x[11] = {88, 160, 252, 310, 358, 420, 88, 114, 154, 216, 268};
@@ -920,7 +886,7 @@ void NameEnterDraw() {
                 }
 
                 break;
-            case NAME_AREA_KEYBOARD: {
+            case NameSelectArea::Keyboard: {
                 int keys_per_row = InputModeOrikaeshi[NameSelect.input_mode];
                 int step_x = InputModeMovetbl[NameSelect.input_mode][0];
                 int step_y = InputModeMovetbl[NameSelect.input_mode][1];
@@ -953,10 +919,12 @@ void NameEnterDraw() {
 
                 break;
             }
+            default:
+                break;
         }
 
-        if (NameSelect.area < NAME_AREA_HELP) {
-            if (abs((int) (cursor_x - NameSelect.cursor_x)) < 0x144) {
+        if (NameSelect.area < NameSelectArea::Help) {
+            if (abs(static_cast<int>(cursor_x - NameSelect.cursor_x)) < 0x144) {
                 NameSelect.cursor_x += (cursor_x - NameSelect.cursor_x) / 4.0f;
                 NameSelect.cursor_y += (cursor_y - NameSelect.cursor_y) / 4.0f;
             } else {
@@ -965,33 +933,33 @@ void NameEnterDraw() {
         }
 
         switch (NameSelect.state) {
-            case NAME_STATE_FADE_IN:
-            case NAME_STATE_FADE_OUT:
+            case NameSelectState::FadeIn:
+            case NameSelectState::FadeOut:
                 break;
             default: {
-                if (NameSelect.area == NAME_AREA_KEYBOARD && 230.0f <= NameSelect.cursor_y) {
-                    DrawNameRegiWaku((int) (16.0f + cursor_x), (int) (cursor_y - 6.0f), 0x1C, brightness, fade);
+                if (NameSelect.area == NameSelectArea::Keyboard && 230.0f <= NameSelect.cursor_y) {
+                    DrawNameRegiWaku(static_cast<int>(16.0f + cursor_x), static_cast<int>(cursor_y - 6.0f), 0x1C, brightness, fade);
                 }
 
                 // The hand sways on its own counter, which holds still while a tab flashes.
-                static int lct = 0;
+                static int sway_frame = 0;
 
-                if (NameSelect.state != NAME_STATE_TAB_FLASH) {
-                    lct++;
+                if (NameSelect.state != NameSelectState::TabFlash) {
+                    sway_frame++;
                 }
 
-                if (lct > 100000) {
-                    lct = 0;
+                if (sway_frame > 100000) {
+                    sway_frame = 0;
                 }
 
-                cursor_x = NameSelect.cursor_x + 5.0f * cosf(0.07853981852531433f * (float) lct);
-                cursor_y = NameSelect.cursor_y + 3.0f * sinf(0.13089969754219055f * (float) lct);
+                cursor_x = NameSelect.cursor_x + 5.0f * cosf(0.07853981852531433f * static_cast<float>(sway_frame));
+                cursor_y = NameSelect.cursor_y + 3.0f * sinf(0.13089969754219055f * static_cast<float>(sway_frame));
 
-                if (NameSelect.area < NAME_AREA_EMPTY_NOTICE) {
+                if (NameSelect.area < NameSelectArea::EmptyNotice) {
                     CRect_i_ hand_rect(0x1C0, 0x128, 0x20, 0x20);
 
-                    DrawMenu2DSprite(NameTemp, CRect_i_((int) (2.0f + cursor_x), (int) (2.0f + cursor_y), 0x20, 0x20), hand_rect, 0, 0, 0, (fade * 0x50) >> 7);
-                    DrawMenu2DSprite(NameTemp, CRect_i_((int) cursor_x, (int) cursor_y, 0x20, 0x20), hand_rect, brightness, brightness, brightness, fade);
+                    DrawMenu2DSprite(NameTemp, CRect_i_(static_cast<int>(2.0f + cursor_x), static_cast<int>(2.0f + cursor_y), 0x20, 0x20), hand_rect, 0, 0, 0, (fade * 0x50) >> 7);
+                    DrawMenu2DSprite(NameTemp, CRect_i_(static_cast<int>(cursor_x), static_cast<int>(cursor_y), 0x20, 0x20), hand_rect, brightness, brightness, brightness, fade);
                 }
 
                 break;
@@ -1008,21 +976,23 @@ void NameEnterDraw() {
         CommonMenuMes3.text_y = 0x58;
         DrawMenu2DSprite(NameTemp, CRect_i_(0x1A3, 0x46, 0xB8, 0x51), CRect_i_(0, 0x178, 0xC0, 0x61), 0x64, 0x64, 0x64, fade);
 
-        if (NameSelect.area >= NAME_AREA_HELP) {
+        if (NameSelect.area >= NameSelectArea::Help) {
             int win_x = 0xAE;
             int win_y = 0xAA;
             int win_width = 0x12C;
 
             switch (NameSelect.area) {
-                case NAME_AREA_CONFIRM:
+                case NameSelectArea::Confirm:
                     win_x = 0xD8;
                     win_y = 0xB8;
                     win_width = 0xDA;
                     break;
-                case NAME_AREA_EMPTY_NOTICE:
+                case NameSelectArea::EmptyNotice:
                     win_x = 0xBA;
                     win_y = 0xB8;
                     win_width = 0x116;
+                    break;
+                default:
                     break;
             }
 
@@ -1037,44 +1007,41 @@ void NameEnterDraw() {
         CommonMenuMes3.DrawMesWin();
 
         switch (NameSelect.area) {
-            case NAME_AREA_HELP:
-            case NAME_AREA_CONFIRM:
-            case NAME_AREA_EMPTY_NOTICE:
+            case NameSelectArea::Help:
+            case NameSelectArea::Confirm:
+            case NameSelectArea::EmptyNotice:
                 CommonMenuMes2.edge_alpha = fade;
                 CommonMenuMes2.Step();
                 CommonMenuMes2.DrawMesWin();
+                break;
+            default:
                 break;
         }
 
         setbilinear(0);
 
         switch (NameSelect.state) {
-            case NAME_STATE_FADE_IN:
-                fade = 0x80 - NameSelect.state_count * 6;
-
-                if (fade < 0) {
-                    fade = 0;
-                }
+            case NameSelectState::FadeIn:
+                fade = std::max(0x80 - NameSelect.state_count * 6, 0);
 
                 if (NameSelect.chara_no != 0) {
                     FrameImageDraw(0x80, fade);
                 }
 
                 break;
-            case NAME_STATE_EXIT:
+            case NameSelectState::Exit:
                 ExitNameEnterFunc();
-            case NAME_STATE_FADE_OUT:
-                fade = NameSelect.state_count * 3;
-
-                if (fade > 0x80) {
-                    fade = 0x80;
-                }
+                [[fallthrough]];
+            case NameSelectState::FadeOut:
+                fade = std::min(NameSelect.state_count * 3, 0x80);
 
                 AllFadeForMenu(fade);
                 break;
+            default:
+                break;
         }
 
-        if (NameSelect.state != NAME_STATE_IDLE) {
+        if (NameSelect.state != NameSelectState::Idle) {
             NameSelect.state_count++;
         }
 
@@ -1082,187 +1049,167 @@ void NameEnterDraw() {
     }
 }
 
-/**
- * Moves the cursor across the keyboard and enters the character it settles on.
- *
- * @mangled NameEnterKey__Fv
- * @address 0x23A840
- * @size 0x1F28
- */
 s32 NameEnterKey() {
-    int language;
-    int chara_no;
-    int cursor;
-    int side_row;
-    int name_pos;
-    int action;
-    int mes_no;
-    int input_mode;
-    int sound;
-
     if (NameSelect.loaded == 0) {
         return 0;
     }
 
-    language = NameSelect.language;
-    chara_no = NameSelect.chara_no;
+    int language = NameSelect.language;
+    int chara_no = NameSelect.chara_no;
 
     switch (NameSelect.state) {
-        case NAME_STATE_FADE_OUT:
+        case NameSelectState::FadeOut:
             if (NameSelect.state_count >= 84) {
                 GamePad.AutoRepeatOff();
                 GamePad.MenuModeOff();
-                NameSelect.state = NAME_STATE_EXIT;
+                NameSelect.state = NameSelectState::Exit;
                 return 1;
             }
 
             return 0;
-        case NAME_STATE_TAB_FLASH:
+        case NameSelectState::TabFlash:
             if (NameSelect.state_count > 8) {
-                NameSelect.state = NAME_STATE_IDLE;
+                NameSelect.state = NameSelectState::Idle;
             }
 
+            break;
+        default:
             break;
     }
 
-    cursor = NameSelect.cursor;
-    side_row = NameSelect.side_row;
-    name_pos = NameSelect.name_pos;
-    action = NAME_ACTION_NONE;
-    mes_no = -1;
+    int             cursor = NameSelect.cursor;
+    int             side_row = NameSelect.side_row;
+    int             name_pos = NameSelect.name_pos;
+    NameEnterAction action = NameEnterAction::None;
+    int             mes_no = -1;
 
     switch (NameSelect.area) {
-        case NAME_AREA_HELP:
+        case NameSelectArea::Help:
             mes_no = chara_no + 100;
 
             if (GamePad.Down(PAD_CROSS) || GamePad.Down(PAD_CIRCLE)) {
-                NameSelect.area = NAME_AREA_TABS;
-                NameSelect.state = NAME_STATE_IDLE;
+                NameSelect.area = NameSelectArea::Tabs;
+                NameSelect.state = NameSelectState::Idle;
             }
 
             break;
-        case NAME_AREA_CONFIRM:
-        case NAME_AREA_EMPTY_NOTICE:
-            if (NameSelect.area == NAME_AREA_CONFIRM) {
+        case NameSelectArea::Confirm:
+        case NameSelectArea::EmptyNotice:
+            if (NameSelect.area == NameSelectArea::Confirm) {
                 mes_no = 91;
             }
 
-            if (NameSelect.area == NAME_AREA_EMPTY_NOTICE) {
+            if (NameSelect.area == NameSelectArea::EmptyNotice) {
                 mes_no = 95;
             }
 
             if (GamePad.Down(PAD_CROSS)) {
-                NameSelect.state = NAME_STATE_IDLE;
-                action = NAME_ACTION_FINISH;
+                NameSelect.state = NameSelectState::Idle;
+                action = NameEnterAction::Finish;
             } else if (GamePad.Down(PAD_CIRCLE)) {
-                NameSelect.area = NAME_AREA_KEYBOARD;
-                NameSelect.state = NAME_STATE_IDLE;
+                NameSelect.area = NameSelectArea::Keyboard;
+                NameSelect.state = NameSelectState::Idle;
             }
 
             break;
-        case NAME_AREA_KEYBOARD:
+        case NameSelectArea::Keyboard:
             if (NameSelect.input_mode > NAME_INPUT_HIRAGANA) {
                 NameSelect.side_row = 0;
             }
 
-            switch (NameSelect.side_row) {
-                case 0: {
-                    int keys_per_row = InputModeOrikaeshi[NameSelect.input_mode];
+            if (NameSelect.side_row == 0) {
+                int keys_per_row = InputModeOrikaeshi[NameSelect.input_mode];
 
-                    if (GamePad.Down(PAD_DOWN)) {
-                        int rows = 5;
+                if (GamePad.Down(PAD_DOWN)) {
+                    int rows = 5;
 
-                        switch (NameSelect.input_mode) {
-                            case NAME_INPUT_SYMBOL:
-                                rows -= 2;
-                                break;
-                            case NAME_INPUT_ALPHABET:
-                                rows = 4;
+                    switch (NameSelect.input_mode) {
+                        case NAME_INPUT_SYMBOL:
+                            rows -= 2;
+                            break;
+                        case NAME_INPUT_ALPHABET:
+                            rows = 4;
 
-                                if (NameSelect.language > LANG_ENGLISH_UK) {
-                                    rows = euro_code_linelimmit[NameSelect.language - 2] + 4;
-                                }
-
-                                break;
-                        }
-
-                        if (NameSelect.cursor / keys_per_row < rows) {
-                            NameSelect.cursor += keys_per_row;
-                        }
-                    } else if (GamePad.Down(PAD_LEFT)) {
-                        if (NameSelect.cursor % keys_per_row != 0) {
-                            NameSelect.cursor--;
-                        } else if (NameSelect.input_mode > NAME_INPUT_HIRAGANA) {
-                            NameSelect.cursor += keys_per_row - 1;
-                        } else {
-                            NameSelect.side_row = NameSelect.cursor / keys_per_row + 1;
-                        }
-                    } else if (GamePad.Down(PAD_RIGHT)) {
-                        if (keys_per_row - 1 != NameSelect.cursor % keys_per_row) {
-                            NameSelect.cursor++;
-                        } else if (NameSelect.input_mode > NAME_INPUT_HIRAGANA) {
-                            NameSelect.cursor -= keys_per_row - 1;
-                        } else {
-                            NameSelect.side_row = NameSelect.cursor / keys_per_row + 1;
-                        }
-                    } else if (GamePad.Down(PAD_UP)) {
-                        int row = NameSelect.cursor / keys_per_row;
-
-                        if (0 < row) {
-                            NameSelect.cursor -= keys_per_row;
-                        } else if (row <= 0) {
-                            NameSelect.area = NAME_AREA_TABS;
-
-                            if (NameSelect.cursor < 4) {
-                                NameSelect.cursor += 6;
-                            } else if (NameSelect.cursor >= 4 && NameSelect.cursor < 7) {
-                                NameSelect.cursor = NAME_TAB_HELP;
-                            } else {
-                                NameSelect.cursor = NAME_TAB_OK;
+                            if (NameSelect.language > LANG_ENGLISH_UK) {
+                                rows = euro_code_linelimmit[NameSelect.language - 2] + 4;
                             }
-                        }
+
+                            break;
+                        default:
+                            break;
                     }
 
-                    break;
-                }
-                default: {
-                    int column = -1;
+                    if (NameSelect.cursor / keys_per_row < rows) {
+                        NameSelect.cursor += keys_per_row;
+                    }
+                } else if (GamePad.Down(PAD_LEFT)) {
+                    if (NameSelect.cursor % keys_per_row != 0) {
+                        NameSelect.cursor--;
+                    } else if (NameSelect.input_mode > NAME_INPUT_HIRAGANA) {
+                        NameSelect.cursor += keys_per_row - 1;
+                    } else {
+                        NameSelect.side_row = NameSelect.cursor / keys_per_row + 1;
+                    }
+                } else if (GamePad.Down(PAD_RIGHT)) {
+                    if (keys_per_row - 1 != NameSelect.cursor % keys_per_row) {
+                        NameSelect.cursor++;
+                    } else if (NameSelect.input_mode > NAME_INPUT_HIRAGANA) {
+                        NameSelect.cursor -= keys_per_row - 1;
+                    } else {
+                        NameSelect.side_row = NameSelect.cursor / keys_per_row + 1;
+                    }
+                } else if (GamePad.Down(PAD_UP)) {
+                    int row = NameSelect.cursor / keys_per_row;
 
-                    if (GamePad.Down(PAD_UP)) {
-                        if (NameSelect.side_row == 1) {
-                            NameSelect.side_row = 0;
-                            NameSelect.area = NAME_AREA_TABS;
-                            NameSelect.cursor = NAME_TAB_OK;
+                    if (0 < row) {
+                        NameSelect.cursor -= keys_per_row;
+                    } else if (row <= 0) {
+                        NameSelect.area = NameSelectArea::Tabs;
+
+                        if (NameSelect.cursor < 4) {
+                            NameSelect.cursor += 6;
+                        } else if (NameSelect.cursor >= 4 && NameSelect.cursor < 7) {
+                            NameSelect.cursor = NAME_TAB_HELP;
                         } else {
-                            NameSelect.side_row--;
+                            NameSelect.cursor = NAME_TAB_OK;
                         }
-                    } else if (GamePad.Down(PAD_DOWN)) {
-                        if (NameSelect.side_row < 6) {
-                            NameSelect.side_row++;
-                        }
-                    } else if (GamePad.Down(PAD_LEFT)) {
-                        column = 1;
-                    } else if (GamePad.Down(PAD_RIGHT)) {
-                        column = 0;
                     }
+                }
+            } else {
+                int column = -1;
 
-                    if (column != -1) {
-                        NameSelect.cursor = (NameSelect.side_row - 1) * 10 + column * 9;
+                if (GamePad.Down(PAD_UP)) {
+                    if (NameSelect.side_row == 1) {
                         NameSelect.side_row = 0;
+                        NameSelect.area = NameSelectArea::Tabs;
+                        NameSelect.cursor = NAME_TAB_OK;
+                    } else {
+                        NameSelect.side_row--;
                     }
+                } else if (GamePad.Down(PAD_DOWN)) {
+                    if (NameSelect.side_row < 6) {
+                        NameSelect.side_row++;
+                    }
+                } else if (GamePad.Down(PAD_LEFT)) {
+                    column = 1;
+                } else if (GamePad.Down(PAD_RIGHT)) {
+                    column = 0;
+                }
 
-                    break;
+                if (column != -1) {
+                    NameSelect.cursor = (NameSelect.side_row - 1) * 10 + column * 9;
+                    NameSelect.side_row = 0;
                 }
             }
 
             if (GamePad.Down(PAD_CROSS)) {
-                action = NAME_ACTION_INPUT;
+                action = NameEnterAction::Input;
             } else if (GamePad.Down(PAD_CIRCLE)) {
-                action = NAME_ACTION_BACKSPACE;
+                action = NameEnterAction::Backspace;
             }
 
             break;
-        case NAME_AREA_TABS: {
+        case NameSelectArea::Tabs: {
             if (GamePad.Down(PAD_UP)) {
                 switch (language) {
                     case LANG_JAPANESE:
@@ -1293,7 +1240,7 @@ s32 NameEnterKey() {
                 }
             } else if (GamePad.Down(PAD_DOWN)) {
                 if (NameSelect.cursor >= NAME_TAB_LEFT) {
-                    NameSelect.area = NAME_AREA_KEYBOARD;
+                    NameSelect.area = NameSelectArea::Keyboard;
                     s8 below_key[7] = {0, 0, 1, 2, 3, 4, 4};
                     NameSelect.cursor = below_key[NameSelect.cursor - NAME_TAB_LEFT];
                 } else if (NameSelect.cursor < NAME_TAB_LEFT) {
@@ -1308,7 +1255,7 @@ s32 NameEnterKey() {
                                     break;
                                 case NAME_TAB_OK:
                                     NameSelect.cursor = 8;
-                                    NameSelect.area = NAME_AREA_KEYBOARD;
+                                    NameSelect.area = NameSelectArea::Keyboard;
                                     break;
                                 default:
                                     NameSelect.cursor = NAME_TAB_HELP;
@@ -1327,7 +1274,7 @@ s32 NameEnterKey() {
                                     break;
                                 case NAME_TAB_OK:
                                     NameSelect.cursor = 8;
-                                    NameSelect.area = NAME_AREA_KEYBOARD;
+                                    NameSelect.area = NameSelectArea::Keyboard;
                                     break;
                                 default:
                                     NameSelect.cursor = NAME_TAB_HELP;
@@ -1430,7 +1377,7 @@ s32 NameEnterKey() {
             }
 
             if (GamePad.Down(PAD_CIRCLE)) {
-                action = NAME_ACTION_BACKSPACE;
+                action = NameEnterAction::Backspace;
             } else if (GamePad.Down(PAD_CROSS)) {
                 NameSelect.pushed_tab = NameSelect.cursor;
 
@@ -1439,9 +1386,9 @@ s32 NameEnterKey() {
                         NameSelect.input_mode = NameSelect.cursor;
                     }
                 } else {
-                    NameSelect.state = NAME_STATE_TAB_FLASH;
+                    NameSelect.state = NameSelectState::TabFlash;
                     NameSelect.state_count = 0;
-                    int tab_action[7] = {NAME_ACTION_DEFAULT_NAME, NAME_ACTION_DECIDE, NAME_ACTION_LEFT, NAME_ACTION_RIGHT, NAME_ACTION_DELETE, NAME_ACTION_INSERT, NAME_ACTION_HELP};
+                    NameEnterAction tab_action[7] = {NameEnterAction::DefaultName, NameEnterAction::Decide, NameEnterAction::Left, NameEnterAction::Right, NameEnterAction::Delete, NameEnterAction::Insert, NameEnterAction::Help};
                     action = tab_action[NameSelect.cursor - NAME_TAB_DEFAULT_NAME];
                 }
             }
@@ -1450,43 +1397,40 @@ s32 NameEnterKey() {
         }
     }
 
-    if (GamePad.Down(PAD_START) && NameSelect.area < NAME_AREA_HELP) {
-        action = NAME_ACTION_DECIDE;
+    if (GamePad.Down(PAD_START) && NameSelect.area < NameSelectArea::Help) {
+        action = NameEnterAction::Decide;
     }
 
     GamePad.Down(PAD_TRIANGLE);
 
     if (GamePad.Down(PAD_L1)) {
-        action = NAME_ACTION_LEFT;
+        action = NameEnterAction::Left;
     }
 
     if (GamePad.Down(PAD_R1)) {
-        action = NAME_ACTION_RIGHT;
+        action = NameEnterAction::Right;
     }
 
-    if (NameSelect.area < NAME_AREA_HELP) {
+    if (NameSelect.area < NameSelectArea::Help) {
         if (GamePad.Down(PAD_R2)) {
-            action = NAME_ACTION_NEXT_MODE;
+            action = NameEnterAction::NextMode;
         }
 
         if (GamePad.Down(PAD_L2)) {
-            action = NAME_ACTION_PREV_MODE;
+            action = NameEnterAction::PrevMode;
         }
     }
 
-    input_mode = NameSelect.input_mode;
+    int input_mode = NameSelect.input_mode;
 
     switch (action) {
-        case NAME_ACTION_NONE:
+        case NameEnterAction::None:
             break;
-        case NAME_ACTION_INPUT: {
-            int slot;
-            int code_base;
-            int key;
-            int code;
-
-            key = NameSelect.cursor;
-            slot = NameSelect.name_pos;
+        case NameEnterAction::Input: {
+            int code_base = 0;
+            int code = 0;
+            int key = NameSelect.cursor;
+            int slot = NameSelect.name_pos;
 
             switch (input_mode) {
                 case NAME_INPUT_HIRAGANA:
@@ -1519,11 +1463,14 @@ s32 NameEnterKey() {
                                 switch (key) {
                                     case 49:
                                         key--;
+                                        [[fallthrough]];
                                     case 47:
                                         key--;
+                                        [[fallthrough]];
                                     case 45:
                                     case 39:
                                         key--;
+                                        [[fallthrough]];
                                     case 37:
                                         key--;
                                         break;
@@ -1662,17 +1609,19 @@ s32 NameEnterKey() {
 
                     printf("now Input CHaraID = %d\n", CharaName[slot]);
                     break;
+                default:
+                    break;
             }
 
             break;
         }
-        case NAME_ACTION_DELETE:
+        case NameEnterAction::Delete:
             for (int i = NameSelect.name_pos + 1; i <= 11; i++) {
                 CharaName[i - 1] = CharaName[i];
             }
 
             break;
-        case NAME_ACTION_BACKSPACE:
+        case NameEnterAction::Backspace:
             if (NameSelect.name_pos >= 10) {
                 NameSelect.name_pos--;
                 CharaName[NameSelect.name_pos] = 230;
@@ -1684,11 +1633,11 @@ s32 NameEnterKey() {
             }
 
             break;
-        case NAME_ACTION_INSERT: {
+        case NameEnterAction::Insert: {
             int slot = NameSelect.name_pos;
-            int i;
+            int i = 9;
 
-            for (i = 9; i >= slot; i--) {
+            for (; i >= slot; i--) {
                 CharaName[i + 1] = CharaName[i];
             }
 
@@ -1700,7 +1649,7 @@ s32 NameEnterKey() {
 
             break;
         }
-        case NAME_ACTION_NEXT_MODE:
+        case NameEnterAction::NextMode:
             switch (language) {
                 case LANG_JAPANESE:
                     if (input_mode < NAME_INPUT_SYMBOL) {
@@ -1722,7 +1671,7 @@ s32 NameEnterKey() {
             }
 
             break;
-        case NAME_ACTION_PREV_MODE:
+        case NameEnterAction::PrevMode:
             switch (language) {
                 case LANG_JAPANESE:
                     if (NAME_INPUT_KATAKANA < input_mode) {
@@ -1744,7 +1693,7 @@ s32 NameEnterKey() {
             }
 
             break;
-        case NAME_ACTION_LEFT:
+        case NameEnterAction::Left:
             if (0 < NameSelect.name_pos) {
                 if (NameSelect.name_pos >= 10) {
                     NameSelect.name_pos--;
@@ -1754,34 +1703,32 @@ s32 NameEnterKey() {
             }
 
             break;
-        case NAME_ACTION_RIGHT:
+        case NameEnterAction::Right:
             if (NameSelect.name_pos < 10) {
                 NameSelect.name_pos++;
             }
 
             break;
-        case NAME_ACTION_HELP:
-            NameSelect.area = NAME_AREA_HELP;
-            NameSelect.state = NAME_STATE_HELP;
+        case NameEnterAction::Help:
+            NameSelect.area = NameSelectArea::Help;
+            NameSelect.state = NameSelectState::Help;
             break;
-        case NAME_ACTION_DEFAULT_NAME:
+        case NameEnterAction::DefaultName:
             NameDefaultSet(NameSelect.chara_no);
             break;
-        case NAME_ACTION_DECIDE:
+        case NameEnterAction::Decide:
             switch (CheckName()) {
-                case NAME_CHECK_OK: {
-                    int length;
-                    int i;
+                case NameCheckResult::Ok: {
+                    NameSelect.area = NameSelectArea::Confirm;
+                    int length = 10;
 
-                    NameSelect.area = NAME_AREA_CONFIRM;
-
-                    for (length = 10; length > 0; length--) {
+                    for (; length > 0; length--) {
                         if (CharaName[length - 1] != 0 && CharaName[length - 1] != 230) {
                             break;
                         }
                     }
 
-                    for (i = 0; i < length; i++) {
+                    for (int i = 0; i < length; i++) {
                         if (CharaName[i] == 0) {
                             CharaName[i] = 230;
                         }
@@ -1793,38 +1740,40 @@ s32 NameEnterKey() {
 
                     break;
                 }
-                case NAME_CHECK_REJECTED:
+                case NameCheckResult::Rejected:
                     for (int i = 0; i < 10; i++) {
                         CharaName[i] = 0;
                     }
 
                     NameSelect.name_pos = 0;
                     break;
-                case NAME_CHECK_EMPTY:
+                case NameCheckResult::Empty:
                     NameDefaultSet(NameSelect.chara_no);
                     mes_no = 95;
-                    NameSelect.area = NAME_AREA_EMPTY_NOTICE;
+                    NameSelect.area = NameSelectArea::EmptyNotice;
                     break;
             }
 
             break;
-        case NAME_ACTION_FINISH:
+        case NameEnterAction::Finish:
             for (int i = 0; i < 10; i++) {
                 printf("CharaName[%d][%d] = %d\n", chara_no, i, CharaName[i]);
             }
 
             GamePad.AutoRepeatOff();
             GamePad.MenuModeOff();
-            NameSelect.area = NAME_AREA_KEYBOARD;
-            NameSelect.state = NAME_STATE_FADE_OUT;
+            NameSelect.area = NameSelectArea::Keyboard;
+            NameSelect.state = NameSelectState::FadeOut;
             NameSelect.state_count = 0;
+            break;
+        case NameEnterAction::ToggleVoicing:
             break;
     }
 
-    if (input_mode != NameSelect.input_mode && NameSelect.area != NAME_AREA_TABS) {
-        int old_cursor;
-        int row;
-        int column;
+    if (input_mode != NameSelect.input_mode && NameSelect.area != NameSelectArea::Tabs) {
+        int old_cursor = 0;
+        int row = 0;
+        int column = 0;
 
         switch (NameSelect.input_mode) {
             case NAME_INPUT_HIRAGANA:
@@ -1870,34 +1819,27 @@ s32 NameEnterKey() {
                         column++;
                     }
 
-                    if (row >= 4) {
-                        row = 4;
-                    }
+                    row = std::min(row, 4);
 
                     NameSelect.cursor = column + row * 13;
                 }
 
                 break;
             }
+            default:
+                break;
         }
     }
 
-    s8 rows;
-
     switch (NameSelect.input_mode) {
-        case NAME_INPUT_HIRAGANA:
-        case NAME_INPUT_KATAKANA:
-            break;
         case NAME_INPUT_SYMBOL:
-            rows = 3;
-
             while (NameSelect.cursor >= 40) {
                 NameSelect.cursor -= 10;
             }
 
             break;
-        case NAME_INPUT_ALPHABET:
-            rows = 4;
+        case NAME_INPUT_ALPHABET: {
+            int rows = 4;
 
             if (NameSelect.language > LANG_ENGLISH_UK) {
                 rows += euro_code_linelimmit[NameSelect.language - 2];
@@ -1908,9 +1850,12 @@ s32 NameEnterKey() {
             }
 
             break;
+        }
+        default:
+            break;
     }
 
-    sound = -1;
+    int sound = -1;
 
     if (cursor != NameSelect.cursor || side_row != NameSelect.side_row) {
         sound = MENU_SOUND_CURSOR;
@@ -1924,7 +1869,7 @@ s32 NameEnterKey() {
         sound = MENU_SOUND_CONFIRM;
     }
 
-    if (GamePad.Down(PAD_CIRCLE) || action == NAME_ACTION_DELETE || action == NAME_ACTION_BACKSPACE) {
+    if (GamePad.Down(PAD_CIRCLE) || action == NameEnterAction::Delete || action == NameEnterAction::Backspace) {
         sound = MENU_SOUND_REFUSE;
     }
 
@@ -1940,13 +1885,6 @@ s32 NameEnterKey() {
     return 0;
 }
 
-/**
- * Gives one party member their default name for the chosen language.
- *
- * @mangled NameDefaultSet__Fi
- * @address 0x23C770
- * @size 0x110
- */
 void NameDefaultSet(int chara_no) {
     int language = GetMenuLangFlag();
     s16 default_names[7][6][11] = {
@@ -1959,9 +1897,9 @@ void NameDefaultSet(int chara_no) {
         {{181, 202, 188, 201}, {185, 196, 188, 202}, {168, 202, 205, 202}, {179, 208, 189, 212}, {182, 201, 194, 188, 194, 188}, {176, 206, 200, 202, 201, 191}},
     };
     s16 *name = SaveData->GetCharaName(chara_no);
-    int  length;
+    int  length = 0;
 
-    for (length = 0; default_names[language][chara_no][length] != 0 && length < 10; length++) {
+    for (; default_names[language][chara_no][length] != 0 && length < 10; length++) {
         name[length] = default_names[language][chara_no][length];
     }
 
@@ -1971,6 +1909,8 @@ void NameDefaultSet(int chara_no) {
         name[length] = 0;
     }
 }
+
+namespace {
 
 // clang-format off
 /** The extra spacing to the left and right of each character from code 0xA2 upwards. */
@@ -2001,12 +1941,8 @@ s8 AlphabetEtcOffset[163][2] = {
 
 /**
  * Gives the kerning between two name characters.
- *
- * @mangled GetFontLRTumeW__Fiii
- * @address 0x23C880
- * @size 0x78
  */
-static int GetFontLRTumeW(int position, int left_code, int char_code) {
+int GetFontLRTumeW(int position, int char_code) {
     int kerning = 0;
 
     if (char_code >= 0xA2 && char_code < 0x100) {
@@ -2020,30 +1956,20 @@ static int GetFontLRTumeW(int position, int left_code, int char_code) {
     return kerning;
 }
 
-/**
- * Draws a party member's name on the character-select page.
- *
- * @mangled CharaSelectNameDraw2__FiiPsPP8CTexturei
- * @address 0x23C900
- * @size 0x250
- */
+} // namespace
+
 void CharaSelectNameDraw2(int x, int y, short *name, CTexture **textures, int blend_mode) {
-    if (name == NULL) {
+    if (name == nullptr) {
         return;
     }
 
-    int condensed;
-    int draw_x;
-    CTexture *texture;
-    int last;
-
-    last = 9;
+    int last = 9;
 
     while (name[last] == 0 && last > 0) {
         last--;
     }
 
-    condensed = 0;
+    int condensed = 0;
     int width = (last + 1) * 0x16;
 
     if (width >= 0xB0) {
@@ -2053,22 +1979,22 @@ void CharaSelectNameDraw2(int x, int y, short *name, CTexture **textures, int bl
     int kerning = 0;
 
     for (int slot = last; slot >= 0; slot--) {
-        kerning += GetFontLRTumeW(slot, name[slot - 1], name[slot]);
+        kerning += GetFontLRTumeW(slot, name[slot]);
     }
 
     if (condensed) {
         width -= kerning;
     }
 
-    draw_x = x + 0x44 + (width >> 1) - ((width / (last + 1)) >> 1);
+    int draw_x = x + 0x44 + (width >> 1) - ((width / (last + 1)) >> 1);
 
     for (; last >= 0; last--) {
-        int cell_x;
-        int cell_y;
-        texture = GetNameTextureInfo(textures, name[last], cell_x, cell_y);
-        CRect_i_ cell_rect(cell_x, cell_y, 0x16, 0x17);
+        int       cell_x = 0;
+        int       cell_y = 0;
+        CTexture *texture = GetNameTextureInfo(textures, name[last], cell_x, cell_y);
+        CRect_i_  cell_rect(cell_x, cell_y, 0x16, 0x17);
 
-        if (texture != NULL) {
+        if (texture != nullptr) {
             DrawMenu2DSprite(texture, CRect_i_(draw_x + 2, y + 2, 0x16, 0x15), cell_rect, 10, 10, 10, blend_mode);
             DrawMenu2DSprite(texture, CRect_i_(draw_x, y, 0x16, 0x15), cell_rect, blend_mode);
         }
@@ -2076,35 +2002,23 @@ void CharaSelectNameDraw2(int x, int y, short *name, CTexture **textures, int bl
         int kerning_step = 0;
 
         if (last >= 0 && condensed == 1) {
-            kerning_step = GetFontLRTumeW(last, name[last - 1], name[last]);
+            kerning_step = GetFontLRTumeW(last, name[last]);
         }
 
         draw_x -= 0x14 - kerning_step;
     }
 }
 
-/**
- * Draws a party member's name centred on the save board, with a shadow and a top-to-bottom gradient.
- *
- * @mangled DrawSaveBoardCharaName2__FiiPsPP8CTexture6spRGBA6spRGBA
- * @address 0x23CB50
- * @size 0x284
- */
 void DrawSaveBoardCharaName2(int x, int y, s16 *name, CTexture **textures, spRGBA top_color, spRGBA bottom_color) {
-    spRGBA    shadow_top = {10, 10, 10, top_color.a};
-    spRGBA    shadow_bottom = {10, 10, 10, bottom_color.a};
-    int       condensed;
-    int       draw_x;
-    CTexture *texture;
-    int       last;
-
-    last = 9;
+    spRGBA shadow_top = {.r = 10, .g = 10, .b = 10, .a = top_color.a};
+    spRGBA shadow_bottom = {.r = 10, .g = 10, .b = 10, .a = bottom_color.a};
+    int    last = 9;
 
     while (name[last] == 0 && last > 0) {
         last--;
     }
 
-    condensed = 0;
+    int condensed = 0;
     int width = (last + 1) * 0x16;
 
     if (width >= 0xB0) {
@@ -2114,20 +2028,20 @@ void DrawSaveBoardCharaName2(int x, int y, s16 *name, CTexture **textures, spRGB
     int kerning = 0;
 
     for (int slot = last; slot >= 0; slot--) {
-        kerning += GetFontLRTumeW(slot, name[slot - 1], name[slot]);
+        kerning += GetFontLRTumeW(slot, name[slot]);
     }
 
     if (condensed == 1) {
         width -= kerning;
     }
 
-    draw_x = x + 0x36 + (width >> 1) - ((width / (last + 1)) >> 1);
+    int draw_x = x + 0x36 + (width >> 1) - ((width / (last + 1)) >> 1);
 
     for (; last >= 0; last--) {
-        int cell_x;
-        int cell_y;
-        texture = GetNameTextureInfo(textures, name[last], cell_x, cell_y);
-        CRect_i_ cell_rect(cell_x, cell_y, 0x16, 0x17);
+        int       cell_x = 0;
+        int       cell_y = 0;
+        CTexture *texture = GetNameTextureInfo(textures, name[last], cell_x, cell_y);
+        CRect_i_  cell_rect(cell_x, cell_y, 0x16, 0x17);
 
         DrawMenu2DSprite(texture, CRect_i_(draw_x + 2, y + 2, 0x16, 0x15), cell_rect, &shadow_top, &shadow_top, &shadow_bottom, &shadow_bottom);
         DrawMenu2DSprite(texture, CRect_i_(draw_x, y, 0x16, 0x15), cell_rect, &top_color, &top_color, &bottom_color, &bottom_color);
@@ -2135,35 +2049,29 @@ void DrawSaveBoardCharaName2(int x, int y, s16 *name, CTexture **textures, spRGB
         int kerning_step = 0;
 
         if (last >= 0 && condensed == 1) {
-            kerning_step = GetFontLRTumeW(last, name[last - 1], name[last]);
+            kerning_step = GetFontLRTumeW(last, name[last]);
         }
 
         draw_x -= 0x14 - kerning_step;
     }
 }
 
-/**
- * Gives how wide a party member's name draws.
- *
- * @mangled GetMsgLengthCharaName__Fi
- * @address 0x23CDE0
- * @size 0x78
- */
 int GetMsgLengthCharaName(int chara_no) {
     if (chara_no < 0 || chara_no > 5) {
         return 0;
     }
 
-    s16 *name = SaveData->GetCharaName(chara_no);
-    int  length = 0;
+    const s16 *name = SaveData->GetCharaName(chara_no);
+    int        length = 0;
 
-    while (*name != 0 && length < 10) {
-        name++;
+    while (name[length] != 0 && length < 10) {
         length++;
     }
 
     return length;
 }
+
+namespace {
 
 /** State of the storybook that plays before the game begins. */
 OPENING_BOOK OpenBook;
@@ -2171,18 +2079,13 @@ OPENING_BOOK OpenBook;
 /** The work area the storybook hands to the name-entry screen once its pages are read. */
 u_long128 *OpeningReadBuf;
 
-/**
- * Opens the storybook that begins the game.
- *
- * @mangled InitOpeningBook__FP1Pi
- * @address 0x23CE60
- * @size 0xB0
- */
+} // namespace
+
 void InitOpeningBook(u_long128 *buffer, int *tex_blocks) {
     u_long128 *load_buffer = buffer;
 
-    if (load_buffer == NULL) {
-        load_buffer = (u_long128 *) read_buffer;
+    if (load_buffer == nullptr) {
+        load_buffer = reinterpret_cast<u_long128 *>(read_buffer);
     }
 
     load_buffer = MenuCalcBufAlignment(load_buffer);
@@ -2191,44 +2094,33 @@ void InitOpeningBook(u_long128 *buffer, int *tex_blocks) {
     OpenBook.tex_block = tex_blocks[0];
     OpenBook.name_tex_block = tex_blocks[1];
     OpenBook.open = false;
-    OpenBook.step = OPENING_BOOK_LOAD;
+    OpenBook.step = OpeningBookStep::Load;
     OpenBook.page = 0;
     OpenBook.fade = 128;
     OpenBook.text_alpha = 0;
 }
 
-/**
- * Steps the storybook that plays before the game begins: reads its pages, fades them in and out on the pad, then hands over to naming the hero.
- *
- * @mangled OpeningBookKey__Fv
- * @address 0x23CF10
- * @size 0x664
- */
 int OpeningBookKey() {
-    int result;
-
     ReadBG();
-    result = 0;
+    int result = 0;
 
     switch (OpenBook.step) {
-        case OPENING_BOOK_LOAD:
+        case OpeningBookStep::Load:
             if (OpenBook.open == 0 && ReadBGSync() == 0) {
                 LOADTEXTURE_INFO2 info[3] = {
-                    {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                    {NULL,                                       0, 0},
-                    {NULL,                                       0, 0}
+                    {.name = "#frame_image#640#" SCREEN_HEIGHT_STR "#4", .block_no = OpenBook.tex_block, .mipmap = 0},
+                    {.name = nullptr,                                    .block_no = OpenBook.tex_block, .mipmap = 0},
+                    {.name = nullptr,                                    .block_no = 0,                  .mipmap = 0},
                 };
 
-                info[0].block_no = OpenBook.tex_block;
-                info[1].block_no = OpenBook.tex_block;
                 BG_READ_INFO *read_file = GetReadBGFile(0);
-                info[1].name = (char *) GetPackFile((u_int *) read_file->buffer, "opentex.img", NULL);
+                info[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(read_file->buffer), "opentex.img", nullptr));
                 TexManager.DeleteTextureBlock(OpenBook.tex_block);
                 TexManager.CleanUpTextureList();
                 TexManager.LoadTextureBlockEX(-1, info);
                 OpeningReadBuf = read_file->buffer + (read_file->size >> 4) + 1;
                 OpeningReadBuf = MenuCalcBufAlignment(OpeningReadBuf);
-                short *messages = (short *) GetPackFile((u_int *) read_file->buffer, "opmes.bin", NULL);
+                auto *messages = reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(read_file->buffer), "opmes.bin", nullptr));
 
                 CommonMenuMes2.text_columns = MES_WIN_COLUMNS;
                 CommonMenuMes2.text_rows = 10;
@@ -2251,12 +2143,12 @@ int OpeningBookKey() {
                 CommonMenuMes2.mes_made = -1;
                 CommonMenuMes2.edge_alpha = 0x80;
 
-                for (int i = 0; i < 10; i++) {
-                    CommonMenuMes2.mes_no[i] = -1;
+                for (auto &mes_no : CommonMenuMes2.mes_no) {
+                    mes_no = -1;
                 }
 
-                for (int i = 0; i < 8; i++) {
-                    CommonMenuMes2.values[i] = 0;
+                for (auto &value : CommonMenuMes2.values) {
+                    value = 0;
                 }
 
                 CommonMenuMes2.value = 0;
@@ -2269,9 +2161,9 @@ int OpeningBookKey() {
                 CommonMenuMes2.cursor_y = 0;
                 CommonMenuMes2.cursor_lit = false;
 
-                for (int i = 0; i < 10; i++) {
-                    CommonMenuMes2.line_pos[i].x = -1;
-                    CommonMenuMes2.line_pos[i].y = -1;
+                for (auto &line_pos : CommonMenuMes2.line_pos) {
+                    line_pos.x = -1;
+                    line_pos.y = -1;
                 }
 
                 CommonMenuMes2.SetMesFukidashi(MES_FUKIDASHI_LARGE_TABLE_EDGE);
@@ -2301,78 +2193,70 @@ int OpeningBookKey() {
 
             if (OpenBook.open != 0) {
                 OpenBook.fade--;
-
-                if (OpenBook.fade <= 0) {
-                    OpenBook.fade = 0;
-                }
+                OpenBook.fade = std::max<s16>(OpenBook.fade, 0);
             }
 
             if (OpenBook.fade <= 0) {
-                OpenBook.step = OPENING_BOOK_TEXT_IN;
+                OpenBook.step = OpeningBookStep::TextIn;
                 OpenBook.text_alpha = 0;
             }
 
             break;
-        case OPENING_BOOK_TEXT_IN:
+        case OpeningBookStep::TextIn:
             OpenBook.text_alpha += 2;
 
             if (OpenBook.text_alpha >= 0x80) {
                 OpenBook.text_alpha = 0x80;
-                OpenBook.step = OPENING_BOOK_WAIT;
+                OpenBook.step = OpeningBookStep::Wait;
                 OpenBook.fade = 0;
             }
 
             break;
-        case OPENING_BOOK_TEXT_OUT:
+        case OpeningBookStep::TextOut:
             OpenBook.text_alpha -= 2;
 
             if (OpenBook.text_alpha <= 0) {
                 OpenBook.text_alpha = 0;
                 OpenBook.page++;
                 CommonMenuMes2.MakeMesWin(OpenBook.page + 100);
-                OpenBook.step = OPENING_BOOK_TEXT_IN;
+                OpenBook.step = OpeningBookStep::TextIn;
             }
 
             break;
-        case OPENING_BOOK_WAIT:
+        case OpeningBookStep::Wait:
             if (GamePad.Down(PAD_CROSS)) {
-                OpenBook.step = OPENING_BOOK_TEXT_OUT;
+                OpenBook.step = OpeningBookStep::TextOut;
 
                 if (OpenBook.page >= 11) {
-                    OpenBook.step = OPENING_BOOK_FINISH;
+                    OpenBook.step = OpeningBookStep::Finish;
                 }
             }
 
             if (DebugMode && GamePad.Down2(PAD_CROSS)) {
-                OpenBook.step = OPENING_BOOK_FINISH;
+                OpenBook.step = OpeningBookStep::Finish;
             }
 
             break;
-        case OPENING_BOOK_FINISH:
+        case OpeningBookStep::Finish:
             OpenBook.text_alpha--;
 
-            if (OpenBook.text_alpha <= 0 && OpenBook.step == OPENING_BOOK_FINISH && OpenBook.text_alpha <= 0) {
+            if (OpenBook.text_alpha <= 0) {
                 CommonMenuMes2.page_arrow = false;
                 InitNameRegist(0, OpenBook.name_tex_block, OpeningReadBuf);
-                OpenBook.step = OPENING_BOOK_NAME_ENTRY;
+                OpenBook.step = OpeningBookStep::NameEntry;
             }
 
             break;
-        case OPENING_BOOK_NAME_ENTRY:
+        case OpeningBookStep::NameEntry:
             result = NameEnterKey();
+            break;
+        case OpeningBookStep::Unk6:
             break;
     }
 
     return result;
 }
 
-/**
- * Draws the storybook page by page.
- *
- * @mangled OpeningBookDraw__Fv
- * @address 0x23D580
- * @size 0x134
- */
 void OpeningBookDraw() {
     setbilinear(0);
     AllFadeForMenu(0x80);
@@ -2385,11 +2269,11 @@ void OpeningBookDraw() {
     DrawFullSizePicture(TexManager.GetTexture("openbook", -1), 0, 0, 0x80);
 
     switch (OpenBook.step) {
-        case OPENING_BOOK_LOAD:
-        case OPENING_BOOK_TEXT_IN:
-        case OPENING_BOOK_WAIT:
-        case OPENING_BOOK_TEXT_OUT:
-        case OPENING_BOOK_FINISH:
+        case OpeningBookStep::Load:
+        case OpeningBookStep::TextIn:
+        case OpeningBookStep::Wait:
+        case OpeningBookStep::TextOut:
+        case OpeningBookStep::Finish:
             MenuTextureReload(CommonMenuMes2.tex_block);
             CommonMenuMes2.edge_alpha = OpenBook.text_alpha;
             GetMenuCommonPutXY(&CommonMenuMes2, 0x14C - CommonMenuMes2.char_width);
@@ -2397,8 +2281,8 @@ void OpeningBookDraw() {
             CommonMenuMes2.DrawMesWin();
             AllFadeForMenu(OpenBook.fade);
             break;
-        case OPENING_BOOK_NAME_ENTRY:
-        case OPENING_BOOK_UNK_6:
+        case OpeningBookStep::NameEntry:
+        case OpeningBookStep::Unk6:
             NameEnterDraw();
             break;
     }
