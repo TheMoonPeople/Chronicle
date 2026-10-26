@@ -10,8 +10,6 @@
 #include "texture.hpp"
 
 void CHitMark::Set(float *position, float *direction, int kind, float spread, float shrink, float gravity, float speed, int count, float floor_y) {
-    int i;
-
     SetPosition(position);
     this->kind = kind;
     this->spread = spread;
@@ -20,15 +18,12 @@ void CHitMark::Set(float *position, float *direction, int kind, float spread, fl
     this->speed = speed;
     this->floor_y = floor_y;
 
-    // The burst leaves along one direction, at the speed the caller asks for.
     sceVu0Normalize(direction, direction);
     direction[0] *= this->speed;
     direction[1] *= this->speed;
     direction[2] *= this->speed;
 
-    for (i = 0; i < count; i++) {
-        // Every mark starts a little away from the point of the hit, and
-        // leaves in a direction that is scattered about the one it was given.
+    for (int i = 0; i < count; i++) {
         this->offset[i][0] = rand() / 2147483648.0f - 0.5f;
         this->offset[i][1] = rand() / 2147483648.0f - 0.5f;
         this->offset[i][2] = rand() / 2147483648.0f - 0.5f;
@@ -50,17 +45,15 @@ void CHitMark::Draw() {
     int           bottom_right[4];
     sceVu0FVECTOR base;
     sceVu0FVECTOR mark_pos;
-    CTexture     *texture;
-    int           i;
 
     if (this->count == 0) {
         return;
     }
 
     sceVu0CopyVector(base, this->pos);
-    texture = TexManager.GetTexture("basefx00", -1);
+    CTexture *texture = TexManager.GetTexture("basefx00", -1);
 
-    for (i = 0; i < this->count; i++) {
+    for (int i = 0; i < this->count; i++) {
         if (this->used[i] == 0) {
             continue;
         }
@@ -74,8 +67,7 @@ void CHitMark::Draw() {
             continue;
         }
 
-        // The two corners that the sprite call gives back are opposite, so the
-        // other two take one part from each.
+        // The sprite call returns opposite corners; the other two mix their components.
         top_right[0] = bottom_right[0];
         top_right[1] = top_left[1];
         top_right[2] = top_left[2];
@@ -129,13 +121,14 @@ void CHitMark::Draw() {
                 set3DSprite(Vif1Packet, texture, rect, top_left, top_right, bottom_left, bottom_right, 0x80);
                 break;
             }
+            default:
+                break;
         }
     }
 }
 
 void CHitMark::Step() {
     sceVu0FVECTOR base;
-    int           i;
 
     sceVu0CopyVector(base, this->pos);
 
@@ -143,7 +136,7 @@ void CHitMark::Step() {
         return;
     }
 
-    for (i = 0; i < this->count; i++) {
+    for (int i = 0; i < this->count; i++) {
         if (this->used[i] == 0) {
             continue;
         }
@@ -153,8 +146,7 @@ void CHitMark::Step() {
         this->offset[i][2] += this->velocity[i][2];
         this->velocity[i][1] -= this->gravity;
 
-        // A mark that reaches the floor bounces off it, and loses most of the
-        // speed it fell with.
+        // Bounce off the floor, keeping 70% of the vertical speed.
         if (base[1] + this->offset[i][1] <= this->floor_y) {
             this->velocity[i][1] *= -0.7f;
         }
@@ -171,10 +163,8 @@ void CHitMark::Step() {
 }
 
 void CHitMark::Initialize() {
-    int i;
-
-    for (i = 0; i < HIT_MARK_MAX; i++) {
-        this->used[i] = 0;
+    for (s32 &slot_used : this->used) {
+        slot_used = 0;
     }
 
     this->capacity = HIT_MARK_MAX;
@@ -219,7 +209,7 @@ void CHitPointMark::Step() {
         return;
     }
 
-    // The mark shows for four steps and hides for four, so that it blinks.
+    // Toggles every four steps, so the mark shows for four and hides for four.
     if (this->timer % 4 == 0) {
         this->blink ^= 1;
     }

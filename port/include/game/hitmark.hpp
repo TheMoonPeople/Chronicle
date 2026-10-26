@@ -26,7 +26,7 @@ enum HitMarkKind {
 // clang-format on
 
 /** Number of marks that one hit can throw off. */
-#define HIT_MARK_MAX 32
+inline constexpr int HIT_MARK_MAX = 32;
 
 /**
  * Throws a burst of sprites off the point of a hit and carries each one until
@@ -50,37 +50,21 @@ public:
 
     /**
      * Moves every mark, and drops the ones that have shrunk away.
-     *
-     * @mangled Step__8CHitMarkFv
-     * @address 0x1B3490
-     * @size 0x13C
      */
     virtual void Step();
 
     /**
      * Throws a burst of marks off a point, each one in its own direction.
-     *
-     * @mangled Set__8CHitMarkFPfPfiffffif
-     * @address 0x1B2E90
-     * @size 0x310
      */
     void Set(float *position, float *direction, int kind, float spread, float shrink, float gravity, float speed, int count, float floor_y);
 
     /**
      * Draws every mark that the burst still holds.
-     *
-     * @mangled Draw__8CHitMarkFv
-     * @address 0x1B31A0
-     * @size 0x2EC
      */
     void Draw();
 
     /**
      * Empties every slot, so that the burst throws nothing.
-     *
-     * @mangled Initialize__8CHitMarkFv
-     * @address 0x1B35D0
-     * @size 0x3C
      */
     void Initialize();
 };
@@ -110,19 +94,11 @@ public:
 
     /**
      * Draws the mark, unless the blink hides it.
-     *
-     * @mangled Draw__13CHitPointMarkFv
-     * @address 0x1B3610
-     * @size 0xFC
      */
     void Draw();
 
     /**
      * Counts the mark down, and turns the blink over every fourth step.
-     *
-     * @mangled Step__13CHitPointMarkFv
-     * @address 0x1B3710
-     * @size 0x64
      */
     void Step();
 };

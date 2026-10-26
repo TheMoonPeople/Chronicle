@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Declarations of what ps2/src/main.cpp defines for the rest of the game.
+ * Top-level game modes and the globals that the main loop shares with the rest of the game.
  */
 
 #include "common.h"
@@ -31,10 +31,14 @@ enum GameMode {
     GAME_MODE_LANGUAGE = 14,     /**< Language select (LangsetInit). */
 };
 
-/** Which entry the main menu has the cursor on. */
+/**
+ * Which entry the main menu has the cursor on.
+ */
 extern s32 main_select_menu_no;
 
-/** The system messages every message window shares. */
+/**
+ * The system messages every message window shares.
+ */
 extern short *SystemMes;
 
 /**
@@ -42,13 +46,19 @@ extern short *SystemMes;
  */
 extern int MapNo;
 
-/** Initial ambient-light colour used by the renderer. */
+/**
+ * Initial ambient-light colour used by the renderer.
+ */
 extern sceVu0FVECTOR ambientlight;
 
-/** Initial parallel-light direction matrix used by the renderer. */
+/**
+ * Initial parallel-light direction matrix used by the renderer.
+ */
 extern sceVu0FMATRIX light;
 
-/** Initial parallel-light colour matrix used by the renderer. */
+/**
+ * Initial parallel-light colour matrix used by the renderer.
+ */
 extern sceVu0FMATRIX lightcolor;
 
 /**

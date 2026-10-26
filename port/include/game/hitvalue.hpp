@@ -27,36 +27,16 @@ class CFrame;
 class CHitValue {
 public:
     sceVu0FVECTOR pos;   /**< World position the number is drawn above. */
-    CFrame       *frame; /**< Frame the number follows, or zero to stand still. */
+    CFrame       *frame; /**< Frame the number follows, or null to stand still. */
 
-    union {
-        float digit_angle[5]; /**< Hop angle of each place, rising to pi. */
-        float phase[5];       /**< The hop angles, as the entry and draw routines name them. */
-    };
-
-    union {
-        s32 digits[5]; /**< Value of each place; -1 skips its hop and -2 draws the special mark. */
-        s32 digit[5];  /**< The place values, as the entry and draw routines name them. */
-    };
-
-    union {
-        float alpha;   /**< Opacity of the number, from zero to 128. */
-        float opacity; /**< The opacity, as the entry and draw routines name it. */
-    };
-
-    union {
-        float alpha_speed;   /**< Amount the opacity changes by each step. */
-        float opacity_speed; /**< The opacity change per step, as the entry routine names it. */
-    };
-
-    union {
-        s32 last_digit; /**< Place whose finished hop starts the fade. */
-        s32 unk_44;
-    };
-
-    s32  kind;   /**< What took the hit, which picks the digit sheet. @see HitValueKind. */
-    RECT texel;  /**< Rectangle of the sheet one digit is cut from. */
-    s32  active; /**< Indicates that the slot is showing a number. */
+    float digit_angle[5]; /**< Hop angle of each place, rising to pi. */
+    s32   digits[5];      /**< Value of each place; -1 skips its hop and -2 draws the special mark. */
+    float alpha;          /**< Opacity of the number, from zero to 128. */
+    float alpha_speed;    /**< Amount the opacity changes by each step. */
+    s32   last_digit;     /**< Place whose finished hop starts the fade. */
+    s32   kind;           /**< What took the hit, which picks the digit sheet. @see HitValueKind. */
+    RECT  texel;          /**< Rectangle of the sheet one digit is cut from. */
+    s32   active;         /**< Indicates that the slot is showing a number. */
 
     /**
      * Puts one damage number on the screen over what took the hit.
@@ -65,7 +45,7 @@ public:
      * @address 0x1B6370
      * @size 0x1E4
      */
-    void EntryValue(float *world, int amount, int kind, CFrame *frame);
+    void EntryValue(float *world, int amount, int value_kind, CFrame *follow_frame);
 
     /**
      * Draws the damage numbers standing on the screen.

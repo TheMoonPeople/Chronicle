@@ -1,11 +1,18 @@
-#include "stubs/main.hpp"
-// C imports
+#include "main.hpp"
+
 #include <libmc.h>
 
-#include <cstdio>
-#include <cstring>
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <format>
+#include <memory>
+#include <print>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
 
-// Our imports
 #include "btsysscript.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
@@ -22,7 +29,6 @@
 #include "gameutil.hpp"
 #include "hitmark.hpp"
 #include "literals.hpp"
-#include "main.hpp"
 #include "mainselect.hpp"
 #include "mathutil.hpp"
 #include "memcard.hpp"
@@ -36,6 +42,7 @@
 #include "shot_effect.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
+#include "stubs/main.hpp"
 #include "sysmes.hpp"
 #include "texture.hpp"
 #include "textureanime.hpp"
@@ -46,19 +53,20 @@
 #include "vutext.hpp"
 #include "water.hpp"
 
+namespace {
+
 /**
  * Steps of the memory card check run before the title.
  */
-// clang-format off
-enum MemCheckMode {
-    MEM_CHECK_CHECK    = 0, /**< Checks the memory cards once the cancel delay has run out. */
-    MEM_CHECK_UNK_1    = 1, /**< Never set; does nothing. */
-    MEM_CHECK_NO_CARD  = 2, /**< No usable PS2 memory card; shows the first warning. */
-    MEM_CHECK_NO_SPACE = 3, /**< No card has room for a save; shows the second warning. */
-    MEM_CHECK_DONE     = 4, /**< The check is over. */
+enum class MemCheckMode : int {
+    Check = 0,   /**< Checks the memory cards once the cancel delay has run out. */
+    Unk1 = 1,    /**< Never set; does nothing. */
+    NoCard = 2,  /**< No usable PS2 memory card; shows the first warning. */
+    NoSpace = 3, /**< No card has room for a save; shows the second warning. */
+    Done = 4,    /**< The check is over. */
 };
 
-// clang-format on
+} // namespace
 
 /**
  * Holds the category's level-of-detail thresholds and trailing state.
@@ -71,55 +79,35 @@ public:
 
     /**
      * Constructs the category attributes with their starting values.
-     *
-     * @mangled __ct__12CategoryAttrFv
-     * @address 0x143410
-     * @size 0x30
      */
     CategoryAttr();
 
     /**
      * Resets the category's thresholds and trailing state.
-     *
-     * @mangled Initialize__12CategoryAttrFv
-     * @address 0x143440
-     * @size 0x1C
      */
     void Initialize();
 };
 
 STATIC_ASSERT(sizeof(CategoryAttr) == 0x18);
 
-/* Global, GLOBAL-linkage per retail `nm` (0x1cbc9b0, `T`). Purpose beyond
- * being constructed here is unanalyzed -- out of scope for this pass. */
+namespace {
+
 CRunScript RunScript;
 
-/* Retail `nm`: 0x1cbca00, LOCAL. Declared GLOBAL here because
- * LoadSystemMessage__Fv is still a raw .s and references it externally,
- * which a `static` in this object cannot satisfy. That costs symbol binding
- * only, not code bytes; restore `static` once it lands in this TU. */
+} // namespace
+
 CDataAlloc<1, 6000> SystemMesBuffer;
 
-/* The global save-data instance and the pointer used to reach it. Retail's
- * symbol table:
- *     2433: 01cd4140 78272 OBJECT LOCAL  4 save_data
- *    11183: 002a250c     4 OBJECT GLOBAL 4 SaveData
- * 78272 is exactly sizeof(CSaveData). `save_data` is LOCAL, so it has to
- * share a translation unit with whatever assigns `SaveData = &save_data;` --
- * main(), below. `SaveData` is unmangled and sits in main.sbss at gp-0x72E4
- * from _gp = 0x2A97F0, confirmed against the `lw $4,-0x72E4($28)` preamble of
- * every CSaveData call in ref/asm/sections/dun/dun.text.s. */
-static CSaveData save_data __attribute__((aligned(64)));
-CSaveData       *SaveData;
+namespace {
 
-/* main()'s own top-level game-state globals -- moved here from
- * ps2/src/mainselect.cpp/ps2/include/mainselect.hpp for the same reason as `pBound` etc. above:
- * retail's `main.sbss` interleaves these (GLOBAL linkage) with `SaveData`
- * just above and `mode`/etc. just below, all in one contiguous run
- * (0x2a2510-0x2a2548) that must come from ONE compiled object. Still
- * *declared* `extern` in ps2/include/mainselect.hpp (in case another, not-yet-
- * decompiled TU needs them), just no longer *defined* there. Declaration
- * order here matches retail's exact main.sbss address order. */
+// Never read, but its constructor hands out the starting dagger through the shared item
+// code at startup, and later game state depends on that side effect.
+CSaveData save_data __attribute__((aligned(64)));
+
+} // namespace
+
+CSaveData *SaveData;
+
 s32    GameClearFlag;
 s32    main_select_menu_no;
 s32    MapNo;
@@ -130,52 +118,28 @@ short *SystemMes;
 CSound CSnd;
 s32    main_select_padrup;
 
-/* Scratch buffer for the "reset trial character names, keep the rest"
- * round-trip below. Retail has it as a real named static rather than a stack
- * local: `readelf -s` gives `config_data`, 64 bytes (= sizeof(SV_CONFIG_SYS)),
- * LOCAL, main.bss, and retail allocates no stack for it.
- *
- * Declared before `mainCDataAlloc2` to match retail's .bss order
- * (config_data 0x1ce7300, mainCDataAlloc2 0x1ce7560). It is a POD with no
- * constructor, so this does not disturb sinit order. */
-static SV_CONFIG_SYS config_data;
+namespace {
 
-/* Unidentified retail global: `nm` DebugFont, 0x1ce7340, LOCAL, 0x21C bytes.
- * A same-sized stand-in is needed or this object's .bss runs 0x220 short and
- * everything after it lands early. The 4 bytes before mainCDataAlloc2 at
- * 0x1ce7560 are the linker's alignment pad, not part of the object --
- * declaring 0x220 made the symbol four bytes longer than retail's.
- * TODO: identify the real type; the name suggests a font glyph table.
- *
- * GLOBAL rather than retail's LOCAL for the same reason as SystemMesBuffer:
- * MenuLoop__Fv is still a raw .s and references it. */
 CDebugFont DebugFont;
 
-/* Global, GLOBAL linkage per retail `nm` (0x1ce7560, `T`). Declared last,
- * after `save_data`/`SaveData`, since retail's sinit thunk constructs it
- * fourth (`SaveData` itself is a plain pointer with no constructor, so it
- * doesn't participate in sinit ordering either way). */
 CDataAlloc2<1> mainCDataAlloc2;
 
-/* File-scope statics of the original main translation unit. Retail has them
- * unsuffixed and LOCAL (`nm`: mode, d1, d2, d8, mc_mode, in that main.sbss
- * address order, 0x2a2534-0x2a2548), so file-scope `static` rather than
- * function-local statics, which would get a `$NNN` suffix. No raw .s
- * references them by gp-offset, so real `static` works. `d2`/`d8` are never
- * touched by main() but must still be defined, so this object's .sbss covers
- * their retail byte range. See re/ai/build_pipeline.md. */
+} // namespace
+
 /** Top-level game mode currently being updated. */
-s32         mode;
+s32 mode;
+
+namespace {
+
 sceDmaChan *d1;
 sceDmaChan *d2;
 sceDmaChan *d8;
+
+} // namespace
+
 /** Memory-card operation selected by the developer menu. */
 s32 mc_mode;
 
-/* `PolyCount` (GLOBAL linkage) immediately follows `mc_mode` in retail's
- * main.sbss (0x2a2548) -- moved here from ps2/src/mainselect.cpp for the same reason
- * as `GameClearFlag` etc. above. Still declared `extern` in
- * include/mainselect.hpp. */
 s32 PolyCount;
 
 /**
@@ -183,8 +147,12 @@ s32 PolyCount;
  */
 s32 NextMapNo = -1;
 
+namespace {
+
 /** Enables accumulation of the save file's play-time counter. */
-static int play_time_count = 1;
+int play_time_count = 1;
+
+} // namespace
 
 void init_all() {
     InitCDFile();
@@ -198,7 +166,6 @@ void init_all() {
     InitReadBG();
 }
 
-/** Initial parallel-light direction matrix used by the renderer. */
 sceVu0FMATRIX light = {
     {0.578f, 0.0f, 0.0f, 0.0f},
     {0.578f, 0.0f, 0.0f, 0.0f},
@@ -206,7 +173,6 @@ sceVu0FMATRIX light = {
     {0.0f,   0.0f, 0.0f, 0.0f},
 };
 
-/** Initial parallel-light colour matrix used by the renderer. */
 sceVu0FMATRIX lightcolor = {
     {120.0f, 120.0f, 120.0f, 128.0f},
     {0.0f,   0.0f,   0.0f,   0.0f  },
@@ -214,20 +180,18 @@ sceVu0FMATRIX lightcolor = {
     {0.0f,   0.0f,   0.0f,   0.0f  },
 };
 
-/** Initial ambient-light colour used by the renderer. */
 sceVu0FVECTOR ambientlight = {64.0f, 64.0f, 64.0f, 128.0f};
 
 void LoadSndTxt() {
-    u_char  work[48000];
-    u_char *buffer = work;
-    int     offset = (int) buffer % 64;
+    constexpr std::size_t work_size = 48000;
+    auto                  work = std::make_unique_for_overwrite<u_char[]>(work_size);
+    void                 *aligned = work.get();
+    std::size_t           space = work_size;
+    std::align(64, 1, aligned, space);
+    auto *buffer = static_cast<u_int *>(aligned);
 
-    if (offset) {
-        buffer += 64 - offset;
-    }
-
-    CSnd.LoadSeInf("sound/tbl/setbl.txt", (u_int *) buffer);
-    CSnd.LoadSqInf("sound/tbl/sqtbl.txt", (u_int *) buffer);
+    CSnd.LoadSeInf("sound/tbl/setbl.txt", buffer);
+    CSnd.LoadSqInf("sound/tbl/sqtbl.txt", buffer);
     SndInitSeTable();
 }
 
@@ -235,7 +199,7 @@ void PlayTimeCountFlag(int flag) {
     play_time_count = flag;
 }
 
-int PlayTimeCount(int unused) {
+int PlayTimeCount(int /*unused*/) {
     if (play_time_count) {
         SaveData->AddPlayTime(1);
     }
@@ -243,19 +207,19 @@ int PlayTimeCount(int unused) {
 }
 
 void LoadSystemMessage() {
-    int size;
+    int size = 0;
     SystemMesBuffer.used = 0;
     SystemMesBuffer.Align64();
-    SystemMes = (short *) &SystemMesBuffer.block[SystemMesBuffer.used];
-    char name[64] = "meswin/system";
+    SystemMes = reinterpret_cast<short *>(&SystemMesBuffer.block[SystemMesBuffer.used]);
+    std::string name = "meswin/system";
 
     if (LanguageCode > LANG_JAPANESE) {
-        sprintf(name, "meswin/system_%d", LanguageCode);
+        name = std::format("meswin/system_{}", LanguageCode);
     }
 
-    strcat(name, ".mes");
+    name += ".mes";
 
-    if (!LoadFile2(name, SystemMes, &size, 0)) {
+    if (!LoadFile2(name.data(), SystemMes, &size, 0)) {
         LoadFile("meswin/systeme.bin", SystemMes, &size);
     }
 
@@ -269,12 +233,25 @@ void initialize_data() {
     LoadSndTxt();
 }
 
-static int edit_map;
-static int sub_map;
-static int event_no;
+namespace {
 
-/* The game's top-level modes and the transitions between them: map jumps, the
- * menu, the save and memory-card screens, the trial ending. */
+int edit_map;
+int sub_map;
+int event_no;
+
+/**
+ * Appends formatted text to the developer menu's overlay, keeping it null-terminated.
+ */
+template <typename... Args>
+void AppendDebugText(std::format_string<Args...> format, Args &&...args) {
+    std::span<char> free_text = std::span(DebugFont.text).subspan(DebugFont.length);
+    auto            result = std::format_to_n(free_text.data(), static_cast<std::ptrdiff_t>(free_text.size() - 1),
+                                              format, std::forward<Args>(args)...);
+    *result.out = '\0';
+    DebugFont.length += static_cast<int>(result.size);
+}
+
+} // namespace
 
 void MapJump(int map_no, int event_no) {
     NextMapNo = map_no;
@@ -285,14 +262,12 @@ void MenuInit() {
     static LOADTEXTURE_INFO texdata[64] = {{"#frame_buff#640#" HALF_BUFFER_HEIGHT_STR "#4"},
                                            {"img/ankfont.img"},
                                            {gamemode_empty_string}};
-    float                   background;
-    int                     result;
     InitializeDataBuffer();
     SetDataBuffer(&TextureData, 100000);
     SetPacketReadBuffer(10000, 100000);
     TexManager.Initialize(16352);
-    result = TexManager.EnterTextureFile(texdata);
-    result = TexManager.LoadTextureBlock(-1, read_buffer);
+    TexManager.EnterTextureFile(texdata);
+    TexManager.LoadTextureBlock(-1, read_buffer);
     MGSetBGColor(0.0f, 0.0f, 128.0f, 128.0f);
     DebugFont.texture_name = "frame_buff";
     DebugFont.x = 16;
@@ -307,47 +282,28 @@ void MenuInit() {
  * Draws and operates the developer's top-level map and mode selector.
  */
 int MenuLoop() {
-    static char *menu[10] = {
-        "game start",
-        "%se0%d\n",
-        "%ss%d\n",
-        "interior",
-        "dungeon",
-        "opening",
-        "%sevent%d\n",
-        "%smemory card %d\n",
-        "%sLanguage %d\n",
-        gamemode_empty_string};
-    static int map_no[10] = {800, 0, 11, 99, 200, 400, 0, 0, 0, -1};
+    // Rows 1, 2, 6, 7 and 8 are followed by the value they adjust.
+    constexpr std::array<std::string_view, 9> labels = {
+        "game start", "e0", "s", "interior", "dungeon", "opening", "event", "memory card ", "Language "};
+    constexpr std::array<int, 9>              map_no = {800, 0, 11, 99, 200, 400, 0, 0, 0};
+    constexpr std::array<std::string_view, 2> cursor = {" ", ">"};
+    constexpr int                             row_count = labels.size();
 
     DebugFont.length = 0;
 
-    int        i = 0;
-    static int select = 0;
-
-    while (menu[i][0] != 0) {
-        i++;
-    }
-
-    char *cursor[2] = {" ", ">"};
+    static int selected_row = 0;
 
     if (GamePad.Down(PAD_DOWN)) {
-        select++;
+        selected_row++;
     }
 
     if (GamePad.Down(PAD_UP)) {
-        select--;
+        selected_row--;
     }
 
-    if (select < 0) {
-        select = 0;
-    }
+    selected_row = std::clamp(selected_row, 0, row_count - 1);
 
-    if (select >= i) {
-        select = i - 1;
-    }
-
-    if (select == 1) {
+    if (selected_row == 1) {
         if (GamePad.Down(PAD_RIGHT)) {
             edit_map++;
         }
@@ -356,16 +312,10 @@ int MenuLoop() {
             edit_map--;
         }
 
-        if (edit_map < 0) {
-            edit_map = 0;
-        }
-
-        if (edit_map > 4) {
-            edit_map = 4;
-        }
+        edit_map = std::clamp(edit_map, 0, 4);
     }
 
-    if (select == 2) {
+    if (selected_row == 2) {
         if (GamePad.Down(PAD_RIGHT)) {
             sub_map++;
         }
@@ -391,7 +341,7 @@ int MenuLoop() {
         }
     }
 
-    if (select == 6) {
+    if (selected_row == 6) {
         if (GamePad.Down(PAD_RIGHT)) {
             event_no++;
         }
@@ -417,7 +367,7 @@ int MenuLoop() {
         }
     }
 
-    if (select == 7) {
+    if (selected_row == 7) {
         if (GamePad.Down(PAD_RIGHT)) {
             mc_mode++;
         }
@@ -435,7 +385,7 @@ int MenuLoop() {
         }
     }
 
-    if (select == 8) {
+    if (selected_row == 8) {
         if (GamePad.Down(PAD_RIGHT)) {
             LanguageCode++;
         }
@@ -444,36 +394,28 @@ int MenuLoop() {
             LanguageCode--;
         }
 
-        if (LanguageCode < LANG_JAPANESE) {
-            LanguageCode = LANG_JAPANESE;
-        }
-
-        if (LanguageCode > LANG_SPANISH) {
-            LanguageCode = LANG_SPANISH;
-        }
+        LanguageCode = std::clamp<s32>(LanguageCode, LANG_JAPANESE, LANG_SPANISH);
     }
 
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], "Dark Cloud Ver3.07 2001/07/12\n");
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], "%s%s\n", cursor[select == 0], menu[0]);
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], menu[1], cursor[select == 1], edit_map + 1);
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], menu[2], cursor[select == 2], sub_map + 1);
+    AppendDebugText("Dark Cloud Ver3.07 2001/07/12\n");
+    AppendDebugText("{}{}\n", cursor[selected_row == 0], labels[0]);
+    AppendDebugText("{}{}{}\n", cursor[selected_row == 1], labels[1], edit_map + 1);
+    AppendDebugText("{}{}{}\n", cursor[selected_row == 2], labels[2], sub_map + 1);
 
-    for (i = 3; i < 6; i++) {
-        DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], "%s%s\n", cursor[i == select], menu[i]);
+    for (int row = 3; row < 6; row++) {
+        AppendDebugText("{}{}\n", cursor[row == selected_row], labels[row]);
     }
 
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], menu[i], cursor[i == select], event_no);
-    i++;
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], menu[i], cursor[i == select], mc_mode);
-    i++;
-    DebugFont.length += sprintf(&DebugFont.text[DebugFont.length], menu[i], cursor[i == select], LanguageCode);
+    AppendDebugText("{}{}{}\n", cursor[selected_row == 6], labels[6], event_no);
+    AppendDebugText("{}{}{}\n", cursor[selected_row == 7], labels[7], mc_mode);
+    AppendDebugText("{}{}{}\n", cursor[selected_row == 8], labels[8], LanguageCode);
 
     TexManager.ReloadTexture(GetVif1Packet(), 0);
     DebugFont.Draw();
 
     if (GamePad.Down(PAD_CIRCLE) || GamePad.Down(PAD_TRIANGLE)) {
-        static int map[3] = {23, 41, 19};
-        static int event[3] = {310, 150, 305};
+        constexpr std::array<int, 3> event_maps = {23, 41, 19};
+        constexpr std::array<int, 3> event_numbers = {310, 150, 305};
 
         main_select_padrup = 0;
 
@@ -485,25 +427,25 @@ int MenuLoop() {
         NextMapNo = -1;
         GamePad.AutoRepeatOff();
 
-        main_select_menu_no = map_no[select];
+        main_select_menu_no = map_no[selected_row];
         mode = GAME_MODE_EDIT;
 
-        if (select == 1) {
+        if (selected_row == 1) {
             main_select_menu_no = edit_map;
             LocalMapNo = edit_map;
         }
 
-        if (select == 2) {
+        if (selected_row == 2) {
             main_select_menu_no = sub_map + 11;
             LocalMapNo = main_select_menu_no;
         }
 
-        if (select == 6) {
-            MapJump(map[event_no], event[event_no]);
+        if (selected_row == 6) {
+            MapJump(event_maps[event_no], event_numbers[event_no]);
             return 1;
         }
 
-        if (select == 7) {
+        if (selected_row == 7) {
             mode = GAME_MODE_SAVE;
             return 1;
         }
@@ -516,9 +458,11 @@ int MenuLoop() {
         }
 
         if (main_select_menu_no == 800) {
+            constexpr std::string_view title_param = "title";
             MapNo++;
             main_select_menu_no = 0;
-            strcpy(main_select_param, "title");
+            std::ranges::copy(title_param, main_select_param);
+            main_select_param[title_param.size()] = '\0';
             mode = GAME_MODE_RUSH_MOVIE;
         }
 
@@ -533,32 +477,67 @@ int MenuLoop() {
     return 0;
 }
 
-static int mem_chk_mode;
-static int check_cancel;
-static int taiken_cnt;
-static int taiken_start;
+namespace {
+
+MemCheckMode mem_chk_mode;
+int          check_cancel;
+int          taiken_cnt;
+int          taiken_start;
+
+/** Path of the memory-card warning images, which the texture table points into. */
+std::string memory_image_path;
+
+/**
+ * Draws one memory-card warning and handles its retry and continue buttons.
+ */
+void MemCheckWarning(char *texture_name) {
+    // The warning images are drawn at NTSC height and stretched over the taller frame.
+    CRect_i_ rect;
+    CRect_i_ texel;
+    texel.x = 0;
+    texel.y = 0;
+    texel.width = 640;
+    texel.height = 448;
+    rect.x = 0;
+    rect.y = 0;
+    rect.width = 640;
+    rect.height = SCREEN_HEIGHT;
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture(texture_name, -1), rect, texel);
+
+    if (GamePad.Down(PAD_CIRCLE)) {
+        mem_chk_mode = MemCheckMode::Check;
+        check_cancel = 3;
+    }
+
+    if (GamePad.Down(PAD_CROSS)) {
+        mem_chk_mode = MemCheckMode::Done;
+    }
+}
+
+} // namespace
 
 void MemCheckInit() {
     InitializeDataBuffer();
     SetDataBuffer(&TextureData, 100000);
     SetPacketReadBuffer(10000, 100000);
-    char filename[64] = "img/memory.img";
+    memory_image_path = "img/memory.img";
 
     if (LanguageCode > LANG_JAPANESE && LanguageCode < LANG_COUNT) {
-        sprintf(filename, "img_%d/memory.img", LanguageCode);
+        memory_image_path = std::format("img_{}/memory.img", LanguageCode);
     }
 
     TexManager.Initialize(16352);
-    static LOADTEXTURE_INFO texdata[64] = {{filename}, {gamemode_empty_string}};
+    static LOADTEXTURE_INFO texdata[64] = {{nullptr}, {gamemode_empty_string}};
+    texdata[0].name = memory_image_path.data();
     TexManager.EnterTextureFile(texdata);
     TexManager.LoadTextureBlock(-1, read_buffer);
     MGSetBGColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     if (sceMcInit()) {
-        printf("libmc initialize faild\n");
+        std::println("libmc initialize faild");
     }
 
-    mem_chk_mode = MEM_CHECK_CHECK;
+    mem_chk_mode = MemCheckMode::Check;
     check_cancel = 2;
     taiken_cnt = 0;
     taiken_start = 0;
@@ -569,7 +548,7 @@ int MemCheckLoop() {
     TexManager.ReloadTexture(GetVif1Packet(), 0);
 
     switch (mem_chk_mode) {
-        case MEM_CHECK_CHECK:
+        case MemCheckMode::Check:
             if (check_cancel > 0) {
                 break;
             }
@@ -578,74 +557,29 @@ int MemCheckLoop() {
                 case SAVE_ENABLE_OK:
                     return 1;
                 case SAVE_ENABLE_NO_CARD:
-                    mem_chk_mode = MEM_CHECK_NO_CARD;
+                    mem_chk_mode = MemCheckMode::NoCard;
                     break;
                 case SAVE_ENABLE_NO_SPACE:
-                    mem_chk_mode = MEM_CHECK_NO_SPACE;
+                    mem_chk_mode = MemCheckMode::NoSpace;
+                    break;
+                default:
                     break;
             }
 
             break;
-        case MEM_CHECK_UNK_1:
+        case MemCheckMode::Unk1:
             break;
-        case MEM_CHECK_NO_CARD: {
-            /* The warning images are drawn at NTSC height and stretched over the taller frame. */
-            CRect_i_ rect;
-            CRect_i_ texel;
-            texel.x = 0;
-            texel.y = 0;
-            texel.width = 640;
-            texel.height = 448;
-            rect.x = 0;
-            rect.y = 0;
-            rect.width = 640;
-            rect.height = SCREEN_HEIGHT;
-            set2DSprite(GetVif1Packet(), TexManager.GetTexture("memory01", -1), rect, texel);
-
-            if (GamePad.Down(PAD_CIRCLE)) {
-                mem_chk_mode = MEM_CHECK_CHECK;
-                check_cancel = 3;
-            }
-
-            if (GamePad.Down(PAD_CROSS)) {
-                mem_chk_mode = MEM_CHECK_DONE;
-            }
-
+        case MemCheckMode::NoCard:
+            MemCheckWarning("memory01");
             break;
-        }
-        case MEM_CHECK_NO_SPACE: {
-            CRect_i_ rect;
-            CRect_i_ texel;
-            texel.x = 0;
-            texel.y = 0;
-            texel.width = 640;
-            texel.height = 448;
-            rect.x = 0;
-            rect.y = 0;
-            rect.width = 640;
-            rect.height = SCREEN_HEIGHT;
-            set2DSprite(GetVif1Packet(), TexManager.GetTexture("memory02", -1), rect, texel);
-
-            if (GamePad.Down(PAD_CIRCLE)) {
-                mem_chk_mode = MEM_CHECK_CHECK;
-                check_cancel = 3;
-            }
-
-            if (GamePad.Down(PAD_CROSS)) {
-                mem_chk_mode = MEM_CHECK_DONE;
-            }
-
+        case MemCheckMode::NoSpace:
+            MemCheckWarning("memory02");
             break;
-        }
-        case MEM_CHECK_DONE:
+        case MemCheckMode::Done:
             return 1;
     }
 
-    check_cancel--;
-
-    if (check_cancel < 0) {
-        check_cancel = 0;
-    }
+    check_cancel = std::max(check_cancel - 1, 0);
 
     return 0;
 }
@@ -659,24 +593,24 @@ void InitSave() {
         {"#fuki256#128#128#1",                              26},
         {"meswin/gaiji.img",                                26}
     };
-    u_int *buffer;
     InitializeDataBuffer();
     SetDataBuffer(&TextureData, 100000);
     SetPacketReadBuffer(10000, 100000);
     TexManager.Initialize(16352);
     TexManager.EnterTextureFile(texdata);
     TexManager.LoadTextureBlock(-1, read_buffer);
-    LoadFileMenuData((buffer = read_buffer, "stayframe.img"), buffer);
-    TexManager.EnterFixTextureZ((u_char *) read_buffer);
+    u_int *buffer = read_buffer;
+    LoadFileMenuData("stayframe.img", buffer);
+    TexManager.EnterFixTextureZ(reinterpret_cast<u_char *>(read_buffer));
     StayTexture = TexManager.GetTexture("stayframe", -1);
     CommonMenuMes2.SetBuff_system(SystemMes);
     EditSystemMes.tex_buff = MesWinTexBuff_01;
-    InitMenuSave(mc_mode, 1, (u_long128 *) read_buffer);
+    InitMenuSave(mc_mode, 1, reinterpret_cast<u_long128 *>(read_buffer));
 }
 
 int LoopSave() {
     int result = MenuSaveKey();
-    DrawMenuSave(0);
+    DrawMenuSave(nullptr);
     return result;
 }
 
@@ -691,11 +625,10 @@ int CheckTrialEnd() { return 0; }
 CObject &CObject::operator=(const CObject &source) {
     // The three words after the mass are alignment padding and are not carried over.
     mass = source.mass;
-    float w, z, y, x;
-    x = source.pos[0];
-    y = source.pos[1];
-    z = source.pos[2];
-    w = source.pos[3];
+    const float x = source.pos[0];
+    const float y = source.pos[1];
+    const float z = source.pos[2];
+    const float w = source.pos[3];
     pos[0] = x;
     pos[1] = y;
     pos[2] = z;
@@ -707,11 +640,13 @@ CObject &CObject::operator=(const CObject &source) {
     rotation = source.rotation;
     rot_velocity = source.rot_velocity;
     rot_acceleration = source.rot_acceleration;
-    *(CVector3_f_ *) scale = *(const CVector3_f_ *) source.scale;
+    *reinterpret_cast<CVector3_f_ *>(scale) = *reinterpret_cast<const CVector3_f_ *>(source.scale);
     return *this;
 }
 
-/* CWater's members as its copy assignment reaches them. */
+namespace {
+
+/** CWater's members as its copy assignment reaches them. */
 struct DraftWaterLayout {
     s32            rows;              /**< Grid rows the surface is divided into. */
     s32            columns;           /**< Grid columns the surface is divided into. */
@@ -730,31 +665,7 @@ struct DraftWaterLayout {
     CFrameVu1      frame;             /**< Frame that places the surface. */
 };
 
-CWater &CWater::operator=(CWater &src) {
-    *(DraftWaterLayout *) this = *(DraftWaterLayout *) &src;
-    return *this;
-}
-
-/**
- * Copies one polygon visual over another, field by field.
- *
- * @mangled __as__14CVisualPolyVu1FRC14CVisualPolyVu1
- * @address 0x143360
- * @size 0x30
- */
-CVisualPolyVu1 &CVisualPolyVu1::operator=(const CVisualPolyVu1 &src) {
-    CVisualVu1::operator=(src);
-    return *this;
-}
-
-/**
- * Copies one vector-unit visual over another, field by field.
- *
- * @mangled __as__10CVisualVu1FRC10CVisualVu1
- * @address 0x143390
- * @size 0x5C
- */
-/* The full layout: CVisual's words, then the vector-unit block and its size. */
+/** CVisualVu1's full layout: CVisual's words, then the vector-unit block and its size. */
 struct DraftVisualVu1Layout {
     CVisual base;       /**< The base visual's words. */
     s32     vu_state_0; /**< First word of the vector-unit visual's own state. */
@@ -763,9 +674,27 @@ struct DraftVisualVu1Layout {
     u_int   vu_size;    /**< Size of the vector-unit packet in quadwords. */
 };
 
+} // namespace
+
+CWater &CWater::operator=(CWater &src) {
+    *reinterpret_cast<DraftWaterLayout *>(this) = *reinterpret_cast<DraftWaterLayout *>(&src);
+    return *this;
+}
+
+/**
+ * Copies one polygon visual over another, field by field.
+ */
+CVisualPolyVu1 &CVisualPolyVu1::operator=(const CVisualPolyVu1 &src) {
+    CVisualVu1::operator=(src);
+    return *this;
+}
+
+/**
+ * Copies one vector-unit visual over another, field by field.
+ */
 CVisualVu1 &CVisualVu1::operator=(const CVisualVu1 &src) {
-    DraftVisualVu1Layout       *dst_layout = (DraftVisualVu1Layout *) this;
-    const DraftVisualVu1Layout *src_layout = (const DraftVisualVu1Layout *) &src;
+    auto       *dst_layout = reinterpret_cast<DraftVisualVu1Layout *>(this);
+    const auto *src_layout = reinterpret_cast<const DraftVisualVu1Layout *>(&src);
     dst_layout->base = src_layout->base;
     dst_layout->vu_state_0 = src_layout->vu_state_0;
     dst_layout->vu_state_1 = src_layout->vu_state_1;
@@ -776,10 +705,6 @@ CVisualVu1 &CVisualVu1::operator=(const CVisualVu1 &src) {
 
 /**
  * Copies one visual over another, field by field.
- *
- * @mangled __as__7CVisualFRC7CVisual
- * @address 0x1433F0
- * @size 0x1C
  */
 CVisual &CVisual::operator=(const CVisual &other) {
     unk_00 = other.unk_00;
@@ -787,24 +712,10 @@ CVisual &CVisual::operator=(const CVisual &other) {
     return *this;
 }
 
-/**
- * Clears the category attributes.
- *
- * @mangled __ct__12CategoryAttrFv
- * @address 0x143410
- * @size 0x30
- */
 CategoryAttr::CategoryAttr() {
     Initialize();
 }
 
-/**
- * Gives the category attributes their starting values.
- *
- * @mangled Initialize__12CategoryAttrFv
- * @address 0x143440
- * @size 0x1C
- */
 void CategoryAttr::Initialize() {
     lod[0] = -1.0f;
     lowest = 0;
@@ -817,15 +728,9 @@ CBombEffect::CBombEffect() {
 
 /**
  * Clears the bomb effect.
- *
- * @mangled Initialize__11CBombEffectFv
- * @address 0x143490
- * @size 0x30
  */
 void CBombEffect::Initialize() {
-    for (int i = 0; i < 8; i++) {
-        active[i] = 0;
-    }
+    std::ranges::fill(active, 0);
 }
 
 CMajinBeem::CMajinBeem() {
@@ -834,21 +739,10 @@ CMajinBeem::CMajinBeem() {
 
 /**
  * Clears the beam effect.
- *
- * @mangled Initialize__10CMajinBeemFv
- * @address 0x1434F0
- * @size 0x10
  */
 void CMajinBeem::Initialize() {
     active = false;
     alphas[59] = 0.0f;
 }
 
-/**
- * Constructs the motion parameters.
- *
- * @mangled __ct__11MotionParamFv
- * @address 0x143610
- * @size 0xC
- */
-MotionParam::MotionParam() {}
+MotionParam::MotionParam() = default;

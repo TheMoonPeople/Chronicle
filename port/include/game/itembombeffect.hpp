@@ -4,9 +4,6 @@
 
 #include <libvu0.h>
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCamera;
 class CUserStatus;
 
@@ -25,47 +22,27 @@ public:
     u8            unk_B8[0x8];
 
     /**
-     * Draws the bomb's blast and its shock wave.
-     *
-     * @mangled Draw__15CItemBombEffectFP7CCamera
-     * @address 0x1D5B30
-     * @size 0x374
+     * Draws the bomb's blast billboards facing the camera.
      */
     void Draw(CCamera *camera);
 
     /**
-     * Advances the bomb effect by a frame.
-     *
-     * @mangled Step__15CItemBombEffectFv
-     * @address 0x1D5EB0
-     * @size 0x1F0
+     * Advances every blast billboard's envelope by a frame.
      */
     void Step();
 
     /**
-     * Places the bomb's five blast puffs around a position.
-     *
-     * @mangled SetBomb__15CItemBombEffectFPff
-     * @address 0x1D60A0
-     * @size 0xBC
+     * Places the bomb's five blast puffs at a position, staggering their starts.
      */
     void SetBomb(float *position, float scale);
 
     /**
-     * Reports whether the bomb effect is still running.
-     *
-     * @mangled CheckBomb__15CItemBombEffectFv
-     * @address 0x1D6160
-     * @size 0x48
+     * Returns 1 while any blast billboard is still animated, otherwise 0.
      */
     int CheckBomb();
 
     /**
-     * Clears the bomb effect.
-     *
-     * @mangled Initialize__15CItemBombEffectFv
-     * @address 0x1D61B0
-     * @size 0x30
+     * Deactivates every blast billboard.
      */
     void Initialize();
 };
@@ -86,20 +63,12 @@ public:
     u8            unk_2C[0x4];
 
     /**
-     * Draws the expanding shock-wave ring.
-     *
-     * @mangled Draw__10CShockWaveFP7CCamera
-     * @address 0x1D61E0
-     * @size 0x2F8
+     * Draws the expanding shock-wave ring flat around its centre.
      */
     void Draw(CCamera *camera);
 
     /**
      * Expands and fades the shock-wave ring by a frame.
-     *
-     * @mangled Step__10CShockWaveFv
-     * @address 0x1D64E0
-     * @size 0xD8
      */
     void Step();
 };
@@ -107,29 +76,17 @@ public:
 STATIC_ASSERT(sizeof(CShockWave) == 0x30);
 
 /**
- * Spends one use of a running item.
- *
- * @mangled usedActiveItem__FP11CUserStatusi
- * @address 0x1D56F0
- * @size 0x248
+ * Applies the effects of using an item to the current character.
  */
 void usedActiveItem(CUserStatus *status, int item);
 
 /**
- * Reports whether one running item is still in use.
- *
- * @mangled checkItemUsed__Fi
- * @address 0x1D5580
- * @size 0x16C
+ * Returns 1 if the item in a quick-use slot would have an effect if used now, otherwise 0.
  */
 int checkItemUsed(int slot);
 
 /**
- * Starts a bomb effect at a position and returns its collision slot.
- *
- * @mangled SetBombEffect__FPfiif
- * @address 0x1D5940
- * @size 0x1F0
+ * Starts a bomb effect at a position and returns its collision slot, or -1.
  */
 int SetBombEffect(float *position, int owner, int damage, float scale);
 

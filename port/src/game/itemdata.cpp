@@ -1,8 +1,14 @@
 #include "itemdata.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "dataalloc.hpp"
 #include "dataread.hpp"
@@ -26,39 +32,8 @@ extern char argStrBuff[640][36];
 /** Command identifier and numeric arguments for each parsed definition. */
 extern float argValBuff[640][36];
 
-char          pathName[256];
-OBJ_ANIME_SEQ FrameObjAnim[48];
-char          filePathList[72][64];
-CFrame       *frameList[72];
-char          filePathColList[144][64];
-CFrame       *frameListCol[144];
-
-int errFlag2;
-
 /** Number of item-definition commands parsed so far. */
 extern int argLevel;
-
-/** Bytes of the item definition file that were read. */
-static int teigiFileSize;
-
-/** Number of dungeon-part model directives loaded so far. */
-static int nowPartsCnt;
-
-int FrameObjAnimCnt;
-int filePathNum;
-int filePathColNum;
-int VERSION_VOL;
-
-/** Debug mode requested by the DebugFlag directive. */
-static int debugModeFlag = 1;
-
-float run_speed = 1.0f;
-
-/** Command number of the DEF_PATS directive, which takes no arguments. */
-static int TEIGI_DEF_PATS[] = {50, 0};
-
-/** Command number of the DEF_ENDS directive, which takes no arguments. */
-static int TEIGI_DEF_ENDS[] = {51, 0};
 
 /** Command number and argument kinds of the GRD_IMG directive. */
 extern int TEIGI_GRD_IMG[];
@@ -66,185 +41,179 @@ extern int TEIGI_GRD_IMG[];
 /** Command number and argument kinds of the FIRE_IMG directive. */
 extern int TEIGI_FIRE_IMG[];
 
-/** Command number and argument kinds of the GRD directive. */
-static int TEIGI_GRD[] = {2, 7, 0, 1, 1, 1, 1, 1, 1};
-
-/** Command number and argument kinds of the FOG directive. */
-static int TEIGI_FOG[] = {3, 7, 2, 1, 1, 1, 1, 1, 1};
-
-/** Command number and argument kinds of the AMBIENT directive. */
-static int TEIGI_AMBIENT[] = {4, 3, 2, 1, 1};
-
-int TEIGI_LIGHT_C[] = {5, 7, 2, 1, 1, 1, 1, 1, 1};
-/** Command number and argument kinds of the BG_COL directive. */
-static int TEIGI_BG_COL[] = {6, 3, 2, 1, 1};
-
-/** Command number and argument kinds of the RUN_SPEED directive. */
-static int TEIGI_RUN_SPEED[] = {7, 1, 2};
-
-/** Command number and argument kinds of the DebugFlag directive. */
-static int TEIGI_DebugFlag[] = {8, 1, 2};
+char          pathName[256];
+OBJ_ANIME_SEQ FrameObjAnim[48];
+int           FrameObjAnimCnt;
+int           VERSION_VOL;
+float         run_speed = 1.0f;
 
 int TEIGI_SET_PATH[] = {9, 1, 0};
-int TEIGI_VIEWLEVEL[] = {10, 1, 2};
-int TEIGI_DRANS_PARTS[] = {15, 1, 0};
-int TEIGI_DRANS_COLS[] = {16, 1, 0};
-int TEIGI_URA_AMBIENT[] = {17, 3, 2, 1, 1};
-int TEIGI_URA_LIGHT_C[] = {18, 7, 2, 1, 1, 1, 1, 1, 1};
-int TEIGI_URA_FOG[] = {19, 7, 2, 1, 1, 1, 1, 1, 1};
-int TEIGI_URA_BG_COL[] = {20, 3, 2, 1, 1};
 int TEIGI_MINIMAP_IMG[] = {21, 1, 0};
-/** Command number and argument kinds of the PT_BASE directive. */
-static int TEIGI_PT_BASE[] = {52, 6, 0, 1, 1, 1, 1, 1};
 
-/** Command number and argument kinds of the PT_COLS directive. */
-static int TEIGI_PT_COLS[] = {54, 2, 0, 1};
+namespace {
 
-int TEIGI_PT_CAM[] = {55, 2, 0, 1};
-/** Command number and argument kinds of the PT_FIRE directive. */
-static int TEIGI_PT_FIRE[] = {56, 3, 2, 1, 1};
-
-int TEIGI_PT_LIGHT[] = {57, 3, 2, 1, 1};
-int TEIGI_PT_GLIGHT[] = {58, 1, 0};
-/** Command number and argument kinds of the PT_WATER directive. */
-static int TEIGI_PT_WATER[] = {59, 9, 2, 1, 1, 1, 1, 1, 1, 1, 1};
-
-int   TEIGI_BG_MODEL[] = {60, 1, 0};
-int   TEIGI_DUMMY_MODEL[] = {61, 1, 0};
-int   TEIGI_PT_TAKI00[] = {62, 1, 2};
-int   TEIGI_PT_DRAW_FLAG[] = {63, 2, 0, 1};
-int   TEIGI_DRAW_FLAG[] = {64, 2, 0, 1};
-int   TEIGI_PT_MARKER[] = {30, 7, 0, 1, 1, 1, 1, 1, 1};
-int   TEIGI_PT_NPC[] = {31, 10, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-int   TEIGI_PT_ROT[] = {32, 7, 0, 1, 1, 1, 1, 1, 1};
-int   TEIGI_PT_HEAL_ZONE[] = {33, 5, 2, 1, 1, 1, 1};
-int   TEIGI_PT_HIT_MARKER[] = {34, 7, 0, 1, 1, 1, 1, 1, 1};
-int   TEIGI_PT_SCALE[] = {35, 10, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-char *TEIGI_TABLE[] = {
-    "GRD_IMG",
-    "FIRE_IMG",
-    "GRD",
-    "FOG",
-    "AMBIENT",
-    "LIGHT_C",
-    "BG_COL",
-    "RUN_SPEED",
-    "DebugFlag",
-    "SET_PATH",
-    "VIEWLEVEL",
-    "DEF_PATS",
-    "DEF_ENDS",
-    "PT_BASE",
-    "PT_COLS",
-    "PT_CAM",
-    "PT_FIRE",
-    "PT_LIGHT",
-    "PT_GLIGHT",
-    "PT_WATER",
-    "PT_TAKI00",
-    "BG_MODEL",
-    "DUMMY_MODEL",
-    "DRANS_PARTS",
-    "DRANS_COLS",
-    "PT_DRAW_FLAG",
-    "PT_MARKER",
-    "DRAW_FLAG",
-    "URA_AMBIENT",
-    "URA_LIGHT_C",
-    "URA_FOG",
-    "URA_BG_COL",
-    "MINIMAP_IMG",
-    "PT_NPC",
-    "PT_ROT",
-    "PT_SCALE",
-    "PT_HEAL_ZONE",
-    "PT_HIT_MARKER",
-    NULL,
+/** A model or collision file already loaded, keyed by its resource path. */
+struct LoadedFrame {
+    std::string path;  /**< Resource path the frame was loaded from. */
+    CFrame     *frame; /**< The loaded frame. */
 };
-int *TEIGI_ARG_TABLE[] = {
-    TEIGI_GRD_IMG,
-    TEIGI_FIRE_IMG,
-    TEIGI_GRD,
-    TEIGI_FOG,
-    TEIGI_AMBIENT,
-    TEIGI_LIGHT_C,
-    TEIGI_BG_COL,
-    TEIGI_RUN_SPEED,
-    TEIGI_DebugFlag,
-    TEIGI_SET_PATH,
-    TEIGI_VIEWLEVEL,
-    TEIGI_DEF_PATS,
-    TEIGI_DEF_ENDS,
-    TEIGI_PT_BASE,
-    TEIGI_PT_COLS,
-    TEIGI_PT_CAM,
-    TEIGI_PT_FIRE,
-    TEIGI_PT_LIGHT,
-    TEIGI_PT_GLIGHT,
-    TEIGI_PT_WATER,
-    TEIGI_PT_TAKI00,
-    TEIGI_BG_MODEL,
-    TEIGI_DUMMY_MODEL,
-    TEIGI_DRANS_PARTS,
-    TEIGI_DRANS_COLS,
-    TEIGI_PT_DRAW_FLAG,
-    TEIGI_PT_MARKER,
-    TEIGI_DRAW_FLAG,
-    TEIGI_URA_AMBIENT,
-    TEIGI_URA_LIGHT_C,
-    TEIGI_URA_FOG,
-    TEIGI_URA_BG_COL,
-    TEIGI_MINIMAP_IMG,
-    TEIGI_PT_NPC,
-    TEIGI_PT_ROT,
-    TEIGI_PT_SCALE,
-    TEIGI_PT_HEAL_ZONE,
-    TEIGI_PT_HIT_MARKER,
+
+/** Dungeon-part models already loaded. */
+std::vector<LoadedFrame> loadedModels;
+
+/** Dungeon-part collision models already loaded. */
+std::vector<LoadedFrame> loadedCollisions;
+
+/** Parser integrity marker changed by malformed definition data. */
+int errFlag2;
+
+/** Bytes of the item definition file that were read. */
+int teigiFileSize;
+
+/** Number of dungeon-part model directives loaded so far. */
+int nowPartsCnt;
+
+/** Debug mode requested by the DebugFlag directive. */
+int debugModeFlag = 1;
+
+// Each format starts with the command number and the argument count, followed by one ArgumentKind per argument.
+constexpr int TEIGI_GRD[] = {2, 7, 0, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_FOG[] = {3, 7, 2, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_AMBIENT[] = {4, 3, 2, 1, 1};
+constexpr int TEIGI_LIGHT_C[] = {5, 7, 2, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_BG_COL[] = {6, 3, 2, 1, 1};
+constexpr int TEIGI_RUN_SPEED[] = {7, 1, 2};
+constexpr int TEIGI_DebugFlag[] = {8, 1, 2};
+constexpr int TEIGI_VIEWLEVEL[] = {10, 1, 2};
+constexpr int TEIGI_DRANS_PARTS[] = {15, 1, 0};
+constexpr int TEIGI_DRANS_COLS[] = {16, 1, 0};
+constexpr int TEIGI_URA_AMBIENT[] = {17, 3, 2, 1, 1};
+constexpr int TEIGI_URA_LIGHT_C[] = {18, 7, 2, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_URA_FOG[] = {19, 7, 2, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_URA_BG_COL[] = {20, 3, 2, 1, 1};
+constexpr int TEIGI_PT_MARKER[] = {30, 7, 0, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_PT_NPC[] = {31, 10, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_PT_ROT[] = {32, 7, 0, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_PT_HEAL_ZONE[] = {33, 5, 2, 1, 1, 1, 1};
+constexpr int TEIGI_PT_HIT_MARKER[] = {34, 7, 0, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_PT_SCALE[] = {35, 10, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_DEF_PATS[] = {50, 0};
+constexpr int TEIGI_DEF_ENDS[] = {51, 0};
+constexpr int TEIGI_PT_BASE[] = {52, 6, 0, 1, 1, 1, 1, 1};
+constexpr int TEIGI_PT_COLS[] = {54, 2, 0, 1};
+constexpr int TEIGI_PT_CAM[] = {55, 2, 0, 1};
+constexpr int TEIGI_PT_FIRE[] = {56, 3, 2, 1, 1};
+constexpr int TEIGI_PT_LIGHT[] = {57, 3, 2, 1, 1};
+constexpr int TEIGI_PT_GLIGHT[] = {58, 1, 0};
+constexpr int TEIGI_PT_WATER[] = {59, 9, 2, 1, 1, 1, 1, 1, 1, 1, 1};
+constexpr int TEIGI_BG_MODEL[] = {60, 1, 0};
+constexpr int TEIGI_DUMMY_MODEL[] = {61, 1, 0};
+constexpr int TEIGI_PT_TAKI00[] = {62, 1, 2};
+constexpr int TEIGI_PT_DRAW_FLAG[] = {63, 2, 0, 1};
+constexpr int TEIGI_DRAW_FLAG[] = {64, 2, 0, 1};
+
+/** How checkArg reads one argument of an item-definition command. */
+enum class ArgumentKind : int {
+    String = 0,      /**< A double-quoted string of at most 31 characters. */
+    CommaNumber = 1, /**< A comma followed by a number, ON or OFF. */
+    Number = 2,      /**< A number, ON or OFF. */
 };
+
+/** An item-definition command name and its argument format. */
+struct TeigiCommand {
+    std::string_view name;   /**< Name the command starts with in the file. */
+    const int       *format; /**< Command number and argument kinds. */
+};
+
+// Names are matched as prefixes in this order, so a name must come after any longer name it starts.
+constexpr auto TEIGI_TABLE = std::to_array<TeigiCommand>({
+    {"GRD_IMG",       TEIGI_GRD_IMG      },
+    {"FIRE_IMG",      TEIGI_FIRE_IMG     },
+    {"GRD",           TEIGI_GRD          },
+    {"FOG",           TEIGI_FOG          },
+    {"AMBIENT",       TEIGI_AMBIENT      },
+    {"LIGHT_C",       TEIGI_LIGHT_C      },
+    {"BG_COL",        TEIGI_BG_COL       },
+    {"RUN_SPEED",     TEIGI_RUN_SPEED    },
+    {"DebugFlag",     TEIGI_DebugFlag    },
+    {"SET_PATH",      TEIGI_SET_PATH     },
+    {"VIEWLEVEL",     TEIGI_VIEWLEVEL    },
+    {"DEF_PATS",      TEIGI_DEF_PATS     },
+    {"DEF_ENDS",      TEIGI_DEF_ENDS     },
+    {"PT_BASE",       TEIGI_PT_BASE      },
+    {"PT_COLS",       TEIGI_PT_COLS      },
+    {"PT_CAM",        TEIGI_PT_CAM       },
+    {"PT_FIRE",       TEIGI_PT_FIRE      },
+    {"PT_LIGHT",      TEIGI_PT_LIGHT     },
+    {"PT_GLIGHT",     TEIGI_PT_GLIGHT    },
+    {"PT_WATER",      TEIGI_PT_WATER     },
+    {"PT_TAKI00",     TEIGI_PT_TAKI00    },
+    {"BG_MODEL",      TEIGI_BG_MODEL     },
+    {"DUMMY_MODEL",   TEIGI_DUMMY_MODEL  },
+    {"DRANS_PARTS",   TEIGI_DRANS_PARTS  },
+    {"DRANS_COLS",    TEIGI_DRANS_COLS   },
+    {"PT_DRAW_FLAG",  TEIGI_PT_DRAW_FLAG },
+    {"PT_MARKER",     TEIGI_PT_MARKER    },
+    {"DRAW_FLAG",     TEIGI_DRAW_FLAG    },
+    {"URA_AMBIENT",   TEIGI_URA_AMBIENT  },
+    {"URA_LIGHT_C",   TEIGI_URA_LIGHT_C  },
+    {"URA_FOG",       TEIGI_URA_FOG      },
+    {"URA_BG_COL",    TEIGI_URA_BG_COL   },
+    {"MINIMAP_IMG",   TEIGI_MINIMAP_IMG  },
+    {"PT_NPC",        TEIGI_PT_NPC       },
+    {"PT_ROT",        TEIGI_PT_ROT       },
+    {"PT_SCALE",      TEIGI_PT_SCALE     },
+    {"PT_HEAL_ZONE",  TEIGI_PT_HEAL_ZONE },
+    {"PT_HIT_MARKER", TEIGI_PT_HIT_MARKER},
+});
+
+bool StartsWith(const char *text, std::string_view prefix) {
+    return std::string_view(text, prefix.size()) == prefix;
+}
+
+bool IsDigit(char character) {
+    return character >= '0' && character <= '9';
+}
+
+const LoadedFrame *FindLoaded(const std::vector<LoadedFrame> &loaded, std::string_view path) {
+    const auto entry = std::ranges::find(loaded, path, &LoadedFrame::path);
+    return entry != loaded.end() ? &*entry : nullptr;
+}
 
 /**
  * Steps the item definition file past whitespace and comments.
- *
- * @mangled skipSpace__FPci__2
- * @address 0x1CD910
- * @size 0x110
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-int skipSpace(char *text, int pos) {
+int skipSpace(const char *text, int pos) {
     for (; pos < teigiFileSize; pos++) {
-        int skipped = 0;
+        bool skipped = false;
 
         // The file is Shift-JIS, so a space can be the full-width one.
-        if (memcmp(&text[pos], "\x81\x40", 2) == 0) {
+        if (StartsWith(&text[pos], "\x81\x40")) {
             pos++;
-            skipped = 1;
+            skipped = true;
         }
 
-        char c = text[pos];
+        const char character = text[pos];
 
-        if (c == ' ') {
-            skipped = 1;
+        if (character == ' ' || character == '\t') {
+            skipped = true;
         }
 
-        if (c == '\t') {
-            skipped = 1;
-        }
-
-        if (c == '\0') {
+        if (character == '\0') {
             pos++;
-            skipped = 1;
+            skipped = true;
         }
 
-        if (memcmp(&text[pos], "//", 2) == 0) {
+        if (StartsWith(&text[pos], "//")) {
             while (text[pos] != '\0') {
                 pos++;
             }
 
             pos++;
-            skipped = 1;
+            skipped = true;
         }
 
-        if (skipped == 0) {
+        if (!skipped) {
             return pos;
         }
     }
@@ -253,43 +222,36 @@ int skipSpace(char *text, int pos) {
 }
 
 /**
- * Reads one argument out of the item definition file.
- *
- * @mangled checkArg__FPciPi__2
- * @address 0x1CDA20
- * @size 0x664
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
+ * Reads the arguments of one command out of the item definition file.
  */
-int checkArg(char *text, int pos, int *format) {
-    enum ARGUMENT_KIND {
-        ARGUMENT_STRING = 0,
-        ARGUMENT_COMMA_NUMBER = 1,
-        ARGUMENT_NUMBER = 2,
-    };
-
-    int argument;
-    int cursor;
-    int length;
-    int numeric;
-
-    cursor = pos;
+int checkArg(const char *text, int pos, const int *format) {
+    int cursor = pos;
 
     if (format[1] == 0) {
         return pos;
     }
 
-    for (argument = 0; argument < format[1]; argument++) {
-        argValBuff[argLevel][0] = (float) format[0];
+    for (int argument = 0; argument < format[1]; argument++) {
+        argValBuff[argLevel][0] = static_cast<float>(format[0]);
 
-        switch (format[argument + 2]) {
-            case ARGUMENT_STRING:
+        const auto store_value = [argument](float value) {
+            argValBuff[argLevel][argument + 1] = value;
+
+            if (argument >= 32) {
+                std::printf("************TAG OVER!!\n");
+            }
+        };
+
+        switch (static_cast<ArgumentKind>(format[argument + 2])) {
+            case ArgumentKind::String: {
                 if (text[cursor] != '"') {
                     return -1;
                 }
 
                 cursor++;
+                int length = 0;
 
-                for (length = 0; length < 32; length++) {
+                for (; length < 32; length++) {
                     if (text[cursor] == '"') {
                         argStrBuff[argLevel][length] = '\0';
                         cursor++;
@@ -305,137 +267,48 @@ int checkArg(char *text, int pos, int *format) {
 
                 cursor = skipSpace(text, cursor);
                 break;
-            case ARGUMENT_COMMA_NUMBER:
+            }
+            case ArgumentKind::CommaNumber:
                 if (text[cursor] != ',') {
                     return -1;
                 }
 
                 cursor = skipSpace(text, cursor + 1);
-
-                if (memcmp(&text[cursor], "ON", 2) == 0) {
-                    argValBuff[argLevel][argument + 1] = 1.0f;
-
-                    if (argument >= 32) {
-                        printf("************TAG OVER!!\n");
-                    }
-
+                [[fallthrough]];
+            case ArgumentKind::Number:
+                if (StartsWith(&text[cursor], "ON")) {
+                    store_value(1.0f);
                     cursor += 2;
-                } else if (memcmp(&text[cursor], "OFF", 3) == 0) {
-                    argValBuff[argLevel][argument + 1] = 0.0f;
-
-                    if (argument >= 32) {
-                        printf("************TAG OVER!!\n");
-                    }
-
+                } else if (StartsWith(&text[cursor], "OFF")) {
+                    store_value(0.0f);
                     cursor += 3;
                 } else {
-                    numeric = 0;
-
-                    if (text[cursor] == '-') {
-                        numeric = 1;
-                    }
-
-                    if (text[cursor] >= '0' && text[cursor] <= '9') {
-                        numeric = 1;
-                    }
-
-                    if (numeric == 0) {
+                    if (text[cursor] != '-' && !IsDigit(text[cursor])) {
                         return -1;
                     }
 
-                    argValBuff[argLevel][argument + 1] = (float) atof(&text[cursor]);
+                    store_value(static_cast<float>(std::atof(&text[cursor])));
+                    int length = 0;
 
-                    if (argument >= 32) {
-                        printf("************TAG OVER!!\n");
-                    }
-
-                    for (length = 0; length < 32; length++) {
-                        numeric = 0;
+                    for (; length < 32; length++) {
+                        bool consumed = false;
 
                         if (text[cursor] == '-') {
                             cursor++;
-                            numeric = 1;
+                            consumed = true;
                         }
 
-                        if (text[cursor] >= '0' && text[cursor] <= '9') {
+                        if (IsDigit(text[cursor])) {
                             cursor++;
-                            numeric = 1;
+                            consumed = true;
                         }
 
                         if (text[cursor] == '.') {
                             cursor++;
-                            numeric = 1;
+                            consumed = true;
                         }
 
-                        if (numeric == 0) {
-                            break;
-                        }
-                    }
-
-                    if (length == 32) {
-                        return -1;
-                    }
-                }
-
-                cursor = skipSpace(text, cursor);
-                break;
-            case ARGUMENT_NUMBER:
-                if (memcmp(&text[cursor], "ON", 2) == 0) {
-                    argValBuff[argLevel][argument + 1] = 1.0f;
-
-                    if (argument >= 32) {
-                        printf("************TAG OVER!!\n");
-                    }
-
-                    cursor += 2;
-                } else if (memcmp(&text[cursor], "OFF", 3) == 0) {
-                    argValBuff[argLevel][argument + 1] = 0.0f;
-
-                    if (argument >= 32) {
-                        printf("************TAG OVER!!\n");
-                    }
-
-                    cursor += 3;
-                } else {
-                    numeric = 0;
-
-                    if (text[cursor] == '-') {
-                        numeric = 1;
-                    }
-
-                    if (text[cursor] >= '0' && text[cursor] <= '9') {
-                        numeric = 1;
-                    }
-
-                    if (numeric == 0) {
-                        return -1;
-                    }
-
-                    argValBuff[argLevel][argument + 1] = (float) atof(&text[cursor]);
-
-                    if (argument >= 32) {
-                        printf("************TAG OVER!!\n");
-                    }
-
-                    for (length = 0; length < 32; length++) {
-                        numeric = 0;
-
-                        if (text[cursor] == '-') {
-                            cursor++;
-                            numeric = 1;
-                        }
-
-                        if (text[cursor] >= '0' && text[cursor] <= '9') {
-                            cursor++;
-                            numeric = 1;
-                        }
-
-                        if (text[cursor] == '.') {
-                            cursor++;
-                            numeric = 1;
-                        }
-
-                        if (numeric == 0) {
+                        if (!consumed) {
                             break;
                         }
                     }
@@ -453,35 +326,12 @@ int checkArg(char *text, int pos, int *format) {
     return cursor;
 }
 
-/**
- * Positions in TEIGI_TABLE of the commands that take no arguments.
- */
-// clang-format off
-enum TEIGI_TABLE_INDEX {
-    TEIGI_INDEX_DEF_PATS = 11,
-    TEIGI_INDEX_DEF_ENDS = 12,
-};
+} // namespace
 
-// clang-format on
-
-/**
- * Reads the item definition file into the parsed command table and returns its size.
- *
- * @mangled TEIGIAnalyz__FPc
- * @address 0x1CE090
- * @size 0x3B4
- */
 int TEIGIAnalyz(char *path) {
-    int   i;
-    int   pos;
-    int   command;
-    int   found;
-    int   name_length;
-    char *text;
-
     argLevel = 0;
     errFlag2 = 0x7E;
-    BtRubyDoorKey = (int) ((float) rand() * 5.0f / 2.1474836e9f);
+    BtRubyDoorKey = static_cast<int>(static_cast<float>(std::rand()) * 5.0f / 2.1474836e9f);
 
     if (BtRubyDoorKey < 0 || BtRubyDoorKey >= 5) {
         BtRubyDoorKey = 0;
@@ -492,11 +342,10 @@ int TEIGIAnalyz(char *path) {
     }
 
     MapModelBuffer.Align64();
-    text = (char *) (MapModelBuffer.used * 16 + MapModelBuffer.base);
+    char *text = reinterpret_cast<char *>(&MapModelBuffer.base[static_cast<std::ptrdiff_t>(MapModelBuffer.used) * 16]);
 
     if (LoadFile(path, text, &teigiFileSize) == 0) {
-        // The failure path leaves the result unset.
-        return;
+        return 0;
     }
 
     wait_now_loading_vsync();
@@ -504,65 +353,53 @@ int TEIGIAnalyz(char *path) {
     MapModelBuffer.Align64();
 
     // The parser treats each source line as a null-terminated record.
-    for (i = 0; i < teigiFileSize; i++) {
+    for (int i = 0; i < teigiFileSize; i++) {
         if (text[i] == '\r' && text[i + 1] == '\n') {
             text[i + 1] = '\0';
             text[i] = '\0';
         }
     }
 
-    pos = 0;
+    int pos = 0;
 
     while (pos < teigiFileSize) {
         pos = skipSpace(text, pos);
-        command = 0;
-        found = 0;
+        const auto *const command = std::ranges::find_if(TEIGI_TABLE, [&](const TeigiCommand &entry) { return StartsWith(&text[pos], entry.name); });
 
-        while (TEIGI_TABLE[command] != NULL) {
-            name_length = strlen(TEIGI_TABLE[command]);
-
-            if (memcmp(&text[pos], TEIGI_TABLE[command], name_length) == 0) {
-                if (command == TEIGI_INDEX_DEF_PATS || command == TEIGI_INDEX_DEF_ENDS) {
-                    pos = skipSpace(text, pos + name_length);
-                    argValBuff[argLevel][0] = (float) TEIGI_ARG_TABLE[command][0];
-                } else {
-                    pos = skipSpace(text, pos + name_length);
-                    pos = checkArg(text, pos, TEIGI_ARG_TABLE[command]);
-
-                    if (pos == -1) {
-                        printf("def Error:%s\n", TEIGI_TABLE[command]);
-                        exit__2(-1);
-                    }
-
-                    pos = skipSpace(text, pos);
-                }
-
-                argLevel++;
-
-                if (argLevel >= 640) {
-                    printf("arg line level err!!\n");
-
-                    for (;;) {
-                    }
-                }
-
-                found = 1;
-                break;
-            }
-
-            command++;
+        if (command == TEIGI_TABLE.end()) {
+            std::printf("TAG SyntaxError!! >>%s\n", &text[pos]);
+            exit__2(-1);
         }
 
-        if (found == 0) {
-            printf("TAG SyntaxError!! >>%s\n", &text[pos]);
-            exit__2(-1);
+        pos = skipSpace(text, pos + static_cast<int>(command->name.size()));
+
+        if (command->format == TEIGI_DEF_PATS || command->format == TEIGI_DEF_ENDS) {
+            argValBuff[argLevel][0] = static_cast<float>(command->format[0]);
+        } else {
+            pos = checkArg(text, pos, command->format);
+
+            if (pos == -1) {
+                std::printf("def Error:%.*s\n", static_cast<int>(command->name.size()), command->name.data());
+                exit__2(-1);
+            }
+
+            pos = skipSpace(text, pos);
+        }
+
+        argLevel++;
+
+        if (argLevel >= 640) {
+            std::printf("arg line level err!!\n");
+
+            for (;;) {
+            }
         }
 
         pos = skipSpace(text, pos);
     }
 
     if (errFlag2 != 0x7E) {
-        printf("TAG MEM ERR2 !!\n");
+        std::printf("TAG MEM ERR2 !!\n");
 
         for (;;) {
         }
@@ -571,159 +408,155 @@ int TEIGIAnalyz(char *path) {
     return teigiFileSize;
 }
 
-/**
- * Reads the textures the item definitions name.
- *
- * @mangled TEIGIImgLoad__FPUiP14CDataAlloc2_1_
- * @address 0x1CE450
- * @size 0x594
- */
-void TEIGIImgLoad(u_int *pack, CDataAlloc2<1> *arena);
-
-/**
- * Loads the models and places the map parts the item definitions describe.
- *
- * @mangled TEIGIMdsLoad__FPUii
- * @address 0x1CE9F0
- * @size 0x2398
- */
 void TEIGIMdsLoad(u_int *pack, int reuse_only) {
-    int        line;
-    u_int     *data;
-    CFrame    *current_collision = NULL;
-    CFrameAttr base_attr;
-    CFrameAttr attr;
-    char       full_path[128];
-    CFrame    *current_model;
-    CFrame    *frame;
-    int        part_frame;
-    int        size;
+    CFrame     *current_collision = nullptr;
+    CFrame     *current_model = nullptr;
+    CFrameAttr  attr;
+    std::string full_path;
+    int         part_frame = 0;
 
     attr.clip_depth = 20.0f;
     attr.clip_enable = true;
     attr.program_option = 0;
     FrameObjAnimCnt = 0;
 
-    for (int i = 0; i < 48; i++) {
-        FrameObjAnim[i].property = OBJ_ANIME_PROPERTY_NONE;
+    for (OBJ_ANIME_SEQ &sequence : FrameObjAnim) {
+        sequence.property = OBJ_ANIME_PROPERTY_NONE;
     }
 
     nowPartsCnt = 0;
 
     if (reuse_only == 0) {
-        filePathNum = 0;
-        filePathColNum = 0;
+        loadedModels.clear();
+        loadedCollisions.clear();
     }
 
-    strcpy(pathName, "");
+    pathName[0] = '\0';
 
-    for (line = 0; line < argLevel; line++) {
-        if (TEIGI_DebugFlag[0] == (int) argValBuff[line][0]) {
-            debugModeFlag = (int) argValBuff[line][1];
-            printf("debug = %d\n", debugModeFlag);
+    const auto add_fire = [](const float (&args)[36], int param) {
+        CDungeonParts &part = NowDngMap->parts[nowPartsCnt];
+        const float    z = args[3];
+        const float    y = args[2];
+        const float    x = args[1];
+
+        if (part.fire_num < 6) {
+            part.fire_pos[part.fire_num][0] = x;
+            part.fire_pos[part.fire_num][1] = y;
+            part.fire_pos[part.fire_num][2] = z;
+            part.fire_param[part.fire_num] = static_cast<s8>(param);
+            part.fire_num++;
+        }
+    };
+
+    for (int line = 0; line < argLevel; line++) {
+        const float (&args)[36] = argValBuff[line];
+        char (&string_arg)[36] = argStrBuff[line];
+        const int command = static_cast<int>(args[0]);
+
+        if (TEIGI_DebugFlag[0] == command) {
+            debugModeFlag = static_cast<int>(args[1]);
+            std::printf("debug = %d\n", debugModeFlag);
         }
 
-        if (TEIGI_RUN_SPEED[0] == (int) argValBuff[line][0]) {
-            run_speed = argValBuff[line][1];
+        if (TEIGI_RUN_SPEED[0] == command) {
+            run_speed = args[1];
         }
 
-        if (TEIGI_LIGHT_C[0] == (int) argValBuff[line][0]) {
-            int   light_no;
-            float direction[4];
-            light_no = (int) argValBuff[line][7];
-            direction[0] = argValBuff[line][1];
-            direction[1] = argValBuff[line][2];
-            direction[2] = argValBuff[line][3];
+        if (TEIGI_LIGHT_C[0] == command) {
+            const int light_no = static_cast<int>(args[7]);
+            float     direction[4];
+            direction[0] = args[1];
+            direction[1] = args[2];
+            direction[2] = args[3];
             sceVu0Normalize(direction, direction);
-            main_light[0][(int) (light_no - 1)] = direction[0];
-            main_light[1][(int) (light_no - 1)] = direction[1];
-            main_light[2][(int) (light_no - 1)] = direction[2];
-            main_lightcolor[(int) (light_no - 1)][0] = argValBuff[line][4];
-            main_lightcolor[(int) (light_no - 1)][1] = argValBuff[line][5];
-            main_lightcolor[(int) (light_no - 1)][2] = argValBuff[line][6];
+            main_light[0][light_no - 1] = direction[0];
+            main_light[1][light_no - 1] = direction[1];
+            main_light[2][light_no - 1] = direction[2];
+            main_lightcolor[light_no - 1][0] = args[4];
+            main_lightcolor[light_no - 1][1] = args[5];
+            main_lightcolor[light_no - 1][2] = args[6];
         }
 
-        if (TEIGI_AMBIENT[0] == (int) argValBuff[line][0]) {
-            main_ambientlight[0] = argValBuff[line][1];
-            main_ambientlight[1] = argValBuff[line][2];
-            main_ambientlight[2] = argValBuff[line][3];
+        if (TEIGI_AMBIENT[0] == command) {
+            main_ambientlight[0] = args[1];
+            main_ambientlight[1] = args[2];
+            main_ambientlight[2] = args[3];
         }
 
-        if (TEIGI_URA_LIGHT_C[0] == (int) argValBuff[line][0]) {
-            int   light_no;
-            float direction[4];
-            light_no = (int) argValBuff[line][7];
-            direction[0] = argValBuff[line][1];
-            direction[1] = argValBuff[line][2];
-            direction[2] = argValBuff[line][3];
+        if (TEIGI_URA_LIGHT_C[0] == command) {
+            const int light_no = static_cast<int>(args[7]);
+            float     direction[4];
+            direction[0] = args[1];
+            direction[1] = args[2];
+            direction[2] = args[3];
             sceVu0Normalize(direction, direction);
-            sub_light[0][(int) (light_no - 1)] = direction[0];
-            sub_light[1][(int) (light_no - 1)] = direction[1];
-            sub_light[2][(int) (light_no - 1)] = direction[2];
-            sub_lightcolor[(int) (light_no - 1)][0] = argValBuff[line][4];
-            sub_lightcolor[(int) (light_no - 1)][1] = argValBuff[line][5];
-            sub_lightcolor[(int) (light_no - 1)][2] = argValBuff[line][6];
+            sub_light[0][light_no - 1] = direction[0];
+            sub_light[1][light_no - 1] = direction[1];
+            sub_light[2][light_no - 1] = direction[2];
+            sub_lightcolor[light_no - 1][0] = args[4];
+            sub_lightcolor[light_no - 1][1] = args[5];
+            sub_lightcolor[light_no - 1][2] = args[6];
         }
 
-        if (TEIGI_URA_AMBIENT[0] == (int) argValBuff[line][0]) {
-            sub_ambientlight[0] = argValBuff[line][1];
-            sub_ambientlight[1] = argValBuff[line][2];
-            sub_ambientlight[2] = argValBuff[line][3];
+        if (TEIGI_URA_AMBIENT[0] == command) {
+            sub_ambientlight[0] = args[1];
+            sub_ambientlight[1] = args[2];
+            sub_ambientlight[2] = args[3];
         }
 
-        if (TEIGI_FOG[0] == (int) argValBuff[line][0]) {
-            main_fogRate[0] = argValBuff[line][1];
-            main_fogRate[1] = argValBuff[line][2];
-            main_fogRate[2] = argValBuff[line][6];
-            main_fogRate[3] = argValBuff[line][7];
-            main_fogColor[0] = (u8) argValBuff[line][3];
-            main_fogColor[1] = (u8) argValBuff[line][4];
-            main_fogColor[2] = (u8) argValBuff[line][5];
+        if (TEIGI_FOG[0] == command) {
+            main_fogRate[0] = args[1];
+            main_fogRate[1] = args[2];
+            main_fogRate[2] = args[6];
+            main_fogRate[3] = args[7];
+            main_fogColor[0] = static_cast<u8>(args[3]);
+            main_fogColor[1] = static_cast<u8>(args[4]);
+            main_fogColor[2] = static_cast<u8>(args[5]);
             attr.fog_enable = true;
         }
 
-        if (TEIGI_BG_COL[0] == (int) argValBuff[line][0]) {
-            main_bgColor[0] = (u8) argValBuff[line][1];
-            main_bgColor[1] = (u8) argValBuff[line][2];
-            main_bgColor[2] = (u8) argValBuff[line][3];
-            MGSetBGColor((float) main_bgColor[0], (float) main_bgColor[1], (float) main_bgColor[2], 128.0f);
+        if (TEIGI_BG_COL[0] == command) {
+            main_bgColor[0] = static_cast<u8>(args[1]);
+            main_bgColor[1] = static_cast<u8>(args[2]);
+            main_bgColor[2] = static_cast<u8>(args[3]);
+            MGSetBGColor(static_cast<float>(main_bgColor[0]), static_cast<float>(main_bgColor[1]), static_cast<float>(main_bgColor[2]), 128.0f);
         }
 
-        if (TEIGI_URA_BG_COL[0] == (int) argValBuff[line][0]) {
-            sub_bgColor[0] = (u8) argValBuff[line][1];
-            sub_bgColor[1] = (u8) argValBuff[line][2];
-            sub_bgColor[2] = (u8) argValBuff[line][3];
+        if (TEIGI_URA_BG_COL[0] == command) {
+            sub_bgColor[0] = static_cast<u8>(args[1]);
+            sub_bgColor[1] = static_cast<u8>(args[2]);
+            sub_bgColor[2] = static_cast<u8>(args[3]);
         }
 
-        if (TEIGI_URA_FOG[0] == (int) argValBuff[line][0]) {
-            sub_fogRate[0] = argValBuff[line][1];
-            sub_fogRate[1] = argValBuff[line][2];
-            sub_fogRate[2] = argValBuff[line][6];
-            sub_fogRate[3] = argValBuff[line][7];
-            sub_fogColor[0] = (u8) argValBuff[line][3];
-            sub_fogColor[1] = (u8) argValBuff[line][4];
-            sub_fogColor[2] = (u8) argValBuff[line][5];
+        if (TEIGI_URA_FOG[0] == command) {
+            sub_fogRate[0] = args[1];
+            sub_fogRate[1] = args[2];
+            sub_fogRate[2] = args[6];
+            sub_fogRate[3] = args[7];
+            sub_fogColor[0] = static_cast<u8>(args[3]);
+            sub_fogColor[1] = static_cast<u8>(args[4]);
+            sub_fogColor[2] = static_cast<u8>(args[5]);
             attr.fog_enable = true;
         }
 
-        if (TEIGI_SET_PATH[0] == (int) argValBuff[line][0]) {
-            strcpy(pathName, argStrBuff[line]);
+        if (TEIGI_SET_PATH[0] == command) {
+            std::strcpy(pathName, string_arg);
         }
 
-        if (TEIGI_VIEWLEVEL[0] == (int) argValBuff[line][0]) {
-            NowDngMap->draw_dist_scale = argValBuff[line][1];
+        if (TEIGI_VIEWLEVEL[0] == command) {
+            NowDngMap->draw_dist_scale = args[1];
         }
 
-        if (TEIGI_BG_MODEL[0] == (int) argValBuff[line][0]) {
-            CDungeonMap *map;
-            data = GetPackFile(pack, argStrBuff[line], &size);
+        if (TEIGI_BG_MODEL[0] == command) {
+            int    size = 0;
+            u_int *data = GetPackFile(pack, string_arg, &size);
 
-            if (data == NULL) {
-                printf("ERR = %s\n", full_path);
+            if (data == nullptr) {
+                std::printf("ERR = %s\n", full_path.c_str());
             }
 
-            frame = LoadMDSFile(data, &MapModelBuffer, 0, NULL, NULL);
-            map = NowDngMap;
+            CFrame      *frame = LoadMDSFile(data, &MapModelBuffer, 0, nullptr, nullptr);
+            CDungeonMap *map = NowDngMap;
 
             if (map->bg_model_num < 6) {
                 map->bg_model[map->bg_model_num] = frame;
@@ -731,41 +564,33 @@ void TEIGIMdsLoad(u_int *pack, int reuse_only) {
             }
         }
 
-        if (TEIGI_DRAW_FLAG[0] == (int) argValBuff[line][0]) {
-            char   *name = argStrBuff[line];
-            CFrame *target = NowDngMap->GetFrameSearch(name);
-            int     draw_on;
+        if (TEIGI_DRAW_FLAG[0] == command) {
+            CFrame *target = NowDngMap->GetFrameSearch(string_arg);
 
-            if (target == NULL) {
-                printf("**** DFLAG:%s NotFound ****\n", name);
+            if (target == nullptr) {
+                std::printf("**** DFLAG:%s NotFound ****\n", string_arg);
 
-                while (1) {
+                while (true) {
                 }
             }
 
-            draw_on = (int) argValBuff[line][2];
-            draw_on = 2;
-
-            if ((int) argValBuff[line][2] != 0) {
-                draw_on = 1;
-            }
-
-            target->attr.draw_on = draw_on;
+            const int draw_on = static_cast<int>(args[2]) != 0 ? 1 : 2;
+            target->attr.draw_on = static_cast<short>(draw_on);
             target->flags = draw_on;
         }
 
-        if (TEIGI_DUMMY_MODEL[0] == (int) argValBuff[line][0]) {
-            CDungeonMap *map;
-            data = GetPackFile(pack, argStrBuff[line], &size);
+        if (TEIGI_DUMMY_MODEL[0] == command) {
+            int    size = 0;
+            u_int *data = GetPackFile(pack, string_arg, &size);
 
-            if (data == NULL) {
-                printf("ERR = %s\n", full_path);
+            if (data == nullptr) {
+                std::printf("ERR = %s\n", full_path.c_str());
             }
 
-            frame = LoadMDSFile(data, &MapModelBuffer, 0, NULL, NULL);
+            CFrame *frame = LoadMDSFile(data, &MapModelBuffer, 0, nullptr, nullptr);
             frame->SetAttr(attr, 1, 0x40);
             SetFrameAttr(frame, 1);
-            map = NowDngMap;
+            CDungeonMap *map = NowDngMap;
 
             if (map->dummy_frame_num < 3) {
                 map->dummy_frame[map->dummy_frame_num] = frame;
@@ -773,501 +598,397 @@ void TEIGIMdsLoad(u_int *pack, int reuse_only) {
             }
         }
 
-        if (TEIGI_DRANS_PARTS[0] == (int) argValBuff[line][0]) {
-            data = GetPackFile(pack, argStrBuff[line], &size);
+        if (TEIGI_DRANS_PARTS[0] == command) {
+            int    size = 0;
+            u_int *data = GetPackFile(pack, string_arg, &size);
 
-            if (data == NULL) {
-                printf("ERR = %s\n", full_path);
+            if (data == nullptr) {
+                std::printf("ERR = %s\n", full_path.c_str());
             }
 
-            printf("load dran %s\n", argStrBuff[line]);
+            std::printf("load dran %s\n", string_arg);
             NowDranMapField->LoadModel(data, &MapModelBuffer);
         }
 
-        if (TEIGI_DRANS_COLS[0] == (int) argValBuff[line][0]) {
-            data = GetPackFile(pack, argStrBuff[line], &size);
+        if (TEIGI_DRANS_COLS[0] == command) {
+            int    size = 0;
+            u_int *data = GetPackFile(pack, string_arg, &size);
 
-            if (data == NULL) {
-                printf("ERR = %s\n", full_path);
+            if (data == nullptr) {
+                std::printf("ERR = %s\n", full_path.c_str());
             }
 
             NowDranMapField->LoadCollision(data, &MapModelBuffer);
         }
 
-        if (TEIGI_DEF_PATS[0] == (int) argValBuff[line][0]) {
+        if (TEIGI_DEF_PATS[0] == command) {
             part_frame = 0;
         }
 
-        if (TEIGI_DEF_ENDS[0] == (int) argValBuff[line][0]) {
+        if (TEIGI_DEF_ENDS[0] == command) {
             nowPartsCnt++;
 
             if (nowPartsCnt >= 72) {
-                printf("parts cnt over\n");
+                std::printf("parts cnt over\n");
 
-                while (1) {
+                while (true) {
                 }
             }
         }
 
-        if (TEIGI_PT_BASE[0] == (int) argValBuff[line][0]) {
-            int          found;
-            int          turn;
-            float        x;
-            float        y;
-            float        z;
-            int          direction;
-            int          parts_no;
-            CDungeonMap *map;
-
+        if (TEIGI_PT_BASE[0] == command) {
             if (part_frame >= 6) {
-                printf("[%d]parts num over !!\n", nowPartsCnt);
+                std::printf("[%d]parts num over !!\n", nowPartsCnt);
 
-                while (1) {
+                while (true) {
                 }
             }
 
-            if (filePathNum >= 72) {
-                printf("filePathNumOver = %d\n", filePathNum);
+            if (loadedModels.size() >= 72) {
+                std::printf("filePathNumOver = %d\n", static_cast<int>(loadedModels.size()));
 
-                while (1) {
+                while (true) {
                 }
             }
 
-            strcpy(full_path, pathName);
-            strcat(full_path, argStrBuff[line]);
-            found = -1;
+            full_path.assign(pathName);
+            full_path += string_arg;
 
-            for (int i = 0; i < filePathNum; i++) {
-                if (strcmp(filePathList[i], full_path) == 0) {
-                    found = i;
-                }
-            }
-
-            if (found != -1) {
-                current_model = frameList[found];
+            if (const LoadedFrame *loaded = FindLoaded(loadedModels, full_path); loaded != nullptr) {
+                current_model = loaded->frame;
             } else {
                 if (reuse_only != 0) {
-                    printf("MISS DATA %s\n", full_path);
+                    std::printf("MISS DATA %s\n", full_path.c_str());
                     exit__2(-1);
                 }
 
-                if (pack != NULL) {
-                    data = GetPackFile(pack, full_path, &size);
+                if (pack != nullptr) {
+                    int    size = 0;
+                    u_int *data = GetPackFile(pack, full_path.data(), &size);
 
-                    if (data == NULL) {
-                        printf("ERR = %s\n", full_path);
+                    if (data == nullptr) {
+                        std::printf("ERR = %s\n", full_path.c_str());
                     }
 
-                    current_model = LoadMDSFile(data, &MapModelBuffer, 0, NULL, NULL);
+                    current_model = LoadMDSFile(data, &MapModelBuffer, 0, nullptr, nullptr);
                 } else {
-                    LoadFile(full_path, (void *) read_buffer, NULL);
+                    LoadFile(full_path.data(), read_buffer, nullptr);
                     wait_now_loading_vsync();
-                    current_model = LoadMDSFile(read_buffer, &MapModelBuffer, 0, NULL, NULL);
+                    current_model = LoadMDSFile(read_buffer, &MapModelBuffer, 0, nullptr, nullptr);
                 }
 
                 current_model->SetAttr(attr, 1, 0x40);
                 SetFrameAttr(current_model, 1);
-                strcpy(filePathList[filePathNum], full_path);
-                frameList[filePathNum] = current_model;
-                filePathNum++;
+                loadedModels.push_back({full_path, current_model});
             }
 
-            turn = (int) argValBuff[line][6];
-            z = argValBuff[line][5];
-            y = argValBuff[line][4];
-            x = argValBuff[line][3];
-            direction = (int) argValBuff[line][2];
-            parts_no = nowPartsCnt;
-            map = NowDngMap;
+            const int   turn = static_cast<int>(args[6]);
+            const float z = args[5];
+            const float y = args[4];
+            const float x = args[3];
+            const int   direction = static_cast<int>(args[2]);
+            const int   parts_no = nowPartsCnt;
 
             if (parts_no < 72) {
-                map->parts[parts_no].frame[part_frame] = current_model;
-                map->parts[parts_no].frame_offset[part_frame][0] = 10.0f * x;
-                map->parts[parts_no].frame_offset[part_frame][1] = 10.0f * y;
-                map->parts[parts_no].frame_offset[part_frame][2] = 10.0f * z;
-                map->parts[parts_no].frame_offset[part_frame][3] = 1.0f;
-                map->parts[parts_no].frame_turn[part_frame] = (float) turn;
-                map->parts[parts_no].direction_offset = (s16) direction;
+                CDungeonParts &part = NowDngMap->parts[parts_no];
+                part.frame[part_frame] = current_model;
+                part.frame_offset[part_frame][0] = 10.0f * x;
+                part.frame_offset[part_frame][1] = 10.0f * y;
+                part.frame_offset[part_frame][2] = 10.0f * z;
+                part.frame_offset[part_frame][3] = 1.0f;
+                part.frame_turn[part_frame] = static_cast<float>(turn);
+                part.direction_offset = static_cast<s16>(direction);
             }
 
             part_frame++;
         }
 
-        if (TEIGI_PT_COLS[0] == (int) argValBuff[line][0]) {
-            int          found;
-            int          turn;
-            int          parts_no;
-            CDungeonMap *map;
+        if (TEIGI_PT_COLS[0] == command) {
+            if (loadedCollisions.size() >= 72) {
+                std::printf("colNumOver = %d\n", static_cast<int>(loadedCollisions.size()));
 
-            if (filePathColNum >= 72) {
-                printf("colNumOver = %d\n", filePathColNum);
-
-                while (1) {
+                while (true) {
                 }
             }
 
-            strcpy(full_path, pathName);
-            strcat(full_path, argStrBuff[line]);
-            found = -1;
+            full_path.assign(pathName);
+            full_path += string_arg;
 
-            for (int i = 0; i < filePathColNum; i++) {
-                if (strcmp(filePathColList[i], full_path) == 0) {
-                    found = i;
-                }
-            }
-
-            if (found != -1) {
-                current_collision = frameListCol[found];
+            if (const LoadedFrame *loaded = FindLoaded(loadedCollisions, full_path); loaded != nullptr) {
+                current_collision = loaded->frame;
             } else {
                 if (reuse_only != 0) {
-                    printf("MISS COL DATA %s\n", full_path);
+                    std::printf("MISS COL DATA %s\n", full_path.c_str());
                     exit__2(-1);
                 }
 
-                if (pack != NULL) {
-                    data = GetPackFile(pack, full_path, &size);
+                if (pack != nullptr) {
+                    int    size = 0;
+                    u_int *data = GetPackFile(pack, full_path.data(), &size);
 
-                    if (data == NULL) {
-                        printf("ERR = %s\n", full_path);
+                    if (data == nullptr) {
+                        std::printf("ERR = %s\n", full_path.c_str());
                     }
 
                     current_collision = LoadCollisionFile(data, &MapModelBuffer);
                 } else {
-                    LoadFile(full_path, (void *) read_buffer, NULL);
+                    LoadFile(full_path.data(), read_buffer, nullptr);
                     wait_now_loading_vsync();
                     current_collision = LoadCollisionFile(read_buffer, &MapModelBuffer);
                 }
 
                 current_collision->flags = 1;
 
-                if (current_collision->SearchFrame("cdoor_al") != NULL) {
-                    printf("****** cdoor_al\n");
+                if (current_collision->SearchFrame(const_cast<char *>("cdoor_al")) != nullptr) {
+                    std::printf("****** cdoor_al\n");
                 }
 
-                strcpy(filePathColList[filePathColNum], full_path);
-                frameListCol[filePathColNum] = current_collision;
-                filePathColNum++;
+                loadedCollisions.push_back({full_path, current_collision});
             }
 
-            turn = (int) argValBuff[line][2];
-            parts_no = nowPartsCnt;
-            map = NowDngMap;
-            map->parts[parts_no].collision = current_collision;
-            map->parts[parts_no].collision_turn = (s16) turn;
+            const int      turn = static_cast<int>(args[2]);
+            CDungeonParts &part = NowDngMap->parts[nowPartsCnt];
+            part.collision = current_collision;
+            part.collision_turn = static_cast<s16>(turn);
         }
 
-        if (TEIGI_PT_CAM[0] == (int) argValBuff[line][0]) {
-            int          found;
-            int          turn;
-            CFrame      *collision;
-            int          parts_no;
-            CDungeonMap *map;
+        if (TEIGI_PT_CAM[0] == command) {
+            CFrame *collision = nullptr;
 
-            if (filePathColNum >= 72) {
-                printf("colNumOver = %d\n", filePathColNum);
+            if (loadedCollisions.size() >= 72) {
+                std::printf("colNumOver = %d\n", static_cast<int>(loadedCollisions.size()));
 
-                while (1) {
+                while (true) {
                 }
             }
 
-            strcpy(full_path, pathName);
-            strcat(full_path, argStrBuff[line]);
-            found = -1;
+            full_path.assign(pathName);
+            full_path += string_arg;
 
-            for (int i = 0; i < filePathColNum; i++) {
-                if (strcmp(filePathColList[i], full_path) == 0) {
-                    found = i;
-                }
-            }
-
-            if (found != -1) {
-                collision = frameListCol[found];
+            if (const LoadedFrame *loaded = FindLoaded(loadedCollisions, full_path); loaded != nullptr) {
+                collision = loaded->frame;
             } else {
                 if (reuse_only != 0) {
-                    printf("MISS CAM DATA %s\n", full_path);
+                    std::printf("MISS CAM DATA %s\n", full_path.c_str());
                     exit__2(-1);
                 }
 
-                if (pack != NULL) {
-                    data = GetPackFile(pack, full_path, &size);
+                if (pack != nullptr) {
+                    int    size = 0;
+                    u_int *data = GetPackFile(pack, full_path.data(), &size);
 
-                    if (data == NULL) {
-                        printf("ERR = %s\n", full_path);
+                    if (data == nullptr) {
+                        std::printf("ERR = %s\n", full_path.c_str());
 
-                        while (1) {
+                        while (true) {
                         }
                     }
 
                     collision = LoadCollisionFile(data, &MapModelBuffer);
                 } else {
-                    LoadFile(full_path, (void *) read_buffer, NULL);
+                    LoadFile(full_path.data(), read_buffer, nullptr);
                     wait_now_loading_vsync();
                     collision = LoadCollisionFile(read_buffer, &MapModelBuffer);
                 }
 
                 collision->flags = 1;
-                strcpy(filePathColList[filePathColNum], full_path);
-                frameListCol[filePathColNum] = collision;
-                filePathColNum++;
+                loadedCollisions.push_back({full_path, collision});
             }
 
-            turn = (int) argValBuff[line][2];
-            parts_no = nowPartsCnt;
-            map = NowDngMap;
-            map->parts[parts_no].camera_collision = collision;
-            map->parts[parts_no].camera_collision_turn = (s16) turn;
+            const int      turn = static_cast<int>(args[2]);
+            CDungeonParts &part = NowDngMap->parts[nowPartsCnt];
+            part.camera_collision = collision;
+            part.camera_collision_turn = static_cast<s16>(turn);
         }
 
-        if (TEIGI_PT_DRAW_FLAG[0] == (int) argValBuff[line][0]) {
-            char   *name = argStrBuff[line];
-            CFrame *target = current_model->SearchFrame(name);
-            int     draw_on;
+        if (TEIGI_PT_DRAW_FLAG[0] == command) {
+            CFrame *target = current_model->SearchFrame(string_arg);
 
-            if (target == NULL) {
-                printf("**** DFLAG:%s NotFound ****\n", name);
+            if (target == nullptr) {
+                std::printf("**** DFLAG:%s NotFound ****\n", string_arg);
 
-                while (1) {
+                while (true) {
                 }
             }
 
-            draw_on = (int) argValBuff[line][2];
-            draw_on = 2;
-
-            if ((int) argValBuff[line][2] != 0) {
-                draw_on = 1;
-            }
-
-            target->attr.draw_on = draw_on;
+            const int draw_on = static_cast<int>(args[2]) != 0 ? 1 : 2;
+            target->attr.draw_on = static_cast<short>(draw_on);
             target->flags = draw_on;
         }
 
-        if (TEIGI_PT_GLIGHT[0] == (int) argValBuff[line][0]) {
+        if (TEIGI_PT_GLIGHT[0] == command) {
             sceVu0FVECTOR range = {80.0f, 80.0f, 80.0f, 80.0f};
             sceVu0FVECTOR speed = {128.0f, 128.0f, 128.0f, 128.0f};
 
             if (FrameObjAnimCnt >= 48) {
-                printf("over frame anim!\n");
+                std::printf("over frame anim!\n");
             } else {
-                strcpy(FrameObjAnim[FrameObjAnimCnt].frame_name, argStrBuff[line]);
-                FrameObjAnim[FrameObjAnimCnt].property = OBJ_ANIME_PROPERTY_COLOR;
-                FrameObjAnim[FrameObjAnimCnt].mode = OBJ_ANIME_MODE_RANDOM_UNIFORM;
-                sceVu0CopyVector(FrameObjAnim[FrameObjAnimCnt].from, range);
-                sceVu0CopyVector(FrameObjAnim[FrameObjAnimCnt].to, speed);
-                InitObjAnime(current_model, &FrameObjAnim[FrameObjAnimCnt]);
+                OBJ_ANIME_SEQ &sequence = FrameObjAnim[FrameObjAnimCnt];
+                std::strcpy(sequence.frame_name, string_arg);
+                sequence.property = OBJ_ANIME_PROPERTY_COLOR;
+                sequence.mode = OBJ_ANIME_MODE_RANDOM_UNIFORM;
+                sceVu0CopyVector(sequence.from, range);
+                sceVu0CopyVector(sequence.to, speed);
+                InitObjAnime(current_model, &sequence);
                 FrameObjAnimCnt++;
             }
         }
 
-        if (TEIGI_PT_LIGHT[0] == (int) argValBuff[line][0]) {
-            int          parts_no = nowPartsCnt;
-            CDungeonMap *map;
-            float        x;
-            float        y;
-            float        z;
-            z = argValBuff[line][3];
-            y = argValBuff[line][2];
-            x = argValBuff[line][1];
-            map = NowDngMap;
-
-            if (map->parts[parts_no].fire_num < 6) {
-                map->parts[parts_no].fire_pos[map->parts[parts_no].fire_num][0] = x;
-                map->parts[parts_no].fire_pos[map->parts[parts_no].fire_num][1] = y;
-                map->parts[parts_no].fire_pos[map->parts[parts_no].fire_num][2] = z;
-                map->parts[parts_no].fire_param[map->parts[parts_no].fire_num] = 2;
-                map->parts[parts_no].fire_num++;
-            }
+        if (TEIGI_PT_LIGHT[0] == command) {
+            add_fire(args, 2);
         }
 
-        if (TEIGI_PT_HEAL_ZONE[0] == (int) argValBuff[line][0]) {
-            float          position[4];
-            float          radius;
-            float          height;
-            CDungeonParts *part;
-            position[0] = 10.0f * argValBuff[line][1];
-            position[1] = 10.0f * argValBuff[line][2];
-            position[2] = 10.0f * argValBuff[line][3];
-            radius = 10.0f * argValBuff[line][4];
-            height = 10.0f * argValBuff[line][5];
-            part = &NowDngMap->parts[nowPartsCnt];
-            part->SetHealZone(position, radius, height);
+        if (TEIGI_PT_HEAL_ZONE[0] == command) {
+            float position[4];
+            position[0] = 10.0f * args[1];
+            position[1] = 10.0f * args[2];
+            position[2] = 10.0f * args[3];
+            const float radius = 10.0f * args[4];
+            const float height = 10.0f * args[5];
+            NowDngMap->parts[nowPartsCnt].SetHealZone(position, radius, height);
         }
 
-        if (TEIGI_PT_WATER[0] == (int) argValBuff[line][0]) {
-            sceVu0FVECTOR  vertex0;
-            sceVu0FVECTOR  vertex1;
-            sceVu0FVECTOR  vertex2;
-            sceVu0FVECTOR  vertex3;
-            u8             red;
-            u8             green;
-            u8             blue;
-            int            parts_no;
-            CDungeonMap   *map;
-            CDungeonParts *part;
-            vertex2[0] = 10.0f * argValBuff[line][1];
-            vertex0[0] = 10.0f * argValBuff[line][1];
-            vertex3[0] = 10.0f * argValBuff[line][4];
-            vertex1[0] = 10.0f * argValBuff[line][4];
-            vertex0[1] = vertex1[1] = vertex2[1] = vertex3[1] = 10.0f * argValBuff[line][2];
-            vertex0[2] = vertex1[2] = 10.0f * argValBuff[line][3];
-            vertex2[2] = vertex3[2] = 10.0f * argValBuff[line][6];
-            red = (u8) argValBuff[line][7];
-            green = (u8) argValBuff[line][8];
-            blue = (u8) argValBuff[line][9];
-            parts_no = nowPartsCnt;
-            map = NowDngMap;
-            map->parts[parts_no].water.used = 1;
-            part = &map->parts[parts_no];
-            sceVu0CopyVector(part->water.vertex[0], vertex0);
-            sceVu0CopyVector(part->water.vertex[1], vertex1);
-            sceVu0CopyVector(part->water.vertex[2], vertex2);
-            sceVu0CopyVector(part->water.vertex[3], vertex3);
-            map->parts[parts_no].water.red = red;
-            map->parts[parts_no].water.green = green;
-            map->parts[parts_no].water.blue = blue;
-            map->parts[parts_no].water.has_fall = 0;
+        if (TEIGI_PT_WATER[0] == command) {
+            sceVu0FVECTOR vertex0;
+            sceVu0FVECTOR vertex1;
+            sceVu0FVECTOR vertex2;
+            sceVu0FVECTOR vertex3;
+            vertex2[0] = 10.0f * args[1];
+            vertex0[0] = 10.0f * args[1];
+            vertex3[0] = 10.0f * args[4];
+            vertex1[0] = 10.0f * args[4];
+            vertex0[1] = vertex1[1] = vertex2[1] = vertex3[1] = 10.0f * args[2];
+            vertex0[2] = vertex1[2] = 10.0f * args[3];
+            vertex2[2] = vertex3[2] = 10.0f * args[6];
+            const u8       red = static_cast<u8>(args[7]);
+            const u8       green = static_cast<u8>(args[8]);
+            const u8       blue = static_cast<u8>(args[9]);
+            CDungeonParts &part = NowDngMap->parts[nowPartsCnt];
+            part.water.used = 1;
+            sceVu0CopyVector(part.water.vertex[0], vertex0);
+            sceVu0CopyVector(part.water.vertex[1], vertex1);
+            sceVu0CopyVector(part.water.vertex[2], vertex2);
+            sceVu0CopyVector(part.water.vertex[3], vertex3);
+            part.water.red = red;
+            part.water.green = green;
+            part.water.blue = blue;
+            part.water.has_fall = 0;
         }
 
-        if (TEIGI_PT_MARKER[0] == (int) argValBuff[line][0]) {
-            char           name[32];
-            float          radius;
-            int            script_no;
-            int            marker_param;
-            int            fade;
-            int            extra_param;
-            int            ext_memory;
-            CDungeonEvent *event;
-            strcpy(name, argStrBuff[line]);
-            radius = argValBuff[line][2];
-            script_no = (int) argValBuff[line][3];
-            marker_param = (int) argValBuff[line][4];
-            fade = (int) argValBuff[line][5];
-            extra_param = (int) argValBuff[line][6];
-            ext_memory = (int) argValBuff[line][7];
-            event = NowEventMan->SearchSlot();
+        // A marker inside a loaded collision model must name one of its frames; otherwise the slot stays free.
+        const auto place_event = [&](CDungeonEvent *event) {
+            if (current_collision != nullptr) {
+                event->placement_frame = current_collision;
+                event->trigger_frame = current_collision->SearchFrame(string_arg);
 
-            if (event != NULL) {
-                int parts_id = nowPartsCnt;
-
-                if (current_collision != NULL && (event->placement_frame = current_collision, event->trigger_frame = event->placement_frame->SearchFrame(name), event->trigger_frame == NULL)) {
-                    printf("*********** not fount null == %s\n", name);
-                } else {
-                    event->parts_id = parts_id;
-                    strcpy(event->name, name);
-                    event->radius = radius;
-                    event->script_no = script_no;
-                    event->hold = marker_param;
-                    event->fade = fade;
-                    event->chara_no = -1;
-                    event->key_id = -1;
-                    event->switch_on = extra_param;
-                    event->ext_mem = ext_memory;
-                    event->enabled = true;
+                if (event->trigger_frame == nullptr) {
+                    std::printf("*********** not fount null == %s\n", string_arg);
+                    return false;
                 }
             }
+
+            event->parts_id = nowPartsCnt;
+            std::strcpy(event->name, string_arg);
+            event->radius = args[2];
+            event->script_no = static_cast<int>(args[3]);
+            return true;
+        };
+
+        if (TEIGI_PT_MARKER[0] == command) {
+            const int      marker_param = static_cast<int>(args[4]);
+            const int      fade = static_cast<int>(args[5]);
+            const int      extra_param = static_cast<int>(args[6]);
+            const int      ext_memory = static_cast<int>(args[7]);
+            CDungeonEvent *event = NowEventMan->SearchSlot();
+
+            if (event != nullptr && place_event(event)) {
+                event->hold = marker_param;
+                event->fade = fade;
+                event->chara_no = -1;
+                event->key_id = -1;
+                event->switch_on = extra_param;
+                event->ext_mem = ext_memory;
+                event->enabled = true;
+            }
         }
 
-        if (TEIGI_PT_HIT_MARKER[0] == (int) argValBuff[line][0]) {
-            char           name[32];
-            float          radius;
-            int            script_no;
-            int            chara_no;
-            int            key;
-            int            extra_param;
-            int            ext_memory;
-            CDungeonEvent *event;
-            strcpy(name, argStrBuff[line]);
-            radius = argValBuff[line][2];
-            script_no = (int) argValBuff[line][3];
-            chara_no = (int) argValBuff[line][4];
-            key = (int) argValBuff[line][5];
+        if (TEIGI_PT_HIT_MARKER[0] == command) {
+            const int chara_no = static_cast<int>(args[4]);
+            int       key = static_cast<int>(args[5]);
 
             if (key == -2) {
                 key = BtRubyDoorKey;
             }
 
-            extra_param = (int) argValBuff[line][6];
-            ext_memory = (int) argValBuff[line][7];
-            event = NowEventMan->SearchSlot();
+            const int      extra_param = static_cast<int>(args[6]);
+            const int      ext_memory = static_cast<int>(args[7]);
+            CDungeonEvent *event = NowEventMan->SearchSlot();
 
-            if (event != NULL) {
-                int parts_id = nowPartsCnt;
-
-                if (current_collision != NULL && (event->placement_frame = current_collision, event->trigger_frame = event->placement_frame->SearchFrame(name), event->trigger_frame == NULL)) {
-                    printf("*********** not fount null == %s\n", name);
-                } else {
-                    event->parts_id = parts_id;
-                    strcpy(event->name, name);
-                    event->radius = radius;
-                    event->script_no = script_no;
-                    event->hold = 0;
-                    event->fade = 0;
-                    event->chara_no = chara_no;
-                    event->key_id = key;
-                    event->switch_on = extra_param;
-                    event->ext_mem = ext_memory;
-                    event->enabled = true;
-                }
+            if (event != nullptr && place_event(event)) {
+                event->hold = 0;
+                event->fade = 0;
+                event->chara_no = chara_no;
+                event->key_id = key;
+                event->switch_on = extra_param;
+                event->ext_mem = ext_memory;
+                event->enabled = true;
             }
         }
 
-        if (TEIGI_PT_ROT[0] == (int) argValBuff[line][0]) {
+        if (TEIGI_PT_ROT[0] == command) {
             if (FrameObjAnimCnt >= 48) {
-                printf("over frame anim!\n");
+                std::printf("over frame anim!\n");
             } else {
-                FrameObjAnim[FrameObjAnimCnt].Initialize();
-                FrameObjAnim[FrameObjAnimCnt].property = OBJ_ANIME_PROPERTY_ROTATION;
-                FrameObjAnim[FrameObjAnimCnt].mode = OBJ_ANIME_MODE_LINEAR;
-                FrameObjAnim[FrameObjAnimCnt].from[0] = argValBuff[line][2];
-                FrameObjAnim[FrameObjAnimCnt].from[1] = argValBuff[line][3];
-                FrameObjAnim[FrameObjAnimCnt].from[2] = argValBuff[line][4];
-                FrameObjAnim[FrameObjAnimCnt].step[0] = argValBuff[line][5];
-                FrameObjAnim[FrameObjAnimCnt].step[1] = argValBuff[line][6];
-                FrameObjAnim[FrameObjAnimCnt].step[2] = argValBuff[line][7];
-                strcpy(FrameObjAnim[FrameObjAnimCnt].frame_name, argStrBuff[line]);
-                InitObjAnime(current_model, &FrameObjAnim[FrameObjAnimCnt]);
+                OBJ_ANIME_SEQ &sequence = FrameObjAnim[FrameObjAnimCnt];
+                sequence.Initialize();
+                sequence.property = OBJ_ANIME_PROPERTY_ROTATION;
+                sequence.mode = OBJ_ANIME_MODE_LINEAR;
+                sequence.from[0] = args[2];
+                sequence.from[1] = args[3];
+                sequence.from[2] = args[4];
+                sequence.step[0] = args[5];
+                sequence.step[1] = args[6];
+                sequence.step[2] = args[7];
+                std::strcpy(sequence.frame_name, string_arg);
+                InitObjAnime(current_model, &sequence);
                 FrameObjAnimCnt++;
             }
         }
 
-        if (TEIGI_PT_SCALE[0] == (int) argValBuff[line][0]) {
+        if (TEIGI_PT_SCALE[0] == command) {
             if (FrameObjAnimCnt >= 48) {
-                printf("over frame anim!\n");
+                std::printf("over frame anim!\n");
             } else {
-                FrameObjAnim[FrameObjAnimCnt].Initialize();
-                FrameObjAnim[FrameObjAnimCnt].property = OBJ_ANIME_PROPERTY_SCALE;
-                FrameObjAnim[FrameObjAnimCnt].mode = OBJ_ANIME_MODE_PING_PONG;
-                FrameObjAnim[FrameObjAnimCnt].from[0] = argValBuff[line][2];
-                FrameObjAnim[FrameObjAnimCnt].from[1] = argValBuff[line][3];
-                FrameObjAnim[FrameObjAnimCnt].from[2] = argValBuff[line][4];
-                FrameObjAnim[FrameObjAnimCnt].to[0] = argValBuff[line][5];
-                FrameObjAnim[FrameObjAnimCnt].to[1] = argValBuff[line][6];
-                FrameObjAnim[FrameObjAnimCnt].to[2] = argValBuff[line][7];
-                FrameObjAnim[FrameObjAnimCnt].step[0] = argValBuff[line][8];
-                FrameObjAnim[FrameObjAnimCnt].step[1] = argValBuff[line][9];
-                FrameObjAnim[FrameObjAnimCnt].step[2] = argValBuff[line][10];
-                strcpy(FrameObjAnim[FrameObjAnimCnt].frame_name, argStrBuff[line]);
-                InitObjAnime(current_model, &FrameObjAnim[FrameObjAnimCnt]);
+                OBJ_ANIME_SEQ &sequence = FrameObjAnim[FrameObjAnimCnt];
+                sequence.Initialize();
+                sequence.property = OBJ_ANIME_PROPERTY_SCALE;
+                sequence.mode = OBJ_ANIME_MODE_PING_PONG;
+                sequence.from[0] = args[2];
+                sequence.from[1] = args[3];
+                sequence.from[2] = args[4];
+                sequence.to[0] = args[5];
+                sequence.to[1] = args[6];
+                sequence.to[2] = args[7];
+                sequence.step[0] = args[8];
+                sequence.step[1] = args[9];
+                sequence.step[2] = args[10];
+                std::strcpy(sequence.frame_name, string_arg);
+                InitObjAnime(current_model, &sequence);
                 FrameObjAnimCnt++;
             }
         }
 
-        if (TEIGI_PT_NPC[0] == (int) argValBuff[line][0]) {
-            char          name[32];
-            int           npc_no;
+        if (TEIGI_PT_NPC[0] == command) {
+            const int     npc_no = static_cast<int>(args[2]);
             sceVu0FVECTOR position;
             sceVu0FVECTOR rotation;
-            int           pack_size;
-            int           visible;
-            int           motion_no;
-            strcpy(name, argStrBuff[line]);
-            npc_no = (int) argValBuff[line][2];
-            position[0] = argValBuff[line][3];
-            position[1] = argValBuff[line][4];
-            position[2] = argValBuff[line][5];
+            position[0] = args[3];
+            position[1] = args[4];
+            position[2] = args[5];
             position[3] = 1.0f;
-            rotation[0] = argValBuff[line][6];
-            rotation[1] = argValBuff[line][7];
-            rotation[2] = argValBuff[line][8];
+            rotation[0] = args[6];
+            rotation[1] = args[7];
+            rotation[2] = args[8];
 
             for (int i = 0; i < 3; i++) {
                 rotation[i] = (PI_SHORT / 180.0f) * rotation[i];
@@ -1281,46 +1002,21 @@ void TEIGIMdsLoad(u_int *pack, int reuse_only) {
                 }
             }
 
-            visible = (int) argValBuff[line][9];
-            motion_no = (int) argValBuff[line][10];
-            {
-                u_int *npc_file = GetPackFile(pack, name, &pack_size);
-                NowDngMap->SetNPC(npc_no, npc_file, nowPartsCnt, position, rotation, visible, motion_no, &MapModelBuffer);
-            }
+            const int visible = static_cast<int>(args[9]);
+            const int motion_no = static_cast<int>(args[10]);
+            int       pack_size = 0;
+            u_int    *npc_file = GetPackFile(pack, string_arg, &pack_size);
+            NowDngMap->SetNPC(npc_no, npc_file, nowPartsCnt, position, rotation, visible, motion_no, &MapModelBuffer);
         }
 
-        if (TEIGI_PT_FIRE[0] == (int) argValBuff[line][0]) {
-            int          parts_no = nowPartsCnt;
-            CDungeonMap *map;
-            float        x;
-            float        y;
-            float        z;
-            z = argValBuff[line][3];
-            y = argValBuff[line][2];
-            x = argValBuff[line][1];
-            map = NowDngMap;
-
-            if (map->parts[parts_no].fire_num < 6) {
-                map->parts[parts_no].fire_pos[map->parts[parts_no].fire_num][0] = x;
-                map->parts[parts_no].fire_pos[map->parts[parts_no].fire_num][1] = y;
-                map->parts[parts_no].fire_pos[map->parts[parts_no].fire_num][2] = z;
-                map->parts[parts_no].fire_param[map->parts[parts_no].fire_num] = 3;
-                map->parts[parts_no].fire_num++;
-            }
+        if (TEIGI_PT_FIRE[0] == command) {
+            add_fire(args, 3);
         }
     }
 }
 
 /*
- * The source-owned definition tables replace their bytes in main.data. The
- * linker script places this unit's data section at its retail address; the
- * four tables are contiguous and stay in this order.
- *
- * Byte-for-byte from retail. WeaponList and AttachList stay as bytes because
- * nothing is known about their fields yet -- inventing a struct for them
- * would assert a layout no evidence supports. ITEM_LIST is s16 fields, of
- * which only index 5 (vol) is understood, and ComItemInfo is the id-to-table
- * map this file's accessors read.
+ * Weapon, attachment, item and item-id tables, indexed by the accessors below and in port/src/itemdata.cpp.
  */
 WEAPON_DATA WeaponList[120] = {
     {48, 1,   0,  70, 0,   CHARA_TOAN,   {0, 0, 0, 0, 0, 0}, 0, {0, 0, 0, 0, 0},      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},           32,  8,  0, 0, 0x0000, 0, 0x00000000, 0x00000000, 25,  24,  0,  0}, /* Dagger[broken1] */
@@ -2027,31 +1723,15 @@ COM_ITEM_INFO ComItemInfo[296] = {
 
 WEAPON_DATA *GetWeaponDataInfo(int weapon_no) {
     if (weapon_no < 0) {
-        return 0;
+        return nullptr;
     }
 
     return &WeaponList[weapon_no];
 }
 
-COM_ITEM_INFO *GetCommonItemInfo(int item_no);
-
-int GetItemTypeInfo(int item_no, s8 *kind);
-
-ITEM_DATA *GetItemData(int item_no);
-
-ATTACH_DATA *GetAttachData(int item_no);
-
-WEAPON_DATA *GetWeaponData(int item_no);
-
 int GetCommonItemDataMsg(int item_no) {
-    int            msg = 0;
-    COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-
-    if (info != 0) {
-        msg = info->msg;
-    }
-
-    return msg;
+    const COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
+    return info != nullptr ? info->msg : 0;
 }
 
 int GetCommonItemDataSystemMsg(int item_no) {
