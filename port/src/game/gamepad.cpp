@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 179
-
 #include "gamepad.hpp"
 #include "sce/libgraph.h"
 #include "sce/libpad.h"
@@ -72,15 +68,6 @@ void CGamePad::Init() {
     sceGsSyncV(0);
     sceGsSyncV(0);
 }
-
-#define PAD_STATIC_COUNTER_1(name) static const int name = 0;
-#define PAD_STATIC_COUNTER_2(name) PAD_STATIC_COUNTER_1(name##0) PAD_STATIC_COUNTER_1(name##1)
-#define PAD_STATIC_COUNTER_4(name) PAD_STATIC_COUNTER_2(name##0) PAD_STATIC_COUNTER_2(name##1)
-#define PAD_STATIC_COUNTER_8(name) PAD_STATIC_COUNTER_4(name##0) PAD_STATIC_COUNTER_4(name##1)
-#define PAD_STATIC_COUNTER_16(name) PAD_STATIC_COUNTER_8(name##0) PAD_STATIC_COUNTER_8(name##1)
-#define PAD_STATIC_COUNTER_32(name) PAD_STATIC_COUNTER_16(name##0) PAD_STATIC_COUNTER_16(name##1)
-#define PAD_STATIC_COUNTER_64(name) PAD_STATIC_COUNTER_32(name##0) PAD_STATIC_COUNTER_32(name##1)
-#define PAD_STATIC_COUNTER_128(name) PAD_STATIC_COUNTER_64(name##0) PAD_STATIC_COUNTER_64(name##1)
 
 int pad_button_read(PAD_STATUS *status, int port, int slot);
 
@@ -337,15 +324,6 @@ void CGamePad::UpDate() {
 
     cnt = !((bool) cnt);
 }
-
-#undef PAD_STATIC_COUNTER_128
-#undef PAD_STATIC_COUNTER_64
-#undef PAD_STATIC_COUNTER_32
-#undef PAD_STATIC_COUNTER_16
-#undef PAD_STATIC_COUNTER_8
-#undef PAD_STATIC_COUNTER_4
-#undef PAD_STATIC_COUNTER_2
-#undef PAD_STATIC_COUNTER_1
 
 void CGamePad::Step() {
     for (int i = 0; i < 2; i++) {

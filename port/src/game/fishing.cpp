@@ -1,7 +1,5 @@
 #include "fishing.hpp"
 
-#include <libgraph.h>
-#include <libpkt.h>
 #include <libvu0.h>
 
 #include <cstdlib>
@@ -474,11 +472,6 @@ void FishingBattleFish(int fish_no) {
 }
 
 int FishingFishKind(int fish_no) {
-    // The range check can never fail: it needs both bounds exceeded at once.
-    if (fish_no < 0 && fish_no >= 6) {
-        return -1;
-    }
-
     return Fish[fish_no].fish_kind;
 }
 
@@ -498,7 +491,7 @@ void FishingBattleToAngleFish(u_int *pack, CDataAlloc2<1> *alloc) {
     }
 }
 
-char fishing_err_format[] __attribute__((section(".rodata"))) = "err %d\n";
+char fishing_err_format[] = "err %d\n";
 
 CFish *FishingGetBattleFish() {
     return BattleFish;

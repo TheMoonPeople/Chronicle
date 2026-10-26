@@ -1,7 +1,4 @@
 #include "stubs/gameutil.hpp"
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 25
 
 #include "gameutil.hpp"
 
@@ -9,8 +6,6 @@
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
-#include <sifdma.h>
-#include <sifrpc.h>
 
 #include <cmath>
 #include <cstdio>
@@ -28,18 +23,8 @@
 #include "texture.hpp"
 #include "visualvu1.hpp"
 
-/* Shared helpers: the IOP midi bridge, motion interpolation, collision and
- * ground queries, and 2D sprite setup. */
-
-static s32              sbuff[16]; // RPC argument and response storage shared by MIDI calls.
-static sceSifClientData gCd;       // Client state bound to the EZMIDI IOP server.
-static sceSifDmaData    transData; // Descriptor reused for synchronous EE-to-IOP transfers.
-
-int ezMidiInit();
-
-int ezMidi(int command, int argument);
-
-int ezTransToIOP(void *iop_address, void *ee_address, int size);
+/* Shared helpers: motion interpolation, collision and ground queries, and 2D
+ * sprite setup. The IOP midi bridge lives in the platform layer. */
 
 /**
  * Interpolates between two quaternions along the shorter arc.

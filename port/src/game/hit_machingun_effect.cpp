@@ -1,7 +1,3 @@
-#pragma helper_mask_gpr 0x30
-#pragma helper_mask_fpr 0x1000
-#pragma name_counter 1116
-
 #include "hit_machingun_effect.hpp"
 
 #include <libvu0.h>

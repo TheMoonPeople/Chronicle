@@ -1,5 +1,3 @@
-#pragma name_counter 407
-
 #include "fish.hpp"
 
 #include <cstring>
@@ -428,16 +426,6 @@ void CFish::Initialize() {
     speed = 0.0f;
     food_radius = -1.0f;
 }
-
-/* Nothing reads these: the link this file was built by removed them. They are here because
-   the compiler writes a string constant where it first meets it, and the six the table in
-   GetFishFileName shares with them stand ahead of the two LoadFish uses. */
-static char *fish_file_01 = "chara/f01a.chr";
-static char *fish_file_02 = "chara/f02a.chr";
-static char *fish_file_03 = "chara/f03a.chr";
-static char *fish_file_04 = "chara/f04a.chr";
-static char *fish_file_05 = "chara/f05a.chr";
-static char *fish_file_06 = "chara/f06a.chr";
 
 void LoadFish(CFish *fish, int fish_kind, int texture_slot, CDataAlloc2<1> *alloc, int loaded_before) {
     if (fish_kind < 0 || fish_kind >= 18) {
