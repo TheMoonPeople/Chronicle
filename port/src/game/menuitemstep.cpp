@@ -1,6 +1,6 @@
 #include "menuitemstep.hpp"
 
-#include <cstring>
+#include <algorithm>
 
 #include "dngstatusdata.hpp"
 #include "itemdata.hpp"
@@ -13,8 +13,8 @@ void CMenuItemStep::Initialize() {
     enabled = true;
     pending_volume = 0;
 
-    for (int i = 0; i < 4; i++) {
-        held_item[i] = 0;
+    for (s16 &item : held_item) {
+        item = 0;
     }
 
     for (int i = 0; i < 4; i++) {
@@ -40,20 +40,16 @@ void CMenuItemStep::LoopStep(int interval) {
 }
 
 void CMenuItemStep::CheckItemVolume() {
-    int        slot;
-    ITEM_PACK *pack;
-    int        elapsed = pending_volume;
+    const int elapsed = pending_volume;
 
     if (elapsed > 0) {
-        int preservation[100];
-        memset(preservation, 0, sizeof(preservation));
-        pack = &SaveData->GetDngStatus()->item_pack;
+        int        preservation[100]{};
+        ITEM_PACK *pack = &SaveData->GetDngStatus()->item_pack;
         chara_no = 0;
 
-        for (slot = 0; slot < pack->num; slot++) {
+        for (int slot = 0; slot < pack->num; slot++) {
             if (pack->item[slot] == ITEM_ICE_BLOCK || pack->item[slot] == ITEM_SMALL_ICE || pack->item[slot] == ITEM_TINY_ICE) {
-                int neighbor[4] = {-1, -1, -1, -1};
-                int row = slot / 5;
+                const int row = slot / 5;
 
                 if (row != 0) {
                     preservation[slot - 5] += 100;
@@ -63,7 +59,7 @@ void CMenuItemStep::CheckItemVolume() {
                     preservation[slot + 5] += 100;
                 }
 
-                int column = slot % 5;
+                const int column = slot % 5;
 
                 if (column != 0) {
                     preservation[slot - 1] += 100;
@@ -87,13 +83,11 @@ void CMenuItemStep::CheckItemVolume() {
             }
         }
 
-        for (slot = 0; slot < pack->num; slot++) {
+        for (int slot = 0; slot < pack->num; slot++) {
             if (pack->item[slot] == ITEM_FLAPPING_FISH) {
-                if (preservation[slot] > 100) {
-                    preservation[slot] = 100;
-                }
+                preservation[slot] = std::min(preservation[slot], 100);
 
-                int loss = elapsed * (float) (100.0f - preservation[slot]) / 100.0f;
+                const int loss = static_cast<int>(static_cast<float>(elapsed) * (100.0f - static_cast<float>(preservation[slot])) / 100.0f);
                 pack->item_vol[slot] = pack->item_vol[slot] - loss;
 
                 if (pack->item_vol[slot] <= 0) {

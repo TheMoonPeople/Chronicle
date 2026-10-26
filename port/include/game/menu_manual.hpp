@@ -47,9 +47,6 @@ struct MANUAL_MENU_STATE {
 
 STATIC_ASSERT(sizeof(MANUAL_MENU_STATE) == 0x34);
 
-/** Number of page images in each manual entry. */
-extern s8 ManualTgaNum[24];
-
 /** State of the open manual screen. */
 extern MANUAL_MENU_STATE ManualMenu;
 
@@ -61,91 +58,51 @@ extern ClsMes *ManualMsg;
 
 /**
  * Returns the image number for the current manual page and part.
- *
- * @mangled GetNowManualPartTgaNum__Fv
- * @address 0x00233520
- * @size 0x38
  */
 int GetNowManualPartTgaNum();
 
 /**
  * Reports whether the party has the item that unlocks the manual.
- *
- * @mangled GetGameFlagForManualMenu__Fv
- * @address 0x00233560
- * @size 0x64
  */
 int GetGameFlagForManualMenu();
 
 /**
  * Installs a completed manual image load into the menu texture state.
- *
- * @mangled ManualImgEnter__Fv
- * @address 0x00233780
- * @size 0x308
  */
 s16 ManualImgEnter();
 
 /**
  * Draws the previous-page and next-page cursors for the manual.
- *
- * @mangled DrawPrevNextCursor__Fv
- * @address 0x00233A90
- * @size 0x14C
  */
 void DrawPrevNextCursor();
 
 /**
  * Initializes the manual menu from its placement data and load buffer.
- *
- * @mangled InitMenuManual__FPiP1
- * @address 0x00233DD0
- * @size 0x130
  */
 int InitMenuManual(int *texture_blocks, u_long128 *load_buffer);
 
 /**
  * Builds the message buffer for the current manual entry.
- *
- * @mangled SetManualMsgBuffer__Fv
- * @address 0x00233F00
- * @size 0x588
  */
 int SetManualMsgBuffer();
 
 /**
  * Releases manual-menu state and restores the surrounding menu.
- *
- * @mangled ExitManualMenu__Fv
- * @address 0x00234490
- * @size 0x88
  */
 void ExitManualMenu();
 
 /**
  * Returns the manual menu's current mode.
- *
- * @mangled GetNowManualMenuMode__Fv
- * @address 0x00234520
- * @size 0x10
  */
 int GetNowManualMenuMode();
 
 /**
  * Processes manual-menu input and page transitions, and returns 1 on the
  * frame the manual closes.
- *
- * @mangled MenuManualKey__Fv
- * @address 0x00234530
- * @size 0x798
  */
 int MenuManualKey();
 
 /**
  * Draws the current manual page and its controls.
- *
- * @mangled MenuManualDraw__Fv
- * @address 0x00234CD0
- * @size 0x304
  */
 void MenuManualDraw();

@@ -164,128 +164,72 @@ STATIC_ASSERT(sizeof(MINI_MENU_INFO) == 0x54);
 
 /**
  * Returns the message number the save menu shows for its current step.
- *
- * @mangled GetSaveMenuMsgNo__Fv
- * @address 0x222410
- * @size 0x230
  */
 int GetSaveMenuMsgNo();
 
 /**
  * Loads the save menu's textures, messages and memory card icon.
- *
- * @mangled SaveMenuTextureEnter__Fv
- * @address 0x222640
- * @size 0x2C4
  */
 int SaveMenuTextureEnter();
 
 /**
  * Tells whether the save menu's fade-out is running.
- *
- * @mangled SaveMenuEffectFadeOut__Fv
- * @address 0x222910
- * @size 0x28
  */
 int SaveMenuEffectFadeOut();
 
 /**
  * Draws the board of one save slot with its save data summary.
- *
- * @mangled DrawSaveBoard__FP13SAVEDATA_INFOPP8CTextureiiii
- * @address 0x222AA0
- * @size 0x9B8
  */
 void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int unused, int alpha);
 
 /**
  * Draws the board of a save slot that holds no save data.
- *
- * @mangled DrawNewFileTemplete__Fiii
- * @address 0x223460
- * @size 0x4DC
  */
 void DrawNewFileTemplete(int x, int y, int alpha);
 
 /**
  * Starts memory card access and checks the card for existing save data.
- *
- * @mangled InitExistData__Fv
- * @address 0x223940
- * @size 0x174
  */
 int InitExistData();
 
 /**
  * Checks whether the memory card can take a save.
- *
- * @mangled SaveEnableCheck__Fv
- * @address 0x223AC0
- * @size 0x1A0
  */
 int SaveEnableCheck();
 
 /**
  * Opens the event item selection menu.
- *
- * @mangled InitEventItemSelect__FiPiP9ITEM_PACKiiii
- * @address 0x223C60
- * @size 0x478
  */
 void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, int vanish, int fish_mode);
 
 /**
  * Runs one frame of the event item selection menu, and returns its result.
- *
- * @mangled EventItemSelectLoop__FPi
- * @address 0x224140
- * @size 0x11C
  */
 int EventItemSelectLoop(int *result);
 
 /**
  * Tells whether the player holds an item, in the dungeon inventory or in storage.
- *
- * @mangled PlayerAllItemCheck__Fi
- * @address 0x225530
- * @size 0x9C
  */
 int PlayerAllItemCheck(int item);
 
 /**
  * Tells whether an item identifier is an additive attachment.
- *
- * @mangled GetAddAttachItem__Fi
- * @address 0x2255D0
- * @size 0x28
  */
 s32 GetAddAttachItem(int item_no);
 
 /**
  * Converts a weapon item identifier into its position in the owner's weapon chain.
- *
- * @mangled TransWepNo__Fi
- * @address 0x225600
- * @size 0xE0
  */
 int TransWepNo(int weapon_no);
 
 /**
  * Converts a position in an owner's weapon chain back into the weapon's item identifier.
- *
- * @mangled TransWepNoNewToOld__Fi
- * @address 0x2256E0
- * @size 0x128
  */
 int TransWepNoNewToOld(int weapon_no);
 
 /**
  * Takes one hit off the weapon the player holds and gives back what broke:
  * 0 for nothing, 1 for the weapon, 2 for the one it fell back to.
- *
- * @mangled BattleSubWeaponDmg__Ffi
- * @address 0x1B5D90
- * @size 0x570
  */
 int BattleSubWeaponDmg(float amount, int kind);
 

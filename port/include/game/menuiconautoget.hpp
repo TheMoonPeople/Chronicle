@@ -26,64 +26,36 @@ public:
 
     /**
      * Reports whether an icon is still flying to its slot.
-     *
-     * @mangled IsMoveIcon__16CMenuIconAutoGetFv
-     * @address 0x2380B0
-     * @size 0x40
      */
     int IsMoveIcon();
 
     /**
      * Counts the icons already flying with one item.
-     *
-     * @mangled IsSameItem__16CMenuIconAutoGetFi
-     * @address 0x2380F0
-     * @size 0x40
      */
     int IsSameItem(int item);
 
     /**
      * Counts the icons flying to one slot with one item.
-     *
-     * @mangled GetMoveIconGole__16CMenuIconAutoGetFii
-     * @address 0x238130
-     * @size 0x4C
      */
     int GetMoveIconGole(int slot, int item);
 
     /**
      * Gives a free slot among the three flying icons, or -1.
-     *
-     * @mangled GetSpace__16CMenuIconAutoGetFv
-     * @address 0x238180
-     * @size 0x48
      */
     int GetSpace();
 
     /**
      * Advances the flying icons, puts what lands into the inventory, and reports activity.
-     *
-     * @mangled IconAutoMove__16CMenuIconAutoGetFv
-     * @address 0x2381D0
-     * @size 0x18C
      */
     int IconAutoMove();
 
     /**
      * Starts one icon flying from a position to a slot.
-     *
-     * @mangled IconMoveTarSet__16CMenuIconAutoGetFiiiiff
-     * @address 0x238360
-     * @size 0x24
      */
     void IconMoveTarSet(int index, int slot, int item, int count, float x, float y);
 
     /**
      * Draws the icons part-way through their flight.
-     *
-     * @mangled IconAutoMoveDraw__16CMenuIconAutoGetFv
-     * @address 0x238390
-     * @size 0xBC
      */
     void IconAutoMoveDraw();
 };

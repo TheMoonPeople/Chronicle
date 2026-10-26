@@ -20,28 +20,16 @@ public:
 
     /**
      * Resets item-volume timing and per-character state.
-     *
-     * @mangled Initialize__13CMenuItemStepFv
-     * @address 0x235650
-     * @size 0x7C
      */
     void Initialize();
 
     /**
      * Accumulates one frame toward the next inventory-volume step.
-     *
-     * @mangled LoopStep__13CMenuItemStepFi
-     * @address 0x2356D0
-     * @size 0x4C
      */
     void LoopStep(int interval);
 
     /**
      * Applies pending volume loss to time-sensitive inventory items.
-     *
-     * @mangled CheckItemVolume__13CMenuItemStepFv
-     * @address 0x235720
-     * @size 0x2EC
      */
     void CheckItemVolume();
 };

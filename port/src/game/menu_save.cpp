@@ -1,10 +1,9 @@
 #include "stubs/menu_save.hpp"
 
-#include "menu_save.hpp"
-
-#include <cstdio>
+#include <algorithm>
+#include <array>
 #include <cstdlib>
-#include <cstring>
+#include <print>
 
 #include "battle_globals.hpp"
 #include "camera.hpp"
@@ -19,6 +18,7 @@
 #include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
 #include "menu_inventory.hpp"
+#include "menu_save.hpp"
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
@@ -39,41 +39,27 @@ MINI_MENU_INFO MiniMenu;
  */
 void ExitSaveSelect();
 
+namespace {
+
 /**
  * Draws a section of the event item board, clipped to a range.
- *
- * @mangled DrawEventItemBoard__FiiiiiP8CTexture
- * @address 0x225420
- * @size 0x10C
  */
-static void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *texture);
+void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *texture);
 
 /**
  * Handles pad input for the event item selection menu.
- *
- * @mangled EventItemSelectKey__FPi
- * @address 0x224260
- * @size 0x6A4
  */
-static int EventItemSelectKey(int *result);
+int EventItemSelectKey(int *result);
 
 /**
  * Draws the event item selection menu.
- *
- * @mangled EventItemSelectDraw__Fv
- * @address 0x224D50
- * @size 0x6C4
  */
-static void EventItemSelectDraw();
+void EventItemSelectDraw();
 
 /**
  * Checks the memory card before a save and picks the save menu's next step.
- *
- * @mangled SaveMenuKeySaveCheck__Fv
- * @address 0x221730
- * @size 0x168
  */
-static int SaveMenuKeySaveCheck() {
+int SaveMenuKeySaveCheck() {
     MC_CARD_INFO *card = &McAccess.card[McAccess.port];
 
     if (McCheckMCPs2(card) == 0) {
@@ -111,17 +97,13 @@ static int SaveMenuKeySaveCheck() {
 
 /**
  * Handles the save menu's prompt to confirm a save.
- *
- * @mangled SaveMenuKeySaveDecide__Fv
- * @address 0x2218A0
- * @size 0xE0
  */
-static int SaveMenuKeySaveDecide() {
+int SaveMenuKeySaveDecide() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         McAccess.SetFuncNo(MC_OPERATION_SEARCH_TYPE);
         int file_no = SaveMenu.file_no;
         McAccess.file_no = file_no;
-        ((s32 *) SaveData->GetConfigData())[17] = file_no;
+        static_cast<s32 *>(SaveData->GetConfigData())[17] = file_no;
         SaveMenu.key_no = SAVE_KEY_SAVE;
         ComMenuSePlay(MENU_SOUND_CONFIRM);
         return 1;
@@ -139,12 +121,8 @@ static int SaveMenuKeySaveDecide() {
 
 /**
  * Steps the save menu while the game is written to the memory card.
- *
- * @mangled SaveMenuKeySave__Fv
- * @address 0x221980
- * @size 0x130
  */
-static int SaveMenuKeySave() {
+int SaveMenuKeySave() {
     MC_CARD_INFO *card = &McAccess.card[McAccess.port];
 
     if (McCheckMCPs2(card) == 0) {
@@ -173,12 +151,8 @@ static int SaveMenuKeySave() {
 
 /**
  * Waits for a button press once a save has finished.
- *
- * @mangled SaveMenuKeyEndSave__Fv
- * @address 0x221AB0
- * @size 0x74
  */
-static int SaveMenuKeyEndSave() {
+int SaveMenuKeyEndSave() {
     if ((GamePad.Down(PAD_CROSS) != 0) || (GamePad.Down(PAD_CIRCLE) != 0)) {
         McAccess.SetFuncNo(MC_OPERATION_IDLE);
         SaveMenu.key_no = SAVE_KEY_FILE_SELECT;
@@ -189,12 +163,8 @@ static int SaveMenuKeyEndSave() {
 
 /**
  * Confirms loading the selected save file and advances the menu state.
- *
- * @mangled SaveMenuKeyLoadDecide__Fv
- * @address 0x221B30
- * @size 0x100
  */
-static int SaveMenuKeyLoadDecide() {
+int SaveMenuKeyLoadDecide() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         int file_no = SaveMenu.file_no;
 
@@ -223,12 +193,8 @@ static int SaveMenuKeyLoadDecide() {
 
 /**
  * Steps the save menu while a save is read from the memory card.
- *
- * @mangled SaveMenuKeyLoad__Fv
- * @address 0x221C30
- * @size 0xDC
  */
-static int SaveMenuKeyLoad() {
+int SaveMenuKeyLoad() {
     MC_CARD_INFO *card = &McAccess.card[McAccess.port];
 
     if (McCheckMCPs2(card) == 0) {
@@ -251,39 +217,12 @@ static int SaveMenuKeyLoad() {
 
 /**
  * Waits for a button press while the save menu shows an alert.
- *
- * @mangled SaveMenuKeyArart__Fv
- * @address 0x221D10
- * @size 0x128
  */
-static int SaveMenuKeyArart() {
-    switch (SaveMenu.alert_no) {
-        case SAVE_ALERT_NONE:
-            break;
-        case SAVE_ALERT_NO_CARD:
-            if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
-                SaveMenu.key_no = SAVE_KEY_MC_SELECT;
-                SaveMenu.file_no = McAccess.port;
-                ComMenuSePlay(MENU_SOUND_REFUSE);
-            }
-
-            break;
-        case SAVE_ALERT_CARD_FULL:
-            if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
-                SaveMenu.key_no = SAVE_KEY_MC_SELECT;
-                SaveMenu.file_no = McAccess.port;
-                ComMenuSePlay(MENU_SOUND_REFUSE);
-            }
-
-            break;
-        default:
-            if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
-                SaveMenu.key_no = SAVE_KEY_MC_SELECT;
-                SaveMenu.file_no = McAccess.port;
-                ComMenuSePlay(MENU_SOUND_REFUSE);
-            }
-
-            break;
+int SaveMenuKeyArart() {
+    if (SaveMenu.alert_no != SAVE_ALERT_NONE && GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
+        SaveMenu.key_no = SAVE_KEY_MC_SELECT;
+        SaveMenu.file_no = McAccess.port;
+        ComMenuSePlay(MENU_SOUND_REFUSE);
     }
 
     return 1;
@@ -291,12 +230,8 @@ static int SaveMenuKeyArart() {
 
 /**
  * Handles the save menu's prompt to create new save data.
- *
- * @mangled SaveMenuKeyNewDirSelect__Fv
- * @address 0x221E40
- * @size 0xC8
  */
-static int SaveMenuKeyNewDirSelect() {
+int SaveMenuKeyNewDirSelect() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         McAccess.SetFuncNo(MC_OPERATION_SEARCH_TYPE);
         SaveMenu.key_no = SAVE_KEY_NEW_DIR;
@@ -317,12 +252,8 @@ static int SaveMenuKeyNewDirSelect() {
 
 /**
  * Steps the save menu while new save data is created on the memory card.
- *
- * @mangled SaveMenuKeyNewDir__Fv
- * @address 0x221F10
- * @size 0x108
  */
-static int SaveMenuKeyNewDir() {
+int SaveMenuKeyNewDir() {
     MC_CARD_INFO *card = &McAccess.card[McAccess.port];
 
     if (McCheckMCPs2(card) == 0) {
@@ -350,12 +281,8 @@ static int SaveMenuKeyNewDir() {
 
 /**
  * Handles the save menu's memory card format step.
- *
- * @mangled SaveMenuKeyFormat__Fv
- * @address 0x222020
- * @size 0x150
  */
-static int SaveMenuKeyFormat() {
+int SaveMenuKeyFormat() {
     MC_CARD_INFO *card = &McAccess.card[McAccess.port];
 
     if (McCheckMCPs2(card) == 0) {
@@ -389,12 +316,8 @@ static int SaveMenuKeyFormat() {
 
 /**
  * Handles the menu response after checking an unformatted memory card.
- *
- * @mangled SaveMenuKeyUnFormat__Fv
- * @address 0x222170
- * @size 0x78
  */
-static int SaveMenuKeyUnFormat() {
+int SaveMenuKeyUnFormat() {
     MC_CARD_INFO *card = &McAccess.card[McAccess.port];
 
     if (card->formatted != 0) {
@@ -409,16 +332,10 @@ static int SaveMenuKeyUnFormat() {
 
 /**
  * Waits for a button press when the save data is of a different version.
- *
- * @mangled SaveMenuKeyDifVersion__Fv
- * @address 0x2221F0
- * @size 0x5C
  */
-static int SaveMenuKeyDifVersion() {
+int SaveMenuKeyDifVersion() {
     if (GamePad.Down(PAD_TRIANGLE | PAD_CIRCLE | PAD_CROSS | PAD_SQUARE) != 0) {
         McAccess.SetFuncNo(MC_OPERATION_DELETE);
-        int file_no = McAccess.file_no;
-        McAccess.file_no = file_no;
     }
 
     return 1;
@@ -426,34 +343,22 @@ static int SaveMenuKeyDifVersion() {
 
 /**
  * Steps the delete choice of the save menu.
- *
- * @mangled SaveMenuKeyDelete__Fv
- * @address 0x222250
- * @size 0xC
  */
-static s32 SaveMenuKeyDelete() {
+s32 SaveMenuKeyDelete() {
     return 1;
 }
 
 /**
  * Steps the copy choice of the save menu.
- *
- * @mangled SaveMenuKeyCopy__Fv
- * @address 0x222260
- * @size 0xC
  */
-static s32 SaveMenuKeyCopy() {
+s32 SaveMenuKeyCopy() {
     return 1;
 }
 
 /**
  * Handles key input on the save menu offered after the ending.
- *
- * @mangled SaveMenuKeyAfterEnding__Fv
- * @address 0x222270
- * @size 0x7C
  */
-static int SaveMenuKeyAfterEnding() {
+int SaveMenuKeyAfterEnding() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         SaveMenu.key_no = SAVE_KEY_MC_SELECT;
     } else if (GamePad.Down(PAD_CIRCLE) != 0) {
@@ -466,12 +371,8 @@ static int SaveMenuKeyAfterEnding() {
 
 /**
  * Handles the prompt to confirm a save after the ending.
- *
- * @mangled SaveMenuKeySaveDecideEnding__Fv
- * @address 0x2222F0
- * @size 0x7C
  */
-static int SaveMenuKeySaveDecideEnding() {
+int SaveMenuKeySaveDecideEnding() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         SaveMenu.key_no = SAVE_KEY_SAVE_ENDING;
     } else if (GamePad.Down(PAD_CIRCLE) != 0) {
@@ -484,12 +385,8 @@ static int SaveMenuKeySaveDecideEnding() {
 
 /**
  * Steps the save menu while saving after the ending.
- *
- * @mangled SaveMenuKeySaveEnding__Fv
- * @address 0x222370
- * @size 0x3C
  */
-static int SaveMenuKeySaveEnding() {
+int SaveMenuKeySaveEnding() {
     SaveMenu.key_no = SAVE_KEY_END_SAVE_ENDING;
     McAccess.SetFuncNo(MC_OPERATION_SAVE_CONFIG);
     return 1;
@@ -497,12 +394,8 @@ static int SaveMenuKeySaveEnding() {
 
 /**
  * Waits for a button press once the save after the ending has finished.
- *
- * @mangled SaveMenuKeyEndSaveEnding__Fv
- * @address 0x2223B0
- * @size 0x58
  */
-static int SaveMenuKeyEndSaveEnding() {
+int SaveMenuKeyEndSaveEnding() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         SaveMenu.key_no = SAVE_KEY_MC_SELECT;
         McAccess.SetFuncNo(MC_OPERATION_IDLE);
@@ -511,67 +404,61 @@ static int SaveMenuKeyEndSaveEnding() {
     return 1;
 }
 
-int GetSaveMenuMsgNo();
+} // namespace
 
 int SaveMenuTextureEnter() {
     ReadBG();
 
-    if (ReadBGSync() == 0) {
-        LOADTEXTURE_INFO2 tex[3] = {
-            {"#frame_image_save#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-            {NULL,                                            0, 0},
-            {NULL,                                            0, 0}
-        };
-        BG_READ_INFO *bg;
-        u_int        *pack;
-        int           i;
-
-        tex[0].block_no = SaveMenu.block_no;
-        tex[1].block_no = SaveMenu.block_no;
-        bg = GetReadBGFile(0);
-        pack = GetPackFile((u_int *) bg->buffer, "saveimg.img", NULL);
-        tex[1].name = (char *) pack;
-        TexManager.DeleteTextureBlock(SaveMenu.block_no);
-        TexManager.CleanUpTextureList();
-        TexManager.LoadTextureBlockEX(-1, tex);
-        SaveBoard = TexManager.GetTexture("save", -1);
-
-        char *moji_names[4] = {"alphabet", "kata", "hira", "alphabet"};
-
-        for (i = 0; i < 4; i++) {
-            SaveMenuMojiTextbl[i] = TexManager.GetTexture(moji_names[i], -1);
-        }
-
-        switch (SaveMenu.mode) {
-            case SAVE_MENU_MODE_ENDING:
-            case SAVE_MENU_MODE_LOAD:
-                InitMenuMesSet(MENU_MES_SET_ALLMENU, (short *) GetPackFile((u_int *) bg->buffer, allmenu_mes, NULL));
-                break;
-        }
-
-        CommonMenuMes2.stay_frame = true;
-        CommonMenuMes2.value_show = true;
-        CommonMenuMes2.value_signed = false;
-        CommonMenuMes2.cursor_lit = true;
-
-        char        *save_buffer = (char *) pack + bg->size;
-        MC_ICON_DATA icon = {
-            {"dkicon.ico",   NULL, 0},
-            {"dkicon_c.ico", NULL, 0},
-            {"dkicon_d.ico", NULL, 0}
-        };
-
-        for (i = 0; i < 3; i++) {
-            (&icon.view)[i].data = (char *) GetPackFile((u_int *) bg->buffer, (&icon.view)[i].name, &(&icon.view)[i].size);
-        }
-
-        McAccess.SetBuff(save_buffer);
-        McAccess.SetIconData(&icon);
-        McAccess.MakeMcIconSysInfo();
-        return 1;
+    if (ReadBGSync() != 0) {
+        return 0;
     }
 
-    return 0;
+    LOADTEXTURE_INFO2 tex[3] = {
+        {"#frame_image_save#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
+        {nullptr,                                         0, 0},
+        {nullptr,                                         0, 0}
+    };
+
+    tex[0].block_no = SaveMenu.block_no;
+    tex[1].block_no = SaveMenu.block_no;
+    BG_READ_INFO *bg = GetReadBGFile(0);
+    u_int        *pack = GetPackFile(reinterpret_cast<u_int *>(bg->buffer), "saveimg.img", nullptr);
+    tex[1].name = reinterpret_cast<char *>(pack);
+    TexManager.DeleteTextureBlock(SaveMenu.block_no);
+    TexManager.CleanUpTextureList();
+    TexManager.LoadTextureBlockEX(-1, tex);
+    SaveBoard = TexManager.GetTexture("save", -1);
+
+    char *moji_names[4] = {"alphabet", "kata", "hira", "alphabet"};
+
+    for (int i = 0; i < 4; i++) {
+        SaveMenuMojiTextbl[i] = TexManager.GetTexture(moji_names[i], -1);
+    }
+
+    if (SaveMenu.mode == SAVE_MENU_MODE_ENDING || SaveMenu.mode == SAVE_MENU_MODE_LOAD) {
+        InitMenuMesSet(MENU_MES_SET_ALLMENU, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(bg->buffer), allmenu_mes, nullptr)));
+    }
+
+    CommonMenuMes2.stay_frame = true;
+    CommonMenuMes2.value_show = true;
+    CommonMenuMes2.value_signed = false;
+    CommonMenuMes2.cursor_lit = true;
+
+    char        *save_buffer = reinterpret_cast<char *>(pack) + bg->size;
+    MC_ICON_DATA icon = {
+        {"dkicon.ico",   nullptr, 0},
+        {"dkicon_c.ico", nullptr, 0},
+        {"dkicon_d.ico", nullptr, 0}
+    };
+
+    for (MC_ICON_FILE *file : std::array{&icon.view, &icon.copy, &icon.del}) {
+        file->data = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(bg->buffer), file->name, &file->size));
+    }
+
+    McAccess.SetBuff(save_buffer);
+    McAccess.SetIconData(&icon);
+    McAccess.MakeMcIconSysInfo();
+    return 1;
 }
 
 int SaveMenuEffectFadeOut() {
@@ -582,47 +469,42 @@ int SaveMenuEffectFadeOut() {
     return 0;
 }
 
+namespace {
+
+/**
+ * Fades the save board toward the top and bottom of the screen: the alpha at
+ * screen row y, ramping over the 0x80 rows nearest each edge.
+ */
+int SaveBoardEdgeAlpha(int y, int alpha) {
+    if ((0 <= y) && (y < 0x81)) {
+        return (y * alpha) >> 7;
+    }
+
+    if ((y > 0x80) && (y < SCREEN_HEIGHT - 0x7F)) {
+        return (alpha * 0x80) >> 7;
+    }
+
+    if ((y > SCREEN_HEIGHT - 0x80) && (y < SCREEN_HEIGHT + 1)) {
+        return ((SCREEN_HEIGHT - y) * alpha) >> 7;
+    }
+
+    return 0;
+}
+
 /**
  * Computes the save board's alpha ramp at a position and at that position
  * offset by the second argument.
- *
- * @mangled GetSaveBoardAlphaInfo__FiiRiRii
- * @address 0x222940
- * @size 0x154
  */
-static void GetSaveBoardAlphaInfo(int x, int width, int &start_alpha, int &end_alpha, int alpha) {
-    if (x < 0) {
-        start_alpha = 0;
-    } else if ((0 <= x) && (x < 0x81)) {
-        start_alpha = (x * alpha) >> 7;
-    } else if ((x > 0x80) && (x < SCREEN_HEIGHT - 0x7F)) {
-        start_alpha = (alpha * 0x80) >> 7;
-    } else if ((x > SCREEN_HEIGHT - 0x80) && (x < SCREEN_HEIGHT + 1)) {
-        start_alpha = ((SCREEN_HEIGHT - x) * alpha) >> 7;
-    } else {
-        start_alpha = 0;
-    }
-
-    x += width;
-
-    if (x < 0) {
-        end_alpha = 0;
-    } else if ((0 <= x) && (x < 0x81)) {
-        end_alpha = (x * alpha) >> 7;
-    } else if ((x > 0x80) && (x < SCREEN_HEIGHT - 0x7F)) {
-        end_alpha = (alpha * 0x80) >> 7;
-    } else if ((x > SCREEN_HEIGHT - 0x80) && (x < SCREEN_HEIGHT + 1)) {
-        end_alpha = ((SCREEN_HEIGHT - x) * alpha) >> 7;
-    } else {
-        end_alpha = 0;
-    }
+void GetSaveBoardAlphaInfo(int x, int width, int &start_alpha, int &end_alpha, int alpha) {
+    start_alpha = SaveBoardEdgeAlpha(x, alpha);
+    end_alpha = SaveBoardEdgeAlpha(x + width, alpha);
 }
 
-void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int unused, int alpha);
+} // namespace
 
 void DrawNewFileTemplete(int x, int y, int alpha) {
-    int start_alpha;
-    int end_alpha;
+    int start_alpha = 0;
+    int end_alpha = 0;
 
     if (y % 2 != 0) {
         y++;
@@ -665,24 +547,19 @@ void DrawNewFileTemplete(int x, int y, int alpha) {
     set2DSprite(GetVif1Packet(), SaveBoard, CRect_i_(x + label_x, y + 0x35, 0x74, 0x1E), CRect_i_(0x10C, 0xB8, 0x74, 0x1E), &top, &top, &bottom, &bottom, 1);
 }
 
-int InitExistData();
-
 int SaveEnableCheck() {
-    int found;
-    int free_size;
-    int port;
-    int result;
-
     if (McAccess.InitForMC() != 0) {
         return SAVE_ENABLE_NO_CARD;
     }
 
-    found = 0;
-    free_size = 0;
+    int found = 0;
+    int free_size = 0;
 
-    for (port = 0; port < 2; port++) {
+    for (int port = 0; port < 2; port++) {
         McAccess.port = port;
         McAccess.SetFuncNo(MC_OPERATION_SEARCH_TYPE);
+
+        int result = 0;
 
         do {
             result = McAccess.Step();
@@ -718,9 +595,7 @@ int SaveEnableCheck() {
             return SAVE_ENABLE_OK;
         }
 
-        if (free_size < card->free_size) {
-            free_size = card->free_size;
-        }
+        free_size = std::max(free_size, card->free_size);
     }
 
     if (found == 0) {
@@ -744,6 +619,20 @@ float EventBoardPos[2];
  */
 int EventItemMoveY;
 
+s32 MiniEventTextureBlock;
+
+/**
+ * Nonzero once the event item selection menu's textures have loaded.
+ */
+int MiniEventTexReadFlag;
+
+/**
+ * Screen position of the event item cursor's highlight, eased toward the cursor.
+ */
+float MiniCur[2];
+
+namespace {
+
 /**
  * Screen y of the event item board's scroll bar, eased toward its target.
  */
@@ -764,21 +653,9 @@ CTexture *FishFoodBoard;
  */
 ITEM_PACK *EventItemPackPt;
 
-s32 MiniEventTextureBlock;
-
-/**
- * Nonzero once the event item selection menu's textures have loaded.
- */
-int MiniEventTexReadFlag;
-
-/**
- * Screen position of the event item cursor's highlight, eased toward the cursor.
- */
-float MiniCur[2];
+} // namespace
 
 void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, int vanish, int fish_mode) {
-    int i;
-
     GamePad.SetAutoRepeat(PAD_DPAD, 0x1E, 5);
     GamePad.MenuModeOn(0x78);
     StayTex = TexManager.GetTexture(AtoraVibeTextureName, -1);
@@ -787,11 +664,11 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
     MiniMenu.lang = GetMenuLangFlag();
     s8 lang_y[7] = {0, -0x10, -0x10, -0x10, -0x10, -0x10, -0x10};
     EventBoardPos[0] = x;
-    EventBoardPos[1] = (float) y + (float) lang_y[MiniMenu.lang] + 20.0f;
+    EventBoardPos[1] = static_cast<float>(y) + static_cast<float>(lang_y[MiniMenu.lang]) + 20.0f;
     EventItemPackPt = pack;
     MiniMenu.event_item_num = 0;
 
-    for (i = 0; i < pack->num; i++) {
+    for (int i = 0; i < pack->num; i++) {
         if (pack->item[i] >= ITEM_DUNGEON_START) {
             MiniMenu.event_item_num++;
         }
@@ -799,7 +676,7 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
 
     for (MiniMenu.usable_num = 0; MiniMenu.usable_num < 13; MiniMenu.usable_num++) {
         MiniMenu.usable[MiniMenu.usable_num] = usable[MiniMenu.usable_num];
-        printf("itemno = %d\n", usable[MiniMenu.usable_num]);
+        std::println("itemno = {}", usable[MiniMenu.usable_num]);
 
         if (usable[MiniMenu.usable_num] < 0) {
             break;
@@ -810,21 +687,21 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
     MiniMenu.vanish = vanish;
 
     if (MiniMenu.vanish != 0) {
-        printf("vanish after use !\n");
+        std::println("vanish after use !");
     } else {
-        printf("exist after use \n");
+        std::println("exist after use ");
     }
 
     LOADTEXTURE_INFO2 texture[2] = {
         {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-        {NULL,                                       0, 0}
+        {nullptr,                                    0, 0}
     };
     texture[0].block_no = MiniEventTextureBlock;
     TexManager.DeleteTextureBlock(MiniEventTextureBlock);
     TexManager.CleanUpTextureList();
     TexManager.LoadTextureBlockEX(-1, texture);
     StartReadBG();
-    u_long128 *buffer = (u_long128 *) read_buffer;
+    auto *buffer = reinterpret_cast<u_long128 *>(read_buffer);
     buffer = MenuCalcBufAlignment(buffer);
     LoadFileBGMenuData("eventmnu2.pak", buffer);
     ReadBG();
@@ -837,60 +714,51 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
         rows = 1;
     }
 
-    EventBarY = 60.0f + EventBoardPos[1] + (int) (68.0f * MiniMenu.scroll_row) / rows;
+    EventBarY = 60.0f + EventBoardPos[1] + static_cast<int>(68.0f * MiniMenu.scroll_row) / rows;
     MiniCur[0] = 6.0f + EventBoardPos[0] + ((MiniMenu.cursor + 5) % 5) * 0x2A;
     MiniCur[1] = 60.0f + EventBoardPos[1] + ((MiniMenu.cursor - MiniMenu.scroll_row * 5) / 5) * 0x28;
     MiniMenu.state = MINI_MENU_FADE_IN;
     MiniEventTexReadFlag = 0;
 }
 
+namespace {
+
 /**
  * Frees the event item selection menu's textures and releases the pad.
- *
- * @mangled EventItemSelectExit__Fv
- * @address 0x2240E0
- * @size 0x5C
  */
-static void EventItemSelectExit() {
+void EventItemSelectExit() {
     TexManager.DeleteTextureBlock(MiniEventTextureBlock);
     TexManager.CleanUpTextureList();
     GamePad.AutoRepeatOff();
     GamePad.MenuModeOff();
 }
 
-int EventItemSelectLoop(int *result) {
-    int done;
-    int alpha;
+} // namespace
 
+int EventItemSelectLoop(int *result) {
     ReadBG();
-    alpha = 0x40;
+    int alpha = 0x40;
 
     switch (MiniMenu.state) {
         case MINI_MENU_CHOOSING:
             alpha = 0x40;
             break;
         case MINI_MENU_FADE_IN:
-            alpha = 0x80 - MiniMenu.state_time * 4;
-
-            if (alpha < 0x40) {
-                alpha = 0x40;
-            }
+            alpha = std::max(0x80 - MiniMenu.state_time * 4, 0x40);
 
             break;
         case MINI_MENU_FADE_OUT:
-            alpha = MiniMenu.state_time * 4 + 0x40;
+            alpha = std::min(MiniMenu.state_time * 4 + 0x40, 0x80);
 
-            if (alpha > 0x80) {
-                alpha = 0x80;
-            }
-
+            break;
+        default:
             break;
     }
 
     setbilinear(0);
     FrameImageDraw(alpha, 0x80);
     MenuTextureReload(MiniEventTextureBlock);
-    done = EventItemSelectKey(result);
+    const int done = EventItemSelectKey(result);
     EventItemSelectDraw();
     setbilinear(1);
 
@@ -901,46 +769,40 @@ int EventItemSelectLoop(int *result) {
     return done;
 }
 
-static int EventItemSelectKey(int *result) {
-    int  done;
-    int  old_cursor;
-    int  slot_num;
-    int  pack_index;
-    int  accepted;
-    int  i;
-    s16 *slot;
+namespace {
 
+int EventItemSelectKey(int *result) {
     if (MiniEventTexReadFlag == 0) {
-        if (ReadBGSync() == 0) {
-            LOADTEXTURE_INFO2 texture[4] = {
-                {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                {NULL,                                       0, 0},
-                {NULL,                                       0, 0},
-                {NULL,                                       0, 0}
-            };
-            texture[0].block_no = MiniEventTextureBlock;
-            texture[1].block_no = MiniEventTextureBlock;
-            texture[2].block_no = MiniEventTextureBlock;
-            BG_READ_INFO *file = GetReadBGFile(0);
-            texture[1].name = (char *) GetPackFile((u_int *) file->buffer, "eventmnu.img", NULL);
-            texture[2].name = (char *) GetPackFile((u_int *) file->buffer, "fishmnu.img", NULL);
-            TexManager.DeleteTextureBlock(MiniEventTextureBlock);
-            TexManager.LoadTextureBlockEX(-1, texture);
-            MiniEventBoard = TexManager.GetTexture("eventmnu", -1);
-            FishFoodBoard = TexManager.GetTexture("fishmnu", -1);
-            ItemIcon = TexManager.GetTexture("itemicon", -1);
-            InitMenuMesSet(MENU_MES_SET_EVENT_ITEM, (short *) GetPackFile((u_int *) file->buffer, "eventuse.bin", NULL));
-            CommonMenuMes2.MakeMesWin(0);
-            CommonMenuMes2.Step();
-            MiniEventTexReadFlag = 1;
-        } else {
+        if (ReadBGSync() != 0) {
             return 0;
         }
+
+        LOADTEXTURE_INFO2 texture[4] = {
+            {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
+            {nullptr,                                    0, 0},
+            {nullptr,                                    0, 0},
+            {nullptr,                                    0, 0}
+        };
+        texture[0].block_no = MiniEventTextureBlock;
+        texture[1].block_no = MiniEventTextureBlock;
+        texture[2].block_no = MiniEventTextureBlock;
+        BG_READ_INFO *file = GetReadBGFile(0);
+        texture[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "eventmnu.img", nullptr));
+        texture[2].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "fishmnu.img", nullptr));
+        TexManager.DeleteTextureBlock(MiniEventTextureBlock);
+        TexManager.LoadTextureBlockEX(-1, texture);
+        MiniEventBoard = TexManager.GetTexture("eventmnu", -1);
+        FishFoodBoard = TexManager.GetTexture("fishmnu", -1);
+        ItemIcon = TexManager.GetTexture("itemicon", -1);
+        InitMenuMesSet(MENU_MES_SET_EVENT_ITEM, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "eventuse.bin", nullptr)));
+        CommonMenuMes2.MakeMesWin(0);
+        CommonMenuMes2.Step();
+        MiniEventTexReadFlag = 1;
     }
 
-    done = 0;
-    old_cursor = MiniMenu.cursor;
-    slot_num = EventItemPackPt->num;
+    int       done = 0;
+    const int old_cursor = MiniMenu.cursor;
+    const int slot_num = EventItemPackPt->num;
 
     switch (MiniMenu.state) {
         case MINI_MENU_REFUSED:
@@ -985,7 +847,8 @@ static int EventItemSelectKey(int *result) {
             }
 
             if (GamePad.Down(PAD_CROSS) != 0) {
-                pack_index = -1;
+                int  pack_index = -1;
+                s16 *slot;
 
                 if (MiniMenu.cursor < MiniMenu.event_item_num) {
                     int event_no = 0;
@@ -1009,9 +872,9 @@ static int EventItemSelectKey(int *result) {
                     }
                 }
 
-                accepted = 0;
+                int accepted = 0;
 
-                for (i = 0; slot != NULL && MiniMenu.usable[i] >= ITEM_DUNGEON_START && i < 13; i++) {
+                for (int i = 0; slot != nullptr && MiniMenu.usable[i] >= ITEM_DUNGEON_START && i < 13; i++) {
                     if (MiniMenu.usable[i] == *result) {
                         accepted = 1;
 
@@ -1023,13 +886,13 @@ static int EventItemSelectKey(int *result) {
                     }
                 }
 
-                if (slot == NULL) {
+                if (slot == nullptr) {
                     ComMenuSePlay(MENU_SOUND_REFUSE);
                 } else if (accepted != 0) {
                     done = 1;
                     ComMenuSePlay(MENU_SOUND_CONFIRM);
                 } else {
-                    printf("Miss\tselected itemNo = %d\n", *result);
+                    std::println("Miss\tselected itemNo = {}", *result);
                     ComMenuSePlay(MENU_SOUND_CONFIRM);
                     done = 1;
 
@@ -1045,9 +908,11 @@ static int EventItemSelectKey(int *result) {
             }
 
             break;
+        default:
+            break;
     }
 
-    s16 *item = NULL;
+    s16 *item = nullptr;
 
     if (MiniMenu.cursor < MiniMenu.event_item_num) {
         int event_no = 0;
@@ -1066,17 +931,7 @@ static int EventItemSelectKey(int *result) {
         }
     }
 
-    int message;
-
-    if (item != NULL) {
-        if (0 < *item) {
-            message = *item + 500;
-        } else {
-            message = 0;
-        }
-    } else {
-        message = 0;
-    }
+    const int message = (item != nullptr && 0 < *item) ? *item + 500 : 0;
 
     if (CommonMenuMes2.mes_made != message) {
         CommonMenuMes2.MakeMesWin(message);
@@ -1087,12 +942,8 @@ static int EventItemSelectKey(int *result) {
 
 /**
  * Draws one vertical section of the board the event and fishing menus share.
- *
- * @mangled DrawEventAndFishMenuBoard_Ver__FP8CTexture8CRect_i_iiii
- * @address 0x224910
- * @size 0x148
  */
-static void DrawEventAndFishMenuBoard_Ver(CTexture *texture, CRect_i_ rect, int src_u, int src_width, int unused, int alpha) {
+void DrawEventAndFishMenuBoard_Ver(CTexture *texture, CRect_i_ rect, int src_u, int src_width, int /*lang*/, int alpha) {
     int y = rect.y;
 
     DrawMenu2DSprite(texture, CRect_i_(rect.x, y, rect.width, 0x94), CRect_i_(src_u, 0, src_width, 0x94), alpha);
@@ -1104,18 +955,12 @@ static void DrawEventAndFishMenuBoard_Ver(CTexture *texture, CRect_i_ rect, int 
 
 /**
  * Draws the board the event and fishing menus share.
- *
- * @mangled DrawEventAndFishMenuBoard__FP8CTextureiiii
- * @address 0x224A60
- * @size 0x2E8
  */
-static void DrawEventAndFishMenuBoard(CTexture *texture, int x, int y, int alpha, int lang) {
-    s8 kakudai_tate_lang[7] = {0, 16, 16, 16, 16, 16, 16};
-    s8 kakudai_yoko_lang[7] = {0, 10, 10, 20, 10, 16, 14};
-    int   extra_height = kakudai_tate_lang[lang];
-    int   extra_width = kakudai_yoko_lang[lang];
-    int   rows;
-    float bar_height;
+void DrawEventAndFishMenuBoard(CTexture *texture, int x, int y, int alpha, int lang) {
+    s8  kakudai_tate_lang[7] = {0, 16, 16, 16, 16, 16, 16};
+    s8  kakudai_yoko_lang[7] = {0, 10, 10, 20, 10, 16, 14};
+    int extra_height = kakudai_tate_lang[lang];
+    int extra_width = kakudai_yoko_lang[lang];
 
     CRect_i_ center(x + 0x1C, y, 0xD2, extra_height);
     DrawEventAndFishMenuBoard_Ver(texture, center, 0x1C, 0xD2, lang, alpha);
@@ -1129,46 +974,26 @@ static void DrawEventAndFishMenuBoard(CTexture *texture, int x, int y, int alpha
     DrawEventAndFishMenuBoard_Ver(texture, right_inner, 0xEC, 6, lang, alpha);
     DrawEventAndFishMenuBoard_Ver(texture, right_outer, 0xF4, 0x20, lang, alpha);
 
-    rows = EventItemPackPt->num / 5;
+    int rows = EventItemPackPt->num / 5;
 
     if (rows <= 0) {
         rows = 1;
     }
 
-    bar_height = 136.0f / rows;
-
-    if (68.0f < bar_height) {
-        bar_height = 68.0f;
-    }
+    const float bar_height = std::min(136.0f / rows, 68.0f);
 
     int bar_x = x + 0xF6 + edge;
-    EventBarY += ((int) ((y + 0x3C) + (68.0f * MiniMenu.scroll_row) / rows) - EventBarY) / 4.0f;
+    EventBarY += (static_cast<int>((y + 0x3C) + (68.0f * MiniMenu.scroll_row) / rows) - EventBarY) / 4.0f;
     int bar_y = EventBarY;
-    DrawMenu2DSprite(texture, CRect_i_(bar_x, bar_y, 8, (int) bar_height), CRect_i_(0, 0xE4, 8, 0xC), alpha);
+    DrawMenu2DSprite(texture, CRect_i_(bar_x, bar_y, 8, static_cast<int>(bar_height)), CRect_i_(0, 0xE4, 8, 0xC), alpha);
 }
 
-static void EventItemSelectDraw() {
-    s16       items[100];
-    float     left;
-    float     top;
-    float     icon_x;
-    float     row_top;
-    int       alpha;
-    int       x;
-    int       y;
-    CTexture *board;
-    int       clip_bottom;
-    int       row_y;
-    int       i;
-    int       clip_top;
-    int       count;
-    int       board_x;
-
+void EventItemSelectDraw() {
     if (MiniEventTexReadFlag == 0) {
         return;
     }
 
-    alpha = 0x80;
+    int alpha = 0x80;
 
     switch (MiniMenu.state) {
         case MINI_MENU_FADE_IN:
@@ -1181,59 +1006,49 @@ static void EventItemSelectDraw() {
 
             break;
         case MINI_MENU_FADE_OUT:
-            alpha = 0x80 - MiniMenu.state_time * 8;
+            alpha = std::max(0x80 - MiniMenu.state_time * 8, 0);
 
-            if (alpha < 0) {
-                alpha = 0;
-            }
-
+            break;
+        default:
             break;
     }
 
-    left = EventBoardPos[0];
-    top = EventBoardPos[1];
-    x = left;
-    y = top;
-
-    if (MiniMenu.fish_mode != 0) {
-        board = FishFoodBoard;
-    } else {
-        board = MiniEventBoard;
-    }
-
-    row_top = 56.0f + top;
-    clip_top = row_top;
-    clip_bottom = 136.0f + top;
-    icon_x = 32.0f + left;
-    x = icon_x;
-    count = 0;
-    board_x = 28.0f + left;
-    row_y = row_top - MiniMenu.scroll_row * 0x28;
+    const float left = EventBoardPos[0];
+    const float top = EventBoardPos[1];
+    int         y = top;
+    CTexture   *board = (MiniMenu.fish_mode != 0) ? FishFoodBoard : MiniEventBoard;
+    const float row_top = 56.0f + top;
+    const int   clip_top = row_top;
+    const int   clip_bottom = 136.0f + top;
+    const float icon_x = 32.0f + left;
+    int         x = icon_x;
+    const int   board_x = 28.0f + left;
+    int         row_y = row_top - MiniMenu.scroll_row * 0x28;
     EventItemMoveY += (row_y - EventItemMoveY) >> 2;
 
-    if (abs(EventItemMoveY - row_y) < 4) {
+    if (std::abs(EventItemMoveY - row_y) < 4) {
         EventItemMoveY = row_y;
     }
 
     row_y = EventItemMoveY;
 
-    for (i = 0; i < EventItemPackPt->num / 5; i++) {
+    for (int row = 0; row < EventItemPackPt->num / 5; row++) {
         DrawEventItemBoard(board_x, row_y, clip_top, clip_bottom, alpha, board);
         row_y += 0x28;
     }
 
-    memset(items, 0, sizeof(items));
-    i = 0;
+    std::array<s16, 100> items{};
+    int                  item_count = 0;
 
     for (int j = 0; j < EventItemPackPt->num; j++) {
         if (EventItemPackPt->item[j] >= ITEM_DUNGEON_START) {
-            items[i++] = EventItemPackPt->item[j];
+            items[item_count++] = EventItemPackPt->item[j];
         }
     }
 
     row_y = EventItemMoveY;
 
-    for (i = 0; i < 100; i++) {
+    for (int i = 0; i < 100; i++) {
         if (clip_bottom < y) {
             break;
         }
@@ -1241,7 +1056,6 @@ static void EventItemSelectDraw() {
         y = row_y + 4;
         DrawIconParts(items[i], x, y, clip_top, clip_bottom, alpha, 0);
         x += 0x2A;
-        count++;
 
         if (i % 5 == 4) {
             x = icon_x;
@@ -1294,19 +1108,15 @@ static void EventItemSelectDraw() {
     setbilinear(1);
 }
 
-static void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *texture) {
-    int clip_y;
-    int clip_v;
-    int clip_height;
-
+void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *texture) {
     if ((y < top - 0x27) || (bottom <= y)) {
         return;
     }
 
     int pos_x = x;
-    clip_y = y;
-    clip_v = 0;
-    clip_height = 0x28;
+    int clip_y = y;
+    int clip_v = 0;
+    int clip_height = 0x28;
     MenuTextureClip(clip_y, clip_v, clip_height, top, bottom);
 
     for (int i = 0; i < 5; i++) {
@@ -1315,27 +1125,17 @@ static void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTe
     }
 }
 
-int PlayerAllItemCheck(int item);
+} // namespace
 
 s32 GetAddAttachItem(s32 item_no) {
-    s32 result;
-
-    result = 0;
-
-    if ((item_no >= ITEM_ATTACH_STAT_START) && (item_no < ITEM_ATTACH_GEM_START)) {
-        result = 1;
-    }
-
-    return result;
+    return ((item_no >= ITEM_ATTACH_STAT_START) && (item_no < ITEM_ATTACH_GEM_START)) ? 1 : 0;
 }
 
 int TransWepNo(int weapon_no) {
-    s32 item_no;
-
-    item_no = weapon_no;
+    s32 item_no = weapon_no;
 
     if (item_no > 0) {
-        if ((item_no > 0) && (item_no < 0x15)) {
+        if (item_no < 0x15) {
             item_no += ITEM_WEAPON_DAGGER_BROKEN - 1;
         } else if ((item_no >= 0x15) && (item_no < 0x21)) {
             item_no += ITEM_WEAPON_WOODENSLINGSHOT_BROKEN - 0x15;
@@ -1354,13 +1154,11 @@ int TransWepNo(int weapon_no) {
 }
 
 int TransWepNoNewToOld(int weapon_no) {
-    s32 item_no;
-
-    item_no = weapon_no;
-    printf("newitemno is %d\n", item_no);
+    s32 item_no = weapon_no;
+    std::println("newitemno is {}", item_no);
 
     if (item_no >= ITEM_WEAPON_START) {
-        if ((item_no >= ITEM_WEAPON_START) && (item_no < ITEM_WEAPON_MARDAN_EINS)) {
+        if (item_no < ITEM_WEAPON_MARDAN_EINS) {
             item_no -= ITEM_WEAPON_DAGGER_BROKEN - 1;
         } else if ((item_no >= ITEM_WEAPON_WOODENSLINGSHOT_BROKEN) && (item_no < ITEM_WEAPON_MATADOR)) {
             item_no -= ITEM_WEAPON_WOODENSLINGSHOT_BROKEN - 0x15;
@@ -1375,6 +1173,6 @@ int TransWepNoNewToOld(int weapon_no) {
         }
     }
 
-    printf("olditemno is %d\n", item_no);
+    std::println("olditemno is {}", item_no);
     return item_no;
 }

@@ -1,8 +1,9 @@
 #include "menu_manual.hpp"
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <array>
+#include <format>
+#include <string>
+#include <string_view>
 
 #include "clsmes.hpp"
 #include "dataread.hpp"
@@ -17,26 +18,79 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
-s8 ManualTgaNum[24] = {2, 6, 4, 1, 2, 0, 1, 5, 3, 3, 3, 0, 3, 4, 3, 1, 0, 0, 2, 1, 5, 0, 0, 0};
+namespace {
+
+constexpr int ENTRIES_PER_CATEGORY = 6;
+
+/** Number of page images in each manual entry, by category and entry. */
+constexpr std::array<s8, 24> ManualTgaNum = {2, 6, 4, 1, 2, 0, 1, 5, 3, 3, 3, 0, 3, 4, 3, 1, 0, 0, 2, 1, 5, 0, 0, 0};
+
+/** Texture name prefixes of each category's page images. */
+constexpr std::array<std::string_view, 4> ManualImagePrefixes = {"a_", "b_", "c_", "d_"};
+
+/**
+ * Empties a message window and puts its layout back to the defaults.
+ */
+void ResetManualMessage(ClsMes *message) {
+    message->text_columns = MES_WIN_COLUMNS;
+    message->text_rows = 10;
+    message->text_len = 0;
+    message->text_width = 0;
+    message->text_height = 0;
+    message->fade = 0.0f;
+    message->fade_in = true;
+    message->text_rate = message->text_rate_set;
+    message->waiting = false;
+    message->text_at = 0.0f;
+    message->text_no = 0;
+    message->text_from = 0;
+    message->page_from = 0;
+    message->InitMesWinTbl();
+    message->clut_now = message->clut_default;
+    message->wait = 0;
+    message->blink = 0;
+    message->auto_page_wait = 0;
+    message->mes_made = -1;
+    message->edge_alpha = 0x80;
+
+    for (s32 &message_no : message->mes_no) {
+        message_no = -1;
+    }
+
+    for (s32 &value : message->values) {
+        value = 0;
+    }
+
+    message->value = 0;
+    message->value_signed = false;
+    message->value_show = true;
+    message->value_narrow = false;
+    message->space_width = -1;
+    message->space_area = -1;
+    message->cursor_row = -1;
+    message->cursor_y = 0;
+    message->cursor_lit = false;
+
+    for (MES_LINE_POS &position : message->line_pos) {
+        position.x = -1;
+        position.y = -1;
+    }
+}
+
+} // namespace
 
 MANUAL_MENU_STATE ManualMenu;
 
 CTexture *ManualMenuTex[6];
 
-/**
- * Returns the texture page for the selected manual category and entry.
- */
 int GetNowManualPartTgaNum() {
-    return *(ManualMenu.entry + (ManualTgaNum + (ManualMenu.category * 6)));
+    return ManualTgaNum[(ManualMenu.category * ENTRIES_PER_CATEGORY) + ManualMenu.entry];
 }
 
-/**
- * Reports whether the party has the item that unlocks the manual.
- */
 int GetGameFlagForManualMenu() {
     CDngStatusData *status = SaveData->GetDngStatus();
 
-    if (status == NULL) {
+    if (status == nullptr) {
         return 1;
     }
 
@@ -52,33 +106,33 @@ int GetGameFlagForManualMenu() {
 s16 ManualImgEnter() {
     if (ManualMenu.images_ready == 0 && ReadBGSync() == 0) {
         LOADTEXTURE_INFO2 image_table[] = {
-            {manual_frame_image, 0, 0},
-            {NULL,               0, 0},
-            {NULL,               0, 0},
+            {.name = manual_frame_image, .block_no = 0, .mipmap = 0},
+            {.name = nullptr,            .block_no = 0, .mipmap = 0},
+            {.name = nullptr,            .block_no = 0, .mipmap = 0},
         };
         image_table[0].block_no = ManualMenu.image_texture_block;
         image_table[1].block_no = ManualMenu.image_texture_block;
         BG_READ_INFO *primary = GetReadBGFile(0);
-        char          pack_name[32] = "%d_%d.img";
-        sprintf(pack_name, pack_name, ManualMenu.category + 1, ManualMenu.entry + 1);
-        image_table[1].name = (char *) GetPackFile((u_int *) primary->buffer, pack_name, NULL);
+        std::string   pack_name = std::format("{}_{}.img", ManualMenu.category + 1, ManualMenu.entry + 1);
+        image_table[1].name =
+            reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(primary->buffer), pack_name.data(), nullptr));
         TexManager.DeleteTextureBlock(ManualMenu.image_texture_block);
         TexManager.CleanUpTextureList();
         TexManager.LoadTextureBlockEX(-1, image_table);
 
         BG_READ_INFO *extra = GetReadBGFile(1);
 
-        if (extra != NULL) {
+        if (extra != nullptr) {
             LOADTEXTURE_INFO2 extra_table[] = {
-                {"#frame_image1#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                {NULL,                                        0, 0},
-                {NULL,                                        0, 0},
+                {.name = "#frame_image1#640#" SCREEN_HEIGHT_STR "#4", .block_no = 0, .mipmap = 0},
+                {.name = nullptr,                                     .block_no = 0, .mipmap = 0},
+                {.name = nullptr,                                     .block_no = 0, .mipmap = 0},
             };
             extra_table[0].block_no = ManualMenu.extra_texture_block;
             extra_table[1].block_no = ManualMenu.extra_texture_block;
-            char extra_name[32] = "%d_%db.img";
-            sprintf(extra_name, extra_name, ManualMenu.category + 1, ManualMenu.entry + 1);
-            extra_table[1].name = (char *) GetPackFile((u_int *) extra->buffer, extra_name, NULL);
+            std::string extra_name = std::format("{}_{}b.img", ManualMenu.category + 1, ManualMenu.entry + 1);
+            extra_table[1].name =
+                reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(extra->buffer), extra_name.data(), nullptr));
             TexManager.DeleteTextureBlock(ManualMenu.extra_texture_block);
             TexManager.CleanUpTextureList();
             TexManager.LoadTextureBlockEX(-1, extra_table);
@@ -87,12 +141,9 @@ s16 ManualImgEnter() {
         int image_count = GetNowManualPartTgaNum();
 
         for (int image = 0; image < image_count; image++) {
-            char *prefix[] = {"a_", "b_", "c_", "d_"};
-            char  texture_name[32];
-            strcpy(texture_name, prefix[ManualMenu.category]);
-            strcat(texture_name, "%d_%d");
-            sprintf(texture_name, texture_name, ManualMenu.entry + 1, image + 1);
-            ManualMenuTex[image] = TexManager.GetTexture(texture_name, -1);
+            std::string texture_name =
+                std::format("{}{}_{}", ManualImagePrefixes[ManualMenu.category], ManualMenu.entry + 1, image + 1);
+            ManualMenuTex[image] = TexManager.GetTexture(texture_name.data(), -1);
         }
 
         ManualMenu.message_page = 0;
@@ -106,13 +157,13 @@ s16 ManualImgEnter() {
 void DrawPrevNextCursor() {
     CTexture *texture = TexManager.GetTexture("mncursor", -1);
 
-    if (texture == NULL) {
+    if (texture == nullptr) {
         return;
     }
 
-    CRect_i_ texel(0x40, 0, 0x20, 0x20);
-    int      x[] = {0x40, 0x222};
-    int      image_count = GetNowManualPartTgaNum();
+    CRect_i_                     texel(0x40, 0, 0x20, 0x20);
+    constexpr std::array<int, 2> x = {0x40, 0x222};
+    int                          image_count = GetNowManualPartTgaNum();
 
     for (int cursor = 0; cursor < 2; cursor++, texel.y += 0x20) {
         if (cursor == 0 && ManualMenu.image_page == 0) {
@@ -155,67 +206,19 @@ int InitMenuManual(int *texture_blocks, u_long128 *load_buffer) {
     return 1;
 }
 
-/**
- * Empties a message window and puts its layout back to the defaults.
- */
-static inline void ResetManualMessage(ClsMes *message) {
-    message->text_columns = MES_WIN_COLUMNS;
-    message->text_rows = 10;
-    message->text_len = 0;
-    message->text_width = 0;
-    message->text_height = 0;
-    message->fade = 0.0f;
-    message->fade_in = true;
-    message->text_rate = message->text_rate_set;
-    message->waiting = false;
-    message->text_at = 0.0f;
-    message->text_no = 0;
-    message->text_from = 0;
-    message->page_from = 0;
-    message->InitMesWinTbl();
-    message->clut_now = message->clut_default;
-    message->wait = 0;
-    message->blink = 0;
-    message->auto_page_wait = 0;
-    message->mes_made = -1;
-    message->edge_alpha = 0x80;
-
-    for (int slot = 0; slot < 10; slot++) {
-        message->mes_no[slot] = -1;
-    }
-
-    for (int value = 0; value < 8; value++) {
-        message->values[value] = 0;
-    }
-
-    message->value = 0;
-    message->value_signed = false;
-    message->value_show = true;
-    message->value_narrow = false;
-    message->space_width = -1;
-    message->space_area = -1;
-    message->cursor_row = -1;
-    message->cursor_y = 0;
-    message->cursor_lit = false;
-
-    for (int line = 0; line < 10; line++) {
-        message->line_pos[line].x = -1;
-        message->line_pos[line].y = -1;
-    }
-}
-
 int SetManualMsgBuffer() {
     if (ManualMenu.messages_ready == 0 && ReadBGSync() == 0) {
         BG_READ_INFO     *archive = GetReadBGFile(0);
         LOADTEXTURE_INFO2 font_table[] = {
-            {manual_frame_image, 0, 0},
-            {NULL,               0, 0},
-            {NULL,               0, 0},
+            {.name = manual_frame_image, .block_no = 0, .mipmap = 0},
+            {.name = nullptr,            .block_no = 0, .mipmap = 0},
+            {.name = nullptr,            .block_no = 0, .mipmap = 0},
         };
         font_table[0].block_no = ManualMenu.common_texture_block;
         font_table[1].block_no = ManualMenu.common_texture_block;
-        char font_name[32] = "mncursor.img";
-        font_table[1].name = (char *) GetPackFile((u_int *) archive->buffer, font_name, NULL);
+        char font_name[] = "mncursor.img";
+        font_table[1].name =
+            reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(archive->buffer), font_name, nullptr));
         TexManager.DeleteTextureBlock(ManualMenu.common_texture_block);
         TexManager.CleanUpTextureList();
         TexManager.LoadTextureBlockEX(-1, font_table);
@@ -228,12 +231,13 @@ int SetManualMsgBuffer() {
         ManualMsg->tex_block = 0x1A;
         ManualMsg->tex_buff = CommonMenuMes1.tex_buff;
 
-        for (int slot = 0; slot < 10; slot++) {
-            ClsMes *window = ManualMsg;
-            window->mes_no[slot] = -1;
+        for (s32 &message_no : ManualMsg->mes_no) {
+            message_no = -1;
         }
 
-        s16 *messages = (s16 *) GetPackFile((u_int *) archive->buffer, "manual.bin", NULL);
+        char messages_name[] = "manual.bin";
+        s16 *messages =
+            reinterpret_cast<s16 *>(GetPackFile(reinterpret_cast<u_int *>(archive->buffer), messages_name, nullptr));
         ManualMsg->SetBuff(messages);
         ManualMsg->mes_made = -1;
         ManualMsg->stay_frame = true;
@@ -246,8 +250,8 @@ int SetManualMsgBuffer() {
         CommonMenuMes3.rows = 3;
         CommonMenuMes3.char_width = ManualMsg->char_width;
 
-        for (int slot = 0; slot < 10; slot++) {
-            CommonMenuMes3.mes_no[slot] = -1;
+        for (s32 &message_no : CommonMenuMes3.mes_no) {
+            message_no = -1;
         }
 
         ManualMenu.messages_ready = true;
@@ -263,23 +267,10 @@ void ExitManualMenu() {
     CommonMenuMes3.centre_rows = true;
     CommonMenuMes3.cursor_row = -1;
     CommonMenuMes3.stay_frame = false;
-    ClsMes *msg = ManualMsg;
-    msg->cursor_row = -1;
+    ManualMsg->cursor_row = -1;
     ManualMsg->stay_frame = false;
 }
 
 int GetNowManualMenuMode() {
     return ManualMenu.mode;
 }
-
-/**
- * Puts a message window's choice cursor on a line, or takes it away for a negative line.
- */
-static inline void SetCursorRow(ClsMes *message, int row) {
-    message->cursor_row = row;
-}
-
-int MenuManualKey();
-
-void MenuManualDraw();
-
