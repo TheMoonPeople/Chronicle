@@ -23,7 +23,7 @@ constexpr float kWheelStep = 8.0f;
 
 struct Zoom {
     CCameraFollow *camera = nullptr;
-    const void    *scene = nullptr;
+    void          *scene = nullptr;
     int            key = 0;
     float          requested = 0.0f;
     std::uint64_t  read = std::numeric_limits<std::uint64_t>::max();
@@ -34,9 +34,9 @@ bool                g_town_scope = false;
 float               g_near = 0.0f, g_far = 0.0f;
 std::vector<CCPoly> g_polys;
 
-void Prepare(Zoom &zoom, CCameraFollow *camera, const void *scene, int key, float normal) {
+void Prepare(Zoom &zoom, CCameraFollow *camera, void *scene, int key, float normal) {
     if (zoom.camera != camera || zoom.scene != scene || zoom.key != key) {
-        zoom = {camera, scene, key, normal};
+        zoom = {.camera = camera, .scene = scene, .key = key, .requested = normal};
     }
 }
 
@@ -68,7 +68,7 @@ CBoxVu0 Box(const CCameraFollow &camera, float requested) {
 
 void ApplyTown() {
     auto   *camera = g_town.camera;
-    auto   *ground = const_cast<CEditGround *>(static_cast<const CEditGround *>(g_town.scene));
+    auto   *ground = static_cast<CEditGround *>(g_town.scene);
     CBoxVu0 box = Box(*camera, g_town.requested);
     int     count = MouseCameraPolys(*ground, box, 0xFFFF, g_polys);
     float   accepted = MouseCameraClampDistance(*camera, g_town.requested, g_polys.data(), count);

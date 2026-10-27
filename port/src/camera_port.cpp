@@ -1,7 +1,5 @@
 #include "camera_port.hpp"
 
-#include <libvu0.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -82,12 +80,12 @@ CBoxVu0 CameraBox(CCameraFollow &camera) {
 }
 
 void Orbit(float *point, const float *centre, float turn) {
-    float c = std::cos(turn);
-    float s = std::sin(turn);
-    float x = point[0] - centre[0];
-    float z = point[2] - centre[2];
-    point[0] = centre[0] + x * c + z * s;
-    point[2] = centre[2] + z * c - x * s;
+    float cosine = std::cos(turn);
+    float sine = std::sin(turn);
+    float offset_x = point[0] - centre[0];
+    float offset_z = point[2] - centre[2];
+    point[0] = centre[0] + offset_x * cosine + offset_z * sine;
+    point[2] = centre[2] + offset_z * cosine - offset_x * sine;
 }
 
 } // namespace
@@ -101,7 +99,7 @@ float MouseLookTurn(CCameraFollow *camera, float radians, float stick) {
     float reading = stick + look.yaw / radians;
     // Mouse and stick that cancel turn nothing, as in the town, which then makes no AddAngle.
     if (reading != 0.0f) {
-        g_turn = {camera, radians * -reading, radians * -stick, look.read};
+        g_turn = {.camera = camera, .delta = radians * -reading, .stick_delta = radians * -stick, .read = look.read};
     }
     return reading;
 }
@@ -123,7 +121,13 @@ float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float flo
         target = std::max(target, std::min(height, floor));
     }
     float reading = stick - (target - height);
-    g_height = {camera, look.read, -reading, true, native || moving, moving, stick != 0.0f};
+    g_height = {.camera = camera,
+                .read = look.read,
+                .input_delta = -reading,
+                .input_pending = true,
+                .native = native || moving,
+                .moving = moving,
+                .stick = stick != 0.0f};
     return reading;
 }
 
@@ -206,11 +210,11 @@ float MouseLookClampOrbit(const float *eye, const float *look, float turn, const
     float         distance = std::hypot(eye[0] - look[0], eye[2] - look[2]);
     float         angle = std::atan2(eye[0] - look[0], eye[2] - look[2]);
     CCameraFollow camera(distance, eye[1] - look[1], angle, 8.0f);
-    sceVu0CopyVector(camera.pos, const_cast<float *>(eye));
-    sceVu0CopyVector(camera.next_pos, const_cast<float *>(eye));
-    sceVu0CopyVector(camera.ref, const_cast<float *>(look));
-    sceVu0CopyVector(camera.next_ref, const_cast<float *>(look));
-    sceVu0CopyVector(camera.follow, const_cast<float *>(look));
+    std::copy_n(eye, 4, camera.pos);
+    std::copy_n(eye, 4, camera.next_pos);
+    std::copy_n(look, 4, camera.ref);
+    std::copy_n(look, 4, camera.next_ref);
+    std::copy_n(look, 4, camera.follow);
     CBoxVu0 box = CameraBox(camera);
     CCPoly *walls = nullptr;
     int     count = polys(box, &walls);
@@ -228,7 +232,12 @@ void MouseLookTurnOrbit(CCameraFollow *camera, float turn) {
 }
 
 void TownMouseBegin(CCameraFollow *camera, CEditGround *ground, int map, int mode) {
-    g_town = {true, camera, ground, map, mode, InputGetMouseLook().read};
+    g_town = {.open = true,
+              .camera = camera,
+              .ground = ground,
+              .map = map,
+              .mode = mode,
+              .read = InputGetMouseLook().read};
 }
 
 void TownMouseRecord(CCameraFollow *camera, bool fishing) {

@@ -25,7 +25,7 @@ void DrawBuildUpWeaponSelect(int x, int y, int cursor) {
 }
 
 void DrawAallWeapon(int x, int y, float depth, CCharacter *model,
-                                  WEAPON_HAVE *weapon, int equipped, int selected, int alpha) {
+                    WEAPON_HAVE *weapon, int equipped, int selected, int alpha) {
     PortDrawAallWeapon(x, y, depth, model, weapon, equipped, selected, alpha);
 }
 

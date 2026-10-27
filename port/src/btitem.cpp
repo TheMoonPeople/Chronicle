@@ -2,10 +2,9 @@
 
 #include <libvu0.h>
 
-#include <cstdio>
-#include <cstring>
+#include <cstddef>
+#include <print>
 #include <string>
-#include <tuple>
 #include <utility>
 
 #include "btactstatus.hpp"
@@ -46,19 +45,36 @@
 #include "vector.hpp"
 #include "weaponeffect.hpp"
 
-// Retail's treasure-box, gate-key and escape presentations and the item-select window. The _Init
-// halves kept the arena addresses of the files they start reading in the int globals itemOpenItemMds,
-// itemOpenItemImg and escape_chr, and the _Loop halves cast them back once the reads finish; only
-// these functions touch them, so the pointers are kept whole here instead.
+// Treasure-box, gate-key and escape presentations and the item-select window. Each _Init starts
+// background reads into BtCashBuffer and each _Loop consumes the files once the reads finish.
 
-// The bodies are retail's, spelled as MWCC took them.
+// The file and frame-name parameters of the game APIs used here are non-const char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
-#pragma clang diagnostic ignored "-Wchar-subscripts"
-#pragma clang diagnostic ignored "-Wunused-value"
-
-int createAttachVolume(int item_no, int dungeon);
 
 namespace {
+
+constexpr const char *chara_files[] = {"dun/mainchara/c01d_ex00.chr", "dun/mainchara/c04b_ex00.chr",
+                                       "dun/mainchara/c06b_ex00.chr", "dun/mainchara/c05a_ex00.chr",
+                                       "dun/mainchara/c10b_ex00.chr", "dun/mainchara/c18a_ex00.chr"};
+
+CDngStatusData *DngStatus() {
+    return static_cast<CDngStatusData *>(UserStatus);
+}
+
+void ResetCashBuffer() {
+    BtCashBuffer.base = reinterpret_cast<u_char *>(read_buffer);
+    BtCashBuffer.limit = 0x445C0;
+    BtCashBuffer.used = 0;
+}
+
+u_char *NextCashBlock() {
+    return BtCashBuffer.base + static_cast<std::ptrdiff_t>(BtCashBuffer.used) * 16;
+}
+
+// Reserves a file's size rounded up past the next 64-byte boundary, in quadwords.
+void CommitCashBlock(int size) {
+    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
+}
 
 std::pair<std::string, std::string> ItemPaths(int item_no) {
     item_no = TransWepNo(item_no);
@@ -100,16 +116,13 @@ u_char *escape_file;
 RS_STACKDATA *PortItemSelectResult;
 
 void BtGetTreasureboxBig_Init() {
-    u_char *mds;
-    u_char *img;
-    u_char *chr;
-    int     item_no = NowDngMap->boxes[NowDngMap->events[iventActive].index].item_no;
+    int item_no = NowDngMap->boxes[NowDngMap->events[iventActive].index].item_no;
 
     ResetMovePower();
 
-    if ((static_cast<CDngStatusData *>(UserStatus))->CheckWeaponRot(item_no) >= 10) {
+    if (DngStatus()->CheckWeaponRot(item_no) >= 10) {
         SndSePlay(SE_CHEST_OPEN_BIG, -1, 0);
-        SetSystemMes((static_cast<CDngStatusData *>(UserStatus))->CheckWeaponUser(item_no) + 0x49, -1, MES_POS_CENTRE, 0, nullptr, nullptr);
+        SetSystemMes(DngStatus()->CheckWeaponUser(item_no) + 0x49, -1, MES_POS_CENTRE, 0, nullptr, nullptr);
         int index = NowDngMap->events[iventActive].index;
         NowDngMap->boxes[index].lid_angle = -20.0f;
         SetMIniMapStatus(0);
@@ -120,9 +133,7 @@ void BtGetTreasureboxBig_Init() {
         CEffectHyde = 1;
         DngMessMan.enabled = false;
 
-        CUserStatus *user = UserStatus;
-
-        user->step_disable = 1;
+        UserStatus->step_disable = 1;
         BtActStatus.motion_no = 0;
         BtActStatus.in_presentation = 1;
         BtGetTreasurebox_Sled = 10;
@@ -136,50 +147,41 @@ void BtGetTreasureboxBig_Init() {
 
     TreasureboxBig_itemType = TREASUREBOX_POSE_DEFAULT;
 
-    if ((static_cast<CDngStatusData *>(UserStatus))->CheckWeaponUser(item_no) == CHARA_XIAO) {
+    if (DngStatus()->CheckWeaponUser(item_no) == CHARA_XIAO) {
         TreasureboxBig_itemType = TREASUREBOX_POSE_SLINGSHOT;
     }
 
-    if ((static_cast<CDngStatusData *>(UserStatus))->CheckWeaponUser(item_no) == CHARA_OSMOND) {
+    if (DngStatus()->CheckWeaponUser(item_no) == CHARA_OSMOND) {
         TreasureboxBig_itemType = TREASUREBOX_POSE_GUN;
     }
 
-    if ((static_cast<CDngStatusData *>(UserStatus))->CheckWeaponUser(item_no) == CHARA_RUBY) {
+    if (DngStatus()->CheckWeaponUser(item_no) == CHARA_RUBY) {
         TreasureboxBig_itemType = TREASUREBOX_POSE_RING;
     }
 
-    char *chara_files[6] = {"dun/mainchara/c01d_ex00.chr", "dun/mainchara/c04b_ex00.chr",
-                            "dun/mainchara/c06b_ex00.chr", "dun/mainchara/c05a_ex00.chr",
-                            "dun/mainchara/c10b_ex00.chr", "dun/mainchara/c18a_ex00.chr"};
     auto [model_path, texture_path] = ItemPaths(item_no);
-    int size;
+    int size = 0;
 
     TreasureboxBig_itemNo = item_no;
     NowDngMap->events[iventActive].kind = DNG_EVENT_NONE;
-    BtCashBuffer.base = reinterpret_cast<u_char *>(read_buffer);
-    BtCashBuffer.limit = 0x445C0;
-    BtCashBuffer.used = 0;
+    ResetCashBuffer();
     StartReadBG();
-    mds = BtCashBuffer.base + BtCashBuffer.used * 16;
-    item_mds = mds;
-    LoadFileBG(model_path.data(), reinterpret_cast<u_long128 *>(mds), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    img = BtCashBuffer.base + BtCashBuffer.used * 16;
-    item_img = img;
-    LoadFileBG(texture_path.data(), reinterpret_cast<u_long128 *>(img), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    chr = BtCashBuffer.base + BtCashBuffer.used * 16;
+    item_mds = NextCashBlock();
+    LoadFileBG(model_path.data(), reinterpret_cast<u_long128 *>(item_mds), &size);
+    CommitCashBlock(size);
+    item_img = NextCashBlock();
+    LoadFileBG(texture_path.data(), reinterpret_cast<u_long128 *>(item_img), &size);
+    CommitCashBlock(size);
+    u_char *chr = NextCashBlock();
     itemOpenItemChr = reinterpret_cast<u_int *>(chr);
-    LoadFileBG(chara_files[UserStatus->cur_chara], reinterpret_cast<u_long128 *>(chr), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    SndSPSeLoadBG(2, reinterpret_cast<u_int *>(BtCashBuffer.base + BtCashBuffer.used * 16), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
+    LoadFileBG(const_cast<char *>(chara_files[static_cast<u_char>(UserStatus->cur_chara)]), reinterpret_cast<u_long128 *>(chr), &size);
+    CommitCashBlock(size);
+    SndSPSeLoadBG(2, reinterpret_cast<u_int *>(NextCashBlock()), &size);
+    CommitCashBlock(size);
     itemOpenBig.frame->SetRotation(0.0f, 0.0f, 0.0f);
     DngMessMan.enabled = false;
 
-    CUserStatus *user = UserStatus;
-
-    user->step_disable = 1;
+    UserStatus->step_disable = 1;
     BtActStatus.motion_no = 0;
     BtActStatus.in_presentation = 1;
     BtGetTreasurebox_Sled = 0;
@@ -245,6 +247,8 @@ int BtGetTreasureboxBig_Loop() {
                     itemBoxModel->SetPosition(item_position);
                     TreasureboxBig_itemScale = 2.0f;
                     break;
+                default:
+                    break;
             }
 
             itemBoxModel->SetScale(0.01f, 0.01f, 0.01f);
@@ -305,7 +309,7 @@ int BtGetTreasureboxBig_Loop() {
                 BtActStatus.shadow_visible = true;
                 TexManager.DeleteTextureBlock(0x1C);
                 TexManager.CleanUpTextureList();
-                (static_cast<CDngStatusData *>(UserStatus))->GetItem(TreasureboxBig_itemNo, 0);
+                DngStatus()->GetItem(TreasureboxBig_itemNo, 0);
                 NowCamera__3->FollowOn();
                 sceVu0CopyVector(position, CharaMain.pos);
                 position[2] += 10.0f;
@@ -344,19 +348,18 @@ int BtGetTreasureboxBig_Loop() {
             }
 
             break;
+        default:
+            break;
     }
 
     return done;
 }
 
 void BtGetTreasureboxSmall_Init(int dungeon) {
-    u_char *mds;
-    u_char *img;
-    u_char *chr;
-    int     item_no = NowDngMap->boxes[NowDngMap->events[iventActive].index].item_no;
+    int item_no = NowDngMap->boxes[NowDngMap->events[iventActive].index].item_no;
 
     ResetMovePower();
-    int refusal = (static_cast<CDngStatusData *>(UserStatus))->CheckItemGet(item_no);
+    int refusal = DngStatus()->CheckItemGet(item_no);
 
     if (refusal != 0) {
         SndSePlay(SE_CHEST_OPEN_SMALL, -1, 0);
@@ -379,9 +382,7 @@ void BtGetTreasureboxSmall_Init(int dungeon) {
         CEffectHyde = 1;
         DngMessMan.enabled = false;
 
-        CUserStatus *user = UserStatus;
-
-        user->step_disable = 1;
+        UserStatus->step_disable = 1;
         BtActStatus.in_presentation = 1;
         BtActStatus.motion_no = 0;
         BtGetTreasurebox_Sled = 10;
@@ -389,12 +390,7 @@ void BtGetTreasureboxSmall_Init(int dungeon) {
         return;
     }
 
-    char       *chara_files[6] = {"dun/mainchara/c01d_ex00.chr", "dun/mainchara/c04b_ex00.chr",
-                                  "dun/mainchara/c06b_ex00.chr", "dun/mainchara/c05a_ex00.chr",
-                                  "dun/mainchara/c10b_ex00.chr", "dun/mainchara/c18a_ex00.chr"};
-    std::string model_path;
-    std::string texture_path;
-    int         size;
+    int size = 0;
 
     NowDngMap->events[iventActive].kind = DNG_EVENT_NONE;
 
@@ -403,36 +399,30 @@ void BtGetTreasureboxSmall_Init(int dungeon) {
     }
 
     int volume = createAttachVolume(item_no, dungeon);
-    printf("get attach vol = %d\n", volume);
+    std::println("get attach vol = {}", volume);
     BtGetTreasureboxSmall_itemNo = item_no;
     BtGetTreasureboxSmall_itemVolume = volume;
-    std::tie(model_path, texture_path) = ItemPaths(item_no);
-    printf("[%d]%s\n", item_no, model_path.c_str());
-    printf("[%d]%s\n", item_no, texture_path.c_str());
-    BtCashBuffer.base = reinterpret_cast<u_char *>(read_buffer);
-    BtCashBuffer.limit = 0x445C0;
-    BtCashBuffer.used = 0;
+    auto [model_path, texture_path] = ItemPaths(item_no);
+    std::println("[{}]{}", item_no, model_path);
+    std::println("[{}]{}", item_no, texture_path);
+    ResetCashBuffer();
     StartReadBG();
-    mds = BtCashBuffer.base + BtCashBuffer.used * 16;
-    item_mds = mds;
-    LoadFileBG(model_path.data(), reinterpret_cast<u_long128 *>(mds), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    img = BtCashBuffer.base + BtCashBuffer.used * 16;
-    item_img = img;
-    LoadFileBG(texture_path.data(), reinterpret_cast<u_long128 *>(img), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    chr = BtCashBuffer.base + BtCashBuffer.used * 16;
+    item_mds = NextCashBlock();
+    LoadFileBG(model_path.data(), reinterpret_cast<u_long128 *>(item_mds), &size);
+    CommitCashBlock(size);
+    item_img = NextCashBlock();
+    LoadFileBG(texture_path.data(), reinterpret_cast<u_long128 *>(item_img), &size);
+    CommitCashBlock(size);
+    u_char *chr = NextCashBlock();
     itemOpenItemChr = reinterpret_cast<u_int *>(chr);
-    LoadFileBG(chara_files[UserStatus->cur_chara], reinterpret_cast<u_long128 *>(chr), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    SndSPSeLoadBG(2, reinterpret_cast<u_int *>(BtCashBuffer.base + BtCashBuffer.used * 16), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
+    LoadFileBG(const_cast<char *>(chara_files[static_cast<u_char>(UserStatus->cur_chara)]), reinterpret_cast<u_long128 *>(chr), &size);
+    CommitCashBlock(size);
+    SndSPSeLoadBG(2, reinterpret_cast<u_int *>(NextCashBlock()), &size);
+    CommitCashBlock(size);
     itemOpenSmall.frame->SetRotation(0.0f, 0.0f, 0.0f);
     DngMessMan.enabled = false;
 
-    CUserStatus *user = UserStatus;
-
-    user->step_disable = 1;
+    UserStatus->step_disable = 1;
     BtActStatus.in_presentation = 1;
     BtActStatus.motion_no = 0;
     BtGetTreasurebox_Sled = 0;
@@ -546,7 +536,7 @@ int BtGetTreasureboxSmall_Loop() {
                         BtEquipMasuisyou = 1;
                     }
                 } else {
-                    (static_cast<CDngStatusData *>(UserStatus))->GetItem(BtGetTreasureboxSmall_itemNo, BtGetTreasureboxSmall_itemVolume);
+                    DngStatus()->GetItem(BtGetTreasureboxSmall_itemNo, BtGetTreasureboxSmall_itemVolume);
                 }
 
                 sceVu0FVECTOR position;
@@ -587,6 +577,8 @@ int BtGetTreasureboxSmall_Loop() {
             }
 
             break;
+        default:
+            break;
     }
 
     return done;
@@ -620,7 +612,6 @@ int BtMiniItemSelect_Loop() {
 
         case 3:
             if (BtEventInfo.item_select_result != 0) {
-                // Word 1 of the PS2's 8-byte slot is its value; the host's union sits at 8.
                 PortItemSelectResult->i = miniItemSelNo;
             }
 
@@ -629,6 +620,8 @@ int BtMiniItemSelect_Loop() {
             done = 1;
             DngMessMan.enabled = done;
             break;
+        default:
+            break;
     }
 
     return done;
@@ -636,29 +629,21 @@ int BtMiniItemSelect_Loop() {
 
 void BtGetGateKey_Init(int item_no) {
     auto [model_path, texture_path] = ItemPaths(item_no);
-    u_char *model;
-    u_char *texture;
-    int     size;
+    int size = 0;
 
     GateKey_itemNo = item_no;
-    BtCashBuffer.base = reinterpret_cast<u_char *>(read_buffer);
-    BtCashBuffer.limit = 0x445C0;
-    BtCashBuffer.used = 0;
+    ResetCashBuffer();
     StartReadBG();
-    model = BtCashBuffer.base + BtCashBuffer.used * 16;
-    item_mds = model;
-    LoadFileBG(model_path.data(), reinterpret_cast<u_long128 *>(model), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    texture = BtCashBuffer.base + BtCashBuffer.used * 16;
-    item_img = texture;
-    LoadFileBG(texture_path.data(), reinterpret_cast<u_long128 *>(texture), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
+    item_mds = NextCashBlock();
+    LoadFileBG(model_path.data(), reinterpret_cast<u_long128 *>(item_mds), &size);
+    CommitCashBlock(size);
+    item_img = NextCashBlock();
+    LoadFileBG(texture_path.data(), reinterpret_cast<u_long128 *>(item_img), &size);
+    CommitCashBlock(size);
     ResetMovePower();
     DngMessMan.enabled = false;
 
-    CUserStatus *user = UserStatus;
-
-    user->step_disable = 1;
+    UserStatus->step_disable = 1;
     BtActStatus.motion_no = 0;
     BtActStatus.in_presentation = 1;
     GateKey_Sled = 0;
@@ -677,9 +662,9 @@ int BtGetGateKey_Loop() {
                 SetTempTexture(0x1C, reinterpret_cast<char *>(item_img));
                 itemBoxModel = LoadMDSFile(reinterpret_cast<u_int *>(item_mds), &BtCashBuffer, 0, nullptr, nullptr);
                 itemBoxModel->SetReference(CharaMain.frame->SearchFrame("item"));
-                itemBoxModel->SetPosition((0, 0.0f), (0, (0, 0.0f)), (0, (0, 0.0f)));
+                itemBoxModel->SetPosition(0.0f, 0.0f, 0.0f);
                 itemBoxModel->SetRotation(0.0f, 0.0f, 0.0f);
-                itemBoxModel->SetScale((0, (0, 1.0f)), 1.0f, (0, 1.0f));
+                itemBoxModel->SetScale(1.0f, 1.0f, 1.0f);
                 gateItemFlag = 1;
                 GateKey_Sled++;
             }
@@ -743,30 +728,26 @@ int BtGetGateKey_Loop() {
             }
 
             break;
+        default:
+            break;
     }
 
     return done;
 }
 
 void BtEscape_Init() {
-    u_char *chr;
-    int     size;
+    int size = 0;
 
-    BtCashBuffer.base = reinterpret_cast<u_char *>(read_buffer);
-    BtCashBuffer.limit = 0x445C0;
-    BtCashBuffer.used = 0;
+    ResetCashBuffer();
     StartReadBG();
-    chr = BtCashBuffer.base + BtCashBuffer.used * 16;
-    escape_file = chr;
-    LoadFileBG("dun/effect/escape.chr", reinterpret_cast<u_long128 *>(chr), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
-    SndSPSeLoadBG(8, reinterpret_cast<u_int *>(BtCashBuffer.base + BtCashBuffer.used * 16), &size);
-    BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
+    escape_file = NextCashBlock();
+    LoadFileBG("dun/effect/escape.chr", reinterpret_cast<u_long128 *>(escape_file), &size);
+    CommitCashBlock(size);
+    SndSPSeLoadBG(8, reinterpret_cast<u_int *>(NextCashBlock()), &size);
+    CommitCashBlock(size);
     DngMessMan.enabled = false;
 
-    CUserStatus *user = UserStatus;
-
-    user->step_disable = 1;
+    UserStatus->step_disable = 1;
     CMonUnitHold = 1;
     CMonUnitHyde = 1;
     CEffectHold = 1;
@@ -797,7 +778,7 @@ int BtEscape_Loop() {
                 EscapeEffect.SetPosition(position);
                 EscapeEffect.SetRotation(rotation);
                 EdFadeInit();
-                EdFadeOut(0x78, (0, 0.0f), (0, 0.0f), 0.0f);
+                EdFadeOut(0x78, 0.0f, 0.0f, 0.0f);
                 SndSPSePlay(8, -1);
                 escape_sled++;
             }
@@ -810,6 +791,8 @@ int BtEscape_Loop() {
             }
 
             autoCamTrial();
+            break;
+        default:
             break;
     }
 

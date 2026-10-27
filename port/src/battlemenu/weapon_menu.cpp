@@ -1,3 +1,5 @@
+#include <array>
+
 #include "battlemenu/internal.hpp"
 
 namespace {
@@ -55,13 +57,12 @@ int NowWeaponStatusValuePort(WEAPON_HAVE *weapon) {
 }
 
 /**
- * The game's WeaponNameDraw (static in ps2/src/battlemenu.cpp): the names of the weapons either side of the cursor,
- * in the game's message window and letters, laid out again whenever a name or level changed, and the name frame
- * under them while the page is at its top level.
+ * Draws the names of the weapons either side of the cursor in the game's message window, laying them out again
+ * whenever a name or level changes, and the name frame under them while the page is at its top level.
  */
 void WeaponNameDrawPort(int y, int selected_only, int alpha) {
-    int previous_mes[4];
-    int previous_level[4];
+    std::array<int, 4> previous_mes{};
+    std::array<int, 4> previous_level{};
 
     MenuTextureReload(AtoraNameMes.tex_block);
     int slot = WepMenu.weapon_slot - 1;
@@ -75,16 +76,15 @@ void WeaponNameDrawPort(int y, int selected_only, int alpha) {
     AtoraNameMes.value_signed = true;
 
     for (int i = 0; i < 3; i++) {
-        int mes_no;
+        int mes_no = 999;
         int level = 0;
 
-        if (x < -140 || x > 630 || (selected_only == 1 && slot != WepMenu.weapon_slot) || slot < 0 || slot > 9 ||
-            ((WepMenu.state == WEP_STATE_STATUS_BREAK_EFFECT || WepMenu.state == WEP_STATE_BUILDUP_EFFECT) && slot == WepMenu.weapon_slot) ||
-            (WepMenu.mode > WEP_MENU_LIST && slot != WepMenu.weapon_slot) ||
-            (WepMenu.state != WEP_STATE_REPAIR_EFFECT && WepMenu.state >= WEP_STATE_STATUS_BREAK_EFFECT && WepMenu.state < WEP_STATE_WARNING) ||
-            (WepMenu.state == WEP_STATE_LEVELUP_EFFECT && slot != WepMenu.weapon_slot)) {
-            mes_no = 999;
-        } else {
+        const bool hidden = x < -140 || x > 630 || (selected_only == 1 && slot != WepMenu.weapon_slot) || slot < 0 || slot > 9 ||
+                            ((WepMenu.state == WEP_STATE_STATUS_BREAK_EFFECT || WepMenu.state == WEP_STATE_BUILDUP_EFFECT) && slot == WepMenu.weapon_slot) ||
+                            (WepMenu.mode > WEP_MENU_LIST && slot != WepMenu.weapon_slot) ||
+                            (WepMenu.state != WEP_STATE_REPAIR_EFFECT && WepMenu.state >= WEP_STATE_STATUS_BREAK_EFFECT && WepMenu.state < WEP_STATE_WARNING) ||
+                            (WepMenu.state == WEP_STATE_LEVELUP_EFFECT && slot != WepMenu.weapon_slot);
+        if (!hidden) {
             mes_no = GetWeaponMsgNo(&DngWepHavePt[slot]);
 
             if (mes_no < 0 || slot < 0) {
@@ -191,6 +191,8 @@ void DrawWeaponTagBoardPort(int x, int y, WEAPON_HAVE *weapon, int build, int we
                 break;
             case WEP_TAG_VS_MONSTER:
                 DrawWeaponVsMonster(x, y, weapon, build, weapon_no, alpha);
+                break;
+            default:
                 break;
         }
     }
@@ -678,9 +680,9 @@ void PortWeaponMenuDraw() {
     int alpha = 0x80;
 
     if (WepMenu.state == WEP_STATE_OPEN) {
-        alpha = std::min(0x80, static_cast<int>(WepMenu.counter * 9));
+        alpha = std::min(0x80, WepMenu.counter * 9);
     } else if (WepMenu.state == WEP_STATE_CLOSE) {
-        alpha = std::max(0, static_cast<int>(0x80 - WepMenu.counter * 9));
+        alpha = std::max(0, 0x80 - WepMenu.counter * 9);
     }
 
     int attach_mode = 0;
@@ -705,22 +707,22 @@ void PortWeaponMenuDraw() {
 
                 if (attach_mode == 0 || i == WepMenu.chara) {
                     CTexture *face = MenuCharaFace;
-                    int       scratch = 0;
+                    int       face_u = 0;
                     const int face_char = SysChara[i].chara;
-                    int       v = face_char * 0x6A;
+                    int       face_v = face_char * 0x6A;
 
                     if (face_char > 2) {
-                        scratch = 0x6A;
-                        v = (face_char - 3) * 0x6A;
+                        face_u = 0x6A;
+                        face_v = (face_char - 3) * 0x6A;
                     }
                     if (BtlMenuStatusPt->party_size <= i) {
                         face = BtStatus;
-                        v = 0x8C;
-                        scratch = 0x8C;
+                        face_v = 0x8C;
+                        face_u = 0x8C;
                     }
 
                     DrawMenu2DSprite(face, CRect_i_(SysChara[i].x, 0xE, 0x64, 0x64),
-                                     CRect_i_(scratch, v, 0x6A, 0x6A), alpha, alpha, alpha, alpha);
+                                     CRect_i_(face_u, face_v, 0x6A, 0x6A), alpha, alpha, alpha, alpha);
                 }
             }
 
@@ -728,20 +730,22 @@ void PortWeaponMenuDraw() {
 
             if (attach_mode == 0) {
                 static int arrow_ct = 0;
-                int        scratch = alpha;
+                int        arrow_alpha = alpha;
                 if (WepMenu.mode == WEP_MENU_LIST) {
                     arrow_ct = (arrow_ct + 1) % 1000000;
                 } else {
-                    scratch = 0;
+                    arrow_alpha = 0;
                 }
                 if (arrow_ct % 50 < 30) {
                     const int step = (arrow_ct % 30) / 10 * 2;
                     CRect_i_  arrow(0x60, 0x68, 10, 0x18);
-                    DrawMenu2DSprite(BtStatus, CRect_i_(0x102 - step, 0x48, arrow.width, arrow.height), arrow, scratch);
+                    DrawMenu2DSprite(BtStatus, CRect_i_(0x102 - step, 0x48, arrow.width, arrow.height), arrow, arrow_alpha);
                     arrow.x += arrow.width;
-                    DrawMenu2DSprite(BtStatus, CRect_i_(step + 0x174, 0x48, arrow.width, arrow.height), arrow, scratch);
+                    DrawMenu2DSprite(BtStatus, CRect_i_(step + 0x174, 0x48, arrow.width, arrow.height), arrow, arrow_alpha);
                 }
             }
+            break;
+        default:
             break;
     }
 
@@ -759,15 +763,15 @@ void PortWeaponMenuDraw() {
     WeaponPos += (static_cast<float>(target_x) - WeaponPos) / 4.0f;
     WepPolyPos += (target_depth - WepPolyPos) / 4.0f;
 
-    int scratch = alpha;
+    int weapon_alpha = alpha;
     if (WepMenu.state == WEP_STATE_UNK_3) {
-        scratch = alpha - 9;
+        weapon_alpha = alpha - 9;
     } else if (WepMenu.state == WEP_STATE_CHARA_CHANGE) {
-        scratch = WepMenu.counter * 5;
+        weapon_alpha = WepMenu.counter * 5;
     }
-    scratch = std::clamp(scratch, 0, 0x80);
+    weapon_alpha = std::clamp(weapon_alpha, 0, 0x80);
 
-    BtlWeaponDraw(static_cast<int>(WeaponPos), WepPolyPos, WepMenu.chara, scratch);
+    BtlWeaponDraw(static_cast<int>(WeaponPos), WepPolyPos, WepMenu.chara, weapon_alpha);
 
     if (attach_mode == 0) {
         constexpr u8 repair_x[7] = {78, 78, 78, 26, 64, 64, 66};
@@ -805,7 +809,7 @@ void PortWeaponMenuDraw() {
             [[fallthrough]];
         case WEP_MENU_ACTION:
             if (GetNowSelectWeaponPort() != nullptr) {
-                DrawWeaponSelectDialog(dialog_pos, dialog_pos, scratch);
+                DrawWeaponSelectDialog(dialog_pos, dialog_pos, weapon_alpha);
             }
             break;
         case WEP_MENU_LIST:
@@ -825,6 +829,8 @@ void PortWeaponMenuDraw() {
                 MenuTextureReload(MenuShadowReadBlock);
                 DrawMenuVibeItem(static_cast<int>(SysCur[0]), static_cast<int>(SysCur[1]), 2, -0xC, 0x80);
             }
+            break;
+        default:
             break;
     }
 
@@ -985,19 +991,18 @@ void PortWeaponMenuDraw() {
     }
 
     DNG_CONSUMABLE *consumables = BtlMenuStatusPt->consumable_items;
-    if (WepMenu.mode <= WEP_MENU_LIST) {
-        scratch = 0x40;
-    } else if (BtlHaveItemPt->item_no >= ITEM_ATTACH_START) {
-        cursor_x += 0x12;
-        cursor_y += 0xE;
-        scratch = 0x80;
-    } else if ((WepMenu.mode == WEP_MENU_ATTACH_SOCKETS && DngWepHavePt[slot].attach[WepMenu.board.cursor].item_no >= ITEM_ATTACH_START) ||
-               (WepMenu.mode == WEP_MENU_ATTACH_BOARD && consumables[WepMenu.board.cursor].id >= ITEM_ATTACH_START)) {
-        cursor_x += 10;
-        cursor_y += 0x18;
-        scratch = 0x60;
-    } else {
-        scratch = 0x40;
+    int             cursor_alpha = 0x40;
+    if (WepMenu.mode > WEP_MENU_LIST) {
+        if (BtlHaveItemPt->item_no >= ITEM_ATTACH_START) {
+            cursor_x += 0x12;
+            cursor_y += 0xE;
+            cursor_alpha = 0x80;
+        } else if ((WepMenu.mode == WEP_MENU_ATTACH_SOCKETS && DngWepHavePt[slot].attach[WepMenu.board.cursor].item_no >= ITEM_ATTACH_START) ||
+                   (WepMenu.mode == WEP_MENU_ATTACH_BOARD && consumables[WepMenu.board.cursor].id >= ITEM_ATTACH_START)) {
+            cursor_x += 10;
+            cursor_y += 0x18;
+            cursor_alpha = 0x60;
+        }
     }
 
     SysCur[0] += (static_cast<float>(cursor_x) - SysCur[0]) / 4.0f;
@@ -1028,8 +1033,8 @@ void PortWeaponMenuDraw() {
             setbilinear(0);
             MenuTextureReload(BtlMenuReadBlock);
             DrawMenuWaku(frame.x, frame.y, frame.width, frame.height, shadow, StayTex, 0x80);
-            const int big = (scratch >= 0x80) ? 0 : 1;
-            DrawMenuObjectVibe(static_cast<int>(SysCur[0]), static_cast<int>(SysCur[1]), big, scratch);
+            const int big = (cursor_alpha >= 0x80) ? 0 : 1;
+            DrawMenuObjectVibe(static_cast<int>(SysCur[0]), static_cast<int>(SysCur[1]), big, cursor_alpha);
             return;
         }
     }

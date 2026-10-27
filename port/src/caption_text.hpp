@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <optional>
 #include <span>
 #include <string>
@@ -11,9 +12,18 @@ struct PortDecodedTexture;
 
 namespace caption {
 
+/**
+ * RGB of the menu captions' painted letter fill.
+ */
 constexpr unsigned char kFill[3] = {232, 226, 183};
+/**
+ * RGB of the menu captions' painted outline.
+ */
 constexpr unsigned char kOutline[3] = {1, 0, 201};
 
+/**
+ * Number of main menu icons that carry a caption.
+ */
 constexpr int kIcons = 14;
 
 /**
@@ -31,20 +41,34 @@ void SetNextCaptionText(std::string_view text);
  */
 std::vector<std::pair<std::string, std::string>> Strings();
 
+/**
+ * Whether the caption font is loaded and captions can draw.
+ */
 bool Ready();
 
+/**
+ * Whether the caption font and its narrower variant are loaded.
+ */
 bool ThinReady();
 
+/**
+ * Whether the caption font and the status font are loaded.
+ */
 bool StatusReady();
 
-// Whether the title menu's font (Chronicle Title) can draw.
+/**
+ * Whether the title menu's font (Chronicle Title) can draw.
+ */
 bool TitleReady();
 
 /**
  * Painted caption bounds in logical pixels relative to its label sprite.
  */
 struct CaptionBounds {
-    float left, top, width, height;
+    float left;
+    float top;
+    float width;
+    float height;
 };
 
 /**
@@ -77,13 +101,14 @@ bool DrawTitle(std::string_view utf8, int x, int y, float left, float right, flo
  */
 bool DrawButtonWord(std::string_view word, float x, float y, int bright, int alpha, bool pressed = false);
 
-// A floor label's letter (counted from 0, spaces not counted) drawn widen pixels wider, the letters after it moved along
-// with it, it and the letters after it moved by move, and it alone raised by raise.
+/**
+ * A per-letter adjustment to a floor label drawn by DrawFloorLabel().
+ */
 struct FloorAdjust {
-    int   letter;
-    float widen = 0;
-    float move = 0;
-    float raise = 0;
+    int   letter;    /**< Letter index from 0, spaces not counted. */
+    float widen = 0; /**< Pixels wider; the letters after it move along with it. */
+    float move = 0;  /**< Pixels it and the letters after it move right. */
+    float raise = 0; /**< Pixels it alone is raised. */
 };
 
 /**
@@ -105,22 +130,25 @@ bool DrawAlphabetCell(int u, int v, int texel_width, int texel_height, float x, 
                       int g, int b, int alpha);
 
 /**
+ * A per-letter adjustment to a name drawn by DrawBoardName().
+ */
+struct BoardAdjust {
+    char32_t ch;          /**< The letter adjusted. */
+    float    left;        /**< Added to how far every ch in the name reaches past its place on the left. */
+    float    right;       /**< Added to how far every ch in the name reaches past its place on the right. */
+    float    advance = 0; /**< Added to where the rest of its word goes (a space's: the rest of the name). */
+    float    move = 0;    /**< How far it is drawn right of its place, the letters after it staying put. */
+    int      nth = -1;    /**< Which ch (from 0) advance and move apply to, or -1 for every one. */
+};
+
+/**
  * Draws a name as the floor-select board's painted names look (the boss floors'): pale yellow letters of the narrower
  * set in a thin navy outline, each as wide as the painting has that letter and spaced as it spaces them (the stretch
  * made before it is outlined), the whole squeezed by squeeze as the painting squeezes a long name, from left_x, the
  * caps from cap_top; adjust changes how far a letter reaches either side, and where the rest of its word goes, in
  * this name alone. Only what lies between clip_top and clip_bottom is drawn (a row the board's list has scrolled
- * part way out). False when there is no
- * font to draw it with.
+ * part way out). False when there is no font to draw it with.
  */
-struct BoardAdjust {
-    char32_t ch;
-    float    left, right; // added to how far every ch in the name reaches past its place either side
-    float    advance = 0; // added to where the rest of its word goes (a space's: the rest of the name)
-    float    move = 0;    // how far it is drawn right of its place, the letters after it staying put
-    int      nth = -1;    // which ch (from 0) advance and move are for, or every one; left and right are every one's
-};
-
 bool DrawBoardName(std::string_view utf8, float left_x, float cap_top, float squeeze, std::span<const BoardAdjust> adjust,
                    float clip_top, float clip_bottom, int alpha);
 
@@ -145,21 +173,32 @@ struct LineStyle {
     float         glow_width = 0.0f;
     float         glow_amount = 0.0f;
 
-    float letter = 0.0f, word = 0.0f, xscale = 1.0f, yscale = 1.0f, dx = 0.0f, dy = 0.0f;
-    float weight = 0.0f, opacity = 1.0f;
-    float alpha = 1.0f; // how opaque the line is drawn (opacity darkens it instead)
+    float letter = 0.0f; /**< Extra space between letters. */
+    float word = 0.0f;   /**< Extra space for a word space. */
+    float xscale = 1.0f;
+    float yscale = 1.0f;
+    float dx = 0.0f;
+    float dy = 0.0f;
+    float weight = 0.0f;  /**< Extra stroke weight, drawn as offset copies of the fill. */
+    float opacity = 1.0f; /**< Darkens the line's colours. */
+    float alpha = 1.0f;   /**< How opaque the line is drawn. */
 
-    bool  ink_fit = false;
+    bool  ink_fit = false; /**< Fits the letters' ink exactly to the cap height. */
     bool  thin = false;
     bool  status_font = false;
     bool  title_font = false;
-    float kern = 0.0f; // the font's kerning between letters, at this strength (0 for none)
-    // Letters set by their outlines rather than their pictures. A picture's soft edge is a pixel of the window, so its
-    // share of a logical pixel, and with it the spacing, would change with the window's size.
+    float kern = 0.0f; /**< Strength of the font's kerning between letters (0 for none). */
+    /**
+     * Letters set by their outlines rather than their pictures. A picture's soft edge is a pixel of the window, so its
+     * share of a logical pixel, and with it the spacing, would change with the window's size.
+     */
     bool ink_spacing = false;
 
-    const FillField *field = nullptr;
-    float            field_x = 0.0f, field_y = 0.0f, field_w = 1.0f, field_h = 1.0f;
+    const FillField *field = nullptr; /**< Optional field the fill colours are sampled from. */
+    float            field_x = 0.0f;
+    float            field_y = 0.0f;
+    float            field_w = 1.0f;
+    float            field_h = 1.0f;
 
     std::vector<std::array<float, 2>> slots; /**< Absolute left/right ink bounds per non-space glyph. */
 };
@@ -177,7 +216,7 @@ struct LineBounds {
  */
 struct LetterWidth {
     float width;
-    bool  blank;
+    bool  blank; /**< A word space rather than a glyph. */
 };
 
 /**
