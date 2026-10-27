@@ -6,13 +6,21 @@
 #include <sifdev.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 
+#include "battlemenu.hpp"
 #include "boxvu0.hpp"
 #include "camera.hpp"
 #include "camera_port.hpp"
@@ -25,7 +33,9 @@
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "debugfont.hpp"
+#include "dialog_npc.hpp"
 #include "dngstatusdata.hpp"
+#include "draw2d_port.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
 #include "edit_in.hpp"
@@ -35,24 +45,35 @@
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
+#include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "effect.hpp"
 #include "effectgroup.hpp"
+#include "effectmacro.hpp"
+#include "eparts_port.hpp"
+#include "fishing.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
+#include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "mapparts.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
+#include "memcard.hpp"
+#include "menu_draw.hpp"
 #include "menu_misc.hpp"
+#include "menuetc.hpp"
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
+#include "nowload.hpp"
 #include "npcharacter.hpp"
 #include "objanime.hpp"
 #include "objectframe.hpp"
+#include "platform/arena.hpp"
 #include "platform/input.hpp"
 #include "rect.hpp"
 #include "runeffect.hpp"
@@ -60,30 +81,17 @@
 #include "snd.hpp"
 #include "sysmes.hpp"
 #include "texture.hpp"
-
-/* Retail editloop.cpp: town-script parsing, map construction and pre-event editor state. */
-
-void BtSetMapJumpFloor(int floor);
-
-#include "battlemenu.hpp"
-#include "editmenu.hpp"
-#include "effectmacro.hpp"
-#include "fishing.hpp"
-#include "gameutil.hpp"
-#include "memcard.hpp"
-#include "menu_draw.hpp"
-#include "menuetc.hpp"
-#include "nowload.hpp"
 #include "vutext.hpp"
 #include "weaponlevelup.hpp"
 #include "wind.hpp"
 
+/* Town-script parsing, map construction and pre-event editor state. */
+
 // The bodies are retail's, which pass string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's EditLoop without its VU1 program upload, which aborts in the port. EditLoop calls the
-// static RunEvent and RunSystemEvent, so they come along. It also calls editloop's MainDraw, which
-// is kept here as EditMainDraw.
+void BtSetMapJumpFloor(int floor);
+
 namespace {
 void EditMainDraw();
 }
@@ -125,20 +133,20 @@ void                MainMode();
 void                EditMode();
 void                PlayAmbient(float volume);
 
-/* The ground the player has built on one map, as the save holds it. */
+void EBDraw();
+
 namespace {
+/**
+ * The ground the player has built on one map, as the save holds it.
+ */
 struct ED_GRD_DATA {
     u8  unk_00[0x64];
     int complete_event_seen; /**< Zero until the map's own build event has been seen. */
 };
-} // namespace
-
-void EBDraw();
 
 /**
  * Starts a map event and copies an optional source camera into the event camera.
  */
-namespace {
 int RunEvent(int event_no, CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR reference;
@@ -163,7 +171,7 @@ int RunEvent(int event_no, CCamera *camera) {
 /**
  * Starts a system event and copies an optional source camera into the event camera.
  */
-static void RunSystemEvent(int event_no, CCamera *camera) {
+void RunSystemEvent(int event_no, CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR reference;
 
@@ -215,17 +223,12 @@ int EdSetMapFlag(int flag_no, int value) {
 
 /**
  * Runs one frame of the editor and reports what it is to do next.
- *
- * @mangled EditLoop__Fv
- * @address 0x1797E0
- * @size 0x1FE8
  */
 int EditLoop() {
     goto_return_menu = 0;
 
-    // Pausing is a walking action: a cutscene/event must not open the pause menu over itself.
-    // Retail clears the flag again in the event case, but gating the input here keeps the intent
-    // (and the pause menu, which reads state only valid outside an event) safe at the source.
+    // Pausing is a walking action: an event must not open the pause menu, which reads state only
+    // valid outside an event, over itself.
     if (GameMode != ED_MODE_EVENT && EdPadDown(0x800, 4) != 0) {
         goto_return_menu = 1;
     }
@@ -233,8 +236,6 @@ int EditLoop() {
     if (MapNo < TOWN_COUNT && loop_counter == 60 && GameMode == ED_MODE_WALK) {
         EdWalkToEditMes(0);
     }
-
-    [[maybe_unused]] static int end_count = -1;
 
     if (GameMode != ED_MODE_EVENT) {
         if (EdCheckViewMode() != 0) {
@@ -265,7 +266,7 @@ int EditLoop() {
 
     int mode = GameMode;
 
-    if (mode == 0xC) {
+    if (mode == ED_MODE_MAP_JUMP) {
         EdInteriorFlag = 1;
 
         int interior_result = EditInLoop();
@@ -296,7 +297,7 @@ int EditLoop() {
 
             MGFillBox(CRect_i_(0, 0, 0x2800, SCREEN_HALF_HEIGHT * 16), 0, 0, 0, 0x80);
 
-            ED_EVENT_PARAM entry;
+            ED_EVENT_PARAM entry{};
 
             if (EdSearchEvent(&entry, EdInteriorName, EdInteriorJumpID, NowTime) != 0) {
                 sceVu0CopyVector(fix_chara_pos, entry.position);
@@ -364,18 +365,17 @@ int EditLoop() {
     EdInteriorFlag = 0;
 
     if (interior_test != 0) {
-        static int                  top = 0;
-        static int                  select = 0;
-        [[maybe_unused]] static int cur = 0;
-        static char                *menu[64];
+        static int             select = 0;
+        std::array<char *, 64> menu{};
 
-        for (int i = 0; i < 64; i++) {
+        for (std::size_t i = 0; i < menu.size(); i++) {
             menu[i] = interior_name[i];
         }
 
-        int count;
+        int count = 0;
 
-        for (count = 0; menu[count][0] != '\0'; count++) {
+        while (menu[count][0] != '\0') {
+            count++;
         }
 
         if (count == 0) {
@@ -392,47 +392,43 @@ int EditLoop() {
             select--;
         }
 
-        if (select < 0) {
-            select = 0;
-        }
+        select = std::max(select, 0);
 
         if (select >= count) {
             select = count - 1;
         }
 
-        top = 0;
+        const int top = select >= 14 ? select - 13 : 0;
 
-        if (select >= 14) {
-            top = select - 13;
-        }
-
-        char *mark[2] = {" ", ">"};
+        constexpr std::array<std::string_view, 2> mark = {" ", ">"};
+        constexpr int                             text_capacity = sizeof(DebugFont__3.text);
 
         DebugFont__3.length = 0;
 
         for (int i = top; i < std::min(top + 14, count); i++) {
-            const int remaining = static_cast<int>(sizeof(DebugFont__3.text)) - DebugFont__3.length;
+            const int remaining = text_capacity - DebugFont__3.length;
             if (remaining <= 1) {
                 break;
             }
 
-            const int written = snprintf(&DebugFont__3.text[DebugFont__3.length], static_cast<size_t>(remaining),
-                                         "%s %s\n", mark[i == select], menu[i]);
-            if (written < 0 || written >= remaining) {
-                DebugFont__3.text[sizeof(DebugFont__3.text) - 1] = '\0';
-                DebugFont__3.length = sizeof(DebugFont__3.text) - 1;
+            const auto result = std::format_to_n(&DebugFont__3.text[DebugFont__3.length], remaining - 1, "{} {}\n",
+                                                 mark[i == select ? 1 : 0], std::string_view(menu[i]));
+            if (result.size >= remaining) {
+                DebugFont__3.text[text_capacity - 1] = '\0';
+                DebugFont__3.length = text_capacity - 1;
                 break;
             }
 
-            DebugFont__3.length += written;
+            *result.out = '\0';
+            DebugFont__3.length += static_cast<int>(result.size);
         }
 
         TexManager.ReloadTexture(GetVif1Packet(), 0x1F);
         DebugFont__3.Draw();
 
         if (GamePad.Down(PAD_CIRCLE) != 0) {
-            const size_t name_length = std::strlen(menu[select]);
-            if (name_length >= sizeof(interior_map_name)) {
+            const std::string_view name = menu[select];
+            if (name.size() >= std::size(interior_map_name)) {
                 return 0;
             }
 
@@ -444,7 +440,8 @@ int EditLoop() {
             while (ReadBGSync() != 0) {
             }
 
-            std::memcpy(interior_map_name, menu[select], name_length + 1);
+            std::ranges::copy(name, interior_map_name);
+            interior_map_name[name.size()] = '\0';
             EditInInit(NowTime, interior_map_name);
         }
 
@@ -639,6 +636,8 @@ int EditLoop() {
                     case EDIT_MENU_MODE_EVENT:
                         FadeOutToEvent(EditMenuStatus.event_no + 0xC8, 0);
                         break;
+                    default:
+                        break;
                 }
 
                 EdExitMenu();
@@ -690,12 +689,9 @@ int EditLoop() {
             NowCamera = static_cast<CCamera *>(&MainCamera);
             Chara->GetVelocity()->y = 0.0f;
 
-            CCharacter *chara;
-            chara = Chara;
-
-            chara->motion_no = 0;
-            chara->motion_flags = 0;
-            chara->motion_speed = -1.0f;
+            Chara->motion_no = 0;
+            Chara->motion_flags = 0;
+            Chara->motion_speed = -1.0f;
             Chara->Step();
             Chara->ClothStep(0);
             Chara->ShadowStep();
@@ -717,7 +713,7 @@ int EditLoop() {
                     BG_READ_INFO *file = GetReadBGFile(i);
 
                     if (file != nullptr) {
-                        u_int *pack = reinterpret_cast<u_int *>(file->buffer);
+                        auto *pack = reinterpret_cast<u_int *>(file->buffer);
 
                         EdLoadVillager(pack, EdVillager[i].resource_name, &EdVillager[i], &EdVillagerBuffer);
                     }
@@ -742,6 +738,7 @@ int EditLoop() {
         case ED_MODE_MAP_JUMP:
         case ED_MODE_UNK_D:
         case ED_MODE_UNK_F:
+        default:
             break;
     }
 
@@ -799,6 +796,8 @@ int EditLoop() {
             EditNameMes.MakeMesWin(-1);
             EdFadeInOut();
             break;
+        default:
+            break;
     }
 
     CheckKeyLock();
@@ -851,8 +850,8 @@ int EditLoop() {
                 EditCamera.GetRef(at);
                 MainCamera.SetRef(at);
 
-                int          requested_count = 0;
-                ED_GRD_DATA *ground_data = reinterpret_cast<ED_GRD_DATA *>(SaveData->GetGrdData(MapNo));
+                int   requested_count = 0;
+                auto *ground_data = reinterpret_cast<ED_GRD_DATA *>(SaveData->GetGrdData(MapNo));
 
                 if (ground_data != nullptr && ground_data->complete_event_seen == 0) {
                     for (int i = 0; i < 24; i++) {
@@ -881,9 +880,7 @@ int EditLoop() {
         EditCamera.SetSpeed(8.0f);
     }
 
-    if (move_count < 0) {
-        move_count = 0;
-    }
+    move_count = std::max(move_count, 0);
 
     move_count--;
 
@@ -1034,25 +1031,23 @@ int EditLoop() {
 
     event_next--;
 
-    if (event_next < 0) {
-        event_next = 0;
-    }
+    event_next = std::max(event_next, 0);
 
     if (event_next == 1) {
         start_event_no = 0x96;
     }
 
     if (GameMode != ED_MODE_EVENT) {
-        if ((static_cast<CMainChara *>(Chara))->move_info.landed != 0 && loop_counter > 10) {
-            if ((static_cast<CMainChara *>(Chara))->move_info.ground_poly.attr.ground_kind > 0) {
-                RunEvent((static_cast<CMainChara *>(Chara))->move_info.ground_poly.attr.ground_kind, NowCamera);
-                (static_cast<CMainChara *>(Chara))->move_info.ground_poly.attr.ground_kind = 0;
-            }
+        auto *player = static_cast<CMainChara *>(Chara);
+
+        if (player->move_info.landed != 0 && loop_counter > 10 && player->move_info.ground_poly.attr.ground_kind > 0) {
+            RunEvent(player->move_info.ground_poly.attr.ground_kind, NowCamera);
+            player->move_info.ground_poly.attr.ground_kind = 0;
         }
     }
 
     // An event starting clears the time-of-day text left from walking, so it is not drawn over a
-    // cutscene (#72); the text an event starts itself (the time-change event's _DRAW_DAY) is drawn.
+    // cutscene; the text an event starts itself (the time-change event's _DRAW_DAY) is drawn.
     if (EdDebugEventEnable != 0 && (start_event_no > 0 || start_system_event > 0)) {
         sceVu0FVECTOR camera_pos;
         sceVu0FVECTOR camera_ref;
@@ -1095,7 +1090,8 @@ int EditLoop() {
     PauseOffCheck();
     static int old_mode;
 
-    if (static_cast<unsigned int>(GameMode - 9) < 2U && EdPadDown(0x800, 0xFFFF) != 0) {
+    if ((GameMode == ED_MODE_RETURN_MENU_WALK || GameMode == ED_MODE_RETURN_MENU_GEORAMA) &&
+        EdPadDown(0x800, 0xFFFF) != 0) {
         GameMode = old_mode;
         EdSePlay(static_cast<ED_SOUND_ID>(2), -1);
         PlayTimeCountFlag(1);
@@ -1145,18 +1141,14 @@ int EditLoop() {
 
     end_counter--;
 
-    if (end_counter < 0) {
-        end_counter = 0;
-    }
+    end_counter = std::max(end_counter, 0);
 
     SndStep();
     loop_counter++;
     key_counter++;
     sound_off_cnt--;
 
-    if (sound_off_cnt < 0) {
-        sound_off_cnt = 0;
-    }
+    sound_off_cnt = std::max(sound_off_cnt, 0);
 
     DebugFont__3.length = 0;
 
@@ -1167,9 +1159,9 @@ int EditLoop() {
     return 0;
 }
 
+namespace {
 // How far from the player retail draws a villager (KeepNearVillagers, editloop3.cpp); the port
 // keeps those within video.detail_distance too.
-namespace {
 constexpr float kRetailVillagerReach = 150.0f;
 
 /**
@@ -1180,7 +1172,7 @@ constexpr float kRetailVillagerReach = 150.0f;
  * place. far_marks receives the draw marks of the villagers drawn here, which the characters' own
  * pass then leaves out; returns whether it marked any.
  */
-static bool EdDrawBeyondRetailReach(int *far_marks) {
+bool EdDrawBeyondRetailReach(int *far_marks) {
     bool drawn = false;
 
     for (int i = 0; i < 10; i++) {
@@ -1238,23 +1230,14 @@ static bool EdDrawBeyondRetailReach(int *far_marks) {
 }
 
 /**
- * Draws the editor's world for one frame.
- *
- * @mangled MainDraw__Fv
- * @address 0x17B7D0
- * @size 0x11D8
+ * Draws the editor's world for one frame (retail's MainDraw).
  */
 void EditMainDraw() {
-    ED_EVENT_INFO *event;
-    int            shadow_on;
-    int            detail;
-    int           *marks;
-    int            i;
-    auto           far_marks = std::make_unique<int[]>(10);
-    bool           far_drawn = false;
+    auto far_marks = std::make_unique<int[]>(10);
+    bool far_drawn = false;
 
     if (EdDrawOffFlag == 0) {
-        if (EdPauseFlag != 0 || static_cast<unsigned int>(GameMode - 9) < 2U) {
+        if (EdPauseFlag != 0 || GameMode == ED_MODE_RETURN_MENU_WALK || GameMode == ED_MODE_RETURN_MENU_GEORAMA) {
             CTextureAnime::stop_anime = 1;
         } else {
             CTextureAnime::stop_anime = 0;
@@ -1278,12 +1261,11 @@ void EditMainDraw() {
 
             // Georama mode draws the parts at walking's levels of detail, where retail drew them all at
             // their coarsest.
-            float far_lod;
-            float near_lod = 2.0f;
-            far_lod = 0.0f;
-            float mid_lod = 0.0f;
+            constexpr int far_lod = 0;
+            constexpr int near_lod = 2;
+            constexpr int mid_lod = 0;
 
-            pEditGround->Draw(NowTime, 1, static_cast<int>(far_lod), static_cast<int>(near_lod), static_cast<int>(mid_lod), static_cast<int>(near_lod));
+            pEditGround->Draw(NowTime, 1, far_lod, near_lod, mid_lod, near_lod);
 
             if (edit_mode_draw != 0) {
                 sceVu0FVECTOR at;
@@ -1297,7 +1279,7 @@ void EditMainDraw() {
 
             TexManager.ReloadTexture(Vif1Packet, 2);
             TexAnime.TexAnime(2);
-            pEditGround->Draw(NowTime, 2, static_cast<int>(far_lod), static_cast<int>(near_lod), 0, 3);
+            pEditGround->Draw(NowTime, 2, far_lod, near_lod, 0, 3);
 
             if (edit_mode_draw != 0) {
                 sceVu0FVECTOR at2;
@@ -1351,6 +1333,8 @@ void EditMainDraw() {
                     MGSetGsZBUF(&mgZBuffer);
                     break;
                 }
+                default:
+                    break;
             }
 
             pEditGround->DrawRipple(0x15);
@@ -1389,15 +1373,10 @@ void EditMainDraw() {
                 Chara->Step();
                 Chara->ShadowStep();
 
-                for (i = 0; i < 10; i++) {
+                for (int i = 0; i < 10; i++) {
                     CNPCharacter *villager = &EdVillager[i];
-                    unsigned char drawable = villager->initialized != 0;
 
-                    if (drawable != 0) {
-                        drawable = villager->draw_enabled != 0;
-                    }
-
-                    if (drawable != 0) {
+                    if (villager->initialized != 0 && villager->draw_enabled != 0) {
                         int saved_sequence = villager->sequence_enabled;
 
                         villager->sequence_enabled = 0;
@@ -1415,15 +1394,15 @@ void EditMainDraw() {
             case ED_MODE_EVENT:
             case ED_MODE_TIME_CHANGE:
             case ED_MODE_DOOR_OPEN: {
-                event = nullptr;
-                shadow_on = 1;
-                detail = 3;
-                auto marks_store = std::make_unique<int[]>(10);
-                marks = marks_store.get();
-                float         chara_pos[4];
-                CBoxVu0       box;
-                constexpr int near_parts_capacity = 0x40;
-                auto          near_parts = std::make_unique<CMapParts *[]>(near_parts_capacity);
+                ED_EVENT_INFO *event = nullptr;
+                int            shadow_on = 1;
+                int            detail = 3;
+                auto           marks_store = std::make_unique<int[]>(10);
+                int           *marks = marks_store.get();
+                float          chara_pos[4];
+                CBoxVu0        box;
+                constexpr int  near_parts_capacity = 0x40;
+                auto           near_parts = std::make_unique<CMapParts *[]>(near_parts_capacity);
 
                 if (GameMode == ED_MODE_TALK || EdSystemMesCheck() != 0) {
                     shadow_on = 0;
@@ -1436,7 +1415,7 @@ void EditMainDraw() {
                 if (GameMode == ED_MODE_DOOR_OPEN) {
                     marks = nullptr;
                 } else {
-                    for (i = 0; i < 10; i++) {
+                    for (int i = 0; i < 10; i++) {
                         marks_store[i] = far_drawn && far_marks[i] != 0 ? 0 : 3;
                     }
                 }
@@ -1461,9 +1440,9 @@ void EditMainDraw() {
 
                 Chara->ClearPointLight();
 
-                for (i = 0; i < found; i++) {
+                for (int i = 0; i < found; i++) {
                     CMapParts *parts = near_parts[i];
-                    CFrame    *frame = static_cast<CFrame *>(parts->frame[0]);
+                    CFrame    *frame = parts->frame[0];
 
                     if (frame != nullptr) {
                         float transform[4];
@@ -1497,6 +1476,8 @@ void EditMainDraw() {
                 EdDrawCharacter(Chara, detail, 0xA, EdVillager, marks, shadow_on, event);
                 break;
             }
+            default:
+                break;
         }
 
         if (EdDrawOffMapShadow == 0 && EdDrawOffMap == 0) {
@@ -1533,7 +1514,7 @@ void EditMainDraw() {
             MGSetPLight(saved_light, light_colour);
         }
 
-        for (i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; i++) {
             TexManager.ReloadTexture(Vif1Packet, i + 0x1B);
             MotionParts[i].TextureAnime(i + 0x1B);
             MotionParts[i].Draw();
@@ -1578,10 +1559,10 @@ void EditMainDraw() {
                 case ED_MODE_RETURN_MENU_WALK:
                 case ED_MODE_RETURN_MENU_GEORAMA:
                     EditEffectStep2();
-                    CEditGround *ground = pEditGround;
-
-                    ground->DrawEffect(static_cast<CCameraFollow *>(NowCamera), NowTime, &EdEffectGroup);
+                    pEditGround->DrawEffect(static_cast<CCameraFollow *>(NowCamera), NowTime, &EdEffectGroup);
                     EdEffectGroup.Draw();
+                    break;
+                default:
                     break;
             }
 
@@ -1685,7 +1666,7 @@ void EditMainDraw() {
 }
 } // namespace
 
-// Retail's MoveCamera, the georama view's, with the mouse turning it beside the right stick.
+// The georama view's camera, turned by the mouse beside the right stick.
 void MoveCamera(CCameraFollow *camera) {
     float horizontal = MouseLookTurn(camera, 0.03f, GamePad.GetRXf());
     camera->AddHeight(-GamePad.GetRYf());
@@ -1707,9 +1688,7 @@ void MoveCamera(CCameraFollow *camera) {
     }
 }
 
-// Retail's EdDrawClock, kept in the window's top right corner.
-// DrawSysGra with the pause sprite not drawn from a null handle when an event left the texture
-// block without "pause" loaded (#113).
+// The pause sprite is skipped when an event left the texture block without "pause" loaded.
 void DrawSysGra() {
     if (EdDebugParamDrawOff == 0) {
         TexManager.ReloadTexture(Vif1Packet, 20);
@@ -1721,10 +1700,10 @@ void DrawSysGra() {
 
         DrawDay();
 
-        char      pause_texture[] = "pause";
-        CTexture *pause = TexManager.GetTexture(pause_texture, -1);
+        CTexture *pause = TexManager.GetTexture("pause", -1);
 
-        if (pause != nullptr && (static_cast<unsigned int>(GameMode - 9) <= 1 || EdPauseFlag != 0)) {
+        if (pause != nullptr &&
+            (GameMode == ED_MODE_RETURN_MENU_WALK || GameMode == ED_MODE_RETURN_MENU_GEORAMA || EdPauseFlag != 0)) {
             CRect_i_ fade;
             fade.x = 0;
             fade.y = 0;
@@ -1748,6 +1727,7 @@ void DrawSysGra() {
     }
 }
 
+// Kept in the window's top right corner.
 void EdDrawClock(int x, int y) {
     if (draw_clock != 0 && EditMapInfo->time_stop == 0) {
         gfx::UiAnchorScope anchor(gfx::UiAnchor::Side(1, -1));
@@ -1790,13 +1770,13 @@ int LoadTexture() {
         return 0;
     }
 
-    constexpr std::size_t image_capacity = sizeof(EditMapInfo->images) / sizeof(EditMapInfo->images[0]);
+    constexpr std::size_t image_capacity = std::extent_v<decltype(EDIT_MAP_INFO::images)>;
     std::size_t           image_count = 0;
     while (image_count < image_capacity && EditMapInfo->images[image_count].name[0] != '\0') {
         image_count++;
     }
 
-    u_long128 *buffer = reinterpret_cast<u_long128 *>(DataBuffer__2.base + DataBuffer__2.used * 16);
+    auto *buffer = reinterpret_cast<u_long128 *>(DataBuffer__2.base + DataBuffer__2.used * 16);
 
     TexManager.Initialize(0x3FE0);
     TexManager.SetBuffer(buffer, 0x4E200);
@@ -1822,7 +1802,7 @@ int LoadTexture() {
     mes_blocks[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "syst04.img", nullptr));
     TexManager.LoadTextureBlock(-1, mes_blocks);
 
-    int common_size;
+    int common_size = 0;
 
     LoadFile("gedit/system/esys_cmn.pak", read_buffer, &common_size);
     wait_now_loading_vsync();
@@ -1853,8 +1833,8 @@ int LoadTexture() {
         {"#frame_image#640#" SCREEN_HEIGHT_STR "#4",      0x13, 0},
     };
 
-    auto blocks = std::make_unique<LOADTEXTURE_INFO2[]>(std::max(image_count + 1, sizeof(system_blocks) / sizeof(system_blocks[0])));
-    memcpy(blocks.get(), system_blocks, sizeof(system_blocks));
+    auto blocks = std::make_unique<LOADTEXTURE_INFO2[]>(std::max(image_count + 1, std::size(system_blocks)));
+    std::ranges::copy(system_blocks, blocks.get());
     blocks[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "sys_cmn.img", nullptr));
     blocks[5].name = reinterpret_cast<char *>(system_image);
     blocks[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s_eff.img", nullptr));
@@ -1903,7 +1883,7 @@ int LoadTexture() {
     SystemEffect[0].alpha_blend = true;
     SystemEffect[0].disable_z_write = true;
 
-    u_int *menu_data = reinterpret_cast<u_int *>(EdNPCBuffer.base + EdNPCBuffer.used * 16);
+    auto *menu_data = reinterpret_cast<u_int *>(EdNPCBuffer.base + EdNPCBuffer.used * 16);
 
     LoadFileMenuData("stayframe.img", menu_data);
     wait_now_loading_vsync();
@@ -1925,7 +1905,7 @@ int LoadTexture() {
         TexManager.LoadTextureBlock(-1, blocks.get());
         TexAnime.Initialize(TexAnimeData, 0x40);
 
-        int   anime_size;
+        int   anime_size = 0;
         char *anime_cfg = reinterpret_cast<char *>(GetPackFile(menu_data, "texanime.cfg", &anime_size));
 
         if (anime_cfg != nullptr) {
@@ -1956,132 +1936,26 @@ int LoadTexture() {
     return 0;
 }
 
-#include "common.h"
-
-#include <libgraph.h>
-#include <libpkt.h>
-#include <libvu0.h>
-#include <sifdev.h>
-
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <string>
-
-#include "battlemenu.hpp"
-#include "boxvu0.hpp"
-#include "camera.hpp"
-#include "camerafollow.hpp"
-#include "character.hpp"
-#include "clsmes.hpp"
-#include "collision.hpp"
-#include "dataalloc.hpp"
-#include "dataread.hpp"
-#include "dataset.hpp"
-#include "debugfont.hpp"
-#include "dialog_npc.hpp"
-#include "dngstatusdata.hpp"
-#include "ebattle.hpp"
-#include "edit.hpp"
-#include "edit_in.hpp"
-#include "editarea.hpp"
-#include "editground.hpp"
-#include "editloop.hpp"
-#include "editloop3.hpp"
-#include "editmapscript.hpp"
-#include "editmenu.hpp"
-#include "editpartsinfo.hpp"
-#include "effect.hpp"
-#include "effectgroup.hpp"
-#include "effectmacro.hpp"
-#include "fishing.hpp"
-#include "frame.hpp"
-#include "framevu1.hpp"
-#include "gamemode.hpp"
-#include "gamepad.hpp"
-#include "gameutil.hpp"
-#include "mainselect.hpp"
-#include "mapparts.hpp"
-#include "mathutil.hpp"
-#include "mds.hpp"
-#include "memcard.hpp"
-#include "menu_draw.hpp"
-#include "menu_misc.hpp"
-#include "menuetc.hpp"
-#include "menuitemstep.hpp"
-#include "mglib.hpp"
-#include "nowload.hpp"
-#include "npcharacter.hpp"
-#include "objanime.hpp"
-#include "objectframe.hpp"
-#include "platform/arena.hpp"
-#include "rect.hpp"
-#include "runeffect.hpp"
-#include "savedata.hpp"
-#include "snd.hpp"
-#include "sysmes.hpp"
-#include "texture.hpp"
-#include "vutext.hpp"
-#include "weaponlevelup.hpp"
-#include "wind.hpp"
-
-// The bodies are retail's, which pass string literals as char *.
-#pragma clang diagnostic ignored "-Wwritable-strings"
-
-// Retail's EditInit. It carves the town's objects out of EtcDataBuffer with quadword counts sized
-// for the PS2's classes (0x470 for four 4544-byte CCharacters); every one of them is larger on the
-// host, so each block here is sized from the host class.
-
-void BtSetMapJumpFloor(int floor);
-void LoadScript();
-int  LoadEditMapData(EDIT_MAP_INFO *info, char *name, int kind);
-void LoadGroundData();
-int  LoadTexture();
-void EditPartsObjectOnOff();
-void InitWorkBuffer();
-
-extern int           start_event_no;
-extern int           start_system_event;
-extern CCameraFollow EventCamera;
-
+// EditInit carves the town's objects out of EtcDataBuffer in quadword counts sized from the host
+// classes, all of which are larger than the PS2 ones.
 namespace {
-
 template <class T>
 int Quadwords(int count) {
     return static_cast<int>((sizeof(T) * count + 15) / 16);
 }
 
-// editloop.cpp's, which is static there.
-int EditInitRunEvent(int event_no, CCamera *camera) {
-    sceVu0FVECTOR position;
-    sceVu0FVECTOR reference;
-
-    if (start_event_no > 0 && simple_event == 0) {
-        return 0;
-    }
-
-    if (camera != nullptr) {
-        camera->GetPos(position);
-        camera->GetRef(reference);
-        EventCamera.SetPos(position);
-        EventCamera.SetRef(reference);
-        EventCamera.FollowOff();
-        EventCamera.SetRoll(0.0f);
-    }
-
-    start_event_no = event_no;
-    return 1;
+// Formats into a fixed name buffer, truncating and terminating as snprintf does.
+template <std::size_t N, class... Args>
+void FormatInto(char (&buffer)[N], std::format_string<Args...> format, Args &&...args) {
+    *std::format_to_n(buffer, N - 1, format, std::forward<Args>(args)...).out = '\0';
 }
-
 } // namespace
 
-int EditInit(void *param) {
+int EditInit(void * /*param*/) {
     std::string map_path;
     std::string save_path;
-    int         size;
-    int         mes_size;
+    int         size = 0;
+    int         mes_size = 0;
 
     oldGameMode = ED_MODE_NONE;
     NowTime = 0.0f;
@@ -2096,7 +1970,7 @@ int EditInit(void *param) {
     interior_test = 0;
 
     if (map_no < 9) {
-        snprintf(EditMapName, sizeof(EditMapName), "e0%d", map_no + 1);
+        FormatInto(EditMapName, "e0{}", map_no + 1);
     }
 
     int map_id = MapNo;
@@ -2105,9 +1979,9 @@ int EditInit(void *param) {
         int interior = map_id - 10;
 
         if (interior < 10) {
-            snprintf(EditMapName, sizeof(EditMapName), "s0%d", interior);
+            FormatInto(EditMapName, "s0{}", interior);
         } else {
-            snprintf(EditMapName, sizeof(EditMapName), "s%d", interior);
+            FormatInto(EditMapName, "s{}", interior);
         }
     }
 
@@ -2115,7 +1989,7 @@ int EditInit(void *param) {
         EditDataDir[0] = '\0';
         interior_test = 1;
     } else {
-        snprintf(EditDataDir, sizeof(EditDataDir), "gedit/%s/", EditMapName);
+        FormatInto(EditDataDir, "gedit/{}/", std::string_view(EditMapName));
     }
 
     bgm_play_flag = 0;
@@ -2156,34 +2030,20 @@ int EditInit(void *param) {
     } else {
         LoadEditMapData(EditMapInfo, "gedit/interior/mapinfo.cfg", MapNo);
         LoadFile("gedit/interior/interior.cfg", read_buffer, &size);
-        int c;
-        int column;
-        int row;
-        int count;
-        int read_pos;
-        u8 *text;
+        const u8 *text = reinterpret_cast<u8 *>(read_buffer);
+        int       read_pos = 0;
+        int       column = 0;
+        int       row = 0;
 
-        text = reinterpret_cast<u8 *>(read_buffer);
-        read_pos = 0;
-        count = size;
-        column = 0;
-        row = 0;
+        while (true) {
+            const u8 c = text[read_pos++];
 
-        while (c = text[read_pos++], (count < read_pos) ? 0 : 1) {
-            if (c >= 'a' && c < '{') {
-                interior_name[row][column] = c;
-                column++;
-                continue;
+            if (read_pos > size) {
+                break;
             }
 
-            if (c >= '0' && c < ':') {
-                interior_name[row][column] = c;
-                column++;
-                continue;
-            }
-
-            if (c == '/' || c == '_') {
-                interior_name[row][column] = c;
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '/' || c == '_') {
+                interior_name[row][column] = static_cast<char>(c);
                 column++;
                 continue;
             }
@@ -2316,8 +2176,7 @@ int EditInit(void *param) {
             pEditGround->MakePartsBox();
 
             for (int i = 0; i < 128; i++) {
-                *element_data = -1;
-                element_data++;
+                element_data[i] = -1;
             }
         }
 
@@ -2352,7 +2211,7 @@ int EditInit(void *param) {
     EdVillagerBuffer.limit = free_quads - 4;
     EdVillagerBuffer.used = 0;
     EdNPCReadBuffer = reinterpret_cast<u_long128 *>(EdNPCBuffer.base + EdNPCBuffer.used * 16 + (free_quads >> 1) * 16);
-    const std::uintptr_t read_address = reinterpret_cast<std::uintptr_t>(EdNPCReadBuffer);
+    const auto read_address = reinterpret_cast<std::uintptr_t>(EdNPCReadBuffer);
     EdNPCReadBuffer = reinterpret_cast<u_long128 *>(read_address + ((0x40 - (read_address & 0x3F)) & 0x3F));
 
     EdCreateVillagerTable(EditMapInfo);
@@ -2384,7 +2243,7 @@ int EditInit(void *param) {
     EditEventMes1.tex_block = 26;
     EditMes1.tex_buff = MesWinTexBuff_01;
     EditEventMes1.tex_buff = MesWinTexBuff_02;
-    short            *talk_mes = reinterpret_cast<short *>(EdMesBuffer.base + EdMesBuffer.used * 16);
+    auto             *talk_mes = reinterpret_cast<short *>(EdMesBuffer.base + EdMesBuffer.used * 16);
     std::string       mes_path;
     std::string       sys_path;
     const std::string language = LanguageCode > LANG_JAPANESE ? "_" + std::to_string(LanguageCode) : "";
@@ -2401,7 +2260,7 @@ int EditInit(void *param) {
     EditMes1.SetBuff(talk_mes);
     DialogNpcSetMessageFile(talk_loaded ? mes_path.data() : "");
     EdMesBuffer.Align64();
-    short *system_mes = reinterpret_cast<short *>(EdMesBuffer.base + EdMesBuffer.used * 16);
+    auto *system_mes = reinterpret_cast<short *>(EdMesBuffer.base + EdMesBuffer.used * 16);
 #ifdef PAL
     mes_path = std::string("gedit/system/editsys") + language + ".mes";
     LoadFile(mes_path.data(), system_mes, &mes_size);
@@ -2420,7 +2279,7 @@ int EditInit(void *param) {
     EditNameMes.tex_buff = MesWinTexBuff_11;
     EditNameMes.SetBuff(system_mes);
     EdMesBuffer.Align64();
-    short      *window_mes = reinterpret_cast<short *>(EdMesBuffer.base + EdMesBuffer.used * 16);
+    auto       *window_mes = reinterpret_cast<short *>(EdMesBuffer.base + EdMesBuffer.used * 16);
     std::string window_path = "meswin/system14";
     int         language_no = LanguageCode;
 
@@ -2480,9 +2339,9 @@ int EditInit(void *param) {
     int event_no = StartEventNo;
 
     if (event_no < 0) {
-        EditInitRunEvent(128, nullptr);
+        RunEvent(128, nullptr);
     } else {
-        EditInitRunEvent(event_no, nullptr);
+        RunEvent(event_no, nullptr);
     }
 
     StartEventNo = -1;
@@ -2499,7 +2358,7 @@ int EditInit(void *param) {
     return 0;
 }
 
-// Retail's, with the 64-byte rounding of the work arena's start done on the whole pointer.
+// The work arena's start is rounded up to 64 bytes on the whole host pointer.
 void InitWorkBuffer() {
     int     quads = EdNPCBuffer.used;
     u_char *free_start = EdNPCBuffer.base + quads * 16;
@@ -2516,36 +2375,6 @@ void InitWorkBuffer() {
     EdMenuBuffer.limit = 0x3A2E0;
     EdMenuBuffer.used = 0;
 }
-
-#include "common.h"
-
-#include <libvu0.h>
-
-#include <cstdint>
-#include <cstring>
-
-#include "boxvu0.hpp"
-#include "dataalloc.hpp"
-#include "edit.hpp"
-#include "edit_in.hpp"
-#include "editground.hpp"
-#include "editloop.hpp"
-#include "editloop3.hpp"
-#include "editpartsinfo.hpp"
-#include "eparts_port.hpp"
-#include "frame.hpp"
-#include "gamemode.hpp"
-#include "itemdata.hpp"
-#include "mainselect.hpp"
-#include "mapparts.hpp"
-#include "mathutil.hpp"
-#include "objanime.hpp"
-#include "savedata.hpp"
-
-// Retail's LoadPTS, with the .pts definition decoded into host records (eparts_port.hpp) where
-// retail copied it into EPartsInfoBuff and relocated its pointer fields in place.
-
-void CopyCMapParts(CMapParts *to, CMapParts *from, CDataAlloc2<1> *arena);
 
 namespace {
 
@@ -2592,7 +2421,7 @@ int AddTreantChests(CMapParts *parts, EPARTS_FUNC_DATA *functions, int function_
         return 0;
     }
 
-    constexpr std::size_t count = sizeof(kTreantChests) / sizeof(kTreantChests[0]);
+    constexpr std::size_t count = std::size(kTreantChests);
     auto                  extra = std::make_unique<EPARTS_FUNC_DATA[]>(count);
 
     for (std::size_t i = 0; i < count; i++) {
@@ -2618,17 +2447,15 @@ int AddTreantChests(CMapParts *parts, EPARTS_FUNC_DATA *functions, int function_
 
 } // namespace
 
+// The .pts definition is decoded into host records (eparts_port.hpp) rather than relocated in place.
 EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime,
-                                          EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points,
-                                          CMapParts *shared) {
-    EPARTS_ARCHIVE     *record = reinterpret_cast<EPARTS_ARCHIVE *>(archive);
-    int                 i;
-    EPARTS_INFO_HEADER *header;
-    CFrame             *frame;
+                            EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points,
+                            CMapParts *shared) {
+    auto *record = reinterpret_cast<EPARTS_ARCHIVE *>(archive);
 
-    const char      *definition = reinterpret_cast<char *>(record) + record->info_offset;
-    EPartsDiscHeader source = EPartsReadHeader(definition);
-    header = EPartsLoad(definition, &EPartsInfoBuff);
+    const char         *definition = reinterpret_cast<char *>(record) + record->info_offset;
+    EPartsDiscHeader    source = EPartsReadHeader(definition);
+    EPARTS_INFO_HEADER *header = EPartsLoad(definition, &EPartsInfoBuff);
 
     parts->func_count = header->func_count;
     // Nothing reads func_data back; it keeps the bits retail stored.
@@ -2680,18 +2507,12 @@ EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_I
         LoadMapObject(parts, reinterpret_cast<u_int **>(names), &DataBuffer__2);
     }
 
-    CFrame *frames[9];
+    CFrame *frames[9] = {};
     CBoxVu0 bound;
     CBoxVu0 part_bound;
 
-    for (int k = 0; k < 9; k++) {
-        frames[k] = nullptr;
-    }
-
     for (int k = 0; k < 4; k++) {
-        CFrame *level = parts->frame[k];
-
-        frames[k] = level;
+        frames[k] = parts->frame[k];
     }
 
     frames[4] = parts->shadow_frame;
@@ -2705,7 +2526,7 @@ EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_I
     }
 
     frames[0]->GetBoundBox(&bound, 1);
-    frame = parts->GetCollisionFrame();
+    CFrame *frame = parts->GetCollisionFrame();
 
     if (frame != nullptr) {
         frame->GetBoundBox(&part_bound, 1);
@@ -2719,7 +2540,7 @@ EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_I
         VectorMaxMin(bound.max, bound.min, bound.max, bound.min, part_bound.max, part_bound.min);
     }
 
-    memcpy(&parts->bound, &bound, sizeof(CBoxVu0));
+    parts->bound = bound;
 
     for (int k = 0; k < 8; k++) {
         int anime_no = info->anime[k];
@@ -2734,9 +2555,9 @@ EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_I
     EditMapInfo->event_count += EdInitEventPoint(parts, info->events, funcs, header->func_count, points, 0x100);
     EditMapInfo->event_count += AddTreantChests(parts, funcs, header->func_count, points);
 
-    EPARTS_FUNC_DATA *func = header->func;
+    for (int i = 0; i < header->func_count; i++) {
+        EPARTS_FUNC_DATA *func = &header->func[i];
 
-    for (i = 0; i < header->func_count; i++, func++) {
         if (func->completion_flag > 0 && SaveData->GetMapInitFlag(MapNo, func->completion_flag) == 0) {
             SaveData->SetMapInitFlag(MapNo, func->completion_flag, 1);
             SaveData->SetMapFlag(MapNo, func->completion_flag, !static_cast<char>(func->unk_28[0]));
@@ -2755,8 +2576,8 @@ EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_I
             }
 
             EDIT_OBJECT_TIMER *timer = &timers[EditMapInfo->object_timer_count++];
-            std::memcpy(timer->name, func->frame_name, sizeof(timer->name) - 1);
-            timer->name[sizeof(timer->name) - 1] = '\0';
+            std::copy_n(func->frame_name, std::size(timer->name) - 1, timer->name);
+            timer->name[std::size(timer->name) - 1] = '\0';
             timer->start_time = ConvertTime(func->start_time);
             timer->end_time = ConvertTime(func->end_time);
             timer->object = parts;
@@ -2782,18 +2603,10 @@ EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_I
     return header;
 }
 
-#include <array>
-#include <cmath>
-
-#include "draw2d_port.hpp"
-#include "editloop.hpp"
-#include "rect.hpp"
-#include "texture.hpp"
-
 // The editor's own rotation in 12.4 units: offsets turned with the axes swapped at angle 0, the far
 // edges a sixteenth short, y halved for the field after turning. Always point-sampled.
-void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                                  int pivot_x, int pivot_y, float angle, unsigned char alpha) {
+void set2DSpriteRot(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                    int pivot_x, int pivot_y, float angle, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }
@@ -2807,16 +2620,16 @@ void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sc
     y[2] = y[3] = static_cast<float>(((screen.height - pivot_y) << 4) - 1);
 
     for (int i = 0; i < 4; i++) {
-        const float turned_x = y[i] * cosf(angle) + x[i] * sinf(angle);
-        const float turned_y = x[i] * cosf(angle) - y[i] * sinf(angle);
+        const float turned_x = y[i] * std::cos(angle) + x[i] * std::sin(angle);
+        const float turned_y = x[i] * std::cos(angle) - y[i] * std::sin(angle);
 
         x[i] = static_cast<float>(screen.x) + static_cast<float>(static_cast<int>(turned_x)) / 16.0f;
         y[i] = static_cast<float>(screen.y) + static_cast<float>(static_cast<int>(0.5f * turned_y)) / 8.0f;
     }
 
-    const float u0 = static_cast<float>(texel.x);
-    const float v0 = static_cast<float>(texel.y);
-    const float v1 = static_cast<float>(texel.y + texel.height);
+    const auto u0 = static_cast<float>(texel.x);
+    const auto v0 = static_cast<float>(texel.y);
+    const auto v1 = static_cast<float>(texel.y + texel.height);
 
     // The second corner's u spans the screen width, not the texel width, as in retail.
     std::array<gfx::Vertex2D, 4> strip = {

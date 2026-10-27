@@ -5,12 +5,15 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "battlemenu.hpp"
 #include "boxvu0.hpp"
@@ -33,6 +36,7 @@
 #include "editpartsinfo.hpp"
 #include "effectgroup.hpp"
 #include "effectmacro.hpp"
+#include "eparts_port.hpp"
 #include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -55,36 +59,35 @@
 #include "texture.hpp"
 #include "water.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// Retail passes string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's interior loop. EditInLoop reaches the static MainDraw, whose static setTexAnim flushed the
-// texture cache through raw packets; the flushes are gone and the copy stays on MGMoveImage. MainDraw
-// shares the interior's whole state with EditInInit and the script commands, so nearly the whole unit
-// moves; only the part loaders, which touch none of it, stay retail.
-// Retail declares fourteen of its variables static after editloop.hpp declares the same names extern;
-// MWCC made them file-local, clang makes them the editor's globals. They carry an EdIn_ prefix here
-// so the interior keeps its own player, cameras and counters as it does on the PS2.
+// The EdIn_ prefix keeps the interior's own player, cameras and counters apart from the editor globals
+// editloop.hpp declares under the same names.
 
+int LoadPTS(CMapParts *parts, u_int *archive);
+int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
+
+namespace {
 /**
  * Phases of the interior loop, as GameMode holds them.
  */
 // clang-format off
-enum EdInMode {
-    ED_IN_MODE_WALK      = 0, /**< Player walks the interior. */
-    ED_IN_MODE_DOOR_OPEN = 1, /**< Door opening before the player leaves. */
-    ED_IN_MODE_LEAVE     = 2, /**< Leaves the interior once the door has opened. */
-    ED_IN_MODE_TALK      = 3, /**< Player talks to a villager. */
-    ED_IN_MODE_EVENT     = 4, /**< Event script runs. */
-    ED_IN_MODE_PAUSE     = 5, /**< Pause menu is open. */
-    ED_IN_MODE_MENU_INIT = 6, /**< Menu is being set up. */
-    ED_IN_MODE_MENU      = 7, /**< Menu runs. */
+enum class EdInMode : int {
+    WALK      = 0, /**< Player walks the interior. */
+    DOOR_OPEN = 1, /**< Door opening before the player leaves. */
+    LEAVE     = 2, /**< Leaves the interior once the door has opened. */
+    TALK      = 3, /**< Player talks to a villager. */
+    EVENT     = 4, /**< Event script runs. */
+    PAUSE     = 5, /**< Pause menu is open. */
+    MENU_INIT = 6, /**< Menu is being set up. */
+    MENU      = 7, /**< Menu runs. */
 };
-
 // clang-format on
 
-/* Where the camera sits for one camera marker of the interior, and the box the player must stand in. */
-namespace {
+/**
+ * Where the camera sits for one camera marker of the interior, and the box the player must stand in.
+ */
 struct INTERIOR_CAMERA {
     u8            unk_000[0x60];
     CFrame        frame;   /**< Placement of the camera marker in the world. */
@@ -93,188 +96,145 @@ struct INTERIOR_CAMERA {
     int           link_id; /**< Marker number; zero marks the fallback camera. */
     u8            unk_2e4[0xC];
 };
-} // namespace
 
-namespace {
-static void LoadInfo(char *script, int size);
-static void setTexAnim();
-static void StepWater();
-static void MainDraw();
-static void MoveCharacter();
-static void MoveCamera(CCameraFollow *camera);
-static int  GetDoorPos(int door_no, float *position, float *rotation, int *door_sound, int *motion);
-static void VillagerCollision();
-static int  LoadTexture();
-static void LoadChara();
-} // namespace
-
+void LoadInfo(char *script, int size);
+void setTexAnim();
+void StepWater();
+void MainDraw();
+void MoveCharacter();
+void MoveCamera(CCameraFollow *camera);
+int  GetDoorPos(int door_no, float *position, float *rotation, int *door_sound, int *motion);
+void VillagerCollision();
+int  LoadTexture();
+void LoadChara();
 void LoadData();
-
-int LoadPTS(CMapParts *parts, u_int *archive);
-
-/**
- * Views one function point as the words it is copied in.
- */
-namespace {
-struct EPARTS_FUNC_WORDS {
-    u_int words[sizeof(EPARTS_FUNC_DATA) / sizeof(u_int)]; /**< The record, one word at a time. */
-};
-} // namespace
-
-int  GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
 void DrawWaterSurface(CCamera *camera);
 void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara);
 
-/* Word-aligned image of one function marker as stored in a part resource. */
-namespace {
-struct EPARTS_FUNC_RECORD {
-    int words[0x30]; /**< The record, one word at a time. */
-};
-} // namespace
-
-namespace {
 /** Whether the camera stays at the interior's fixed camera markers. */
-static int fix_camera = 1;
+int fix_camera = 1;
 
 /** Which of the three follow distances the camera is at. */
-static int EdIn_camera_dist_mode = 1;
-} // namespace
+int EdIn_camera_dist_mode = 1;
 
-/** Settings of the interior being run. */
-extern EDIT_IN_INFO *EdInInfo;
-
-namespace {
 /** Phase the interior loop is in. */
-static int GameMode;
+EdInMode GameMode;
 
-/** Camera marker whose box the player last stood in, by its place in the list SetCameraPos builds each
- * frame, or -1 for none. */
-static int active_camera = -1;
+/** Camera marker whose box the player last stood in, as an index into SetCameraPos's list, or -1. */
+int active_camera = -1;
 
 /** Frames the player may stand outside the active camera marker before the camera switches. */
-static int camera_change_count;
+int camera_change_count;
 
 /** Number of camera markers the interior's parts define. */
-static int camera_num;
+int camera_num;
 
 /** Frames left of the door-opening sequence. */
-static int EdIn_door_open_cnt;
+int EdIn_door_open_cnt;
 
 /** Camera the interior is drawn through this frame. */
-static CCamera *EdIn_NowCamera;
+CCamera *EdIn_NowCamera;
 
 /** The player's character in the interior. */
-static CCharacter *EdIn_Chara;
+CCharacter *EdIn_Chara;
 
 /** Time of day the interior is lit for. */
-static float EdIn_NowTime;
+float EdIn_NowTime;
 
 /** Number of object animations the interior uses. */
-static int obj_anime_num;
+int obj_anime_num;
 
 /** Number of effects the interior uses. */
-static int effect_num;
+int effect_num;
 
 /** Number of parts the interior is built from. */
-static int parts_num;
+int parts_num;
 
 /** Function points the interior's parts define. */
-static EPARTS_FUNC_DATA *func_point;
+EPARTS_FUNC_DATA *func_point;
 
 /** Number of function points the interior's parts define. */
-static int func_num;
+int func_num;
 
 /** Event to run when the interior starts, or below zero for none. */
-static int start_event_no;
+int start_event_no;
 
 /** Whether the start event is a system event. */
-static int start_system_event;
+int start_system_event;
 
 /** Menu the interior leaves for. */
-static int EdIn_goto_menu;
+int EdIn_goto_menu;
 
 /** Whether the pause key was pressed this frame. */
-static int EdIn_goto_return_menu;
-
-/** Frames since any button was last held. */
-static int EdIn_key_counter;
+int EdIn_goto_return_menu;
 
 /** Frames the interior loop has run. */
-static int EdIn_loop_counter;
+int EdIn_loop_counter;
 
 /** Animated texture the interior's parts share. */
-static CTextureAnime TexAnime;
+CTextureAnime TexAnime;
 
 /** Animation records of the interior's animated textures. */
-static CTexAnimeData EdIn_TexAnimeData[64];
+std::array<CTexAnimeData, 64> EdIn_TexAnimeData;
 
 /** Light that flickers with the interior's fires. */
-static CFireOmni Fire;
+CFireOmni Fire;
 
 /** Position the player is held at while the camera is fixed. */
-static sceVu0FVECTOR EdIn_fix_chara_pos;
+sceVu0FVECTOR EdIn_fix_chara_pos;
 
 /** Rotation the player is held at while the camera is fixed. */
-static sceVu0FVECTOR EdIn_fix_chara_rot;
+sceVu0FVECTOR EdIn_fix_chara_rot;
 
 /** The parts the interior is built from. */
-static CMapParts InteriorParts[10];
+std::array<CMapParts, 10> InteriorParts;
 
 /** Named parts that move under the interior's script. */
-static CCharacter MotionParts__2[4];
+std::array<CCharacter, 4> MotionParts__2;
 
 /** Water surfaces the interior draws. */
-static CGroundWater Water[1];
+std::array<CGroundWater, 1> Water;
 
 /** Camera that follows the player. */
-static CCameraFollow EdIn_MainCamera(60.0f, 20.0f, 0.0f, 4.0f);
+CCameraFollow EdIn_MainCamera(60.0f, 20.0f, 0.0f, 4.0f);
 
 /** Camera that frames a conversation. */
-static CCameraFollow EdIn_TalkCamera(60.0f, 20.0f, 0.0f, 4.0f);
+CCameraFollow EdIn_TalkCamera(60.0f, 20.0f, 0.0f, 4.0f);
 
 /** Camera the interior's events drive. */
-static CCameraFollow EventCamera(60.0f, 20.0f, 0.0f, 4.0f);
+CCameraFollow EventCamera(60.0f, 20.0f, 0.0f, 4.0f);
 
 /** Camera that looks from the player's eyes. */
-static CCamera ViewCamera__2(4.0f);
+CCamera ViewCamera__2(4.0f);
 
 /** Camera used while leaving the interior. */
-static CCamera ExitCamera(4.0f);
+CCamera ExitCamera(4.0f);
 
 /**
  * Identifies the kind of editor effect requested.
  */
 // clang-format off
-enum EFFECT_TYPE {
-    EFFECT_FIRE = 1, /**< A fire. */
-    EFFECT_FLAME,    /**< A flame. */
-    EFFECT_BRIGHT,   /**< A glow. */
+enum class EFFECT_TYPE : int {
+    FIRE = 1, /**< A fire. */
+    FLAME,    /**< A flame. */
+    BRIGHT,   /**< A glow. */
 };
-
 // clang-format on
 
 /**
  * Reads the interior's event script into the script arena.
- *
- * @mangled LoadScript__Fv__2
- * @address 0x19B9A0
- * @size 0x294
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void LoadScript() {
-    std::string event_path;
+void LoadScript() {
     std::string directory = EdInInfo->name;
     std::string message_path = EdInInfo->name;
-    int         size;
-    char       *message_data;
+    int         size = 0;
 
     EdScriptBuffer.used = 0;
-    EdEventData = reinterpret_cast<char *>(EdScriptBuffer.base + EdScriptBuffer.used * 16);
+    EdEventData = reinterpret_cast<char *>(EdScriptBuffer.base + static_cast<std::ptrdiff_t>(EdScriptBuffer.used) * 16);
     const std::string language = "_" + std::to_string(LanguageCode) + ".mes";
-    int               length = static_cast<int>(message_path.size());
 
-    if (length > 0) {
-        char last = message_path[length - 1];
+    if (!message_path.empty()) {
+        const char last = message_path.back();
 
         if (last == 'm' || last == 'n' || last == 'e') {
             message_path.pop_back();
@@ -282,14 +242,14 @@ static void LoadScript() {
     }
 
     message_path += language;
-    printf("mes = %s\n", message_path.c_str());
+    std::printf("mes = %s\n", message_path.c_str());
     const auto slash = directory.rfind('/');
     directory.resize(slash == std::string::npos ? 0 : slash);
-    event_path = directory + "/event.stb";
+    std::string event_path = directory + "/event.stb";
 
     if (LoadFile2(event_path.data(), EdEventData, &size, 0) != 0) {
         EdScriptBuffer.Alloc((size >> 4) + 1);
-        message_data = reinterpret_cast<char *>(EdScriptBuffer.base + EdScriptBuffer.used * 16);
+        char *message_data = reinterpret_cast<char *>(EdScriptBuffer.base + static_cast<std::ptrdiff_t>(EdScriptBuffer.used) * 16);
 
         if (LoadFile2(message_path.data(), message_data, &size, 0) != 0) {
             EdScriptBuffer.Alloc((size >> 4) + 1);
@@ -305,7 +265,7 @@ static void LoadScript() {
     }
 
     EdScriptBuffer.Align64();
-    EdSystemEventData = reinterpret_cast<char *>(EdScriptBuffer.base + EdScriptBuffer.used * 16);
+    EdSystemEventData = reinterpret_cast<char *>(EdScriptBuffer.base + static_cast<std::ptrdiff_t>(EdScriptBuffer.used) * 16);
 
     if (LoadFile2("gedit/system/event.stb", EdSystemEventData, &size, 0) != 0) {
         EdScriptBuffer.Alloc((size >> 4) + 1);
@@ -317,13 +277,8 @@ static void LoadScript() {
 
 /**
  * Starts an interior event, handing it the camera it is to play through.
- *
- * @mangled RunEvent__FiP7CCamera__2
- * @address 0x19BC40
- * @size 0xB4
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void RunEvent(int event_no, CCamera *camera) {
+void RunEvent(int event_no, CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR reference;
 
@@ -343,13 +298,8 @@ static void RunEvent(int event_no, CCamera *camera) {
 
 /**
  * Starts an interior system event, handing it the camera it is to play through.
- *
- * @mangled RunSystemEvent__FiP7CCamera__2
- * @address 0x19BD00
- * @size 0xA0
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void RunSystemEvent(int event_no, CCamera *camera) {
+void RunSystemEvent(int event_no, CCamera *camera) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR reference;
 
@@ -368,27 +318,16 @@ static void RunSystemEvent(int event_no, CCamera *camera) {
 
 /**
  * Divides the read buffer into the interior's work, NPC and menu arenas.
- *
- * @mangled InitWorkBuffer__Fv__2
- * @address 0x19BDA0
- * @size 0x90
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void InitWorkBuffer() {
-    u_char *free_start = EdNPCBuffer.base + EdNPCBuffer.used * 16;
-    int     free_quads = EdNPCBuffer.limit - EdNPCBuffer.used;
+void InitWorkBuffer() {
+    u_char   *free_start = EdNPCBuffer.base + static_cast<std::ptrdiff_t>(EdNPCBuffer.used) * 16;
+    const int free_quads = EdNPCBuffer.limit - EdNPCBuffer.used;
+    // Rounds up to the next 64-byte boundary, skipping a full 64 bytes when already aligned.
     free_start = reinterpret_cast<u_char *>(((reinterpret_cast<std::uintptr_t>(free_start) >> 6) + 1) << 6);
     EdWorkBuffer.base = free_start;
     EdWorkBuffer.limit = free_quads - 4;
     EdWorkBuffer.used = 0;
-    [[maybe_unused]] int villagers_loaded;
-
-    if (EdVillagerBuffer.used > 0) {
-        villagers_loaded = 1;
-    }
-
-    free_start = reinterpret_cast<u_char *>(read_buffer);
-    EdMenuBuffer.base = free_start - 0x180000;
+    EdMenuBuffer.base = reinterpret_cast<u_char *>(read_buffer) - 0x180000;
     EdMenuBuffer.limit = 0x3A2E0;
     EdMenuBuffer.used = 0;
 }
@@ -396,29 +335,32 @@ static void InitWorkBuffer() {
 
 /**
  * Builds everything one interior runs on: its data, models, script and camera.
- *
- * @mangled EditInInit__FfPc
- * @address 0x19BE30
- * @size 0x478
  */
 int EditInInit(float time, char *name) {
-    if (name == nullptr || std::strlen(name) >= sizeof(EdInInfo->name)) {
+    if (name == nullptr) {
+        return 0;
+    }
+
+    const std::string_view interior_name(name);
+
+    if (interior_name.size() >= sizeof(EdInInfo->name)) {
         return 0;
     }
 
     MGSetFogParm(10000.0f, 50000.0f, 0, 0, 0, 255.0f, 255.0f);
-    memset(EdInInfo, 0, sizeof(EDIT_IN_INFO));
+    std::memset(EdInInfo, 0, sizeof(EDIT_IN_INFO));
     EdInInfo->projection = 800.0f;
-    memcpy(EdInInfo->name, name, std::strlen(name) + 1);
+    std::ranges::copy(interior_name, std::begin(EdInInfo->name));
+    EdInInfo->name[interior_name.size()] = '\0';
     PlayTimeCountFlag(1);
     simple_event = 0;
     LoadScript();
     EdIn_NowTime = time;
     EdNPCBuffer.used = 0;
 
-    for (int i = 0; i < 10; i++) {
-        EdVillager[i].Initialize();
-        EdVillager[i].texture_block = 0x36;
+    for (CNPCharacter &villager : EdVillager) {
+        villager.Initialize();
+        villager.texture_block = 0x36;
     }
 
     LoadTexture();
@@ -426,18 +368,18 @@ int EditInInit(float time, char *name) {
 
     if (bg_file != nullptr) {
         char *script_text = reinterpret_cast<char *>(EdNPCBuffer.Alloc((bg_file->size >> 4) + 1));
-        memcpy(script_text, bg_file->buffer, bg_file->size);
+        std::memcpy(script_text, bg_file->buffer, bg_file->size);
         LoadInfo(script_text, bg_file->size);
     }
 
     LoadData();
     int     used = EdNPCBuffer.used;
-    u_char *start = EdNPCBuffer.base + used * 16;
+    u_char *start = EdNPCBuffer.base + static_cast<std::ptrdiff_t>(used) * 16;
     int     remaining = EdNPCBuffer.limit - used;
     EdVillagerBuffer.base = start;
     EdVillagerBuffer.limit = remaining;
     EdVillagerBuffer.used = 0;
-    printf("buffer %d\n", remaining);
+    std::printf("buffer %d\n", remaining);
     LoadChara();
     MGSetRenderInfo(EdInInfo->projection, 5.0f, 65535.0f);
     MGSetPLight(EdInInfo->light_direction, EdInInfo->light_colour);
@@ -452,7 +394,7 @@ int EditInInit(float time, char *name) {
 
     EdFadeIn(0x40, 0.0f, 0.0f, 0.0f);
     EdIn_door_open_cnt = 0;
-    GameMode = ED_IN_MODE_WALK;
+    GameMode = EdInMode::WALK;
     EdIn_Chara->wind = 0;
     EdIn_Chara->SetPosition(0.0f, 0.0f, 0.0f);
     EdIn_Chara->SetRotation(0.0f, 0.0f, 0.0f);
@@ -478,13 +420,12 @@ int EditInInit(float time, char *name) {
     start_system_event = -1;
     EdIn_goto_menu = 0;
     EdIn_goto_return_menu = 0;
-    EdIn_key_counter = 0;
     EdIn_loop_counter = 0;
     EdEventInfo.interior_parts_count = parts_num;
-    EdEventInfo.interior_parts = InteriorParts;
+    EdEventInfo.interior_parts = InteriorParts.data();
     EdInitEventParam();
     InitWorkBuffer();
-    printf("buffer %d\n", EdWorkBuffer.limit - EdWorkBuffer.used);
+    std::printf("buffer %d\n", EdWorkBuffer.limit - EdWorkBuffer.used);
     EdSaveFrameImageInit();
     EdInitMenu(ED_MENU_RESET);
     EdInitSoundSrc();
@@ -493,10 +434,6 @@ int EditInInit(float time, char *name) {
 
 /**
  * Runs one frame of the interior and reports when it is to be left.
- *
- * @mangled EditInLoop__Fv
- * @address 0x19C2B0
- * @size 0x1014
  */
 int EditInLoop() {
     sceVu0FMATRIX view;
@@ -512,27 +449,23 @@ int EditInLoop() {
         EdIn_goto_return_menu = 1;
     }
 
-    if (GameMode != 14) {
-        if (!EdCheckViewMode()) {
-            MGSetRenderInfo(EdInInfo->projection, 5.0f, 65535.0f);
-        } else {
-            MGSetRenderInfo(600.0f, 4.0f, 65535.0f);
-        }
+    if (!EdCheckViewMode()) {
+        MGSetRenderInfo(EdInInfo->projection, 5.0f, 65535.0f);
+    } else {
+        MGSetRenderInfo(600.0f, 4.0f, 65535.0f);
     }
 
     EdIn_Chara->GetPosition(position);
 
     switch (GameMode) {
-        case ED_IN_MODE_MENU_INIT:
-        case ED_IN_MODE_MENU:
-        case ED_IN_MODE_PAUSE:
+        case EdInMode::MENU_INIT:
+        case EdInMode::MENU:
+        case EdInMode::PAUSE:
             break;
         default:
-            int            i;
-            OBJ_ANIME_SEQ *anime = EdInInfo->obj_anime;
-
-            for (i = 0; i < obj_anime_num; i++, anime++) {
-                int completion_flag = anime->completion_flag;
+            for (int i = 0; i < obj_anime_num; i++) {
+                OBJ_ANIME_SEQ *anime = &EdInInfo->obj_anime[i];
+                const int      completion_flag = anime->completion_flag;
 
                 if (completion_flag <= 0 || EdGetMapFlag(completion_flag) == 0) {
                     ObjAnimePlay(anime);
@@ -543,24 +476,24 @@ int EditInLoop() {
             break;
     }
 
-    if (fix_camera != 0 && camera_num > 0 && GameMode == ED_IN_MODE_WALK) {
+    if (fix_camera != 0 && camera_num > 0 && GameMode == EdInMode::WALK) {
         SetCameraPos(static_cast<CFrame *>(InteriorParts[0].frame[0]), &EdIn_MainCamera, EdIn_Chara);
     }
 
     EdSetCharaCursor(0);
 
     switch (GameMode) {
-        case ED_IN_MODE_WALK:
+        case EdInMode::WALK:
             if (EdIn_loop_counter > 0) {
                 MoveCharacter();
             }
 
             EdSetCharaCursor(1);
 
-            for (int i = 0; i < 10; i++) {
-                EdVillager[i].Step();
-                EdVillager[i].ShadowStep();
-                EdVillager[i].ClothStep(0);
+            for (CNPCharacter &villager : EdVillager) {
+                villager.Step();
+                villager.ShadowStep();
+                villager.ClothStep(0);
             }
 
             EdIn_NowCamera = &EdIn_MainCamera;
@@ -570,18 +503,18 @@ int EditInLoop() {
             }
 
             break;
-        case ED_IN_MODE_EVENT: {
+        case EdInMode::EVENT: {
             EdIn_NowCamera = &EventCamera;
             EdIn_Chara->SetVelocity(CVector3_f_(0.0f, 0.0f, 0.0f));
             EdEventInfo.current_time = EdIn_NowTime;
             int result = EdEventMode(&EventCamera, 0);
 
             if (result != 0) {
-                GameMode = ED_IN_MODE_WALK;
+                GameMode = EdInMode::WALK;
                 EdIn_NowCamera = &EdIn_MainCamera;
 
                 if (result == ED_EVENT_RETURN_OUTSIDE) {
-                    if (MapNo == TOWN_MUSKA_LACKA && strcmp(EdInteriorName, "i04h04") == 0) {
+                    if (MapNo == TOWN_MUSKA_LACKA && std::string_view(EdInteriorName) == "i04h04") {
                         EdInteriorDoorSound = -1;
                     }
 
@@ -593,7 +526,7 @@ int EditInLoop() {
                 }
 
                 if (result == ED_EVENT_RETURN_TALK) {
-                    GameMode = ED_IN_MODE_TALK;
+                    GameMode = EdInMode::TALK;
                 }
 
                 if (EdEventInfo.reset_camera_angle < 0) {
@@ -613,7 +546,7 @@ int EditInLoop() {
             EdIn_goto_return_menu = 0;
             break;
         }
-        case ED_IN_MODE_DOOR_OPEN: {
+        case EdInMode::DOOR_OPEN: {
             EdIn_NowCamera = &EdIn_MainCamera;
             CVector3_f_ velocity(0.0f, 0.0f, 0.0f);
             EdIn_Chara->SetVelocity(velocity);
@@ -623,10 +556,10 @@ int EditInLoop() {
             EdIn_Chara->SetRotation(EdIn_fix_chara_rot[0], EdIn_fix_chara_rot[1], EdIn_fix_chara_rot[2]);
             EdIn_Chara->ClothStep(0);
 
-            for (int i = 0; i < 10; i++) {
-                EdVillager[i].Step();
-                EdVillager[i].ShadowStep();
-                EdVillager[i].ClothStep(0);
+            for (CNPCharacter &villager : EdVillager) {
+                villager.Step();
+                villager.ShadowStep();
+                villager.ClothStep(0);
             }
 
             EdIn_door_open_cnt--;
@@ -639,12 +572,12 @@ int EditInLoop() {
 
             if (EdIn_door_open_cnt < 0) {
                 EdIn_door_open_cnt = 0;
-                GameMode = ED_IN_MODE_LEAVE;
+                GameMode = EdInMode::LEAVE;
             }
 
             break;
         }
-        case ED_IN_MODE_LEAVE:
+        case EdInMode::LEAVE:
             EdIn_NowCamera = &EdIn_MainCamera;
             EdStopSoundSrc();
 
@@ -655,7 +588,7 @@ int EditInLoop() {
             }
 
             return 1;
-        case ED_IN_MODE_TALK: {
+        case EdInMode::TALK: {
             sceVu0FVECTOR direction;
             EdIn_NowCamera = &EdIn_MainCamera;
 
@@ -669,29 +602,28 @@ int EditInLoop() {
             EdIn_Chara->ShadowStep();
             EdIn_Chara->ClothStep(0);
 
-            for (int i = 0; i < 10; i++) {
-                EdVillager[i].Step();
-                EdVillager[i].ShadowStep();
-                EdVillager[i].ClothStep(0);
+            for (CNPCharacter &villager : EdVillager) {
+                villager.Step();
+                villager.ShadowStep();
+                villager.ClothStep(0);
             }
 
             CNPCharacter *talker = EdNowTalkChara();
             float         distance = EdIn_Chara->GetDistance(*talker);
             EdIn_Chara->GetDir(*talker, direction);
-            float pitch = -atan2f(-EdIn_Chara->body_height + (1.3f + talker->body_height + direction[1]), distance);
-            float yaw = atan2f(direction[0], direction[2]);
-            float view_h = EdAGetViewAngleH();
-            float view_v = EdAGetViewAngleV();
+            const float pitch = -atan2f(-EdIn_Chara->body_height + (1.3f + talker->body_height + direction[1]), distance);
+            const float yaw = atan2f(direction[0], direction[2]);
+            float       view_h = EdAGetViewAngleH();
+            float       view_v = EdAGetViewAngleV();
             view_h = AngleInterpolate(view_h, yaw, 0.05f, INTERPOLATE_STEP);
             view_v = AngleInterpolate(view_v, pitch, 0.03f, INTERPOLATE_STEP);
             EdASetViewAngle(view_h, view_v);
             EdEyeCamera(&ViewCamera__2, EdIn_Chara);
 
-            if (EdCheckViewMode() == 0 || ((view_h - yaw < 0.0f ? -(view_h - yaw) : view_h - yaw) < 0.001f && (view_v - pitch < 0.0f ? -(view_v - pitch) : view_v - pitch) < 0.001f)) {
-                int event_no;
+            if (EdCheckViewMode() == 0 || (std::fabs(view_h - yaw) < 0.001f && std::fabs(view_v - pitch) < 0.001f)) {
                 EdASetViewAngle(yaw, pitch);
-                event_no = 0;
-                int result = EdTalkMode(EdIn_Chara, nullptr, EdCheckViewMode(), &event_no);
+                int       event_no = 0;
+                const int result = EdTalkMode(EdIn_Chara, nullptr, EdCheckViewMode(), &event_no);
 
                 if (result != 0) {
                     if (result == 2) {
@@ -706,29 +638,29 @@ int EditInLoop() {
                         RunEvent(event_no, EdIn_NowCamera);
                     }
 
-                    GameMode = ED_IN_MODE_WALK;
+                    GameMode = EdInMode::WALK;
                 }
             }
 
             break;
         }
-        case ED_IN_MODE_MENU_INIT:
+        case EdInMode::MENU_INIT:
             EdIn_Chara->SetMotion(EdIn_Chara->motion_no, 1);
             EdIn_Chara->Step();
             EdIn_Chara->ShadowStep();
 
-            for (int i = 0; i < 10; i++) {
-                EdVillager[i].SetMotion(EdVillager[i].motion_no, 1);
-                EdVillager[i].Step();
-                EdVillager[i].ShadowStep();
+            for (CNPCharacter &villager : EdVillager) {
+                villager.SetMotion(villager.motion_no, 1);
+                villager.Step();
+                villager.ShadowStep();
             }
 
             break;
-        case ED_IN_MODE_MENU:
+        case EdInMode::MENU:
             MenuMapJumpMode = -1;
 
             if (EdMenuMode() != 0) {
-                GameMode = ED_IN_MODE_WALK;
+                GameMode = EdInMode::WALK;
                 EdExitMenu();
 
                 if (GetInteriorOutFlag() != 0) {
@@ -736,15 +668,17 @@ int EditInLoop() {
                     return 1;
                 }
 
-                for (int i = 0; i < 10; i++) {
-                    EdVillager[i].SetMotion(EdVillager[i].motion_no, 0);
-                    EdVillager[i].Step();
-                    EdVillager[i].ShadowStep();
+                for (CNPCharacter &villager : EdVillager) {
+                    villager.SetMotion(villager.motion_no, 0);
+                    villager.Step();
+                    villager.ShadowStep();
                 }
 
                 return 0;
             }
 
+            break;
+        case EdInMode::PAUSE:
             break;
     }
 
@@ -756,7 +690,7 @@ int EditInLoop() {
     EdIn_NowCamera->Step(1);
     sceVu0FVECTOR eye;
     sceVu0FVECTOR dir;
-    const int     part_count = std::clamp(parts_num, 0, static_cast<int>(sizeof(InteriorParts) / sizeof(InteriorParts[0])));
+    const int     part_count = std::clamp(parts_num, 0, static_cast<int>(InteriorParts.size()));
     auto          parts = std::make_unique<CMapParts *[]>(static_cast<std::size_t>(part_count));
     EdIn_NowCamera->GetCameraMatrix(view);
     EdIn_NowCamera->GetPos(eye);
@@ -769,30 +703,30 @@ int EditInLoop() {
 
     EdSetSoundSrcVol(EdIn_NowTime, parts.get(), part_count, eye, dir);
 
-    if (GameMode != ED_IN_MODE_MENU) {
+    if (GameMode != EdInMode::MENU) {
         MainDraw();
     } else {
         EdFadeInOut();
     }
 
-    if (GameMode == ED_IN_MODE_MENU_INIT && EdInitModeFinish(EdIn_NowCamera, TexManager.GetTexture("frame_image", -1)) != 0) {
-        GameMode = ED_IN_MODE_MENU;
+    if (GameMode == EdInMode::MENU_INIT && EdInitModeFinish(EdIn_NowCamera, TexManager.GetTexture("frame_image", -1)) != 0) {
+        GameMode = EdInMode::MENU;
     }
 
     EdSaveFrameImageTask();
 
-    if (GameMode == ED_IN_MODE_WALK && ((EdPadDown(0x10, 1) != 0 && EdIn_loop_counter >= 2) || EdIn_goto_menu != 0 || (SystemMesCheck() == 0 && EdCheckItemOver() != 0))) {
+    if (GameMode == EdInMode::WALK && ((EdPadDown(0x10, 1) != 0 && EdIn_loop_counter >= 2) || EdIn_goto_menu != 0 || (SystemMesCheck() == 0 && EdCheckItemOver() != 0))) {
         int menu = ED_MENU_BATTLE;
 
         if (EdIn_goto_menu != 0) {
             menu = EdIn_goto_menu;
             EdIn_goto_menu = 0;
-            printf("%d\n", menu);
+            std::printf("%d\n", menu);
         }
 
         if (EdInitMenu(menu) != 0) {
             SndSePlay(MENU_SOUND_CONFIRM, -1, 0);
-            GameMode = ED_IN_MODE_MENU_INIT;
+            GameMode = EdInMode::MENU_INIT;
         }
     }
 
@@ -804,18 +738,14 @@ int EditInLoop() {
         simple_event = 0;
     }
 
-    event_text--;
-
-    if (event_text < 0) {
-        event_text = 0;
-    }
+    event_text = std::max(event_text - 1, 0);
 
     if (event_text == 1) {
         start_event_no = 150;
     }
 
-    if (GameMode != ED_IN_MODE_EVENT && (static_cast<CMainChara *>(EdIn_Chara))->move_info.landed != 0) {
-        int ground_event = (static_cast<CMainChara *>(EdIn_Chara))->move_info.ground_poly.attr.ground_kind;
+    if (GameMode != EdInMode::EVENT && static_cast<CMainChara *>(EdIn_Chara)->move_info.landed != 0) {
+        const int ground_event = static_cast<CMainChara *>(EdIn_Chara)->move_info.ground_poly.attr.ground_kind;
 
         if (ground_event > 0) {
             start_event_no = ground_event;
@@ -826,14 +756,14 @@ int EditInLoop() {
         if (start_system_event > 0) {
             if (EdEventInit(start_system_event, &EdNPCBuffer, EdSystemEventData) != 0) {
                 EdInitMesParam();
-                GameMode = ED_IN_MODE_EVENT;
+                GameMode = EdInMode::EVENT;
             }
         } else if (EdEventInit(start_event_no, &EdNPCBuffer, EdEventData) != 0) {
             EdInitMesParam();
-            GameMode = ED_IN_MODE_EVENT;
+            GameMode = EdInMode::EVENT;
         } else if (EdEventInfo.return_code == ED_EVENT_RETURN_TALK) {
             EdInitMesParam();
-            GameMode = ED_IN_MODE_TALK;
+            GameMode = EdInMode::TALK;
             simple_event = 0;
         }
 
@@ -843,15 +773,15 @@ int EditInLoop() {
         simple_event = 0;
     }
 
-    static int old_mode;
+    static EdInMode old_mode;
 
-    if (GameMode == ED_IN_MODE_PAUSE && GamePad.Down(PAD_START) != 0) {
+    if (GameMode == EdInMode::PAUSE && GamePad.Down(PAD_START) != 0) {
         GameMode = old_mode;
         EdSePlay(static_cast<ED_SOUND_ID>(2), -1);
         PlayTimeCountFlag(1);
-    } else if (GameMode != ED_IN_MODE_EVENT && EdIn_goto_return_menu != 0 && EdIn_loop_counter > 1 && GameMode == ED_IN_MODE_WALK) {
+    } else if (GameMode != EdInMode::EVENT && EdIn_goto_return_menu != 0 && EdIn_loop_counter > 1 && GameMode == EdInMode::WALK) {
         old_mode = GameMode;
-        GameMode = ED_IN_MODE_PAUSE;
+        GameMode = EdInMode::PAUSE;
         EdSePlay(static_cast<ED_SOUND_ID>(1), -1);
         PlayTimeCountFlag(0);
     }
@@ -859,15 +789,9 @@ int EditInLoop() {
     EdIn_goto_return_menu = 0;
     static int end_count = 0;
 
-    if (GamePad.AllOn() != 0 || DebugMode) {
-        EdIn_key_counter = 0;
-    }
-
     if (DebugMode && GamePad.On(PAD_SELECT) && GamePad.On(PAD_START) && end_count == 0) {
-        float zero = 0.0f;
-
         end_count = 100;
-        EdFadeOut(64, zero, zero, zero);
+        EdFadeOut(64, 0.0f, 0.0f, 0.0f);
     }
 
     if (end_count == 1) {
@@ -876,13 +800,8 @@ int EditInLoop() {
         return 99;
     }
 
-    end_count--;
+    end_count = std::max(end_count - 1, 0);
 
-    if (end_count < 0) {
-        end_count = 0;
-    }
-
-    EdIn_key_counter++;
     EdIn_loop_counter++;
     SndStep();
     return 0;
@@ -890,22 +809,16 @@ int EditInLoop() {
 
 /**
  * Draws the interior for one frame.
- *
- * @mangled MainDraw__Fv__2
- * @address 0x19D2D0
- * @size 0x6AC
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
 namespace {
-static void MainDraw() {
+void MainDraw() {
     sceVu0FVECTOR position;
-    int           i;
 
     if (EdDrawOffFlag != 0) {
         return;
     }
 
-    if (GameMode == ED_IN_MODE_PAUSE) {
+    if (GameMode == EdInMode::PAUSE) {
         CTextureAnime::stop_anime = 1;
     } else {
         CTextureAnime::stop_anime = 0;
@@ -921,7 +834,7 @@ static void MainDraw() {
         setTexAnim();
         sceVu0FVECTOR lod_distance = {0.0f, 1000.0f, 10000.0f, 1000000.0f};
 
-        for (i = 0; i < parts_num; i++) {
+        for (int i = 0; i < parts_num; i++) {
             InteriorParts[i].DrawParts(EdIn_NowTime, lod_distance, 0, 0, nullptr);
         }
     }
@@ -944,11 +857,11 @@ static void MainDraw() {
     DrawWaterSurface(EdIn_NowCamera);
     MGSetGsZBUF(&mgZBuffer);
 
-    if (GameMode == ED_IN_MODE_EVENT) {
+    if (GameMode == EdInMode::EVENT) {
         EdEventBackSpriteDraw();
     }
 
-    if (GameMode == ED_IN_MODE_EVENT) {
+    if (GameMode == EdInMode::EVENT) {
         EdDrawItem();
     }
 
@@ -961,15 +874,15 @@ static void MainDraw() {
         detail = 0;
     }
 
-    if (GameMode == ED_IN_MODE_LEAVE) {
+    if (GameMode == EdInMode::LEAVE) {
         marks = nullptr;
     } else {
-        for (i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             marks_store[i] = 3;
         }
     }
 
-    if (GameMode == ED_IN_MODE_EVENT) {
+    if (GameMode == EdInMode::EVENT) {
         event = &EdEventInfo;
         detail = 3;
     }
@@ -978,22 +891,22 @@ static void MainDraw() {
     TexManager.ReloadTexture(GetVif1Packet(), 0x18);
     sceVu0FVECTOR wind = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    if (GameMode != ED_IN_MODE_PAUSE || EdPauseFlag == 0) {
+    if (GameMode != EdInMode::PAUSE || EdPauseFlag == 0) {
         EditEffectStep();
         EffectMacroStep(wind);
         EdEffectGroup.Step(1);
 
-        for (i = 0; i < 4; i++) {
-            MotionParts__2[i].Step();
+        for (CCharacter &motion_part : MotionParts__2) {
+            motion_part.Step();
         }
     }
 
     EditEffectStep2();
 
     if (EdDrawOffMap == 0) {
-        EDIT_EFFECT_INFO *effect = EdInInfo->effects;
+        for (int i = 0; i < effect_num; i++) {
+            EDIT_EFFECT_INFO *effect = &EdInInfo->effects[i];
 
-        for (i = 0; i < effect_num; i++, effect++) {
             if (CheckEditEffect(effect, EdIn_NowTime) != 0) {
                 DrawEditEffect(effect, EdIn_NowCamera, &EdEffectGroup);
             }
@@ -1002,7 +915,7 @@ static void MainDraw() {
 
     EdEffectGroup.Draw();
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         TexManager.ReloadTexture(GetVif1Packet(), i + 0x32);
         MotionParts__2[i].Draw();
     }
@@ -1010,21 +923,21 @@ static void MainDraw() {
     TexManager.ReloadTexture(Vif1Packet, 0x14);
     EdDrawSysCursor(EdInInfo->event_points, 32);
 
-    if (GameMode == ED_IN_MODE_EVENT) {
+    if (GameMode == EdInMode::EVENT) {
         EdEventSpriteDraw();
     }
 
-    if (static_cast<unsigned int>(GameMode - 3) < 2U) {
+    if (GameMode == EdInMode::TALK || GameMode == EdInMode::EVENT) {
         TexManager.ReloadTexture(Vif1Packet, EditMes1.tex_block);
         EditMes1.DrawMesWin();
 
-        if (GameMode == ED_IN_MODE_EVENT) {
+        if (GameMode == EdInMode::EVENT) {
             EditEventMes1.DrawMesWin();
             EditSystemMes.DrawMesWin();
         }
     }
 
-    if (GameMode == ED_IN_MODE_WALK) {
+    if (GameMode == EdInMode::WALK) {
         MonsterNameDraw();
     } else {
         MonsterNameMake(-1);
@@ -1053,7 +966,7 @@ static void MainDraw() {
                 GamePad.KeyLock(1);
             }
         } else {
-            if (GameMode != ED_IN_MODE_EVENT && GamePad.Down(PAD_R3)) {
+            if (GameMode != EdInMode::EVENT && GamePad.Down(PAD_R3)) {
                 GamePad.SetAutoRepeat(PAD_DPAD, 25, 3);
                 GamePad.SetAutoRepeat(PAD_L1 | PAD_R1, 25, 3);
                 debug_menu_mode = 1;
@@ -1069,10 +982,9 @@ static void MainDraw() {
     }
 
     if (EdDebugParamDrawOff == 0) {
-        char      pause_texture[] = "pause";
-        CTexture *pause = TexManager.GetTexture(pause_texture, -1);
+        CTexture *pause = TexManager.GetTexture("pause", -1);
 
-        if (pause != nullptr && (GameMode == ED_IN_MODE_PAUSE || EdPauseFlag != 0)) {
+        if (pause != nullptr && (GameMode == EdInMode::PAUSE || EdPauseFlag != 0)) {
             TexManager.ReloadTexture(GetVif1Packet(), 0x14);
             CRect_i_ fade;
             fade.x = 0;
@@ -1101,48 +1013,38 @@ static void MainDraw() {
 
 /**
  * Draws the interior's water surfaces, ordered back to front from the camera.
- *
- * @mangled DrawWaterSurface__FP7CCamera
- * @address 0x19D980
- * @size 0x15C
  */
-} // namespace
-
 void DrawWaterSurface(CCamera *camera) {
     sceVu0FVECTOR eye;
     sceVu0FVECTOR position;
     sceVu0FVECTOR dir;
-    int           i;
-    CGroundWater *surface = Water;
 
     camera->GetPos(eye);
     camera->GetDir(dir);
     dir[1] = 0.0f;
     sceVu0Normalize(dir, dir);
 
-    for (i = 0; i < 1; i++, surface++) {
-        if (surface->draw == 0) {
+    for (CGroundWater &surface : Water) {
+        if (surface.draw == 0) {
             continue;
         }
 
-        CWater *water = &surface->water;
-        sceVu0CopyVector(position, surface->offset);
+        CWater *water = &surface.water;
+        sceVu0CopyVector(position, surface.offset);
 
-        if (surface->follow[0]) {
+        if (surface.follow[0]) {
             position[0] = eye[0] + 50.0f * dir[0];
         }
 
-        if (surface->follow[1]) {
+        if (surface.follow[1]) {
             position[1] = eye[1];
         }
 
-        if (surface->follow[2]) {
+        if (surface.follow[2]) {
             position[2] = eye[2] + 50.0f * dir[2];
         }
 
-        CVector3_f_ rotation;
-        rotation.x = rotation.y = rotation.z = 0.0f;
-        water->frame.SetRotation(rotation.x, rotation.y, rotation.z);
+        water->frame.SetRotation(0.0f, 0.0f, 0.0f);
         water->frame.SetPosition(position);
         DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(water, &mgRenderInfo, GetVif1Packet(), nullptr);
     }
@@ -1150,59 +1052,47 @@ void DrawWaterSurface(CCamera *camera) {
 
 /**
  * Advances the ripples of the interior's water surfaces.
- *
- * @mangled StepWater__Fv
- * @address 0x19DAE0
- * @size 0x204
  */
-namespace {
-static void StepWater() {
-    int           i;
-    int           j;
-    CGroundWater *surface = Water;
-
-    for (i = 0; i < 1; i++, surface++) {
-        if (surface->draw == 0) {
+void StepWater() {
+    for (CGroundWater &surface : Water) {
+        if (surface.draw == 0) {
             continue;
         }
 
-        if (surface->water.CheckClip()) {
+        if (surface.water.CheckClip()) {
             continue;
         }
 
-        for (j = 0; j < 4; j++) {
-            if (surface->ripples[j].power == 0.0f && surface->ripples[j].range == 0.0f) {
+        for (const auto &ripple : surface.ripples) {
+            if (ripple.power == 0.0f && ripple.range == 0.0f) {
                 break;
             }
 
-            int row = surface->ripples[j].row;
-            int column = surface->ripples[j].column;
+            // Below zero picks a random row or column; both scale by the grid's row count.
+            int row = static_cast<int>(ripple.row);
+            int column = static_cast<int>(ripple.column);
 
             if (row < 0) {
-                int rows = surface->water.rows;
-                row = rows * static_cast<float>(rand()) / 2.1474836e9f;
+                const int rows = surface.water.rows;
+                row = static_cast<int>(rows * static_cast<float>(std::rand()) / 2.1474836e9f);
             }
 
             if (column < 0) {
-                int rows = surface->water.rows;
-                column = rows * static_cast<float>(rand()) / 2.1474836e9f;
+                const int rows = surface.water.rows;
+                column = static_cast<int>(rows * static_cast<float>(std::rand()) / 2.1474836e9f);
             }
 
-            surface->water.Shake(row, column, surface->ripples[j].power + surface->ripples[j].range * static_cast<float>(rand()) / 2.1474836e9f);
+            surface.water.Shake(row, column, ripple.power + ripple.range * static_cast<float>(std::rand()) / 2.1474836e9f);
         }
 
-        surface->water.Hamon();
+        surface.water.Hamon();
     }
 }
 
 /**
  * Moves the player and the villagers through the interior for one frame.
- *
- * @mangled MoveCharacter__Fv
- * @address 0x19DCF0
- * @size 0x38C
  */
-static void MoveCharacter() {
+void MoveCharacter() {
     sceVu0FVECTOR        follow;
     static sceVu0FVECTOR fix_pos;
 
@@ -1212,7 +1102,7 @@ static void MoveCharacter() {
     EdMoveCharaInfo.key_lock = false;
     EdMoveCharaInfo.chara = EdIn_Chara;
     EdMoveCharaInfo.interior = true;
-    EdMoveCharaInfo.parts = InteriorParts;
+    EdMoveCharaInfo.parts = InteriorParts.data();
     EdMoveCharaInfo.parts_count = parts_num;
     EdMoveCharaInfo.points = EdInInfo->event_points;
     EdMoveCharaInfo.point_count = 32;
@@ -1248,15 +1138,16 @@ static void MoveCharacter() {
         sceVu0FVECTOR rotation = {0.0f, 0.0f, 0.0f, 0.0f};
         EdIn_Chara->GetPosition(position);
         EdIn_Chara->GetRotation(rotation);
-        EPARTS_FUNC_DATA *jump;
+        const bool        debug_jump = DebugMode && GamePad.Down(PAD_SELECT);
+        EPARTS_FUNC_DATA *jump = nullptr;
 
-        jump = nullptr;
+        if (!debug_jump) {
+            jump = SearchMapJump(position, rotation);
+        }
 
-        if ((DebugMode && GamePad.Down(PAD_SELECT)) || (jump = SearchMapJump(position, rotation))) {
-            int motion;
-
+        if (debug_jump || jump != nullptr) {
             EdMoveCharaInit();
-            motion = 0;
+            int motion = 0;
             EdIn_door_open_cnt = 140;
 
             if (jump != nullptr) {
@@ -1270,7 +1161,7 @@ static void MoveCharacter() {
             EdIn_Chara->SetRotation(EdIn_fix_chara_rot[0], EdIn_fix_chara_rot[1], EdIn_fix_chara_rot[2]);
             EdIn_Chara->Step();
             EdIn_Chara->ClothStep(-1);
-            GameMode = ED_IN_MODE_DOOR_OPEN;
+            GameMode = EdInMode::DOOR_OPEN;
             EdFadeOut(100, 0.0f, 0.0f, 0.0f);
         }
     }
@@ -1279,16 +1170,11 @@ static void MoveCharacter() {
 /**
  * Applies the right stick and the mouse to the interior camera, holding its height and distance in
  * range.
- *
- * @mangled MoveCamera__FP13CCameraFollow__2
- * @address 0x19E080
- * @size 0x164
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void MoveCamera(CCameraFollow *camera) {
-    static float camera_distance[3] = {20.0f, 60.0f, 100.0f};
+void MoveCamera(CCameraFollow *camera) {
+    static constexpr std::array<float, 3> camera_distance = {20.0f, 60.0f, 100.0f};
 
-    float horizontal = MouseLookTurn(camera, 0.04f, GamePad.GetRXf());
+    const float horizontal = MouseLookTurn(camera, 0.04f, GamePad.GetRXf());
     camera->AddHeight(-MouseLookRise(camera, GamePad.GetRYf(), 30.0f));
 
     if (!(camera->GetHeight() <= 30.0f)) {
@@ -1316,23 +1202,19 @@ static void MoveCamera(CCameraFollow *camera) {
     }
 }
 
-/**
- * Finds the map jump the player is standing on.
- *
- * @mangled SearchMapJump__FPfPf
- * @address 0x19E1F0
- * @size 0xF4
- */
 } // namespace
 
+/**
+ * Finds the map jump the player is standing on.
+ */
 EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
-    sceVu0FVECTOR     world;
-    int               i;
-    EPARTS_FUNC_DATA *point = func_point;
+    sceVu0FVECTOR world;
 
-    for (i = 0; i < func_num; i++, point++) {
+    for (int i = 0; i < func_num; i++) {
+        EPARTS_FUNC_DATA *point = &func_point[i];
+
         if (point->kind == EPARTS_FUNC_DOOR) {
-            CFrame *frame = reinterpret_cast<CFrame *>(point->parts);
+            auto *frame = reinterpret_cast<CFrame *>(point->parts);
             point->position[3] = 1.0f;
             frame->GetWorldPosition(world, point->position);
             EdInteriorJumpID = point->link_id;
@@ -1348,36 +1230,28 @@ EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation) {
 
 /**
  * Puts the player where the interior's map jump says they arrive.
- *
- * @mangled GetMapJumpPos__FP10CCharacter
- * @address 0x19E2F0
- * @size 0x12C
  */
 void GetMapJumpPos(CCharacter *chara) {
-    EPARTS_FUNC_DATA *point = func_point;
+    for (int i = 0; i < func_num; i++) {
+        EPARTS_FUNC_DATA *point = &func_point[i];
 
-    for (int i = 0; i < func_num; i++, point++) {
         if (point->kind == EPARTS_FUNC_DOOR && point->link_id == EdInteriorJumpID) {
             chara->SetPosition(point->position[0], point->position[1], point->position[2]);
-            printf("%f %f %f\n", point->position[0], point->position[1], point->position[2]);
+            std::printf("%f %f %f\n", point->position[0], point->position[1], point->position[2]);
             chara->SetRotation(0.0f, AngleLimit(PI_SHORT + point->rotation[1]), 0.0f);
             return;
         }
     }
 }
 
+namespace {
 /**
  * Gives the position, heading and part of one of the interior's doors.
- *
- * @mangled GetDoorPos__FiPfPfPiPi
- * @address 0x19E420
- * @size 0xF8
  */
-namespace {
-static int GetDoorPos(int door_no, float *position, float *rotation, int *door_sound, int *motion) {
-    EPARTS_FUNC_DATA *point = func_point;
+int GetDoorPos(int door_no, float *position, float *rotation, int *door_sound, int *motion) {
+    for (int i = 0; i < func_num; i++) {
+        EPARTS_FUNC_DATA *point = &func_point[i];
 
-    for (int i = 0; i < func_num; i++, point++) {
         if ((point->kind == EPARTS_FUNC_DOOR_SIDE_A || point->kind == EPARTS_FUNC_DOOR_SIDE_B) && point->link_id == door_no) {
             sceVu0CopyVector(position, point->position);
             sceVu0CopyVector(rotation, point->rotation);
@@ -1392,35 +1266,29 @@ static int GetDoorPos(int door_no, float *position, float *rotation, int *door_s
 
 /**
  * Places the interior camera so that the player stays in view and the walls do not.
- *
- * @mangled SetCameraPos__FP6CFrameP7CCameraP10CCharacter
- * @address 0x19E520
- * @size 0x3F8
  */
-} // namespace
-
-void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
-    sceVu0FVECTOR     position;
-    sceVu0FVECTOR     local;
-    int               i;
-    EPARTS_FUNC_DATA *point = func_point;
-    int               count;
-    INTERIOR_CAMERA  *entry;
+void SetCameraPos([[maybe_unused]] CFrame *frame, CCamera *camera, CCharacter *chara) {
+    sceVu0FVECTOR position;
+    sceVu0FVECTOR local;
 
     chara->GetPosition(position);
     const int camera_capacity = std::min(std::max(func_num, 0), 8);
+
     if (camera_capacity == 0) {
         return;
     }
+
     std::array<INTERIOR_CAMERA, 8> cameras;
     sceVu0FMATRIX                  matrix;
-    count = 0;
+    int                            count = 0;
 
-    for (i = 0; i < func_num; i++, point++) {
+    for (int i = 0; i < func_num; i++) {
+        EPARTS_FUNC_DATA *point = &func_point[i];
+
         if (point->kind == EPARTS_FUNC_CAMERA) {
-            entry = &cameras[count];
+            INTERIOR_CAMERA *entry = &cameras[count];
             entry->link_id = point->link_id;
-            CFrame *owner = reinterpret_cast<CFrame *>(point->parts);
+            auto *owner = reinterpret_cast<CFrame *>(point->parts);
             sceVu0CopyVector(entry->min, point->parameters);
             sceVu0CopyVector(entry->max, point->values);
             sceVu0UnitMatrix(matrix);
@@ -1447,13 +1315,11 @@ void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
         return;
     }
 
-    // Retail kept the active camera as a pointer into this list from one frame to the next, which only
-    // held because its list sat on the stack at the same address every frame; it is kept by its place.
-    int        inside = -1;
-    static int cnt = 0;
+    // active_camera indexes this list, which is rebuilt in the same order every frame.
+    int inside = -1;
 
-    for (i = 0; i < count; i++) {
-        entry = &cameras[i];
+    for (int i = 0; i < count; i++) {
+        INTERIOR_CAMERA *entry = &cameras[i];
 
         if (entry->link_id == 0) {
             inside = i;
@@ -1468,12 +1334,6 @@ void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
             inside = i;
             break;
         }
-    }
-
-    cnt++;
-
-    if (cnt > 60) {
-        cnt = 0;
     }
 
     if (active_camera < 0 || active_camera >= count) {
@@ -1508,14 +1368,8 @@ void SetCameraPos(CFrame *frame, CCamera *camera, CCharacter *chara) {
 
 /**
  * Collects the collision polygons of the interior parts meeting a box.
- *
- * @mangled GetCollision__FP6CCPolyP7CBoxVu0__2
- * @address 0x19E920
- * @size 0xBC
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-namespace {
-static int GetCollision(CCPoly *poly, CBoxVu0 *box) {
+int GetCollision(CCPoly *poly, CBoxVu0 *box) {
     int count = 0;
 
     for (int i = 0; i < parts_num; i++) {
@@ -1531,23 +1385,18 @@ static int GetCollision(CCPoly *poly, CBoxVu0 *box) {
 
 /**
  * Pushes the player and the interior's villagers out of one another.
- *
- * @mangled VillagerCollision__Fv__2
- * @address 0x19E9E0
- * @size 0x2D0
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void VillagerCollision() {
+void VillagerCollision() {
     sceVu0FVECTOR position;
     CBoxVu0       box;
     sceVu0FVECTOR ground;
     CCPoly        poly;
 
     for (int i = -1; i < 10; i++) {
-        int           snap;
-        CCharacter   *chara;
+        int           snap = 0;
+        CCharacter   *chara = nullptr;
         CNPCharacter *villager = nullptr;
-        int           foot_sound;
+        int           foot_sound = 0;
 
         if (i >= 0) {
             villager = &EdVillager[i];
@@ -1566,7 +1415,7 @@ static void VillagerCollision() {
         }
 
         WorkBuffer__2->used = 0;
-        CCPoly *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+        auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
         box.max[0] = 1.0f + position[0];
         box.min[0] = position[0] - 1.0f;
         box.max[2] = 1.0f + position[2];
@@ -1584,7 +1433,7 @@ static void VillagerCollision() {
         int count = GetCollision(polys, &box);
 
         if (count > 300) {
-            printf("cpoly over!!!! %d\n", count);
+            std::printf("cpoly over!!!! %d\n", count);
         }
 
         if (count > 0) {
@@ -1616,13 +1465,8 @@ static void VillagerCollision() {
 
 /**
  * Enters the interior's textures once they have been read.
- *
- * @mangled LoadTexture__Fv__2
- * @address 0x19ECB0
- * @size 0x20C
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static int LoadTexture() {
+int LoadTexture() {
     auto texdata = std::make_unique<LOADTEXTURE_INFO2[]>(2);
     texdata[0].name = nullptr;
     texdata[0].block_no = 15;
@@ -1634,39 +1478,31 @@ static int LoadTexture() {
         return 0;
     }
 
-    char *ext = file->name;
-    char  c;
-
-    while ((c = *ext) != '\0') {
-        if (c == '.') {
-            ext++;
-            break;
-        }
-
-        ext++;
-    }
+    const std::string_view file_name(file->name);
+    const std::size_t      dot = file_name.find('.');
+    const std::string_view ext = dot == std::string_view::npos ? std::string_view() : file_name.substr(dot + 1);
 
     u_int *cfg_data = nullptr;
-    int    size;
+    int    size = 0;
     TexAnime.Initialize(nullptr, 0);
 
-    if (strcmp(ext, "img") == 0) {
+    if (ext == "img") {
         texdata[0].name = reinterpret_cast<char *>(file->buffer);
     } else {
-        u_int *found;
-        int    cfg_size;
+        u_int *found = nullptr;
+        int    cfg_size = 0;
 
         if (GetPackFileExt(reinterpret_cast<u_int *>(file->buffer), "img", &found, 1, nullptr, nullptr) > 0) {
             texdata[0].name = reinterpret_cast<char *>(found);
         }
 
         if (GetPackFileExt(reinterpret_cast<u_int *>(file->buffer), "cfg", &found, 1, &cfg_size, nullptr) > 0) {
-            TexAnime.Initialize(EdIn_TexAnimeData, 64);
+            TexAnime.Initialize(EdIn_TexAnimeData.data(), static_cast<int>(EdIn_TexAnimeData.size()));
             cfg_data = found;
             size = cfg_size;
 
-            for (int i = 0; i < 64; i++) {
-                EdIn_TexAnimeData[i].Initialize();
+            for (CTexAnimeData &anime_data : EdIn_TexAnimeData) {
+                anime_data.Initialize();
             }
         }
     }
@@ -1684,18 +1520,12 @@ static int LoadTexture() {
 /**
  * Reserved character-loading hook with no operation.
  */
-static void LoadChara() {
+void LoadChara() {
 }
 
 /**
  * Reads the interior's parts, objects and function points out of its archive.
- *
- * @mangled LoadData__Fv
- * @address 0x19EED0
- * @size 0x818
  */
-} // namespace
-
 void LoadData() {
     func_point = new (reinterpret_cast<u_long128 *>(EdNPCBuffer.Alloc(0x600))) EPARTS_FUNC_DATA[128];
 
@@ -1711,9 +1541,9 @@ void LoadData() {
         archive = reinterpret_cast<u_int *>(file->buffer);
     }
 
-    int count;
+    int count = 0;
 
-    for (count = 0;; count++) {
+    for (;; count++) {
         u_int *part_archive = SearchPTS(archive, count);
 
         if (part_archive == nullptr) {
@@ -1724,7 +1554,7 @@ void LoadData() {
         LoadPTS(parts, part_archive);
         parts->handle = count;
         parts->category_no = 15;
-        int first_point = func_num;
+        const int first_point = func_num;
         func_num += GetFuncPoint(count, part_archive, &func_point[first_point]);
 
         if (EdInteriorPartsNo >= 0) {
@@ -1735,33 +1565,25 @@ void LoadData() {
             }
         }
 
-        CFrame *frames[9];
-
-        for (int i = 0; i < 9; i++) {
-            frames[i] = nullptr;
-        }
+        std::array<CFrame *, 9> frames{};
 
         for (int i = 0; i < 4; i++) {
-            CFrame *frame = parts->frame[i];
-            frames[i] = frame;
+            frames[i] = parts->frame[i];
         }
 
         frames[4] = parts->shadow_frame;
         frames[5] = parts->GetCollisionFrame();
         frames[6] = parts->shade_frame;
         frames[7] = parts->ripple_frame;
-        CFrame *extra_collision;
+        CFrame *extra_collision = nullptr;
 
-        if (parts->camera_frame == nullptr) {
-            extra_collision = nullptr;
-        } else {
+        if (parts->camera_frame != nullptr) {
             parts->camera_frame->SetPosition(parts->pos[0], parts->pos[1], parts->pos[2]);
             parts->camera_frame->SetRotation(parts->rotation.x, parts->rotation.y, parts->rotation.z);
             extra_collision = parts->camera_frame;
         }
 
         frames[8] = extra_collision;
-        EPARTS_FUNC_DATA *point = &func_point[first_point];
         effect_num = 32;
 
         for (int i = 0; i < 24; i++) {
@@ -1769,13 +1591,14 @@ void LoadData() {
             parts->effect[i] = nullptr;
         }
 
-        for (; first_point < func_num; first_point++, point++) {
+        for (int point_no = first_point; point_no < func_num; point_no++) {
+            EPARTS_FUNC_DATA *point = &func_point[point_no];
             EnterPartsEffect(parts, point, EdInInfo->effects, 32);
 
             if (obj_anime_num < 32) {
                 OBJ_ANIME_SEQ *seq = &EdInInfo->obj_anime[obj_anime_num];
 
-                if (InitObjAnime(frames, 9, point, seq) != 0) {
+                if (InitObjAnime(frames.data(), static_cast<int>(frames.size()), point, seq) != 0) {
                     obj_anime_num++;
                 }
             }
@@ -1797,10 +1620,9 @@ void LoadData() {
     }
 
     camera_num = 0;
-    EPARTS_FUNC_DATA *point = func_point;
 
-    for (int i = 0; i < func_num; i++, point++) {
-        if (point->kind == EPARTS_FUNC_CAMERA) {
+    for (int i = 0; i < func_num; i++) {
+        if (func_point[i].kind == EPARTS_FUNC_CAMERA) {
             camera_num++;
         }
     }
@@ -1818,21 +1640,19 @@ void LoadData() {
         }
     }
 
-    for (int i = 0; i < 1; i++) {
-        Water[i].draw = false;
+    for (CGroundWater &surface : Water) {
+        surface.draw = false;
     }
 
-    for (int i = 0; i < 1; i++) {
+    for (std::size_t i = 0; i < Water.size(); i++) {
         EDIT_WATER_INFO *info = &EdInInfo->water_surfaces[i];
 
         if (info->grid_rows <= 0) {
             break;
         }
 
-        CWater       *water;
-        int           j;
         CGroundWater *surface = &Water[i];
-        water = &surface->water;
+        CWater       *water = &surface->water;
         sceVu0FVECTOR near_left = {info->corner_a[0], info->corner_a[1], info->corner_a[2], 1.0f};
         sceVu0FVECTOR near_right = {info->corner_b[0], info->corner_a[1], info->corner_a[2], 1.0f};
         sceVu0FVECTOR far_left = {info->corner_a[0], info->corner_a[1], info->corner_b[2], 1.0f};
@@ -1847,7 +1667,7 @@ void LoadData() {
             surface->follow[j] = info->follow[j];
         }
 
-        for (j = 0; j < 4; j++) {
+        for (int j = 0; j < 4; j++) {
             sceVu0CopyVector(&surface->ripples[j].row, &info->wave[j].row);
         }
 
@@ -1859,28 +1679,20 @@ void LoadData() {
     }
 }
 
-/** Frame of the interior's animated texture. */
-namespace {
-static int setTexAnimCnt;
-
 /** Clock that advances the interior's animated texture. */
-static float setTexAnimCntf;
+float setTexAnimCntf;
 
 /**
  * Uploads the interior's texture-animation state to the graphics synthesizer.
- *
- * @mangled setTexAnim__Fv
- * @address 0x19F9B0
- * @size 0x1C0
  */
-static void setTexAnim() {
+void setTexAnim() {
     if (setTexAnimCntf >= 7.0f) {
         setTexAnimCntf = 0.0f;
     } else {
         setTexAnimCntf += 0.2f;
     }
 
-    setTexAnimCnt = static_cast<int>(setTexAnimCntf);
+    const int frame_no = static_cast<int>(setTexAnimCntf);
 
     CTexture *strip = TexManager.GetTexture("i01e01_a", -1);
     CTexture *plate = TexManager.GetTexture("i01e01", -1);
@@ -1889,70 +1701,66 @@ static void setTexAnim() {
         return;
     }
 
-    MGMoveImage(reinterpret_cast<sceGsTex0 *>(&strip->tex0), CRect_i_(0, setTexAnimCnt * 64, 64, 64), reinterpret_cast<sceGsTex0 *>(&plate->tex0), 0, 0, 0);
+    MGMoveImage(reinterpret_cast<sceGsTex0 *>(&strip->tex0), CRect_i_(0, frame_no * 64, 64, 64), reinterpret_cast<sceGsTex0 *>(&plate->tex0), 0, 0, 0);
 }
 
-/** Number of villagers the info script has placed. */
-static int npc_count;
-
 /** Number of object animations the info script has defined. */
-static int objanime_list;
+int objanime_list;
 
 /** Number of effects the info script has defined. */
-static int effect_list;
-
-/** Whether the info script asked for debug drawing. */
-static int debug;
+int effect_list;
 
 /** Number of motion parts the info script has defined. */
-static int motion_parts_list;
+int motion_parts_list;
 
 /** Number of water surfaces the info script has defined. */
-static int water_list;
+int water_list;
 
 /** Water surface record the info script is filling in. */
-static EDIT_WATER_INFO *water_info;
+EDIT_WATER_INFO *water_info;
 
 /** Directory that names in the info script are relative to. */
-static std::string CurrentDir;
+std::string CurrentDir;
 
-static void CommandAMBIENT(void **arguments);
-static void CommandLIGHT_C(void **arguments);
-static void CommandFOG(void **arguments);
-static void CommandBG_COL(void **arguments);
-static void CommandPROJECTION(void **arguments);
-static void CommandPEOPLE(void **arguments);
-static void CommandCD(void **arguments);
-static void CommandOBJ_ANIME(void **arguments);
-static void CommandFIRE(void **arguments);
-static void CommandFLAME(void **arguments);
-static void CommandBRIGHT(void **arguments);
-static void CommandDEBUG(void **arguments);
-static void CommandMOTION_PARTS(void **arguments);
-static void CommandWATER_SURFACE(void **arguments);
-static void CommandWATER_SHAKE(void **arguments);
+void CommandAMBIENT(void **arguments);
+void CommandLIGHT_C(void **arguments);
+void CommandFOG(void **arguments);
+void CommandBG_COL(void **arguments);
+void CommandPROJECTION(void **arguments);
+void CommandPEOPLE(void **arguments);
+void CommandCD(void **arguments);
+void CommandOBJ_ANIME(void **arguments);
+void CommandFIRE(void **arguments);
+void CommandFLAME(void **arguments);
+void CommandBRIGHT(void **arguments);
+void CommandDEBUG(void **arguments);
+void CommandMOTION_PARTS(void **arguments);
+void CommandWATER_SURFACE(void **arguments);
+void CommandWATER_SHAKE(void **arguments);
 
 /** The keywords an interior's info script may use. */
-static TAG_PARAM Command[15] = {
-    {"AMBIENT",       {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                      },
-    {"LIGHT_C",       {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, -1}                                                                                                                                                                                                                                                                                                                                                                        },
-    {"FOG",           {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                    },
-    {"BG_COL",        {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                      },
-    {"PROJECTION",    {SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-    {"PEOPLE",        {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                      },
-    {"CD",            {SCRIPT_ARGUMENT_STRING, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   },
-    {"OBJ_ANIME",     {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                  },
-    {"FIRE",          {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                       },
-    {"FLAME",         {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                       },
-    {"BRIGHT",        {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                       },
-    {"DEBUG",         {-1}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           },
-    {"MOTION_PARTS",  {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                    },
-    {"WATER_SURFACE", {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, -1}},
-    {"WATER_SHAKE",   {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}                                                                                                                                                                                                                                                                                                                                                                                                                                           },
+std::array<TAG_PARAM, 15> Command = {
+    {
+     {"AMBIENT", {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"LIGHT_C", {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, -1}},
+     {"FOG", {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"BG_COL", {SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"PROJECTION", {SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"PEOPLE", {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"CD", {SCRIPT_ARGUMENT_STRING, -1}},
+     {"OBJ_ANIME", {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"FIRE", {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"FLAME", {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"BRIGHT", {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"DEBUG", {-1}},
+     {"MOTION_PARTS", {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     {"WATER_SURFACE", {SCRIPT_ARGUMENT_STRING, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, -1}},
+     {"WATER_SHAKE", {SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_INTEGER, SCRIPT_ARGUMENT_FLOAT, SCRIPT_ARGUMENT_FLOAT, -1}},
+     }
 };
 
 /** Handlers of the info script's keywords, in the order of Command. */
-static void (*CommandExe[15])(void **) = {
+const std::array<void (*)(void **), 15> CommandExe = {
     CommandAMBIENT,
     CommandLIGHT_C,
     CommandFOG,
@@ -1972,33 +1780,20 @@ static void (*CommandExe[15])(void **) = {
 
 /**
  * Runs the interior's info script through the interpreter.
- *
- * @mangled LoadInfo__FPci
- * @address 0x19FB70
- * @size 0xD8
  */
-static void LoadInfo(char *script, int size) {
+void LoadInfo(char *script, int size) {
     CScriptInterpreter interpreter;
-    int                command;
 
     interpreter.SetScript(script, size);
-    interpreter.SetTAG(Command, 15);
+    interpreter.SetTAG(Command.data(), static_cast<int>(Command.size()));
     CurrentDir.clear();
-    npc_count = 0;
     objanime_list = 0;
     effect_list = 0;
     motion_parts_list = 0;
     water_list = 0;
     water_info = nullptr;
-    debug = 0;
 
-    for (;;) {
-        command = interpreter.GetNextTAG();
-
-        if (command < 0) {
-            break;
-        }
-
+    for (int command = interpreter.GetNextTAG(); command >= 0; command = interpreter.GetNextTAG()) {
         CommandExe[command](interpreter.arguments);
     }
 
@@ -2008,13 +1803,8 @@ static void LoadInfo(char *script, int size) {
 
 /**
  * Sets the interior's ambient light colour.
- *
- * @mangled CommandAMBIENT__FPPv__2
- * @address 0x19FC50
- * @size 0x44
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandAMBIENT(void **arguments) {
+void CommandAMBIENT(void **arguments) {
     EdInInfo->ambient[0] = *static_cast<float *>(arguments[0]);
     EdInInfo->ambient[1] = *static_cast<float *>(arguments[1]);
     EdInInfo->ambient[2] = *static_cast<float *>(arguments[2]);
@@ -2023,22 +1813,16 @@ static void CommandAMBIENT(void **arguments) {
 
 /**
  * Sets the colour and direction of one of the interior's lights.
- *
- * @mangled CommandLIGHT_C__FPPv__2
- * @address 0x19FCA0
- * @size 0x128
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandLIGHT_C(void **arguments) {
+void CommandLIGHT_C(void **arguments) {
     sceVu0FVECTOR direction;
-    int           light = *static_cast<int *>(arguments[6]);
+    const int     light = *static_cast<int *>(arguments[6]) - 1;
 
     direction[0] = *static_cast<float *>(arguments[0]);
     direction[1] = *static_cast<float *>(arguments[1]);
     direction[2] = *static_cast<float *>(arguments[2]);
     direction[3] = 0.0f;
     sceVu0Normalize(direction, direction);
-    light--;
     EdInInfo->light_direction[0][light] = direction[0];
     EdInInfo->light_direction[1][light] = direction[1];
     EdInInfo->light_direction[2][light] = direction[2];
@@ -2051,13 +1835,8 @@ static void CommandLIGHT_C(void **arguments) {
 
 /**
  * Sets the interior's fog distances and colour.
- *
- * @mangled CommandFOG__FPPv__2
- * @address 0x19FDD0
- * @size 0x78
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandFOG(void **arguments) {
+void CommandFOG(void **arguments) {
     EdInInfo->fog.near_distance = *static_cast<float *>(arguments[0]);
     EdInInfo->fog.far_distance = *static_cast<float *>(arguments[1]);
     EdInInfo->fog.red = *static_cast<int *>(arguments[2]);
@@ -2069,13 +1848,8 @@ static void CommandFOG(void **arguments) {
 
 /**
  * Sets the colour the interior clears to.
- *
- * @mangled CommandBG_COL__FPPv__2
- * @address 0x19FE50
- * @size 0x44
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandBG_COL(void **arguments) {
+void CommandBG_COL(void **arguments) {
     EdInInfo->background_colour[0] = *static_cast<float *>(arguments[0]);
     EdInInfo->background_colour[1] = *static_cast<float *>(arguments[1]);
     EdInInfo->background_colour[2] = *static_cast<float *>(arguments[2]);
@@ -2084,144 +1858,85 @@ static void CommandBG_COL(void **arguments) {
 
 /**
  * Sets the interior's projection distance.
- *
- * @mangled CommandPROJECTION__FPPv
- * @address 0x19FEA0
- * @size 0x18
  */
-static void CommandPROJECTION(void **arguments) {
+void CommandPROJECTION(void **arguments) {
     EdInInfo->projection = *static_cast<float *>(arguments[0]);
 }
 
 /**
  * Accepts the villager command and does nothing with it.
- *
- * @mangled CommandPEOPLE__FPPv__2
- * @address 0x19FEC0
- * @size 0x8
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandPEOPLE(void **arguments) {
+void CommandPEOPLE([[maybe_unused]] void **arguments) {
 }
 
 /**
  * Moves the script's current directory to one below the interior's own.
- *
- * @mangled CommandCD__FPPv__2
- * @address 0x19FED0
- * @size 0x60
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandCD(void **arguments) {
+void CommandCD(void **arguments) {
     CurrentDir = std::string(EditDataDir) + "in/" + static_cast<const char *>(arguments[0]);
 }
 
 /**
  * Accepts the object-animation command and does nothing with it.
- *
- * @mangled CommandOBJ_ANIME__FPPv__2
- * @address 0x19FF30
- * @size 0x8
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandOBJ_ANIME(void **arguments) {
+void CommandOBJ_ANIME([[maybe_unused]] void **arguments) {
 }
 
 /**
  * Reserved effect-setup hook with no operation.
  */
-static void SetEffect(EFFECT_TYPE type, char *name, float *position, float *scale, float *rotation) {
+void SetEffect([[maybe_unused]] EFFECT_TYPE type, [[maybe_unused]] char *name, [[maybe_unused]] float *position, [[maybe_unused]] float *scale, [[maybe_unused]] float *rotation) {
+}
+
+/**
+ * Reads an effect command's name, position and uniform scale and hands them to SetEffect.
+ */
+void PlaceEffect(EFFECT_TYPE type, void **arguments) {
+    sceVu0FVECTOR position;
+    sceVu0FVECTOR scale;
+    sceVu0FVECTOR rotation = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    position[0] = *static_cast<float *>(arguments[1]);
+    position[1] = *static_cast<float *>(arguments[2]);
+    position[2] = *static_cast<float *>(arguments[3]);
+    position[3] = 1.0f;
+    scale[0] = *static_cast<float *>(arguments[4]);
+    scale[1] = *static_cast<float *>(arguments[4]);
+    scale[2] = *static_cast<float *>(arguments[4]);
+    SetEffect(type, static_cast<char *>(arguments[0]), position, scale, rotation);
 }
 
 /**
  * Places a fire effect in the interior.
- *
- * @mangled CommandFIRE__FPPv__2
- * @address 0x19FF50
- * @size 0x94
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandFIRE(void **arguments) {
-    sceVu0FVECTOR position;
-    sceVu0FVECTOR scale;
-    sceVu0FVECTOR rotation = {0.0f, 0.0f, 0.0f, 0.0f};
-
-    position[0] = *static_cast<float *>(arguments[1]);
-    position[1] = *static_cast<float *>(arguments[2]);
-    position[2] = *static_cast<float *>(arguments[3]);
-    position[3] = 1.0f;
-    scale[0] = *static_cast<float *>(arguments[4]);
-    scale[1] = *static_cast<float *>(arguments[4]);
-    scale[2] = *static_cast<float *>(arguments[4]);
-    SetEffect(EFFECT_FIRE, static_cast<char *>(arguments[0]), position, scale, rotation);
+void CommandFIRE(void **arguments) {
+    PlaceEffect(EFFECT_TYPE::FIRE, arguments);
 }
 
 /**
  * Places a flame effect in the interior.
- *
- * @mangled CommandFLAME__FPPv__2
- * @address 0x19FFF0
- * @size 0x94
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandFLAME(void **arguments) {
-    sceVu0FVECTOR position;
-    sceVu0FVECTOR scale;
-    sceVu0FVECTOR rotation = {0.0f, 0.0f, 0.0f, 0.0f};
-
-    position[0] = *static_cast<float *>(arguments[1]);
-    position[1] = *static_cast<float *>(arguments[2]);
-    position[2] = *static_cast<float *>(arguments[3]);
-    position[3] = 1.0f;
-    scale[0] = *static_cast<float *>(arguments[4]);
-    scale[1] = *static_cast<float *>(arguments[4]);
-    scale[2] = *static_cast<float *>(arguments[4]);
-    SetEffect(EFFECT_FLAME, static_cast<char *>(arguments[0]), position, scale, rotation);
+void CommandFLAME(void **arguments) {
+    PlaceEffect(EFFECT_TYPE::FLAME, arguments);
 }
 
 /**
  * Places a glow effect in the interior.
- *
- * @mangled CommandBRIGHT__FPPv__2
- * @address 0x1A0090
- * @size 0x94
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandBRIGHT(void **arguments) {
-    sceVu0FVECTOR position;
-    sceVu0FVECTOR scale;
-    sceVu0FVECTOR rotation = {0.0f, 0.0f, 0.0f, 0.0f};
-
-    position[0] = *static_cast<float *>(arguments[1]);
-    position[1] = *static_cast<float *>(arguments[2]);
-    position[2] = *static_cast<float *>(arguments[3]);
-    position[3] = 1.0f;
-    scale[0] = *static_cast<float *>(arguments[4]);
-    scale[1] = *static_cast<float *>(arguments[4]);
-    scale[2] = *static_cast<float *>(arguments[4]);
-    SetEffect(EFFECT_BRIGHT, static_cast<char *>(arguments[0]), position, scale, rotation);
+void CommandBRIGHT(void **arguments) {
+    PlaceEffect(EFFECT_TYPE::BRIGHT, arguments);
 }
 
 /**
- * Turns the interior's debug drawing on.
- *
- * @mangled CommandDEBUG__FPPv
- * @address 0x1A0130
- * @size 0x10
+ * Accepts the debug command and does nothing with it.
  */
-static void CommandDEBUG(void **arguments) {
-    debug = 1;
+void CommandDEBUG([[maybe_unused]] void **arguments) {
 }
 
 /**
  * Names one of the interior's four moving parts.
- *
- * @mangled CommandMOTION_PARTS__FPPv__2
- * @address 0x1A0140
- * @size 0xF4
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandMOTION_PARTS(void **arguments) {
+void CommandMOTION_PARTS(void **arguments) {
     if (motion_parts_list < 4) {
         EDIT_MOTION_PARTS_INFO *motion = &EdInInfo->motion_parts[motion_parts_list];
         motion_parts_list++;
@@ -2231,7 +1946,8 @@ static void CommandMOTION_PARTS(void **arguments) {
             exit__2(-1);
         }
 
-        std::memcpy(motion->name, name.c_str(), name.size() + 1);
+        std::ranges::copy(name, std::begin(motion->name));
+        motion->name[name.size()] = '\0';
         motion->values[0] = *static_cast<float *>(arguments[1]);
         motion->values[1] = *static_cast<float *>(arguments[2]);
         motion->values[2] = *static_cast<float *>(arguments[3]);
@@ -2246,18 +1962,14 @@ static void CommandMOTION_PARTS(void **arguments) {
 
 /**
  * Names one of the interior's eight water surfaces.
- *
- * @mangled CommandWATER_SURFACE__FPPv__2
- * @address 0x1A0240
- * @size 0x184
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandWATER_SURFACE(void **arguments) {
+void CommandWATER_SURFACE(void **arguments) {
     if (water_list < 8) {
         EDIT_WATER_INFO *surface = &EdInInfo->water_surfaces[water_list];
         water_list++;
-        std::strncpy(surface->name, static_cast<char *>(arguments[0]), sizeof(surface->name) - 1);
-        surface->name[sizeof(surface->name) - 1] = '\0';
+        const std::string_view name(static_cast<const char *>(arguments[0]));
+        std::ranges::fill(surface->name, '\0');
+        std::ranges::copy(name.substr(0, sizeof(surface->name) - 1), std::begin(surface->name));
         surface->grid_rows = *static_cast<int *>(arguments[1]);
         surface->grid_columns = *static_cast<int *>(arguments[2]);
         surface->corner_a[0] = *static_cast<float *>(arguments[3]);
@@ -2289,53 +2001,37 @@ static void CommandWATER_SURFACE(void **arguments) {
 
 /**
  * Starts a ripple on the interior's water surface.
- *
- * @mangled CommandWATER_SHAKE__FPPv__2
- * @address 0x1A03D0
- * @size 0x9C
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
  */
-static void CommandWATER_SHAKE(void **arguments) {
-    EDIT_WATER_INFO *info = water_info;
+void CommandWATER_SHAKE(void **arguments) {
+    if (water_info == nullptr) {
+        return;
+    }
 
-    if (info != nullptr) {
-        for (int i = 0; i < 4; i++) {
-            if (info->wave[i].power == 0.0f && info->wave[i].range == 0.0f) {
-                EDIT_WATER_WAVE_VIEW *wave = reinterpret_cast<EDIT_WATER_WAVE_VIEW *>(&(reinterpret_cast<EDIT_WATER_WAVE_INFO *>(info))[i]);
-                wave->row = static_cast<float>(*static_cast<int *>(arguments[0]));
-                wave->column = static_cast<float>(*static_cast<int *>(arguments[1]));
-                wave->range = *static_cast<float *>(arguments[3]);
-                wave->power = *static_cast<float *>(arguments[2]);
-                return;
-            }
+    for (EDIT_WATER_WAVE_INFO &wave : water_info->wave) {
+        if (wave.power == 0.0f && wave.range == 0.0f) {
+            wave.row = static_cast<float>(*static_cast<int *>(arguments[0]));
+            wave.column = static_cast<float>(*static_cast<int *>(arguments[1]));
+            wave.range = *static_cast<float *>(arguments[3]);
+            wave.power = *static_cast<float *>(arguments[2]);
+            return;
         }
     }
 }
 } // namespace
 
-#include "common.h"
-
-#include <cstdint>
-
-#include "eparts_port.hpp"
-#include "objanime.hpp"
-
-// Retail's GetFuncPoint copies each interior part's function records with the host's EPARTS_FUNC_DATA
-// stride and words; the disc's are the PS2's (eparts_port.hpp). parts carries the part's index, which
-// LoadData turns into its frame.
+// Decodes one interior part's function records from their disc layout into points. Each record's parts
+// field carries the part's index until LoadData turns it into the part's frame.
 int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points) {
-    const char      *definition = reinterpret_cast<char *>(archive) + archive[1];
-    EPartsDiscHeader header = EPartsReadHeader(definition);
-    int              i;
+    const char            *definition = reinterpret_cast<char *>(archive) + archive[1];
+    const EPartsDiscHeader header = EPartsReadHeader(definition);
 
     if (header.func_count < 0 || header.func_count > 128 - func_num) {
         return 0;
     }
 
-    for (i = 0; i < header.func_count; points++) {
-        EPartsReadFunc(definition, i, points);
-        points->parts = reinterpret_cast<CMapParts *>(static_cast<std::intptr_t>(parts_no));
-        i++;
+    for (int i = 0; i < header.func_count; i++) {
+        EPartsReadFunc(definition, i, &points[i]);
+        points[i].parts = reinterpret_cast<CMapParts *>(static_cast<std::intptr_t>(parts_no));
     }
 
     return header.func_count;

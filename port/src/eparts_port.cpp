@@ -1,6 +1,7 @@
 #include "eparts_port.hpp"
 
 #include <cstring>
+#include <iterator>
 
 namespace {
 
@@ -12,14 +13,14 @@ T *Carve(CDataAlloc2<1> *arena, std::size_t bytes) {
 } // namespace
 
 EPartsDiscHeader EPartsReadHeader(const void *record) {
-    EPartsDiscHeader header;
+    EPartsDiscHeader header{};
     std::memcpy(&header, record, sizeof(header));
     return header;
 }
 
 void EPartsReadFunc(const void *record, int index, EPARTS_FUNC_DATA *out) {
     EPartsDiscHeader header = EPartsReadHeader(record);
-    EPartsDiscFunc   disc;
+    EPartsDiscFunc   disc{};
     std::memcpy(&disc,
                 static_cast<const char *>(record) + header.func +
                     static_cast<std::size_t>(index) * sizeof(EPartsDiscFunc),
@@ -58,19 +59,20 @@ EPARTS_INFO_HEADER *EPartsLoad(const void *record, CDataAlloc2<1> *arena) {
     std::memcpy(header->unk_14, source.unk_14, sizeof(header->unk_14));
     std::memcpy(header->position, source.position, sizeof(header->position));
     std::memcpy(header->rotation, source.rotation, sizeof(header->rotation));
-    header->cell = reinterpret_cast<u8 *>(blob + source.cell);
+    header->cell = reinterpret_cast<u8 *>(&blob[source.cell]);
 
-    for (int i = 0; i < 6; i++) {
-        header->element_id[i] = source.element_id[i];
-        header->element_name[i] = source.element_name[i] != 0 ? blob + source.element_name[i] : nullptr;
+    for (std::size_t element = 0; element < std::size(source.element_id); element++) {
+        header->element_id[element] = source.element_id[element];
+        header->element_name[element] =
+            source.element_name[element] != 0 ? &blob[source.element_name[element]] : nullptr;
     }
 
     header->func_count = source.func_count;
-    std::size_t count = static_cast<std::size_t>(source.func_count > 0 ? source.func_count : 0);
+    auto count = static_cast<std::size_t>(source.func_count > 0 ? source.func_count : 0);
     header->func = Carve<EPARTS_FUNC_DATA>(arena, sizeof(EPARTS_FUNC_DATA) * count);
 
-    for (int i = 0; i < source.func_count; i++) {
-        EPartsReadFunc(record, i, &header->func[i]);
+    for (int func_index = 0; func_index < source.func_count; func_index++) {
+        EPartsReadFunc(record, func_index, &header->func[func_index]);
     }
 
     return header;

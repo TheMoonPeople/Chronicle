@@ -7,6 +7,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "battlemenu.hpp"
 #include "boxvu0.hpp"
@@ -54,8 +55,8 @@ int   g_villager_ground_height_map = -1;
 
 float SmoothVillagerGroundHeight(int villager, int map_no, float height) {
     if (g_villager_ground_height_map != map_no) {
-        for (int i = 0; i < 10; i++) {
-            g_villager_ground_height_valid[i] = false;
+        for (bool &valid : g_villager_ground_height_valid) {
+            valid = false;
         }
         g_villager_ground_height_map = map_no;
     }
@@ -120,14 +121,14 @@ void KeepNearVillagers(CCamera *camera, CCharacter *player) {
         }
     }
 
-    for (int i = 0; i < 10; i++) {
-        g_villager_retail_near[i] = false;
+    for (bool &retail_near : g_villager_retail_near) {
+        retail_near = false;
     }
 
-    for (int i = 0; i < 2; i++) {
-        if (nearest[i] >= 0) {
-            EdVillager[nearest[i]].near_camera = true;
-            g_villager_retail_near[nearest[i]] = true;
+    for (const int villager : nearest) {
+        if (villager >= 0) {
+            EdVillager[villager].near_camera = true;
+            g_villager_retail_near[villager] = true;
         }
     }
 }
@@ -142,9 +143,8 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
     CEditGround *ground = EdExchangeInfo.ground;
     CCharacter  *player = EdExchangeInfo.player;
     CCamera     *camera = EdExchangeInfo.camera;
-    int          i;
 
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         sceVu0FVECTOR  position;
         sceVu0FVECTOR  rotation;
         CNPCharacter  *npc = &EdVillager[i];
@@ -195,7 +195,7 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
 
     KeepNearVillagers(camera, player);
 
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         EdVillager[i].Step();
         EdVillager[i].ShadowStep();
         EdVillager[i].ClothStep(0);
@@ -212,8 +212,8 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
             if (EdVillager[i].CheckDraw()) {
                 EdVillager[i].FootSoundEnable(g_villager_retail_near[i]);
                 WorkBuffer__2->used = 0;
-                CCPoly *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
-                int     count = 0;
+                auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+                int   count = 0;
                 if (!use_terrain) {
                     count = ground->PickUpEditAreaPoly(polys, position[0], position[1], position[2]);
                 }
@@ -253,7 +253,7 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
                 }
 
                 if (count > 0) {
-                    CCPoly poly;
+                    CCPoly poly{};
                     position[1] += 30.0f;
 
                     if (GetFootPoly(position, 1000.0f, &poly, hit, polys, count, 0)) {
@@ -277,9 +277,8 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
 void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
     CCharacter *player = EdExchangeInfo.player;
     CCamera    *camera = EdExchangeInfo.camera;
-    int         i;
 
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         if (EdVillager[i].villager_id >= 0) {
             EdVillager[i].near_camera = false;
             EdVillager[i].SetPosition(villagers[i].position);
@@ -293,14 +292,14 @@ void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
 
     KeepNearVillagers(camera, player);
 
-    for (i = 0; i < 10; i++) {
-        if (EdVillager[i].villager_id < 0) {
-            EdVillager[i].near_camera = true;
+    for (CNPCharacter &villager : EdVillager) {
+        if (villager.villager_id < 0) {
+            villager.near_camera = true;
         }
 
-        EdVillager[i].Step();
-        EdVillager[i].ShadowStep();
-        EdVillager[i].ClothStep(0);
+        villager.Step();
+        villager.ShadowStep();
+        villager.ClothStep(0);
     }
 }
 
@@ -309,8 +308,9 @@ void EdMoveVillagerSubMap(VILLAGER_INFO *villagers) {
 // the host's header instead.
 int EdInitToEPInfo(INIT_PARTSINFO *init, EPARTS_INFO_HEADER *header) {
     constexpr size_t cell_capacity = sizeof(init->cell) / sizeof(init->cell[0][0]);
-    if (init == nullptr || header == nullptr || init->width < 0 || init->height < 0 || init->width > cell_capacity ||
-        init->height > cell_capacity || init->width * init->height > cell_capacity) {
+    if (init == nullptr || header == nullptr || init->width < 0 || init->height < 0 ||
+        std::cmp_greater(init->width, cell_capacity) || std::cmp_greater(init->height, cell_capacity) ||
+        std::cmp_greater(init->width * init->height, cell_capacity)) {
         return 0;
     }
 
@@ -357,45 +357,32 @@ namespace {
  * Steps of a villager conversation, as EdTalkMode's talk_mode holds them.
  */
 // clang-format off
-enum TalkModeState {
-    TALK_MODE_SELECT  = 0, /**< Choice prompt is shown with its cursor. */
-    TALK_MODE_MESSAGE = 1, /**< Plain message is shown until it is closed. */
+enum class TalkModeState : int {
+    Select  = 0, /**< Choice prompt is shown with its cursor. */
+    Message = 1, /**< Plain message is shown until it is closed. */
 };
 
 /**
  * Who shows the active conversation.
  */
-enum TalkDialog {
-    TALK_DIALOG_UNASKED = 0, /**< Not yet offered to the dialog framework. */
-    TALK_DIALOG_OPEN    = 1, /**< The framework's window is up. */
-    TALK_DIALOG_RETAIL  = 2, /**< Retail's message window, as the game has it. */
+enum class TalkDialog : int {
+    Unasked = 0, /**< Not yet offered to the dialog framework. */
+    Open    = 1, /**< The framework's window is up. */
+    Retail  = 2, /**< Retail's message window, as the game has it. */
 };
 
 // clang-format on
 
-/** Villager involved in the active conversation. */
-static CNPCharacter *talk_villager__2;
+CNPCharacter *talk_villager__2;
+int           talk_chara_info_id;
+int           talk_camera;
+TalkModeState talk_mode;
+int           talk_select;
+int           TalkMesMake;
+int           TalkMesNo;
 
-/** Metadata identifier of the character involved in the active conversation. */
-static int talk_chara_info_id;
-
-/** Camera placement variant selected for the current conversation. */
-static int talk_camera;
-
-/** Conversation state currently being processed. */
-static int talk_mode;
-
-/** Selected choice in the active conversation prompt. */
-static int talk_select;
-
-/** Whether the active conversation message still needs to be created. */
-static int TalkMesMake;
-
-/** Message number the active conversation is showing. */
-static int TalkMesNo;
-
-/** Whether the dialog framework has the active conversation: it is asked on the conversation's first tick. */
-static TalkDialog talk_dialog = TALK_DIALOG_RETAIL;
+// The dialog framework is offered the conversation on its first tick.
+TalkDialog talk_dialog = TalkDialog::Retail;
 } // namespace
 
 int EdTalkModeInit(CNPCharacter *villager, int character_info_id) {
@@ -414,18 +401,18 @@ int EdTalkModeInit(CNPCharacter *villager, int character_info_id) {
     // The talk script runs next: what a quest takes over from it is held back from here.
     QuestHostTalkStarting(MapNo, talk_chara_info_id);
 
-    talk_mode = TALK_MODE_SELECT;
-    talk_dialog = TALK_DIALOG_UNASKED;
+    talk_mode = TalkModeState::Select;
+    talk_dialog = TalkDialog::Unasked;
     TalkMesMake = 1;
     TalkMesNo = 0;
     talk_camera = 0;
 
     if (villager->event_status != 0) {
-        talk_camera = rand() % 3;
+        talk_camera = std::rand() % 3;
     }
 
     talk_select = 0;
-    EdEventInfo.talk_npc_id = (villager - EdVillager);
+    EdEventInfo.talk_npc_id = villager - EdVillager;
     EdEventInfo.talk_select_prompt = -1;
     return 1;
 }
@@ -438,10 +425,10 @@ int EdNowTalkCharaInfoID() {
     return talk_chara_info_id;
 }
 
+namespace {
 /**
  * Closes the conversation window and leaves it ready for the next message.
  */
-namespace {
 void EdCloseTalkMes() {
     EditMes1.text_rate = EditMes1.text_rate_set;
     EditMes1.mes_made = -1;
@@ -467,12 +454,12 @@ void EdCloseTalkMes() {
     EditMes1.mes_made = -1;
     EditMes1.edge_alpha = 0x80;
 
-    for (int i = 0; i < 10; i++) {
-        EditMes1.mes_no[i] = -1;
+    for (s32 &mes_no : EditMes1.mes_no) {
+        mes_no = -1;
     }
 
-    for (int i = 0; i < 8; i++) {
-        EditMes1.values[i] = 0;
+    for (s32 &value : EditMes1.values) {
+        value = 0;
     }
 
     EditMes1.value = 0;
@@ -485,25 +472,16 @@ void EdCloseTalkMes() {
     EditMes1.cursor_y = 0;
     EditMes1.cursor_lit = false;
 
-    for (int i = 0; i < 10; i++) {
-        EditMes1.line_pos[i].x = -1;
-        EditMes1.line_pos[i].y = -1;
+    for (MES_LINE_POS &line_pos : EditMes1.line_pos) {
+        line_pos.x = -1;
+        line_pos.y = -1;
     }
 }
 } // namespace
 
-/**
- * Runs the talking-to-a-villager mode for one frame.
- *
- * @mangled EdTalkMode__FP10CCharacterP13CCameraFollowiPi
- * @address 0x199090
- * @size 0xEBC
- */
 int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selection) {
-    /**
-     * Camera offsets from the speakers' midpoint for each of the three talk-camera views.
-     */
-    static sceVu0FVECTOR vv[3] = {
+    // Camera offsets from the speakers' midpoint for each of the three talk-camera views.
+    static sceVu0FVECTOR talk_camera_offsets[3] = {
         {-18.8f, 7.1f, -21.3f, 1.0f},
         {21.0f,  6.5f, -5.7f,  1.0f},
         {22.6f,  6.9f, 16.5f,  1.0f},
@@ -554,7 +532,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
     sceVu0FMATRIX rotation;
     sceVu0UnitMatrix(rotation);
     sceVu0RotMatrixY(rotation, rotation, player_yaw);
-    sceVu0ApplyMatrix(camera_position, rotation, vv[talk_camera]);
+    sceVu0ApplyMatrix(camera_position, rotation, talk_camera_offsets[talk_camera]);
     sceVu0AddVector(camera_position, reference, camera_position);
 
     if (camera != nullptr) {
@@ -570,7 +548,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
     }
 
     if (EdEventInfo.talk_select_prompt < 0) {
-        talk_mode = TALK_MODE_MESSAGE;
+        talk_mode = TalkModeState::Message;
         TalkMesNo = EdEventInfo.talk_messages[0];
     } else {
         TalkMesNo = EdEventInfo.talk_select_message;
@@ -578,11 +556,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
 
     int choice_count = 0;
 
-    for (;;) {
-        if (EdEventInfo.talk_messages[choice_count] < 0) {
-            break;
-        }
-
+    while (EdEventInfo.talk_messages[choice_count] >= 0) {
         choice_count++;
     }
 
@@ -591,13 +565,13 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
     // A villager a provider adds choices to opens on the framework's menu, in this window placed as
     // retail places its choice prompt. "Talk" hands back to the conversation as retail has it, from
     // the start, on the next tick; leaving ends it.
-    if (talk_dialog == TALK_DIALOG_UNASKED) {
+    if (talk_dialog == TalkDialog::Unasked) {
         // The talk script has run: what a quest held back of it can go back to retail.
         QuestHostTalkOpened();
-        talk_dialog = DialogNpcOpen(MapNo, talk_chara_info_id, TalkMesNo) ? TALK_DIALOG_OPEN : TALK_DIALOG_RETAIL;
+        talk_dialog = DialogNpcOpen(MapNo, talk_chara_info_id, TalkMesNo) ? TalkDialog::Open : TalkDialog::Retail;
     }
 
-    if (talk_dialog == TALK_DIALOG_OPEN) {
+    if (talk_dialog == TalkDialog::Open) {
         switch (DialogNpcStep()) {
             case DialogNpcState::Running: {
                 // Placed as retail places them: the villager's words over the villager, with the
@@ -625,11 +599,11 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
                 return 0;
             }
             case DialogNpcState::PlayOriginal:
-                talk_dialog = TALK_DIALOG_RETAIL;
+                talk_dialog = TalkDialog::Retail;
                 EdCloseTalkMes();
                 return 0;
             case DialogNpcState::Closed: {
-                talk_dialog = TALK_DIALOG_RETAIL;
+                talk_dialog = TalkDialog::Retail;
                 EdCloseTalkMes();
                 villager->SetMotion(0, 0);
 
@@ -674,7 +648,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
     }
 
     switch (talk_mode) {
-        case TALK_MODE_MESSAGE:
+        case TalkModeState::Message:
             if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
                 if (EditMes1.State() == CLSMES_SHOWN) {
                     EdCloseTalkMes();
@@ -699,7 +673,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
             EditMes1.cursor_row = -1;
             villager->SetMotion(3, 0);
             break;
-        case TALK_MODE_SELECT:
+        case TalkModeState::Select:
             if (GamePad.Down(PAD_UP) != 0) {
                 talk_select--;
 
@@ -718,7 +692,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
 
             if (GamePad.Down(PAD_CROSS) != 0) {
                 if (EditMes1.State() == CLSMES_SHOWN) {
-                    talk_mode = TALK_MODE_MESSAGE;
+                    talk_mode = TalkModeState::Message;
                     TalkMesMake = 1;
                     TalkMesNo = EdEventInfo.talk_messages[talk_select];
 
@@ -806,7 +780,7 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
 
     int talk_position[4];
 
-    if (talk_mode == TALK_MODE_SELECT) {
+    if (talk_mode == TalkModeState::Select) {
         if (mode != 0) {
             EditMes1.tail_on = false;
             EditMes1.auto_pos = MES_POS_BOTTOM;
@@ -822,14 +796,14 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
     }
 
     switch (talk_mode) {
-        case TALK_MODE_SELECT:
+        case TalkModeState::Select:
             if (TalkMesMake != 0) {
                 EditMes1.text_rate = 0.0f;
                 TalkMesMake = EditMes1.MakeMesWin(TalkMesNo);
             }
 
             break;
-        case TALK_MODE_MESSAGE:
+        case TalkModeState::Message:
             if (TalkMesMake != 0) {
                 TalkMesMake = EditMes1.MakeMesWin(TalkMesNo);
             }
@@ -840,7 +814,6 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
     return 0;
 }
 
-// Starts the event interpreter held by this translation unit.
 int EdRunEvent(int program, CDataAlloc2<1> *arena) {
     return PortEdRunEvent(program, arena);
 }
@@ -848,9 +821,10 @@ int EdRunEvent(int program, CDataAlloc2<1> *arena) {
 int PortEventMenuMode = ED_MENU_NONE;
 
 /**
- * Opens the world map while retaining the script result pointer at native width.
+ * Opens the world map, keeping the script's result pointer at native width
+ * until the menu closes.
  */
-int PortWorldMapCommand(RS_STACKDATA *stack, int argument_count) {
+int PortWorldMapCommand(RS_STACKDATA *stack, int /*argument_count*/) {
     if (stack->type != RS_PTR) {
         return 0;
     }
@@ -860,7 +834,8 @@ int PortWorldMapCommand(RS_STACKDATA *stack, int argument_count) {
 }
 
 /**
- * Publishes the world-map choice when its menu finishes.
+ * Runs the event menu for one frame and, when it finishes, publishes the
+ * world-map or bait choice to the waiting script.
  */
 int PortEdEventMenuMode() {
     const int done = EdMenuMode();

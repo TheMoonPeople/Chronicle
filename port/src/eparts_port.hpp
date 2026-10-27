@@ -7,11 +7,10 @@
 #include "editpartsinfo.hpp"
 #include "objanime.hpp"
 
-// A .pts part definition as the disc lays it out: an EPARTS_INFO_HEADER with 4-byte pointers that
-// hold offsets from the header, followed by the cell map, the element names and a table of 0xC0-byte
-// EPARTS_FUNC_DATA. The host structs have 8-byte pointers, so their fields sit elsewhere and the
-// function table's stride is 0xD0; every reader of a .pts goes through these.
-
+/**
+ * The header of a .pts part definition as the disc lays it out: EPARTS_INFO_HEADER with its
+ * pointers stored as 4-byte offsets from the header. Every reader of a .pts goes through this.
+ */
 struct EPartsDiscHeader {
     std::int32_t  header_size;
     std::int32_t  data_size;
@@ -21,10 +20,10 @@ struct EPartsDiscHeader {
     std::uint8_t  unk_14[0x10];
     float         position[3];
     float         rotation[3];
-    std::uint32_t cell;
+    std::uint32_t cell; /**< Offset of the cell map from the header. */
     std::int32_t  element_id[6];
-    std::uint32_t element_name[6];
-    std::uint32_t func;
+    std::uint32_t element_name[6]; /**< Offsets of the element names, or 0 for none. */
+    std::uint32_t func;            /**< Offset of the function table from the header. */
     std::int32_t  func_count;
 };
 
@@ -32,10 +31,14 @@ static_assert(sizeof(EPartsDiscHeader) == 0x78);
 static_assert(offsetof(EPartsDiscHeader, cell) == 0x3C);
 static_assert(offsetof(EPartsDiscHeader, func) == 0x70);
 
+/**
+ * One 0xC0-byte function record of a .pts definition as the disc lays it out. The host
+ * EPARTS_FUNC_DATA holds an 8-byte pointer, so the host table's stride differs.
+ */
 struct EPartsDiscFunc {
     std::uint8_t  unk_00[0x10];
     std::int32_t  kind;
-    std::uint32_t parts;
+    std::uint32_t parts; /**< Disc word of the CMapParts pointer. */
     float         start_time;
     float         end_time;
     std::int32_t  link_id;
@@ -52,13 +55,19 @@ struct EPartsDiscFunc {
 static_assert(sizeof(EPartsDiscFunc) == 0xC0);
 static_assert(offsetof(EPartsDiscFunc, position) == 0x40);
 
-// The header of the definition at `record`, copied out.
+/**
+ * Copies out the header of the .pts definition at `record`.
+ */
 EPartsDiscHeader EPartsReadHeader(const void *record);
 
-// Function record `index` of the definition at `record`, into a host record. `parts` keeps the disc
-// word, zero-extended, as retail's copy kept it.
+/**
+ * Copies function record `index` of the definition at `record` into the host record `out`;
+ * `parts` keeps the disc word, zero-extended.
+ */
 void EPartsReadFunc(const void *record, int index, EPARTS_FUNC_DATA *out);
 
-// Retail's relocated copy of the definition, at host layout, carved from `arena`: the host header,
-// the record's bytes (which the cell map and element names point into) and the host function table.
+/**
+ * Builds the relocated copy of the definition at host layout, carved from `arena`: the host header,
+ * the record's bytes (which the cell map and element names point into) and the function table.
+ */
 EPARTS_INFO_HEADER *EPartsLoad(const void *record, CDataAlloc2<1> *arena);

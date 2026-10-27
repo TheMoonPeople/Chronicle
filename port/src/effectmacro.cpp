@@ -19,18 +19,18 @@
 
 namespace {
 
-// The jitter table. Retail reads rd[i][j + 1] for j up to 14, which runs one entry past the end of
-// the last row; the spare entry stands in for that word and stays zero.
-float g_jitter[21 * 15 + 1];
+// 21 columns of 15 rows, row-major; a band's bottom edge at row 15 reads the next column's first
+// entry, and the spare entry keeps such a read in bounds past the last column.
+std::array<float, (21 * 15) + 1> g_jitter{};
 
-float &Jitter(int i, int j) { return g_jitter[i * 15 + j]; }
+float &Jitter(int column, int row) { return g_jitter[(column * 15) + row]; }
 
 // The edit camera's near clip. The heat haze reaches the bottom of the view from here, so an
 // object in front of the focus planes still takes up as much of the wobble as its depth gives.
 constexpr float kHazeNear = 10.0f;
 
-// The columns of the logical frame the effect covers (retail's screen was the frame; a target that
-// shows past it is covered to its edges) and the texel width of the blurred image laid over them.
+// The columns of the logical frame the effect covers (a target that shows past the frame is covered
+// to its edges) and the texel width of the blurred image laid over them.
 struct Span {
     float left;
     float right;
@@ -65,15 +65,15 @@ std::array<gfx::Vertex2D, 4> Quad(float x0, float y0, float x1, float y1, float 
 // screen's rows are linear in, so the haze ramps at an even rate down the frame instead of fading
 // out in a band of a few rows. Each plane contributes an equal fraction.
 void DrawBeyond(gfx::TextureHandle beyond, gfx::TextureHandle snapshot, float front, float back, bool feather) {
-    const uint8_t clear[4] = {};
+    const std::array<uint8_t, 4> clear{};
     gfx::SetRenderTarget(beyond);
-    gfx::Clear(true, clear, false, 0.0f);
+    gfx::Clear(true, clear.data(), false, 0.0f);
     gfx::DrawState state;
     state.depth_test = gfx::DepthTest::GEqual;
     state.texa_aem = false;
     state.texa_ta0 = 0x80;
     state.blend = feather;
-    state.alpha = {0, 2, 2, 1, 0x80};
+    state.alpha = {.a = 0, .b = 2, .c = 2, .d = 1, .fix = 0x80};
     gfx::TextureBinding binding;
     binding.texture = snapshot;
     binding.filter = gfx::Filter::Nearest;
@@ -122,13 +122,13 @@ void DrawBands(std::vector<gfx::Vertex2D> &triangles, gfx::TextureHandle image, 
     state.blend = true;
     state.fog = false;
     state.cull = gfx::CullMode::None;
-    state.alpha = {2, 1, 0, 1, 0x80};
+    state.alpha = {.a = 2, .b = 1, .c = 0, .d = 1, .fix = 0x80};
     gfx::Draw2D(gfx::Primitive::Triangles, triangles, binding, state);
     for (gfx::Vertex2D &vertex : triangles) {
         vertex.color[0] = vertex.color[1] = vertex.color[2] = vertex.color[3];
         vertex.color[3] = 0x80;
     }
-    state.alpha = {0, 2, 2, 1, 0x80};
+    state.alpha = {.a = 0, .b = 2, .c = 2, .d = 1, .fix = 0x80};
     gfx::Draw2D(gfx::Primitive::Triangles, triangles, binding, state);
 }
 
@@ -143,28 +143,18 @@ void AppendStrip(std::vector<gfx::Vertex2D> &triangles, const std::vector<gfx::V
 
 } // namespace
 
-// Retail shrinks the frame into frame_image twice (half width, then quarter width) and draws the
-// copies back over it in bands whose depth is that of the focus planes, alpha blended and depth
-// tested GEQUAL without writes: only what lies beyond a plane takes the blurred copy. The first
-// pass alternates the near plane's two depths column by column, the second the far plane's, and
-// with blur the second pass's columns wander sideways by up to blur sixteenths of a pixel (the
-// towns' heat haze).
+// Blurred images of the scenery beyond each focus plane are drawn back over the frame in bands
+// whose depth is that of the plane, alpha blended and depth tested GEQUAL without writes, so only
+// what lies beyond a plane takes the blur. The near pass alternates the near plane's two depths
+// column by column, the far pass the far plane's; with blur the far pass's columns wander sideways
+// by up to blur sixteenths of a pixel (the towns' heat haze).
 //
-// The copies held the whole frame, so whatever stood nearer than a plane was blurred into the
-// scenery around it, and the quarter-width copy came back as blocks. The ordinary depth-of-field
-// passes retain their half- and quarter-size images of only the scenery beyond each plane. Heat
-// haze instead uses two full-resolution targets sharing the frame's depth buffer. Each target gains
-// coverage over eight depth planes. The wobble's target spans from the camera's near clip to beyond
-// the far focus plane, its planes spaced in 1/z so the haze ramps up evenly down the frame: every
-// object takes up as much of the wobble as its depth gives, and the background haze blends into the
-// foreground rather than starting at a line partway up the view. The two outermost columns do not
-// wander past the edges of the image.
+// Plain depth of field uses half- and quarter-size images. Heat haze uses two full-resolution
+// targets sharing the frame's depth buffer, each gaining coverage over eight depth planes; the
+// wobble's target spans from the camera's near clip to beyond the far focus plane, so every object
+// takes up as much of the wobble as its depth gives. The two outermost columns do not wander past
+// the edges of the image.
 void DepthOfField(float *focus, int level, int alpha, int blur) {
-    int phase;
-    int i;
-    int j;
-    int k;
-
     gfx::TextureHandle target = gfx::CurrentRenderTarget();
     bool               haze = blur > 0;
     gfx::LogicalRect   visible = gfx::VisibleLogicalRect(target);
@@ -174,10 +164,13 @@ void DepthOfField(float *focus, int level, int alpha, int blur) {
     uint32_t           half_height = SCREEN_HALF_HEIGHT;
     uint32_t           quarter_width = (half_width + 1) / 2;
     uint32_t           quarter_height = half_height / 2;
-    Span               span = {static_cast<float>(left), static_cast<float>(right),
-                               haze ? static_cast<float>(left) : 0.0f,
-                               haze ? static_cast<float>(right - left) : static_cast<float>(half_width),
-                               haze ? 2.0f : 1.0f};
+    Span               span = {
+        .left = static_cast<float>(left),
+        .right = static_cast<float>(right),
+        .sample_left = haze ? static_cast<float>(left) : 0.0f,
+        .texels = haze ? static_cast<float>(right - left) : static_cast<float>(half_width),
+        .row_scale = haze ? 2.0f : 1.0f,
+    };
 
     sceVu0FVECTOR depth_point[4] = {
         {0.0f, 0.0f, focus[0],         1.0f},
@@ -187,7 +180,7 @@ void DepthOfField(float *focus, int level, int alpha, int blur) {
     };
     int screen[4][4] = {};
 
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
         sceVu0ApplyMatrix(depth_point[i], mgRenderInfo.screen, depth_point[i]);
         depth_point[i][2] /= depth_point[i][3];
         screen[i][2] = static_cast<int>(depth_point[i][2]);
@@ -266,22 +259,20 @@ void DepthOfField(float *focus, int level, int alpha, int blur) {
     std::vector<gfx::Vertex2D> triangles;
     std::vector<gfx::Vertex2D> strip;
 
-    for (phase = 0; phase < 1; phase++) {
-        for (k = 0; k < 8; k++) {
-            strip.clear();
+    for (int row = 0; row < 8; row++) {
+        strip.clear();
 
-            for (j = 0; j < 41; j++) {
-                int   x = (j << 8) + 0x6C00;
-                int   v = k << 9;
-                int   v_bottom = std::min(v + 0x200, SCREEN_HALF_HEIGHT << 4);
-                float across = static_cast<float>(j) / 40.0f;
-                strip.push_back(StripVertex(span, x, v + GS_Y_OFFSET, screen[(j + phase) % 2][2], across, v, alpha));
-                strip.push_back(StripVertex(span, x, v_bottom + GS_Y_OFFSET, screen[(j + phase) % 2][2], across,
-                                            v_bottom, alpha));
-            }
-
-            AppendStrip(triangles, strip);
+        for (int column = 0; column < 41; column++) {
+            const int   x = (column << 8) + 0x6C00;
+            const int   v = row << 9;
+            const int   v_bottom = std::min(v + 0x200, SCREEN_HALF_HEIGHT << 4);
+            const float across = static_cast<float>(column) / 40.0f;
+            const int   z = screen[column % 2][2];
+            strip.push_back(StripVertex(span, x, v + GS_Y_OFFSET, z, across, v, alpha));
+            strip.push_back(StripVertex(span, x, v_bottom + GS_Y_OFFSET, z, across, v_bottom, alpha));
         }
+
+        AppendStrip(triangles, strip);
     }
 
     gfx::DrawState state = services.draw_state();
@@ -294,21 +285,13 @@ void DepthOfField(float *focus, int level, int alpha, int blur) {
 
     if (level >= 2) {
         if (blur > 0) {
-            for (i = 0; i < 21; i++) {
-                for (j = 0; j < 15; j++) {
-                    if (blur > 0) {
-                        Jitter(i, j) += 0.2f * (static_cast<float>(blur) * (static_cast<float>(rand()) / 2147483648.0f - 0.5f));
-
-                        if (Jitter(i, j) < 0.0f) {
-                            Jitter(i, j) = 0.0f;
-                        }
-
-                        if (Jitter(i, j) > static_cast<float>(blur)) {
-                            Jitter(i, j) = static_cast<float>(blur);
-                        }
-                    } else {
-                        Jitter(i, j) = 0.0f;
-                    }
+            for (int column = 0; column < 21; column++) {
+                for (int row = 0; row < 15; row++) {
+                    float &jitter = Jitter(column, row);
+                    jitter += 0.2f * (static_cast<float>(blur) *
+                                      ((static_cast<float>(std::rand()) / 2147483648.0f) - 0.5f));
+                    jitter = std::max(jitter, 0.0f);
+                    jitter = std::min(jitter, static_cast<float>(blur));
                 }
             }
         }
@@ -317,25 +300,26 @@ void DepthOfField(float *focus, int level, int alpha, int blur) {
             alpha = 0x80;
         }
 
-        for (j = 0; j < SCREEN_HALF_HEIGHT / 16; j++) {
+        for (int row = 0; row < SCREEN_HALF_HEIGHT / 16; row++) {
             strip.clear();
 
-            for (i = 0; i < 21; i++) {
-                int   x = (i << 9) + 0x6C00;
-                int   v = j << 8;
-                int   y = v + GS_Y_OFFSET;
-                int   y_bottom = y + 0x100;
-                float across = static_cast<float>(i) / 20.0f;
-                int   v_bottom = v + 0x100;
+            for (int column = 0; column < 21; column++) {
+                const int   x = (column << 9) + 0x6C00;
+                const int   v = row << 8;
+                const int   y = v + GS_Y_OFFSET;
+                const int   y_bottom = y + 0x100;
+                const float across = static_cast<float>(column) / 20.0f;
+                const int   v_bottom = v + 0x100;
+                const int   z = screen[2 + (column % 2)][2];
 
-                if (blur > 0 && i > 0 && i < 20) {
+                if (blur > 0 && column > 0 && column < 20) {
                     strip.push_back(
-                        StripVertex(span, x - static_cast<int>(Jitter(i, j)), y, screen[2 + i % 2][2], across, v, alpha));
-                    strip.push_back(StripVertex(span, x - static_cast<int>(Jitter(i, j + 1)), y_bottom, screen[2 + i % 2][2],
+                        StripVertex(span, x - static_cast<int>(Jitter(column, row)), y, z, across, v, alpha));
+                    strip.push_back(StripVertex(span, x - static_cast<int>(Jitter(column, row + 1)), y_bottom, z,
                                                 across, v_bottom, alpha));
                 } else {
-                    strip.push_back(StripVertex(span, x, y, screen[2 + i % 2][2], across, v, alpha));
-                    strip.push_back(StripVertex(span, x, y_bottom, screen[2 + i % 2][2], across, v_bottom, alpha));
+                    strip.push_back(StripVertex(span, x, y, z, across, v, alpha));
+                    strip.push_back(StripVertex(span, x, y_bottom, z, across, v_bottom, alpha));
                 }
             }
 
