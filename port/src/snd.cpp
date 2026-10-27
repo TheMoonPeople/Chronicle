@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <print>
 #include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 
 #include "credits_text.hpp"
@@ -36,19 +39,19 @@ struct Colour {
     u_char a;
 };
 
-Colour ToColour(const spRGBA *colour) { return {colour->r, colour->g, colour->b, colour->a}; }
+Colour ToColour(const spRGBA *colour) { return {.r = colour->r, .g = colour->g, .b = colour->b, .a = colour->a}; }
 
 // A logical rect over a texel rect. The GS draws a sprite up to x + w - 1/16 so that it stops one
 // pixel short of x + w; a quad to x + w covers the same pixels here.
 std::array<gfx::Vertex2D, 4> RectQuad(const CRect_i_ &screen, const CRect_i_ &texel, Colour colour) {
-    const float x0 = static_cast<float>(screen.x);
-    const float y0 = static_cast<float>(screen.y);
-    const float x1 = static_cast<float>(screen.x + screen.width);
-    const float y1 = static_cast<float>(screen.y + screen.height);
-    const float u0 = static_cast<float>(texel.x);
-    const float v0 = static_cast<float>(texel.y);
-    const float u1 = static_cast<float>(texel.x + texel.width);
-    const float v1 = static_cast<float>(texel.y + texel.height);
+    const auto x0 = static_cast<float>(screen.x);
+    const auto y0 = static_cast<float>(screen.y);
+    const auto x1 = static_cast<float>(screen.x + screen.width);
+    const auto y1 = static_cast<float>(screen.y + screen.height);
+    const auto u0 = static_cast<float>(texel.x);
+    const auto v0 = static_cast<float>(texel.y);
+    const auto u1 = static_cast<float>(texel.x + texel.width);
+    const auto v1 = static_cast<float>(texel.y + texel.height);
     return {
         draw2d::Vertex(x0, y0, 0.0f, u0, v0, colour.r, colour.g, colour.b, colour.a),
         draw2d::Vertex(x1, y0, 0.0f, u1, v0, colour.r, colour.g, colour.b, colour.a),
@@ -66,8 +69,8 @@ void RectSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel
     if (trace) {
         static std::set<std::tuple<std::string, int, int, int, int>> seen;
         if (seen.emplace(texture->name, texel.x, texel.y, texel.width, texel.height).second) {
-            std::fprintf(stderr, "sprite %s texel %d %d %d %d screen %d %d %d %d\n", texture->name, texel.x, texel.y,
-                         texel.width, texel.height, screen.x, screen.y, screen.width, screen.height);
+            std::println(stderr, "sprite {} texel {} {} {} {} screen {} {} {} {}", std::string_view(texture->name),
+                         texel.x, texel.y, texel.width, texel.height, screen.x, screen.y, screen.width, screen.height);
         }
     }
 
@@ -100,10 +103,10 @@ gfx::DrawState CurrentState(bool fog) {
 
 void Sprite3D(CTexture *texture, const CRect_i_ &source, int *top_left, int *top_right, int *bottom_left,
               int *bottom_right, Colour colour, bool fog) {
-    const float u0 = static_cast<float>(source.x);
-    const float v0 = static_cast<float>(source.y);
-    const float u1 = static_cast<float>(source.x + source.width);
-    const float v1 = static_cast<float>(source.y + source.height);
+    const auto u0 = static_cast<float>(source.x);
+    const auto v0 = static_cast<float>(source.y);
+    const auto u1 = static_cast<float>(source.x + source.width);
+    const auto v1 = static_cast<float>(source.y + source.height);
 
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, u0, v0, colour, fog),
@@ -118,20 +121,20 @@ void Sprite3D(CTexture *texture, const CRect_i_ &source, int *top_left, int *top
 // The GS draws a sprite at its second vertex's depth and fog.
 void Sprite3D(CTexture *texture, const CRect_i_ &source, int *top_left, int *bottom_right, Colour colour,
               bool fog) {
-    const int top_right[4] = {bottom_right[0], top_left[1], bottom_right[2], bottom_right[3]};
-    const int bottom_left[4] = {top_left[0], bottom_right[1], bottom_right[2], bottom_right[3]};
-    const int top_left_at_depth[4] = {top_left[0], top_left[1], bottom_right[2], bottom_right[3]};
+    const std::array<int, 4> top_right = {bottom_right[0], top_left[1], bottom_right[2], bottom_right[3]};
+    const std::array<int, 4> bottom_left = {top_left[0], bottom_right[1], bottom_right[2], bottom_right[3]};
+    const std::array<int, 4> top_left_at_depth = {top_left[0], top_left[1], bottom_right[2], bottom_right[3]};
 
-    const float u0 = static_cast<float>(source.x);
-    const float v0 = static_cast<float>(source.y);
-    const float u1 = static_cast<float>(source.x + source.width);
-    const float v1 = static_cast<float>(source.y + source.height);
+    const auto u0 = static_cast<float>(source.x);
+    const auto v0 = static_cast<float>(source.y);
+    const auto u1 = static_cast<float>(source.x + source.width);
+    const auto v1 = static_cast<float>(source.y + source.height);
 
     std::array<gfx::Vertex2D, 4> quad = {
-        GsVertex(top_left_at_depth, u0, v0, colour, fog),
-        GsVertex(top_right, u1, v0, colour, fog),
+        GsVertex(top_left_at_depth.data(), u0, v0, colour, fog),
+        GsVertex(top_right.data(), u1, v0, colour, fog),
         GsVertex(bottom_right, u1, v1, colour, fog),
-        GsVertex(bottom_left, u0, v1, colour, fog),
+        GsVertex(bottom_left.data(), u0, v1, colour, fog),
     };
     draw2d::DrawTextured(gfx::Primitive::Quads, quad, texture->tex0, kTex1Linear, CurrentState(fog));
     draw2d::Get().set_test(nullptr);
@@ -150,41 +153,42 @@ void setbilinear(int on) { g_linear = on; }
 
 int PortBilinear() { return g_linear; }
 
-void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha) { draw2d::Get().set_alpha(alpha); }
+void setAlphaFlag(sceVif1Packet * /*packet*/, sceGsAlpha *alpha) { draw2d::Get().set_alpha(alpha); }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, int u, int v) {
-    RectSprite(texture, screen, CRect_i_(u, v, screen.width, screen.height), {0x80, 0x80, 0x80, 0x80});
+void set2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, int u, int v) {
+    RectSprite(texture, screen, CRect_i_(u, v, screen.width, screen.height),
+               {.r = 0x80, .g = 0x80, .b = 0x80, .a = 0x80});
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel) {
-    RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, 0x80});
+void set2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel) {
+    RectSprite(texture, screen, texel, {.r = 0x80, .g = 0x80, .b = 0x80, .a = 0x80});
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                               unsigned char alpha) {
-    RectSprite(texture, screen, texel, {0x80, 0x80, 0x80, alpha});
+void set2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                 unsigned char alpha) {
+    RectSprite(texture, screen, texel, {.r = 0x80, .g = 0x80, .b = 0x80, .a = alpha});
 }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                               unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
-    RectSprite(texture, screen, texel, {red, green, blue, alpha});
+void set2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                 unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+    RectSprite(texture, screen, texel, {.r = red, .g = green, .b = blue, .a = alpha});
 }
 
 // A gouraud strip, so the corner order decides the diagonal the colours interpolate across.
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                               spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
+void set2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                 spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode) {
     if (texture == nullptr) {
         return;
     }
 
     std::array<gfx::Vertex2D, 4> quad = RectQuad(screen, texel, {});
-    const Colour                 colours[4] = {ToColour(top_left), ToColour(top_right), ToColour(bottom_right),
-                                               ToColour(bottom_left)};
-    for (int i = 0; i < 4; i++) {
-        quad[i].color[0] = colours[i].r;
-        quad[i].color[1] = colours[i].g;
-        quad[i].color[2] = colours[i].b;
-        quad[i].color[3] = colours[i].a;
+    const std::array<Colour, 4>  colours = {ToColour(top_left), ToColour(top_right), ToColour(bottom_right),
+                                            ToColour(bottom_left)};
+    for (std::size_t corner = 0; corner < quad.size(); corner++) {
+        quad[corner].color[0] = colours[corner].r;
+        quad[corner].color[1] = colours[corner].g;
+        quad[corner].color[2] = colours[corner].b;
+        quad[corner].color[3] = colours[corner].a;
     }
 
     std::array<gfx::Vertex2D, 4> strip;
@@ -198,9 +202,9 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &scree
     draw2d::RestoreTestZbuf();
 }
 
-void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
-                                  spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
-                                  spRGBA *bottom_right_colour) {
+void set3DColSprite(sceVif1Packet * /*packet*/, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
+                    spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour,
+                    spRGBA *bottom_right_colour) {
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, 0.0f, 0.0f, ToColour(top_left_colour), false),
         GsVertex(top_right, 0.0f, 0.0f, ToColour(top_right_colour), false),
@@ -211,15 +215,13 @@ void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *b
 }
 
 void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                               int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
-    spRGBA colour = {0x80, 0x80, 0x80, 0};
-
-    colour.a = alpha;
+                 int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
+    spRGBA colour = {.r = 0x80, .g = 0x80, .b = 0x80, .a = alpha};
     set3DSprite(packet, texture, source, top_left, top_right, bottom_left, bottom_right, &colour);
 }
 
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                               int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
+void set3DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &source, int *top_left,
+                 int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -227,8 +229,8 @@ void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sourc
     Sprite3D(texture, source, top_left, top_right, bottom_left, bottom_right, ToColour(colour), false);
 }
 
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                               int *bottom_right, spRGBA *colour) {
+void set3DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &source, int *top_left,
+                 int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -236,18 +238,18 @@ void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sourc
     Sprite3D(texture, source, top_left, bottom_right, ToColour(colour), false);
 }
 
-void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                                  int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
+void set3DSpriteFog(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &source, int *top_left,
+                    int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }
 
-    Sprite3D(texture, source, top_left, top_right, bottom_left, bottom_right, {0x80, 0x80, 0x80, alpha},
-             true);
+    Sprite3D(texture, source, top_left, top_right, bottom_left, bottom_right,
+             {.r = 0x80, .g = 0x80, .b = 0x80, .a = alpha}, true);
 }
 
-void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left,
-                                  int *bottom_right, spRGBA *colour) {
+void set3DSpriteFog(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &source, int *top_left,
+                    int *bottom_right, spRGBA *colour) {
     if (texture == nullptr) {
         return;
     }
@@ -255,9 +257,9 @@ void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &so
     Sprite3D(texture, source, top_left, bottom_right, ToColour(colour), true);
 }
 
-void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
-                                unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
-    const Colour                 colour = {red, green, blue, alpha};
+void setColSprite(sceVif1Packet * /*packet*/, int *top_left, int *top_right, int *bottom_left, int *bottom_right,
+                  unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+    const Colour                 colour = {.r = red, .g = green, .b = blue, .a = alpha};
     std::array<gfx::Vertex2D, 4> strip = {
         GsVertex(top_left, 0.0f, 0.0f, colour, false, true),
         GsVertex(top_right, 0.0f, 0.0f, colour, false, true),
@@ -267,12 +269,12 @@ void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bot
     draw2d::DrawUntextured(gfx::Primitive::TriangleStrip, strip, CurrentState(false));
 }
 
-void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
-                                 spRGBA *bottom_left, spRGBA *bottom_right) {
-    const float x0 = static_cast<float>(screen.x);
-    const float y0 = static_cast<float>(screen.y);
-    const float x1 = static_cast<float>(screen.x + screen.width);
-    const float y1 = static_cast<float>(screen.y + screen.height);
+void set2DSpriteC4(sceVif1Packet * /*packet*/, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right,
+                   spRGBA *bottom_left, spRGBA *bottom_right) {
+    const auto x0 = static_cast<float>(screen.x);
+    const auto y0 = static_cast<float>(screen.y);
+    const auto x1 = static_cast<float>(screen.x + screen.width);
+    const auto y1 = static_cast<float>(screen.y + screen.height);
 
     std::array<gfx::Vertex2D, 4> strip = {
         draw2d::Vertex(x0, y0, 0.0f, 0.0f, 0.0f, top_left->r, top_left->g, top_left->b, top_left->a),
@@ -290,8 +292,8 @@ void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_le
 // axes swapped at angle 0. Retail truncates each turned corner to a pixel, so a slow turn (the
 // title's backdrop, half a milliradian a tick) moves the corners one at a time; they are kept as
 // turned here.
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                               int pivot_x, int pivot_y, float angle) {
+void set2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                 int pivot_x, int pivot_y, float angle) {
     draw2d::TurnedSprite(texture, screen, texel, pivot_x, pivot_y, angle, 1.0f);
 }
 
@@ -301,8 +303,8 @@ void draw2d::TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect
         return;
     }
 
-    float x[4];
-    float y[4];
+    std::array<float, 4> x{};
+    std::array<float, 4> y{};
 
     x[0] = x[2] = static_cast<float>(-pivot_x);
     x[1] = x[3] = static_cast<float>((screen.x + screen.width + 1) - (screen.x + pivot_x));
@@ -317,9 +319,9 @@ void draw2d::TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect
         y[i] = turned_y * scale + static_cast<float>(screen.y);
     }
 
-    const float u0 = static_cast<float>(texel.x);
-    const float v0 = static_cast<float>(texel.y);
-    const float v1 = static_cast<float>(texel.y + texel.height);
+    const auto u0 = static_cast<float>(texel.x);
+    const auto v0 = static_cast<float>(texel.y);
+    const auto v1 = static_cast<float>(texel.y + texel.height);
 
     // The second corner's u spans the screen width, not the texel width, as in retail.
     std::array<gfx::Vertex2D, 4> strip = {
@@ -337,15 +339,15 @@ void draw2d::TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect
 
 // Retail's rotation in 12.4 units: the far edges a sixteenth short, mirrored about the pivot at
 // angle 0, y halved for the field after turning.
-void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                                  int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
-                                  unsigned char blue, unsigned char alpha) {
+void set2DSpriteRot(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                    int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green,
+                    unsigned char blue, unsigned char alpha) {
     if (texture == nullptr) {
         return;
     }
 
-    float x[4];
-    float y[4];
+    std::array<float, 4> x{};
+    std::array<float, 4> y{};
 
     x[0] = x[2] = static_cast<float>(pivot_x * -16);
     x[1] = x[3] = static_cast<float>(((screen.width - pivot_x) << 4) - 1);
@@ -360,9 +362,9 @@ void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &sc
         y[i] = static_cast<float>(screen.y) + static_cast<float>(static_cast<int>(0.5f * turned_y)) / 8.0f;
     }
 
-    const float u0 = static_cast<float>(texel.x);
-    const float v0 = static_cast<float>(texel.y);
-    const float v1 = static_cast<float>(texel.y + texel.height);
+    const auto u0 = static_cast<float>(texel.x);
+    const auto v0 = static_cast<float>(texel.y);
+    const auto v1 = static_cast<float>(texel.y + texel.height);
 
     std::array<gfx::Vertex2D, 4> strip = {
         draw2d::Vertex(x[0], y[0], 0.0f, u0, v0, red, green, blue, alpha),

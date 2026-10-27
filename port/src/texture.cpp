@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -12,8 +13,12 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <print>
+#include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "caption_text.hpp"
@@ -27,23 +32,79 @@
 namespace {
 
 std::string Sha256Hex(std::string_view input) {
-    constexpr std::array<std::uint32_t, 64> kRound = {
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    constexpr std::array<std::uint32_t, 64> round_constants = {
+        0x428a2f98,
+        0x71374491,
+        0xb5c0fbcf,
+        0xe9b5dba5,
+        0x3956c25b,
+        0x59f111f1,
+        0x923f82a4,
+        0xab1c5ed5,
+        0xd807aa98,
+        0x12835b01,
+        0x243185be,
+        0x550c7dc3,
+        0x72be5d74,
+        0x80deb1fe,
+        0x9bdc06a7,
+        0xc19bf174,
+        0xe49b69c1,
+        0xefbe4786,
+        0x0fc19dc6,
+        0x240ca1cc,
+        0x2de92c6f,
+        0x4a7484aa,
+        0x5cb0a9dc,
+        0x76f988da,
+        0x983e5152,
+        0xa831c66d,
+        0xb00327c8,
+        0xbf597fc7,
+        0xc6e00bf3,
+        0xd5a79147,
+        0x06ca6351,
+        0x14292967,
+        0x27b70a85,
+        0x2e1b2138,
+        0x4d2c6dfc,
+        0x53380d13,
+        0x650a7354,
+        0x766a0abb,
+        0x81c2c92e,
+        0x92722c85,
+        0xa2bfe8a1,
+        0xa81a664b,
+        0xc24b8b70,
+        0xc76c51a3,
+        0xd192e819,
+        0xd6990624,
+        0xf40e3585,
+        0x106aa070,
+        0x19a4c116,
+        0x1e376c08,
+        0x2748774c,
+        0x34b0bcb5,
+        0x391c0cb3,
+        0x4ed8aa4a,
+        0x5b9cca4f,
+        0x682e6ff3,
+        0x748f82ee,
+        0x78a5636f,
+        0x84c87814,
+        0x8cc70208,
+        0x90befffa,
+        0xa4506ceb,
+        0xbef9a3f7,
+        0xc67178f2,
     };
     std::array<std::uint32_t, 8> state = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                                           0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
-    const auto rotate = [](std::uint32_t value, unsigned amount) {
+                                          0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+    const auto                   rotate = [](std::uint32_t value, unsigned amount) {
         return (value >> amount) | (value << (32 - amount));
     };
     std::vector<std::uint8_t> bytes(input.begin(), input.end());
-    const std::uint64_t bit_length = static_cast<std::uint64_t>(bytes.size()) * 8;
+    const std::uint64_t       bit_length = static_cast<std::uint64_t>(bytes.size()) * 8;
     bytes.push_back(0x80);
     while (bytes.size() % 64 != 56) {
         bytes.push_back(0);
@@ -54,7 +115,7 @@ std::string Sha256Hex(std::string_view input) {
     for (std::size_t block = 0; block < bytes.size(); block += 64) {
         std::array<std::uint32_t, 64> words{};
         for (unsigned index = 0; index < 16; index++) {
-            const std::size_t at = block + index * 4;
+            const std::size_t at = block + (static_cast<std::size_t>(index) * 4);
             words[index] = (static_cast<std::uint32_t>(bytes[at]) << 24) |
                            (static_cast<std::uint32_t>(bytes[at + 1]) << 16) |
                            (static_cast<std::uint32_t>(bytes[at + 2]) << 8) | bytes[at + 3];
@@ -66,12 +127,18 @@ std::string Sha256Hex(std::string_view input) {
                                      (words[index - 2] >> 10);
             words[index] = words[index - 16] + s0 + words[index - 7] + s1;
         }
-        std::uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
-        std::uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
+        std::uint32_t a = state[0];
+        std::uint32_t b = state[1];
+        std::uint32_t c = state[2];
+        std::uint32_t d = state[3];
+        std::uint32_t e = state[4];
+        std::uint32_t f = state[5];
+        std::uint32_t g = state[6];
+        std::uint32_t h = state[7];
         for (unsigned index = 0; index < 64; index++) {
             const std::uint32_t s1 = rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25);
             const std::uint32_t choose = (e & f) ^ (~e & g);
-            const std::uint32_t temp1 = h + s1 + choose + kRound[index] + words[index];
+            const std::uint32_t temp1 = h + s1 + choose + round_constants[index] + words[index];
             const std::uint32_t s0 = rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22);
             const std::uint32_t majority = (a & b) ^ (a & c) ^ (b & c);
             const std::uint32_t temp2 = s0 + majority;
@@ -93,12 +160,12 @@ std::string Sha256Hex(std::string_view input) {
         state[6] += g;
         state[7] += h;
     }
-    constexpr char kHex[] = "0123456789abcdef";
-    std::string result;
+    constexpr char hex_digits[] = "0123456789abcdef";
+    std::string    result;
     result.reserve(64);
     for (std::uint32_t word : state) {
         for (int shift = 28; shift >= 0; shift -= 4) {
-            result.push_back(kHex[(word >> shift) & 0xF]);
+            result.push_back(hex_digits[(word >> shift) & 0xF]);
         }
     }
     return result;
@@ -110,10 +177,10 @@ std::string Dc1SourceTag(std::string_view alias) {
         hash ^= byte;
         hash *= 0x100000001b3ULL;
     }
-    constexpr char kHex[] = "0123456789abcdef";
-    std::string result(16, '0');
+    constexpr char hex_digits[] = "0123456789abcdef";
+    std::string    result(16, '0');
     for (int index = 15; index >= 0; index--) {
-        result[static_cast<std::size_t>(index)] = kHex[hash & 0xF];
+        result[static_cast<std::size_t>(index)] = hex_digits[hash & 0xF];
         hash >>= 4;
     }
     return result;
@@ -151,6 +218,8 @@ int Psm(int bpp) {
             return SCE_GS_PSMCT24;
         case 4:
             return SCE_GS_PSMCT32;
+        default:
+            break;
     }
     return -1;
 }
@@ -164,13 +233,10 @@ bool TextureSourceExtension(std::string_view extension) {
         extension == "tim2") {
         return true;
     }
-    for (std::string_view base : {"img", "tm2"}) {
-        if (extension.starts_with(base) && extension.size() > base.size() &&
-            extension.substr(base.size()).find_first_not_of('_') == std::string_view::npos) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(std::array<std::string_view, 2>{"img", "tm2"}, [extension](std::string_view base) {
+        return extension.starts_with(base) && extension.size() > base.size() &&
+               extension.substr(base.size()).find_first_not_of('_') == std::string_view::npos;
+    });
 }
 
 std::string SafeTextureComponent(std::string_view component) {
@@ -182,7 +248,7 @@ std::string SafeTextureComponent(std::string_view component) {
         return escaped;
     }
     constexpr char hex[] = "0123456789ABCDEF";
-    std::string result;
+    std::string    result;
     for (unsigned char byte : component) {
         if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
             (byte >= '0' && byte <= '9') || byte == '.' || byte == '_' || byte == '-') {
@@ -222,7 +288,7 @@ std::string LegacyTextureDocument(std::string_view key) {
         if (entry != std::string::npos) {
             const std::string name = raw[index].substr(0, entry);
             const std::string ordinal = raw[index].substr(entry + 7);
-            const size_t dot = name.rfind('.');
+            const size_t      dot = name.rfind('.');
             raw[index] = (dot == std::string::npos ? name : name.substr(0, dot)) + "-entry-" + ordinal + ".json";
         }
         index++;
@@ -241,7 +307,7 @@ std::string LegacyTextureDocument(std::string_view key) {
             }
         } else {
             std::string lower = part;
-            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+            std::ranges::transform(lower, lower.begin(), [](unsigned char c) {
                 return static_cast<char>(std::tolower(c));
             });
             if (lower.ends_with(".tm2") || lower.ends_with(".img")) {
@@ -249,7 +315,7 @@ std::string LegacyTextureDocument(std::string_view key) {
                 part += ".json";
             } else if (!lower.ends_with(".json")) {
                 parts.push_back(std::move(part));
-                parts.push_back("embedded.json");
+                parts.emplace_back("embedded.json");
                 continue;
             }
         }
@@ -266,13 +332,13 @@ std::string LegacyTextureDocument(std::string_view key) {
 }
 
 std::string Dc1TextureDocument(std::string_view alias) {
-    const size_t slash = alias.rfind('/');
+    const size_t           slash = alias.rfind('/');
     const std::string_view leaf = alias.substr(slash == std::string_view::npos ? 0 : slash + 1);
-    const size_t marker = leaf.find('#');
+    const size_t           marker = leaf.find('#');
     const std::string_view source_name = leaf.substr(0, marker);
-    const size_t dot = source_name.rfind('.');
-    std::string extension = dot == std::string_view::npos ? std::string{} : std::string(source_name.substr(dot + 1));
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) {
+    const size_t           dot = source_name.rfind('.');
+    std::string            extension = dot == std::string_view::npos ? std::string{} : std::string(source_name.substr(dot + 1));
+    std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
     });
     std::string path;
@@ -309,14 +375,14 @@ std::string Dc1TextureDocument(std::string_view alias) {
         }
         start = end + 1;
     }
-    std::vector<std::string> folders;
+    std::vector<std::string>   folders;
     std::optional<std::string> character;
-    bool has_container = false;
+    bool                       has_container = false;
     for (size_t index = 0; index < raw.size(); index++) {
         const std::string_view component(raw[index]);
-        const size_t mark = component.find('#');
-        const std::string base(component.substr(0, mark));
-        const size_t base_dot = base.rfind('.');
+        const size_t           mark = component.find('#');
+        const std::string      base(component.substr(0, mark));
+        const size_t           base_dot = base.rfind('.');
         if (index + 1 < raw.size() && base_dot != std::string::npos) {
             has_container = true;
         }
@@ -324,7 +390,7 @@ std::string Dc1TextureDocument(std::string_view alias) {
             folders.push_back(SafeTextureComponent(base));
         } else if (base_dot != std::string::npos) {
             std::string suffix = base.substr(base_dot + 1);
-            std::transform(suffix.begin(), suffix.end(), suffix.begin(), [](unsigned char c) {
+            std::ranges::transform(suffix, suffix.begin(), [](unsigned char c) {
                 return static_cast<char>(std::tolower(c));
             });
             if (suffix == "chr" || suffix == "chr_") {
@@ -335,10 +401,10 @@ std::string Dc1TextureDocument(std::string_view alias) {
         }
     }
     const size_t path_slash = path.rfind('/');
-    std::string leaf_path = path.substr(path_slash == std::string::npos ? 0 : path_slash + 1);
+    std::string  leaf_path = path.substr(path_slash == std::string::npos ? 0 : path_slash + 1);
     if (character) {
         std::string owner = *character;
-        const bool underscore = owner.size() >= 5 && owner.substr(owner.size() - 5) == ".chr_";
+        const bool  underscore = owner.size() >= 5 && owner.substr(owner.size() - 5) == ".chr_";
         owner.resize(owner.size() - (underscore ? 5 : 4));
         leaf_path = owner + (underscore ? "_" : "") + "-" + leaf_path;
     }
@@ -371,9 +437,9 @@ std::optional<std::size_t> EmbeddedTextureOffset(const std::vector<std::uint8_t>
         image_offset < container_start || image_offset - container_start >= container_size) {
         return std::nullopt;
     }
-    const std::size_t container_end = container_start + container_size;
+    const std::size_t          container_end = container_start + container_size;
     std::optional<std::size_t> result;
-    auto record = [&](std::size_t offset) {
+    auto                       record = [&](std::size_t offset) {
         if (result && *result != offset) {
             result = std::numeric_limits<std::size_t>::max();
         } else {
@@ -388,12 +454,12 @@ std::optional<std::size_t> EmbeddedTextureOffset(const std::vector<std::uint8_t>
             }
             for (uint32_t entry = 0; entry < count; entry++) {
                 const std::size_t table_entry = at + 16 + static_cast<std::size_t>(entry) * 48;
-                const uint32_t head_offset = ReadLe32(bytes.data() + table_entry + 32);
+                const uint32_t    head_offset = ReadLe32(bytes.data() + table_entry + 32);
                 if (head_offset > container_end - at || head_offset + 32 > container_end - at) {
                     continue;
                 }
                 const std::size_t picture = at + head_offset + 16;
-                const uint16_t header_size = ReadLe16(bytes.data() + picture + 12);
+                const uint16_t    header_size = ReadLe16(bytes.data() + picture + 12);
                 if (header_size < 0x30 || header_size > container_end - picture ||
                     picture + header_size != image_offset) {
                     continue;
@@ -438,7 +504,7 @@ std::optional<std::size_t> EmbeddedTextureOffset(const std::vector<std::uint8_t>
 
 std::optional<unsigned> Dc1ImgEntryIndex(const DataReadSource &source) {
     std::size_t member_start = 0;
-    std::size_t member_size = static_cast<std::size_t>(source.range_size);
+    auto        member_size = static_cast<std::size_t>(source.range_size);
     if (!source.member.empty()) {
         if (source.member_source_offsets.empty() || source.member_sizes.empty()) {
             return std::nullopt;
@@ -455,21 +521,21 @@ std::optional<unsigned> Dc1ImgEntryIndex(const DataReadSource &source) {
         return std::nullopt;
     }
     const std::uint8_t *member = raw.data() + member_start;
-    const bool img3 = std::memcmp(member, "IM3\0", 4) == 0;
+    const bool          img3 = std::memcmp(member, "IM3\0", 4) == 0;
     if (!img3 && std::memcmp(member, "IMG\0", 4) != 0 && std::memcmp(member, "IM2\0", 4) != 0) {
         return std::nullopt;
     }
-    const unsigned count = ReadLe32(member + (img3 ? 8 : 4));
+    const unsigned    count = ReadLe32(member + (img3 ? 8 : 4));
     const std::size_t stride = img3 ? 64 : 48;
     if (count == 0 || count > 16384 || count > (member_size - 16) / stride) {
         return std::nullopt;
     }
-    const std::size_t image_offset = static_cast<std::size_t>(source.offset - member_start);
+    const auto              image_offset = static_cast<std::size_t>(source.offset - member_start);
     std::optional<unsigned> result;
     for (unsigned index = 0; index < count; index++) {
         const std::size_t table_entry = 16 + static_cast<std::size_t>(index) * stride;
         const std::size_t head_offset = ReadLe32(member + table_entry + (img3 ? 36 : 32));
-        bool matches = false;
+        bool              matches = false;
         if (img3) {
             const std::size_t image_size = ReadLe32(member + table_entry + 52);
             matches = head_offset <= member_size && image_size <= member_size - head_offset &&
@@ -493,20 +559,20 @@ std::optional<unsigned> Dc1ImgEntryIndex(const DataReadSource &source) {
 std::optional<std::string> BakedTextureDocument(const DataReadSource &source) {
     std::string alias = source.path;
     if (!source.member.empty()) {
-        alias += "/";
+        alias += '/';
         alias += source.member;
     }
-    const size_t last_slash = alias.rfind('/');
+    const size_t           last_slash = alias.rfind('/');
     const std::string_view leaf(alias.data() + (last_slash == std::string::npos ? 0 : last_slash + 1),
                                 alias.size() - (last_slash == std::string::npos ? 0 : last_slash + 1));
-    const size_t hash = leaf.find('#');
+    const size_t           hash = leaf.find('#');
     const std::string_view basename = leaf.substr(0, hash);
-    const size_t dot = basename.rfind('.');
-    std::string extension = dot == std::string_view::npos ? std::string{} : std::string(basename.substr(dot + 1));
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) {
+    const size_t           dot = basename.rfind('.');
+    std::string            extension = dot == std::string_view::npos ? std::string{} : std::string(basename.substr(dot + 1));
+    std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
     });
-    if ((extension == "chr" || extension == "chr_") && alias.find("#offset:") == std::string::npos) {
+    if ((extension == "chr" || extension == "chr_") && !alias.contains("#offset:")) {
         std::size_t container_start = 0;
         std::size_t container_size = 0;
         if (!source.member.empty()) {
@@ -531,7 +597,7 @@ std::optional<std::string> BakedTextureDocument(const DataReadSource &source) {
             alias += "#offset:" + std::to_string(*offset);
         }
     }
-    const std::string path = Dc1TextureDocument(alias);
+    std::string path = Dc1TextureDocument(alias);
     if (path.empty()) {
         return std::nullopt;
     }
@@ -539,21 +605,26 @@ std::optional<std::string> BakedTextureDocument(const DataReadSource &source) {
 }
 
 [[noreturn]] void Stop(const char *what, const char *name, int value) {
-    std::fprintf(stderr, "texture: %s (%s %d)\n", what, name, value);
+    std::println(stderr, "texture: {} ({} {})", what, name, value);
     std::abort();
 }
 
 [[noreturn]] void StopBakedTexture(const char *name, std::string_view message) {
-    std::fprintf(stderr, "texture: baked asset resolution failed for %s: %.*s\n", name,
-                 static_cast<int>(message.size()), message.data());
+    std::println(stderr, "texture: baked asset resolution failed for {}: {}", name, message);
     std::abort();
+}
+
+void CopyTextureName(std::span<char, 32> destination, std::string_view name) {
+    const std::size_t length = std::min(name.size(), destination.size() - 1);
+    std::ranges::copy(name.substr(0, length), destination.begin());
+    destination[length] = '\0';
 }
 
 void ReleaseKeys(const CTexture &texture) {
     if (texture.name[0] == 0) {
         return;
     }
-    const sceGsTex0 &tex0 = *reinterpret_cast<const sceGsTex0 *>(&texture.tex0);
+    const auto tex0 = std::bit_cast<sceGsTex0>(texture.tex0);
     PortReleaseKey(tex0.TBP0);
     if (tex0.CBP != 0) {
         PortReleaseKey(tex0.CBP);
@@ -591,8 +662,8 @@ uint32_t BlendColors(uint32_t first, uint32_t second, unsigned first_weight, uns
     return blended;
 }
 
-// DC_TEXTURE_DUMP=<dir>: every texture the game enters is written there as <name>.png (index
-// textures through their palette), for finding what the game draws where (button icons).
+// DC_TEXTURE_DUMP=<dir>: every entered texture is written there as <name>.png, indexed textures
+// through their palette.
 void DumpTexture(const char *name, const PortDecodedTexture &texture) {
     static const char *dir = std::getenv("DC_TEXTURE_DUMP");
     if (dir == nullptr || texture.levels.empty()) {
@@ -601,37 +672,37 @@ void DumpTexture(const char *name, const PortDecodedTexture &texture) {
     const unsigned       width = texture.width;
     const unsigned       height = texture.height;
     std::vector<uint8_t> rgba(static_cast<size_t>(width) * height * 4);
-    for (size_t i = 0; i < static_cast<size_t>(width) * height; i++) {
+    for (size_t pixel = 0; pixel < static_cast<size_t>(width) * height; pixel++) {
         if (texture.format == gfx::TextureFormat::Index8) {
-            uint32_t c = texture.palette[texture.levels[0][i]];
-            std::memcpy(&rgba[i * 4], &c, 4);
+            const uint32_t color = texture.palette[texture.levels[0][pixel]];
+            std::memcpy(&rgba[pixel * 4], &color, 4);
         } else {
-            std::memcpy(&rgba[i * 4], &texture.levels[0][i * 4], 4);
+            std::memcpy(&rgba[pixel * 4], &texture.levels[0][pixel * 4], 4);
         }
     }
     // A PNG with stored (uncompressed) deflate blocks.
-    auto crc = [](const uint8_t *data, size_t size, uint32_t crc_in) {
-        uint32_t c = ~crc_in;
-        for (size_t i = 0; i < size; i++) {
-            c ^= data[i];
-            for (int k = 0; k < 8; k++) {
-                c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1)));
+    auto crc = [](std::span<const uint8_t> data) {
+        uint32_t value = ~0u;
+        for (const uint8_t byte : data) {
+            value ^= byte;
+            for (int bit = 0; bit < 8; bit++) {
+                value = (value >> 1) ^ (0xEDB88320u & (0u - (value & 1)));
             }
         }
-        return ~c;
+        return ~value;
     };
     std::vector<uint8_t> out = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-    auto                 put32 = [&](std::vector<uint8_t> &v, uint32_t x) {
-        for (int s = 24; s >= 0; s -= 8) {
-            v.push_back(static_cast<uint8_t>(x >> s));
+    auto                 put32 = [](std::vector<uint8_t> &target, uint32_t value) {
+        for (int shift = 24; shift >= 0; shift -= 8) {
+            target.push_back(static_cast<uint8_t>(value >> shift));
         }
     };
-    auto chunk = [&](const char *type, const std::vector<uint8_t> &body) {
+    auto chunk = [&](std::string_view type, const std::vector<uint8_t> &body) {
         put32(out, static_cast<uint32_t>(body.size()));
-        std::vector<uint8_t> typed(type, type + 4);
+        std::vector<uint8_t> typed(type.begin(), type.end());
         typed.insert(typed.end(), body.begin(), body.end());
         out.insert(out.end(), typed.begin(), typed.end());
-        put32(out, crc(typed.data(), typed.size(), 0));
+        put32(out, crc(typed));
     };
     std::vector<uint8_t> ihdr;
     put32(ihdr, width);
@@ -644,24 +715,25 @@ void DumpTexture(const char *name, const PortDecodedTexture &texture) {
         raw.insert(raw.end(), rgba.begin() + static_cast<size_t>(y) * width * 4,
                    rgba.begin() + static_cast<size_t>(y + 1) * width * 4);
     }
-    std::vector<uint8_t> z = {0x78, 0x01};
-    uint32_t             a = 1;
-    uint32_t             b = 0;
-    for (uint8_t v : raw) {
-        a = (a + v) % 65521;
-        b = (b + a) % 65521;
+    std::vector<uint8_t> zlib = {0x78, 0x01};
+    uint32_t             adler_low = 1;
+    uint32_t             adler_high = 0;
+    for (const uint8_t byte : raw) {
+        adler_low = (adler_low + byte) % 65521;
+        adler_high = (adler_high + adler_low) % 65521;
     }
-    for (size_t pos = 0; pos < raw.size() || pos == 0; pos += 65535) {
-        size_t n = std::min<size_t>(65535, raw.size() - pos);
-        z.push_back(pos + n >= raw.size() ? 1 : 0);
-        z.push_back(static_cast<uint8_t>(n));
-        z.push_back(static_cast<uint8_t>(n >> 8));
-        z.push_back(static_cast<uint8_t>(~n));
-        z.push_back(static_cast<uint8_t>((~n) >> 8));
-        z.insert(z.end(), raw.begin() + pos, raw.begin() + pos + n);
+    for (size_t position = 0; position < raw.size() || position == 0; position += 65535) {
+        const size_t length = std::min<size_t>(65535, raw.size() - position);
+        zlib.push_back(position + length >= raw.size() ? 1 : 0);
+        zlib.push_back(static_cast<uint8_t>(length));
+        zlib.push_back(static_cast<uint8_t>(length >> 8));
+        zlib.push_back(static_cast<uint8_t>(~length));
+        zlib.push_back(static_cast<uint8_t>((~length) >> 8));
+        const auto block_begin = raw.begin() + static_cast<std::ptrdiff_t>(position);
+        zlib.insert(zlib.end(), block_begin, block_begin + static_cast<std::ptrdiff_t>(length));
     }
-    put32(z, (b << 16) | a);
-    chunk("IDAT", z);
+    put32(zlib, (adler_high << 16) | adler_low);
+    chunk("IDAT", zlib);
     chunk("IEND", {});
     std::filesystem::create_directories(dir);
     std::string path = std::string(dir) + "/" + name + ".png";
@@ -673,25 +745,24 @@ void DumpTexture(const char *name, const PortDecodedTexture &texture) {
 
 // Ground models repeat these images across UV islands and cells. Their source edges differ, so
 // blend a narrow indexed border into a periodic image before uploading it.
-void MakeGroundPeriodic(const char *name, PortDecodedTexture &texture) {
-    if ((std::strcmp(name, "d02b05") != 0 && std::strcmp(name, "d02b06") != 0 &&
-         std::strcmp(name, "e04b01") != 0) ||
+void MakeGroundPeriodic(std::string_view name, PortDecodedTexture &texture) {
+    if ((name != "d02b05" && name != "d02b06" && name != "e04b01") ||
         (texture.format != gfx::TextureFormat::Index8 && texture.format != gfx::TextureFormat::Rgba8) ||
         texture.width < 64 || texture.height < 64 ||
         texture.levels.empty()) {
         return;
     }
 
-    const unsigned        horizontal_band = std::strcmp(name, "d02b05") == 0 ? 32 : 8;
-    const unsigned        vertical_band = std::strcmp(name, "d02b06") == 0 ? 32 : 8;
+    const unsigned        horizontal_band = name == "d02b05" ? 32 : 8;
+    const unsigned        vertical_band = name == "d02b06" ? 32 : 8;
     std::vector<uint8_t> &pixels = texture.levels[0];
     const unsigned        width = texture.width;
     const unsigned        height = texture.height;
-    const auto color_at = [&](unsigned pixel) {
+    const auto            color_at = [&](unsigned pixel) {
         if (texture.format == gfx::TextureFormat::Index8) {
             return texture.palette[pixels[pixel]];
         }
-        uint32_t color;
+        uint32_t color = 0;
         std::memcpy(&color, pixels.data() + static_cast<std::size_t>(pixel) * 4, sizeof(color));
         return color;
     };
@@ -730,11 +801,10 @@ void MakeGroundPeriodic(const char *name, PortDecodedTexture &texture) {
     }
 }
 
-// Retail's EnterTexture, EnterTextureEX and EnterFixTexture share everything but where pixels
-// are staged and which VRAM end moves. The staging buffer and the VRAM arithmetic are kept as
-// retail does them: the game sizes later allocations from buffer_used (editloop's LoadTexture),
-// and staging/per-block bounds still guard those allocations. The image goes to the renderer, and
-// TBP0/CBP become registry keys, not VRAM addresses.
+// EnterTexture, EnterTextureEX and EnterFixTexture share everything but where pixels are staged and
+// which VRAM end moves. The staging and VRAM arithmetic must match retail: the game sizes later
+// allocations from buffer_used (editloop's LoadTexture). The image goes to the renderer, and
+// TBP0/CBP are registry keys, not VRAM addresses.
 void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_char *image, int width, int height,
            int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_long tex1,
            int swizzled) {
@@ -792,7 +862,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
             vram_end = vram_top;
         } else {
             auto stage = [&](u_char *source, int bytes, int blocks) -> u_int * {
-                u_int *destination = reinterpret_cast<u_int *>(manager.buffer + manager.buffer_used);
+                auto *destination = reinterpret_cast<u_int *>(manager.buffer + manager.buffer_used);
                 if (staged) {
                     // A picture with fewer levels than the block asks for leaves the last one null,
                     // which retail copies from all the same.
@@ -810,7 +880,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
                 tex->image[2] = stage(mip2, image_size >> 4, (image_blocks >> 2) >> 2);
             }
             if (indexed) {
-                u_int *staged_clut = reinterpret_cast<u_int *>(manager.buffer + manager.buffer_used);
+                auto *staged_clut = reinterpret_cast<u_int *>(manager.buffer + manager.buffer_used);
                 if (staged) {
                     std::memcpy(staged_clut, clut, clut_bytes);
                     manager.buffer_used += 64;
@@ -839,34 +909,33 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
         }
     }
 
-    unsigned tbp;
-    unsigned cbp = 0;
-    bool baked = false;
-    bool canvas_backing = false;
-    bool unsourced = false;
+    unsigned           tbp = 0;
+    unsigned           cbp = 0;
+    bool               baked = false;
+    bool               canvas_backing = false;
+    bool               unsourced = false;
     PortDecodedTexture decoded;
     if (image != nullptr && !PortLegacyTexturePath()) {
         if (indexed) {
             PortRememberTextureClut(name, clut, static_cast<std::size_t>(clut_bytes));
         }
-        DataReadSource source;
-        std::string resolution_error;
+        DataReadSource             source;
+        std::string                resolution_error;
         std::optional<std::string> document;
         if (image_size > 0 && DataReadSourceRange(image, static_cast<std::size_t>(image_size), source)) {
             document = BakedTextureDocument(source);
             if (!document) {
                 StopBakedTexture(name, "unsupported source identity " + source.path +
                                            (source.member.empty() ? std::string{} : "/" + source.member));
-            } else {
-                const std::optional<unsigned> entry_index = Dc1ImgEntryIndex(source);
-                baked = PortLoadBakedTexture(*document, name, 0, static_cast<unsigned>(width),
-                                             static_cast<unsigned>(height), 0, clut,
-                                             clut == nullptr ? 0 : static_cast<std::size_t>(clut_bytes), decoded,
-                                             resolution_error, entry_index, bpp);
-                canvas_backing = !baked && resolution_error == "canvas texture keeps its runtime backing";
-                if (!baked && !canvas_backing) {
-                    StopBakedTexture(name, resolution_error);
-                }
+            }
+            const std::optional<unsigned> entry_index = Dc1ImgEntryIndex(source);
+            baked = PortLoadBakedTexture(*document, name, 0, static_cast<unsigned>(width),
+                                         static_cast<unsigned>(height), 0, clut,
+                                         clut == nullptr ? 0 : static_cast<std::size_t>(clut_bytes), decoded,
+                                         resolution_error, entry_index, bpp);
+            canvas_backing = !baked && resolution_error == "canvas texture keeps its runtime backing";
+            if (!baked && !canvas_backing) {
+                StopBakedTexture(name, resolution_error);
             }
         } else {
             // Pixels outside any data source (a synthetic or runtime image) have no baked document
@@ -878,16 +947,15 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
             StopBakedTexture(name, resolution_error);
         }
         if (!baked && !canvas_backing && !resolution_error.empty()) {
-            std::fprintf(stderr, "texture: using source decoder for non-indexed %s: %s\n", name,
-                         resolution_error.c_str());
+            std::println(stderr, "texture: using source decoder for non-indexed {}: {}", name, resolution_error);
         }
     }
     if (image == nullptr) {
         tbp = PortCreatePlaceholder(name, width, height, bpp, PortTextureOwner::Manager, &cbp);
     } else {
         if (!baked) {
-            const u_char *levels[3] = {image, mipmap ? mip1 : nullptr, mipmap ? mip2 : nullptr};
-            if (!PortDecodeTexture(bpp, width, height, levels, mipmap ? 3 : 1, clut, clut_colors,
+            const std::array<const u_char *, 3> levels = {image, mipmap ? mip1 : nullptr, mipmap ? mip2 : nullptr};
+            if (!PortDecodeTexture(bpp, width, height, levels.data(), mipmap ? 3 : 1, clut, clut_colors,
                                    indexed && swizzled != 0, decoded)) {
                 return;
             }
@@ -905,7 +973,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
     }
     tex->tex0 = Tex0(tbp, tbw, psm, tw, th, cbp, indexed ? 1 : 0);
 
-    std::strcpy(tex->name, name);
+    CopyTextureName(tex->name, name);
     tex->width = width;
     tex->height = height;
     tex->bpp = bpp;
@@ -914,8 +982,8 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
     if (bpp > 0 && mipmap) {
         tex->tex1 = SCE_GS_SET_TEX1(0, 2, 1, 5, 1, 0, -120);
         if (tex1 != 0) {
-            sceGsTex1 *lod = reinterpret_cast<sceGsTex1 *>(&tex1);
-            tex->tex1 = SCE_GS_SET_TEX1(0, 2, 1, 5, 1, lod->L, lod->K);
+            const auto lod = std::bit_cast<sceGsTex1>(tex1);
+            tex->tex1 = SCE_GS_SET_TEX1(0, 2, 1, 5, 1, lod.L, lod.K);
         }
     }
     manager.texture_max = 195;
@@ -939,15 +1007,15 @@ void CTextureManager::Initialize(int size) {
     PortReleaseOwner(PortTextureOwner::Manager);
 
     TextureData.used = 0;
-    SetBuffer(reinterpret_cast<u_long128 *>(TextureData.base + TextureData.used * 16), TextureData.limit);
+    SetBuffer(reinterpret_cast<u_long128 *>(TextureData.base + (static_cast<std::ptrdiff_t>(TextureData.used) * 16)), TextureData.limit);
 
-    for (int i = 0; i < 72; i++) {
-        blocks[i].Initialize();
-        blocks[i].vram_top = mgTopVRAM;
-        blocks[i].vram_end = mgTopVRAM;
+    for (CTextureBlock &block : blocks) {
+        block.Initialize();
+        block.vram_top = mgTopVRAM;
+        block.vram_end = mgTopVRAM;
     }
-    for (int i = 0; i < 196; i++) {
-        textures[i].Initialize();
+    for (CTexture &texture : textures) {
+        texture.Initialize();
     }
 
     texture_max = 1;
@@ -958,45 +1026,45 @@ void CTextureManager::Initialize(int size) {
 
     // The frame-copy area water samples, a field of the frame on PS2: the water unit fills it.
     unsigned work = PortRegisterNamedTarget("work", 640, SCREEN_HALF_HEIGHT, true, PortTextureOwner::Manager);
-    std::strcpy(textures[0].name, "work");
+    CopyTextureName(textures[0].name, "work");
     textures[0].tex0 = SCE_GS_SET_TEX0(work, 10, 0, 10, 8, 1, 0, 0, 0, 0, 0, 0);
     textures[0].block = -1;
     last_block = -1;
 }
 
 void CTextureManager::EnterTexture(int block, char *name, u_char *image, int width, int height, int bpp,
-                                                 u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
-                                                 u_char *mip3, u_long tex1, int swizzled) {
+                                   u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
+                                   u_char *mip3, u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Block, block, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1, mip2,
           tex1, swizzled);
 }
 
 void CTextureManager::EnterTextureEX(int block, char *name, u_char *image, int width, int height, int bpp,
-                                                   u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
-                                                   u_char *mip3, u_long tex1, int swizzled) {
+                                     u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2,
+                                     u_char *mip3, u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Extended, block, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1,
           mip2, tex1, swizzled);
 }
 
 void CTextureManager::EnterFixTexture(char *name, u_char *image, int width, int height, int bpp, u_char *clut,
-                                                    int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3,
-                                                    u_long tex1, int swizzled) {
+                                      int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3,
+                                      u_long tex1, int swizzled) {
     Enter(*this, EnterMode::Fixed, -1, name, image, width, height, bpp, clut, clut_colors, mipmap, mip1, mip2,
           tex1, swizzled);
 }
 
 namespace {
 
-// The fixed-Z sheet decoded from the TIM2 in the buffer, for data without baked documents.
 // GS pixel storage mode PSMT8H: 8-bit indices in the upper bytes of a 32-bit word.
 constexpr unsigned kPsmT8H = 27;
 
+// Decodes the fixed-Z sheet from the TIM2 in the buffer, for data without baked documents.
 void EnterRawFixTextureZ(CTextureManager &manager, u_char *buffer) {
-    char        *name = reinterpret_cast<char *>(buffer + 16);
-    TM2_head    *head = reinterpret_cast<TM2_head *>(buffer + *reinterpret_cast<int *>(buffer + 48));
-    TM2_picture *picture = reinterpret_cast<TM2_picture *>(reinterpret_cast<u_char *>(head) + 16);
-    const int    width = head->image_width;
-    const int    height = head->image_height;
+    char     *name = reinterpret_cast<char *>(buffer + 16);
+    auto     *head = reinterpret_cast<TM2_head *>(buffer + *reinterpret_cast<int *>(buffer + 48));
+    auto     *picture = reinterpret_cast<TM2_picture *>(reinterpret_cast<u_char *>(head) + 16);
+    const int width = head->image_width;
+    const int height = head->image_height;
     if (width != 640 || height > SCREEN_HALF_HEIGHT || picture->image_type != TIM2_IDTEX8) {
         return;
     }
@@ -1004,17 +1072,17 @@ void EnterRawFixTextureZ(CTextureManager &manager, u_char *buffer) {
     u_char   *image = reinterpret_cast<u_char *>(picture) + picture->header_size;
     u_char   *clut = image + picture->image_size;
     CTexture *tex = manager.SearchTexture(name);
-    std::strcpy(tex->name, name);
+    CopyTextureName(tex->name, name);
     tex->width = width;
     tex->height = height;
     tex->bpp = 1;
     tex->block = 73;
 
-    const u_char      *levels[1] = {image};
-    PortDecodedTexture decoded;
-    unsigned           tbp = 0;
-    unsigned           cbp = 0;
-    if (PortDecodeTexture(1, width, height, levels, 1, clut, 256, false, decoded)) {
+    const std::array<const u_char *, 1> levels = {image};
+    PortDecodedTexture                  decoded;
+    unsigned                            tbp = 0;
+    unsigned                            cbp = 0;
+    if (PortDecodeTexture(1, width, height, levels.data(), 1, clut, 256, false, decoded)) {
         LocalizeTexture(name, decoded);
         caption::PreparePainted(name, decoded);
         DumpTexture(name, decoded);
@@ -1037,9 +1105,9 @@ void CTextureManager::EnterFixTextureZ(u_char *buffer) {
     if (!DataReadSourceRange(buffer, 64, source)) {
         StopBakedTexture("<unknown>", "fixed-Z texture header has no validated source range");
     }
-    char *name = reinterpret_cast<char *>(buffer + 16);
-    const std::size_t name_size = strnlen(name, 32);
-    if (name_size == 0 || name_size == 32) {
+    char             *name = reinterpret_cast<char *>(buffer + 16);
+    const std::size_t name_size = std::string_view(name, 32).find('\0');
+    if (name_size == 0 || name_size == std::string_view::npos) {
         StopBakedTexture("<unknown>", "fixed-Z texture name is not terminated");
     }
     const std::optional<std::string> document = BakedTextureDocument(source);
@@ -1047,7 +1115,7 @@ void CTextureManager::EnterFixTextureZ(u_char *buffer) {
         StopBakedTexture(name, "fixed-Z source has no deterministic baked document path");
     }
     PortDecodedTexture decoded;
-    std::string error;
+    std::string        error;
     if (!PortLoadBakedTexture(*document, name, 0, 640, 0, 0, nullptr, 0, decoded, error)) {
         StopBakedTexture(name, error);
     }
@@ -1058,7 +1126,7 @@ void CTextureManager::EnterFixTextureZ(u_char *buffer) {
     if (tex == nullptr) {
         StopBakedTexture(name, "fixed-Z texture has no manager entry");
     }
-    std::strcpy(tex->name, name);
+    CopyTextureName(tex->name, name);
     tex->width = static_cast<int>(decoded.width);
     tex->height = static_cast<int>(decoded.height);
     tex->bpp = 1;
@@ -1070,8 +1138,8 @@ void CTextureManager::EnterFixTextureZ(u_char *buffer) {
     tex->tex0 = SCE_GS_SET_TEX0(tbp, 10, SCE_GS_PSMCT32, 10, 8, 1, 0, 0, 0, 0, 0, 0);
 }
 
-// Native textures occupy independent storage, so simulated PS2 VRAM overlap does not overwrite
-// either image. Keep the staging bounds and block finalization without retail's overlap loop.
+// Native textures occupy independent storage, so simulated VRAM overlap never overwrites either
+// image; only the staging bounds check and block finalization remain.
 void CTextureManager::EndEnterTextureBlock(int block) {
     if (block < 0 || block >= 72) {
         return;
@@ -1088,7 +1156,7 @@ void CTextureManager::EndEnterTextureBlock(int block) {
 }
 
 // Every texture is resident on the renderer from the moment it is entered, so a block never needs
-// uploading; only the bookkeeping retail keeps for it remains.
+// uploading; only its bookkeeping remains.
 void CTextureManager::ReloadTexture(sceVif1Packet *packet, int block) {
     if (block < 0 || block >= 72) {
         last_block = -1;
@@ -1108,30 +1176,26 @@ int CTextureManager::DeleteTextureBlock(int block) {
     if (block < 0) {
         block = -1;
     }
-    for (int i = 0; i < 196; i++) {
-        if (block < 0 || textures[i].block == block) {
-            ReleaseKeys(textures[i]);
-            textures[i].Initialize();
+    for (CTexture &texture : textures) {
+        if (block < 0 || texture.block == block) {
+            ReleaseKeys(texture);
+            texture.Initialize();
         }
     }
     return 1;
 }
 
 int LoadImage(u_int *packet, int dbp, int dpsm, int dbw, u_long128 *source, int qwc, int dsax, int dsay, int rrw,
-                            int rrh) {
+              int rrh) {
     return 0;
 }
 
 int CTextureManager::CleanUpTextureList() {
-    // Retail closes the table's holes by moving later entries down. A native visual keeps a table
-    // index (Draw3DStrip::texture) where retail's packet holds a baked TEX0, so a move would
-    // retarget it. Entries stay where they are: SearchTexture already fills empty ones, so a
-    // reloaded block fills the first available holes rather than being appended after compaction.
+    // Entries are never moved: a native visual keeps a table index (Draw3DStrip::texture) that a
+    // move would retarget. SearchTexture fills empty entries, so a reloaded block takes the first
+    // available holes.
     return 1;
 }
-
-// Retail's buffer arithmetic with the pointers kept whole: it went through int, which only holds
-// an address below 2 GiB.
 
 void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
     if (size < 0 || (buffer == nullptr && size != 0)) {
@@ -1156,32 +1220,21 @@ void CTextureManager::SetBuffer(u_long128 *buffer, int size) {
 }
 
 int CTextureManager::CleanUpBuffer() {
-    constexpr int block_count = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
+    constexpr int block_count = static_cast<int>(std::extent_v<decltype(blocks)>);
     auto          block_start = std::make_unique<u_long128 *[]>(block_count);
     auto          block_order = std::make_unique<int[]>(block_count);
     auto          block_quads = std::make_unique<int[]>(block_count);
-    int           i;
-    int           j;
 
-    for (i = 0; i < block_count; i++) {
+    for (int i = 0; i < block_count; i++) {
         block_start[i] = blocks[i].buffer;
         block_order[i] = i;
     }
 
-    for (i = 0; i < block_count - 1; i++) {
-        for (j = i + 1; j < block_count; j++) {
-            u_long128 **lower = &block_start[i];
-            u_long128 **upper = &block_start[j];
-            int        *lower_block = &block_order[i];
-            int        *upper_block = &block_order[j];
-
-            if (reinterpret_cast<std::uintptr_t>(*lower) > reinterpret_cast<std::uintptr_t>(*upper)) {
-                u_long128 *swap_start = *lower;
-                int        swap_block = *lower_block;
-                *lower = *upper;
-                *lower_block = *upper_block;
-                *upper = swap_start;
-                *upper_block = swap_block;
+    for (int i = 0; i < block_count - 1; i++) {
+        for (int j = i + 1; j < block_count; j++) {
+            if (reinterpret_cast<std::uintptr_t>(block_start[i]) > reinterpret_cast<std::uintptr_t>(block_start[j])) {
+                std::swap(block_start[i], block_start[j]);
+                std::swap(block_order[i], block_order[j]);
             }
         }
     }
@@ -1191,20 +1244,20 @@ int CTextureManager::CleanUpBuffer() {
         return 0;
     }
 
-    const std::uintptr_t buffer_address = reinterpret_cast<std::uintptr_t>(buffer);
+    const auto           buffer_address = reinterpret_cast<std::uintptr_t>(buffer);
     const std::uintptr_t buffer_bytes = static_cast<std::uintptr_t>(buffer_size) * sizeof(u_long128);
     if (buffer_bytes > std::numeric_limits<std::uintptr_t>::max() - buffer_address) {
         return 0;
     }
     const std::uintptr_t buffer_end = buffer_address + buffer_bytes;
     int                  required = 0;
-    for (i = 0; i < block_count; i++) {
+    for (int i = 0; i < block_count; i++) {
         const int block_no = block_order[i];
         if (block_no <= 0 || block_start[i] == nullptr) {
             continue;
         }
-        const std::uintptr_t start = reinterpret_cast<std::uintptr_t>(blocks[block_no].buffer);
-        const std::uintptr_t end = reinterpret_cast<std::uintptr_t>(blocks[block_no].buffer_end);
+        const auto start = reinterpret_cast<std::uintptr_t>(blocks[block_no].buffer);
+        const auto end = reinterpret_cast<std::uintptr_t>(blocks[block_no].buffer_end);
         if (start < buffer_address || end < start || end > buffer_end || (end - start) % sizeof(u_long128) != 0) {
             return 0;
         }
@@ -1220,62 +1273,45 @@ int CTextureManager::CleanUpBuffer() {
         }
         required += padding;
     }
-    for (i = 0; i < block_count; i++) {
-        int            block_no = block_order[i];
-        u_long128     *destination;
-        u_long128     *source;
-        int            k;
-        int            misalignment;
-        std::ptrdiff_t shift;
-
+    for (int i = 0; i < block_count; i++) {
+        const int block_no = block_order[i];
         if (block_no <= 0) {
             continue;
         }
 
-        source = block_start[i];
-
+        u_long128 *source = block_start[i];
         if (source == nullptr) {
             continue;
         }
 
-        const int block_size = block_quads[block_no];
-        destination = buffer + buffer_used;
-        shift = (source - destination) * static_cast<std::ptrdiff_t>(sizeof(u_long128));
+        const int            block_size = block_quads[block_no];
+        u_long128           *destination = buffer + buffer_used;
+        const std::ptrdiff_t shift = (source - destination) * static_cast<std::ptrdiff_t>(sizeof(u_long128));
         blocks[block_no].buffer = destination;
         blocks[block_no].buffer_end = destination + block_size;
 
-        for (k = 0; k < block_size; k++) {
-            *destination = *source;
-            source++;
-            destination++;
-        }
+        // Blocks are compacted towards the buffer start in address order, so a forward copy is safe.
+        std::copy_n(source, block_size, destination);
 
-        for (j = 0; j < 196 && shift != 0; j++) {
-            CTexture *tex = &textures[j];
-            int       level;
-
-            if (tex->block != block_no) {
+        for (CTexture &tex : textures) {
+            if (shift == 0) {
+                break;
+            }
+            if (tex.block != block_no) {
                 continue;
             }
-
-            for (level = 0; level < 4; level++) {
-                u_int **images = tex->image;
-                u_int **slot = &images[level];
-
-                if (tex->image[level] == nullptr) {
-                    continue;
+            for (u_int *&level : tex.image) {
+                if (level != nullptr) {
+                    level = reinterpret_cast<u_int *>(reinterpret_cast<char *>(level) - shift);
                 }
-
-                *slot = reinterpret_cast<u_int *>(reinterpret_cast<char *>(*slot) - shift);
             }
-
-            if (tex->clut != nullptr) {
-                tex->clut = reinterpret_cast<u_int *>(reinterpret_cast<char *>(tex->clut) - shift);
+            if (tex.clut != nullptr) {
+                tex.clut = reinterpret_cast<u_int *>(reinterpret_cast<char *>(tex.clut) - shift);
             }
         }
 
         buffer_used += block_size;
-        misalignment = block_size % 8;
+        const int misalignment = block_size % 8;
 
         if (misalignment != 0) {
             const int padding = 8 - misalignment;

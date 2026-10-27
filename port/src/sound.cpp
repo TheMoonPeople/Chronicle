@@ -1,5 +1,6 @@
 #include "sound.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -17,9 +18,8 @@
 #include "platform/audio.hpp"
 #include "platform/config.hpp"
 
-// The IOP's MIDI player is the port's audio::Mixer. Banks and sequences are copied into it rather
-// than into IOP and SPU memory, so the SPU address bookkeeping below survives only to keep
-// GetMidiState() reading as it did; nothing addresses sound memory by it.
+// Banks and sequences live in audio::Mixer rather than in sound memory; the SPU address bookkeeping
+// below only keeps GetMidiState() reporting the addresses the game expects.
 
 namespace {
 
@@ -32,17 +32,17 @@ MIDI_STATE   midi_state;
 SQ_INF_TABLE sq_inf_tbl;
 SE_INF_TABLE se_inf_tbl;
 
-// What TransHdBd hands to the bind that follows it, as gBank did.
+// The bank TransHdBdData loaded, handed to the slot bind that follows it.
 struct PendingBank {
     std::shared_ptr<audio::Bank> bank;
     int                          bd_size = 0;
     int                          spu_address = 0;
 } g_bank;
 
-std::shared_ptr<audio::Bank>   g_slot_banks[kSlots];
-std::shared_ptr<audio::SqFile> g_slot_sequences[kSlots][kSequencesPerSlot];
+std::array<std::shared_ptr<audio::Bank>, kSlots>                                  g_slot_banks;
+std::array<std::array<std::shared_ptr<audio::SqFile>, kSequencesPerSlot>, kSlots> g_slot_sequences;
 
-// libmodmsin queued effect messages until Step() sent them; the port keeps that timing.
+// Effect messages are held until Step() sends them.
 struct EffectMessage {
     int                         port;
     bool                        extended;
@@ -58,7 +58,7 @@ struct FadeRoute {
     int fade;
 };
 
-constexpr FadeRoute kFadeRoutes[] = {
+constexpr auto kFadeRoutes = std::to_array<FadeRoute>({
     {MIDI_PORT_BGM,        0, 0},
     {MIDI_PORT_AMBIENT,    2, 0},
     {MIDI_PORT_UNK_2,      4, 0},
@@ -68,14 +68,18 @@ constexpr FadeRoute kFadeRoutes[] = {
     {MIDI_PORT_UNK_D,      5, 1},
     {MIDI_PORT_SE_SPECIAL, 6, 1},
     {MIDI_PORT_UNK_B,      7, 1},
-};
+});
 
 audio::Mixer &Player() {
     return audio::DefaultMixer();
 }
 
-void RenderOutput(void *, float *out, int frames) {
+void RenderOutput(void * /*user*/, float *out, int frames) {
     audio::DefaultMixer().Render(out, frames);
+}
+
+std::string_view SequenceName(const MIDI_SEQUENCE &sequence) {
+    return {sequence.name, strnlen(sequence.name, 9)};
 }
 
 int SequenceSlot(int port) {
@@ -91,18 +95,35 @@ int SequenceSlot(int port) {
     }
 }
 
-// Retail sends a port outside 10-15 to the stream input channel its switch leaves unset, which
-// reads as channel 0, port 10.
+// A port outside 10-15 reaches the effect input of port 10.
 int EffectPort(int port) {
     return port >= kFirstEffectPort && port <= kLastEffectPort ? port : kFirstEffectPort;
 }
 
 void QueueProgram(int port, int bank) {
-    g_effect_queue.push_back({EffectPort(port), false, static_cast<std::uint32_t>(((bank & 0x7F) << 8) | 0xC0), {}});
+    g_effect_queue.push_back({
+        .port = EffectPort(port),
+        .extended = false,
+        .message = static_cast<std::uint32_t>(((bank & 0x7F) << 8) | 0xC0),
+        .bytes = {},
+    });
 }
 
 void QueueExtended(int port, std::array<std::uint8_t, 8> bytes) {
-    g_effect_queue.push_back({EffectPort(port), true, 0, bytes});
+    g_effect_queue.push_back({.port = EffectPort(port), .extended = true, .message = 0, .bytes = bytes});
+}
+
+int SlotForSequenceLetter(char kind) {
+    switch (kind) {
+        case 'a':
+            return 0;
+        case 'e':
+            return 2;
+        case 'i':
+            return 4;
+        default:
+            return -1;
+    }
 }
 
 int TransHdBdData(const std::uint8_t *hd, int hd_size, const std::uint8_t *bd, int bd_size) {
@@ -169,8 +190,7 @@ int LoadSlotC(const std::uint8_t *hd, int hd_size, const std::uint8_t *bd, int b
         Player().Stop(MIDI_PORT_SE_TITLE);
         Player().Stop(MIDI_PORT_AMBIENT);
         FreeSlot(1);
-        // Retail frees the ambient bank here without unbinding port 1; the port unbinds it so
-        // nothing plays from a freed bank.
+        // The ambient bank is freed with this one, so its port is unbound too.
         FreeSlot(2);
         Player().BindBank(MIDI_PORT_AMBIENT, nullptr);
         midi_state.port[2].spu_address = midi_state.port[1].spu_address = 0x7D010;
@@ -258,19 +278,20 @@ int LoadSequence(int slot, const std::uint8_t *data, int size) {
 }
 
 void RegisterSequence(int slot, const char *name) {
-    MIDI_PORT &state = midi_state.port[slot];
-    int        i;
-    for (i = 0; i < sq_inf_tbl.count; i++) {
-        if (std::strncmp(name, sq_inf_tbl.sequence[i].name, 9) == 0) {
-            break;
+    MIDI_PORT             &state = midi_state.port[slot];
+    const std::string_view wanted(name, strnlen(name, 9));
+    for (int index = 0; index < sq_inf_tbl.count; index++) {
+        if (SequenceName(sq_inf_tbl.sequence[index]) != wanted) {
+            continue;
         }
+        if (state.sequence_count < kSequencesPerSlot) {
+            state.sequence[state.sequence_count] = &sq_inf_tbl.sequence[index];
+            state.sequence_count++;
+            return;
+        }
+        break;
     }
-    if (i < sq_inf_tbl.count && state.sequence_count < kSequencesPerSlot) {
-        state.sequence[state.sequence_count] = &sq_inf_tbl.sequence[i];
-        state.sequence_count++;
-    } else {
-        std::printf("################SQ_TBL NOT FOUND NEME=%s ##################\n", name);
-    }
+    std::printf("################SQ_TBL NOT FOUND NEME=%s ##################\n", name);
 }
 
 void StartSequence(int port, int seq_no, const int *volume) {
@@ -291,7 +312,7 @@ void StartSequence(int port, int seq_no, const int *volume) {
     }
     Player().SetSequence(port, g_slot_sequences[slot][seq_no]);
     // The soundtrack option: a recording named for this sequence plays in its place.
-    Player().SetStream(port, audio::SoundtrackFor(std::string_view(state.sequence[seq_no]->name, strnlen(state.sequence[seq_no]->name, 9))));
+    Player().SetStream(port, audio::SoundtrackFor(SequenceName(*state.sequence[seq_no])));
     Player().SetVolume(port, volume != nullptr ? *volume : state.sequence[seq_no]->volume);
     Player().Rewind(port, 0);
     Player().Play(port);
@@ -331,8 +352,8 @@ void set_spu(int mode0, int mode1, int depth0, int depth1) {
     Player().SetReverb(1, mode1, depth1);
 }
 
-int TransHdBd(int, int, int, int) {
-    // The retail ABI cannot carry host pointers; LoadSoundFileFromPack uses full pointers directly.
+int TransHdBd(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
+    // 32-bit addresses cannot carry host pointers; LoadSoundFileFromPack passes them directly.
     return -1;
 }
 
@@ -356,10 +377,6 @@ int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
         }
         const std::string line = text.substr(start, end - start);
         start = end + 1;
-        if (line.empty()) {
-            continue;
-        }
-
         if (line.size() < 9) {
             continue;
         }
@@ -367,9 +384,7 @@ int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
         const char  kind = name_hd[5];
 
         if (name_hd.compare(6, 3, ".sq") == 0) {
-            const int slot = kind == 'a' ? 0 : kind == 'e' ? 2
-                                           : kind == 'i'   ? 4
-                                                           : -1;
+            const int slot = SlotForSequenceLetter(kind);
             if (slot >= 0) {
                 int         sq_size = 0;
                 const auto *sq = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_hd.data(), &sq_size));
@@ -462,12 +477,12 @@ int Number(const std::string &token) {
 } // namespace
 
 int CSound::LoadSqInf(char *name, unsigned int *buffer) {
-    int        size;
+    int        size = 0;
     const auto tokens = ReadTable(name, buffer, size);
     for (std::size_t i = 0; i + 1 < tokens.size() && sq_inf_tbl.count < 400; i += 2) {
         MIDI_SEQUENCE &sequence = sq_inf_tbl.sequence[sq_inf_tbl.count];
-        std::memset(sequence.name, 0, sizeof(sequence.name));
-        std::strncpy(sequence.name, tokens[i].c_str(), 9);
+        std::ranges::fill(sequence.name, '\0');
+        tokens[i].copy(sequence.name, 9);
         sequence.volume = std::atoi(tokens[i + 1].c_str());
         sq_inf_tbl.count++;
     }
@@ -475,7 +490,7 @@ int CSound::LoadSqInf(char *name, unsigned int *buffer) {
 }
 
 int CSound::LoadSeInf(char *name, unsigned int *buffer) {
-    int        size;
+    int        size = 0;
     const auto tokens = ReadTable(name, buffer, size);
     se_inf_tbl.count = 0;
     for (std::size_t i = 0; i + 2 < tokens.size() && se_inf_tbl.count < 3000; i += 3) {
@@ -499,7 +514,7 @@ int CSound::Init(int mode0, int mode1, int depth0, int depth1) {
     set_spu(mode0, mode1, depth0, depth1);
     g_effect_queue.clear();
 
-    static constexpr int kSpuAddress[kSlots] = {0x5010, 0x7D010, 0x7D010, 0x16E900, 0x16E900, 0x16E900, 0x18AE20, 0x1B6D40};
+    static constexpr std::array<int, kSlots> kSpuAddress = {0x5010, 0x7D010, 0x7D010, 0x16E900, 0x16E900, 0x16E900, 0x18AE20, 0x1B6D40};
     for (int slot = 0; slot < kSlots; slot++) {
         MIDI_PORT &state = midi_state.port[slot];
         state.bank = nullptr;
@@ -641,48 +656,48 @@ void CSound::SetStereoMode(int mode) {
     Player().SetStereo(ConfigGet().options.stereo);
 }
 
-// These retail entry points carry pointers in 32-bit integers and have no host callers: the port's
-// LoadSoundFileFromPack passes pointers directly to the loaders above.
-int CSound::LoadHdBd_A(int, int, int, int) {
+// These entry points carry pointers in 32-bit integers and have no callers: LoadSoundFileFromPack
+// passes pointers directly to the loaders above.
+int CSound::LoadHdBd_A(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_C(int, int, int, int) {
+int CSound::LoadHdBd_C(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_E(int, int, int, int) {
+int CSound::LoadHdBd_E(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_G(int, int, int, int) {
+int CSound::LoadHdBd_G(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_I(int, int, int, int) {
+int CSound::LoadHdBd_I(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_M(int, int, int, int) {
+int CSound::LoadHdBd_M(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_Q(int, int, int, int) {
+int CSound::LoadHdBd_Q(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadHdBd_S(int, int, int, int) {
+int CSound::LoadHdBd_S(int /*hd*/, int /*hd_size*/, int /*bd*/, int /*bd_size*/) {
     return -1;
 }
 
-int CSound::LoadSeq_A(int, int) {
+int CSound::LoadSeq_A(int /*address*/, int /*size*/) {
     return -1;
 }
 
-int CSound::LoadSeq_E(int, int) {
+int CSound::LoadSeq_E(int /*address*/, int /*size*/) {
     return -1;
 }
 
-int CSound::LoadSeq_I(int, int) {
+int CSound::LoadSeq_I(int /*address*/, int /*size*/) {
     return -1;
 }

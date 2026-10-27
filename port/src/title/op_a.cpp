@@ -5,6 +5,7 @@
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
@@ -32,20 +33,13 @@
 #include "title/opening.hpp"
 #include "title/script.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// The texture and frame APIs take string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's dungeon-square scene: OpA_DrawProcess reaches the static setTexScroll and
-// setCloudTexScroll, whose TEXFLUSH packets are gone (the copies are ordered on the renderer) and whose
-// transfers are MoveImageTest's, and it shares its scenery state with the scene's set-up, sound and motion.
+// The dungeon-square scene of the opening: set-up, per-tick drawing, sound and motion.
 
-typedef MOTION_INFO tagMOTION_KEY;
-
-/* The rectangle a texture transfer takes, declared here rather than reached through rect.h for the
-   reason op_b.cpp declares its own: rect.h's four-argument constructor assigns h, w, y and x in
-   that order and every rectangle this file builds assigns them the other way round. The default
-   constructor keeps rect.h's order and is not dead code — the effect parameter block below carries
-   one as a member, so it runs wherever a caller builds that block. */
+/* The rectangle a texture transfer takes. rect.h's four-argument constructor assigns h, w, y and x
+   in that order; every rectangle this file builds assigns them the other way round. */
 template <class T>
 class CRect {
 public:
@@ -54,39 +48,10 @@ public:
     T w; /**< Width in pixels. */
     T h; /**< Height in pixels. */
 
-    CRect() {
-        h = 0;
-        w = 0;
-        y = 0;
-        x = 0;
-    }
+    CRect() : x(0), y(0), w(0), h(0) {}
 
-    CRect(T new_x, T new_y, T new_width, T new_height) {
-        x = new_x;
-        y = new_y;
-        w = new_width;
-        h = new_height;
-    }
+    CRect(T new_x, T new_y, T new_width, T new_height) : x(new_x), y(new_y), w(new_width), h(new_height) {}
 } __attribute__((aligned(16)));
-
-/* One actor's face, as this scene animates it. The eyes and the mouth are two strips of frames
-   stacked bottom-up in one 256-wide texture — the eyes down the left half and the mouth down the
-   right — and a tick copies the current frame of each over the plate the model draws with. The two
-   offsets are measured from the bottom edge of the plate; the blink state is kept here because this
-   scene blinks the cast on a clock of its own rather than from the script. */
-struct FACE_INFO {
-    char *plate;        /**< Texture the model's face is drawn from. */
-    char *strip;        /**< Texture holding the eye and mouth frames. */
-    int   eye_bottom;   /**< Height of the eye region above the plate's bottom edge. */
-    int   eye_height;   /**< Height of one eye frame. */
-    int   mouth_bottom; /**< Height of the mouth region above the plate's bottom edge. */
-    int   mouth_height; /**< Height of one mouth frame. */
-    int   eye;          /**< Eye frame currently shown. */
-    int   mouth;        /**< Mouth frame currently shown. */
-    int   strip_bottom; /**< Row the frame strips count up from. */
-    int   eye_max;      /**< Last eye frame of a blink. */
-    int   blink;        /**< Blink phase: zero idle, one closing, two opening. */
-};
 
 void wait_now_loading_vsync();
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
@@ -94,69 +59,49 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src
 void DepthOfField(float *dist, int level, int alpha, int blur);
 
 namespace {
-static void LoadTexture();
-static void LoadData();
-static void SetDanceMotion();
-static void InitDancerPos();
-static void DrawCloud();
-static void SmokeProcess();
-static void MoveDancers();
-static void ReaderShadow();
-static void DancerShadow();
-static void ShogunShadow();
-static void ShisaiShadow();
-static void DrawShadow(float x, float y, float z);
-static void setTexScroll();
-static void setCloudTexScroll();
+void LoadTexture();
+void LoadData();
+void SetDanceMotion();
+void InitDancerPos();
+void DrawCloud();
+void SmokeProcess();
+void MoveDancers();
+void ReaderShadow();
+void DancerShadow();
+void ShogunShadow();
+void ShisaiShadow();
+void DrawShadow(float x, float y, float z);
+void setTexScroll();
+void setCloudTexScroll();
 } // namespace
 
-/* op_b.cpp owns these three; retail has this unit call across to them. */
+// Defined in op_b.cpp.
 void FaceChange(int actor_no);
 void LoadCharaData(int buffer_no, int actor_no);
 void LoadMotionData();
-/* The port's buffer for each dancer's next step, which retail keeps in read_buffer (op_b.cpp). */
+// Buffer holding each dancer's next step file (op_b.cpp).
 u_int *OpeningDancePack(int dancer);
 
-/* Each of the couple's motion files is one key range — the frame it starts at and the frame it ends
-   at — written straight over the character's own first key, so that a file loaded in the background
-   takes over without the motion driver being told anything. */
-extern tagMOTION_KEY noroi[10];
-
-extern tagMOTION_KEY dancer[10];
-
-/* The scene's own world, and the objects the configuration file fills in. Both frame pointers are
-   typed from the loader that writes them rather than from anything here: title/opdata assigns
-   LoadCollisionFile's and LoadMDSFile's results to them, and nothing in this file reads either. */
+// The scene's own world and the animated objects its configuration file fills in.
 CMap          OP_BuildingMap;
 CMap          OP_BuildingMap2;
 CMap          OP_GroundMap;
 OBJ_ANIME_SEQ OP_AnimeSeq[32];
-extern int                  OP_AnimeSeqRot;
-extern int                  OP_FireList;
-extern sceVu0FVECTOR        OP_FirePosition[96];
-extern float                OP_FireScale[96];
-extern int                  OP_FireFlg[96];
-extern CFrameVu1           *OP_GroundCol;
-extern CFrameVu1           *OP_SkyFrame;
-extern CFrame              *OP_CharaFrame__2;
-extern char                 CloudFlag;
+extern char   CloudFlag;
 
 CFireOmni CFire;
 
 namespace {
-static sceVu0FVECTOR DancerPos[35];
-static sceVu0FVECTOR DancerRot[35];
-static CCharacter    Cloud;
+sceVu0FVECTOR DancerPos[35];
+sceVu0FVECTOR DancerRot[35];
+CCharacter    Cloud;
 
-static CFrameVu1   *Shadow;
-static float        DancerAmb;
-static CEffectGroup Smoke;
-static CEffect     *EffectTable;
-static float        DanceWait;
+CFrameVu1   *Shadow;
+float        DancerAmb;
+CEffectGroup Smoke;
+CEffect     *EffectTable;
+float        DanceWait;
 } // namespace
-
-extern int DanceCnt;
-extern int DanceStart;
 
 /* The dungeon square's set-up. The two maps are cleared first because this scene is placed from a
    configuration file rather than from a table of its own, and the couple's second motion files are
@@ -191,18 +136,14 @@ void OpA_InitProcess() {
     CloudFlag = 0;
 }
 
+namespace {
+
 /**
  * The scene's textures. Four rows name the fixed surfaces the registry keeps for every scene and
  * the twenty-five after them are filled in by name from the pack this function reads; the empty
  * name at the end is what states where the table stops.
- *
- * @mangled LoadTexture__Fv__3
- * @address 0x1DB5070
- * @size 0x3AC
- * @unknownret
  */
-namespace {
-static void LoadTexture() {
+void LoadTexture() {
     LOADTEXTURE_INFO2 texture_list[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",       0,  0},
         {"#fontbase#512#256#1",                             26, 0},
@@ -263,11 +204,7 @@ static void LoadTexture() {
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_US:
-            texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_UK:
             texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
@@ -282,6 +219,8 @@ static void LoadTexture() {
             break;
         case LANG_SPANISH:
             texture_list[26].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
+            break;
+        default:
             break;
     }
 
@@ -303,13 +242,8 @@ static void LoadTexture() {
  * The scene's actors. The four in the table are the townspeople around the square, the two after
  * them are the couple the scene is about, and the last two are the sky the square is drawn under
  * and the one shadow every one of them is drawn onto.
- *
- * @mangled LoadData__Fv__2
- * @address 0x1DB5420
- * @size 0x32C
- * @unknownret
  */
-static void LoadData() {
+void LoadData() {
     char *config_names[4] = {"01c07a.cfg", "01c08a.cfg", "01c11a.cfg", "01c09a.cfg"};
 
     for (int i = 0; i < 4; i++) {
@@ -358,7 +292,6 @@ static void LoadData() {
     Cloud.frame = LoadMDSFile(GetPackFile(read_buffer, "01cloud.mds", nullptr), 2, 0);
     Cloud.SetPosition(0.0f, 50.0f, 20.0f);
 
-    // Retail asked for 12800 bytes, fifty of the PS2's 256-byte CEffect.
     EffectTable = reinterpret_cast<CEffect *>(MapDataBuffer.Alloc(50 * sizeof(CEffect)));
     Smoke.Initialize(EffectTable, 50);
     Smoke.Clear();
@@ -369,13 +302,8 @@ static void LoadData() {
 /**
  * The couple's first dance step. Each takes its motion file's own first key range, which is what
  * the background loader then advances one file at a time.
- *
- * @mangled SetDanceMotion__Fv
- * @address 0x1DB5750
- * @size 0x148
- * @unknownret
  */
-static void SetDanceMotion() {
+void SetDanceMotion() {
     LoadFile("opdat/chara/01p19a1a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
     Chara__3[6].LoadPackData(read_buffer, "01p19a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
     Chara__3[6].motion_type.state.time = 120.0f;
@@ -398,14 +326,9 @@ static void SetDanceMotion() {
 /**
  * Where the crowd stands, as the square was laid out: thirty-five places in tenths of a world unit
  * across seven rows, every one of them facing the couple.
- *
- * @mangled InitDancerPos__Fv
- * @address 0x1DB58A0
- * @size 0x124
- * @unknownret
  */
-static void InitDancerPos() {
-    float layout[35][4] = {
+void InitDancerPos() {
+    constexpr float layout[35][4] = {
         {3.0f,  0.0f, 27.0f, 0.0f},
         {0.0f,  0.0f, 27.0f, 0.0f},
         {-3.0f, 0.0f, 27.0f, 0.0f},
@@ -449,11 +372,6 @@ static void InitDancerPos() {
         DancerPos[i][2] = 10.0f + 10.0f * layout[i][2];
         DancerRot[i][0] = 0.0f;
         DancerRot[i][1] = PI_D;
-        /* The third store repeats the first rather than clearing the roll, which is deliberate here
-           and not a slip left in place: every row of the table has a zero roll already, so the
-           line has no effect either way, and the code the compiler emits is not the same without
-           it. */
-        DancerRot[i][0] = 0.0f;
     }
 
     Chara__3[6].SetPosition(0.0f, 0.0f, 250.0f);
@@ -588,11 +506,7 @@ void OpA_DrawProcess() {
 
     if (CScript__2.camera_start == 44) {
         if (Cam__2[SceneNp__2].motion_type.state.time > 249.0f) {
-            DancerAmb -= 0.2f;
-
-            if (DancerAmb < 0.0f) {
-                DancerAmb = 0.0f;
-            }
+            DancerAmb = std::max(DancerAmb - 0.2f, 0.0f);
 
             crowd_ambient[3] = DancerAmb;
         }
@@ -606,11 +520,7 @@ void OpA_DrawProcess() {
             Chara__3[7].Step();
         }
 
-        DanceWait += 1.0f;
-
-        if (DanceWait > 10000) {
-            DanceWait = 10000;
-        }
+        DanceWait = std::min(DanceWait + 1.0f, 10000.0f);
     }
 
     if (CScript__2.obj[6].disp) {
@@ -629,19 +539,17 @@ void OpA_DrawProcess() {
         Chara__3[7].Draw();
         DancerShadow();
 
-        int crowd_count;
+        int crowd_count = 35;
 
         switch (CScript__2.camera_start) {
             case 0:
                 crowd_count = 28;
                 break;
             case 3:
-                crowd_count = 30;
-                break;
             case 7:
-                crowd_count = 30;
-                break;
             case 8:
+            case 39:
+            case 43:
                 crowd_count = 30;
                 break;
             case 9:
@@ -650,17 +558,10 @@ void OpA_DrawProcess() {
             case 10:
                 crowd_count = 15;
                 break;
-            case 39:
-                crowd_count = 30;
-                break;
-            case 43:
-                crowd_count = 30;
-                break;
             case 45:
                 crowd_count = 14;
                 break;
             default:
-                crowd_count = 35;
                 break;
         }
 
@@ -709,11 +610,7 @@ void OpA_DrawProcess() {
     if (CScript__2.sprite == 1) {
         TexManager.ReloadTexture(Vif1Packet, 7);
 
-        int alpha = static_cast<int>(128.0f - cnt / 4.0f);
-
-        if (alpha < 0) {
-            alpha = 0;
-        }
+        const int alpha = std::max(static_cast<int>(128.0f - cnt / 4.0f), 0);
 
         set2DSprite(GetVif1Packet(), TexManager.GetTexture("ex", -1), CRect<int>(static_cast<int>(272.0f - cnt / 2.0f), static_cast<int>(10.0f - cnt / 2.0f), static_cast<int>(128.0f + cnt), static_cast<int>(128.0f + cnt)), CRect<int>(0, 0, 128, 128), static_cast<u_char>(alpha));
 
@@ -759,18 +656,14 @@ void OpA_DrawProcess() {
     }
 }
 
+namespace {
+
 /**
  * The sky, which is one model turned inside out and scrolled rather than a backdrop. It grows from
  * nothing over the first few seconds of the scene it belongs to and its own ambient rides up with
  * it, so the sky arrives before the square does.
- *
- * @mangled DrawCloud__Fv
- * @address 0x1DB6710
- * @size 0x230
- * @unknownret
  */
-namespace {
-static void DrawCloud() {
+void DrawCloud() {
     static sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 0.0f};
     static float         sc = 0.0f;
 
@@ -822,13 +715,8 @@ static void DrawCloud() {
  * The chimney smoke. One particle is entered every eighth tick, with its speed, its spin and how
  * far it drifts taken from the random generator so that no two rise the same way, and a second one
  * at a fixed place beside it.
- *
- * @mangled SmokeProcess__Fv
- * @address 0x1DB6940
- * @size 0x2A4
- * @unknownret
  */
-static void SmokeProcess() {
+void SmokeProcess() {
     static int cnt = 0;
 
     cnt++;
@@ -882,22 +770,11 @@ static void SmokeProcess() {
     Smoke.Draw();
 }
 
-/* The tick's motion. The projection is re-set first because the camera passes through the scenery
-   in some of the shots and the near plane has to move with it; the camera is then shaken by a
-   random tenth of a unit on each axis for the shots that want it. After that every actor takes what
-   the script last asked of it, and the ones the camera's own frame tree carries take their place
-   from it instead. */
-
 /**
  * Where the crowd stands once the scene is running: thirty-five frames in the camera's own model,
  * one per place, so the whole square was animated in the same file as the camera move.
- *
- * @mangled MoveDancers__Fv
- * @address 0x1DB75D0
- * @size 0x188
- * @unknownret
  */
-static void MoveDancers() {
+void MoveDancers() {
     char         *frame_names[35] = {"p17a1", "p17a2", "p17a3", "p17a4", "p17a5", "p17a6", "p17a7", "p17a8",
                                      "p17a9", "p17a10", "p17a11", "p17a12", "p17a13", "p17a14", "p17a15",
                                      "p17a16", "p17a17", "p17a18", "p17a19", "p17a20", "p17a21", "p17a22",
@@ -925,13 +802,8 @@ static void MoveDancers() {
 /**
  * The couple's own shadows, which are a pair each because a dancer's two feet move apart: the
  * effect frames the model carries are found by name and one shadow is drawn under each.
- *
- * @mangled ReaderShadow__Fv
- * @address 0x1DB7760
- * @size 0xB8
- * @unknownret
  */
-static void ReaderShadow() {
+void ReaderShadow() {
     sceVu0FMATRIX matrix;
 
     TexManager.ReloadTexture(Vif1Packet, 6);
@@ -953,125 +825,54 @@ static void ReaderShadow() {
 
 /**
  * Draws the dancer's paired foot shadows.
- *
- * @mangled DancerShadow__Fv
- * @address 0x1DB7820
- * @size 0xB4
- * @unknownret
  */
-static void DancerShadow() {
+void DancerShadow() {
     sceVu0FMATRIX matrix;
-    float        *z_address;
-    float        *y_address;
-    float        *x_address;
-    float         x;
-    float         y;
-    float         z;
 
-    // The addresses stay valid when the second lookup replaces the matrix, so only the values
-    // need to be loaded again.
     Chara__3[7].frame->SearchFrame("r_foot")->GetLWMatrix(matrix);
-    x_address = &matrix[3][0];
-    x = *x_address;
-    y_address = &matrix[3][1];
-    y = *y_address;
-    z_address = &matrix[3][2];
-    z = *z_address;
-    DrawShadow(x, y, z);
+    DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
     Chara__3[7].frame->SearchFrame("l_foot")->GetLWMatrix(matrix);
-    x = *x_address;
-    y = *y_address;
-    z = *z_address;
-    DrawShadow(x, y, z);
+    DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
 }
 
 /**
  * Draws the shogun's scene shadow.
- *
- * @mangled ShogunShadow__Fv
- * @address 0x1DB78E0
- * @size 0xCC
- * @unknownret
  */
-static void ShogunShadow() {
+void ShogunShadow() {
     sceVu0FMATRIX matrix;
-    float        *z_address;
-    float        *y_address;
-    float        *x_address;
-    float         x;
-    float         y;
-    float         z;
 
-    // Both effect frames write the same matrix storage, so the coordinate addresses are shared.
     TexManager.ReloadTexture(Vif1Packet, 6);
     Chara__3[3].frame->SearchFrame("eff66")->GetLWMatrix(matrix);
-    x_address = &matrix[3][0];
-    x = *x_address;
-    y_address = &matrix[3][1];
-    y = *y_address;
-    z_address = &matrix[3][2];
-    z = *z_address;
-    DrawShadow(x, y, z);
+    DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
     Chara__3[3].frame->SearchFrame("eff62")->GetLWMatrix(matrix);
-    x = *x_address;
-    y = *y_address;
-    z = *z_address;
-    DrawShadow(x, y, z);
+    DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
 }
 
 /**
  * Draws the priest's scene shadow.
- *
- * @mangled ShisaiShadow__Fv
- * @address 0x1DB79B0
- * @size 0xCC
- * @unknownret
  */
-static void ShisaiShadow() {
+void ShisaiShadow() {
     sceVu0FMATRIX matrix;
-    float        *z_address;
-    float        *y_address;
-    float        *x_address;
-    float         x;
-    float         y;
-    float         z;
 
-    // Both effect frames write the same matrix storage, so the coordinate addresses are shared.
     TexManager.ReloadTexture(Vif1Packet, 6);
     Chara__3[2].frame->SearchFrame("eff93")->GetLWMatrix(matrix);
-    x_address = &matrix[3][0];
-    x = *x_address;
-    y_address = &matrix[3][1];
-    y = *y_address;
-    z_address = &matrix[3][2];
-    z = *z_address;
-    DrawShadow(x, y, z);
+    DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
     Chara__3[2].frame->SearchFrame("eff99")->GetLWMatrix(matrix);
-    x = *x_address;
-    y = *y_address;
-    z = *z_address;
-    DrawShadow(x, y, z);
+    DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
 }
 
 /**
  * One shadow, laid on the ground under the point it is given. It fades with height rather than
  * being clipped, which is what lets a foot lift without the shadow following it up, and it is never
  * brighter than the ambient the crowd is drawn at.
- *
- * @mangled DrawShadow__Ffff
- * @address 0x1DB7A80
- * @size 0x108
- * @unknownret
  */
-static void DrawShadow(float x, float y, float z) {
+void DrawShadow(float x, float y, float z) {
     sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 64.0f};
 
     ambient[3] -= 10.0f * y;
 
     if (ambient[3] > 0.0f) {
-        if (ambient[3] > DancerAmb) {
-            ambient[3] = DancerAmb;
-        }
+        ambient[3] = std::min(ambient[3], DancerAmb);
 
         MGSetAmbient(ambient);
 
@@ -1091,7 +892,6 @@ static void DrawShadow(float x, float y, float z) {
    square's own ambience: the fountain from a fixed point, the wind while the sky is up, and the
    change of music the camera makes when it turns away. */
 void OpA_SoundProcess() {
-    /* These type-only names preserve the first footfall's argument-selection state. */
     static int mus = 0;
 
     if (DanceWait > 5.0f) {
@@ -1185,9 +985,7 @@ void OpA_SoundProcess() {
 
     OpSetVolPanSE(fountain, 200.0f, 500.0f, 15, 16, 20);
 
-    static int                    seflg = 0;
-    [[maybe_unused]] static int   secnt = 0;
-    [[maybe_unused]] static float vol = 128.0f;
+    static int seflg = 0;
 
     if (CloudFlag == 1) {
         if (seflg == 0) {
@@ -1200,8 +998,6 @@ void OpA_SoundProcess() {
         }
     } else {
         seflg = 0;
-        secnt = 0;
-        vol = 128.0f;
     }
 
     {
@@ -1209,8 +1005,8 @@ void OpA_SoundProcess() {
 
         if (CScript__2.camera_start == 44 && Cam__2[SceneNp__2].motion_type.state.time > 249.0) {
             if (flg == 0) {
-                while (ReadBGSync())
-                    ;
+                while (ReadBGSync()) {
+                }
 
                 LoadFileBG("opdat/dungeon/o1bbgm.snd", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
                 flg = 1;
@@ -1238,132 +1034,83 @@ void OpA_SoundProcess() {
     }
 }
 
-/**
- * The waterfall behind the square. Its animation is a strip of frames in a texture of its own and
- * the plate the world draws is another, so a tick is two local-to-local transfers that between them
- * put one frame's worth of the strip over the plate with the seam moving down it; the texture cache
- * is flushed first because the plate about to be overwritten is the one the previous tick drew
- * from.
- *
- * @mangled setTexScroll__Fv
- * @address 0x1DB82D0
- * @size 0x274
- * @unknownret
- */
 namespace {
-static void setTexScroll() {
-    static int   setTexScrollCnt = 0;
-    static float setTexScrollCntf = 0.0f;
 
-    CTexture *plate;
-    CTexture *strip;
-    int       dbp;
-    int       sbp;
-    int       dbw;
-    int       sbw;
-
-    if (setTexScrollCntf <= 0.0f) {
-        setTexScrollCntf = 126.0f;
+// Copies one frame's worth of a texture strip over its plate, moving the seam down half a row a tick.
+void ScrollTexture(char *plate_name, char *strip_name, float &scroll) {
+    if (scroll <= 0.0f) {
+        scroll = 126.0f;
     } else {
-        setTexScrollCntf -= 0.5f;
+        scroll -= 0.5f;
     }
 
-    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
+    const int seam = static_cast<int>(scroll);
 
-    plate = TexManager.GetTexture("i01t06", -1);
-    strip = TexManager.GetTexture("i01t06a", -1);
+    CTexture *plate = TexManager.GetTexture(plate_name, -1);
+    CTexture *strip = TexManager.GetTexture(strip_name, -1);
 
     if (plate == nullptr || strip == nullptr) {
         return;
     }
 
-    dbp = plate->tex0 & 0x3fff;
-    sbp = strip->tex0 & 0x3fff;
-    dbw = (plate->tex0 >> 14) & 0x3f;
-    sbw = (strip->tex0 >> 14) & 0x3f;
+    const int dbp = plate->tex0 & 0x3fff;
+    const int sbp = strip->tex0 & 0x3fff;
+    const int dbw = (plate->tex0 >> 14) & 0x3f;
+    const int sbw = (strip->tex0 >> 14) & 0x3f;
 
-    if (setTexScrollCnt != 128) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, setTexScrollCnt, 128, 128 - setTexScrollCnt), dbp, dbw, 0, 0, 0, 0);
+    if (seam != 128) {
+        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, seam, 128, 128 - seam), dbp, dbw, 0, 0, 0, 0);
     }
 
-    if (setTexScrollCnt != 0) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, setTexScrollCnt), dbp, dbw, 0, 0, 128 - setTexScrollCnt, 0);
+    if (seam != 0) {
+        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, seam), dbp, dbw, 0, 0, 128 - seam, 0);
     }
+}
+
+/**
+ * The waterfall behind the square. Its animation is a strip of frames in a texture of its own and
+ * the plate the world draws is another, so a tick is two local-to-local transfers that between them
+ * put one frame's worth of the strip over the plate with the seam moving down it.
+ */
+void setTexScroll() {
+    static float scroll = 0.0f;
+
+    ScrollTexture("i01t06", "i01t06a", scroll);
 }
 
 /**
  * The sky's own scroll, which is the same two transfers over the cloud plate.
- *
- * @mangled setCloudTexScroll__Fv
- * @address 0x1DB8550
- * @size 0x274
- * @unknownret
  */
-static void setCloudTexScroll() {
-    static int   setTexScrollCnt = 0;
-    static float setTexScrollCntf = 0.0f;
+void setCloudTexScroll() {
+    static float scroll = 0.0f;
 
-    CTexture *plate;
-    CTexture *strip;
-    int       dbp;
-    int       sbp;
-    int       dbw;
-    int       sbw;
-
-    if (setTexScrollCntf <= 0.0f) {
-        setTexScrollCntf = 126.0f;
-    } else {
-        setTexScrollCntf -= 0.5f;
-    }
-
-    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
-
-    plate = TexManager.GetTexture("cloud", -1);
-    strip = TexManager.GetTexture("cloudan", -1);
-
-    if (plate == nullptr || strip == nullptr) {
-        return;
-    }
-
-    dbp = plate->tex0 & 0x3fff;
-    sbp = strip->tex0 & 0x3fff;
-    dbw = (plate->tex0 >> 14) & 0x3f;
-    sbw = (strip->tex0 >> 14) & 0x3f;
-
-    if (setTexScrollCnt != 128) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, setTexScrollCnt, 128, 128 - setTexScrollCnt), dbp, dbw, 0, 0, 0, 0);
-    }
-
-    if (setTexScrollCnt != 0) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, setTexScrollCnt), dbp, dbw, 0, 0, 128 - setTexScrollCnt, 0);
-    }
+    ScrollTexture("cloud", "cloudan", scroll);
 }
 } // namespace
 
+/* The tick's motion. The projection is re-set first because the camera passes through the scenery
+   in some of the shots and the near plane has to move with it; the camera is then shaken by a
+   random tenth of a unit on each axis for the shots that want it. After that every actor takes what
+   the script last asked of it, and the ones the camera's own frame tree carries take their place
+   from it instead. */
 void OpA_MotionProcess() {
     switch (CScript__2.camera_start) {
         case 2:
         case 3:
         case 15:
+        case 37:
             MGSetRenderInfo(mgRenderInfo.scale[0], 10.0f, 0xffff);
             break;
-        case 37: {
-            /* The scoped middle arms and folded constants preserve their shared materialisation order. */
-            MGSetRenderInfo(mgRenderInfo.scale[0], static_cast<float>((1 << 3) + 2), (0x10000 - 1));
-            break;
-        }
         case 0:
-        case 39: {
+        case 39:
             MGSetRenderInfo(mgRenderInfo.scale[0], 16.0f, 0xffff);
             break;
-        }
         case 40:
         case 41:
         case 42:
-        case 48: {
+        case 48:
             MGSetRenderInfo(mgRenderInfo.scale[0], 18.0f, 0xffff);
             break;
-        }
         default:
             MGSetRenderInfo(mgRenderInfo.scale[0], 6.0f, 0xffff);
             break;
@@ -1397,6 +1144,8 @@ void OpA_MotionProcess() {
             }
 
             break;
+        default:
+            break;
     }
 
     if (shake) {
@@ -1415,11 +1164,9 @@ void OpA_MotionProcess() {
 
     for (int i = 0; i < 6; i++) {
         if (CScript__2.obj[i].disp) {
-            if (CScript__2.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
-                    CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
-                    CScript__2.obj[i].motion_end = -1;
-                }
+            if (CScript__2.obj[i].motion_end != -1 && Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
+                CScript__2.obj[i].motion_end = -1;
             }
 
             Chara__3[i].motion_type.state.blend_step = CScript__2.obj[i].step;

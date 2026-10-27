@@ -15,18 +15,18 @@ void CSpriteTable::DrawTable() {
 
     for (int layer = list_count - 1; layer >= 0; layer--) {
         for (SPRITE_TABLE *node = heads[layer]; node != tails[layer]; node = node->next) {
-            const u_char r = static_cast<u_char>(node->red);
-            const u_char g = static_cast<u_char>(node->green);
-            const u_char b = static_cast<u_char>(node->blue);
-            const u_char a = static_cast<u_char>(node->alpha);
-            const float  x0 = node->x;
-            const float  y0 = node->y;
-            const float  x1 = node->x + node->width;
-            const float  y1 = node->y + node->height;
-            const float  u0 = node->u;
-            const float  v0 = node->v;
-            const float  u1 = node->u + node->u_width;
-            const float  v1 = node->v + node->v_height;
+            const auto  r = static_cast<u_char>(node->red);
+            const auto  g = static_cast<u_char>(node->green);
+            const auto  b = static_cast<u_char>(node->blue);
+            const auto  a = static_cast<u_char>(node->alpha);
+            const float x0 = node->x;
+            const float y0 = node->y;
+            const float x1 = node->x + node->width;
+            const float y1 = node->y + node->height;
+            const float u0 = node->u;
+            const float v0 = node->v;
+            const float u1 = node->u + node->u_width;
+            const float v1 = node->v + node->v_height;
 
             std::array<gfx::Vertex2D, 4> quad = {
                 draw2d::Vertex(x0, y0, 0.0f, u0, v0, r, g, b, a),

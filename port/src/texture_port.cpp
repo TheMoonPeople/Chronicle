@@ -1,17 +1,29 @@
+// clang-format off
+// nlohmann/json must precede libgraph.h, whose B macro breaks its templates.
 #include <nlohmann/json.hpp>
+// clang-format on
 
 #include "texture_port.hpp"
 
 #include <algorithm>
+#include <array>
+#include <bit>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <print>
+#include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "mglib_port.hpp"
 #include "dataread_port.hpp"
+#include "mglib_port.hpp"
 #include "platform/png_image.hpp"
 #include "screen.hpp"
 #include "texture.hpp"
@@ -93,7 +105,7 @@ unsigned AllocateKey(EntryKind kind, PortTextureOwner owner) {
             return key;
         }
     }
-    std::fprintf(stderr, "texture: every TBP0/CBP key is in use; textures are leaking\n");
+    std::println(stderr, "texture: every TBP0/CBP key is in use; textures are leaking");
     std::abort();
 }
 
@@ -127,10 +139,10 @@ void ReportOnce(bool &reported, const char *what, unsigned src, unsigned dst) {
 
 // 8-bit unswizzle tables: BlockConv8to32's lut inverted, per column parity.
 struct InverseLut {
-    uint8_t to_output[2][64];
+    std::array<std::array<uint8_t, 64>, 2> to_output{};
 
-    constexpr InverseLut() : to_output{} {
-        constexpr uint8_t lut[128] = {
+    constexpr InverseLut() {
+        constexpr std::array<uint8_t, 128> lut = {
             0, 36, 8, 44, 1, 37, 9, 45, 2, 38, 10, 46, 3, 39, 11, 47, 4, 32, 12, 40, 5, 33, 13, 41,
             6, 34, 14, 42, 7, 35, 15, 43, 16, 52, 24, 60, 17, 53, 25, 61, 18, 54, 26, 62, 19, 55, 27, 63,
             20, 48, 28, 56, 21, 49, 29, 57, 22, 50, 30, 58, 23, 51, 31, 59, 4, 32, 12, 40, 5, 33, 13, 41,
@@ -173,9 +185,9 @@ long SwizzledOffset(int width, int height, int x, int y) {
            static_cast<long>(page_row) * row_bytes * pages_x + page_column;
 }
 
-uint32_t Load32(const u_char *p) {
-    uint32_t value;
-    std::memcpy(&value, p, 4);
+uint32_t Load32(const u_char *bytes) {
+    uint32_t value = 0;
+    std::memcpy(&value, bytes, sizeof value);
     return value;
 }
 
@@ -187,7 +199,7 @@ void DecodeLevel(int bpp, unsigned width, unsigned height, const u_char *src, bo
             out.resize(texels);
             for (size_t i = 0; i < texels; i++) {
                 u_char pair = src[i >> 1];
-                out[i] = (i & 1) ? pair >> 4 : pair & 0xF;
+                out[i] = static_cast<uint8_t>((i & 1) != 0 ? pair >> 4 : pair & 0xF);
             }
             break;
         case 1:
@@ -195,7 +207,7 @@ void DecodeLevel(int bpp, unsigned width, unsigned height, const u_char *src, bo
             if (swizzled) {
                 PortUnswizzle8(static_cast<int>(width), static_cast<int>(height), src, out.data());
             } else {
-                std::memcpy(out.data(), src, texels);
+                std::copy_n(src, texels, out.data());
             }
             break;
         case 2: {
@@ -204,11 +216,11 @@ void DecodeLevel(int bpp, unsigned width, unsigned height, const u_char *src, bo
             // is baked in.
             out.resize(texels * 4);
             for (size_t i = 0; i < texels; i++) {
-                unsigned pixel = src[i * 2] | src[i * 2 + 1] << 8;
+                const unsigned pixel = src[i * 2] | (src[i * 2 + 1] << 8);
                 out[i * 4 + 0] = static_cast<uint8_t>((pixel & 0x1F) << 3);
                 out[i * 4 + 1] = static_cast<uint8_t>(((pixel >> 5) & 0x1F) << 3);
                 out[i * 4 + 2] = static_cast<uint8_t>(((pixel >> 10) & 0x1F) << 3);
-                out[i * 4 + 3] = (pixel & 0x8000) ? 0x80 : 0;
+                out[i * 4 + 3] = (pixel & 0x8000) != 0 ? 0x80 : 0;
             }
             gfx::ConvertPs2Alpha(reinterpret_cast<uint32_t *>(out.data()), texels);
             break;
@@ -226,6 +238,8 @@ void DecodeLevel(int bpp, unsigned width, unsigned height, const u_char *src, bo
             out.assign(src, src + texels * 4);
             gfx::ConvertPs2Alpha(reinterpret_cast<uint32_t *>(out.data()), texels);
             break;
+        default:
+            break;
     }
 }
 
@@ -235,7 +249,7 @@ bool IndexPsm(unsigned psm) {
 
 // Which palette entry a CLUT image position holds, or -1 off the CLUT.
 int ClutEntry(const Entry &palette, int x, int y) {
-    if (x < 0 || y < 0 || x >= static_cast<int>(palette.width) || y >= static_cast<int>(palette.height)) {
+    if (x < 0 || y < 0 || std::cmp_greater_equal(x, palette.width) || std::cmp_greater_equal(y, palette.height)) {
         return -1;
     }
     if (palette.four_bit) {
@@ -282,11 +296,11 @@ bool ResolveSide(unsigned tbp, unsigned psm, Side &side) {
 bool PortLegacyTexturePath() {
     static const bool legacy = [] {
         const std::vector<std::string> files = DataReadListFiles();
-        const bool has_baked = std::any_of(files.begin(), files.end(), [](const std::string &path) {
+        const bool                     has_baked = std::ranges::any_of(files, [](const std::string &path) {
             return path.starts_with("textures/") && path.ends_with(".json");
         });
         if (!has_baked) {
-            std::fprintf(stderr, "texture: the data has no baked texture documents; decoding the raw textures\n");
+            std::println(stderr, "texture: the data has no baked texture documents; decoding the raw textures");
         }
         return !has_baked;
     }();
@@ -301,11 +315,10 @@ void PortRememberTextureClut(std::string_view name, const u_char *clut, std::siz
 }
 
 bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsigned picture_index,
-                          unsigned width, unsigned height, unsigned level_count,
-                          const u_char *clut, std::size_t clut_bytes,
+                          unsigned width, unsigned height,
+                          [[maybe_unused]] unsigned level_count, const u_char *clut, std::size_t clut_bytes,
                           PortDecodedTexture &out, std::string &error,
                           std::optional<unsigned> entry_index, int source_bpp) {
-    (void)level_count;
     using Json = nlohmann::json;
     std::vector<std::uint8_t> json_bytes;
     if (!DataReadReadFile(document, json_bytes)) {
@@ -365,9 +378,9 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
                 continue;
             }
             const std::string selector = variant["selector"].get<std::string>();
-            const auto palette = texture_cluts.find(selector);
-            if (palette != texture_cluts.end() && palette->second.size() == clut_bytes &&
-                std::memcmp(palette->second.data(), clut, clut_bytes) == 0) {
+            const auto        palette = texture_cluts.find(selector);
+            if (palette != texture_cluts.end() &&
+                std::ranges::equal(palette->second, std::span<const u_char>(clut, clut_bytes))) {
                 if (selected != nullptr && selected_name != selector) {
                     error = "ambiguous baked palette variant for texture " + std::string(name);
                     return false;
@@ -393,7 +406,7 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
     const std::string parent = slash == std::string_view::npos ? std::string{} : std::string(document.substr(0, slash + 1));
     out = PortDecodedTexture{};
     out.format = gfx::TextureFormat::Rgba8;
-    out.has_alpha = source_bpp < 0 || source_bpp != 3;
+    out.has_alpha = source_bpp != 3;
     for (unsigned level = 0; level < levels->size(); level++) {
         const Json &level_path = (*levels)[level];
         if (!level_path.is_string()) {
@@ -401,20 +414,19 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
             return false;
         }
         const std::string relative = level_path.get<std::string>();
-        if (relative.empty() || relative.front() == '/' || relative.find('\\') != std::string::npos ||
-            relative.find(':') != std::string::npos || relative.find("../") != std::string::npos ||
-            relative == ".." || relative.starts_with("./")) {
+        if (relative.empty() || relative.front() == '/' || relative.contains('\\') || relative.contains(':') ||
+            relative.contains("../") || relative == ".." || relative.starts_with("./")) {
             error = "unsafe baked level path " + relative;
             return false;
         }
         std::vector<std::uint8_t> png_bytes;
-        const std::string png_path = parent + relative;
+        const std::string         png_path = parent + relative;
         if (!DataReadReadFile(png_path, png_bytes)) {
             error = "missing baked PNG " + png_path;
             return false;
         }
-        int decoded_width = 0;
-        int decoded_height = 0;
+        int                       decoded_width = 0;
+        int                       decoded_height = 0;
         std::vector<std::uint8_t> rgba;
         if (!PngDecodeRgba(png_bytes, decoded_width, decoded_height, rgba)) {
             error = "invalid baked PNG " + png_path;
@@ -426,8 +438,7 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
         }
         const unsigned expected_width = std::max(1u, out.width >> level);
         const unsigned expected_height = std::max(1u, out.height >> level);
-        if (decoded_width != static_cast<int>(expected_width) ||
-            decoded_height != static_cast<int>(expected_height)) {
+        if (std::cmp_not_equal(decoded_width, expected_width) || std::cmp_not_equal(decoded_height, expected_height)) {
             error = "baked PNG dimensions differ for " + png_path;
             return false;
         }
@@ -439,7 +450,7 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
 void PortUnswizzle8(int width, int height, const u_char *swizzled, u_char *linear) {
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            long offset = SwizzledOffset(width, height, x, y);
+            const long offset = SwizzledOffset(width, height, x, y);
             linear[static_cast<size_t>(y) * width + x] = offset < 0 ? 0 : swizzled[offset];
         }
     }
@@ -458,23 +469,24 @@ bool PortDecodeTexture(int bpp, int width, int height, const u_char *const *leve
     out.has_alpha = bpp != 3;
     out.four_bit = bpp == 0;
     for (int level = 0; level < level_count && levels[level] != nullptr; level++) {
-        unsigned w = std::max(1u, out.width >> level);
-        unsigned h = std::max(1u, out.height >> level);
+        const unsigned level_width = std::max(1u, out.width >> level);
+        const unsigned level_height = std::max(1u, out.height >> level);
         out.levels.emplace_back();
-        DecodeLevel(bpp, w, h, levels[level], swizzled, out.levels.back());
+        DecodeLevel(bpp, level_width, level_height, levels[level], swizzled, out.levels.back());
     }
     if (bpp < 2) {
         if (clut == nullptr) {
             return false;
         }
-        unsigned limit = bpp == 0 ? 16 : 256;
-        unsigned colors = clut_colors > 0 && static_cast<unsigned>(clut_colors) < limit ? clut_colors : limit;
+        const unsigned limit = bpp == 0 ? 16 : 256;
+        const unsigned colors =
+            clut_colors > 0 && std::cmp_less(clut_colors, limit) ? static_cast<unsigned>(clut_colors) : limit;
         // Retail sends the CLUT to the GS as is, as a 16x16 PSMCT32 image read with CSM1, so the
         // file's order is the CSM1 image order and the hardware's lookup is reproduced here. A
         // 4-bit CLUT is an 8x2 image, which CSM1 reads in plain order.
         for (unsigned position = 0; position < colors; position++) {
-            unsigned index = bpp == 0 ? position : PortClutCsm1(position);
-            out.palette[index] = Load32(clut + position * 4);
+            const unsigned index = bpp == 0 ? position : PortClutCsm1(position);
+            out.palette[index] = Load32(&clut[static_cast<size_t>(position) * 4]);
         }
         gfx::ConvertPs2Alpha(out.palette.data(), out.palette.size());
     }
@@ -482,14 +494,14 @@ bool PortDecodeTexture(int bpp, int width, int height, const u_char *const *leve
 }
 
 unsigned PortCreateTexture(const PortDecodedTexture &decoded, PortTextureOwner owner, unsigned *palette_key) {
-    if (palette_key) {
+    if (palette_key != nullptr) {
         *palette_key = 0;
     }
     if (decoded.levels.empty()) {
         return 0;
     }
-    unsigned       key = AllocateKey(EntryKind::Image, owner);
-    Entry         &entry = Reg().entries[key];
+    unsigned key = AllocateKey(EntryKind::Image, owner);
+    Entry   &entry = Reg().entries[key];
     entry.width = decoded.width;
     entry.height = decoded.height;
     entry.format = decoded.format;
@@ -504,16 +516,16 @@ unsigned PortCreateTexture(const PortDecodedTexture &decoded, PortTextureOwner o
         entry.texture = gfx::CreateTexture(desc);
         entry.owns_texture = true;
         for (size_t level = 0; entry.texture != gfx::kNullTexture && level < decoded.levels.size(); level++) {
-            uint32_t w = std::max(1u, decoded.width >> level);
-            uint32_t h = std::max(1u, decoded.height >> level);
-            gfx::UpdateTexture(entry.texture, static_cast<uint32_t>(level), 0, 0, w, h,
+            const uint32_t level_width = std::max(1u, decoded.width >> level);
+            const uint32_t level_height = std::max(1u, decoded.height >> level);
+            gfx::UpdateTexture(entry.texture, static_cast<uint32_t>(level), 0, 0, level_width, level_height,
                                decoded.levels[level].data());
         }
     }
     if (decoded.format == gfx::TextureFormat::Index8) {
         unsigned palette = RegisterPalette(decoded.palette, decoded.four_bit, owner);
         Reg().entries[key].palette = palette;
-        if (palette_key) {
+        if (palette_key != nullptr) {
             *palette_key = palette;
         }
     }
@@ -536,7 +548,7 @@ unsigned PortRegisterNamedTarget(std::string_view name, unsigned width, unsigned
 
 unsigned PortCreatePlaceholder(std::string_view name, unsigned width, unsigned height, int bpp,
                                PortTextureOwner owner, unsigned *palette_key) {
-    if (palette_key) {
+    if (palette_key != nullptr) {
         *palette_key = 0;
     }
     if (bpp < 2) {
@@ -588,9 +600,9 @@ bool PortKeyLive(unsigned key) {
 
 PortTextureRef PortTextureFromTex0(u_long tex0, u_long tex1) {
     PortTextureRef ref;
-    unsigned       tbp = tex0 & 0x3FFF;
-    unsigned       cbp = (tex0 >> 37) & 0x3FFF;
-    ref.binding.filter = (tex1 >> 5) & 1 ? gfx::Filter::Linear : gfx::Filter::Nearest;
+    const auto     tbp = static_cast<unsigned>(tex0 & 0x3FFF);
+    const auto     cbp = static_cast<unsigned>((tex0 >> 37) & 0x3FFF);
+    ref.binding.filter = ((tex1 >> 5) & 1) != 0 ? gfx::Filter::Linear : gfx::Filter::Nearest;
     if (tbp == kMGPortFrameTbp0 || tbp == kMGPortPreviousFrameTbp0) {
         ref.binding.texture = tbp == kMGPortFrameTbp0 ? gfx::kMainTarget : gfx::kPreviousFrame;
         ref.width = static_cast<unsigned>(kScreenWidth);
@@ -612,7 +624,7 @@ PortTextureRef PortTextureFromTex0(u_long tex0, u_long tex1) {
         if (palette == nullptr || palette->kind != EntryKind::Palette) {
             palette = Live(entry->palette);
         }
-        ref.binding.palette = palette ? palette->texture : gfx::kNullTexture;
+        ref.binding.palette = palette != nullptr ? palette->texture : gfx::kNullTexture;
         ref.valid = ref.binding.texture != gfx::kNullTexture && ref.binding.palette != gfx::kNullTexture;
         return ref;
     }
@@ -621,9 +633,7 @@ PortTextureRef PortTextureFromTex0(u_long tex0, u_long tex1) {
 }
 
 PortTextureRef PortTextureFromTex0(const sceGsTex0 &tex0, u_long tex1) {
-    u_long bits;
-    std::memcpy(&bits, &tex0, sizeof bits);
-    return PortTextureFromTex0(bits, tex1);
+    return PortTextureFromTex0(std::bit_cast<u_long>(tex0), tex1);
 }
 
 PortTextureRef PortTextureFromHandle(int handle) {
@@ -649,13 +659,13 @@ bool PortMoveImage(unsigned src_tbp, unsigned src_psm, int x, int y, int width, 
         ReportOnce(reported, "move between images that are not registered or not of their PSM", src_tbp, dst_tbp);
         return false;
     }
-    if (src.palette && dst.palette) {
+    if (src.palette != nullptr && dst.palette != nullptr) {
         std::array<uint32_t, 256>      &to = *dst.palette->shadow;
         const std::array<uint32_t, 256> from = *src.palette->shadow;
         for (int row = 0; row < height; row++) {
             for (int column = 0; column < width; column++) {
-                int source = ClutEntry(*src.palette, x + column, y + row);
-                int target = ClutEntry(*dst.palette, dst_x + column, dst_y + row);
+                const int source = ClutEntry(*src.palette, x + column, y + row);
+                const int target = ClutEntry(*dst.palette, dst_x + column, dst_y + row);
                 if (source >= 0 && target >= 0) {
                     to[target] = from[source];
                 }
@@ -666,13 +676,13 @@ bool PortMoveImage(unsigned src_tbp, unsigned src_psm, int x, int y, int width, 
         }
         return true;
     }
-    if (src.palette || dst.palette || src.format != dst.format) {
+    if (src.palette != nullptr || dst.palette != nullptr || src.format != dst.format) {
         static bool reported;
         ReportOnce(reported, "move between a palette and an image, or an index and a colour image", src_tbp,
                    dst_tbp);
         return false;
     }
-    return gfx::CopyTexture(src.texture, gfx::Rect{x, y, width, height}, dst.texture, dst_x, dst_y);
+    return gfx::CopyTexture(src.texture, gfx::Rect{.x = x, .y = y, .w = width, .h = height}, dst.texture, dst_x, dst_y);
 }
 
 bool PortMoveImage(const sceGsTex0 &src, int x, int y, int width, int height, const sceGsTex0 &dst, int dst_x,
@@ -688,7 +698,7 @@ bool PortLoadClut(unsigned cbp, const u_int *clut) {
     std::array<uint32_t, 256> &rgba = *entry->shadow;
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
-            int index = ClutEntry(*entry, x, y);
+            const int index = ClutEntry(*entry, x, y);
             if (index >= 0) {
                 uint32_t entry_rgba = clut[y * 16 + x];
                 gfx::ConvertPs2Alpha(&entry_rgba, 1);
@@ -707,6 +717,6 @@ bool PortPaletteEntries(unsigned cbp, uint32_t *rgba) {
     if (entry == nullptr || entry->kind != EntryKind::Palette) {
         return false;
     }
-    std::memcpy(rgba, entry->shadow->data(), 256 * sizeof(uint32_t));
+    std::ranges::copy(*entry->shadow, rgba);
     return true;
 }

@@ -9,11 +9,11 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <format>
 #include <fstream>
-#include <iomanip>
 #include <map>
 #include <optional>
-#include <sstream>
+#include <print>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,9 +67,9 @@ void SetDrawClip(const gfx::LogicalRect *clip) {
     }
 }
 
-void SetDrawTint(const float (*tint)[4]) {
+void SetDrawTint(const std::array<float, 4> *tint) {
     if (tint != nullptr) {
-        g_tint = std::array<float, 4>{(*tint)[0], (*tint)[1], (*tint)[2], (*tint)[3]};
+        g_tint = *tint;
     } else {
         g_tint.reset();
     }
@@ -99,8 +99,8 @@ bool                                                 g_tuning_loaded = false;
 int                                                  g_kind = 0;
 int                                                  g_value = 0;
 
-constexpr const char *kKindNames[] = {"message", "caption", "card", "options"};
-constexpr const char *kKindLabels[] = {"MESSAGES", "MENU CAPTIONS", "AREA CARDS", "OPTIONS SCREEN"};
+constexpr std::array<const char *, 4> kKindNames = {"message", "caption", "card", "options"};
+constexpr std::array<const char *, 4> kKindLabels = {"MESSAGES", "MENU CAPTIONS", "AREA CARDS", "OPTIONS SCREEN"};
 
 Kind g_context = Kind::Message;
 
@@ -117,22 +117,22 @@ struct Value {
     float          high;
 };
 
-constexpr Value kValues[] = {
-    {"size",    "SIZE",                 &Tuning::size,    0.01f, 0.2f,   3.0f },
-    {"xscale",  "WIDTH",                &Tuning::xscale,  0.01f, 0.2f,   3.0f },
-    {"yscale",  "HEIGHT",               &Tuning::yscale,  0.01f, 0.2f,   3.0f },
-    {"letter",  "LETTER SPACING",       &Tuning::letter,  0.01f, -10.0f, 10.0f},
-    {"word",    "WORD SPACING",         &Tuning::word,    0.01f, -20.0f, 40.0f},
-    {"dx",      "MOVE RIGHT",           &Tuning::dx,      0.01f, -40.0f, 40.0f},
-    {"dy",      "MOVE DOWN",            &Tuning::dy,      0.01f, -40.0f, 40.0f},
-    {"weight",  "WEIGHT (BOLDER)",      &Tuning::weight,  0.01f, 0.0f,   3.0f },
-    {"opacity", "OPACITY",              &Tuning::opacity, 0.01f, 0.0f,   1.0f },
-    {"shadow",  "SHADOW",               &Tuning::shadow,  0.01f, 0.0f,   3.0f },
-    {"align",   "ALIGN IN CELLS",       &Tuning::align,   0.01f, 0.0f,   1.0f },
-    {"lock",    "CELL LOCK (NO DRIFT)", &Tuning::lock,    0.01f, 0.0f,   1.0f },
-    {"fit",     "FIT TO CELLS",         &Tuning::fit,     1.0f,  0.0f,   1.0f },
-};
-constexpr int kValueCount = static_cast<int>(std::size(kValues));
+constexpr auto kValues = std::to_array<Value>({
+    {.key = "size",    .label = "SIZE",                 .field = &Tuning::size,    .step = 0.01f, .low = 0.2f,   .high = 3.0f },
+    {.key = "xscale",  .label = "WIDTH",                .field = &Tuning::xscale,  .step = 0.01f, .low = 0.2f,   .high = 3.0f },
+    {.key = "yscale",  .label = "HEIGHT",               .field = &Tuning::yscale,  .step = 0.01f, .low = 0.2f,   .high = 3.0f },
+    {.key = "letter",  .label = "LETTER SPACING",       .field = &Tuning::letter,  .step = 0.01f, .low = -10.0f, .high = 10.0f},
+    {.key = "word",    .label = "WORD SPACING",         .field = &Tuning::word,    .step = 0.01f, .low = -20.0f, .high = 40.0f},
+    {.key = "dx",      .label = "MOVE RIGHT",           .field = &Tuning::dx,      .step = 0.01f, .low = -40.0f, .high = 40.0f},
+    {.key = "dy",      .label = "MOVE DOWN",            .field = &Tuning::dy,      .step = 0.01f, .low = -40.0f, .high = 40.0f},
+    {.key = "weight",  .label = "WEIGHT (BOLDER)",      .field = &Tuning::weight,  .step = 0.01f, .low = 0.0f,   .high = 3.0f },
+    {.key = "opacity", .label = "OPACITY",              .field = &Tuning::opacity, .step = 0.01f, .low = 0.0f,   .high = 1.0f },
+    {.key = "shadow",  .label = "SHADOW",               .field = &Tuning::shadow,  .step = 0.01f, .low = 0.0f,   .high = 3.0f },
+    {.key = "align",   .label = "ALIGN IN CELLS",       .field = &Tuning::align,   .step = 0.01f, .low = 0.0f,   .high = 1.0f },
+    {.key = "lock",    .label = "CELL LOCK (NO DRIFT)", .field = &Tuning::lock,    .step = 0.01f, .low = 0.0f,   .high = 1.0f },
+    {.key = "fit",     .label = "FIT TO CELLS",         .field = &Tuning::fit,     .step = 1.0f,  .low = 0.0f,   .high = 1.0f },
+});
+constexpr int  kValueCount = static_cast<int>(kValues.size());
 
 std::filesystem::path TuningFile() {
     return PathsSaveRoot() / "lang" / "textwipe_tuning.json";
@@ -143,8 +143,8 @@ void SaveTuning() {
     for (size_t k = 0; k < g_tuning.size(); k++) {
         const Tuning locked = Locked(static_cast<Kind>(k));
         for (const Value &value : kValues) {
-            const float now = std::round(g_tuning[k].*(value.field) * 1000.0f) / 1000.0f;
-            if (std::fabs(now - locked.*(value.field)) > 0.0005f) {
+            const float now = std::round(g_tuning[k].*value.field * 1000.0f) / 1000.0f;
+            if (std::fabs(now - locked.*value.field) > 0.0005f) {
                 json[kKindNames[k]][value.key] = now;
             }
         }
@@ -175,12 +175,12 @@ void LoadTuning() {
             const nlohmann::json &entry = json[kKindNames[k]];
             for (const Value &value : kValues) {
                 if (entry.contains(value.key) && entry[value.key].is_number()) {
-                    g_tuning[k].*(value.field) = std::clamp(entry[value.key].get<float>(), value.low, value.high);
+                    g_tuning[k].*value.field = std::clamp(entry[value.key].get<float>(), value.low, value.high);
                 }
             }
         }
     } catch (const std::exception &error) {
-        std::fprintf(stderr, "textwipe: cannot read %s: %s\n", TuningFile().string().c_str(), error.what());
+        std::println(stderr, "textwipe: cannot read {}: {}", TuningFile().string(), error.what());
     }
 }
 
@@ -205,8 +205,10 @@ struct Repeater {
         if (now >= next) {
             next = now + std::chrono::milliseconds(50);
             fired++;
-            return fired > 40 ? 10 : fired > 15 ? 3
-                                                : 1;
+            if (fired > 40) {
+                return 10;
+            }
+            return fired > 15 ? 3 : 1;
         }
         return 0;
     }
@@ -218,13 +220,18 @@ Repeater g_plus;
 void Adjust(int direction, int steps) {
     const bool   shift = DevKeyHeld("Left Shift") || DevKeyHeld("Right Shift");
     const bool   ctrl = DevKeyHeld("Left Ctrl") || DevKeyHeld("Right Ctrl");
-    const Value &value = kValues[g_value];
-    float       &field = g_tuning[static_cast<size_t>(g_kind)].*(value.field);
+    const Value &value = kValues[static_cast<size_t>(g_value)];
+    float       &field = g_tuning[static_cast<size_t>(g_kind)].*value.field;
     if (value.field == &Tuning::fit) {
         field = direction > 0 ? 1.0f : 0.0f;
     } else {
-        const float step = value.step * static_cast<float>(steps) * (shift ? 10.0f : ctrl ? 0.1f
-                                                                                          : 1.0f);
+        float scale = 1.0f;
+        if (shift) {
+            scale = 10.0f;
+        } else if (ctrl) {
+            scale = 0.1f;
+        }
+        const float step = value.step * static_cast<float>(steps) * scale;
         const float grid = value.step * 0.1f;
         field = std::clamp(std::round((field + static_cast<float>(direction) * step) / grid) * grid, value.low, value.high);
     }
@@ -234,7 +241,6 @@ void Adjust(int direction, int steps) {
 } // namespace
 
 float SweepPosition(double seconds) {
-
     const double cycle = 2.0 * (kSweepSeconds + kRestSeconds);
     double       t = std::fmod(std::max(0.0, seconds), cycle);
     if (t < kRestSeconds) {
@@ -261,15 +267,25 @@ void Update() {
         g_on = !g_on;
         g_started = std::chrono::steady_clock::now();
         g_mode = Mode::Sweep;
-        std::fprintf(stderr, "textwipe: %s\n", g_on ? "on (F10 steps the mode)" : "off");
+        std::println(stderr, "textwipe: {}", g_on ? "on (F10 steps the mode)" : "off");
     }
     if (DevKeyPressed("F10") && g_on) {
-        g_mode = g_mode == Mode::Sweep        ? Mode::ShowBefore
-                 : g_mode == Mode::ShowBefore ? Mode::ShowAfter
-                 : g_mode == Mode::ShowAfter  ? Mode::Overlay
-                                              : Mode::Sweep;
+        switch (g_mode) {
+            case Mode::Sweep:
+                g_mode = Mode::ShowBefore;
+                break;
+            case Mode::ShowBefore:
+                g_mode = Mode::ShowAfter;
+                break;
+            case Mode::ShowAfter:
+                g_mode = Mode::Overlay;
+                break;
+            case Mode::Overlay:
+                g_mode = Mode::Sweep;
+                break;
+        }
         g_started = std::chrono::steady_clock::now();
-        std::fprintf(stderr, "textwipe: mode %s\n", ModeName());
+        std::println(stderr, "textwipe: mode {}", ModeName());
     }
     if (!g_on) {
         return;
@@ -308,30 +324,29 @@ void Update() {
 }
 
 Tuning Locked(Kind kind) {
-    Tuning t;
+    Tuning tuning;
     switch (kind) {
         case Kind::Message:
-            t.size = 1.15f;
-            t.xscale = 0.80f;
-            t.yscale = 1.02f;
-            t.dx = 0.35f;
-            t.align = 1.0f;
-            t.lock = 1.0f;
+            tuning.size = 1.15f;
+            tuning.xscale = 0.80f;
+            tuning.yscale = 1.02f;
+            tuning.dx = 0.35f;
+            tuning.align = 1.0f;
+            tuning.lock = 1.0f;
             break;
         case Kind::Options:
-            t.size = 0.76f;
-            t.yscale = 1.17f;
-            t.dx = -1.10f;
-            t.dy = -0.15f;
-            t.lock = 1.0f;
+            tuning.size = 0.76f;
+            tuning.yscale = 1.17f;
+            tuning.dx = -1.10f;
+            tuning.dy = -0.15f;
+            tuning.lock = 1.0f;
             break;
         case Kind::Card:
-            break;
         case Kind::Caption:
         case Kind::Count:
             break;
     }
-    return t;
+    return tuning;
 }
 
 Kind MessageKind() {
@@ -381,9 +396,8 @@ void Both(const std::function<void(bool runtime)> &draw) {
         return;
     }
     if (g_mode == Mode::Overlay) {
-
-        static const float old_tint[4] = {1.0f, 0.25f, 0.25f, 0.75f};
-        static const float new_tint[4] = {0.3f, 1.0f, 1.0f, 0.75f};
+        static constexpr std::array<float, 4> old_tint = {1.0f, 0.25f, 0.25f, 0.75f};
+        static constexpr std::array<float, 4> new_tint = {0.3f, 1.0f, 1.0f, 0.75f};
         SetDrawTint(&old_tint);
         draw(false);
         SetDrawTint(&new_tint);
@@ -394,12 +408,13 @@ void Both(const std::function<void(bool runtime)> &draw) {
     const float edge = std::clamp(g_divider, 0.0f, gfx::LogicalWidth());
     // Scissors touching the logical frame boundary extend through widescreen margins.
     if (edge > 0.0f) {
-        const gfx::LogicalRect left = {0.0f, 0.0f, edge, gfx::LogicalHeight()};
+        const gfx::LogicalRect left = {.x = 0.0f, .y = 0.0f, .w = edge, .h = gfx::LogicalHeight()};
         SetDrawClip(&left);
         draw(false);
     }
     if (edge < gfx::LogicalWidth()) {
-        const gfx::LogicalRect right = {edge, 0.0f, gfx::LogicalWidth() - edge, gfx::LogicalHeight()};
+        const gfx::LogicalRect right = {
+            .x = edge, .y = 0.0f, .w = gfx::LogicalWidth() - edge, .h = gfx::LogicalHeight()};
         SetDrawClip(&right);
         draw(true);
     }
@@ -411,8 +426,9 @@ void Draw2D(gfx::Primitive primitive, std::span<const gfx::Vertex2D> vertices, c
     if (g_tint) {
         std::vector<gfx::Vertex2D> tinted(vertices.begin(), vertices.end());
         for (gfx::Vertex2D &vertex : tinted) {
-            for (int c = 0; c < 4; c++) {
-                vertex.color[c] = static_cast<uint8_t>(std::clamp(vertex.color[c] * (*g_tint)[c] + 0.5f, 0.0f, 255.0f));
+            for (size_t channel = 0; channel < g_tint->size(); channel++) {
+                vertex.color[channel] =
+                    static_cast<uint8_t>(std::clamp(vertex.color[channel] * (*g_tint)[channel] + 0.5f, 0.0f, 255.0f));
             }
         }
         gfx::Draw2D(primitive, tinted, binding, state);
@@ -429,7 +445,7 @@ void Draw2D(gfx::Primitive primitive, std::span<const gfx::Vertex2D> vertices, c
             return;
         }
         clipped.scissor = true;
-        clipped.scissor_rect = {left, top, right - left, bottom - top};
+        clipped.scissor_rect = {.x = left, .y = top, .w = right - left, .h = bottom - top};
         gfx::Draw2D(primitive, vertices, binding, clipped);
         return;
     }
@@ -446,21 +462,21 @@ void DrawDivider() {
     const float               half = 1.0f / std::max(0.5f, mapping.scale_x) * static_cast<float>(pixel);
     auto                      vertex = [](float vx, float vy, unsigned char grey) {
         return gfx::Vertex2D{
-            vx, vy, 0.0f, 0.0f, 0.0f, {grey, grey, grey, 0x80}
+            .x = vx, .y = vy, .z = 0.0f, .u = 0.0f, .v = 0.0f, .color = {grey, grey, grey, 0x80}
         };
     };
     gfx::DrawState state;
     state.blend = true;
     std::vector<gfx::Vertex2D> line;
-    for (const auto &[w, grey] : {
+    for (const auto &[width, grey] : {
              std::pair{2.5f, static_cast<unsigned char>(0)   },
              std::pair{1.0f, static_cast<unsigned char>(0x7F)}
     }) {
-        const float h = half * w;
-        line.push_back(vertex(x - h, 0.0f, grey));
-        line.push_back(vertex(x + h, 0.0f, grey));
-        line.push_back(vertex(x + h, gfx::LogicalHeight(), grey));
-        line.push_back(vertex(x - h, gfx::LogicalHeight(), grey));
+        const float half_width = half * width;
+        line.push_back(vertex(x - half_width, 0.0f, grey));
+        line.push_back(vertex(x + half_width, 0.0f, grey));
+        line.push_back(vertex(x + half_width, gfx::LogicalHeight(), grey));
+        line.push_back(vertex(x - half_width, gfx::LogicalHeight(), grey));
     }
     if (g_mode != Mode::Overlay) {
         gfx::Draw2D(gfx::Primitive::Quads, line, {}, state);
@@ -468,7 +484,7 @@ void DrawDivider() {
 
     const bool        overlay = g_mode == Mode::Overlay;
     const std::string before = overlay ? "RED: BAKED PICTURE" : "BEFORE: BAKED PICTURE";
-    const std::string after = overlay ? std::string("CYAN: RUNTIME TEXT") : std::string("AFTER: RUNTIME TEXT (") + ModeName() + ")";
+    const std::string after = overlay ? std::string("CYAN: RUNTIME TEXT") : std::format("AFTER: RUNTIME TEXT ({})", ModeName());
     const int         y = mapping.pixel_height - (kOverlayGlyphHeight + 4 * kOverlayPadding) * pixel;
     const int         gap = 6 * pixel;
     const int         line_px = static_cast<int>(std::lround(x * mapping.scale_x + mapping.offset_x));
@@ -483,17 +499,12 @@ void DrawDivider() {
         OverlayDrawText(text, mapping, pixel, 2 * pixel, row_y);
         row_y += row_step;
     };
-    line_of(std::string("TUNING ") + kKindLabels[g_kind] + "  F11 SET  F12 VALUE  -/= CHANGE  F8 RESET");
-    for (int v = 0; v < kValueCount; v++) {
-        std::string number;
-        if (kValues[v].field == &Tuning::fit) {
-            number = tuning.fit >= 0.5f ? "ON" : "OFF";
-        } else {
-            std::ostringstream text;
-            text << std::fixed << std::setprecision(3) << tuning.*(kValues[v].field);
-            number = text.str();
-        }
-        line_of(std::string(v == g_value ? "> " : "  ") + kValues[v].label + " " + number);
+    line_of(std::format("TUNING {}  F11 SET  F12 VALUE  -/= CHANGE  F8 RESET", kKindLabels[static_cast<size_t>(g_kind)]));
+    for (int index = 0; index < kValueCount; index++) {
+        const Value      &value = kValues[static_cast<size_t>(index)];
+        const std::string number = value.field == &Tuning::fit ? std::string(tuning.fit >= 0.5f ? "ON" : "OFF")
+                                                               : std::format("{:.3f}", tuning.*value.field);
+        line_of(std::format("{}{} {}", index == g_value ? "> " : "  ", value.label, number));
     }
 }
 
