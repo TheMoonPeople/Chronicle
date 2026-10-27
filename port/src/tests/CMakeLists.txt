@@ -28,9 +28,9 @@ set(DC_TEST_TIMEOUT 30 CACHE STRING "Seconds a test case may run before it is cu
 # Kazarov's suites named GfxGpu* (its src/cpp/gfx/README.md, "Shared device test classification") and the ones
 # that start a device under another name (GfxMisc, GfxTim2 and GfxCachedTarget), and every suite in a Chronicle
 # test file that includes gfx_fixture.hpp or tex_fixture.hpp, found here so that a new one is labeled without a
-# list to keep. Some start several renderers, seconds apiece on a software driver such as lavapipe, so they have
-# their own limit.
-set(DC_GPU_TEST_TIMEOUT ${DC_TEST_TIMEOUT} CACHE STRING "Seconds a test case that needs a Vulkan device may run")
+# list to keep. Some start several renderers, each compiling every pipeline (seconds apiece, more on a software
+# driver such as lavapipe), so they have their own limit.
+set(DC_GPU_TEST_TIMEOUT 120 CACHE STRING "Seconds a test case that needs a Vulkan device may run")
 set(device_suites GfxMisc GfxTim2 GfxCachedTarget)
 foreach(source IN LISTS TEST_SOURCES)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${source})
