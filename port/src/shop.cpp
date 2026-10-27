@@ -38,11 +38,7 @@
 #include "userstatus.hpp"
 #include "weaponlevelup.hpp"
 
-// Retail's FishingExchangeKey, with the attachment slots of the board's page addressed on the whole
-// pointer, and ChargeShopBoardDraw, drawing as many stock cells as it fills; with the static helpers
-// they call.
-
-// Defined by ps2/src/shop.cpp without a header declaration.
+// Defined in game/shop.cpp, which has no header declaration for it.
 struct FishMenuWork {
     s16        tex_block;
     s16        tex_block2;
@@ -63,12 +59,11 @@ struct FishMenuWork {
 extern FishMenuWork FishMenu;
 extern CTexture    *FishMenuTex;
 
-extern ShopMenuWork ShopMenu;
-extern CTexture    *ShopBoard;
-extern CStockItem  *ShopStockPt;
-extern s16          ChargeShopMax[3];
+extern CTexture   *ShopBoard;
+extern CStockItem *ShopStockPt;
+extern s16         ChargeShopMax[3];
 
-// The bodies are retail's, spelled as MWCC took them.
+// GetPackFile and GetTexture take their names as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
 namespace {
@@ -101,7 +96,7 @@ int FishMenuTextureLoad() {
     if (FishMenu.ready == 0) {
         if (ReadBGSync() == 0) {
             BG_READ_INFO *file = GetReadBGFile(0);
-            auto          texture = std::make_unique<LOADTEXTURE_INFO2[]>(3); // the frame, the board and the list's end
+            auto          texture = std::make_unique<LOADTEXTURE_INFO2[]>(3); // The frame, the board and the list's end.
             texture[0] = {FishFrameImage, 0, 0};
             texture[1] = {nullptr, 0, 0};
             texture[0].block_no = FishMenu.tex_block;
@@ -149,9 +144,8 @@ int FishMenuTextureLoad() {
 void ShopIconDraw(short *item_no, unsigned char *value, int count, int x, int y, int clip_top, int clip_bottom, int alpha) {
     int draw_x = x;
     int draw_y = y;
-    int i;
 
-    for (i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
         DrawIconParts(item_no[i], draw_x, draw_y, clip_top, clip_bottom, alpha, value[i]);
         draw_x += 0x28;
 
@@ -174,11 +168,10 @@ void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
     left = x + 0xF2;
     top = y - 0x22;
     int count = 0;
-    int i;
 
     switch (ShopMenu.board.page) {
         case BOARD_PAGE_ITEM:
-            for (i = 0; i < 60; i++) {
+            for (int i = 0; i < 60; i++) {
                 if (ShopStockPt->dungeon_items[i] >= ITEM_DUNGEON_START) {
                     count++;
                 }
@@ -186,7 +179,7 @@ void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
 
             break;
         case BOARD_PAGE_WEAPON:
-            for (i = 0; i < 30; i++) {
+            for (int i = 0; i < 30; i++) {
                 if (ShopStockPt->weapons[i].item_no >= ITEM_WEAPON_START) {
                     count++;
                 }
@@ -194,7 +187,7 @@ void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
 
             break;
         case BOARD_PAGE_ATTACH:
-            for (i = 0; i < 30; i++) {
+            for (int i = 0; i < 30; i++) {
                 if (ShopStockPt->attachments[i].item_no >= ITEM_ATTACH_START) {
                     count++;
                 }
@@ -208,18 +201,16 @@ void ChargeShopMaxDraw(int max, int x, int y, int alpha) {
 
 } // namespace
 
-// Draws the 60 cells it fills; retail drew 128 from 120-cell arrays.
 void ChargeShopBoardDraw(int x, int y, int alpha) {
     auto items = std::make_unique<s16[]>(60);
     auto values = std::make_unique<u8[]>(60);
     int  top = y + 9;
     int  bottom = y + 0xA9;
-    int  board_y;
     int  left = x + 0x14;
+    int  board_y = y + 6 - ShopMenu.stock_top_row * 0x28;
 
-    board_y = y + 6 - ShopMenu.stock_top_row * 0x28;
     ShopMenu.stock_y += (static_cast<float>(board_y) - ShopMenu.stock_y) / 4.0f;
-    board_y = ShopMenu.stock_y;
+    board_y = static_cast<int>(ShopMenu.stock_y);
     DrawPerBoardDraw(0, 0x64, left, board_y, top, bottom, ShopBoard, alpha);
 
     int board_mode = ShopMenu.board.page;
@@ -245,7 +236,7 @@ void ChargeShopBoardDraw(int x, int y, int alpha) {
                 items[i] = ShopStockPt->attachments[i].item_no;
 
                 if (items[i] >= ITEM_ATTACH_STAT_START && items[i] < ITEM_ATTACH_GEM_START) {
-                    values[i] = (&ShopStockPt->attachments[i].item_no)[items[i] - ITEM_ATTACH_STAT_START + 4];
+                    values[i] = ShopStockPt->attachments[i].status[items[i] - ITEM_ATTACH_STAT_START];
                 } else if (items[i] == ITEM_ATTACH_SYNTHESIS_SPHERE) {
                     values[i] = ShopStockPt->attachments[i].sphere_weapon_no;
                 } else {
@@ -312,8 +303,6 @@ int FishingExchangeKey() {
         last_prize++;
         last_top++;
     }
-
-    int count;
 
     switch (FishMenu.fade_mode) {
         case FISH_EXCHANGE_FADE_IN:
@@ -429,22 +418,20 @@ int FishingExchangeKey() {
             }
 
             if (GamePad.Down(PAD_CROSS) != 0) {
-                CUserStatus *status = static_cast<CUserStatus *>(SaveData->GetDngStatus());
-                int          full = 0;
-                int          kind = WhatIsKindofItem(prize->item_no);
-                count = 0;
+                auto *status = static_cast<CUserStatus *>(SaveData->GetDngStatus());
+                int   full = 0;
+                int   kind = WhatIsKindofItem(prize->item_no);
+                int   count = 0;
 
                 switch (kind) {
                     case BOARD_PAGE_ITEM: {
-                        int        i;
-                        int        k;
                         ITEM_PACK *pack = &status->item_pack;
 
-                        for (i = 0; i < 3; i++) {
+                        for (int i = 0; i < 3; i++) {
                             count += pack->quick_item_qty[i];
                         }
 
-                        for (k = 0; k < pack->num; k++) {
+                        for (int k = 0; k < pack->num; k++) {
                             if (pack->item[k] >= ITEM_DUNGEON_START) {
                                 count++;
                             }
@@ -457,12 +444,11 @@ int FishingExchangeKey() {
                         break;
                     }
                     case BOARD_PAGE_WEAPON: {
-                        int          i;
                         int          owner = WhoIsWeaponEquip(prize->item_no);
                         int          held = 0;
                         WEAPON_HAVE *weapons = status->chara_weapons[owner];
 
-                        for (i = 0; i < 10; i++) {
+                        for (int i = 0; i < 10; i++) {
                             if (weapons[i].item_no >= ITEM_WEAPON_START) {
                                 held++;
                             }
@@ -475,9 +461,8 @@ int FishingExchangeKey() {
                         break;
                     }
                     case BOARD_PAGE_ATTACH: {
-                        int             held;
                         DNG_CONSUMABLE *attach = status->consumable_items;
-                        held = 0;
+                        int             held = 0;
 
                         for (; count < 40; count++) {
                             if (attach[count].id >= ITEM_ATTACH_START) {
@@ -550,7 +535,7 @@ int FishingExchangeKey() {
                 ComMenuSePlay(MENU_SOUND_CURSOR);
             }
 
-            FISH_EXCHANGE_ITEM *prize;
+            FISH_EXCHANGE_ITEM *prize = nullptr;
 
             if (GamePad.Down(PAD_CROSS) != 0) {
                 int enough = 1;
@@ -574,7 +559,7 @@ int FishingExchangeKey() {
                 if (FishMenu.confirm == 0) {
                     if (enough != 0) {
                         ComMenuSePlay(SE_PURCHASE);
-                        (SaveData->GetDngStatus())->GetItem(prize->item_no, 0);
+                        SaveData->GetDngStatus()->GetItem(prize->item_no, 0);
                         FishMenu.point -= price;
 
                         if (prize->item_no == ITEM_WEAPON_MARDAN_EINS) {
@@ -668,7 +653,7 @@ int CommonShopLoop() {
         }
     }
 
-    // A custom shop's prices were laid over retail's for this visit (custom_shop.cpp).
+    // A custom shop's prices were laid over retail's for this visit.
     if (done != 0) {
         CustomShopEnd();
     }

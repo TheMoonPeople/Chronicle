@@ -2,7 +2,9 @@
 
 #include <libgraph.h>
 
+#include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdlib>
 #include <optional>
 #include <vector>
@@ -50,7 +52,7 @@ public:
     TargetScope(const TargetScope &) = delete;
     TargetScope &operator=(const TargetScope &) = delete;
 
-    bool Bound() const { return bound; }
+    [[nodiscard]] bool Bound() const { return bound; }
 
 private:
     gfx::TextureHandle previous = gfx::kMainTarget;
@@ -116,9 +118,9 @@ void RestoreRegisters() {
 // Into the target: a flat 0x80 sprite over the first rect (retail's PRIM there has TME off, so its
 // UVs, the bottom one taken from x, sample nothing), the first texture blended over it with the
 // ALPHA the caller left, then the second added as Cs + Cd * As.
-void blendTextuer(sceVif1Packet *packet, int destination, int width, int format, CTexture *first_texture,
-                                const CRect_i_ &first_destination, const CRect_i_ &first_source, CTexture *second_texture,
-                                const CRect_i_ &second_destination, const CRect_i_ &second_source) {
+void blendTextuer(sceVif1Packet * /*packet*/, int destination, int width, int format, CTexture *first_texture,
+                  const CRect_i_ &first_destination, const CRect_i_ &first_source, CTexture *second_texture,
+                  const CRect_i_ &second_destination, const CRect_i_ &second_source) {
     const draw2d::Services &services = draw2d::Get();
 
     {
@@ -160,13 +162,13 @@ void blendTextuer(sceVif1Packet *packet, int destination, int width, int format,
 // Into the target: two-row strips of the frame, each shifted sideways by the wave scaled with depth
 // (the shimmer), then the texture's alpha over them with ALPHA (0 - 0) * FIX + Cd, which keeps the
 // colour and leaves the texture's alpha behind as the strips' coverage.
-void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int format, const CRect_i_ &source,
-                                    CTexture *texture, const CRect_i_ &texture_destination, const CRect_i_ &texture_source,
-                                    float depth, float phase) {
+void blendTextuerTest(sceVif1Packet * /*packet*/, int destination, int width, int format, const CRect_i_ &source,
+                      CTexture *texture, const CRect_i_ &texture_destination, const CRect_i_ &texture_source,
+                      float depth, float phase) {
     const draw2d::Services &services = draw2d::Get();
     sceGsTex0               frame;
     MGGetFBuffTex(&frame);
-    const u_long frame_tex0 = *reinterpret_cast<u_long *>(&frame);
+    const auto frame_tex0 = std::bit_cast<u_long>(frame);
     depth /= 10000;
 
     {
@@ -204,17 +206,8 @@ void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int for
 
             int offset = static_cast<int>(16.0f * (depth * (amplitude * waveAnimeCnt[index])));
             bottom += 2;
-            int left = (source.x << 4) + offset;
-
-            if (left < 0) {
-                left = 0;
-            }
-
-            int right = offset + ((source.x + source.width) << 4);
-
-            if (right > 0x27F0) {
-                right = 0x27F0;
-            }
+            const int left = std::max((source.x << 4) + offset, 0);
+            const int right = std::min(offset + ((source.x + source.width) << 4), 0x27F0);
 
             std::array<gfx::Vertex2D, 4> quad =
                 GsSprite(0x6C00, (y << 4) + GS_Y_OFFSET, (source.width << 4) + 0x6C00, ((y + 2) << 4) + GS_Y_OFFSET,
@@ -251,13 +244,13 @@ void blendTextuerTest(sceVif1Packet *packet, int destination, int width, int for
     RestoreRegisters();
 }
 
-// Retail sets ZBUF around the dust with raw register writes; the sprites read the register state.
+// Z writes are masked around the dust; the sprites read the current register state.
 void CRunEffect::Draw() {
-    int           top_left[4];
-    int           bottom_right[4];
-    int           top_right[4];
-    int           bottom_left[4];
-    sceVu0FVECTOR light;
+    std::array<int, 4> top_left{};
+    std::array<int, 4> bottom_right{};
+    std::array<int, 4> top_right{};
+    std::array<int, 4> bottom_left{};
+    sceVu0FVECTOR      light;
 
     CTexture *first = TexManager.GetTexture(const_cast<char *>("fx_foot"), -1);
     CTexture *second = TexManager.GetTexture(const_cast<char *>("fx_foot2"), -1);
@@ -309,28 +302,17 @@ void CRunEffect::Draw() {
             continue;
         }
 
-        if (MGRotTransPers3DSprite(top_left, bottom_right, position[i], 12.0f - 0.5f * life[i],
+        if (MGRotTransPers3DSprite(top_left.data(), bottom_right.data(), position[i], 12.0f - 0.5f * life[i],
                                    5.5f - 0.25f * life[i], 0) != 1) {
             continue;
         }
 
-        top_right[0] = bottom_right[0];
-        top_right[1] = top_left[1];
-        top_right[2] = top_left[2];
-        top_right[3] = top_left[3];
-        bottom_left[0] = top_left[0];
-        bottom_left[1] = bottom_right[1];
-        bottom_left[2] = bottom_right[2];
-        bottom_left[3] = bottom_right[3];
+        top_right = {bottom_right[0], top_left[1], top_left[2], top_left[3]};
+        bottom_left = {top_left[0], bottom_right[1], bottom_right[2], bottom_right[3]};
         colour.a = life[i] * 10;
 
-        if (sw != 0) {
-            set3DSprite(Vif1Packet, first, CRect_i_(0, 0, 0x20, 0x20), top_left, top_right, bottom_left,
-                        bottom_right, &colour);
-        } else {
-            set3DSprite(Vif1Packet, second, CRect_i_(0, 0, 0x20, 0x20), top_left, top_right, bottom_left,
-                        bottom_right, &colour);
-        }
+        set3DSprite(Vif1Packet, sw != 0 ? first : second, CRect_i_(0, 0, 0x20, 0x20), top_left.data(),
+                    top_right.data(), bottom_left.data(), bottom_right.data(), &colour);
     }
 
     draw2d::Get().set_zbuf(nullptr);

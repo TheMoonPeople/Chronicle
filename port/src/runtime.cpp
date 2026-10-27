@@ -1,22 +1,19 @@
 #include <cstdio>
 #include <cstdlib>
-#include <iterator>
+#include <print>
 
-#include "dataread.hpp"
 #include "exitcodes.hpp"
-#include "mathutil.hpp"
-#include "title/title_port.hpp"
 
 // Retail halted on a failed assertion. The game prints its own context on stdout first (LoadFile
 // names the file), so stdout is flushed ahead of the message. _Exit, not exit: static destructors
 // would tear down the renderer under a frame the game may have open.
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 extern "C" [[noreturn]] void __assert(const char *file, int line, const char *expression) {
 #else
 [[noreturn]] void __assert(const char *file, int line, const char *expression) {
 #endif
     std::fflush(stdout);
-    std::fprintf(stderr, "%s:%d: assertion failed: %s\n", file, line, expression);
+    std::println(stderr, "{}:{}: assertion failed: {}", file, line, expression);
     std::fflush(nullptr);
     std::_Exit(kExitGameAssert);
 }

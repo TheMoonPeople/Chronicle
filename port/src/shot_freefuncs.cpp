@@ -20,14 +20,11 @@
 #include "rect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
-extern int statusAlarmRate;
 
 namespace {
 
-// A status bar's fill over the trough of its frame, which is cells caps and middles of four columns
-// from x 0x30. The trough runs from the left cap's fourth column to the right cap's second, on the
-// frame's rows 4 to 10. Retail places the fill a row and a column inside it and measures its length
-// apart from the frame's, which the GS's field rows hide and full rows do not.
+// Fills a status bar's trough: the frame is `cells` four-pixel columns from x 0x30, and the trough
+// runs from the left cap's fourth column to the right cap's second on the frame's rows 4 to 10.
 void StatusBarFill(int frame_y, int cells, float value, float max, spRGBA *left, spRGBA *right) {
     const int trough = cells * 4 - 5;
     const int length = std::clamp(static_cast<int>(static_cast<float>(trough) * value / max), 0, trough);
@@ -37,7 +34,6 @@ void StatusBarFill(int frame_y, int cells, float value, float max, spRGBA *left,
 
 } // namespace
 
-// Retail brackets the copy with TEXFLUSH; the renderer orders copies and draws itself.
 void setItemToReserved(char *page_name, int x, int y, char *item_name, int dsax, int dsay) {
     CTexture *page = TexManager.GetTexture(page_name, -1);
     CTexture *item = TexManager.GetTexture(item_name, -1);
@@ -50,8 +46,6 @@ void setItemToReserved(char *page_name, int x, int y, char *item_name, int dsax,
     MoveImageTest(Vif1Packet, sbp, sbw, 0x13, CRect_i_(x, y, 0x20, 0x20), dbp, dbw, 0x13, dsax, dsay, 0);
 }
 
-// Retail's but for the life and weapon bars' fills, and the floor number's height: PAL's branch
-// otherwise.
 void topStatusInfo(int y, int selected_item, int floor) {
     const int chara = UserStatus->cur_chara;
     if (chara < 0 || chara >= 6) {
@@ -68,39 +62,29 @@ void topStatusInfo(int y, int selected_item, int floor) {
         return;
     }
 
-    int       alpha;
-    CTexture *icons;
-    CTexture *frame;
-    int       cells;
-    spRGBA   *upper;
-    spRGBA   *lower;
     y -= 10;
     y += BtActStatus.hud_shake_y;
-    icons = TexManager.GetTexture(const_cast<char *>("itempack"), -1);
-    frame = TexManager.GetTexture(const_cast<char *>("stayframe"), -1);
+    CTexture *icons = TexManager.GetTexture(const_cast<char *>("itempack"), -1);
+    CTexture *frame = TexManager.GetTexture(const_cast<char *>("stayframe"), -1);
 
     float life = UserStatus->hp[chara];
     float life_max = UserStatus->max_hp[chara];
     int   length = static_cast<int>(0.74f * life_max);
 
-    if (length < 2) {
-        length = 2;
-    }
+    length = std::max(length, 2);
 
-    cells = (length >> 2) + 1;
+    int cells = (length >> 2) + 1;
 
-    if (cells < 2) {
-        cells = 2;
-    }
+    cells = std::max(cells, 2);
 
-    alpha = 0x80;
+    int alpha = 0x80;
 
     if (life <= 0.2f * life_max) {
         alpha = statusAlarmRate;
     }
 
-    upper = reinterpret_cast<spRGBA *>(BtGetStatusPal(0, life_max, life));
-    lower = reinterpret_cast<spRGBA *>(BtGetStatusPal2(0, life_max, life));
+    auto *upper = reinterpret_cast<spRGBA *>(BtGetStatusPal(0, life_max, life));
+    auto *lower = reinterpret_cast<spRGBA *>(BtGetStatusPal2(0, life_max, life));
     set2DSprite(Vif1Packet, icons, CRect_i_(0x30, y, 4, 0x10), CRect_i_(0x68, 0x70, 4, 0x10), alpha);
 
     for (int i = 0; i < cells - 2; i++) {
@@ -125,15 +109,11 @@ void topStatusInfo(int y, int selected_item, int floor) {
     float        bar = 1.4949495f * durability_max;
     length = static_cast<int>(bar);
 
-    if (length < 2) {
-        length = 2;
-    }
+    length = std::max(length, 2);
 
     cells = (length >> 2) + 2;
 
-    if (cells < 2) {
-        cells = 2;
-    }
+    cells = std::max(cells, 2);
 
     alpha = 0x80;
 
@@ -155,9 +135,8 @@ void topStatusInfo(int y, int selected_item, int floor) {
         StatusBarFill(y + 0x11, cells, durability, durability_max, upper, lower);
     }
 
-    int width;
     int exp_max = GetWeaponMaxExp(weapon);
-    width = static_cast<int>(bar);
+    int width = static_cast<int>(bar);
     MGFillBox(CRect_i_(0x340, ((y + 0x1F) >> 1) * 16, (width - 1) * 16, 0x10), 0x40, 0x40, 0x40, alpha);
 
     if (weapon->experience > 0) {
@@ -229,7 +208,7 @@ void topStatusInfo(int y, int selected_item, int floor) {
         int glow = 0;
 
         if (BtBySpeedFlag != 0 && pack->quick_item_slot[i] == ITEM_UNUSED_156) {
-            glow = static_cast<int>(64.0f * sinf(popupRGBRate)) + 0x3F;
+            glow = static_cast<int>(64.0f * std::sin(popupRGBRate)) + 0x3F;
             bob = 0;
         }
 
@@ -269,16 +248,8 @@ void topStatusInfo(int y, int selected_item, int floor) {
     if (floor + 1 == last_floor) {
         set2DSprite(Vif1Packet, frame, CRect_i_(0x23C, y + 0x12, 0x26, 0x11), CRect_i_(0x78, 0x9E, 0x26, 0x12));
     } else {
-        int x;
+        const int x = floor + 1 >= 10 ? 0x245 : 0x23F;
 
-        if (floor + 1 >= 10) {
-            x = 0x245;
-        } else {
-            x = 0x23F;
-        }
-
-        // Below the plate's word for floor, as NTSC draws it. The July 12 PAL prototype centred it on
-        // its blank plates; dcdata letters those from American English's.
         int number_y = y + 0x12;
 
         if (floor + 1 >= 10) {
@@ -307,7 +278,8 @@ void topStatusInfo(int y, int selected_item, int floor) {
     }
 
     if (item == defWeapon__2[chara]) {
-        v = u = 0x20;
+        u = 0x20;
+        v = 0x20;
     }
 
     set2DSprite(Vif1Packet, icons, CRect_i_(0x1D, 0x1A4, 0x20, 0x20), CRect_i_(u, v, 0x20, 0x20), alpha);

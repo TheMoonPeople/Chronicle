@@ -11,8 +11,6 @@
 #include "renderinfo.hpp"
 #include "vu0_ops.hpp"
 
-// Retail also builds local_to_clip, a normalised eye-space light and a near-plane drop shadow
-// matrix; nothing it emits depends on them, so they are left out.
 int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_data, RenderInfo *info,
                     float (*matrix)[4], int pass) {
     if (model_data == nullptr) {
@@ -55,11 +53,10 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
     MulMatrix(shadow_to_eye, info->view_scaled, shadow_matrix);
     sceVu0CopyMatrix(clip, info->perspective);
 
-    MDT_HEADER    *model = reinterpret_cast<MDT_HEADER *>(model_data);
-    MDT_SHADOW    *shadow = reinterpret_cast<MDT_SHADOW *>(reinterpret_cast<unsigned char *>(model) + model->mesh_ofs);
-    sceVu0FVECTOR *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<unsigned char *>(model) + model->vertex_ofs);
+    auto *model = reinterpret_cast<MDT_HEADER *>(model_data);
+    auto *shadow = reinterpret_cast<MDT_SHADOW *>(reinterpret_cast<unsigned char *>(model) + model->mesh_ofs);
+    auto *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<unsigned char *>(model) + model->vertex_ofs);
 
-    // Retail keeps both arrays in the scratchpad.
     std::vector<std::array<float, 4>> eye(model->vertex_num);
     std::vector<std::array<float, 4>> projected(model->vertex_num);
 
@@ -68,12 +65,12 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
         sceVu0ApplyMatrix(projected[i].data(), shadow_to_eye, vertices[i]);
     }
 
-    int          total = 0;
-    MDT_SVERTEX *corner = reinterpret_cast<MDT_SVERTEX *>(shadow->shape);
+    int   total = 0;
+    auto *corner = reinterpret_cast<MDT_SVERTEX *>(shadow->shape);
 
     for (int shape_index = 0; shape_index < shadow->shape_num; shape_index++) {
-        int index_num = (reinterpret_cast<MDT_SSHAPE *>(corner))->index_num;
-        corner = (reinterpret_cast<MDT_SSHAPE *>(corner))->vertex;
+        int index_num = reinterpret_cast<MDT_SSHAPE *>(corner)->index_num;
+        corner = reinterpret_cast<MDT_SSHAPE *>(corner)->vertex;
 
         for (int emitted = 0; emitted < index_num; emitted += 3, corner += 3) {
             int           a = corner[0].index;
@@ -114,8 +111,8 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
                 vu0::Copy(far_side[2], projected[c].data());
                 vu0::Copy(far_side[3], projected[a].data());
 
-                // Retail gives scissior five entries; its three- and four-crossing case can write
-                // more, which on the PS2 runs over the stack.
+                // scissior's three- and four-crossing case can write more than the five entries
+                // the cap uses.
                 float clipped[9][4] = {};
                 int   clip_num = scissior(clipped, near_side, far_side, info->near[2]);
 
@@ -137,8 +134,8 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
                 if (pass != 0) {
                     record.counts[0] = 0;
                     record.counts[1] = 0;
-                    for (int k = 0; k < 5; k++) {
-                        vu0::Copy(record.cap[k], projected_cap[0]);
+                    for (auto &cap_entry : record.cap) {
+                        vu0::Copy(cap_entry, projected_cap[0]);
                     }
                 } else {
                     for (int k = 0; k < 5; k++) {

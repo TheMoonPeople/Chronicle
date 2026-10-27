@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include "platform/paths.hpp"
 
@@ -44,11 +45,11 @@ int SaveSlotFileNo(std::string_view name) {
         return -1;
     }
     int number = 0;
-    for (char c : name) {
-        if (c < '0' || c > '9') {
+    for (const char digit : name) {
+        if (digit < '0' || digit > '9') {
             return -1;
         }
-        number = number * 10 + (c - '0');
+        number = number * 10 + (digit - '0');
     }
     return number - 1;
 }
@@ -58,7 +59,7 @@ std::vector<int> SaveSlotFiles() {
     std::error_code  error;
     for (const fs::directory_entry &entry : fs::directory_iterator(SaveSlotsRoot(), error)) {
         const std::u8string name = entry.path().filename().u8string();
-        int                 file_no = SaveSlotFileNo(std::string_view(reinterpret_cast<const char *>(name.data()), name.size()));
+        const int           file_no = SaveSlotFileNo(std::string_view(reinterpret_cast<const char *>(name.data()), name.size()));
         if (file_no >= 0) {
             files.push_back(file_no);
         }
@@ -92,7 +93,7 @@ int SaveSlotRow(const SaveSlotList &list, int file_no, bool new_save) {
 }
 
 int SaveSlotFileAt(const SaveSlotList &list, int row) {
-    if (row >= 0 && row < static_cast<int>(list.saves.size())) {
+    if (row >= 0 && std::cmp_less(row, list.saves.size())) {
         return list.saves[row].file_no - 1;
     }
     return SaveSlotFirstFree(list.files);

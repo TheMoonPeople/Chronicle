@@ -1,11 +1,10 @@
 #include "quests/quests.hpp"
 
 const Quest::NpcMatch &NoruneMayor() {
-    static const Quest::NpcMatch mayor{0, 13, {}};
+    static const Quest::NpcMatch mayor{.map_no = 0, .npc_id = 13, .mes_file_key = {}};
     return mayor;
 }
 
-// In the order their choices come in an NPC's menu, below "Talk".
 void RegisterAllQuests() {
     Quest::Register(MayorSupplies());
     Quest::Register(CarlsSlingshot());
