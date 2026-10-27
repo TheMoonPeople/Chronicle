@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-#include "battlemenu.hpp"
+#include "battlemenu/battlemenu.hpp"
 #include "battlemenu/strings.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
@@ -20,6 +20,7 @@
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
 #include "eastking.hpp"
+#include "game/battlemenu.hpp"
 #include "gamepad.hpp"
 #include "itemdata.hpp"
 #include "localize/localize.hpp"
@@ -108,16 +109,6 @@ int *BattleMenuQuitConfirmChoicePtr();
  * Returns the active Battle Menu modal's button under the logical point (x, y): 0, 1, or -1 for neither.
  */
 int BattleMenuQuitConfirmHit(float x, float y);
-
-/**
- * Consumes and returns whether an in-game save load is ready to reload the town.
- */
-bool TakeBattleMenuLoadRequest();
-
-/**
- * Consumes and returns whether Quit was confirmed, so the main loop goes back to the title screen.
- */
-bool TakeBattleMenuTitleRequest();
 
 /**
  * Page identifier for the in-game Load Game action on the Battle Menu ring.

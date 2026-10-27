@@ -17,12 +17,6 @@
 #include "mainselect.hpp"
 #include "menu_save.hpp"
 
-namespace dc::game {
-extern s32 mode;
-extern s32 mc_mode;
-extern s32 NextMapNo;
-} // namespace dc::game
-
 namespace dc::test {
 
 using namespace dc::game;

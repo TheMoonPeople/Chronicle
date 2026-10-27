@@ -8,6 +8,8 @@
 #include "gfx/gfx.hpp"
 #include "platform/config.hpp"
 
+namespace dc::app {
+
 // Each tick (MGBeginFrame to MGEndFrame) is recorded as a display list. MGEndFrame hands it to
 // GameRenderTick, which renders it once as the canonical image the next tick's effects sample;
 // then, while MGEndFrame waits for the next tick, GamePresentBetweenTicks presents display frames
@@ -97,3 +99,5 @@ bool GameScreenshotWithFps(std::vector<std::uint8_t> &rgba, std::uint32_t &width
  * frame only.
  */
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height);
+
+} // namespace dc::app

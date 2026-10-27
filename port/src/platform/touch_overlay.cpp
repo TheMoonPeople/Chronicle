@@ -1,3 +1,5 @@
+#include "platform/touch_overlay.hpp"
+
 #include "platform/input.hpp"
 
 #ifdef __ANDROID__

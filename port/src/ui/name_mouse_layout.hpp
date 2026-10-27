@@ -41,7 +41,7 @@ struct Screen {
     int                input_mode = kInputAlphabet; /**< NameSelect::input_mode. */
     const short       *euro_codes = nullptr;        /**< menu_euro_codetbl[language - 2][0]: 26 accented codes, or null. */
     int                euro_rows = 0;               /**< euro_code_linelimmit[language - 2]: rows of accented keys. */
-    const signed char *symbol_cells = nullptr;      /**< menu_kigoutbl: 40 symbol cells, 16 a blank key; or null. */
+    const char        *symbol_cells = nullptr;      /**< menu_kigoutbl: 40 symbol cells, 16 a blank key; or null. */
 };
 
 /**

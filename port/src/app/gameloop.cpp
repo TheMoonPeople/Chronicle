@@ -15,12 +15,14 @@
 #include "app/presence.hpp"
 #include "battle_globals.hpp"
 #include "battlemenu.hpp"
+#include "battlemenu/battlemenu.hpp"
 #include "btsysscript.hpp"
 #include "data/data_read.hpp"
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
+#include "ebattle.hpp"
 #include "editloop.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
@@ -48,21 +50,6 @@
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
-
-namespace dc::game {
-int EditInit(void *param);
-int EditLoop();
-
-extern s32 mode;
-extern int viewMode;
-extern s32 mc_mode;
-extern s32 NextMapNo;
-} // namespace dc::game
-
-namespace dc::battlemenu {
-bool TakeBattleMenuLoadRequest();
-bool TakeBattleMenuTitleRequest();
-} // namespace dc::battlemenu
 
 namespace dc::app {
 

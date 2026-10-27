@@ -29,10 +29,6 @@
 #include <sys/stat.h>
 #endif
 
-namespace dc::game {
-extern int (*SaveMenuFunc[26])();
-} // namespace dc::game
-
 namespace dc::test {
 
 using namespace dc::game;

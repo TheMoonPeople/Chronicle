@@ -432,7 +432,7 @@ void MGEndFrame() {
         if (gfx::Recording()) {
             textwipe::DrawDivider();
             list = gfx::EndRecording();
-            GameRenderTick(list);
+            app::GameRenderTick(list);
             sceVu0CopyMatrix(g_tick_view, mgRenderInfo.view_scaled);
             g_have_tick_view = true;
         } else {
@@ -457,11 +457,11 @@ void MGEndFrame() {
         ClockPump();
     }
     if (mgWaitVSync || ClockTickCount() == g_old_vcount) {
-        ClockWaitNextTick(GamePresentBetweenTicks);
+        ClockWaitNextTick(app::GamePresentBetweenTicks);
         ClockPump();
     }
     g_old_vcount = static_cast<int>(ClockTickCount());
-    GamePresentTickEnd();
+    app::GamePresentTickEnd();
 
     DBuffID = !DBuffID;
 }

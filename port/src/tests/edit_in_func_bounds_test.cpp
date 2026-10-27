@@ -7,12 +7,9 @@
 #include <cstddef>
 #include <cstring>
 
+#include "edit_in.hpp"
 #include "editpartsinfo.hpp"
 #include "objanime.hpp"
-
-namespace dc::game {
-int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
-} // namespace dc::game
 
 namespace dc::test {
 

@@ -9,10 +9,6 @@
 #include "platform/input.hpp"
 #include "userstatus.hpp"
 
-namespace dc::game {
-extern s32 mode;
-} // namespace dc::game
-
 namespace dc::input {
 
 using namespace dc::game;

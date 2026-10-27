@@ -9,6 +9,8 @@
 
 #include <libvu0.h>
 
+#include "dataalloc.hpp"
+
 namespace dc::game {
 
 /**
@@ -39,9 +41,29 @@ enum GameMode {
 extern s32 main_select_menu_no;
 
 /**
+ * Top-level game mode currently being updated. @see GameMode
+ */
+extern s32 mode;
+
+/**
+ * Memory-card operation selected by the developer menu.
+ */
+extern s32 mc_mode;
+
+/**
+ * The next map the game loads; -1 for none.
+ */
+extern s32 NextMapNo;
+
+/**
  * The system messages every message window shares.
  */
 extern short *SystemMes;
+
+/**
+ * Arena the system messages are read into.
+ */
+extern CDataAlloc<1, 6000> SystemMesBuffer;
 
 /**
  * Map the game is on or about to load.

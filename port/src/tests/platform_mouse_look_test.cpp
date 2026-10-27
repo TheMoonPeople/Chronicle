@@ -31,12 +31,6 @@
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
-namespace dc::game {
-extern int   viewMode;
-extern float viewAngleH;
-void         EyeCamera(CCamera *camera, CCharacter *character, int right_stick);
-} // namespace dc::game
-
 namespace dc::test {
 
 using namespace dc::game;

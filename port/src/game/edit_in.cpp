@@ -69,8 +69,6 @@ using namespace dc::input;
 // editloop.hpp declares under the same names.
 
 int LoadPTS(CMapParts *parts, u_int *archive);
-int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
-
 namespace {
 /**
  * Phases of the interior loop, as GameMode holds them.

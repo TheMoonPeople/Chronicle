@@ -104,4 +104,24 @@ void modby0error();
  */
 void print(RS_STACKDATA *data, int count);
 
+/**
+ * The name-entry screen's frame, tabs and cursor.
+ */
+extern CTexture *NameTemp;
+
+/**
+ * Keyboard key of each symbol, indexing the symbol keyboard's characters.
+ */
+extern s8 menu_kigoutbl[40];
+
+/**
+ * Character code of each key on the accented-character keyboard, per language and row; -2 ends a row.
+ */
+extern s16 menu_euro_codetbl[5][2][13];
+
+/**
+ * How many rows of the accented-character keyboard each language uses.
+ */
+extern s8 euro_code_linelimmit[5];
+
 } // namespace dc::game

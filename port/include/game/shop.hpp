@@ -169,6 +169,22 @@ extern WEAPON_HAVE *ShopHaveWepPt;
 extern ATTACH_LIST *ShopHaveAttachPt;
 
 /**
+ * An item's buy and sell price.
+ */
+struct ITEM_MONEY_ENTRY {
+    s16 buy_price;  /**< Money the shop charges for the item. */
+    s16 sell_price; /**< Money the shop pays for the item. */
+};
+
+STATIC_ASSERT(sizeof(ITEM_MONEY_ENTRY) == 4);
+
+/**
+ * The buy and sell price of every item from ITEM_ATTACH_START on, indexed by item number less
+ * ITEM_ATTACH_START.
+ */
+extern ITEM_MONEY_ENTRY PriceList[296];
+
+/**
  * Gives the goods list one item shop sells from.
  */
 s16 *GetItemShopList(int shop_no);

@@ -395,6 +395,11 @@ extern CEditPartsInfo BtEditPartsInfo;
 extern CMemoryCardAccess McAccess;
 
 /**
+ * The save menu's steps, by SAVE_MENU_STATE::key_no.
+ */
+extern int (*SaveMenuFunc[26])();
+
+/**
  * Frame counter the swaying menu sprites animate with.
  */
 extern s32 CursorVibeCnt;

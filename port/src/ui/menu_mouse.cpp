@@ -7,6 +7,7 @@
 #include <span>
 
 #include "battlemenu.hpp"
+#include "battlemenu/battlemenu.hpp"
 #include "battlemenu/internal.hpp"
 #include "clsmes.hpp"
 #include "dialog/npc.hpp"

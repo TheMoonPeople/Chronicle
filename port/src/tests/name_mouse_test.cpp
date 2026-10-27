@@ -1,12 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "battle_globals.hpp"
 #include "ui/name_mouse_layout.hpp"
-
-namespace dc::game {
-extern short       menu_euro_codetbl[5][2][13];
-extern signed char menu_kigoutbl[40];
-extern signed char euro_code_linelimmit[5];
-} // namespace dc::game
 
 namespace dc::test {
 

@@ -125,24 +125,24 @@ TEST(ChroniclePresentation, AsyncPublishesAndStopsTheWorker) {
     ClockSetUnbounded(false);
     ClockSetTickRate(60);
     ClockReset();
-    GameSetPresentSettings({});
-    const auto before = GamePresentStatistics().display_frames;
+    app::GameSetPresentSettings({});
+    const auto before = app::GamePresentStatistics().display_frames;
     {
         gfx::RenderLease lease;
         gfx::BeginRecording();
         const std::array<uint8_t, 4> color = {20, 40, 60, 128};
         gfx::Clear(true, color.data(), true, 0);
-        GameRenderTick(gfx::EndRecording());
+        app::GameRenderTick(gfx::EndRecording());
     }
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (GamePresentStatistics().display_frames == before && std::chrono::steady_clock::now() < deadline) {
+    while (app::GamePresentStatistics().display_frames == before && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    GameStopPresentation();
-    EXPECT_GT(GamePresentStatistics().display_frames, before);
-    const auto stopped = GamePresentStatistics().display_frames;
+    app::GameStopPresentation();
+    EXPECT_GT(app::GamePresentStatistics().display_frames, before);
+    const auto stopped = app::GamePresentStatistics().display_frames;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    EXPECT_EQ(GamePresentStatistics().display_frames, stopped);
+    EXPECT_EQ(app::GamePresentStatistics().display_frames, stopped);
 }
 
 TEST(ChroniclePresentation, CachedAdjacentStripsRetainOrderAfterMaterialChanges) {

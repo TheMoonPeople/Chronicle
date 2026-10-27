@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iterator>
 
+#include "battle_globals.hpp"
 #include "gamepad.hpp"
 #include "menu_draw.hpp"
 #include "platform/input.hpp"
@@ -42,10 +43,6 @@ static_assert(offsetof(NameSelectView, cursor_x) == 24 && offsetof(NameSelectVie
 
 namespace dc::game {
 extern ui::NameSelectView NameSelect;
-extern CTexture      *NameTemp;
-extern short          menu_euro_codetbl[5][2][13];
-extern signed char    menu_kigoutbl[40];
-extern signed char    euro_code_linelimmit[5];
 } // namespace dc::game
 
 namespace dc::ui {

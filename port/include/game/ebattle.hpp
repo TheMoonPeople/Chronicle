@@ -175,4 +175,45 @@ int PortEdMoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *
  */
 extern CRect_i_ draw_rect;
 
+/**
+ * Whether the editor camera looks from the character's eyes.
+ */
+extern int viewMode;
+
+/**
+ * Movement mode of the editor character.
+ */
+extern int chara_mode;
+
+/**
+ * Step of the editor character's fishing. @see EdFishingState
+ */
+extern int chara_fishing;
+
+/**
+ * Horizontal angle of the first-person view.
+ */
+extern float viewAngleH;
+
+/**
+ * Vertical angle of the first-person view.
+ */
+extern float viewAngleV;
+
+/**
+ * Closest the editor camera comes to the character.
+ */
+extern float camera_near_dist;
+
+/**
+ * Farthest the editor camera goes from the character.
+ */
+extern float camera_far_dist;
+
+/**
+ * Aims the town camera from the character's eyes, turned by the right stick and, while it is
+ * shown, the mouse.
+ */
+void EyeCamera(CCamera *camera, CCharacter *character, int right_stick);
+
 } // namespace dc::game

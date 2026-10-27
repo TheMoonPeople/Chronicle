@@ -24,13 +24,6 @@
 #define DC_ANDROID_TRACE(message) ((void) 0)
 #endif
 
-#ifdef __ANDROID__
-namespace dc::platform {
-void TouchOverlaySetOpacity(float opacity);
-void TouchOverlayPoll();
-} // namespace dc::platform
-#endif
-
 #include "app/exitcodes.hpp"
 #include "app/gameloop.hpp"
 #include "app/identity.hpp"
@@ -56,6 +49,7 @@ void TouchOverlayPoll();
 #include "platform/input_script.hpp"
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
+#include "platform/touch_overlay.hpp"
 #include "platform/window.hpp"
 #include "render/screen.hpp"
 #include "snd.hpp"

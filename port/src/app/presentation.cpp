@@ -13,6 +13,7 @@
 #include "text/caption_text.hpp"
 #include "text/textwipe.hpp"
 
+namespace dc::app {
 namespace {
 
 GamePresentSettings g_present;
@@ -324,3 +325,5 @@ bool GameScreenshotWithFps(std::vector<std::uint8_t> &rgba, std::uint32_t &width
     return overlay != nullptr && gfx::RenderList(*overlay, 1.0f, {.present = false, .host = true}) &&
            gfx::ReadbackFrame(rgba, width, height);
 }
+
+} // namespace dc::app

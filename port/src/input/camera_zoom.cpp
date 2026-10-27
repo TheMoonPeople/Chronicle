@@ -9,14 +9,10 @@
 #include "camerafollow.hpp"
 #include "collision.hpp"
 #include "dungeonmap.hpp"
+#include "ebattle.hpp"
 #include "input/mouse_collision.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"
-
-namespace dc::game {
-extern float camera_near_dist;
-extern float camera_far_dist;
-} // namespace dc::game
 
 namespace dc::input {
 

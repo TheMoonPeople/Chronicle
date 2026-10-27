@@ -25,12 +25,6 @@
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 
-namespace dc::game {
-extern int   viewMode, chara_mode, chara_fishing;
-extern float viewAngleH, viewAngleV;
-void         EyeCamera(CCamera *, CCharacter *, int);
-} // namespace dc::game
-
 namespace dc::test {
 
 using namespace dc::game;

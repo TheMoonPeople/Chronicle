@@ -669,6 +669,16 @@ extern CDataAlloc2<1> InteriorBuffer;
 /** Arena the editor's miscellaneous data is carved out of. */
 extern CDataAlloc2<1> EtcDataBuffer;
 
+/**
+ * Loads the town or sub map the game is entering and starts the editor on it.
+ */
+int EditInit(void *param);
+
+/**
+ * Runs one frame of the editor and reports what it is to do next.
+ */
+int EditLoop();
+
 STATIC_ASSERT(sizeof(EDIT_IMAGE_INFO) == 0x48);
 STATIC_ASSERT(sizeof(EDIT_SCENE_LAYER_INFO) == 0xf8);
 STATIC_ASSERT(sizeof(EDIT_AREA_INFO) == 0x5c);

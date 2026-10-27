@@ -56,6 +56,12 @@ EPARTS_FUNC_DATA *SearchMapJump(float *position, float *rotation);
 void GetMapJumpPos(CCharacter *chara);
 
 /**
+ * Decodes one interior part's function records from their disc layout into points; returns how many
+ * it wrote.
+ */
+int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
+
+/**
  * Reads one interior object's levels of detail and hangs them off its part.
  */
 void LoadMapObject(CMapParts *parts, u_int **data, CDataAlloc2<1> *alloc);

@@ -20,18 +20,6 @@
 #include "shop.hpp"
 #include "text/gametext.hpp"
 
-namespace dc::game {
-
-// The game's prices from ITEM_ATTACH_START on (game/shop.cpp), which no header declares.
-struct ITEM_MONEY_ENTRY {
-    s16 buy_price;
-    s16 sell_price;
-};
-
-extern ITEM_MONEY_ENTRY PriceList[296];
-
-} // namespace dc::game
-
 namespace dc::quest {
 
 using namespace dc::game;
