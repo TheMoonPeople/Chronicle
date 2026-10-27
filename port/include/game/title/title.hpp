@@ -37,6 +37,12 @@ class CFrameVu1;
 class CScFader;
 
 /**
+ * Loads the attract movie's next scene pack and sets that scene up, as CScript::load_no and
+ * init_no ask.
+ */
+void DataLoad();
+
+/**
  * Draws title cinematic scene A.
  */
 void DrawProcA();

@@ -367,6 +367,6 @@ file, `LocalizeMessages` lays texts over a disc message file (through `GameTextF
 `LocalizePack` are the hooks, and `LocalizeExport` is `--export-text`. The Options screen asks
 `LocalizeText` for each of its words (`port/src/options/menu_option.cpp`; `OptionStrings()` lists them for the export),
 and lays its text out again when it is opened in another language. The hooks sit in
-`port/src/dataread.cpp`: `LoadFile2` and `LoadFileBG` pass each file they read to `LocalizeLoaded` and
+`port/src/game/dataread.cpp`: `LoadFile2` and `LoadFileBG` pass each file they read to `LocalizeLoaded` and
 `LocalizeFile`, and the port's `GetPackFile` gives a message entry through `LocalizePack`. Tests:
 `port/src/tests/localize_test.cpp`.

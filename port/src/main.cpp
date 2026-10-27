@@ -6,7 +6,6 @@
 #endif
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -36,18 +35,14 @@ void TouchOverlayPoll();
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
-#include "dataalloc.hpp"
-#include "dataread.hpp"
 #include "dun/gameloop.hpp"
 #include "gamemode.hpp"
 #include "gfx/gfx.hpp"
 #include "langset.hpp"
 #include "localize/localize.hpp"
 #include "menu_save.hpp"
-#include "mglib.hpp"
 #include "nowload.hpp"
 #include "options/menu_option.hpp"
-#include "platform/arena.hpp"
 #include "platform/audio.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
@@ -64,7 +59,6 @@ void TouchOverlayPoll();
 #include "snd.hpp"
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
-#include "title/title.hpp"
 
 namespace fs = std::filesystem;
 
@@ -651,7 +645,6 @@ int Run(int argc, const char **argv) {
 
 } // namespace
 
-#ifndef DC_NO_ENTRYPOINT
 int main(int argc, const char **argv) {
 #ifdef __SWITCH__
     return SwitchMain(argc, argv, Run);
@@ -684,40 +677,3 @@ int wmain(int argc, wchar_t **wide_argv) {
     return Run(argc, argv.data());
 }
 #endif
-#endif
-
-void LoadOverlay(int mode) {
-    enum class Overlay {
-        None,
-        Title,
-        Dungeon
-    };
-    constexpr std::array overlay_modes = {Overlay::Title, Overlay::Title, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
-                                          Overlay::Title, Overlay::None, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
-                                          Overlay::None, Overlay::None, Overlay::None, Overlay::None, Overlay::None};
-    static Overlay       loaded = Overlay::None;
-    if (mode < 0 || std::cmp_greater_equal(mode, overlay_modes.size()) || overlay_modes[mode] == Overlay::None ||
-        overlay_modes[mode] == loaded) {
-        return;
-    }
-    loaded = overlay_modes[mode];
-    if (loaded == Overlay::Title) {
-        TitleOverlayConstruct();
-    }
-}
-
-u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
-    if (quads < 0 || used < 0 || used > 6000 || quads > 6000 - used) {
-        ArenaOverflow(this, -1, 6000);
-    }
-    auto *run = reinterpret_cast<u_char *>(&block[used]);
-    used += quads;
-    return run;
-}
-
-void SetEnv(sceVif1Packet * /*packet*/) {
-    MGSetGsTEST(nullptr);
-    MGSetGsZBUF(nullptr);
-    MGSetGsALPHA(nullptr);
-    MGSetWindowRect();
-}

@@ -15,12 +15,12 @@ button: A on Xbox, B on Switch).
 
 ## Where they are drawn
 
-- Font icons (`ClsMes::DrawGaijiFont`, `port/src/clsmes.cpp`): the pad codes -0x300 to -0x2F4 (`{select}`, `{start}`,
+- Font icons (`ClsMes::DrawGaijiFont`, `port/src/game/clsmes.cpp`): the pad codes -0x300 to -0x2F4 (`{select}`, `{start}`,
   `{L1}` to `{R2}`, `{circle}`, `{triangle}`, `{cross}`, `{square}`, `{dpad}`...). Every message and menu that names a
   button uses them.
 - Symbols painted into textures (`port/src/text/glyph_draw.cpp`, table `kBaked`): the name entry's L1/R1 hints (`nametemp`), the
   character board's tab hints (`perbrd`) and the cutscene skip prompt (`pause_e`, `skip_bord`). Draws of these rectangles
-  (`RectSprite`, `port/src/snd.cpp`) are replaced by, or overlaid with, the symbol.
+  (`RectSprite`, `port/src/game/snd.cpp`) are replaced by, or overlaid with, the symbol.
 - Symbols on other textures the port has not found yet are still the game's: `DC_SPRITE_TRACE=1` prints each texture
   rectangle a sprite draws (stderr) and `DC_TEXTURE_DUMP=<dir>` writes every texture the game loads as a PNG, which is
   how the table was made. Add the box to `kBaked`.

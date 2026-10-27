@@ -1,5 +1,3 @@
-#include "stubs/dngstatusdata.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cstdio>

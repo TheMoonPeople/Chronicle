@@ -239,7 +239,7 @@ the fainter `shadow_mode_2` (0x20), and a part past that casts none, so a
 shadow lightens and then goes as the camera backs away. A part deeper than
 300 also takes the cheaper volume program, and one with a `draw_distance`
 drops its shadow past it. A part within `shadow_distance` belongs to the near
-band with the precise program (`port/src/editground.cpp`). The characters'
+band with the precise program (`port/src/game/editground.cpp`). The characters'
 shadows have no such distances, the overhead view of georama mode keeps its
 own faint shadows, and a map whose `SHADOW_LEVEL` is 0 still has none.
 
@@ -250,7 +250,7 @@ it drew few of them far enough for that to show. The villagers that
 shadows, and the part shadows that `shadow_distance` moves into the near band
 past `shadow_near` are drawn before the soft focus instead, which softens
 them with the scenery around them (`EdDrawBeyondRetailReach`,
-`port/src/editloop.cpp`). The player, the villagers retail draws and the
+`port/src/game/editloop.cpp`). The player, the villagers retail draws and the
 shadows of its own bands keep retail's place after it.
 
 `video.vsync` is shorthand for `present_mode`: `true` is `fifo`, `false`
@@ -308,7 +308,7 @@ dungeon's `PadInput_OK` is cross and `PadInput_NO` circle,
 | R | R2 | first-person look (`dun/gameloop.cpp:4354`) |
 | C, Backspace | select | switch character (`dun/gameloop.cpp:3185`) |
 | Return | start | pause (`dun/gameloop.cpp:3045`); the title's prompts |
-| arrows | d-pad | left and right pick the active item in the dungeon (`dun/gameloop.cpp:3218`); up opens the element picker when `game.element_quick_select` is on and the weapon has more than one element to pick between (`port/src/menu_dungeon.cpp`); menus |
+| arrows | d-pad | left and right pick the active item in the dungeon (`dun/gameloop.cpp:3218`); up opens the element picker when `game.element_quick_select` is on and the weapon has more than one element to pick between (`port/src/game/menu_dungeon.cpp`); menus |
 | V; middle click, B | L3; R3 | debug and editor functions only |
 | IJKL | right stick | the camera from the keyboard |
 | F3 | none | the FPS counter on and off (see "The FPS counter") |
@@ -399,7 +399,7 @@ Each key-down of a toggle's key counts once, however briefly it is held.
   also press the d-pad exactly when the game did not read pad 1's left
   stick (`CGamePad::GetLX`/`GetLY`, also called by `GetLXf`, `AllOn` and
   `UpDate`'s menu mode) between its last two pad reads.
-  `port/src/gamepad.cpp` replaces `pad_button_read` and `GetLX`/`GetLY`
+  `port/src/game/gamepad.cpp` replaces `pad_button_read` and `GetLX`/`GetLY`
   with retail's bodies plus the notes the host needs, and routes pad 2
   debug button reads to pad 1. Menus with
   `MenuModeOn(120)` (the title, the language select, the save screens, the
@@ -432,7 +432,7 @@ a second, and one past half a turn would go the short way round, backwards.
 That suits the stick's small steady steps, not the mouse, so the mouse's
 share of a turn is applied at once: when the camera's next `AddAngle` in the
 same pad read is exactly the delta of the reading the mouse went into, the
-port's replacement (`port/src/camerafollow.cpp`) turns the angle and the eye
+port's replacement (`port/src/game/camerafollow.cpp`) turns the angle and the eye
 about the point it looks at by that share immediately. Any other `AddAngle`
 on that camera, or the next pad read, ends the reading unused; mouse and
 stick that cancel turn nothing. The stick's share, the following of the
@@ -966,8 +966,8 @@ shape. With `video.aspect` `auto` the rest of the window is not bars:
   `tools/kazarov/src/cpp/gfx/README.md`, "Aspect"): the dungeon's status panel (life, weapon
   and water to the top left, the quick items top centre, the floor plate and the
   mini map to the top right, the weapon's portrait and gauge to the bottom left;
-  `DrawGame`, `port/src/dun/gameloop.cpp`) and the town's clock (top right;
-  `EdDrawClock`, `port/src/editloop.cpp`). Menus, message windows, the Georama
+  `DrawGame`, `port/src/game/dun/gameloop.cpp`) and the town's clock (top right;
+  `EdDrawClock`, `port/src/game/editloop.cpp`). Menus, message windows, the Georama
   editor's panels and 2D placed from 3D projections stay in the frame.
 - **Frame grabs** (`frame_image`, `frame_buff` and the other `frame_*`
   placeholders, and the water's `water` and `water_buff`; `MGPortFrameTarget`)
@@ -975,7 +975,7 @@ shape. With `video.aspect` `auto` the rest of the window is not bars:
   sides; the canonical and display images are the window's size. The game's
   other 640xN target (`blender`) keeps its size at the render
   scale.
-- **Depth of field** (`DepthOfField`, `port/src/effectmacro.cpp`; the towns'
+- **Depth of field** (`DepthOfField`, `port/src/game/effectmacro.cpp`; the towns'
   heat haze is its jittered second pass) is not retail's two shrunk copies of
   the whole frame, which blurred whatever stood in front of a focus plane into
   the scenery behind it and came back as blocks. Each pass blurs only what
@@ -1086,7 +1086,7 @@ share small internal headers:
 All music and effects are sequenced. `tools/kazarov/src/cpp/audio` decodes VAG ADPCM,
 parses HD banks and SQ sequences, and runs a sixteen-port MIDI player into a
 48-voice synth with envelopes and an approximated reverb (`audio::Mixer`).
-`port/src/sound.cpp` replaces `CSound` (bank and sequence transfers, play,
+`port/src/game/sound.cpp` replaces `CSound` (bank and sequence transfers, play,
 stop, fades, volumes, effect messages) on that mixer, and
 `gameutil_midi.cpp` answers the EZMIDI RPC commands for anything that still
 sends them. `main` starts the output; `CSound::Init` starts it too if it is
@@ -1186,7 +1186,7 @@ The load screen lists it first, its board reading "Auto"; loading it leaves
 `last_save` on the last numbered save. Headless and `--jump` runs do not
 write it.
 
-`port/src/memorycardaccess.cpp` replaces the operations of
+`port/src/game/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
 (`port/src/save/save_slots.cpp` names and lists them, `port/src/save/save_state.cpp`
 reads and writes `state.json`); each finishes in the step that starts it. Every write goes through `FilesWrite`
@@ -1225,7 +1225,7 @@ The card the save screens still check is always there, formatted and with room,
 and so is its save directory; format, unformat, the write test and the
 conversion of NTSC 1.0 saves do nothing.
 
-The save screens (`port/src/memcard.cpp`, `port/src/menu_save.cpp`) keep
+The save screens (`port/src/game/memcard.cpp`, `port/src/game/menu_save.cpp`) keep
 retail's steps, less the card:
 
 - The card choice is gone: the screen opens on its list. In town, the pause
@@ -1333,7 +1333,7 @@ draw function; `Width` gives its width for aligning a value.
 Both have retail's fixed sizes. A window lays out at most `MES_WIN_LINE_MAX`
 (720) characters, counting the end and what a `{name1}`, `{value}` or `{insert1}` name, value or system
 message code expands to; retail's `SetMesWinTbl` writes on past the table, so
-the port's (`port/src/clsmes.cpp`) takes no more, and `GameText::Set` gives back
+the port's (`port/src/game/clsmes.cpp`) takes no more, and `GameText::Set` gives back
 -1, draws nothing and has a width of 0 for a text that did not fit. A line past
 the window's ten `line_pos` entries draws in the block layout, as a line
 without one does. A message file is s16 throughout: an id is -0x8000 to
@@ -1687,19 +1687,14 @@ The port defines every shared object of a mismatched class with the real
 one: op_a's `OP_GroundMap`, `OP_BuildingMap`, `OP_BuildingMap2`,
 `OP_AnimeSeq[32]` and `CFire`, op_b's `OP_NornMapObj[76]` and
 `OP_NornMapObj2[87]`, op_c's `Water`, rushmovi's `Water__2` and `CFire__4`.
-Every function that indexes or sizes them is the port's, compiled against
-the real headers: the long-tail copies of op_a, op_b, op_c, opening and
-rushmovi, `port/src/title/title.cpp` (all of title.cpp's scene set-ups and
-draws), `opening_mds.cpp` (`OPAnalyz`, `OPMdsLoad` and the definition
-reader's state) and op_d's `OpD_InitProcess`, `OpD_InitProcess2` and
-`OpD_DrawProcess`, which reach op_d's statics through names its stub header
-gives them. The smoke pools are sized from the host `CEffect` (288 bytes,
+Every function that indexes or sizes them is compiled against the real
+headers: the port's title units (`port/src/game/title/*.cpp`) use the host
+classes instead of declaring their own. The smoke pools are sized from the host `CEffect` (288 bytes,
 where retail asked for fifty 256-byte ones).
 
-The port defines those objects itself and the forked title units leave them out, so the
-title units' own are left out and only the port's constructors run over them
-at start-up, never the title units' at the PS2 strides. `LoadOverlay`
-(`port/src/app/runtime.cpp`) does what retail's overlay loader did when a mode
+Only the host classes' constructors run over those objects at start-up,
+never the title units' at the PS2 strides. `LoadOverlay`
+(`port/src/game/main.cpp`) does what retail's overlay loader did when a mode
 needs TITLE.BIN and DUN.BIN (or nothing) was loaded before:
 `TitleOverlayConstruct` zeroes those objects and constructs them again (and
 initialises the maps, as op_a's constructor did).
@@ -1716,120 +1711,89 @@ The root `CMakeLists.txt` only picks the platform:
   build and nothing in them has to stay byte-identical to retail.
   `port/include/game/sce` holds the SDK headers Kazarov's `sce` sources
   implement.
-- The rest of `port/src` is the platform layer and the port's own game
-  code. `port/CMakeLists.txt` is the port's build. `main.cpp` and
-  `gameloop.cpp` start the game; `platform/`, `gfx/` and `audio/` are the
-  host side; `<unit>.cpp` (and `dun/`) hold the port's replacements for
-  functions of `game/<unit>.cpp`, sometimes split as `<unit>_math.cpp`,
-  `<unit>_draw.cpp` or `<unit>_port.cpp`; `linknames.cpp` supplies link-time
+- The rest of `port/src` is the platform layer, in subsystem directories
+  (`app/`, `data/`, `render/`, `audio/`, `ui/`, `save/` and the others).
+  `port/CMakeLists.txt` is the port's build. `main.cpp` and
+  `app/gameloop.cpp` start the game; `linknames.cpp` supplies link-time
   names (below); `tests/` is `darkcloud_tests`, GoogleTest cases that ctest
   runs one process each.
 - `tools/dcdata` is the data extraction tool.
 - `port/include` holds `port.h`, included ahead of every unit the port
-  compiles, and `stubs/` (below).
+  compiles.
 
 ## The game's code in the port
 
 `port/src/game/<unit>.cpp` is what the port compiles of `ps2/src/<unit>.cpp`.
-It was forked from the copy the old override build compiled: the definitions
-`port/src` replaced are left out (a function keeps its declaration, a
-variable becomes `extern`), the conditionals on `PORT`, `PAL`, `PAL_TIMING`
-and `NON_MATCHING` are resolved for the PC (PAL, without PAL timing) and
-`PORT_RETURN`, `PORT_INIT` and `PORT_FIX` are expanded. Each replacement in
-`port/src` is an ordinary definition; the two halves are compiled as
-`dc_ps2` and `dc_port` and linked together, so a name defined in both fails
-the link on the duplicate symbol.
+It was forked from the copy the old override build compiled, with the
+conditionals on `PORT`, `PAL`, `PAL_TIMING` and `NON_MATCHING` resolved for
+the PC (PAL, without PAL timing) and `PORT_RETURN`, `PORT_INIT` and `PORT_FIX`
+expanded. The port's replacements for retail functions live in the same unit,
+at the retail function's place: there is no second copy of a unit elsewhere in
+`port/src`. Where the port keeps retail's version for one path and its own for
+another, the retail body stays under a file-local name (menu_dungeon's
+`CharaChangeLoopRetail`, menu_save's `RetailEventItemSelectLoop`) and the
+port's takes the retail name. The game units are compiled as `dc_ps2` and the
+platform layer as `dc_port`, and the two are linked together.
 
-## Per-unit adjustments
+The game units reach the platform layer through its headers (`render/draw3d.hpp`,
+`data/data_read.hpp` and the others). A few call sites keep MWCC's habits
+spelled out: battlemenu passes each temporary `CRect_i_` to
+`DrawMenuColorGradation`'s non-const reference through `Ps2Lvalue`
+(`port/include/port.h`), and main's `InitSave` casts the string literal it
+hands `LoadFileMenuData`.
 
-`port/include/stubs/<unit>.hpp`, if it exists, is the first include of
-`port/src/game/<unit>.cpp`, after `port.h`. It declares
-what the port defines in place of code `PORT` leaves out, and supplies or
-renames what the unit takes from MWCC or from the PS2 link alone:
+The port fixes a few retail behaviours in the unit itself:
 
-- `bound`, `cloth`, `collisionmdt`, `frame`, `gameutil`, `mglib`, `visualvu1`
-  and `water` get declarations of their `static` assembly functions, which
-  the port defines.
-- `battlemenu` passes each temporary `CRect_i_` as an lvalue (`Ps2Lvalue`,
-  `port/include/port.h`): MWCC binds a temporary to the non-const reference of
-  `DrawMenuColorGradation`. `editground` names its rectangles instead, so its
-  calls to `CEditGround::CheckPartsRect` need no stub.
-- `editloop3` gives its static `EdSetVillagerNextPos` a global forwarder,
-  `PortEdSetVillagerNextPos`, for the port's `EdMoveVillager`, and declares
-  its static `EdEventScript` `extern` first, for the port's `EdRunEvent`
-  (`port/src/runscript.cpp`): retail's has no return statement and leaves
-  `CRunScript::run`'s result in `v0` for `EdEventInit`. Walking villagers in
-  Muska Racka use its fixed ground model's collision, so their feet follow
-  the sculpted terrain instead of the editable grid's flat polygons. It also
-  declares its static `p_use_item` `extern`, for the port's bait fix
-  (`ListBaitForScript`, `port/include/game/fishing.hpp`): the towns' bait-changing
-  events in PAL retail attach only the eight baits they list, so Carrot,
-  Potato Cake, Minon, Battan and Petite Fish were taken from the bag and never
-  put on the hook. When the bait picker closes, a bait the list lacks is put on
-  it, and the script attaches it as it does the others.
-- `main` gets an overload of `LoadFileMenuData` for a `const char *`: one call
-  names its file with a comma expression ending in a string literal.
-- `menu_dungeon` renames its `CharaChangeLoop` to `CharaChangeLoopRetail`. The
-  port's `CharaChangeLoop` (`port/src/menu_dungeon.cpp`) runs the dungeon's
-  quick-change menu as an element picker when D-pad Up opened it, and this
-  unit's loop when SELECT did.
-- `menu_save` and `memcard` export statics the other calls: memcard's
-  `SaveMenuFunc` table names menu_save's eighteen `SaveMenuKey*` steps and
-  menu_save calls memcard's `ExitSaveSelect`. The port's `SaveMenuFunc`
-  (`port/src/memcard.cpp`) names six of memcard's own steps as well. Each
-  header defines a global forwarder under the external name (an asm label),
-  which also keeps clang from dropping the unused static.
-- `title/rushmovi` declares title.cpp's `DataLoad`, `DrawProcA`..`I` and
-  `DrawProcTitle` static; its header defines those statics as forwarders to
-  the global ones.
-- `mapparts` has its `CMapParts::DrawLOD` replaced (`port/src/mapparts.cpp`):
-  retail lifts a part off the ground by its own distance from the eye, which
-  leaves neighbouring road tiles at different heights and the ground showing
-  through the step between them at any resolution above the PS2's; the port
-  lifts other parts by the height retail gives one 100 units away and roads by
-  a shared 0.5-unit height so the uneven ground cannot intermittently cover
-  their surface as the camera follows the player.
-- `title/op_d` declares the state and the helpers `OpD_InitProcess`,
-  `OpD_InitProcess2` and `OpD_DrawProcess` share with the rest of the unit
-  `extern` under `OpD_*` names before the unit declares them `static`, and
-  gives the static helpers global forwarders, so the port's copies of those
-  three reach them.
-- The per-object renames below.
+- The towns' bait-changing events in PAL retail attach only the eight baits
+  they list, so Carrot, Potato Cake, Minon, Battan and Petite Fish were taken
+  from the bag and never put on the hook. `ListBaitForScript`
+  (`port/src/game/fishing.cpp`) puts a bait the list lacks on it when the bait
+  picker closes, and the script attaches it as it does the others.
+- `EdRunEvent` (`port/src/game/editloop3.cpp`) returns `CRunScript::run`'s
+  result, which retail's leaves in `v0` for `EdEventInit` without a return
+  statement. Walking villagers in Muska Racka use its fixed ground model's
+  collision, so their feet follow the sculpted terrain instead of the editable
+  grid's flat polygons.
+- The dungeon's quick-change menu (`CharaChangeLoop`,
+  `port/src/game/menu_dungeon.cpp`) runs as an element picker when D-pad Up
+  opened it, and as retail's loop when SELECT did.
+- `CMapParts::DrawLOD` (`port/src/game/mapparts.cpp`): retail lifts a part off
+  the ground by its own distance from the eye, which leaves neighbouring road
+  tiles at different heights and the ground showing through the step between
+  them at any resolution above the PS2's; the port lifts other parts by the
+  height retail gives one 100 units away and roads by a shared 0.5-unit height
+  so the uneven ground cannot intermittently cover their surface as the camera
+  follows the player.
+
+Static construction draws from `rand()` (each `CFireOmni` and `CWind`, and the
+`CSaveData` constructors), and the game's random sequence follows from where
+those draws leave the generator. The game statics that draw carry
+`init_priority`, so the order no longer depends on the link order; see `rand`
+in `port/src/app/runtime.cpp`.
 
 ## Names the PS2 build renames
-
-`main.cpp` calls other units through the names MWCC gives them
-(`init_all__Fv`) and calls the overlays' entry points through their retail
-addresses (`func_01DAC1C0`). `port/src/main.cpp` forwards each one to the real
-function.
 
 The PS2 link binds some names through `ps2/config/pal/object_fixups.json` and the
 linker script rather than through the source. The port reproduces each:
 
-- **Per-object renames**, by `#define` in the unit's header: the opening
-  scenes' four `FaceChange(int)` become op_b's `FaceChange`, op_c's
-  `FaceChangeC`, op_d's `FaceChangeD` and rushmovi's `FaceChangeMovie`, the
-  names their neighbours call them by; the dungeon's `MainDraw` and
-  `MoveChara` become `DunMainDraw` and `DunMoveChara`, apart from editloop's
-  (`port/src/dun/gameloop.cpp` replaces `DunMainDraw`); edit_in's `Chara`,
-  `MainCamera`, `NowCamera`, `TalkCamera`, `NowTime`, `TexAnimeData`,
-  `camera_dist_mode`, `door_open_cnt`, `fix_chara_pos`, `fix_chara_rot`,
-  `goto_menu`, `goto_return_menu`, `key_counter` and `loop_counter`, which it
-  redeclares `static` after a header declares them `extern` (MWCC makes them
-  file-local, clang's `-fms-extensions` keeps them global), become
-  `EditIn_*`.
+- **Per-object names.** The opening scenes' four `FaceChange(int)` are op_b's
+  `FaceChange`, op_c's `FaceChangeC`, op_d's `FaceChangeD` and rushmovi's
+  `FaceChangeMovie`, the names their neighbours call them by; the dungeon's
+  `MainDraw` and `MoveChara` are `DunMainDraw` and `DunMoveChara`
+  (`port/src/game/dun/gameloop.cpp` and `port/src/game/dun/movechara.cpp`),
+  apart from editloop's. The port's units use these names directly.
 - **Pooled literals under extern names** (`BtAtraShortCharaFile`,
   `MdsExtension`, `gamemode_empty_string`, `allmenu_mes` and six more) and
-  **the title overlay's own `CRect<int>`** spelling of the rectangle in
-  `MGFillBox`, `MGMoveImage`, `MGStretchMoveImage`, `MoveImageTest` and the
-  `set2DSprite` overloads, plus op_c's `CWater::DrawVu1` and main's
-  `MAP_NPC_MODEL::operator=`: weak definitions and forwarders in
-  `port/src/linknames.cpp`.
+  main's `MAP_NPC_MODEL::operator=`: weak definitions and forwarders in
+  `port/src/linknames.cpp`. The title overlay's own `CRect<int>` spelling of
+  the rectangle in `MGFillBox`, `MGMoveImage`, `MGStretchMoveImage`,
+  `MoveImageTest` and the `set2DSprite` overloads has adapters in
+  `port/src/game/title/title.cpp` and `port/src/game/clothread.cpp`.
 - **No linker aliases.** `draw_rect` is a real `CRect_i_` in
   `port/src/game/ebattle.cpp`, and every user of `WorkBuffer` names it
-  through `dataset.hpp`. `ItemPutListTbl12_bytes` is not an alias:
-  `port/include/stubs/dngstatusdata.hpp` turns `GetItem`'s folded PS2 byte
-  index into a typed `WeaponList` owner lookup.
+  through `dataset.hpp`. `ItemPutListTbl12_bytes` is not an alias: `GetItem`
+  (`port/src/game/dngstatusdata.cpp`) reads `WeaponList` directly instead of
+  the folded PS2 byte index.
   `EditGaijiTbl` is `GaijiDataTbl + 0x601C` on the PS2 link. The linker
   script places it inside `EditPartsData`, but the codes `clsmes.cpp`
   indexes it with (-0x300 and up) only ever land on the last word of a

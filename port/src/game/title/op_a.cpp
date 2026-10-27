@@ -1,9 +1,11 @@
+
 #include "common.h"
 
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
@@ -12,25 +14,35 @@
 #include "character.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "effect.hpp"
+#include "effectgroup.hpp"
+#include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
-#include "mapobject.hpp"
+#include "map.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
 #include "mglib.hpp"
+#include "objanime.hpp"
 #include "renderinfo.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
 #include "title/op_a.hpp"
+#include "title/op_b.hpp"
 #include "title/opening.hpp"
 #include "title/script.hpp"
 
+// The texture and frame APIs take string literals as char *.
+#pragma clang diagnostic ignored "-Wwritable-strings"
+
 using tagMOTION_KEY = MOTION_INFO;
 
-/* The rectangle a texture transfer takes. Unlike rect.h's, the four-argument constructor assigns
-   x, y, w and h in that order. */
+// The dungeon-square scene of the opening: set-up, per-tick drawing, sound and motion.
+
+/* The rectangle a texture transfer takes. rect.h's four-argument constructor assigns h, w, y and x
+   in that order; every rectangle this file builds assigns them the other way round. */
 template <class T>
 class CRect {
 public:
@@ -39,157 +51,12 @@ public:
     T w; /**< Width in pixels. */
     T h; /**< Height in pixels. */
 
-    CRect() {
-        h = 0;
-        w = 0;
-        y = 0;
-        x = 0;
-    }
+    CRect() : x(0), y(0), w(0), h(0) {}
 
-    CRect(T new_x, T new_y, T new_width, T new_height) {
-        x = new_x;
-        y = new_y;
-        w = new_width;
-        h = new_height;
-    }
+    CRect(T new_x, T new_y, T new_width, T new_height) : x(new_x), y(new_y), w(new_width), h(new_height) {}
 } __attribute__((aligned(16)));
 
-/* One row of the table a map sorts its scenery by. */
-class CategoryAttr {
-public:
-    char unk_00[24];
-
-    CategoryAttr();
-};
-
-/* A scene map: the ground, the buildings standing on it, or a second set of buildings. */
-class CMap {
-public:
-    CategoryAttr category[16]; /**< Category rows the scenery is sorted by. */
-    CMapObject   object[10];   /**< Scenery pieces the map holds. */
-    char         unk_AE0[16];
-
-    CMap() { Initialize(); }
-
-    void Initialize();
-    void Draw();
-};
-
-class CTexture;
-
-/* The scene's one fire, which is a light rather than a model. */
-class CFireOmni {
-public:
-    char          unk_00[32];
-    sceVu0FVECTOR pos;         /**< World position DrawFire draws the next fire at. */
-    s32           texture_set; /**< Indicates that the textures were supplied rather than looked up. */
-    CTexture     *core;        /**< Bright inner texture of the flame. */
-    CTexture     *glow;        /**< Soft outer texture of the flame. */
-    s32           unk_3C;
-
-    CFireOmni();
-
-    void FireStep();
-    void FireCreate();
-    void DrawFire(int unknown0, int unknown1, CCamera *camera, float *eye, float scale, int unknown2, float unknown3);
-};
-
-class CEffect;
-class CEffectParam;
-
-/* The pool the chimney smoke's particles are handed out of. */
-class CEffectGroup {
-public:
-    CEffect *effect_table; /**< First effect in the caller-supplied pool. */
-    int      capacity;     /**< Number of effects in the pool. */
-
-    CEffectGroup() { Initialize(nullptr, 0); }
-
-    void Initialize(CEffect *table, int max);
-    void Clear();
-    void EnterEffect(CEffectParam *param);
-    void Step(int unknown0);
-    void Draw();
-};
-
-/* What one particle is entered with. Only the fields the smoke sets are named. */
-class CEffectParam {
-public:
-    int           lifetime;                   /**< Frames before the particle is retired. */
-    int           position_oscillation_flags; /**< Bit zero sways the particle's position. */
-    float         unk_08;                     /**< Unscaled sprite width. */
-    float         height;                     /**< Unscaled sprite height. */
-    char          unk_10[16];
-    sceVu0FVECTOR position; /**< World position the particle starts at. */
-    char          unk_30[4];
-    float         velocity_y; /**< Height the particle rises each step. */
-    char          unk_38[24];
-    float         position_oscillation_x; /**< Horizontal sway amplitude. */
-    char          unk_54[12];
-    float         position_oscillation_rate_x; /**< Phase advance of the horizontal sway each step. */
-    char          unk_64[28];
-    float         scale_velocity_x; /**< Width scale added each step. */
-    float         scale_velocity_y; /**< Height scale added each step. */
-    char          unk_88[40];
-    int           opacity_mode; /**< How the opacity changes over the particle's life. */
-    int           render_flags; /**< Alpha and depth-buffer state the particle draws with. */
-    float         opacity;      /**< Starting opacity from zero to one. */
-    CTexture     *texture;      /**< Texture the particle draws. */
-    CRect<int>    texel;        /**< Rectangle sampled from the texture. */
-    char          unk_D0[4];
-    int           texture_frame_period; /**< Modulus applied before a texture frame is chosen. */
-    char          unk_D8[8];
-
-    CEffectParam() {}
-
-    void Initialize();
-};
-
-/* One actor's face. The eyes and the mouth are two strips of frames stacked bottom-up in one
-   256-wide texture, the eyes down the left half and the mouth down the right, and a tick copies the
-   current frame of each over the plate the model draws with. Offsets are measured from the bottom
-   edge of the plate. */
-struct FACE_INFO {
-    char *plate;        /**< Texture the model's face is drawn from. */
-    char *strip;        /**< Texture holding the eye and mouth frames. */
-    int   eye_bottom;   /**< Height of the eye region above the plate's bottom edge. */
-    int   eye_height;   /**< Height of one eye frame. */
-    int   mouth_bottom; /**< Height of the mouth region above the plate's bottom edge. */
-    int   mouth_height; /**< Height of one mouth frame. */
-    int   eye;          /**< Eye frame currently shown. */
-    int   mouth;        /**< Mouth frame currently shown. */
-    int   strip_bottom; /**< Row the frame strips count up from. */
-    int   eye_max;      /**< Last eye frame of a blink. */
-    int   blink;        /**< Blink phase: zero idle, one closing, two opening. */
-};
-
-/* One looping object animation the scene's configuration file registers: a frame is found by name
-   and one of its properties is driven from a start value towards an end value by a step each
-   tick. */
-class OBJ_ANIME_SEQ {
-public:
-    char          name[16]; /**< Name of the frame the animation drives. */
-    int           property; /**< Property animated: rotation, position, scale or colour. */
-    int           mode;     /**< How the value moves between its two ends. */
-    char          unk_18[8];
-    sceVu0FVECTOR start_value; /**< Value the animation starts from. */
-    sceVu0FVECTOR end_value;   /**< Value the animation runs to. */
-    float         step_x;      /**< Amount added to the first component each tick. */
-    float         step_y;      /**< Amount added to the second component each tick. */
-    float         step_z;      /**< Amount added to the third component each tick. */
-    float         step_w;
-    sceVu0FVECTOR current;    /**< Current animated value applied to the attached frames. */
-    CFrame       *frames[10]; /**< Frames driven by this animation. */
-    int           completion_flag;
-    int           unk_8C;
-
-    OBJ_ANIME_SEQ();
-
-    void Initialize();
-};
-
 void wait_now_loading_vsync();
-void ObjAnimePlay(OBJ_ANIME_SEQ *sequence);
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
 void DepthOfField(float *dist, int level, int alpha, int blur);
@@ -210,10 +77,6 @@ void DrawShadow(float x, float y, float z);
 void setTexScroll();
 void setCloudTexScroll();
 } // namespace
-
-void FaceChange(int actor_no);
-void LoadCharaData(int buffer_no, int actor_no);
-void LoadMotionData();
 
 /* Each of the couple's motion files is one key range, the frame it starts at and the frame it ends
    at, written straight over the character's own first key so that a file loaded in the background
@@ -244,6 +107,11 @@ tagMOTION_KEY dancer[10] = {
     {327, 782, 0.5f, 0}
 };
 
+// The scene's own world and the animated objects its configuration file fills in.
+CMap          OP_BuildingMap;
+CMap          OP_BuildingMap2;
+CMap          OP_GroundMap;
+OBJ_ANIME_SEQ OP_AnimeSeq[32];
 int           OP_AnimeSeqRot;
 int           OP_FireList;
 sceVu0FVECTOR OP_FirePosition[96];
@@ -254,6 +122,8 @@ CFrameVu1    *OP_SkyFrame;
 CFrame       *OP_CharaFrame__2;
 char          CloudFlag;
 
+CFireOmni CFire;
+
 namespace {
 sceVu0FVECTOR DancerPos[35];
 sceVu0FVECTOR DancerRot[35];
@@ -263,14 +133,52 @@ CFrameVu1   *Shadow;
 float        DancerAmb;
 CEffectGroup Smoke;
 CEffect     *EffectTable;
+float        DanceWait;
 } // namespace
 
 int DanceCnt;
 int DanceStart;
 
+/* The dungeon square's set-up. The two maps are cleared first because this scene is placed from a
+   configuration file rather than from a table of its own, and the couple's second motion files are
+   started in the background so that the first change of step does not wait for a read. */
+void OpA_InitProcess() {
+    OP_FireList = 0;
+    OP_AnimeSeqRot = 0;
+    OP_GroundMap.Initialize();
+    OP_BuildingMap.Initialize();
+    OPAnalyz("opdat/opinfo.cfg");
+    LoadTexture();
+    OPMdsLoad();
+    LoadFile("opdat/dungeon/dungeon.pak", read_buffer, nullptr);
+    wait_now_loading_vsync();
+    LoadData();
+    CSnd.SetReverb(0, 4, 80);
+    CSnd.SetReverb(1, 4, 60);
+    CSnd.LoadSoundFileFromPack("o01a.txt", read_buffer);
+    CSnd.SetVol(MIDI_PORT_SE_TITLE, 256);
+    CSnd.SetVol(MIDI_PORT_SE_DEFAULT, 256);
+    CSnd.SetVol(MIDI_PORT_UNK_D, 256);
+    CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 256);
+    CSnd.SE_Play(MIDI_PORT_SE_TITLE, 16, 20, 0, 0);
+    wait_now_loading_vsync();
+    SetDanceMotion();
+    LoadFile("opdat/chara/01p19a1b.chr", reinterpret_cast<void *>(OpeningDancePack(0)), nullptr);
+    LoadFile("opdat/chara/01p17a1b.chr", reinterpret_cast<void *>(OpeningDancePack(1)), nullptr);
+    StartReadBG();
+    DanceWait = 0.0f;
+    DanceCnt = 1;
+    DanceStart = 0;
+    CloudFlag = 0;
+}
+
 namespace {
-/* Four rows name the fixed surfaces the registry keeps for every scene and the ones after them are
-   filled in by name from the pack; the empty name terminates the table. */
+
+/**
+ * The scene's textures. Four rows name the fixed surfaces the registry keeps for every scene and
+ * the twenty-five after them are filled in by name from the pack this function reads; the empty
+ * name at the end is what states where the table stops.
+ */
 void LoadTexture() {
     LOADTEXTURE_INFO2 texture_list[] = {
         {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",       0,  0},
@@ -305,7 +213,7 @@ void LoadTexture() {
     };
 
     TexManager.Initialize(16352);
-    LoadFile("opdat/dungeon/dungeon.pim", read_buffer, nullptr);
+    LoadFile("opdat/dungeon/dungeon.pim", reinterpret_cast<void *>(read_buffer), nullptr);
 
     texture_list[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "gaiji.img", nullptr));
     texture_list[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fuki256.img", nullptr));
@@ -420,7 +328,7 @@ void LoadData() {
     Cloud.frame = LoadMDSFile(GetPackFile(read_buffer, "01cloud.mds", nullptr), 2, 0);
     Cloud.SetPosition(0.0f, 50.0f, 20.0f);
 
-    EffectTable = reinterpret_cast<CEffect *>(MapDataBuffer.Alloc(12800));
+    EffectTable = reinterpret_cast<CEffect *>(MapDataBuffer.Alloc(50 * sizeof(CEffect)));
     Smoke.Initialize(EffectTable, 50);
     Smoke.Clear();
 
@@ -432,7 +340,7 @@ void LoadData() {
  * the background loader then advances one file at a time.
  */
 void SetDanceMotion() {
-    LoadFile("opdat/chara/01p19a1a.chr", read_buffer, nullptr);
+    LoadFile("opdat/chara/01p19a1a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
     Chara__3[6].LoadPackData(read_buffer, "01p19a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
     Chara__3[6].motion_type.state.time = 120.0f;
     Chara__3[6].motion_type.state.blend_step = 0.1f;
@@ -441,7 +349,7 @@ void SetDanceMotion() {
     Chara__3[6].motion_type.motion_info->start = noroi[0].start;
     Chara__3[6].motion_type.motion_info->end = noroi[0].end;
 
-    LoadFile("opdat/chara/01p17a1a.chr", read_buffer, nullptr);
+    LoadFile("opdat/chara/01p17a1a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
     Chara__3[7].LoadPackData(read_buffer, "01p17a1a.cfg", &CharaDataBuffer__2[4], &CharaDataBuffer__2[6], nullptr);
     Chara__3[7].motion_type.state.time = 1.0f;
     Chara__3[7].motion_type.state.blend_step = 0.1f;
@@ -456,7 +364,7 @@ void SetDanceMotion() {
  * across seven rows, every one of them facing the couple.
  */
 void InitDancerPos() {
-    float layout[35][4] = {
+    constexpr float layout[35][4] = {
         {3.0f,  0.0f, 27.0f, 0.0f},
         {0.0f,  0.0f, 27.0f, 0.0f},
         {-3.0f, 0.0f, 27.0f, 0.0f},
@@ -505,6 +413,286 @@ void InitDancerPos() {
     Chara__3[6].SetPosition(0.0f, 0.0f, 250.0f);
     Chara__3[6].SetRotation(0.0f, PI_D, 0.0f);
 }
+} // namespace
+
+/* The tick's drawing, in the order the frame is built: the ground, the buildings standing on it,
+   the townspeople, the couple, the crowd behind them, the fires, the sky and last the depth of
+   field. The two ambients that fade are what makes the square go dark as the scene turns: one rides
+   up over the buildings while the camera holds on them, the other rides the crowd down as the
+   couple's motion runs out. */
+void OpA_DrawProcess() {
+    static sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 0.0f};
+    static int           wait;
+    sceVu0FVECTOR        saved_ambient;
+
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    TexManager.ReloadTexture(Vif1Packet, 11);
+
+    if (!Pause) {
+        setTexScroll();
+    }
+
+    if (CScript__2.camera_start != 44) {
+        if (CScript__2.camera_start < 15 || CScript__2.camera_start >= 39) {
+            OP_BuildingMap.Draw();
+        }
+
+        ambient[3] = 0.0f;
+        wait = 0;
+    } else {
+        MGGetAmbient(saved_ambient);
+
+        if (wait > 700) {
+            if (ambient[3] < 128.0f) {
+                ambient[3] += 0.1f;
+            }
+        } else {
+            wait++;
+        }
+
+        MGSetAmbient(ambient);
+        OP_BuildingMap.Draw();
+        MGSetAmbient(saved_ambient);
+    }
+
+    for (int i = 0; i < 6; i++) {
+        if (i != 1 && CScript__2.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex__2[i]);
+            FaceChange(i);
+
+            if (!Pause) {
+                Chara__3[i].Step();
+            }
+
+            Chara__3[i].Draw();
+
+            if (i == 2) {
+                ShisaiShadow();
+            }
+
+            if (i == 3) {
+                ShogunShadow();
+            }
+        }
+    }
+
+    if (CScript__2.obj[1].disp) {
+        TexManager.ReloadTexture(Vif1Packet, CharaTex__2[1]);
+
+        if (!Pause) {
+            Chara__3[1].Step();
+        }
+
+        static float col = 0.0f;
+        static float am = 0.0f;
+        static int   wait = 0;
+
+        if (CScript__2.camera_start == 17) {
+            static sceVu0FMATRIX lcolor;
+
+            for (int i = 0; i < 3; i++) {
+                if (lightcolor[i][0] > col) {
+                    lcolor[i][0] = col;
+                }
+
+                if (lightcolor[i][1] > col) {
+                    lcolor[i][1] = col;
+                }
+
+                if (lightcolor[i][2] > col) {
+                    lcolor[i][2] = col;
+                }
+            }
+
+            if (wait > 180) {
+                if (col < 128.0f) {
+                    col += 0.5f;
+                }
+            } else {
+                wait++;
+            }
+
+            MGSetPLight(light, lcolor);
+
+            sceVu0FVECTOR lead_ambient = {22.0f, 22.0f, 12.0f, 0.0f};
+
+            lead_ambient[3] = am;
+
+            if (am < 128.0f) {
+                am += 0.5f;
+            }
+
+            MGSetAmbient(lead_ambient);
+        } else {
+            am = 0.0f;
+            col = 0.0f;
+            wait = 0;
+        }
+
+        Chara__3[1].Draw();
+    }
+
+    MGSetAmbient(ambientlight);
+    MGSetPLight(light, lightcolor);
+
+    sceVu0FVECTOR crowd_ambient;
+
+    sceVu0CopyVector(crowd_ambient, ambientlight);
+
+    if (CScript__2.camera_start == 44) {
+        if (Cam__2[SceneNp__2].motion_type.state.time > 249.0f) {
+            DancerAmb = std::max(DancerAmb - 0.2f, 0.0f);
+
+            crowd_ambient[3] = DancerAmb;
+        }
+    } else {
+        DancerAmb = 127.0f;
+    }
+
+    if (CScript__2.obj[6].disp && !Pause) {
+        if (DanceWait < 2.0f || DanceWait > 480.0f) {
+            Chara__3[6].Step();
+            Chara__3[7].Step();
+        }
+
+        DanceWait = std::min(DanceWait + 1.0f, 10000.0f);
+    }
+
+    if (CScript__2.obj[6].disp) {
+        TexManager.ReloadTexture(Vif1Packet, CharaTex__2[6]);
+        FaceChange(6);
+        MGSetAmbient(crowd_ambient);
+        Chara__3[6].Draw();
+        ReaderShadow();
+    }
+
+    if (CScript__2.obj[7].disp) {
+        TexManager.ReloadTexture(Vif1Packet, 6);
+        Chara__3[7].SetPosition(DancerPos[0][0], DancerPos[0][1], DancerPos[0][2]);
+        Chara__3[7].SetRotation(DancerRot[0][0], DancerRot[0][1], DancerRot[0][2]);
+        MGSetAmbient(crowd_ambient);
+        Chara__3[7].Draw();
+        DancerShadow();
+
+        int crowd_count = 35;
+
+        switch (CScript__2.camera_start) {
+            case 0:
+                crowd_count = 28;
+                break;
+            case 3:
+            case 7:
+            case 8:
+            case 39:
+            case 43:
+                crowd_count = 30;
+                break;
+            case 9:
+                crowd_count = 25;
+                break;
+            case 10:
+                crowd_count = 15;
+                break;
+            case 45:
+                crowd_count = 14;
+                break;
+            default:
+                break;
+        }
+
+        for (int i = 1; i < crowd_count; i++) {
+            CFrame *frame = Chara__3[7].frame;
+
+            frame->SetPosition(DancerPos[i][0], DancerPos[i][1], DancerPos[i][2]);
+            frame->SetRotation(DancerRot[i][0], DancerRot[i][1], DancerRot[i][2]);
+            MGSetAmbient(crowd_ambient);
+            MGDraw(frame);
+            DancerShadow();
+        }
+    }
+
+    MGSetAmbient(ambientlight);
+
+    sceVu0FVECTOR eye;
+
+    TexManager.ReloadTexture(GetVif1Packet(), 0);
+    OP_CharaFrame__2 = Cam__2[SceneNp__2].frame;
+    sceVu0CopyVector(eye, OP_CharaFrame__2->position);
+
+    if (!Pause) {
+        CFire.FireStep();
+    }
+
+    CFire.FireCreate();
+
+    for (int i = 0; i < OP_FireList; i++) {
+        float z = OP_FirePosition[i][2];
+        float y = OP_FirePosition[i][1];
+        float x = OP_FirePosition[i][0];
+
+        CFire.pos[0] = 10.0f * x;
+        CFire.pos[1] = 10.0f * y;
+        CFire.pos[2] = 10.0f * z;
+        CFire.pos[3] = 1.0f;
+        CFire.DrawFire(1, 1, &OP_MainCamera, eye, OP_FireScale[i], 15, 15.0f);
+    }
+
+    DrawCloud();
+
+    static float cnt = 1024.0f;
+    static int   sw = 0;
+
+    if (CScript__2.sprite == 1) {
+        TexManager.ReloadTexture(Vif1Packet, 7);
+
+        const int alpha = std::max(static_cast<int>(128.0f - cnt / 4.0f), 0);
+
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("ex", -1), CRect<int>(static_cast<int>(272.0f - cnt / 2.0f), static_cast<int>(10.0f - cnt / 2.0f), static_cast<int>(128.0f + cnt), static_cast<int>(128.0f + cnt)), CRect<int>(0, 0, 128, 128), static_cast<u_char>(alpha));
+
+        if (sw == 0) {
+            cnt -= cnt / 2.0f;
+
+            if (cnt < 2.0f) {
+                sw = 1;
+            }
+        } else {
+            cnt += cnt / 2.0f;
+
+            if (cnt > 16.0f) {
+                sw = 0;
+            }
+        }
+    } else {
+        cnt = 1024.0f;
+        sw = 0;
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    switch (CScript__2.camera_start) {
+        case 0:
+        case 43:
+        case 45:
+        case 47:
+            break;
+        case 3:
+        case 10:
+        case 24:
+        case 25: {
+            float dof[2] = {50.0f, 50.0f};
+
+            DepthOfField(dof, 1, 56, 0);
+        } break;
+        default: {
+            float dof[2] = {200.0f, 400.0f};
+
+            DepthOfField(dof, 2, 40, 0);
+        } break;
+    }
+}
+
+namespace {
 
 /**
  * The sky, which is one model turned inside out and scrolled rather than a backdrop. It grows from
@@ -588,18 +776,18 @@ void SmokeProcess() {
         }
 
         param.position_oscillation_flags = 1;
-        param.position_oscillation_x = 0.5f * static_cast<float>(rand()) / 2147483648.0f;
-        param.position_oscillation_rate_x = static_cast<float>(PI_D) / (20.0f + static_cast<float>(rand() * 10) / 2147483648.0f);
+        param.position_oscillation_scale[0] = 0.5f * static_cast<float>(rand()) / 2147483648.0f;
+        param.position_oscillation_rate[0] = static_cast<float>(PI_D) / (20.0f + static_cast<float>(rand() * 10) / 2147483648.0f);
         param.opacity_mode = 2;
         param.render_flags = 2;
         param.opacity = 0.07f;
-        param.velocity_y = 1.5f + 0.2f * static_cast<float>(rand()) / 2147483648.0f;
-        param.scale_velocity_x = 0.04f;
-        param.scale_velocity_y = 0.04f;
+        param.velocity[1] = 1.5f + 0.2f * static_cast<float>(rand()) / 2147483648.0f;
+        param.scale_velocity[0] = 0.04f;
+        param.scale_velocity[1] = 0.04f;
         param.lifetime = 120;
         param.texture = TexManager.GetTexture("cloud2", -1);
-        param.texel = CRect<int>(0, 0, 128, 128);
-        param.unk_08 = 30.0f;
+        param.texel = CRect_i_(0, 0, 128, 128);
+        param.width = 30.0f;
         param.height = 13.0f;
         param.texture_frame_period = 60;
         Smoke.EnterEffect(&param);
@@ -671,6 +859,9 @@ void ReaderShadow() {
     }
 }
 
+/**
+ * Draws the dancer's paired foot shadows.
+ */
 void DancerShadow() {
     sceVu0FMATRIX matrix;
 
@@ -680,6 +871,9 @@ void DancerShadow() {
     DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
 }
 
+/**
+ * Draws the shogun's scene shadow.
+ */
 void ShogunShadow() {
     sceVu0FMATRIX matrix;
 
@@ -690,6 +884,9 @@ void ShogunShadow() {
     DrawShadow(matrix[3][0], matrix[3][1], matrix[3][2]);
 }
 
+/**
+ * Draws the priest's scene shadow.
+ */
 void ShisaiShadow() {
     sceVu0FMATRIX matrix;
 
@@ -711,9 +908,7 @@ void DrawShadow(float x, float y, float z) {
     ambient[3] -= 10.0f * y;
 
     if (ambient[3] > 0.0f) {
-        if (ambient[3] > DancerAmb) {
-            ambient[3] = DancerAmb;
-        }
+        ambient[3] = std::min(ambient[3], DancerAmb);
 
         MGSetAmbient(ambient);
 
@@ -725,98 +920,381 @@ void DrawShadow(float x, float y, float z) {
         MGSetAmbient(ambientlight);
     }
 }
+} // namespace
 
-/**
- * Scrolls the waterfall: two local-to-local transfers put one frame's worth of the strip texture
- * over the plate with the seam moving down it. The texture cache is flushed first because the plate
- * about to be overwritten is the one the previous tick drew from.
- */
-void setTexScroll() {
-    static int   setTexScrollCnt = 0;
-    static float setTexScrollCntf = 0.0f;
+/* The tick's sound. The three footfalls are windows on an actor's own motion frame with a wait
+   behind each, because a frame number is only inside its window for one tick at the motion's rate
+   and the wait keeps a motion that stalls there from playing the step twice. The rest is the
+   square's own ambience: the fountain from a fixed point, the wind while the sky is up, and the
+   change of music the camera makes when it turns away. */
+void OpA_SoundProcess() {
+    static int mus = 0;
 
-    sceGifTag giftag = {0, 1, 0, 0, 0, 0, 1, SCE_GIF_PACKED_AD};
-
-    sceVif1PkCnt(Vif1Packet, 0);
-    sceVif1PkOpenDirectCode(Vif1Packet, 0);
-    sceVif1PkOpenGifTag(Vif1Packet, *reinterpret_cast<u_long128 *>(&giftag));
-    sceVif1PkAddGsAD(Vif1Packet, SCE_GS_TEXFLUSH, 0);
-    sceVif1PkCloseGifTag(Vif1Packet);
-    sceVif1PkCloseDirectCode(Vif1Packet);
-    sceVif1PkTerminate(Vif1Packet);
-
-    if (setTexScrollCntf <= 0.0f) {
-        setTexScrollCntf = 126.0f;
+    if (DanceWait > 5.0f) {
+        if (mus == 0) {
+            OpBgmSqPort = 0;
+            OpBgmPlay();
+            mus = 1;
+        }
     } else {
-        setTexScrollCntf -= 0.5f;
+        mus = 0;
     }
 
-    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
+    sceVu0FVECTOR camera_position;
+    sceVu0FVECTOR shogun_position;
 
-    CTexture *plate = TexManager.GetTexture("i01t06", -1);
-    CTexture *strip = TexManager.GetTexture("i01t06a", -1);
+    sceVu0CopyVector(shogun_position, Chara__3[3].pos);
+    OP_MainCamera.GetPos(camera_position);
+
+    if (CScript__2.obj[3].motion == 1) {
+        int        motion_frame = static_cast<int>(Chara__3[3].motion_type.state.time);
+        static int wait = 0;
+
+        if (wait == 0) {
+            if (motion_frame > 38 && motion_frame < 40) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 28);
+                wait = 10;
+            } else if (motion_frame > 48 && motion_frame < 50) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 29);
+                wait = 10;
+            }
+        } else {
+            wait--;
+        }
+    }
+
+    if (CScript__2.obj[3].motion == 4) {
+        int        motion_frame = static_cast<int>(Chara__3[3].motion_type.state.time);
+        static int wait = 0;
+
+        if (wait == 0) {
+            if (motion_frame > 98 && motion_frame < 100) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 28);
+                wait = 10;
+            } else if (motion_frame > 108 && motion_frame < 110) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 29);
+                wait = 10;
+            }
+        } else {
+            wait--;
+        }
+    }
+
+    if (CScript__2.obj[3].motion == 10) {
+        int        motion_frame = static_cast<int>(Chara__3[3].motion_type.state.time);
+        static int wait = 0;
+
+        if (wait == 0) {
+            if (motion_frame > 228 && motion_frame < 230) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 28);
+                wait = 10;
+            } else if (motion_frame > 238 && motion_frame < 240) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 29);
+                wait = 10;
+            }
+        } else {
+            wait--;
+        }
+    }
+
+    if (CScript__2.obj[2].motion == 14) {
+        int        motion_frame = static_cast<int>(Chara__3[2].motion_type.state.time);
+        static int wait = 0;
+
+        if (wait == 0) {
+            if (motion_frame > 295 && motion_frame < 297) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 28);
+                wait = 5;
+            } else if (motion_frame > 298 && motion_frame < 300) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 29);
+                wait = 5;
+            } else if (motion_frame > 301 && motion_frame < 303) {
+                OpPlayVolPanSE(shogun_position, 100.0f, 500.0f, MIDI_PORT_SE_DEFAULT, 21, 28);
+                wait = 5;
+            }
+        } else {
+            wait--;
+        }
+    }
+
+    sceVu0FVECTOR fountain = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    OpSetVolPanSE(fountain, 200.0f, 500.0f, 15, 16, 20);
+
+    static int seflg = 0;
+
+    if (CloudFlag == 1) {
+        if (seflg == 0) {
+            OpPlayVolSE(MIDI_PORT_SE_TITLE, 16, 28, 0.8f);
+            seflg = 1;
+        } else if (CScript__2.camera_start != 44) {
+            sceVu0FVECTOR wind = {0.0f, 50.0f, 0.0f, 0.0f};
+
+            OpSetVolPanSE(wind, 100.0f, 400.0f, 15, 16, 28);
+        }
+    } else {
+        seflg = 0;
+    }
+
+    {
+        static int flg = 0;
+
+        if (CScript__2.camera_start == 44 && Cam__2[SceneNp__2].motion_type.state.time > 249.0) {
+            if (flg == 0) {
+                while (ReadBGSync()) {
+                }
+
+                LoadFileBG("opdat/dungeon/o1bbgm.snd", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+                flg = 1;
+            }
+        } else {
+            flg = 0;
+        }
+    }
+
+    {
+        static int flg = 0;
+
+        if (CScript__2.camera_start == 14) {
+            if (flg == 0) {
+                CSnd.Stop(MIDI_PORT_BGM);
+                CSnd.SetReverb(0, 4, 50);
+                CSnd.LoadSoundFileFromPack("o01b.txt", read_buffer);
+                OpBgmSqPort = 0;
+                OpBgmPlay();
+                flg = 1;
+            }
+        } else {
+            flg = 0;
+        }
+    }
+}
+
+namespace {
+
+// Copies one frame's worth of a texture strip over its plate, moving the seam down half a row a tick.
+void ScrollTexture(char *plate_name, char *strip_name, float &scroll) {
+    if (scroll <= 0.0f) {
+        scroll = 126.0f;
+    } else {
+        scroll -= 0.5f;
+    }
+
+    const int seam = static_cast<int>(scroll);
+
+    CTexture *plate = TexManager.GetTexture(plate_name, -1);
+    CTexture *strip = TexManager.GetTexture(strip_name, -1);
 
     if (plate == nullptr || strip == nullptr) {
         return;
     }
 
-    int dbp = plate->tex0 & 0x3fff;
-    int sbp = strip->tex0 & 0x3fff;
-    int dbw = (plate->tex0 >> 14) & 0x3f;
-    int sbw = (strip->tex0 >> 14) & 0x3f;
+    const int dbp = plate->tex0 & 0x3fff;
+    const int sbp = strip->tex0 & 0x3fff;
+    const int dbw = (plate->tex0 >> 14) & 0x3f;
+    const int sbw = (strip->tex0 >> 14) & 0x3f;
 
-    if (setTexScrollCnt != 128) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, setTexScrollCnt, 128, 128 - setTexScrollCnt), dbp, dbw, 0, 0, 0, 0);
+    if (seam != 128) {
+        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, seam, 128, 128 - seam), dbp, dbw, 0, 0, 0, 0);
     }
 
-    if (setTexScrollCnt != 0) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, setTexScrollCnt), dbp, dbw, 0, 0, 128 - setTexScrollCnt, 0);
+    if (seam != 0) {
+        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, seam), dbp, dbw, 0, 0, 128 - seam, 0);
     }
+}
+
+/**
+ * The waterfall behind the square. Its animation is a strip of frames in a texture of its own and
+ * the plate the world draws is another, so a tick is two local-to-local transfers that between them
+ * put one frame's worth of the strip over the plate with the seam moving down it.
+ */
+void setTexScroll() {
+    static float scroll = 0.0f;
+
+    ScrollTexture("i01t06", "i01t06a", scroll);
 }
 
 /**
  * The sky's own scroll, which is the same two transfers over the cloud plate.
  */
 void setCloudTexScroll() {
-    static int   setTexScrollCnt = 0;
-    static float setTexScrollCntf = 0.0f;
+    static float scroll = 0.0f;
 
-    sceGifTag giftag = {0, 1, 0, 0, 0, 0, 1, SCE_GIF_PACKED_AD};
-
-    sceVif1PkCnt(Vif1Packet, 0);
-    sceVif1PkOpenDirectCode(Vif1Packet, 0);
-    sceVif1PkOpenGifTag(Vif1Packet, *reinterpret_cast<u_long128 *>(&giftag));
-    sceVif1PkAddGsAD(Vif1Packet, SCE_GS_TEXFLUSH, 0);
-    sceVif1PkCloseGifTag(Vif1Packet);
-    sceVif1PkCloseDirectCode(Vif1Packet);
-    sceVif1PkTerminate(Vif1Packet);
-
-    if (setTexScrollCntf <= 0.0f) {
-        setTexScrollCntf = 126.0f;
-    } else {
-        setTexScrollCntf -= 0.5f;
-    }
-
-    setTexScrollCnt = static_cast<int>(setTexScrollCntf);
-
-    CTexture *plate = TexManager.GetTexture("cloud", -1);
-    CTexture *strip = TexManager.GetTexture("cloudan", -1);
-
-    if (plate == nullptr || strip == nullptr) {
-        return;
-    }
-
-    int dbp = plate->tex0 & 0x3fff;
-    int sbp = strip->tex0 & 0x3fff;
-    int dbw = (plate->tex0 >> 14) & 0x3f;
-    int sbw = (strip->tex0 >> 14) & 0x3f;
-
-    if (setTexScrollCnt != 128) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, setTexScrollCnt, 128, 128 - setTexScrollCnt), dbp, dbw, 0, 0, 0, 0);
-    }
-
-    if (setTexScrollCnt != 0) {
-        MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, 0, 128, setTexScrollCnt), dbp, dbw, 0, 0, 128 - setTexScrollCnt, 0);
-    }
+    ScrollTexture("cloud", "cloudan", scroll);
 }
 } // namespace
+
+/* The tick's motion. The projection is re-set first because the camera passes through the scenery
+   in some of the shots and the near plane has to move with it; the camera is then shaken by a
+   random tenth of a unit on each axis for the shots that want it. After that every actor takes what
+   the script last asked of it, and the ones the camera's own frame tree carries take their place
+   from it instead. */
+void OpA_MotionProcess() {
+    switch (CScript__2.camera_start) {
+        case 2:
+        case 3:
+        case 15:
+        case 37:
+            MGSetRenderInfo(mgRenderInfo.scale[0], 10.0f, 0xffff);
+            break;
+        case 0:
+        case 39:
+            MGSetRenderInfo(mgRenderInfo.scale[0], 16.0f, 0xffff);
+            break;
+        case 40:
+        case 41:
+        case 42:
+        case 48:
+            MGSetRenderInfo(mgRenderInfo.scale[0], 18.0f, 0xffff);
+            break;
+        default:
+            MGSetRenderInfo(mgRenderInfo.scale[0], 6.0f, 0xffff);
+            break;
+    }
+
+    bool       shake = false;
+    static int d;
+
+    switch (CScript__2.camera_start) {
+        case 15:
+            shake = true;
+            d = 3;
+            break;
+        case 14:
+        case 16:
+        case 17:
+            shake = true;
+            d = 10;
+            break;
+        case 18:
+            if (Cam__2[SceneNp__2].motion_type.state.time < 56.0f) {
+                shake = true;
+                d = 15;
+            }
+
+            break;
+        case 44:
+            if (CloudFlag == 1) {
+                shake = true;
+                d = 5;
+            }
+
+            break;
+        default:
+            break;
+    }
+
+    if (shake) {
+        sceVu0FVECTOR reference;
+
+        OP_MainCamera.GetRef(reference);
+        reference[0] += static_cast<float>(rand() % d) / 10.0f;
+        reference[1] += static_cast<float>(rand() % d) / 10.0f;
+        reference[2] += static_cast<float>(rand() % d) / 10.0f;
+        OP_MainCamera.SetRef(reference);
+    }
+
+    for (int i = 0; i < OP_AnimeSeqRot; i++) {
+        ObjAnimePlay(&OP_AnimeSeq[i]);
+    }
+
+    for (int i = 0; i < 6; i++) {
+        if (CScript__2.obj[i].disp) {
+            if (CScript__2.obj[i].motion_end != -1 && Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
+                CScript__2.obj[i].motion_end = -1;
+            }
+
+            Chara__3[i].motion_type.state.blend_step = CScript__2.obj[i].step;
+
+            if (CScript__2.obj[i].step == 1.0f) {
+                if (CScript__2.obj[i].motion != Chara__3[i].motion_no) {
+                    Chara__3[i].motion_type.state.time = static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].start);
+                    Chara__3[i].motion_no = CScript__2.obj[i].motion;
+                    Chara__3[i].motion_flags = 4;
+                    Chara__3[i].motion_speed = -1.0f;
+                } else {
+                    Chara__3[i].motion_no = CScript__2.obj[i].motion;
+                    Chara__3[i].motion_flags = 0;
+                    Chara__3[i].motion_speed = -1.0f;
+                }
+            } else {
+                Chara__3[i].motion_no = CScript__2.obj[i].motion;
+                Chara__3[i].motion_flags = 0;
+                Chara__3[i].motion_speed = -1.0f;
+            }
+        }
+    }
+
+    if (CScript__2.obj[6].disp) {
+        LoadMotionData();
+    }
+
+    char         *frame_names[23] = {"c07a", "c08a", "c11a", "c09a", "c08a", "c08c", "p19a", "p17a", nullptr, nullptr, nullptr, nullptr,
+                                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    sceVu0FMATRIX matrix;
+
+    for (int i = 0; i < 8; i++) {
+        if (CScript__2.obj[i].disp && CScript__2.obj[i].move_req) {
+            CFrame *frame = Cam__2[SceneNp__2].frame->SearchFrame(frame_names[i]);
+
+            if (frame) {
+                frame->GetLWMatrix(matrix);
+
+                if (i == 6) {
+                    Chara__3[i].SetRotation(0.0f, static_cast<float>(atan2f(matrix[2][0], matrix[2][2]) + PI_D), 0.0f);
+                } else if (i == 5) {
+                    float tilt = atan2f(-matrix[2][1], matrix[2][2]);
+
+                    if (tilt > 3.14f) {
+                        tilt -= 6.28f;
+                    }
+
+                    if (tilt < -3.14f) {
+                        tilt += 6.28f;
+                    }
+
+                    Chara__3[i].SetRotation(tilt, atan2f(matrix[2][0], matrix[2][2]), 0.0f);
+                } else {
+                    Chara__3[i].SetRotation(0.0f, atan2f(matrix[2][0], matrix[2][2]), 0.0f);
+                }
+
+                if (i == 2 && CScript__2.camera_start == 36) {
+                    static float f;
+
+                    if (Chara__3[i].motion_type.state.time > 345 && Chara__3[i].motion_type.state.time < 350.0f) {
+                        f = 1.5f;
+                    } else if (Chara__3[i].motion_type.state.time >= 350.0f) {
+                        if (f > 0.0f) {
+                            f -= 0.1f;
+                        }
+                    } else {
+                        f = 0.0f;
+                    }
+
+                    float x = matrix[3][0];
+                    float y = matrix[3][1] - f;
+                    float z = matrix[3][2];
+
+                    Chara__3[i].SetPosition(x, y, z);
+                } else {
+                    float x = matrix[3][0];
+                    float y = matrix[3][1];
+                    float z = matrix[3][2];
+
+                    Chara__3[i].SetPosition(x, y, z);
+                }
+            }
+        }
+    }
+
+    if (CScript__2.obj[6].disp) {
+        MoveDancers();
+    }
+
+    for (int i = 0; i < 23; i++) {
+        if (CScript__2.obj[i].load != -1) {
+            LoadCharaData(CScript__2.obj[i].load, i);
+        }
+    }
+}

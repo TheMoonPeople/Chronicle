@@ -18,6 +18,12 @@ void *operator new(std::size_t size, u_long128 *block);
 void *operator new[](std::size_t size, u_long128 *block);
 
 /**
+ * Backs the placement operators: returns block, first growing it to size bytes when it is still the
+ * last run a CDataAlloc2<1> handed out, so nothing allocated afterwards lies under the object's tail.
+ */
+void *PlaceDataAllocObject(std::size_t size, u_long128 *block);
+
+/**
  * Allocates sixteen-byte units from an externally supplied buffer.
  */
 template <int Kind>

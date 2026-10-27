@@ -9,18 +9,23 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <numbers>
+#include <memory>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "effectmacro.hpp"
+#include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
+#include "map.hpp"
+#include "mapobject.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
+#include "nowload.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
@@ -30,7 +35,7 @@
 #include "title/sprite.hpp"
 
 /**
- * Rectangle every 2D draw takes; declared here because rect.h's constructor takes its fields in another order.
+ * Screen or texel rectangle taken by the title overlay's 2D draws, built as left, top, width, height.
  */
 template <class T>
 class CRect {
@@ -46,7 +51,8 @@ public:
 };
 
 /**
- * One piece of scenery a scene lays out: its model file, position and turn about the vertical axis.
+ * One piece of scenery the third scene lays out: model file, position and turn about the vertical
+ * axis in degrees.
  */
 struct MAP_INFO {
     char *name;        /**< Name of the model file in the scene's pack. */
@@ -54,154 +60,109 @@ struct MAP_INFO {
     float rotation;    /**< Turn about the vertical axis, in degrees. */
 };
 
-/**
- * Rectangle DrawObjectVibe takes by value.
- */
-struct RECT {
-    int x; /**< Left edge. */
-    int y; /**< Top edge. */
-    int w; /**< Width. */
-    int h; /**< Height. */
-};
-
 #include "gamemode.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "mglib.hpp"
+#include "objanime.hpp"
 #include "object.hpp"
+#include "rect.hpp"
+#include "runeffect.hpp"
 #include "texture.hpp"
 #include "title/dispfade.hpp"
 #include "title/op_a.hpp"
 #include "title/op_b.hpp"
+#include "title/op_c.hpp"
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/script.hpp"
 #include "title/title.hpp"
+#include "title/title_draw.hpp"
 #include "title/titleloop.hpp"
 #include "vutext.hpp"
 #include "water.hpp"
 #include "wind.hpp"
 
-class OBJ_ANIME_SEQ {
-public:
-    char          name[16];  /**< Name of the frame the animation drives. */
-    int           anim_type; /**< What is animated: rotation, position, scale or colour. */
-    int           play_mode; /**< How the value runs between its two ends. */
-    char          unk_18[8];
-    sceVu0FVECTOR start_value; /**< Value the animation starts from. */
-    sceVu0FVECTOR end_value;   /**< Value the animation runs to. */
-    float         step_x;      /**< Amount added to the first component each step. */
-    float         step_y;      /**< Amount added to the second component each step. */
-    float         step_z;      /**< Amount added to the third component each step. */
-    char          unk_4C[60];
+// String literals are passed to the game APIs as char *.
+#pragma clang diagnostic ignored "-Wwritable-strings"
 
-    void Initialize();
-};
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, int width,
+                 int height, float angle);
 
-// The world classes below are other units' types; only the members this file touches are named,
-// padded to the sizes the objects have.
+// The title units declare their own rectangle template where every other unit takes CRect_i_.
+// MWCC mangled both the same, so retail linked the title's calls to the shared definitions; clang
+// mangles CRect<int> apart, so these give the title's spelling a body (clothread.cpp has MoveImageTest's).
+namespace {
 
-/**
- * Frame parented to an object, which lets the world transform drive a model.
- */
-class CObjectFrame : public CObject {
-public:
-    CFrameVu1 *frame[4];         /**< Frame of each level of detail; zero where the object has none. */
-    s32        rotation_changed; /**< Set whenever the angle, its motion or the moment changes. */
-    s32        draw_on;          /**< 1 while the object draws; 0 leaves it out of the scene. */
+CRect_i_ Rect(const CRect<int> &rect) { return CRect_i_(rect.x, rect.y, rect.w, rect.h); }
 
-    virtual void FrameObjectOnOff(char *name, int on);
-    virtual void Draw();
+} // namespace
 
-    void SetFrame(CFrameVu1 *frame, int level);
-};
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &screen, const CRect<int> &texel,
+                 u_char alpha) {
+    set2DSprite(packet, texture, Rect(screen), Rect(texel), alpha);
+}
 
-/**
- * One piece of scenery, driven through the object dispatch like anything else in the world.
- */
-class CMapObject : public CObjectFrame {
-public:
-    CFrameVu1 *collision_frame; /**< Frame that collision reads; zero where the object has none. */
-    CFrameVu1 *unk_D4;
-    CFrameVu1 *shade_frame;  /**< Frame that the shade draws from; zero where the object takes none. */
-    CFrameVu1 *camera_frame; /**< Collision frame the camera reads; zero where the object has none. */
-    float      unk_E0;
-    int        category_no; /**< Category the map filed the object under. */
-    int        handle;      /**< Handle the map gave the object. */
-    char       unk_EC[4];
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &screen, const CRect<int> &texel,
+                 u_char red, u_char green, u_char blue, u_char alpha) {
+    set2DSprite(packet, texture, Rect(screen), Rect(texel), red, green, blue, alpha);
+}
 
-    CMapObject();
+void MGMoveImage(sceGsTex0 *src, const CRect<int> &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {
+    MGMoveImage(src, Rect(rect), dst, dst_x, dst_y, direction);
+}
 
-    void Draw() override;
+void MGFillBox(const CRect<int> &rect, u_char r, u_char g, u_char b, u_char a) { MGFillBox(Rect(rect), r, g, b, a); }
 
-    void Initialize();
-    void DrawShadow(int fast);
-};
+namespace {
+void InitProcA();
+void InitProcB();
+void AtraLight();
+void InitProcC();
+void InitProcD();
+void InitProcE();
+void InitProcF();
+void InitProcG();
+void InitProcH();
+void InitProcI();
+void InitProcTitle();
 
-/**
- * Dust the running feet kick up.
- */
-class CRunEffect {
-public:
-    char unk_00[208];
+void SetFirePosition(CFireOmni &fire, float x, float y, float z) {
+    fire.pos[0] = 10.0f * x;
+    fire.pos[1] = 10.0f * y;
+    fire.pos[2] = 10.0f * z;
+    fire.pos[3] = 1.0f;
+}
 
-    CRunEffect();
-
-    void Lighting(int enabled);
-    void Set(float *origin);
-    void Step();
-    void Draw();
-};
-
-class CTexture;
-
-/**
- * The movie's one fire, which is a light rather than a model.
- */
-class CFireOmni {
-public:
-    char          unk_18[32];
-    sceVu0FVECTOR position;    /**< World position the fire draws at. */
-    s32           texture_set; /**< Indicates that the textures were supplied rather than looked up. */
-    CTexture     *core;        /**< Bright inner texture of the flame. */
-    CTexture     *glow;        /**< Soft outer texture of the flame. */
-    s32           unk_3C;
-
-    CFireOmni();
-
-    void FireStep();
-    void FireCreate();
-
-    void SetPosition(float x, float y, float z) {
-        position[0] = 10.0f * x;
-        position[1] = 10.0f * y;
-        position[2] = 10.0f * z;
-        position[3] = 1.0f;
+void LoadStartImage(LOADTEXTURE_INFO2 &entry) {
+#ifdef PAL
+    switch (LanguageCode) {
+        case LANG_JAPANESE:
+        case LANG_ENGLISH_US:
+        case LANG_ENGLISH_UK:
+            entry.name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
+            break;
+        case LANG_FRENCH:
+            entry.name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_f.img", nullptr));
+            break;
+        case LANG_GERMAN:
+            entry.name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_g.img", nullptr));
+            break;
+        case LANG_ITALIAN:
+            entry.name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_i.img", nullptr));
+            break;
+        case LANG_SPANISH:
+            entry.name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start_s.img", nullptr));
+            break;
+        default:
+            break;
     }
-
-    void DrawFire(int unused0, int unused1, CCamera *camera, float *eye, float scale, int layers, float camera_offset);
-};
-
-/**
- * Run of frames the world draws as one.
- */
-class CMap {
-public:
-    char unk_00[2800];
-
-    void        Initialize();
-    CMapObject *SetObject(CFrameVu1 *frame, int category_no, int handle);
-    CMapObject *SetObject(int index, CFrameVu1 *frame, int category_no, int handle);
-    CMapObject *GetObject(int index);
-    void        Draw();
-};
-
-void wait_now_loading_vsync();
-void ObjAnimePlay(OBJ_ANIME_SEQ *sequence);
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char alpha);
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, int width, int height, float angle);
-void DepthOfField(float *dist, int level, int alpha, int blur);
+#else
+    entry.name = reinterpret_cast<char *>(GetPackFile(read_buffer, "start.img", nullptr));
+#endif
+}
+} // namespace
 
 CCamera       Camera(4.0f);
 CCameraFollow FCamera(60.0f, 20.0f, 0.0f, 4.0f);
@@ -209,44 +170,97 @@ CCharacter    Cloud__2;
 CCharacter    Logo;
 CCharacter    Spark[9];
 
-CFrame        *ObjectFrame3;
-class CProcess CProcess;
-CScFader       CFade;
+void DataLoad() {
+    if (CScript.load_no != RUSH_SCENE_NONE) {
+        while (ReadBGSync()) {
+        }
+    }
 
-class CSprite CSprite;
-class CLogo   CLogo;
-class CCursol CCursol;
+    switch (CScript.load_no) {
+        case RUSH_SCENE_A: {
+            void *buffer = read_buffer;
+            LoadFile("rmdat/rmdat1.pak", buffer, nullptr);
+            break;
+        }
+        case RUSH_SCENE_B:
+            LoadFileBG("rmdat/rmdat2.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_C:
+            LoadFileBG("rmdat/rmdat3.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_D:
+            LoadFileBG("rmdat/rmdat4.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_E:
+            LoadFileBG("rmdat/rmdat5.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_F:
+            LoadFileBG("rmdat/rmdat6.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_G:
+            LoadFileBG("rmdat/rmdat7.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_H:
+            LoadFileBG("rmdat/rmdat8.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_I:
+            LoadFileBG("rmdat/rmdat9.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        case RUSH_SCENE_TITLE:
+            LoadFileBG("rmdat/title.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+            break;
+        default:
+            break;
+    }
+
+    CScript.load_no = RUSH_SCENE_NONE;
+
+    if (CScript.init_no != RUSH_SCENE_NONE) {
+        while (ReadBGSync()) {
+        }
+
+        StartReadBG();
+    }
+
+    switch (CScript.init_no) {
+        case RUSH_SCENE_A:
+            InitProcA();
+            break;
+        case RUSH_SCENE_B:
+            InitProcB();
+            break;
+        case RUSH_SCENE_C:
+            InitProcC();
+            break;
+        case RUSH_SCENE_D:
+            InitProcD();
+            break;
+        case RUSH_SCENE_E:
+            InitProcE();
+            break;
+        case RUSH_SCENE_F:
+            InitProcF();
+            break;
+        case RUSH_SCENE_G:
+            InitProcG();
+            break;
+        case RUSH_SCENE_H:
+            InitProcH();
+            break;
+        case RUSH_SCENE_I:
+            InitProcI();
+            break;
+        case RUSH_SCENE_TITLE:
+            InitProcTitle();
+            break;
+        default:
+            break;
+    }
+
+    CScript.init_no = RUSH_SCENE_NONE;
+}
 
 namespace {
-
-float TitleCameraWork[4];
-
-char *StartImageName() {
-    switch (LanguageCode) {
-        case LANG_JAPANESE:
-        case LANG_ENGLISH_US:
-        case LANG_ENGLISH_UK:
-            return "start.img";
-        case LANG_FRENCH:
-            return "start_f.img";
-        case LANG_GERMAN:
-            return "start_g.img";
-        case LANG_ITALIAN:
-            return "start_i.img";
-        case LANG_SPANISH:
-            return "start_s.img";
-        default:
-            return nullptr;
-    }
-}
-
-// Leaves the entry untouched for a language with no start image.
-void LoadStartImage(LOADTEXTURE_INFO2 &texture) {
-    if (char *name = StartImageName()) {
-        texture.name = reinterpret_cast<char *>(GetPackFile(read_buffer, name, nullptr));
-    }
-}
-
 void InitProcA() {
     wait_now_loading_vsync();
 
@@ -266,7 +280,6 @@ void InitProcA() {
     };
 
     LoadStartImage(textures[2]);
-
     textures[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "effect.img", nullptr));
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c12a01.img", nullptr));
@@ -309,7 +322,7 @@ void InitProcA() {
 
     Chara__3[2].motion_type.state.time = 10.0f;
     Chara__3[3].motion_type.state.time = 10.0f;
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     Chara__3[1].FootSoundEnable(0);
 
     for (int j = 4; j < 9; j++) {
@@ -417,6 +430,167 @@ void InitProcA() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcA() {
+    sceVu0FMATRIX flash = {
+        {100.0f, 80.0f, 60.0f, 0.0f},
+        {90.0f,  90.0f, 50.0f, 0.0f},
+        {0.0f,   0.0f,  0.0f,  0.0f},
+        {0.0f,   0.0f,  0.0f,  0.0f}
+    };
+    sceVu0FMATRIX scene_color;
+    sceVu0FMATRIX chara_color;
+
+    sceVu0CopyMatrix(scene_color, lightcolor);
+    sceVu0CopyMatrix(chara_color, flash);
+
+    static int lightning = 0;
+    static int flash_level = 0;
+
+    if (rand() % 127 == 0) {
+        flash_level = 254;
+        lightning = 4;
+
+        int thunder_se = rand() % 6;
+
+        if (thunder_se < 6) {
+            SndSePlay(thunder_se + 67, -1, 0);
+        }
+    }
+
+    if (CScript.camera_start == 0 && Cam[SceneNp].motion_type.state.time > 20.0f && !StartLightning) {
+        StartLightning = 1;
+        flash_level = 254;
+        lightning = 4;
+        SndSePlay(SE_THUNDER_CLAP, -1, 0);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        if (lightcolor[i][0] < static_cast<float>(flash_level)) {
+            scene_color[i][0] = static_cast<float>(flash_level);
+        }
+
+        if (lightcolor[i][1] < static_cast<float>(flash_level)) {
+            scene_color[i][1] = static_cast<float>(flash_level);
+        }
+
+        if (lightcolor[i][2] < static_cast<float>(flash_level)) {
+            scene_color[i][2] = static_cast<float>(flash_level);
+        }
+
+        if (flash[i][0] < static_cast<float>(flash_level)) {
+            chara_color[i][0] = static_cast<float>(flash_level);
+        }
+
+        if (flash[i][1] < static_cast<float>(flash_level)) {
+            chara_color[i][1] = static_cast<float>(flash_level);
+        }
+
+        if (flash[i][2] < static_cast<float>(flash_level)) {
+            chara_color[i][2] = static_cast<float>(flash_level);
+        }
+
+        if (flash_level > 2) {
+            flash_level -= 2;
+        }
+    }
+
+    if (CScript.camera_start == 2) {
+        Chara__3[6].SetScale(2.0f, 2.0f, 2.0f);
+        Chara__3[8].SetScale(2.0f, 2.0f, 2.0f);
+    }
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            MGSetPLight(light, chara_color);
+            Chara__3[i].Draw();
+        }
+    }
+
+    MGSetPLight(light, scene_color);
+    TexManager.ReloadTexture(Vif1Packet, 10);
+
+    CMapObject   *object = OP_GroundMap.GetObject(0);
+    sceVu0FVECTOR camera_position;
+
+    MainCamera__3.GetPos(camera_position);
+    object->SetPosition(camera_position);
+
+    if (lightning) {
+        object->FrameObjectOnOff("inazuma", 1);
+    } else {
+        object->FrameObjectOnOff("inazuma", 0);
+        OP_AnimeSeq[OP_AnimeSeqRot - 1].step[0] = static_cast<float>(rand() % 10) / 10.0f;
+        ObjAnimePlay(&OP_AnimeSeq[OP_AnimeSeqRot - 1]);
+    }
+
+    if (lightning > 0) {
+        lightning--;
+    }
+
+    sceVu0FVECTOR ambient = {90.0f, 90.0f, 90.0f, 128.0f};
+
+    MGSetAmbient(ambient);
+
+    sceGsAlpha alpha = mgAlpha;
+
+    alpha.bits.a = 0;
+    alpha.bits.b = 2;
+    alpha.bits.c = 0;
+    alpha.bits.d = 1;
+    setAlphaFlag(Vif1Packet, &alpha);
+    object->Draw();
+    MGSetAmbient(ambientlight);
+    setAlphaFlag(Vif1Packet, &mgAlpha);
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_BuildingMap.Draw();
+    TexManager.ReloadTexture(GetVif1Packet(), 0);
+
+    sceVu0FVECTOR eye;
+
+    OP_CharaFrame = Cam[SceneNp].frame;
+    sceVu0CopyVector(eye, OP_CharaFrame->position);
+
+    CFire__4.FireStep();
+    CFire__4.FireCreate();
+
+    for (int i = 0; i < OP_FireList; i++) {
+        float z = OP_FirePosition[i][2];
+        float y = OP_FirePosition[i][1];
+        float x = OP_FirePosition[i][0];
+
+        CFire__4.pos[0] = 10.0f * x;
+        CFire__4.pos[1] = 10.0f * y;
+        CFire__4.pos[2] = 10.0f * z;
+        CFire__4.pos[3] = 1.0f;
+
+        CFire__4.DrawFire(1, 1, &MainCamera__3, eye, OP_FireScale[i], 15, 15.0f);
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[3] = {1000.0f, 2000.0f, 3000.0f};
+
+    DepthOfField(dof, 3, 32, 0);
+}
+
+CFrame        *ObjectFrame3;
+class CProcess CProcess;
+CScFader       CFade;
+
+class CSprite CSprite;
+class CLogo   CLogo;
+class CCursol CCursol;
+
+namespace {
+float TitleCameraWork[4];
+} // namespace
+
+namespace {
 void InitProcB() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -436,7 +610,6 @@ void InitProcB() {
     };
 
     LoadStartImage(textures[4]);
-
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "effect.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d01m01.img", nullptr));
     textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
@@ -483,7 +656,7 @@ void InitProcB() {
 
     Chara__3[1].motion_type.state.time = 10.0f;
     Chara__3[2].motion_type.state.time = 30.0f;
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     Chara__3[7].LoadPackData(read_buffer, "rm04ex.cfg", &CharaDataBuffer, nullptr);
     Chara__3[8].LoadPackData(read_buffer, "c01w03.cfg", &CharaDataBuffer, nullptr);
 
@@ -544,6 +717,97 @@ void InitProcB() {
     Water__2.SetColor(100, 110, 120, 128);
 }
 
+} // namespace
+
+void DrawProcB() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    OP_BuildingMap.Draw();
+
+    WaterProcess();
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            sceVu0FMATRIX save_light;
+            sceVu0FMATRIX save_lightcolor;
+
+            sceVu0CopyMatrix(save_light, light);
+            sceVu0CopyMatrix(save_lightcolor, lightcolor);
+
+            if (i == 0 && CScript.camera_start == 6) {
+                AtraLight();
+            }
+
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].TextureAnime(CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+
+            sceVu0CopyMatrix(light, save_light);
+            sceVu0CopyMatrix(lightcolor, save_lightcolor);
+            MGSetPLight(light, lightcolor);
+        }
+    }
+
+    TexManager.ReloadTexture(GetVif1Packet(), 0);
+
+    if (CScript.camera_start == 4) {
+        sceVu0FVECTOR position;
+
+        sceVu0CopyVector(position, Chara__3[0].frame->position);
+        CRunFx.Lighting(1);
+
+        int frame = static_cast<int>(Chara__3[0].motion_type.state.time);
+
+        if ((frame >= 73 && frame < 74) || (frame >= 83 && frame < 84)) {
+            CRunFx.Set(position);
+        }
+
+        CRunFx.Step();
+        CRunFx.Draw();
+    }
+
+    sceVu0FVECTOR eye;
+
+    OP_CharaFrame = Cam[SceneNp].frame;
+    sceVu0CopyVector(eye, OP_CharaFrame->position);
+
+    CFire__4.FireStep();
+    CFire__4.FireCreate();
+
+    for (int i = 0; i < OP_FireList; i++) {
+        float z = OP_FirePosition[i][2] / 10.0f;
+        float y = OP_FirePosition[i][1] / 10.0f;
+        float x = OP_FirePosition[i][0] / 10.0f;
+
+        SetFirePosition(CFire__4, x, y, z);
+
+        CFire__4.DrawFire(1, 1, &MainCamera__3, eye, OP_FireScale[i], 3, 15.0f);
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void AtraLight() {
     if (Chara__3[2].motion_type.state.time >= 40.0f) {
         CFrame *frame = Chara__3[2].frame->SearchFrame("light01");
@@ -568,9 +832,7 @@ void AtraLight() {
             dir[1] = world[1] - eye[1] - 12.0f;
             dir[2] = world[2] - eye[2];
 
-            float len = sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
-
-            len = std::max(len, 10.0f);
+            float len = std::max(sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]), 10.0f);
 
             float power = 5.0f * (100.0f / (len * len));
 
@@ -613,7 +875,6 @@ void InitProcC() {
     };
 
     LoadStartImage(textures[4]);
-
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "effect.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s04b01.img", nullptr));
     textures[7].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s04b02.img", nullptr));
@@ -640,7 +901,7 @@ void InitProcC() {
     Chara__3[0].motion_type.state.motion_no = 0;
     Chara__3[0].motion_type.state.playing_no = 0;
     Chara__3[0].FootSoundEnable(0);
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     Chara__3[8].LoadPackData(read_buffer, "pat.cfg", &CharaDataBuffer, nullptr);
     attr.clip_enable = false;
@@ -684,7 +945,6 @@ void InitProcC() {
     MapDataBuffer.Reset();
 
     CFrameAttr map_attr;
-
     for (int i = 0; i < 26; i++) {
         CFrameVu1 *map = LoadMDSFile(GetPackFile(read_buffer, norn[i].name, nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
@@ -699,7 +959,7 @@ void InitProcC() {
         OP_NornMapObj[i].handle = 0;
         OP_NornMapObj[i].category_no = 0;
         object.SetPosition(CVector3_f_(norn[i].position[0], norn[i].position[1], norn[i].position[2]));
-        object.SetRotation(CVector3_f_(0.0f, static_cast<float>(std::numbers::pi * norn[i].rotation / 180), 0.0f));
+        object.SetRotation(CVector3_f_(0.0f, static_cast<float>(PI_D * norn[i].rotation / 180), 0.0f));
     }
 
     PathDataBuffer.Reset();
@@ -733,6 +993,72 @@ void InitProcC() {
     Water__2.SetColor(128, 128, 128, 128);
 }
 
+} // namespace
+
+void DrawProcC() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+
+    for (int i = 0; i < 26; i++) {
+        CMapObject *object = &OP_NornMapObj[i];
+
+        object->Draw();
+    }
+
+    WaterProcess();
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+        }
+    }
+
+    sceVu0FVECTOR eye;
+
+    TexManager.ReloadTexture(GetVif1Packet(), 0);
+    OP_CharaFrame = Cam[SceneNp].frame;
+    sceVu0CopyVector(eye, OP_CharaFrame->position);
+
+    CFire__4.FireStep();
+    CFire__4.FireCreate();
+
+    for (int i = 0; i < OP_FireList; i++) {
+        float z = OP_FirePosition[i][2] / 10.0f;
+        float y = OP_FirePosition[i][1] / 10.0f;
+        float x = OP_FirePosition[i][0] / 10.0f;
+
+        CFire__4.pos[0] = 10.0f * x;
+        CFire__4.pos[1] = 10.0f * y;
+        CFire__4.pos[2] = 10.0f * z;
+        CFire__4.pos[3] = 1.0f;
+
+        CFire__4.DrawFire(1, 1, &MainCamera__3, eye, OP_FireScale[i], 2, 15.0f);
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void InitProcD() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -748,7 +1074,6 @@ void InitProcD() {
     };
 
     LoadStartImage(textures[3]);
-
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d02i01.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
@@ -791,7 +1116,7 @@ void InitProcD() {
     Chara__3[2].motion_type.state.time = 10.0f;
     Chara__3[8].LoadPackData(read_buffer, "c01w11.cfg", &CharaDataBuffer, nullptr);
     Chara__3[0].TexAnimeOn(2);
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -840,6 +1165,45 @@ void InitProcD() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcD() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    OP_BuildingMap.Draw();
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].TextureAnime(CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+        }
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void InitProcE() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -855,7 +1219,6 @@ void InitProcE() {
     };
 
     LoadStartImage(textures[3]);
-
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s4501.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
@@ -894,7 +1257,7 @@ void InitProcE() {
 
     Chara__3[0].TexAnimeOn(2);
     Chara__3[1].TexAnimeOn(1);
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -937,6 +1300,42 @@ void InitProcE() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcE() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+
+    if (CScript.camera_start == 10 && Cam[SceneNp].motion_type.state.time >= 70.0f) {
+        Chara__3[0].TexAnimeOn(3);
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].TextureAnime(CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+        }
+    }
+}
+
+namespace {
 void InitProcF() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -953,7 +1352,6 @@ void InitProcF() {
     };
 
     LoadStartImage(textures[3]);
-
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d02b01.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c01d01an.img", nullptr));
@@ -998,7 +1396,7 @@ void InitProcF() {
     }
 
     Chara__3[0].TexAnimeOn(4);
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     Chara__3[8].LoadPackData(read_buffer, "c01w01.cfg", &CharaDataBuffer, nullptr);
     Chara__3[0].motion_type.state.time = 150.0f;
     Chara__3[1].motion_type.state.time = 135.0f;
@@ -1054,6 +1452,51 @@ void InitProcF() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcF() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    OP_BuildingMap.Draw();
+
+    if (CScript.obj[5].disp) {
+        TexManager.ReloadTexture(Vif1Packet, CharaTex[5]);
+        Chara__3[5].Step();
+        Chara__3[5].Draw();
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (i != 5 && CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp && i != 5) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].TextureAnime(CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+        }
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void InitProcG() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -1071,7 +1514,6 @@ void InitProcG() {
     };
 
     LoadStartImage(textures[3]);
-
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s4701.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e02s01.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e02s06.img", nullptr));
@@ -1107,9 +1549,9 @@ void InitProcG() {
     Chara__3[0].motion_type.state.time = 10.0f;
     Chara__3[1].motion_type.state.time = 10.0f;
     Chara__3[2].motion_type.state.time = 82.0f;
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
-    Chara__3[1].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
-    Chara__3[2].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
+    Chara__3[1].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
+    Chara__3[2].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -1158,6 +1600,44 @@ void InitProcG() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcG() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    OP_BuildingMap.Draw();
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+        }
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void InitProcH() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -1175,7 +1655,6 @@ void InitProcH() {
     };
 
     LoadStartImage(textures[3]);
-
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fire.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "d01b01.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "c12a01.img", nullptr));
@@ -1229,7 +1708,7 @@ void InitProcH() {
     Chara__3[3].motion_type.state.playing_no = 0;
 
     Chara__3[8].LoadPackData(read_buffer, "c01w01.cfg", &CharaDataBuffer, nullptr);
-    Chara__3[1].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[1].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
 
     OP_FireList = 0;
     OP_AnimeSeqRot = 0;
@@ -1311,6 +1790,73 @@ void InitProcH() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcH() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    OP_BuildingMap.Draw();
+
+    if (CScript.obj[3].disp) {
+        TexManager.ReloadTexture(Vif1Packet, CharaTex[3]);
+        Chara__3[3].Step();
+        Chara__3[3].ClothStep(0);
+        Chara__3[3].Draw();
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 23);
+    CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+
+    for (int i = 0; i < 9; i++) {
+        if (CScript.obj[i].disp) {
+            Chara__3[i].ShadowStep();
+            Chara__3[i].DrawShadow();
+        }
+    }
+
+    MGEndDrawShadow(52);
+
+    for (int i = 0; i < 9; i++) {
+        if (i != 3 && CScript.obj[i].disp) {
+            TexManager.ReloadTexture(Vif1Packet, CharaTex[i]);
+            Chara__3[i].Step();
+            Chara__3[i].ClothStep(0);
+            Chara__3[i].Draw();
+        }
+    }
+
+    sceVu0FVECTOR eye;
+
+    TexManager.ReloadTexture(GetVif1Packet(), 0);
+    OP_CharaFrame = Cam[SceneNp].frame;
+    sceVu0CopyVector(eye, OP_CharaFrame->position);
+
+    CFire__4.FireStep();
+    CFire__4.FireCreate();
+
+    for (int i = 0; i < OP_FireList; i++) {
+        float z = OP_FirePosition[i][2] / 10.0f;
+        float y = OP_FirePosition[i][1] / 10.0f;
+        float x = OP_FirePosition[i][0] / 10.0f;
+
+        CFire__4.pos[0] = 10.0f * x;
+        CFire__4.pos[1] = 10.0f * y;
+        CFire__4.pos[2] = 10.0f * z;
+        CFire__4.pos[3] = 1.0f;
+
+        CFire__4.DrawFire(1, 1, &MainCamera__3, eye, OP_FireScale[i], 3, 15.0f);
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void InitProcI() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -1326,7 +1872,6 @@ void InitProcI() {
     };
 
     LoadStartImage(textures[3]);
-
     textures[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e305ex2.img", nullptr));
     textures[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s1202.img", nullptr));
     textures[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "s2401.img", nullptr));
@@ -1358,7 +1903,7 @@ void InitProcI() {
     }
 
     Chara__3[1].motion_type.state.time = 23.0f;
-    Chara__3[0].wind = static_cast<s32>(reinterpret_cast<intptr_t>(&Wind__4));
+    Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     Chara__3[2].SetScale(20.0f, 20.0f, 20.0f);
 
     OP_FireList = 0;
@@ -1433,6 +1978,64 @@ void InitProcI() {
     OPMdsLoad();
 }
 
+} // namespace
+
+void DrawProcI() {
+    TexManager.ReloadTexture(Vif1Packet, 10);
+    OP_GroundMap.Draw();
+    OP_BuildingMap.Draw();
+
+    if (CScript.camera_start == 18) {
+        OP_BuildingMap2.Draw();
+    }
+
+    if (CScript.obj[1].disp) {
+        TexManager.ReloadTexture(Vif1Packet, CharaTex[1]);
+        Chara__3[1].Step();
+        Chara__3[1].Draw();
+    }
+
+    if (CScript.obj[2].disp) {
+        TexManager.ReloadTexture(Vif1Packet, CharaTex[2]);
+        Chara__3[2].Step();
+        Chara__3[2].Draw();
+    }
+
+    if (CScript.obj[0].disp) {
+        sceVu0FMATRIX save_light;
+        sceVu0FMATRIX save_lightcolor;
+
+        sceVu0CopyMatrix(save_light, light);
+        sceVu0CopyMatrix(save_lightcolor, lightcolor);
+        light[1][0] = 1.3f;
+        MGSetPLight(light, lightcolor);
+
+        TexManager.ReloadTexture(Vif1Packet, 23);
+        CTexture *texture = TexManager.GetTexture("shadow_buff", -1);
+
+        MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&texture->tex0));
+        Chara__3[0].ShadowStep();
+        Chara__3[0].DrawShadow();
+        MGEndDrawShadow(52);
+
+        sceVu0CopyMatrix(light, save_light);
+        sceVu0CopyMatrix(lightcolor, save_lightcolor);
+        MGSetPLight(light, lightcolor);
+
+        TexManager.ReloadTexture(Vif1Packet, CharaTex[0]);
+        Chara__3[0].Step();
+        Chara__3[0].ClothStep(0);
+        Chara__3[0].Draw();
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[2] = {400.0f, 1000.0f};
+
+    DepthOfField(dof, 2, 32, 0);
+}
+
+namespace {
 void InitProcTitle() {
     LOADTEXTURE_INFO2 textures[] = {
         {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4",     .block_no = 0,  .mipmap = 0},
@@ -1447,9 +2050,74 @@ void InitProcTitle() {
     TexManager.LoadTextureBlock(-1, textures);
 }
 
+} // namespace
+
+void DrawProcTitle() {
+    TexManager.ReloadTexture(Vif1Packet, 1);
+
+    TitlePortCard(TexManager.GetTexture("bg01", -1), TitleAngle);
+    TitleAngle -= 0.0005f;
+
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("dc01", -1), CRect<int>(0, 80, 288, 160), CRect<int>(0, 0, 288, 160), 128);
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("dc01", -1), CRect<int>(288, 129, 352, 160), CRect<int>(288, 49, 352, 160), 128);
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("dc01", -1), CRect<int>(0, 366, 640, 48), CRect<int>(0, 208, 640, 48), TitleFade);
+
+    TitleFadeCnt++;
+
+    if (TitleFadeCnt >= 60) {
+        TitleFade = std::min(TitleFade + 1, 128);
+    }
+
+    TexManager.ReloadTexture(Vif1Packet, 22);
+
+    float dof[3] = {1000.0f, 2000.0f, 3000.0f};
+    DepthOfField(dof, 3, 32, 0);
+}
+
+namespace {
+
 void TitleSetCamera([[maybe_unused]] float x, [[maybe_unused]] float y, [[maybe_unused]] float z,
                     [[maybe_unused]] float dist, [[maybe_unused]] float height) {
     TitleCameraWork[0] = 0.0f;
 }
 
 } // namespace
+
+// The title overlay's objects use the host-sized layouts declared here rather than the title units'
+// own. TitleOverlayConstruct rebuilds them the way the overlay loader does: zeroed, then constructed.
+
+namespace {
+
+template <class T>
+void Construct(T &object) {
+    std::memset(static_cast<void *>(&object), 0, sizeof(T));
+    std::construct_at(&object);
+}
+
+} // namespace
+
+extern CFireOmni     CFire;
+extern OBJ_ANIME_SEQ OP_AnimeSeq[32];
+extern CMapObject    OP_NornMapObj[76];
+extern CMapObject    OP_NornMapObj2[87];
+
+void TitleOverlayConstruct() {
+    for (CMap *map : {&OP_GroundMap, &OP_BuildingMap, &OP_BuildingMap2}) {
+        Construct(*map);
+        // map.hpp's CMap constructor leaves initialisation to the caller.
+        map->Initialize();
+    }
+    for (OBJ_ANIME_SEQ &sequence : OP_AnimeSeq) {
+        Construct(sequence);
+    }
+    for (CMapObject &object : OP_NornMapObj) {
+        Construct(object);
+    }
+    for (CMapObject &object : OP_NornMapObj2) {
+        Construct(object);
+    }
+    Construct(CFire);
+    Construct(CFire__4);
+    Construct(Water);
+    Construct(Water__2);
+}

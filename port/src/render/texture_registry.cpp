@@ -8,10 +8,13 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <print>
@@ -719,4 +722,551 @@ bool PortPaletteEntries(unsigned cbp, uint32_t *rgba) {
     }
     std::ranges::copy(*entry->shadow, rgba);
     return true;
+}
+
+namespace {
+
+std::string Sha256Hex(std::string_view input) {
+    constexpr std::array<std::uint32_t, 64> round_constants = {
+        0x428a2f98,
+        0x71374491,
+        0xb5c0fbcf,
+        0xe9b5dba5,
+        0x3956c25b,
+        0x59f111f1,
+        0x923f82a4,
+        0xab1c5ed5,
+        0xd807aa98,
+        0x12835b01,
+        0x243185be,
+        0x550c7dc3,
+        0x72be5d74,
+        0x80deb1fe,
+        0x9bdc06a7,
+        0xc19bf174,
+        0xe49b69c1,
+        0xefbe4786,
+        0x0fc19dc6,
+        0x240ca1cc,
+        0x2de92c6f,
+        0x4a7484aa,
+        0x5cb0a9dc,
+        0x76f988da,
+        0x983e5152,
+        0xa831c66d,
+        0xb00327c8,
+        0xbf597fc7,
+        0xc6e00bf3,
+        0xd5a79147,
+        0x06ca6351,
+        0x14292967,
+        0x27b70a85,
+        0x2e1b2138,
+        0x4d2c6dfc,
+        0x53380d13,
+        0x650a7354,
+        0x766a0abb,
+        0x81c2c92e,
+        0x92722c85,
+        0xa2bfe8a1,
+        0xa81a664b,
+        0xc24b8b70,
+        0xc76c51a3,
+        0xd192e819,
+        0xd6990624,
+        0xf40e3585,
+        0x106aa070,
+        0x19a4c116,
+        0x1e376c08,
+        0x2748774c,
+        0x34b0bcb5,
+        0x391c0cb3,
+        0x4ed8aa4a,
+        0x5b9cca4f,
+        0x682e6ff3,
+        0x748f82ee,
+        0x78a5636f,
+        0x84c87814,
+        0x8cc70208,
+        0x90befffa,
+        0xa4506ceb,
+        0xbef9a3f7,
+        0xc67178f2,
+    };
+    std::array<std::uint32_t, 8> state = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                                          0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+    const auto                   rotate = [](std::uint32_t value, unsigned amount) {
+        return (value >> amount) | (value << (32 - amount));
+    };
+    std::vector<std::uint8_t> bytes(input.begin(), input.end());
+    const std::uint64_t       bit_length = static_cast<std::uint64_t>(bytes.size()) * 8;
+    bytes.push_back(0x80);
+    while (bytes.size() % 64 != 56) {
+        bytes.push_back(0);
+    }
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        bytes.push_back(static_cast<std::uint8_t>(bit_length >> shift));
+    }
+    for (std::size_t block = 0; block < bytes.size(); block += 64) {
+        std::array<std::uint32_t, 64> words{};
+        for (unsigned index = 0; index < 16; index++) {
+            const std::size_t at = block + (static_cast<std::size_t>(index) * 4);
+            words[index] = (static_cast<std::uint32_t>(bytes[at]) << 24) |
+                           (static_cast<std::uint32_t>(bytes[at + 1]) << 16) |
+                           (static_cast<std::uint32_t>(bytes[at + 2]) << 8) | bytes[at + 3];
+        }
+        for (unsigned index = 16; index < 64; index++) {
+            const std::uint32_t s0 = rotate(words[index - 15], 7) ^ rotate(words[index - 15], 18) ^
+                                     (words[index - 15] >> 3);
+            const std::uint32_t s1 = rotate(words[index - 2], 17) ^ rotate(words[index - 2], 19) ^
+                                     (words[index - 2] >> 10);
+            words[index] = words[index - 16] + s0 + words[index - 7] + s1;
+        }
+        std::uint32_t a = state[0];
+        std::uint32_t b = state[1];
+        std::uint32_t c = state[2];
+        std::uint32_t d = state[3];
+        std::uint32_t e = state[4];
+        std::uint32_t f = state[5];
+        std::uint32_t g = state[6];
+        std::uint32_t h = state[7];
+        for (unsigned index = 0; index < 64; index++) {
+            const std::uint32_t s1 = rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25);
+            const std::uint32_t choose = (e & f) ^ (~e & g);
+            const std::uint32_t temp1 = h + s1 + choose + round_constants[index] + words[index];
+            const std::uint32_t s0 = rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22);
+            const std::uint32_t majority = (a & b) ^ (a & c) ^ (b & c);
+            const std::uint32_t temp2 = s0 + majority;
+            h = g;
+            g = f;
+            f = e;
+            e = d + temp1;
+            d = c;
+            c = b;
+            b = a;
+            a = temp1 + temp2;
+        }
+        state[0] += a;
+        state[1] += b;
+        state[2] += c;
+        state[3] += d;
+        state[4] += e;
+        state[5] += f;
+        state[6] += g;
+        state[7] += h;
+    }
+    constexpr char hex_digits[] = "0123456789abcdef";
+    std::string    result;
+    result.reserve(64);
+    for (std::uint32_t word : state) {
+        for (int shift = 28; shift >= 0; shift -= 4) {
+            result.push_back(hex_digits[(word >> shift) & 0xF]);
+        }
+    }
+    return result;
+}
+
+std::string Dc1SourceTag(std::string_view alias) {
+    std::uint64_t hash = 0xcbf29ce484222325ULL;
+    for (unsigned char byte : alias) {
+        hash ^= byte;
+        hash *= 0x100000001b3ULL;
+    }
+    constexpr char hex_digits[] = "0123456789abcdef";
+    std::string    result(16, '0');
+    for (int index = 15; index >= 0; index--) {
+        result[static_cast<std::size_t>(index)] = hex_digits[hash & 0xF];
+        hash >>= 4;
+    }
+    return result;
+}
+
+bool TextureSourceExtension(std::string_view extension) {
+    if (extension == "img" || extension == "tm2" || extension == "im2" || extension == "im3" ||
+        extension == "tim2") {
+        return true;
+    }
+    return std::ranges::any_of(std::array<std::string_view, 2>{"img", "tm2"}, [extension](std::string_view base) {
+        return extension.starts_with(base) && extension.size() > base.size() &&
+               extension.substr(base.size()).find_first_not_of('_') == std::string_view::npos;
+    });
+}
+
+std::string SafeTextureComponent(std::string_view component) {
+    if (component == "." || component == "..") {
+        std::string escaped;
+        for (std::size_t index = 0; index < component.size(); index++) {
+            escaped += "%2E";
+        }
+        return escaped;
+    }
+    constexpr char hex[] = "0123456789ABCDEF";
+    std::string    result;
+    for (unsigned char byte : component) {
+        if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+            (byte >= '0' && byte <= '9') || byte == '.' || byte == '_' || byte == '-') {
+            result.push_back(static_cast<char>(byte));
+        } else {
+            result.push_back('%');
+            result.push_back(hex[byte >> 4]);
+            result.push_back(hex[byte & 0xF]);
+        }
+    }
+    return result;
+}
+
+std::string LegacyTextureDocument(std::string_view key) {
+    std::vector<std::string> raw;
+    for (size_t start = 0; start < key.size();) {
+        const size_t end = key.find('/', start);
+        const size_t stop = end == std::string_view::npos ? key.size() : end;
+        if (stop > start) {
+            raw.emplace_back(key.substr(start, stop - start));
+        }
+        if (end == std::string_view::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    for (size_t index = 0; index < raw.size();) {
+        const size_t offset = raw[index].find("#offset:");
+        if (offset != std::string::npos) {
+            const std::string name = raw[index].substr(0, offset);
+            const std::string value = raw[index].substr(offset + 8);
+            raw[index] = name;
+            raw.insert(raw.begin() + static_cast<std::ptrdiff_t>(index + 1), "embedded-offset-" + value + ".json");
+            continue;
+        }
+        const size_t entry = raw[index].find("#entry:");
+        if (entry != std::string::npos) {
+            const std::string name = raw[index].substr(0, entry);
+            const std::string ordinal = raw[index].substr(entry + 7);
+            const size_t      dot = name.rfind('.');
+            raw[index] = (dot == std::string::npos ? name : name.substr(0, dot)) + "-entry-" + ordinal + ".json";
+        }
+        index++;
+    }
+    if (raw.empty()) {
+        return {};
+    }
+    std::vector<std::string> parts;
+    parts.reserve(raw.size() + 1);
+    for (size_t index = 0; index < raw.size(); index++) {
+        std::string part = SafeTextureComponent(raw[index]);
+        if (index + 1 < raw.size()) {
+            if (part.size() >= 4 && part.substr(part.size() - 4) == ".img") {
+                part.resize(part.size() - 4);
+                part += "-img";
+            }
+        } else {
+            std::string lower = part;
+            std::ranges::transform(lower, lower.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            if (lower.ends_with(".tm2") || lower.ends_with(".img")) {
+                part.resize(part.size() - 4);
+                part += ".json";
+            } else if (!lower.ends_with(".json")) {
+                parts.push_back(std::move(part));
+                parts.emplace_back("embedded.json");
+                continue;
+            }
+        }
+        parts.push_back(std::move(part));
+    }
+    std::string result;
+    for (const std::string &part : parts) {
+        if (!result.empty()) {
+            result.push_back('/');
+        }
+        result += part;
+    }
+    return result;
+}
+
+std::string Dc1TextureDocument(std::string_view alias) {
+    const size_t           slash = alias.rfind('/');
+    const std::string_view leaf = alias.substr(slash == std::string_view::npos ? 0 : slash + 1);
+    const size_t           marker = leaf.find('#');
+    const std::string_view source_name = leaf.substr(0, marker);
+    const size_t           dot = source_name.rfind('.');
+    std::string            extension = dot == std::string_view::npos ? std::string{} : std::string(source_name.substr(dot + 1));
+    std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    std::string path;
+    if (!TextureSourceExtension(extension)) {
+        path = LegacyTextureDocument(alias);
+    } else {
+        std::string projected(alias);
+        if (extension != "img" && extension != "tm2") {
+            const size_t alias_marker = projected.find('#');
+            const size_t source_end = alias_marker == std::string::npos ? projected.size() : alias_marker;
+            const size_t source_dot = projected.rfind('.', source_end);
+            if (source_dot == std::string::npos) {
+                return {};
+            }
+            projected.replace(source_dot, source_end - source_dot, ".img");
+        }
+        path = LegacyTextureDocument(projected);
+        if (path.size() < 5 || path.substr(path.size() - 5) != ".json") {
+            return {};
+        }
+        path.resize(path.size() - 5);
+        path += "_" + extension + ".json";
+    }
+
+    std::vector<std::string> raw;
+    for (size_t start = 0; start < alias.size();) {
+        const size_t end = alias.find('/', start);
+        const size_t stop = end == std::string_view::npos ? alias.size() : end;
+        if (stop > start) {
+            raw.emplace_back(alias.substr(start, stop - start));
+        }
+        if (end == std::string_view::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    std::vector<std::string>   folders;
+    std::optional<std::string> character;
+    bool                       has_container = false;
+    for (size_t index = 0; index < raw.size(); index++) {
+        const std::string_view component(raw[index]);
+        const size_t           mark = component.find('#');
+        const std::string      base(component.substr(0, mark));
+        const size_t           base_dot = base.rfind('.');
+        if (index + 1 < raw.size() && base_dot != std::string::npos) {
+            has_container = true;
+        }
+        if (base == "." || base == "..") {
+            folders.push_back(SafeTextureComponent(base));
+        } else if (base_dot != std::string::npos) {
+            std::string suffix = base.substr(base_dot + 1);
+            std::ranges::transform(suffix, suffix.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            if (suffix == "chr" || suffix == "chr_") {
+                character = SafeTextureComponent(base);
+            }
+        } else if (base != "." && base != ".." && index + 1 < raw.size()) {
+            folders.push_back(SafeTextureComponent(base));
+        }
+    }
+    const size_t path_slash = path.rfind('/');
+    std::string  leaf_path = path.substr(path_slash == std::string::npos ? 0 : path_slash + 1);
+    if (character) {
+        std::string owner = *character;
+        const bool  underscore = owner.size() >= 5 && owner.substr(owner.size() - 5) == ".chr_";
+        owner.resize(owner.size() - (underscore ? 5 : 4));
+        leaf_path = owner + (underscore ? "_" : "") + "-" + leaf_path;
+    }
+    if (has_container && leaf_path.ends_with(".json")) {
+        leaf_path.insert(leaf_path.size() - 5, "-" + Dc1SourceTag(alias));
+    }
+    std::string result = "textures";
+    for (const std::string &folder : folders) {
+        result += "/" + folder;
+    }
+    result += "/" + leaf_path;
+    if (result.size() > 160) {
+        return "textures/long-path-" + Sha256Hex(alias).substr(0, 24) + ".json";
+    }
+    return result;
+}
+
+uint16_t ReadLe16(const std::uint8_t *bytes) {
+    return static_cast<uint16_t>(bytes[0] | (static_cast<uint16_t>(bytes[1]) << 8));
+}
+
+uint32_t ReadLe32(const std::uint8_t *bytes) {
+    return static_cast<uint32_t>(bytes[0]) | (static_cast<uint32_t>(bytes[1]) << 8) |
+           (static_cast<uint32_t>(bytes[2]) << 16) | (static_cast<uint32_t>(bytes[3]) << 24);
+}
+
+std::optional<std::size_t> EmbeddedTextureOffset(const std::vector<std::uint8_t> &bytes, std::size_t container_start,
+                                                 std::size_t container_size, std::size_t image_offset) {
+    if (container_start > bytes.size() || container_size > bytes.size() - container_start ||
+        image_offset < container_start || image_offset - container_start >= container_size) {
+        return std::nullopt;
+    }
+    const std::size_t          container_end = container_start + container_size;
+    std::optional<std::size_t> result;
+    auto                       record = [&](std::size_t offset) {
+        if (result && *result != offset) {
+            result = std::numeric_limits<std::size_t>::max();
+        } else {
+            result = offset;
+        }
+    };
+    for (std::size_t at = container_start; at + 16 <= container_end; at++) {
+        if (std::memcmp(bytes.data() + at, "IMG\0", 4) == 0) {
+            const uint32_t count = ReadLe32(bytes.data() + at + 4);
+            if (count == 0 || count > 256 || static_cast<std::size_t>(count) > (container_end - at - 16) / 48) {
+                continue;
+            }
+            for (uint32_t entry = 0; entry < count; entry++) {
+                const std::size_t table_entry = at + 16 + static_cast<std::size_t>(entry) * 48;
+                const uint32_t    head_offset = ReadLe32(bytes.data() + table_entry + 32);
+                if (head_offset > container_end - at || head_offset + 32 > container_end - at) {
+                    continue;
+                }
+                const std::size_t picture = at + head_offset + 16;
+                const uint16_t    header_size = ReadLe16(bytes.data() + picture + 12);
+                if (header_size < 0x30 || header_size > container_end - picture ||
+                    picture + header_size != image_offset) {
+                    continue;
+                }
+                record(at - container_start);
+            }
+        }
+        if (std::memcmp(bytes.data() + at, "TIM2", 4) != 0 || at + 16 > container_end) {
+            continue;
+        }
+        const uint16_t count = ReadLe16(bytes.data() + at + 6);
+        if (count == 0 || count > 256) {
+            continue;
+        }
+        std::size_t picture = at + (bytes[at + 5] != 0 ? 0x80 : 16);
+        for (uint16_t index = 0; index < count && picture + 0x30 <= container_end; index++) {
+            const uint32_t total = ReadLe32(bytes.data() + picture);
+            const uint32_t clut_size = ReadLe32(bytes.data() + picture + 4);
+            const uint32_t image_size = ReadLe32(bytes.data() + picture + 8);
+            const uint16_t header_size = ReadLe16(bytes.data() + picture + 12);
+            if (header_size < 0x30 || header_size > container_end - picture ||
+                image_size > container_end - picture - header_size || picture + header_size != image_offset) {
+                if (header_size >= 0x30 && header_size <= container_end - picture &&
+                    image_size <= container_end - picture - header_size) {
+                    picture += header_size + image_size + clut_size;
+                    continue;
+                }
+                break;
+            }
+            record(at - container_start);
+            if (total < header_size + image_size + clut_size || total > container_end - picture) {
+                break;
+            }
+            picture += total;
+        }
+    }
+    if (result && *result == std::numeric_limits<std::size_t>::max()) {
+        return std::nullopt;
+    }
+    return result;
+}
+
+std::optional<unsigned> Dc1ImgEntryIndex(const DataReadSource &source) {
+    std::size_t member_start = 0;
+    auto        member_size = static_cast<std::size_t>(source.range_size);
+    if (!source.member.empty()) {
+        if (source.member_source_offsets.empty() || source.member_sizes.empty()) {
+            return std::nullopt;
+        }
+        member_start = static_cast<std::size_t>(source.member_source_offsets.back());
+        member_size = static_cast<std::size_t>(source.member_sizes.back());
+    }
+    if (source.offset < member_start || source.offset - member_start >= member_size) {
+        return std::nullopt;
+    }
+    std::vector<std::uint8_t> raw;
+    if (!DataReadReadResolvedFile(source.path, raw) || member_start > raw.size() ||
+        member_size > raw.size() - member_start || member_size < 16) {
+        return std::nullopt;
+    }
+    const std::uint8_t *member = raw.data() + member_start;
+    const bool          img3 = std::memcmp(member, "IM3\0", 4) == 0;
+    if (!img3 && std::memcmp(member, "IMG\0", 4) != 0 && std::memcmp(member, "IM2\0", 4) != 0) {
+        return std::nullopt;
+    }
+    const unsigned    count = ReadLe32(member + (img3 ? 8 : 4));
+    const std::size_t stride = img3 ? 64 : 48;
+    if (count == 0 || count > 16384 || count > (member_size - 16) / stride) {
+        return std::nullopt;
+    }
+    const auto              image_offset = static_cast<std::size_t>(source.offset - member_start);
+    std::optional<unsigned> result;
+    for (unsigned index = 0; index < count; index++) {
+        const std::size_t table_entry = 16 + static_cast<std::size_t>(index) * stride;
+        const std::size_t head_offset = ReadLe32(member + table_entry + (img3 ? 36 : 32));
+        bool              matches = false;
+        if (img3) {
+            const std::size_t image_size = ReadLe32(member + table_entry + 52);
+            matches = head_offset <= member_size && image_size <= member_size - head_offset &&
+                      image_offset >= head_offset && image_offset - head_offset < image_size;
+        } else if (head_offset <= member_size && 32 <= member_size - head_offset) {
+            const std::size_t picture = head_offset + 16;
+            const std::size_t header_size = ReadLe16(member + picture + 12);
+            matches = header_size >= 0x30 && header_size <= member_size - picture &&
+                      picture + header_size == image_offset;
+        }
+        if (matches) {
+            if (result) {
+                return std::nullopt;
+            }
+            result = index;
+        }
+    }
+    return result;
+}
+
+std::optional<std::string> BakedTextureDocument(const DataReadSource &source) {
+    std::string alias = source.path;
+    if (!source.member.empty()) {
+        alias += '/';
+        alias += source.member;
+    }
+    const size_t           last_slash = alias.rfind('/');
+    const std::string_view leaf(alias.data() + (last_slash == std::string::npos ? 0 : last_slash + 1),
+                                alias.size() - (last_slash == std::string::npos ? 0 : last_slash + 1));
+    const size_t           hash = leaf.find('#');
+    const std::string_view basename = leaf.substr(0, hash);
+    const size_t           dot = basename.rfind('.');
+    std::string            extension = dot == std::string_view::npos ? std::string{} : std::string(basename.substr(dot + 1));
+    std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    if ((extension == "chr" || extension == "chr_") && !alias.contains("#offset:")) {
+        std::size_t container_start = 0;
+        std::size_t container_size = 0;
+        if (!source.member.empty()) {
+            if (source.member_source_offsets.empty() || source.member_sizes.empty()) {
+                return std::nullopt;
+            }
+            container_start = static_cast<std::size_t>(source.member_source_offsets.back());
+            container_size = static_cast<std::size_t>(source.member_sizes.back());
+        } else {
+            container_size = static_cast<std::size_t>(source.range_size);
+        }
+        std::vector<std::uint8_t> raw;
+        if (!DataReadReadResolvedFile(source.path, raw)) {
+            return std::nullopt;
+        }
+        const auto offset = EmbeddedTextureOffset(raw, container_start, container_size,
+                                                  static_cast<std::size_t>(source.offset));
+        if (!offset) {
+            return std::nullopt;
+        }
+        if (*offset != 0) {
+            alias += "#offset:" + std::to_string(*offset);
+        }
+    }
+    std::string path = Dc1TextureDocument(alias);
+    if (path.empty()) {
+        return std::nullopt;
+    }
+    return path;
+}
+
+} // namespace
+
+std::optional<std::string> PortTextureDocumentFromSource(const DataReadSource &source) {
+    return BakedTextureDocument(source);
+}
+
+std::string PortTextureDocumentFromAlias(std::string_view source_alias) {
+    return Dc1TextureDocument(source_alias);
+}
+
+std::optional<unsigned> PortTextureEntryIndexFromSource(const DataReadSource &source) {
+    return Dc1ImgEntryIndex(source);
 }

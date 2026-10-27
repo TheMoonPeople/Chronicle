@@ -15,6 +15,12 @@ void FaceChange(int actor_no);
 void LoadCharaData(int buffer_no, int actor_no);
 
 /**
+ * Returns the motion buffer of one dancer (0 or 1), sized for that dancer's largest motion file,
+ * or null for any other index.
+ */
+u_int *OpeningDancePack(int dancer);
+
+/**
  * Swaps in the dancing couple's next motion file and starts reading the one after it.
  */
 void LoadMotionData();

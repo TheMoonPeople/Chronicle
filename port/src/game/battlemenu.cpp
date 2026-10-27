@@ -1,5 +1,3 @@
-#include "stubs/battlemenu.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -12,6 +10,7 @@
 
 #include "battle_globals.hpp"
 #include "battlemenu.hpp"
+#include "battlemenu/internal.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
 #include "character.hpp"
@@ -470,6 +469,10 @@ int GetLimmitMsg() {
     return message;
 }
 
+void DrawBattleMain() {
+    PortDrawBattleMenuMain();
+}
+
 void DrawOtherCharaStatus(int x, int y, int chara, int alpha) {
     int bar_x = x - 5;
     int bar_y = y + 3;
@@ -590,7 +593,7 @@ void DngComStatus(int x, int y, int chara, int alpha) {
         colours.colors[2].a = alpha;
         colours.colors[1].a = alpha;
         colours.colors[0].a = alpha;
-        DrawMenuColorGradation(CRect_i_(left + 0x14, y + 6, fill, 6), &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
+        DrawMenuColorGradation(Ps2Lvalue(CRect_i_(left + 0x14, y + 6, fill, 6)), &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
         int number_x = left + 0x4C + length;
 
         while (x + 0x9A < number_x) {
@@ -945,6 +948,10 @@ int BtlMenuDrawSpecialFlag(int flag) {
 
 } // namespace
 
+void BattleMenuDraw() {
+    PortDrawBattleMenu();
+}
+
 int BattleMenuCursor() {
     int result = 0;
 
@@ -1091,6 +1098,10 @@ int BattleMenuExit() {
 
 } // namespace
 
+int BattleMenuSelect() {
+    return PortBattleMenuSelect();
+}
+
 int ToFromSelect(int out) {
     if (out < 0 || out > 1) {
         return -1;
@@ -1187,7 +1198,7 @@ void ForBackMenu() {
 /**
  * Reads the character page's models and textures and starts its turntable.
  */
-void InitMenuChara(u_long128 *buffer) {
+void Btl_InitMenuChara(u_long128 *buffer) {
     StartReadBG();
     LoadFileBGMenuData("charatex.img", buffer);
     ReadBG();
@@ -1793,7 +1804,7 @@ void DrawWepDamageDraw(RECT rect, WEAPON_HAVE *weapon, int alpha) {
     colours.colors[2].a = alpha;
     colours.colors[1].a = alpha;
     colours.colors[0].a = alpha;
-    DrawMenuColorGradation(CRect_i_(rect.x, y, now, 8), &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
+    DrawMenuColorGradation(Ps2Lvalue(CRect_i_(rect.x, y, now, 8)), &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
     y += rect.height;
     RECT digits = {0xD4, 0x1F4, 0xC, 0xD};
     x += rect.width;
@@ -2098,7 +2109,7 @@ void DrawWeaponStatusTag(int x, int y, WEAPON_HAVE *weapon, int build, int weapo
     colours.colors[2].a = alpha;
     colours.colors[1].a = alpha;
     colours.colors[0].a = alpha;
-    DrawMenuColorGradation(CRect_i_(pos.x, bar_y, fill, 8), &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
+    DrawMenuColorGradation(Ps2Lvalue(CRect_i_(pos.x, bar_y, fill, 8)), &colours.colors[0], &colours.colors[1], &colours.colors[2], &colours.colors[3]);
     bar_y += pos.height;
 
     for (int digits = GetNumberKeta(value) - 1; digits > 0; digits--) {
@@ -2384,6 +2395,19 @@ void DrawWeaponTagBoard(int x, int y, WEAPON_HAVE *weapon, int build, int weapon
     }
 }
 
+} // namespace
+
+void DrawAallWeapon(int x, int y, float depth, CCharacter *model,
+                    WEAPON_HAVE *weapon, int equipped, int selected, int alpha) {
+    PortDrawAallWeapon(x, y, depth, model, weapon, equipped, selected, alpha);
+}
+
+void BtlWeaponDraw(int x, float depth, int chara, int alpha) {
+    PortBtlWeaponDraw(x, depth, chara, alpha);
+}
+
+namespace {
+
 /**
  * Reports whether a weapon can be repaired, built up, or neither, as a set of flags.
  */
@@ -2488,10 +2512,14 @@ int WeaponMenuCheckEnableSetElem(WEAPON_HAVE *weapon, WEAPON_HAVE *attachment, i
 
 } // namespace
 
+void DrawWeaponSelectDialog(int x, int y, int alpha) {
+    PortDrawWeaponSelectDialog(x, y, alpha);
+}
+
 /**
  * Opens the weapon page in one of its modes and puts the cursor where it was left.
  */
-void InitWeaponSelect(int mode, int chara) {
+void Btl_InitWeaponSelect(int mode, int chara) {
     InitPersonalBoardMode(static_cast<CUserStatus *>(BtlMenuStatusPt), &WepMenu.board, PERSONAL_BOARD_WEAPON_ATTACH, BOARD_PAGE_ATTACH);
     WepMenu.open_mode = mode;
     WepMenu.mode = WEP_MENU_LIST;
@@ -4526,6 +4554,14 @@ void RepairAndLevelUpDraw(int x, int y, int alpha) {
     CommonMenuMes3.DrawMesWin();
 }
 
+void DrawBuildUpWeaponSelect(int x, int y, int cursor) {
+    PortDrawBuildUpWeaponSelect(x, y, cursor);
+}
+
+void WeaponMenuDraw() {
+    PortWeaponMenuDraw();
+}
+
 namespace {
 
 /**
@@ -4740,7 +4776,7 @@ void ReadSyncItemMenuWepIcon() {
  * When the pack holds more than it can carry, the page opens on the first list that overflows
  * so the player throws something away.
  */
-void InitItemMode(int mode, int chara) {
+void Btl_InitItemMode(int mode, int chara) {
     CMenuCursor *cursor = nullptr;
     int          max = 0;
     int          thrown[7];
@@ -4880,7 +4916,7 @@ void InitItemTrushStart() {
             BtlMenuStatusPt->cur_chara = 0;
         }
 
-        InitItemMode(0, BtlMenuStatusPt->cur_chara);
+        Btl_InitItemMode(0, BtlMenuStatusPt->cur_chara);
         BattleMenuFlag = MenuSelect[0] + BTLMENU_STATE_OPEN_OFFSET;
         BtlEffectFlag = BTLEFFECT_PAGE_OPEN;
         BtlEffectCt = 0.0f;
@@ -6900,7 +6936,7 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
         gradation.colors[2].a = alpha;
         gradation.colors[1].a = alpha;
         gradation.colors[0].a = alpha;
-        DrawMenuColorGradation(CRect_i_(draw_x, draw_y - 1, static_cast<int>(hp_fill), 6), &info->colors[0], &info->colors[1], &info->colors[2], &info->colors[3]);
+        DrawMenuColorGradation(Ps2Lvalue(CRect_i_(draw_x, draw_y - 1, static_cast<int>(hp_fill), 6)), &info->colors[0], &info->colors[1], &info->colors[2], &info->colors[3]);
         int values[2] = {hp, max_hp};
         draw_x = x + 0x3C + hp_width;
         draw_y = y + 0x47;
@@ -6935,7 +6971,7 @@ void ItemMenuCharaStatusDraw(int x, int y, int chara, int alpha) {
         gradation.colors[2].a = alpha;
         gradation.colors[1].a = alpha;
         gradation.colors[0].a = alpha;
-        DrawMenuColorGradation(CRect_i_(draw_x, draw_y, static_cast<int>(hp_fill), 6), &gradation.colors[0], &gradation.colors[1], &gradation.colors[2], &gradation.colors[3]);
+        DrawMenuColorGradation(Ps2Lvalue(CRect_i_(draw_x, draw_y, static_cast<int>(hp_fill), 6)), &gradation.colors[0], &gradation.colors[1], &gradation.colors[2], &gradation.colors[3]);
         draw_x = x + 0x3C + durability_width;
         draw_y = y + 0x57;
         values[0] = GetDispVolumeForFloat(durability);
@@ -7768,6 +7804,10 @@ int MenuMoveKey() {
     return stay;
 }
 
+void DrawMenuMove() {
+    PortDrawMenuMove();
+}
+
 void DrawEscapeItem(int x, int y, int alpha) {
     float widths[7] = {8.6f, 9.0f, 9.0f, 11.0f, 9.0f, 9.0f, 9.0f};
     int   u = 0;
@@ -8410,7 +8450,7 @@ void BattleMenuSaveKey() {
 
 } // namespace
 
-void BattleManualInit(int *result, u_long128 *load_buffer) {
+void Btl_BattleManualInit(int *result, u_long128 *load_buffer) {
     InitMenuManual(result, load_buffer);
 }
 

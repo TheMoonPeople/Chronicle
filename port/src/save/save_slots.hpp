@@ -82,9 +82,3 @@ int SaveSlotRow(const SaveSlotList &list, int file_no, bool new_save);
  * Returns the file a board stands for; the new save's board stands for the first free file.
  */
 int SaveSlotFileAt(const SaveSlotList &list, int row);
-
-/**
- * Writes the game as it stands over the autosave, as the save screen would write it; false if the
- * write failed, the autosave then keeping what it held.
- */
-bool SaveSlotWriteAutosave();

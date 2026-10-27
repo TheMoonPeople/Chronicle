@@ -18,7 +18,7 @@ class CEditGround;
 // shorter way round, backwards, once a step passes half a turn. So a turning reading also leaves
 // the mouse's share with the camera, and the camera's next AddAngle within the same pad read, if
 // it is exactly that reading's delta, turns the camera by the share at once
-// (port/src/camerafollow.cpp); the stick's share and everything else the camera does still ease.
+// (port/src/game/camerafollow.cpp); the stick's share and everything else the camera does still ease.
 // Height is not taken at once: the floor and ceiling limits the game puts on it afterwards bound
 // only where the eye is going.
 

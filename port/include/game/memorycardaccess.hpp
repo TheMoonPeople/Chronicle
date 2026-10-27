@@ -342,3 +342,9 @@ extern SV_CONFIG_SYS sys_config;
  * Name of the texture used for the georama board vibration effect.
  */
 extern char AtoraVibeTextureName[];
+
+/**
+ * Writes the game as it stands over the autosave, as the save screen would write it; false if the
+ * write failed, the autosave then keeping what it held.
+ */
+bool SaveSlotWriteAutosave();

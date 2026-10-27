@@ -37,7 +37,9 @@ enum EdFishingMessageStep {
 class CCharacter;
 class CCamera;
 class CRect_i_;
+class CCPoly;
 struct ED_MOVE_CHARA_INFO;
+struct MoveCheckInfo;
 
 /** Where the caution mark is taken from in the event-battle texture. */
 extern CRect_i_ Caution;
@@ -154,6 +156,12 @@ int EdPadOn(int keys, int mode);
  * Tests newly pressed editor buttons when the requested mode is active.
  */
 int EdPadDown(int keys, int mode);
+
+/**
+ * Town-walk collision step: adds keyboard first-person velocity, then runs the retail
+ * floor, wall and event checks, without treating the town as an interior.
+ */
+int PortEdMoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *out_info, CCPoly *polys, int poly_num, int mode);
 
 /**
  * The part of the screen the event battle's opening wipe has reached.

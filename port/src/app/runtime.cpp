@@ -22,6 +22,14 @@ extern "C" [[noreturn]] void __assert(const char *file, int line, const char *ex
 // reseeds it every tick from a seed it drew the tick before (CFireOmni), so what follows in the
 // tick -- the title's lightning, the light a fire throws on a character -- repeats in a pattern
 // the generator decides. All 32 bits of the state come back but the sign.
+//
+// The first draws happen during static construction: each CFireOmni and CWind constructor takes one
+// and the CSaveData constructors take more. Which value each static gets, and where the sequence
+// stands when main starts, depends on the order statics are built in, which otherwise follows the
+// link order. The game statics that draw carry init_priority (65001 upwards) so that the order
+// stays the one the port has always had: the title winds and the game units' spare fires and winds,
+// objanime's fire, main's save_data, EdWind, edit_in's fire, the dungeon maps and kaze, then the
+// title fires and everything without a priority.
 namespace {
 unsigned int g_rand_state = 1;
 }

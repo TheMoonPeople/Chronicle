@@ -341,6 +341,48 @@ int MenuSaveKey();
 void DrawMenuSave(char *frame_name);
 
 /**
+ * Closes the save screen's message window and restores the pad, and after a
+ * load sets the stereo mode from the loaded configuration.
+ */
+void ExitSaveSelect();
+
+/**
+ * Waits out the save screen's fade-in and then moves on to the save file
+ * choice.
+ */
+int SaveMenuKeyFadeIn();
+
+/**
+ * Waits out the save screen's fade-out, then closes the screen and records the
+ * result that MenuSaveKey returns.
+ */
+int SaveMenuKeyFadeOut();
+
+/**
+ * Lets the player choose between saving and loading, then moves on to the slot
+ * choice or closes the screen.
+ */
+int SaveMenuKeyModeSelect();
+
+/**
+ * Moves on to reading the save directory when the chosen slot holds a
+ * PlayStation 2 card, and to an alert otherwise.
+ */
+int SaveMenuKeyCheckMcType();
+
+/**
+ * Checks the chosen card again and starts reading its configuration for a load
+ * or its save files for a save, returning zero when the card is gone.
+ */
+int SaveMenuKeyCheckMc();
+
+/**
+ * Starts reading the save files of the card and moves on to the file choice,
+ * with the cursor on the last file that the configuration records.
+ */
+int SaveMenuKeyLoadConfig();
+
+/**
  * Holds the georama parts of a town the player is not standing in.
  */
 extern CEditPartsInfo BtEditPartsInfo;

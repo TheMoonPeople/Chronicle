@@ -1,9 +1,10 @@
-#include "stubs/menu_save.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <filesystem>
 #include <print>
+#include <system_error>
+#include <utility>
 
 #include "battle_globals.hpp"
 #include "camera.hpp"
@@ -13,18 +14,25 @@
 #include "editatra.hpp"
 #include "gamepad.hpp"
 #include "itemdata.hpp"
+#include "localize/localize.hpp"
 #include "mainitemmodel.hpp"
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
 #include "menu_inventory.hpp"
 #include "menu_save.hpp"
+#include "menuetc.hpp"
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
+#include "platform/input.hpp"
+#include "quest/host.hpp"
 #include "rect.hpp"
+#include "save/save_slots.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
+#include "text/gametext.hpp"
 #include "texture.hpp"
+#include "ui/menu_pointer.hpp"
 #include "userstatus.hpp"
 
 SAVE_MENU_STATE SaveMenu;
@@ -32,12 +40,6 @@ CTexture       *SaveMenuMojiTextbl[4];
 
 /** State of the event item selection menu. */
 MINI_MENU_INFO MiniMenu;
-
-/**
- * Closes the save screen's message window and restores the pad, and after a
- * load sets the stereo mode from the loaded configuration.
- */
-void ExitSaveSelect();
 
 namespace {
 
@@ -55,6 +57,8 @@ int EventItemSelectKey(int *result);
  * Draws the event item selection menu.
  */
 void EventItemSelectDraw();
+
+} // namespace
 
 /**
  * Checks the memory card before a save and picks the save menu's next step.
@@ -161,10 +165,12 @@ int SaveMenuKeyEndSave() {
     return 1;
 }
 
+namespace {
+
 /**
  * Confirms loading the selected save file and advances the menu state.
  */
-int SaveMenuKeyLoadDecide() {
+[[maybe_unused]] int SaveMenuKeyLoadDecide() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         int file_no = SaveMenu.file_no;
 
@@ -190,6 +196,8 @@ int SaveMenuKeyLoadDecide() {
 
     return 1;
 }
+
+} // namespace
 
 /**
  * Steps the save menu while a save is read from the memory card.
@@ -383,10 +391,12 @@ int SaveMenuKeySaveDecideEnding() {
     return 1;
 }
 
+namespace {
+
 /**
  * Steps the save menu while saving after the ending.
  */
-int SaveMenuKeySaveEnding() {
+[[maybe_unused]] int SaveMenuKeySaveEnding() {
     SaveMenu.key_no = SAVE_KEY_END_SAVE_ENDING;
     McAccess.SetFuncNo(MC_OPERATION_SAVE_CONFIG);
     return 1;
@@ -395,7 +405,7 @@ int SaveMenuKeySaveEnding() {
 /**
  * Waits for a button press once the save after the ending has finished.
  */
-int SaveMenuKeyEndSaveEnding() {
+[[maybe_unused]] int SaveMenuKeyEndSaveEnding() {
     if (GamePad.Down(PAD_CROSS) != 0) {
         SaveMenu.key_no = SAVE_KEY_MC_SELECT;
         McAccess.SetFuncNo(MC_OPERATION_IDLE);
@@ -404,7 +414,73 @@ int SaveMenuKeyEndSaveEnding() {
     return 1;
 }
 
+/**
+ * Message numbers of allmenu.mes that the save screens show.
+ */
+enum class SaveMenuMessage : int {
+    NONE = 0,
+    WANT_TO_SAVE = 260,  /**< "Want to save?" */
+    SAVED = 262,         /**< "Saving completed." */
+    REPLACE = 264,       /**< "Data exist on file N. Replace it?" */
+    SAVE_FAILED = 266,   /**< "Saving failed." */
+    WANT_TO_LOAD = 270,  /**< "Want to load?" */
+    LOAD_FAILED = 274,   /**< "Loading failed." */
+    FORMAT_FAILED = 282, /**< "Formatting failed." */
+    DELETE = 290,        /**< "Delete file?" */
+    COPY = 292,          /**< "Want to copy file?" */
+    OTHER_VERSION = 299, /**< "Data not loaded due to change in data format. Deleting No. N data." */
+};
+
+SaveMenuMessage SaveMenuMessageFor() {
+    if (McAccess.GetFuncNo() != MC_OPERATION_IDLE) {
+        return SaveMenuMessage::NONE;
+    }
+
+    switch (SaveMenu.key_no) {
+        case SAVE_KEY_SAVE_DECIDE:
+            return SaveMenuMessage::REPLACE;
+        case SAVE_KEY_LOAD_DECIDE:
+            return SaveMenuMessage::WANT_TO_LOAD;
+        case SAVE_KEY_ALERT:
+            switch (SaveMenu.alert_no) {
+                case SAVE_ALERT_NONE:
+                case SAVE_ALERT_UNK_3:
+                case SAVE_ALERT_UNK_4:
+                case SAVE_ALERT_UNK_5:
+                    return SaveMenuMessage::NONE;
+                case SAVE_ALERT_FORMAT_FAILED:
+                    return SaveMenuMessage::FORMAT_FAILED;
+                case SAVE_ALERT_SAVE_FAILED:
+                    return SaveMenuMessage::SAVE_FAILED;
+                case SAVE_ALERT_LOAD_FAILED:
+                    return SaveMenuMessage::LOAD_FAILED;
+                default:
+                    return SaveMenu.access_kind == SAVE_ACCESS_LOAD ? SaveMenuMessage::LOAD_FAILED : SaveMenuMessage::SAVE_FAILED;
+            }
+        case SAVE_KEY_DELETE:
+            return SaveMenuMessage::DELETE;
+        case SAVE_KEY_COPY:
+            return SaveMenuMessage::COPY;
+        case SAVE_KEY_DIF_VERSION:
+            return SaveMenuMessage::OTHER_VERSION;
+        case SAVE_KEY_AFTER_ENDING:
+            return SaveMenuMessage::WANT_TO_SAVE;
+        case SAVE_KEY_END_SAVE:
+        case SAVE_KEY_END_SAVE_ENDING:
+            return SaveMenuMessage::SAVED;
+        default:
+            return SaveMenuMessage::NONE;
+    }
+}
+
 } // namespace
+
+// Message number for the save screens, with no message that names the memory card. Card
+// operations finish within the frame after the one that starts them and show nothing; the save
+// after the ending asks "Want to save?"; alerts only a card raised report a failed save or load.
+int GetSaveMenuMsgNo() {
+    return static_cast<int>(SaveMenuMessageFor());
+}
 
 int SaveMenuTextureEnter() {
     ReadBG();
@@ -500,7 +576,210 @@ void GetSaveBoardAlphaInfo(int x, int width, int &start_alpha, int &end_alpha, i
     end_alpha = SaveBoardEdgeAlpha(x + width, alpha);
 }
 
+constexpr RECT number_rect = {.x = 0x88, .y = 0xCA, .width = 0xC, .height = 0x10};
+
+// Draws number right to left, its last digit ending at right_x.
+void DrawSaveBoardNumber(int number, int right_x, int draw_y, spRGBA &top, spRGBA &bottom) {
+    for (int digits = GetNumberKeta(number); digits > 0; digits--) {
+        int       clip_y = draw_y;
+        const int digit = number % 10;
+        const int width = number_rect.width;
+        right_x -= width - 1;
+        const int src_x = number_rect.x + width * digit;
+        int       src_y = number_rect.y;
+        int       height = number_rect.height;
+        MenuTextureClip(clip_y, src_y, height, 0, SCREEN_HEIGHT);
+        DrawMenu2DSprite(SaveBoard, CRect_i_(right_x, clip_y, width, height - 1), CRect_i_(src_x, src_y, width, height), &top, &top, &bottom, &bottom);
+        number /= 10;
+    }
+}
+
 } // namespace
+
+// The autosave's board is labelled in place of a number.
+void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int /*unused*/, int alpha) {
+    if (info == nullptr) {
+        return;
+    }
+
+    spRGBA top = {.r = 0x80, .g = 0x80, .b = 0x80, .a = 0};
+    spRGBA bottom = {.r = 0x80, .g = 0x80, .b = 0x80, .a = 0};
+    int    start_alpha = 0;
+    int    end_alpha = 0;
+    GetSaveBoardAlphaInfo(y, 0x88, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+    DrawMenu2DSprite(SaveBoard, CRect_i_(x, y, 0x180, 0x87), CRect_i_(0, 0, 0x180, 0x88), &top, &top, &bottom, &bottom);
+
+    int draw_x = x + 0x54;
+#ifdef PAL
+    constexpr s8 number_shift[] = {0, 0, 0, 10, 0, 4, 13};
+    draw_x += number_shift[GetMenuLangFlag()];
+#endif
+    int draw_y = y + 8;
+    GetSaveBoardAlphaInfo(y, 0x10, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+
+    if (info->file_no <= 0) {
+        static GameText label;
+        label.Set(LocalizeText("save.autosave", "Auto"));
+        label.Draw(draw_x - label.Width(), draw_y - 2, start_alpha);
+    } else {
+        DrawSaveBoardNumber(info->file_no, draw_x, draw_y, top, bottom);
+    }
+
+    draw_x = x + 0x1A;
+    draw_y = y + 0x1C;
+    GetSaveBoardAlphaInfo(y, 0x16, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+    DrawSaveBoardCharaName2(draw_x + 8, draw_y, reinterpret_cast<short *>(info->name), name_texture, top, bottom);
+
+    // Play time, as hours, minutes and seconds.
+    constexpr RECT time_rect = {.x = 0x88, .y = 0xB8, .width = 0xC, .height = 0x12};
+    const int      column = x + 0x92;
+    draw_x = column + 0xA;
+    draw_y = y + 0x36;
+    GetSaveBoardAlphaInfo(draw_y, 0x12, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+    int frames = info->play_time;
+
+    if (frames >= 0x1499700) {
+        frames = 0x14996C4;
+    }
+
+    frames /= 60;
+    const int hours = frames / 3600;
+    const int minutes = (frames / 60 - hours * 60) % 60;
+    const int seconds = frames % 60;
+
+    const std::array<int, 3> parts = {hours, minutes, seconds};
+    for (int part = 2; part >= 0; part--) {
+        const int value = parts[part];
+        DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, time_rect.width, time_rect.height), CRect_i_(time_rect.x + time_rect.width * (value / 10), time_rect.y, time_rect.width, time_rect.height), &top, &top, &bottom, &bottom);
+        DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x + time_rect.width, draw_y, time_rect.width, time_rect.height), CRect_i_(time_rect.x + time_rect.width * (value % 10), time_rect.y, time_rect.width, time_rect.height), &top, &top, &bottom, &bottom);
+        draw_x -= 0x1E;
+    }
+
+    const CRect_i_ colon(0x100, 0xB8, 0xC, 0x12);
+    GetSaveBoardAlphaInfo(draw_y, 0x12, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+    draw_x = column + 2;
+    DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, 0xC, 0x12), colon, &top, &top, &bottom, &bottom);
+    DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x - 0x1E, draw_y, 0xC, 0x12), colon, &top, &top, &bottom, &bottom);
+
+    draw_x = x + 0x88;
+    draw_y = y + 0x52;
+    GetSaveBoardAlphaInfo(draw_y, 0x12, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+    DrawSaveBoardNumber(info->quest_total, draw_x, draw_y, top, bottom);
+
+    // Row of each map's name on the board texture; a map from 14 on is in the second block.
+    const int                            map = info->map_no;
+    static constexpr std::array<s16, 62> map_name = {
+        0,
+        1,
+        2,
+        3,
+        6,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        2,
+        4,
+        10,
+        4,
+        13,
+        13,
+        13,
+        10,
+        9,
+        4,
+        4,
+        4,
+        4,
+        1,
+        10,
+        12,
+        10,
+        5,
+        13,
+        12,
+        13,
+        4,
+        10,
+        2,
+        2,
+        2,
+        13,
+        4,
+        13,
+        13,
+        13,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        14,
+        14,
+    };
+    if (map >= 0 && std::cmp_less(map, map_name.size())) {
+        const int  name_index = map_name[map];
+        const bool second_block = name_index >= 0xE;
+        const int  block_index = second_block ? name_index - 0xE : name_index;
+        const int  name_u = (block_index / 7) * 0x88;
+        const int  name_v = (block_index % 7) * 0x14 + (second_block ? 0x144 : 0xB8);
+
+        draw_x = x + 0x23;
+        draw_y = y + 0x63;
+        GetSaveBoardAlphaInfo(draw_y, 0x14, start_alpha, end_alpha, alpha);
+        top.a = start_alpha;
+        bottom.a = end_alpha;
+        DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, 0x88, 0x15), CRect_i_(name_u, name_v, 0x88, 0x14), &top, &top, &bottom, &bottom);
+    }
+
+    // A face for each member of the party, three to a row.
+    const int face_x = x + 0xCF;
+    draw_x = face_x;
+    draw_y = y + 0x1A;
+    GetSaveBoardAlphaInfo(draw_y, 0x30, start_alpha, end_alpha, alpha);
+    top.a = start_alpha;
+    bottom.a = end_alpha;
+
+    for (int i = 0; i < info->party_size; i++) {
+        DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, 0x30, 0x31), CRect_i_(i * 0x30, 0x88, 0x30, 0x30), &top, &top, &bottom, &bottom);
+        draw_x += 0x38;
+
+        if (i == 2) {
+            draw_x = face_x;
+            draw_y += 0x34;
+            GetSaveBoardAlphaInfo(draw_y, 0x30, start_alpha, end_alpha, alpha);
+            top.a = start_alpha;
+            bottom.a = end_alpha;
+        }
+    }
+}
 
 void DrawNewFileTemplete(int x, int y, int alpha) {
     int start_alpha = 0;
@@ -545,6 +824,18 @@ void DrawNewFileTemplete(int x, int y, int alpha) {
     s8  label_inset[] = {64, 64, 64, 64, 38, 64, 64};
     int label_x = 0xC0 - label_inset[GetMenuLangFlag()];
     set2DSprite(GetVif1Packet(), SaveBoard, CRect_i_(x + label_x, y + 0x35, 0x74, 0x1E), CRect_i_(0x10C, 0xB8, 0x74, 0x1E), &top, &top, &bottom, &bottom, 1);
+}
+
+// Data exists once state.json or a save folder does.
+int InitExistData() {
+    if (McAccess.InitForMC() != 0) {
+        return 0;
+    }
+
+    McAccess.port = 0;
+    McAccess.LoadSysConfig();
+    std::error_code error;
+    return static_cast<int>(std::filesystem::exists(SaveStatePath(), error) || !SaveSlotFiles().empty());
 }
 
 int SaveEnableCheck() {
@@ -733,9 +1024,10 @@ void EventItemSelectExit() {
     GamePad.MenuModeOff();
 }
 
-} // namespace
-
-int EventItemSelectLoop(int *result) {
+/**
+ * Runs one frame of the original item picker selection and drawing logic.
+ */
+int RetailEventItemSelectLoop(int *result) {
     ReadBG();
     int alpha = 0x40;
 
@@ -767,6 +1059,87 @@ int EventItemSelectLoop(int *result) {
     }
 
     return done;
+}
+
+} // namespace
+
+namespace {
+
+/** The pointer owned by the door/object item picker. */
+MenuPointer event_pointer;
+/** Whether the item picker remained active after its last update. */
+bool event_active = false;
+
+/**
+ * Finds an occupied item cell within the animated board's visible clip.
+ */
+int ItemHit(float x, float y) {
+    const float left = EventBoardPos[0] + 28.0f;
+    const float top = EventBoardPos[1] + 56.0f;
+    if (x < left || x >= left + 210.0f || y < top || y >= top + 80.0f) {
+        return -1;
+    }
+    for (int index = 0; index < MiniMenu.event_item_num; ++index) {
+        const int   column = index % 5;
+        const int   row = index / 5;
+        const float cell_left = left + column * 42.0f;
+        const auto  cell_top = static_cast<float>(EventItemMoveY + row * 40);
+        if (x >= cell_left && x < cell_left + 42.0f && y >= cell_top && y < cell_top + 40.0f) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+} // namespace
+
+/**
+ * Tracks the item picker's lifetime while preserving its original item handling.
+ */
+int EventItemSelectLoop(int *result) {
+    const int done = RetailEventItemSelectLoop(result);
+    event_active = done == 0;
+    return done;
+}
+
+bool EventItemPointerUpdate() {
+    const bool active = event_active;
+    event_active = false;
+    if (!active) {
+        return !event_pointer.Close();
+    }
+    if (!event_pointer.IsOpen()) {
+        event_pointer.Open();
+    }
+    const MenuPointerTake take = event_pointer.Take(MiniCur[0], MiniCur[1]);
+    MenuPointerShow(&event_pointer);
+    if (!MiniEventTexReadFlag) {
+        return true;
+    }
+    if (MiniMenu.state == MINI_MENU_REFUSED) {
+        if ((take.clicked & 3) != 0) {
+            MenuPointerPress(kInputCircle);
+        }
+        return true;
+    }
+    if (MiniMenu.state != MINI_MENU_CHOOSING) {
+        return true;
+    }
+    if ((take.clicked & 2) != 0) {
+        MenuPointerPress(kInputCircle);
+        return true;
+    }
+    const int hit = take.pointing ? ItemHit(event_pointer.x, event_pointer.y) : -1;
+    if (hit >= 0 && take.moved && take.wheel == 0.0f) {
+        MiniMenu.cursor = hit;
+        if ((take.clicked & 1) != 0) {
+            MenuPointerPress(kInputCross);
+        }
+    }
+    if (take.pointing && take.wheel != 0.0f) {
+        MenuPointerPress(take.wheel > 0.0f ? kInputUp : kInputDown);
+    }
+    return true;
 }
 
 namespace {
@@ -1126,6 +1499,10 @@ void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *
 }
 
 } // namespace
+
+int PlayerAllItemCheck(int item) {
+    return QuestHostPlayerAllItemCheck(item);
+}
 
 s32 GetAddAttachItem(s32 item_no) {
     return ((item_no >= ITEM_ATTACH_STAT_START) && (item_no < ITEM_ATTACH_GEM_START)) ? 1 : 0;

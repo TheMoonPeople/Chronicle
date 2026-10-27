@@ -168,6 +168,81 @@ STATIC_ASSERT(sizeof(MINI_MENU_INFO) == 0x54);
 int GetSaveMenuMsgNo();
 
 /**
+ * Checks the memory card before a save and picks the save menu's next step.
+ */
+int SaveMenuKeySaveCheck();
+
+/**
+ * Handles the save menu's prompt to confirm a save.
+ */
+int SaveMenuKeySaveDecide();
+
+/**
+ * Steps the save menu while the game is written to the memory card.
+ */
+int SaveMenuKeySave();
+
+/**
+ * Waits for a button press once a save has finished.
+ */
+int SaveMenuKeyEndSave();
+
+/**
+ * Steps the save menu while a save is read from the memory card.
+ */
+int SaveMenuKeyLoad();
+
+/**
+ * Waits for a button press while the save menu shows an alert.
+ */
+int SaveMenuKeyArart();
+
+/**
+ * Handles the save menu's prompt to create new save data.
+ */
+int SaveMenuKeyNewDirSelect();
+
+/**
+ * Steps the save menu while new save data is created on the memory card.
+ */
+int SaveMenuKeyNewDir();
+
+/**
+ * Handles the save menu's memory card format step.
+ */
+int SaveMenuKeyFormat();
+
+/**
+ * Handles the menu response after checking an unformatted memory card.
+ */
+int SaveMenuKeyUnFormat();
+
+/**
+ * Waits for a button press when the save data is of a different version.
+ */
+int SaveMenuKeyDifVersion();
+
+/**
+ * Steps the delete choice of the save menu.
+ */
+s32 SaveMenuKeyDelete();
+
+/**
+ * Steps the copy choice of the save menu.
+ */
+s32 SaveMenuKeyCopy();
+
+/**
+ * Handles key input on the save menu offered after the ending.
+ */
+int SaveMenuKeyAfterEnding();
+
+/**
+ * Handles the prompt to confirm a save after the ending.
+ */
+int SaveMenuKeySaveDecideEnding();
+
+/**
  * Loads the save menu's textures, messages and memory card icon.
  */
 int SaveMenuTextureEnter();

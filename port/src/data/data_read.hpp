@@ -112,3 +112,29 @@ void DataReadClearPackCapacities();
  * Forgets the data index, the archive and every tracked range, so the next read indexes afresh.
  */
 void DataReadReset();
+
+/**
+ * Indexes the game data (loose files under the data root, or data.zip beside it) and checks it
+ * against data.hd2; aborts when there is no usable data.
+ */
+void DataReadIndex();
+
+/**
+ * Reads a whole data file into buffer as the drive did, zeroing the rest of its last sector, and
+ * tracks the buffer as a pack; false, with nothing read, when the data has no such file. A device
+ * prefix before a colon in the path is ignored.
+ */
+bool DataReadLoadFile(std::string_view path, void *buffer, int *size);
+
+/**
+ * The readable extent of a loaded pack or pack member; false when pack is not one.
+ */
+bool DataReadPackCapacity(const void *pack, std::size_t &capacity);
+
+/**
+ * Tracks a pack member's bytes as a nested range of the loaded pack: entry_offset is the member's
+ * offset in the pack, entry_size its size there, and size the size of the bytes at data (which a
+ * localized message file may change). duplicate_name tags the member with its index.
+ */
+void DataReadTrackPackMember(const void *pack, const void *data, std::size_t size, std::size_t entry_offset,
+                             std::string_view entry_name, std::size_t entry_size, int index, bool duplicate_name);

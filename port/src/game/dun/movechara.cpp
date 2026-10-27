@@ -1,3 +1,7 @@
+// DunMoveChara, split from dun/gameloop.cpp for size.
+
+#include "dun/gameloop.hpp"
+
 #include <libvu0.h>
 
 #include <cmath>
@@ -25,7 +29,6 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
-#include "dun/gameloop.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -73,6 +76,7 @@
 #include "shot_freefuncs.hpp"
 #include "snd.hpp"
 #include "stealitem.hpp"
+#include "sysmes.hpp"
 #include "texture.hpp"
 #include "textureanime.hpp"
 #include "userstatus.hpp"
@@ -81,29 +85,6 @@
 #include "weaponelement.hpp"
 #include "wind.hpp"
 
-struct ENEMY_LIFE_GAGE {
-    s32 life_max;
-    s32 life;
-    s32 x;
-    s32 y;
-    s32 on;
-    s32 draw;
-};
-
-struct BOMB_INFO {
-    sceVu0FVECTOR pos;
-    s32           unk_10;
-    s32           aiming;
-    s32           throw_step;
-    s32           unk_1C;
-};
-
-struct GAME_ENV {
-    CFrame  *frame;
-    CCamera *camera;
-};
-
-void AllDeadMes(int frames);
 void BtAtraGetShort_Init();
 int  BtAtraGetShort_Loop(int dungeon, int floor);
 int  BtEscape_Loop();
@@ -114,75 +95,13 @@ void BtGetTreasureboxSmall_Init(int dungeon);
 int  BtGetTreasureboxSmall_Loop();
 int  BtMiniChrSelect_Loop();
 void ClearGateKeyStack();
-void ClearSystemMes();
-void DeadMes(int chara, int frames);
 int  DebugInfomationIF();
 void GoroKey_On();
 void GoroKey_Play();
-void NotGetAtraMes(int chara, int frames);
-void SetSystemMes(int mes_no, int frames, int x, int y, int *result, int *unk);
 void ToanKey_On();
 void ToanKey_Play();
 void UngagaKey_On();
 void UngagaKey_Play();
-
-extern BOMB_INFO       BombInfo;
-extern s32             BtEventItemNo;
-extern CDataAlloc2<1>  BtScriptWorkBuffer;
-extern CRunEffect      CRunFx__2;
-extern CFrameVu1      *CharaFrame;
-extern CCharacter      CharaHand;
-extern s32             DeadKeyStartWait;
-extern s32             DeadKeyWait;
-extern ClsMes          DngMes1;
-extern ClsMes          DngMes2;
-extern ENEMY_LIFE_GAGE EnemyLifeGage;
-extern GAME_ENV        GameEnv;
-extern CRandomItem     MainRandomItem;
-extern s32             MonstorNameOff;
-extern CDataAlloc2<1>  MonstorScriptBuffer[16];
-extern CHitPointMark   MyHitPointMark[16];
-extern CCharacter      NewChangeFx;
-extern s32             NewChangeFxFlag;
-extern s32             PadInput_NO;
-extern CRandomItem     SubRandomItem;
-extern float           camera_up_near_dist;
-extern CDungeonMap     UraDungeonMap;
-extern s32             battleMenuWait;
-extern s32             cameraAuto;
-extern s32             cameraAutoOld;
-extern s32             colPolyNum;
-extern s32             defCameraWait;
-extern s32             existFlag;
-extern s32             exitMenuFlag;
-extern s32             gameTask;
-extern s32             infoMap;
-extern s32             infoMapOld;
-extern float           inputH1;
-extern s32             itemNowSel;
-extern s32             iventMarker;
-extern s32             lightingMode;
-extern s32             lockOnTargetNo;
-extern float           oldCameraAngle;
-extern float           oldCameraHeight;
-extern s32             oldMsgNo;
-extern s32             oldMsgNo2;
-extern s32             oldRogoY3;
-extern s32             oldUnitNow;
-extern sceVu0FVECTOR   ref_off;
-extern s32             rogoAlphaA[3];
-extern s32             rogoAlphaW[3];
-extern s32             rogoSwitch2;
-extern s32             rogoY3;
-extern s32             startCnt2;
-extern float           stickVector2;
-extern s32             targetCursorShiftNo;
-extern s32             targetCursorShiftRot;
-
-extern s32           tryalExit;
-extern sceVu0FVECTOR velo2;
-extern sceVu0FVECTOR veloOld;
-extern s32           viewMode__2;
 
 #pragma clang diagnostic ignored "-Wwritable-strings"
 #pragma clang diagnostic ignored "-Wchar-subscripts"
@@ -413,7 +332,7 @@ void DunMoveChara() {
                         }
 
                         // SELECT opens the party, as retail does; with game.element_quick_select on,
-                        // D-pad Up the same menu as the element picker (port/src/menu_dungeon.cpp), for a
+                        // D-pad Up the same menu as the element picker (game/menu_dungeon.cpp), for a
                         // party of any size and a weapon with more than one element to pick between.
                         bool party = GamePad.Down(PAD_SELECT) != 0 && UserStatus->party_size >= 2;
                         bool elements = !party && ConfigGet().element_quick_select && GamePad.Down(PAD_UP) != 0 &&

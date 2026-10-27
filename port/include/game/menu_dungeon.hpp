@@ -139,6 +139,11 @@ void DebugItemGetDraw();
  */
 extern char chara_change_frame_image[];
 
+/**
+ * Board texture of the dungeon entrance menu ("dunenter").
+ */
+extern CTexture *DunLogBoard;
+
 // Port additions.
 
 /**

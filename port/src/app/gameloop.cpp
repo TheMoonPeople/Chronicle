@@ -33,6 +33,7 @@
 #include "localize/localize.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
+#include "memorycardaccess.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"

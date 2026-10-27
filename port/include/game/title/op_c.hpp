@@ -5,6 +5,11 @@
 class CWater;
 
 /**
+ * Copies the actor's current eye and mouth frames onto its face plate and steps its talking mouth.
+ */
+void FaceChangeC(int actor_no);
+
+/**
  * Waits for the previous background read, then starts reading Norune at night's image pack.
  */
 void OpC_LoadDataBG();

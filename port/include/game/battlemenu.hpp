@@ -570,6 +570,11 @@ int BattleMenuSelect();
 int ToFromSelect(int out);
 
 /**
+ * Initializes the Battle Menu character selection page and turntable.
+ */
+void Btl_InitMenuChara(u_long128 *buffer);
+
+/**
  * Handles input on the character page, including the turntable and the equipment list.
  */
 int BattleMenuCharaKey();
@@ -640,6 +645,11 @@ void BtlWeaponDraw(int x, float depth, int chara, int alpha);
 void DrawWeaponSelectDialog(int x, int y, int alpha);
 
 /**
+ * Initializes the Battle Menu weapon selection page for the given character.
+ */
+void Btl_InitWeaponSelect(int mode, int chara);
+
+/**
  * Runs one frame of the weapon page, dispatching on which of its modes is open.
  */
 void WeaponMenuSelect();
@@ -678,6 +688,11 @@ void DrawTrushItem();
  * Waits for the item page's weapon icons and enters them into the texture manager.
  */
 void ReadSyncItemMenuWepIcon();
+
+/**
+ * Initializes the Battle Menu item inventory page for the given character.
+ */
+void Btl_InitItemMode(int mode, int chara);
 
 /**
  * Gives the item page's textures back and re-equips anyone left without a weapon.
@@ -771,7 +786,7 @@ void DrawMapCheck(int alpha);
 /**
  * Initializes the battle manual menu from its placement data and load buffer.
  */
-void BattleManualInit(int *result, u_long128 *load_buffer);
+void Btl_BattleManualInit(int *result, u_long128 *load_buffer);
 
 /**
  * Processes battle-manual input and returns zero after updating transitions.

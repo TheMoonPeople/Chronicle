@@ -33,11 +33,18 @@ class CWater;
 class CWind;
 class CFrame;
 class CFrameVu1;
+class CTexAnimeData;
 
 /**
  * The frame the opening movies point their camera at.
  */
 extern CFrame *OP_CharaFrame;
+
+/**
+ * Copies an actor's current eye and mouth frames over its face plate. Retail's FaceChange; the
+ * port names it apart from the other title units' FaceChange, as the PS2 link renames it.
+ */
+void FaceChangeMovie(int actor_no);
 
 /**
  * Sets up the attract movie's buffers, sound and first scene, and starts its fade.

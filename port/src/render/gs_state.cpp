@@ -1,6 +1,7 @@
 #include "render/gs_state.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <optional>
 
 #include "mglib.hpp"
@@ -26,6 +27,8 @@ constinit MGPortRegisters g_current = {
 };
 
 constexpr int kGsOriginX = 27648;
+
+bool g_cut_next_tick = true;
 
 } // namespace
 
@@ -105,4 +108,42 @@ float MGPortTargetRowScale(gfx::TextureHandle target) {
     std::optional<gfx::TextureInfo> info = gfx::GetTextureInfo(target);
     // The game's frame-sized targets are 448 or 480 rows; its field copies 224, 240 or 256.
     return info && info->height < 400 ? 0.5f : 1.0f;
+}
+
+void MGPortWorldToClip(float clip[4][4]) {
+    float eye_to_clip[4][4];
+    Draw3DEyeToClip(mgRenderInfo, eye_to_clip);
+    Draw3DMul(clip, eye_to_clip, mgRenderInfo.view_scaled);
+}
+
+bool MGPortFrameTarget(std::string_view name) {
+    while (name.starts_with('#')) {
+        name.remove_prefix(1);
+    }
+    return name.starts_with("frame_") || name.starts_with("water_buff") || name == "water" ||
+           name.starts_with("water#");
+}
+
+void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
+    PortTextureRef ref = Draw3DResolveTex0(std::bit_cast<u_long>(*dst));
+    if (!ref.valid || ref.binding.texture == gfx::kNullTexture || ref.binding.texture == gfx::kMainTarget ||
+        ref.binding.texture == gfx::kPreviousFrame) {
+        return;
+    }
+    gfx::BlitTexture(frame, {0, 0, 640, SCREEN_HEIGHT}, ref.binding.texture, {0, 0, 640, SCREEN_HEIGHT},
+                     gfx::Filter::Nearest);
+}
+
+void MGPortMovePreviousFrameImage(sceGsTex0 *dst) {
+    MoveFrameImage(gfx::kPreviousFrame, dst);
+}
+
+void MGPortCutInterpolation() {
+    g_cut_next_tick = true;
+}
+
+bool MGPortTakeInterpolationCut() {
+    bool cut = g_cut_next_tick;
+    g_cut_next_tick = false;
+    return cut;
 }

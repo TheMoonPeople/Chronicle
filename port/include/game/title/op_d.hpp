@@ -3,6 +3,11 @@
 #include "common.h"
 
 /**
+ * Copies the actor's current eye and mouth rows from its strip texture onto its face plate.
+ */
+void FaceChangeD(int actor_no);
+
+/**
  * Waits for the previous background read and starts loading the spirit king's hall.
  */
 void OpD_LoadDataBG();

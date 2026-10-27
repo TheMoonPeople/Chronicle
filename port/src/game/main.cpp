@@ -36,18 +36,19 @@
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "object.hpp"
+#include "platform/arena.hpp"
 #include "rect.hpp"
 #include "runscript.hpp"
 #include "savedata.hpp"
 #include "shot_effect.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
-#include "stubs/main.hpp"
 #include "sysmes.hpp"
 #include "texture.hpp"
 #include "textureanime.hpp"
 #include "title/bombeffect.hpp"
 #include "title/majinbeem.hpp"
+#include "title/title.hpp"
 #include "visualvu1.hpp"
 #include "vudata.hpp"
 #include "vutext.hpp"
@@ -102,7 +103,8 @@ namespace {
 
 // Never read, but its constructor hands out the starting dagger through the shared item
 // code at startup, and later game state depends on that side effect.
-CSaveData save_data __attribute__((aligned(64)));
+// init_priority keeps this static's place in the order rand() is drawn from; see app/runtime.cpp.
+CSaveData save_data __attribute__((aligned(64), init_priority(65008)));
 
 } // namespace
 
@@ -154,6 +156,26 @@ int play_time_count = 1;
 
 } // namespace
 
+void LoadOverlay(int mode) {
+    enum class Overlay {
+        None,
+        Title,
+        Dungeon
+    };
+    constexpr std::array overlay_modes = {Overlay::Title, Overlay::Title, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                          Overlay::Title, Overlay::None, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                          Overlay::None, Overlay::None, Overlay::None, Overlay::None, Overlay::None};
+    static Overlay       loaded = Overlay::None;
+    if (mode < 0 || std::cmp_greater_equal(mode, overlay_modes.size()) || overlay_modes[mode] == Overlay::None ||
+        overlay_modes[mode] == loaded) {
+        return;
+    }
+    loaded = overlay_modes[mode];
+    if (loaded == Overlay::Title) {
+        TitleOverlayConstruct();
+    }
+}
+
 void init_all() {
     InitCDFile();
     DevInit();
@@ -181,6 +203,13 @@ sceVu0FMATRIX lightcolor = {
 };
 
 sceVu0FVECTOR ambientlight = {64.0f, 64.0f, 64.0f, 128.0f};
+
+void SetEnv(sceVif1Packet * /*packet*/) {
+    MGSetGsTEST(nullptr);
+    MGSetGsZBUF(nullptr);
+    MGSetGsALPHA(nullptr);
+    MGSetWindowRect();
+}
 
 void LoadSndTxt() {
     constexpr std::size_t work_size = 48000;
@@ -600,7 +629,7 @@ void InitSave() {
     TexManager.EnterTextureFile(texdata);
     TexManager.LoadTextureBlock(-1, read_buffer);
     u_int *buffer = read_buffer;
-    LoadFileMenuData("stayframe.img", buffer);
+    LoadFileMenuData(const_cast<char *>("stayframe.img"), buffer);
     TexManager.EnterFixTextureZ(reinterpret_cast<u_char *>(read_buffer));
     StayTexture = TexManager.GetTexture("stayframe", -1);
     CommonMenuMes2.SetBuff_system(SystemMes);
@@ -746,3 +775,12 @@ void CMajinBeem::Initialize() {
 }
 
 MotionParam::MotionParam() = default;
+
+u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
+    if (quads < 0 || used < 0 || used > 6000 || quads > 6000 - used) {
+        ArenaOverflow(this, -1, 6000);
+    }
+    auto *run = reinterpret_cast<u_char *>(&block[used]);
+    used += quads;
+    return run;
+}

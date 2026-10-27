@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include "dataalloc_fwd.hpp"
+
 /**
  * Opcodes of the script virtual machine, as vmcode_t::op holds them.
  */
@@ -287,3 +289,10 @@ bool EventScriptHasItemGet();
  * Toan receiving.
  */
 void EventScriptSetItemGet(int item);
+
+/**
+ * Runs one program of the town's event script (EdEventScript) from the arena's free space, returning
+ * 1 for an event still running, 0 for one that ran to its end and -1 for a program the script does
+ * not have. Retail's EdRunEvent leaves that result in v0 without returning it.
+ */
+int PortEdRunEvent(int program, CDataAlloc2<1> *arena);

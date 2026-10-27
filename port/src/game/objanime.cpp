@@ -22,7 +22,8 @@ namespace {
 /**
  * The one fire effect the editor lends to every map part that burns.
  */
-CFireOmni Fire;
+// init_priority keeps this static's place in the order rand() is drawn from; see app/runtime.cpp.
+CFireOmni Fire __attribute__((init_priority(65007)));
 
 /**
  * The one candle effect the editor lends to every map part with a candle.

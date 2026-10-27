@@ -11,8 +11,8 @@ class CTexture;
 class CRect_i_;
 
 /**
- * Shared by the 2D replacement units (snd, gameutil_sprite, clsmes, spritetable, dispctrl,
- * editloop_sprite): sprite state, texture resolution and the mapping into the current target.
+ * Shared by the game units that draw 2D (snd, gameutil, clsmes, spritetable, dispctrl,
+ * editloop): sprite state, texture resolution and the mapping into the current target.
  */
 namespace draw2d {
 
@@ -100,8 +100,3 @@ void TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &tex
                   float angle, float scale);
 
 } // namespace draw2d
-
-/**
- * What setbilinear last set (retail's linear__2): the filter the 2D units' sprite batches use.
- */
-int PortBilinear();

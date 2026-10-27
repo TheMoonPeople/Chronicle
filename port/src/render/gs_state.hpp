@@ -6,7 +6,7 @@
 
 #include "gfx/gfx.hpp"
 
-// What the 2D and 3D replacement units share with mglib.cpp: the draw state the game's current
+// What the game units drawing 2D and 3D share with mglib.cpp: the draw state the game's current
 // register shadows describe, and the conversions from GS units into the renderer's.
 
 /**
@@ -80,7 +80,19 @@ bool MGPortFrameTarget(std::string_view name);
 void MGPortMovePreviousFrameImage(sceGsTex0 *dst);
 
 /**
+ * Blits a whole frame (the main target or the previous frame) into the texture dst names, unless
+ * dst is a frame itself: MGMoveFrameBuffImage and MGPortMovePreviousFrameImage.
+ */
+void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst);
+
+/**
  * Marks the next tick MGBeginFrame records as not interpolated from the one before (a mode's
  * first).
  */
 void MGPortCutInterpolation();
+
+/**
+ * Returns whether MGPortCutInterpolation marked the tick MGBeginFrame is starting, and clears the
+ * mark.
+ */
+bool MGPortTakeInterpolationCut();

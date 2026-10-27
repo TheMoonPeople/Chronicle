@@ -1,7 +1,7 @@
 // Names the PS2 link supplies and the port's link otherwise lacks (ps2/config/pal/object_fixups.json
 // and the linker script). MWCC pools string literals and the PS2 build binds a unit's extern name
 // to another unit's pooled literal or to a differently typed copy of a function; clang has no such
-// pool, so each name gets its own definition here. Weak, so a replacement unit that takes one of
+// pool, so each name gets its own definition here. Weak, so a game unit that defines one of
 // these over needs no change here.
 
 #include <algorithm>

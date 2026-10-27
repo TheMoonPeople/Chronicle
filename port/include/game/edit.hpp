@@ -1,5 +1,9 @@
 #pragma once
 
+#include "common.h"
+
+#include <libvu0.h>
+
 /**
  * @file
  * Declares the Georama editor's shared state, sound, menu and message helpers.

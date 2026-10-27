@@ -2,4 +2,4 @@
 
 #include "literals.hpp"
 
-// The overlay address table itself is defined by the platform layer.
+void *_overlay_group_addresses[2] = {};

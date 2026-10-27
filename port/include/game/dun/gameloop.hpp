@@ -6,6 +6,7 @@
 
 #include "dataalloc.hpp"
 #include "hit_machingun_effect.hpp"
+#include "hitmark.hpp"
 #include "runscript.hpp"
 #include "textureanime.hpp"
 
@@ -25,7 +26,7 @@ enum BtGameMode {
 // clang-format on
 
 /**
- * What MoveChara is doing, as gameTask holds it; each INIT task is followed by its LOOP task.
+ * What DunMoveChara is doing, as gameTask holds it; each INIT task is followed by its LOOP task.
  */
 // clang-format off
 enum GameTask {
@@ -107,8 +108,11 @@ class CShockWave;
 struct MOTION_INFO;
 class CHealEffect;
 
+class CCamera;
 class CCharacter;
 class CCameraFollow;
+class CFrameVu1;
+class CRunEffect;
 class CCPoly;
 struct BT_SHOT_EFFECT;
 struct WEAPON_HAVE;
@@ -337,13 +341,13 @@ void Draw_MainUnit();
 /**
  * Draws one frame of the dungeon.
  */
-void MainDraw();
+void DunMainDraw();
 
 /**
  * Runs the dungeon for one frame. gameTask holds the GameTask being run; every task ends by stepping
  * the models.
  */
-void MoveChara();
+void DunMoveChara();
 
 /**
  * Steps the dungeon's models, effects and gauges once the player's input has been handled.
@@ -1096,6 +1100,103 @@ extern CMonstorUnit MainMonstorUnit;
 extern CSHOT_EFFECT MasekiEffect[];
 
 // Port additions.
+
+/**
+ * Defines the life gauge that the locked-on enemy draws above itself.
+ */
+struct ENEMY_LIFE_GAGE {
+    s32 life_max; /**< Specifies the life the enemy has at full health. */
+    s32 life;     /**< Specifies the life the enemy has now. */
+    s32 x;        /**< Specifies the left edge of the gauge, in screen pixels. */
+    s32 y;        /**< Specifies the top edge of the gauge, in screen pixels. */
+    s32 on;       /**< Whether an enemy is locked on. */
+    s32 draw;     /**< Whether the gauge draws this frame. */
+};
+
+STATIC_ASSERT(sizeof(ENEMY_LIFE_GAGE) == 0x18);
+
+/**
+ * Names where the item the player is about to throw will land.
+ */
+struct BOMB_INFO {
+    sceVu0FVECTOR pos; /**< Where the thrown item lands. */
+    s32           unk_10;
+    s32           aiming;     /**< Whether the player is still walking the landing point around. */
+    s32           throw_step; /**< Step of the throw: 1 until the item leaves the hand, 2 while the motion ends, -1 when idle. */
+    s32           unk_1C;
+};
+
+STATIC_ASSERT(sizeof(BOMB_INFO) == 0x20);
+
+/**
+ * Names what the dungeon hands the Georama editor to follow.
+ */
+struct GAME_ENV {
+    CFrame  *frame;  /**< Frame that the editor follows. */
+    CCamera *camera; /**< Camera that the editor draws through. */
+};
+
+
+/**
+ * State of the dungeon game loop that DunMoveChara (dun/movechara.cpp) shares, defined in
+ * dun/gameloop.cpp.
+ */
+extern BOMB_INFO       BombInfo;
+extern s32             BtEventItemNo;
+extern CDataAlloc2<1>  BtScriptWorkBuffer;
+extern CRunEffect      CRunFx__2;
+extern CFrameVu1      *CharaFrame;
+extern CCharacter      CharaHand;
+extern s32             DeadKeyStartWait;
+extern s32             DeadKeyWait;
+extern ClsMes          DngMes1;
+extern ClsMes          DngMes2;
+extern ENEMY_LIFE_GAGE EnemyLifeGage;
+extern GAME_ENV        GameEnv;
+extern CRandomItem     MainRandomItem;
+extern s32             MonstorNameOff;
+extern CDataAlloc2<1>  MonstorScriptBuffer[16];
+extern CHitPointMark   MyHitPointMark[16];
+extern CCharacter      NewChangeFx;
+extern s32             NewChangeFxFlag;
+extern s32             PadInput_NO;
+extern CRandomItem     SubRandomItem;
+extern float           camera_up_near_dist;
+extern CDungeonMap     UraDungeonMap;
+extern s32             battleMenuWait;
+extern s32             cameraAuto;
+extern s32             cameraAutoOld;
+extern s32             colPolyNum;
+extern s32             defCameraWait;
+extern s32             existFlag;
+extern s32             exitMenuFlag;
+extern s32             gameTask;
+extern s32             infoMap;
+extern s32             infoMapOld;
+extern float           inputH1;
+extern s32             itemNowSel;
+extern s32             iventMarker;
+extern s32             lightingMode;
+extern s32             lockOnTargetNo;
+extern float           oldCameraAngle;
+extern float           oldCameraHeight;
+extern s32             oldMsgNo;
+extern s32             oldMsgNo2;
+extern s32             oldRogoY3;
+extern s32             oldUnitNow;
+extern sceVu0FVECTOR   ref_off;
+extern s32             rogoAlphaA[3];
+extern s32             rogoAlphaW[3];
+extern s32             rogoSwitch2;
+extern s32             rogoY3;
+extern s32             startCnt2;
+extern float           stickVector2;
+extern s32             targetCursorShiftNo;
+extern s32             targetCursorShiftRot;
+extern s32             tryalExit;
+extern sceVu0FVECTOR   velo2;
+extern sceVu0FVECTOR   veloOld;
+extern s32             viewMode__2;
 
 /**
  * State shared by the dungeon movement and game-loop replacements, defined in the dungeon

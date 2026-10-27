@@ -188,15 +188,13 @@ target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-la
     -Wno-overloaded-virtual -Wno-unused-function)
 
 # Shared by the game and its tests: the port's objects, the game's and the link
-# flags they need. Names the PS2 build tells apart per object
-# (ps2/config/*/object_fixups.json) are renamed by port/include/stubs, so no
-# name is defined twice. The executable is position-independent on every
-# platform: the game's casts of pointers to 32-bit integers are all widened in
-# port/src (docs/port/truncations.md), so nothing has to sit below 4 GiB.
+# flags they need. The executable is position-independent on every platform:
+# the game's casts of pointers to 32-bit integers are all widened in port/src
+# (docs/port/truncations.md), so nothing has to sit below 4 GiB.
 # port/src/linknames.cpp defines names the PS2 build gives through
-# object_fixups.json, EditGaijiTbl among them. ItemPutListTbl12_bytes is not
-# one: port/include/stubs/dngstatusdata.hpp turns GetItem's read through it
-# into a WeaponList lookup.
+# ps2/config/*/object_fixups.json, EditGaijiTbl among them. GetItem in
+# port/src/game/dngstatusdata.cpp reads WeaponList directly rather than
+# through ItemPutListTbl12_bytes.
 if(NINTENDO_SWITCH)
     set(DC_LINK_OPTIONS -Wl,--gc-sections)
 elseif(WIN32)

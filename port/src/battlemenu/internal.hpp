@@ -93,26 +93,6 @@ void PortBtlWeaponDraw(int x, float depth, int chara, int alpha);
 void PortWeaponMenuDraw();
 
 /**
- * Initializes the Battle Menu character selection page and turntable.
- */
-void Btl_InitMenuChara(u_long128 *buffer);
-
-/**
- * Initializes the Battle Menu weapon selection page for the given character.
- */
-void Btl_InitWeaponSelect(int mode, int chara);
-
-/**
- * Initializes the Battle Menu item inventory page for the given character.
- */
-void Btl_InitItemMode(int mode, int chara);
-
-/**
- * Initializes the Battle Menu journal and manual viewer page.
- */
-void Btl_BattleManualInit(int *blocks, u_long128 *buffer);
-
-/**
  * Returns whether a Battle Menu modal confirmation dialog is currently active.
  */
 bool BattleMenuQuitConfirmActive();

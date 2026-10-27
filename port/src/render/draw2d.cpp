@@ -1,11 +1,15 @@
 #include "render/draw2d.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <span>
 
 #include "mglib.hpp"
+#include "rect.hpp"
 #include "render/gs_state.hpp"
 #include "render/screen.hpp"
+#include "snd.hpp"
 #include "text/textwipe.hpp"
 #include "texture.hpp"
 
@@ -187,6 +191,53 @@ void DrawUntextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices,
         vertex.y *= rows;
     }
     textwipe::Draw2D(primitive, vertices, {}, state);
+}
+
+namespace {
+
+// The TEX1 snd's sprites write: LCM 1, MMIN 1 and MMAG from setbilinear.
+u_long SpriteTex1() { return (static_cast<u_long>(PortBilinear()) << 5) | 0x41; }
+
+} // namespace
+
+void TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y,
+                  float angle, float scale) {
+    if (texture == nullptr) {
+        return;
+    }
+
+    std::array<float, 4> x{};
+    std::array<float, 4> y{};
+
+    x[0] = x[2] = static_cast<float>(-pivot_x);
+    x[1] = x[3] = static_cast<float>((screen.x + screen.width + 1) - (screen.x + pivot_x));
+    y[0] = y[1] = static_cast<float>(-pivot_y);
+    y[2] = y[3] = static_cast<float>((screen.y + screen.height + 1) - (screen.y + pivot_y));
+
+    for (int i = 0; i < 4; i++) {
+        const float turned_x = y[i] * cosf(angle) + x[i] * sinf(angle);
+        const float turned_y = x[i] * cosf(angle) - y[i] * sinf(angle);
+
+        x[i] = turned_x * scale + static_cast<float>(screen.x);
+        y[i] = turned_y * scale + static_cast<float>(screen.y);
+    }
+
+    const auto u0 = static_cast<float>(texel.x);
+    const auto v0 = static_cast<float>(texel.y);
+    const auto v1 = static_cast<float>(texel.y + texel.height);
+
+    // The second corner's u spans the screen width, not the texel width, as in retail.
+    std::array<gfx::Vertex2D, 4> strip = {
+        draw2d::Vertex(x[0], y[0], 0.0f, u0, v0, 0x80, 0x80, 0x80, 0x80),
+        draw2d::Vertex(x[1], y[1], 0.0f, static_cast<float>(texel.x + screen.width), v0, 0x80, 0x80, 0x80,
+                       0x80),
+        draw2d::Vertex(x[2], y[2], 0.0f, u0, v1, 0x80, 0x80, 0x80, 0x80),
+        draw2d::Vertex(x[3], y[3], 0.0f, static_cast<float>(texel.x + texel.width), v1, 0x80, 0x80, 0x80,
+                       0x80),
+    };
+    draw2d::DrawTextured(gfx::Primitive::TriangleStrip, strip, texture->tex0, SpriteTex1(),
+                         draw2d::SpriteState());
+    draw2d::RestoreTestZbuf();
 }
 
 } // namespace draw2d

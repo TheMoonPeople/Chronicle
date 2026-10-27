@@ -71,11 +71,11 @@ paths removed by source consolidation still appear in `git ls-files`.
 
 The gameplay reviewer’s final organization and source checks covered
 `port/src/input/camera_zoom.cpp`, `port/src/input/first_person_walk.cpp`,
-`port/src/title/titleloop.cpp`, `port/src/edit.cpp`, `port/src/edit_in.cpp`,
-`port/src/editloop.cpp`, `port/src/editloop3.cpp`,
-`port/src/title/opening.cpp`, `port/src/title/op_a.cpp`,
-`port/src/title/op_b.cpp`, `port/src/title/rushmovi.cpp`,
-`port/src/title/title.cpp`, and `port/src/dun/movechara.cpp`.
+`port/src/game/title/titleloop.cpp`, `port/src/game/edit.cpp`, `port/src/game/edit_in.cpp`,
+`port/src/game/editloop.cpp`, `port/src/game/editloop3.cpp`,
+`port/src/game/title/opening.cpp`, `port/src/game/title/op_a.cpp`,
+`port/src/game/title/op_b.cpp`, `port/src/game/title/rushmovi.cpp`,
+`port/src/game/title/title.cpp`, and `port/src/game/dun/movechara.cpp`.
 `port/src/app/gameloop.cpp` received the caller-boundary fix described below;
 `port/src/tests/integration_gameloop_test.cpp` received the matching regression
 assertions and a full formatting pass. The verifier owns `op_c.cpp`; its

@@ -62,7 +62,7 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Battle menu ring, captions, Save/Load and Quit modals | `port/src/battlemenu/main_ring.cpp` | `Label`, `HelpBox`, `ConfirmModal`, `Cursor` |
 | Weapon menu, its buttons and help | `port/src/battlemenu/weapon_menu.cpp` | `BevelButton`, `TrackerWindow`, `HelpBox`, `Label`, `WrapText` |
 | World map and leave-dungeon prompt | `port/src/battlemenu/move_menu.cpp` | `ConfirmModal`, `Cursor` |
-| Journal: manuals and chest tracker | `port/src/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `TrackerWindow`, `ProgressBar`, `ItemIcon`, `DrawCounter`, `Brackets` |
+| Journal: manuals and chest tracker | `port/src/game/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `TrackerWindow`, `ProgressBar`, `ItemIcon`, `DrawCounter`, `Brackets` |
 | Options | `port/src/options/` | `TabPlate`, `TextureButton`, `ScrollBar`, `Cursor`, `Label` |
 | Villager conversation hub | `port/src/dialog/framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
@@ -337,7 +337,7 @@ with `Dialog::`, so the UI framework never knows what a fish or an enemy is.
   faces), call `setbilinear(0)` and `MenuTextureReload(BtlMenuReadBlock)` (or the PAL extension block
   for `wepstatus`), so bilinear filtering doesn't bleed the colour-key texels.
 - Call `MenuTextureReload(0x1A)` before drawing `GameText` or a `Label` on the game's renderer.
-- `DrawMenu2DSprite` (`port/src/menu_draw.cpp`) clamps a 1:1 sprite whose texel rectangle is 1 or 2
+- `DrawMenu2DSprite` (`port/src/game/menu_draw.cpp`) clamps a 1:1 sprite whose texel rectangle is 1 or 2
   rows taller than its screen rectangle, as retail's often are, so it doesn't sample the next sprite
   in the atlas at scaled resolutions; the completed Georama plate is trimmed to 119 rows for its
   gauge cap.

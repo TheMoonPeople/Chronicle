@@ -6,6 +6,7 @@
 
 #include "rect.hpp"
 
+class CCloth;
 class CFrameVu1;
 struct input_str;
 struct MOTION_INFO;

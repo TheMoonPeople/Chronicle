@@ -34,6 +34,12 @@ struct RS_STACKDATA;
 struct OBJ_ANIME_SEQ;
 struct EDIT_MAP_INFO;
 class CRunScript;
+class CCPoly;
+class CEditGround;
+struct ED_EVENT_PARAM;
+struct ED_EVENT_POINT;
+struct EPARTS_FUNC_DATA;
+struct VILLAGER_INFO;
 
 /**
  * Shares the active editor map objects with event-point and villager helpers.
@@ -154,6 +160,16 @@ extern CCamera DmmyCamera;
  * Script interpreter reserved for system events; no code runs it.
  */
 extern CRunScript SystemEventScript;
+
+/**
+ * Interpreter of the town's event script, which EdRunEvent starts.
+ */
+extern CRunScript EdEventScript;
+
+/**
+ * Script variable the use-item and bait menus write their choice to.
+ */
+extern char *p_use_item;
 
 /**
  * Dispatch table built from the editor-event and system-script external-function registries.
@@ -335,6 +351,11 @@ int EdInitEventParamSimple();
  * ambient colour the map is drawn with, loads the event script and runs it.
  */
 int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program);
+
+/**
+ * Resets the event workspace from the arena's free space and runs one program of a script.
+ */
+void RunEvent(CRunScript *script, int program, CDataAlloc2<1> *arena);
 
 /**
  * Reports whether an editable part has been placed and still has work left.

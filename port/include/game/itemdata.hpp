@@ -667,3 +667,9 @@ inline int GetDungeonItemEnd() { return ITEM_WEAPON_SLOT_EMPTY; }
  * The item data table, one entry per item from ITEM_ATTACH_START on.
  */
 extern ITEM_DATA ITEM_LIST[];
+
+/**
+ * Weapon table, one entry per weapon from ITEM_WEAPON_START on. CDngStatusData::GetItem reads a
+ * picked-up weapon's owner from it.
+ */
+extern WEAPON_DATA WeaponList[];

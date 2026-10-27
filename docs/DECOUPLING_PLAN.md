@@ -21,7 +21,7 @@ on arm64 macOS; it is the right shape on every platform.
 
 - **Link layout.** `port/CMakeLists.txt` links `-no-pie` so `.data` and
   `.bss` sit below 4 GiB.
-- **Arenas.** `port/src/dataset.cpp` maps every arena with `MAP_32BIT`.
+- **Arenas.** `port/src/game/dataset.cpp` maps every arena with `MAP_32BIT`.
 - **Game code.** Retail casts pointers to `int`/`s32`/`u_int` in roughly
   seventy units. Most are alignment masks and offsets that only use the low
   bits; a minority round-trip: the integer is cast back to a pointer, stored

@@ -23,7 +23,7 @@ Dependencies flow downward only.
    page stack, word wrap and layout, token substitution, option providers, input and the default
    renderer. Its public header includes no PS2 headers, and it knows nothing of the systems that
    register providers.
-3. **Host glue** (`port/src/dialog/npc.cpp`, `port/src/editloop3.cpp`). Offers each villager
+3. **Host glue** (`port/src/dialog/npc.cpp`, `port/src/game/editloop3.cpp`). Offers each villager
    conversation to the framework, reads the pad for it, and hands "Talk" back to retail.
 4. **Providers** (quests, special shops, mods). Register an `OptionProviderFn` and look at the
    `Dialog::NpcContext` to decide what to add.
@@ -32,7 +32,7 @@ Dependencies flow downward only.
 
 ## 2. How a conversation reaches it
 
-The port overrides retail's `EdTalkMode` group in `port/src/editloop3.cpp` (`EdTalkModeInit`,
+The port overrides retail's `EdTalkMode` group in `port/src/game/editloop3.cpp` (`EdTalkModeInit`,
 `EdTalkMode`, `EdNowTalkChara`, `EdNowTalkCharaInfoID`: every function that reads the conversation's
 file statics). The copies are retail's, with one addition in `EdTalkMode`:
 

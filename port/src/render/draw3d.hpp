@@ -25,7 +25,7 @@ struct MGPortRegisters {
 };
 
 /**
- * Returns the registers the 3D replacement units currently draw with.
+ * Returns the registers the game's 3D drawing currently uses.
  */
 MGPortRegisters &MGPortCurrent();
 
@@ -46,6 +46,11 @@ using Draw3DHandleResolver = PortTextureRef (*)(int handle);
 void Draw3DSetResolvers(Draw3DTex0Resolver tex0, Draw3DHandleResolver handle);
 
 /**
+ * Whether Draw3DSetResolvers installed a TEX0 resolver in place of the texture registry's.
+ */
+bool Draw3DHasTex0Resolver();
+
+/**
  * Resolves a TEX0 register value through the current resolver.
  */
 PortTextureRef Draw3DResolveTex0(u_long tex0);
@@ -60,6 +65,17 @@ PortTextureRef Draw3DResolveHandle(int handle);
  * still alive: the water samples it, as retail's "work" aliased the copy's VRAM.
  */
 gfx::TextureHandle Draw3DLastFrameCopy();
+
+/**
+ * Records a copy of the main target into copy: the last frame copy, the copy count and a pending
+ * Draw3DFramePicture.
+ */
+void Draw3DNoteFrameCopy(gfx::TextureHandle copy);
+
+/**
+ * Sets the last frame copy alone (a PSMCT24 stretch of the frame).
+ */
+void Draw3DSetLastFrameCopy(gfx::TextureHandle copy);
 
 /**
  * How many times the game has copied the frame with MGMoveImage.
@@ -77,6 +93,11 @@ gfx::TextureHandle Draw3DFramePicture();
  * counting into the stencil of the target being drawn; outside them they are dropped.
  */
 bool Draw3DShadowTargetActive();
+
+/**
+ * Opens (MGBeginDrawShadow) or closes (MGBeginFrame, MGEndDrawShadow) the shadow target.
+ */
+void Draw3DSetShadowTargetActive(bool active);
 
 /**
  * Makes state a shadow counting draw: no colour, depth or blend, the stencil incremented (or
@@ -98,6 +119,11 @@ enum class Draw3DShadowProgram {
  * Returns the shadow microprogram of the running MGDrawShadow* call.
  */
 Draw3DShadowProgram Draw3DCurrentShadowProgram();
+
+/**
+ * Sets the shadow microprogram the MGDrawShadow* call about to draw stands for.
+ */
+void Draw3DSetShadowProgram(Draw3DShadowProgram program);
 
 /**
  * Multiplies 4x4 matrices, column-major [column][row] as sceVu0FMATRIX.

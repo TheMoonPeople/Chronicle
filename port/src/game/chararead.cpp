@@ -1,8 +1,11 @@
+#include "chararead.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <print>
 #include <string>
@@ -10,6 +13,7 @@
 
 #include "character.hpp"
 #include "cloth.hpp"
+#include "data/data_read.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "frame.hpp"
@@ -19,13 +23,10 @@
 #include "scriptinterpreter.hpp"
 #include "sysmes.hpp"
 #include "texture.hpp"
+#include "vu0_ops.hpp"
 
 CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
 void    CommandIMG(void **argv);
-
-extern CDataAlloc2<1> *img_buffer;
-extern u_int          *pack_data;
-extern u_int          *load_img[4];
 
 namespace {
 
@@ -72,11 +73,13 @@ void PreProcess(input_str &input);
 CDataAlloc2<1> *mds_buffer;
 CDataAlloc2<1> *buffer;
 CDataAlloc2<1> *exbuffer;
+CDataAlloc2<1> *img_buffer;
 int             texture_block;
 CCharacter     *character;
 int             vertex_anime;
 int             def_vtype;
 int             shadow_vertex_anime;
+u_int          *pack_data;
 int             motion_info_num;
 int             key_start;
 int             key_no;
@@ -98,6 +101,7 @@ std::array<std::string, ALLOC_NAME_MAX> alloc_mdt;
 std::array<std::string, ALLOC_NAME_MAX> alloc_dbuff;
 std::array<std::string, ALLOC_NAME_MAX> alloc_smdt;
 std::array<std::string, ALLOC_NAME_MAX> alloc_sdbuff;
+u_int                                  *load_img[4];
 
 constexpr std::array<COMMAND_INFO, COMMAND_COUNT> Command = {
     {
@@ -492,6 +496,36 @@ void CommandALLOC_SHADOW_DBUFF(void **argv) {
     }
 }
 
+} // namespace
+
+void CommandIMG(void **argv) {
+    if (img_buffer == nullptr) {
+        return;
+    }
+
+    const int slot = *static_cast<int *>(argv[0]);
+    if (slot < 0 || slot >= std::ssize(load_img)) {
+        return;
+    }
+
+    int    size = 0;
+    u_int *image_file = GetPackFile(pack_data, static_cast<char *>(argv[1]), &size);
+    if (image_file == nullptr) {
+        return;
+    }
+
+    DataReadSource source;
+    const bool     has_source = size > 0 && DataReadSourceRange(image_file, static_cast<std::size_t>(size), source);
+    load_img[slot] = reinterpret_cast<u_int *>(img_buffer->Alloc((size >> 4) + 1));
+    std::memcpy(load_img[slot], image_file, static_cast<std::size_t>(size));
+
+    if (has_source) {
+        DataReadRegisterCopiedSource(load_img[slot], static_cast<std::size_t>(size), img_buffer, source);
+    }
+}
+
+namespace {
+
 void CommandIMG_END(void ** /*argv*/) {
     // One more entry than there are images, for the terminator.
     std::array<LOADTEXTURE_INFO2, 5> textures{};
@@ -722,4 +756,24 @@ void CCharacter::StopCloth(int /*unused*/) {
             cloth[i]->stop = true;
         }
     }
+}
+
+void StretchBind2(float *point_a, float *point_b, float *spring) {
+    float delta[3] = {point_a[0] - point_b[0], point_a[1] - point_b[1], point_a[2] - point_b[2]};
+    float length_squared = delta[0] * delta[0];
+    length_squared = length_squared + delta[1] * delta[1];
+    length_squared = length_squared + delta[2] * delta[2];
+    float inverse_scale = vu0::Rsqrt(spring[0], length_squared);
+    float pull_a = spring[1];
+    float pull_b = spring[2];
+
+    for (int i = 0; i < 3; i++) {
+        float slack = delta[i] - vu0::Mul(delta[i], inverse_scale);
+        point_a[i] = point_a[i] - slack * pull_a;
+        point_b[i] = point_b[i] + slack * pull_b;
+    }
+}
+
+float vuabs(float *vector) {
+    return vu0::Sqrt(vu0::LengthSquared(vector));
 }

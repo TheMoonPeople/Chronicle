@@ -61,6 +61,36 @@ void LangsetInit() {
     Proc = LANGSET_FADE_IN;
 }
 
+int LangsetLoop() {
+    switch (Proc) {
+        case LANGSET_FADE_IN:
+            if (Fade.In() != 0) {
+                Proc = LANGSET_SELECT;
+            }
+
+            break;
+        case LANGSET_SELECT:
+            if (LangsetProc() != 0) {
+                Proc = LANGSET_FADE_OUT;
+            }
+
+            break;
+        case LANGSET_FADE_OUT:
+            if (Fade.Out() != 0) {
+                // The first two codes are not offered here, so the cursor counts from the third.
+                LanguageCode = Cursor + 2;
+                return 1;
+            }
+
+            break;
+        default:
+            break;
+    }
+
+    LangsetDraw();
+    return 0;
+}
+
 int LangsetProc() {
     if (GamePad.Down(PAD_UP) != 0) {
         Cursor--;

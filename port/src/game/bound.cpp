@@ -1,6 +1,6 @@
-#include "stubs/bound.hpp"
-
 #include "bound.hpp"
+
+#include "chararead.hpp"
 #include "frame.hpp"
 
 namespace {

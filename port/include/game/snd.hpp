@@ -385,6 +385,11 @@ void SndSetSPSePanf(int se_no, float pan);
 void setbilinear(int on);
 
 /**
+ * What setbilinear last set (retail's linear__2): the filter the 2D units' sprite batches use.
+ */
+int PortBilinear();
+
+/**
  * Submits the blending register that sprites draw with.
  */
 void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha);
