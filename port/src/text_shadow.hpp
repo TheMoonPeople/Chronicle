@@ -1,18 +1,24 @@
 #pragma once
 
+#include <algorithm>
 #include <span>
 
-// The drop shadow the message text casts, as taps at half-pixel steps along the light's direction (down
-// and right) that the texture filter blends. Message text (clsmes.cpp) and the button symbols drawn in
-// it (glyph_draw.cpp) share it, so a symbol sits on the picture the way the letters beside it do.
-// Offsets are in logical units, in the shadow's own colour `grey`; `alpha` is capped by the caller.
+/**
+ * One tap of the drop shadow message text casts: taps sit at half-pixel steps along the light's
+ * direction (down and right) and the texture filter blends them. Message text and the button
+ * symbols drawn in it share the shadow, so a symbol sits on the picture as the letters beside it do.
+ */
 struct TextShadowTap {
-    float dx, dy;
-    int   grey, alpha;
+    float dx;    /**< Horizontal offset in logical units. */
+    float dy;    /**< Vertical offset in logical units. */
+    int   grey;  /**< Grey level of the shadow's colour. */
+    int   alpha; /**< Opacity before the caller's cap. */
 };
 
-// Calls `draw(tap)` for each tap of the shadow at `percent` strength: 0 casts none, 50 is the soft
-// shadow, 100 the deep one, and in between the soft one fades out or gives way to the deep one.
+/**
+ * Calls `draw(tap)` for each tap of the shadow at `percent` strength: 0 casts none, 50 is the soft
+ * shadow, 100 the deep one, and in between the soft one fades out or gives way to the deep one.
+ */
 template <class Draw>
 void TextShadowEach(int percent, Draw &&draw) {
     static constexpr TextShadowTap soft[] = {
@@ -52,7 +58,7 @@ void TextShadowEach(int percent, Draw &&draw) {
         {3.2f, 2.4f, 0,    0x30},
         {2.4f, 3.2f, 0,    0x30},
     };
-    percent = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+    percent = std::clamp(percent, 0, 100);
     const float to_deep = percent > 50 ? static_cast<float>(percent - 50) / 50.0f : 0.0f;
     const float soft_scale = percent >= 50 ? 1.0f - to_deep : static_cast<float>(percent) / 50.0f;
     auto        cast = [&](std::span<const TextShadowTap> taps, float scale) {

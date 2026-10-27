@@ -29,26 +29,6 @@ constexpr u32 ColorYellow = FONT_COLOR_YELLOW;
  */
 constexpr u32 ColorBlue = 3;
 
-/**
- * Legacy alias for the white font palette index.
- */
-constexpr u32 NATIVE_COLOR_WHITE = FONT_COLOR_WHITE;
-
-/**
- * Legacy alias for the gold font palette index.
- */
-constexpr u32 NATIVE_COLOR_GOLD = FONT_COLOR_GOLD;
-
-/**
- * Legacy alias for the yellow font palette index.
- */
-constexpr u32 NATIVE_COLOR_YELLOW = FONT_COLOR_YELLOW;
-
-/**
- * Legacy alias for the blue font palette index.
- */
-constexpr u32 NATIVE_COLOR_BLUE = ColorBlue;
-
 namespace Metrics {
 
 /**
@@ -328,9 +308,9 @@ struct Rect {
      * Returns a copy of the rectangle inset by individual edge margins.
      */
     constexpr Rect Inset(int left, int top, int right, int bottom) const {
-        const int nw = w - (left + right);
-        const int nh = h - (top + bottom);
-        return Rect(x + left, y + top, nw > 0 ? nw : 0, nh > 0 ? nh : 0);
+        const int inner_w = w - (left + right);
+        const int inner_h = h - (top + bottom);
+        return Rect(x + left, y + top, inner_w > 0 ? inner_w : 0, inner_h > 0 ? inner_h : 0);
     }
 
     /**

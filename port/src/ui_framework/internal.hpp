@@ -45,12 +45,12 @@ extern CTexture *WepStatus;
 /**
  * Draws the 9-slice translucent help window frame.
  */
-extern void MenuHelpWinDraw(int x, int y, float w, float h, int alpha);
+void MenuHelpWinDraw(int x, int y, float w, float h, int alpha);
 
 /**
  * Sets whether textures are sampled with bilinear filtering.
  */
-extern void setbilinear(int n);
+void setbilinear(int n);
 
 namespace UI::detail {
 

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -45,36 +46,71 @@
 #include "weapon_buildup.hpp"
 #include "weaponlevelup.hpp"
 
+/**
+ * Draws the Battle Menu's main ring and eases the system cursor towards the selected icon.
+ */
 void PortDrawBattleMenuMain();
+
+/**
+ * Draws the Battle Menu and its active page.
+ */
 void PortDrawBattleMenu();
-int  PortBattleMenuSelect();
+
+/**
+ * Runs one frame of Battle Menu input and returns BattleMenuSelect's result.
+ */
+int PortBattleMenuSelect();
+
+/**
+ * Draws the Battle Menu's move page and its world map.
+ */
 void PortDrawMenuMove();
+
+/**
+ * Draws the selected weapon's action dialog at (x, y) with the given alpha.
+ */
 void PortDrawWeaponSelectDialog(int x, int y, int alpha);
+
+/**
+ * Draws the build-up choices of the selected weapon at (x, y) with cursor on the highlighted one.
+ */
 void PortDrawBuildUpWeaponSelect(int x, int y, int cursor);
+
+/**
+ * Draws one weapon of a character's weapon list, its model at depth and its row at (x, y).
+ */
 void PortDrawAallWeapon(int x, int y, float depth, CCharacter *model, WEAPON_HAVE *weapon,
                         int equipped, int selected, int alpha);
+
+/**
+ * Draws chara's weapon list with its models lit for the menu camera.
+ */
 void PortBtlWeaponDraw(int x, float depth, int chara, int alpha);
+
+/**
+ * Draws the Battle Menu's weapon page, fading it as it opens and closes.
+ */
 void PortWeaponMenuDraw();
 
 /**
  * Initializes the Battle Menu character selection page and turntable.
  */
-extern void Btl_InitMenuChara(u_long128 *buffer);
+void Btl_InitMenuChara(u_long128 *buffer);
 
 /**
  * Initializes the Battle Menu weapon selection page for the given character.
  */
-extern void Btl_InitWeaponSelect(int mode, int chara);
+void Btl_InitWeaponSelect(int mode, int chara);
 
 /**
  * Initializes the Battle Menu item inventory page for the given character.
  */
-extern void Btl_InitItemMode(int mode, int chara);
+void Btl_InitItemMode(int mode, int chara);
 
 /**
  * Initializes the Battle Menu journal and manual viewer page.
  */
-extern void Btl_BattleManualInit(int *blocks, u_long128 *buffer);
+void Btl_BattleManualInit(int *blocks, u_long128 *buffer);
 
 /**
  * Returns whether a Battle Menu modal confirmation dialog is currently active.
@@ -131,8 +167,8 @@ inline void RefreshBtlMenuTextures() {
  * Strips inline control tags and trailing whitespace from a decoded message string.
  */
 inline std::string CleanDecodedText(std::string decoded) {
-    for (size_t pos = 0; (pos = decoded.find('{', pos)) != std::string::npos;) {
-        const size_t end = decoded.find('}', pos);
+    for (std::size_t pos = 0; (pos = decoded.find('{', pos)) != std::string::npos;) {
+        const std::size_t end = decoded.find('}', pos);
         if (end != std::string::npos) {
             decoded.erase(pos, end - pos + 1);
         } else {
@@ -169,10 +205,10 @@ inline std::string DecodeItemNamePort(int item_no, std::string_view fallback = {
     if (item_no > 0 && SystemMes != nullptr) {
         if (COM_ITEM_INFO *info = GetCommonItemInfo(item_no)) {
             if (info->msg > 0) {
-                std::string  name = DecodeMesFromBuffer(SystemMes, info->msg + 0x64);
-                const size_t nl = name.find('\n');
-                if (nl != std::string::npos) {
-                    name.resize(nl);
+                std::string       name = DecodeMesFromBuffer(SystemMes, info->msg + 0x64);
+                const std::size_t newline = name.find('\n');
+                if (newline != std::string::npos) {
+                    name.resize(newline);
                 }
                 if (!name.empty()) {
                     return name;

@@ -16,7 +16,7 @@
 #include "platform/paths.hpp"
 #include "shop.hpp"
 
-// ps2/src/shop.cpp's prices, as custom_shop.cpp declares them.
+// The shop price table, as custom_shop.cpp declares it.
 struct ITEM_MONEY_ENTRY {
     s16 buy_price;
     s16 sell_price;

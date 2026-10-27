@@ -12,12 +12,10 @@
 #include "texture.hpp"
 #include "vu0_ops.hpp"
 
-// VU1 program 15 drew the CPU-built height field with FST texel coordinates into a copy of the
-// frame's field: each vertex samples the copy where the vertex itself lands on the screen, shifted
-// by the ripple's slope (uv_base (320, 120) plus distortion is that offset from the field's
-// centre). The port draws the field from model space with the frame's mvp and computes the same
-// texel per vertex from the logical frame position, through the copy's logical mapping: the copy
-// is a frame target, so water past the logical frame samples the copy's own sides.
+// The height field is drawn from model space with the frame's mvp. Each vertex samples the copy of
+// the frame where the vertex itself lands on the screen, shifted by the ripple's slope (offset from
+// the field's centre (320, 120)), through the copy's logical mapping: the copy is a frame target,
+// so water past the logical frame samples the copy's own sides.
 
 namespace {
 
@@ -74,8 +72,8 @@ bool PrepareRefraction(Refraction &refraction) {
     if (refraction.frame == gfx::kNullTexture) {
         return false;
     }
-    uint32_t width = static_cast<uint32_t>(kScreenWidth);
-    uint32_t height = static_cast<uint32_t>(kScreenHeight);
+    auto width = static_cast<uint32_t>(kScreenWidth);
+    auto height = static_cast<uint32_t>(kScreenHeight);
     refraction.visible = gfx::NamedRenderTarget("water visible", width, height, true, true);
     refraction.refracted = gfx::NamedRenderTarget("water refracted", width, height, false, true);
     if (refraction.visible == gfx::kNullTexture || refraction.refracted == gfx::kNullTexture) {
@@ -101,13 +99,15 @@ std::vector<gfx::Vertex3D> RippledVertices(const CWater &water, const std::vecto
     float                      across = mapping.pixel_width ? mapping.scale_x / static_cast<float>(mapping.pixel_width) : 0.0f;
     float                      down = mapping.pixel_height ? 2.0f * mapping.scale_y / static_cast<float>(mapping.pixel_height) : 0.0f;
     std::vector<gfx::Vertex3D> rippled = vertices;
-    for (int i = 0; i < water.rows; i++) {
-        const float *here = &water.height[i * water.columns];
-        const float *above = i == 0 ? here : here - water.columns;
-        for (int j = 0; j < water.columns; j++, here++, above++) {
-            gfx::Vertex3D &vertex = rippled[static_cast<size_t>(i * water.columns + j)];
-            vertex.uv[0] = water.distortion * (*above - *here) * across;
-            vertex.uv[1] = water.distortion * (here[0] - here[1]) * down;
+    const float               *heights = water.height;
+    for (int row = 0; row < water.rows; row++) {
+        int row_start = row * water.columns;
+        int above_start = row == 0 ? row_start : row_start - water.columns;
+        for (int column = 0; column < water.columns; column++) {
+            int            here = row_start + column;
+            gfx::Vertex3D &vertex = rippled[static_cast<size_t>(here)];
+            vertex.uv[0] = water.distortion * (heights[above_start + column] - heights[here]) * across;
+            vertex.uv[1] = water.distortion * (heights[here] - heights[here + 1]) * down;
         }
     }
     return rippled;
@@ -145,9 +145,9 @@ void DrawRefracted(const CWater &water, const Refraction &refraction, const Draw
     gfx::SetRenderTarget(refraction.refracted);
     gfx::DrawMeshImmediate(flat, visual.indices, plain, binding, copy, &transform);
     binding.texture = refraction.visible;
-    over.alpha = {2, 1, 0, 1, 0x80};
+    over.alpha = {.a = 2, .b = 1, .c = 0, .d = 1, .fix = 0x80};
     gfx::DrawMeshImmediate(rippled, visual.indices, plain, binding, over, &transform);
-    over.alpha = {0, 2, 2, 1, 0x80};
+    over.alpha = {.a = 0, .b = 2, .c = 2, .d = 1, .fix = 0x80};
     gfx::DrawMeshImmediate(rippled, visual.indices, plain, binding, over, &transform);
 
     gfx::SetRenderTarget(gfx::kMainTarget);
@@ -173,7 +173,7 @@ int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
     Draw3DMul(local_to_eye, info->view_scaled, local_to_world);
 
     PortTextureRef      copy = FrameCopy();
-    gfx::LogicalMapping texels = {1.0f, 1.0f, 0.0f, 0.0f, copy.width, copy.height};
+    gfx::LogicalMapping texels = {.scale_x = 1.0f, .scale_y = 1.0f, .offset_x = 0.0f, .offset_y = 0.0f, .pixel_width = copy.width, .pixel_height = copy.height};
     if (copy.valid && gfx::GetTextureInfo(copy.binding.texture)) {
         texels = gfx::GetLogicalMapping(copy.binding.texture);
     }
@@ -182,20 +182,22 @@ int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
 
     sceVu0FVECTOR row_step;
     sceVu0FVECTOR column_step;
-    for (int i = 0; i < 3; i++) {
-        row_step[i] = (vertex[1][i] - vertex[0][i]) / static_cast<float>(rows - 1);
-        column_step[i] = (vertex[2][i] - vertex[0][i]) / static_cast<float>(columns - 1);
+    for (int axis = 0; axis < 3; axis++) {
+        row_step[axis] = (vertex[1][axis] - vertex[0][axis]) / static_cast<float>(rows - 1);
+        column_step[axis] = (vertex[2][axis] - vertex[0][axis]) / static_cast<float>(columns - 1);
     }
     row_step[1] = column_step[1] = 0.0f;
 
     uint8_t rgba[4] = {color[0], color[1], color[2], color[3]};
     float   row_f = 0.0f;
-    for (int i = 0; i < rows; i++, row_f += 1.0f) {
+    for (int row = 0; row < rows; row++, row_f += 1.0f) {
         sceVu0FVECTOR position = {vertex[0][0] + row_f * row_step[0], vertex[0][1] + row_f * row_step[1],
                                   vertex[0][2] + row_f * row_step[2], 1.0f};
-        float        *here = &height[i * columns];
-        float        *above = i == 0 ? here : here - columns;
-        for (int j = 0; j < columns; j++, here++, above++) {
+        int           row_start = row * columns;
+        int           above_start = row == 0 ? row_start : row_start - columns;
+        for (int column = 0; column < columns; column++) {
+            int           here = row_start + column;
+            int           above = above_start + column;
             gfx::Vertex3D out = {};
             std::memcpy(out.position, position, sizeof(out.position));
             std::memcpy(out.color, rgba, sizeof(rgba));
@@ -205,28 +207,28 @@ int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
             float depth = eye[2] > 1.0f ? eye[2] : 1.0f;
             float screen_x = kFieldCentreX + info->scale[0] * eye[0] / depth;
             float screen_y = kFieldCentreY + info->scale[1] * eye[1] / depth * 0.5f;
-            out.uv[0] = ((screen_x + distortion * (*above - *here)) * texels.scale_x + texels.offset_x) * inv_width;
-            out.uv[1] = ((screen_y + distortion * (here[0] - here[1])) * texels.scale_y + texels.offset_y) * inv_height;
+            out.uv[0] = ((screen_x + distortion * (height[above] - height[here])) * texels.scale_x + texels.offset_x) * inv_width;
+            out.uv[1] = ((screen_y + distortion * (height[here] - height[here + 1])) * texels.scale_y + texels.offset_y) * inv_height;
             visual.vertices.push_back(out);
 
             // Retail transforms the cell before lifting it, so each vertex carries the height of
             // the cell before it.
             position[0] += column_step[0];
             position[2] += column_step[2];
-            position[1] = *here * height_scale;
+            position[1] = height[here] * height_scale;
         }
     }
 
-    for (int i = 0; i < rows - 1; i++) {
+    for (int row = 0; row < rows - 1; row++) {
         std::vector<uint32_t> strip;
-        for (int j = 0; j < columns; j++) {
-            strip.push_back(static_cast<uint32_t>(i * columns + j));
-            strip.push_back(static_cast<uint32_t>((i + 1) * columns + j));
+        for (int column = 0; column < columns; column++) {
+            strip.push_back(static_cast<uint32_t>(row * columns + column));
+            strip.push_back(static_cast<uint32_t>((row + 1) * columns + column));
         }
         size_t first = visual.indices.size();
         Draw3DStripToList(visual.indices, 0, static_cast<uint32_t>(strip.size()));
-        for (size_t k = first; k < visual.indices.size(); k++) {
-            visual.indices[k] = strip[visual.indices[k]];
+        for (size_t index = first; index < visual.indices.size(); index++) {
+            visual.indices[index] = strip[visual.indices[index]];
         }
     }
 
@@ -237,7 +239,7 @@ int CWater::CreateVUData(unsigned int *output, RenderInfo *info) {
 }
 
 extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info,
-                                                                              sceVif1Packet *draw_packet, void *parent_info) {
+                                                                sceVif1Packet * /*draw_packet*/, void * /*parent_info*/) {
     if (water->CheckClip() != 0) {
         return 0;
     }
@@ -260,7 +262,7 @@ extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, R
     if (visual != nullptr && !visual->indices.empty()) {
         Draw3DIdentityScope identity(water, kDraw3DTeleportDistance);
         gfx::MeshConstants  constants = {};
-        gfx::MeshTransform  transform;
+        gfx::MeshTransform  transform{};
         Draw3DSceneConstants(constants, *info, local_to_world, &transform);
         constants.flags = gfx::kMeshVertexColor;
         for (float &value : constants.diffuse) {

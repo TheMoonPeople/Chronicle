@@ -33,7 +33,7 @@ TEST(Caption, PreparePaintedLeavesOtherTexturesAlone) {
     texture.width = 4;
     texture.height = 4;
     texture.format = gfx::TextureFormat::Rgba8;
-    texture.levels.push_back(std::vector<uint8_t>(4 * 4 * 4, 200));
+    texture.levels.emplace_back(std::size_t{4} * 4 * 4, 200);
     caption::PreparePainted("other", texture);
     for (uint8_t byte : texture.levels[0]) {
         EXPECT_EQ(byte, 200);

@@ -2,9 +2,6 @@
 
 #include <gtest/gtest.h>
 
-// Synthetic disc fixtures for the data tests: a DATA.DAT/DATA.HD2 pair laid out as the disc's,
-// packs in the game's 76-byte entry format, and a minimal ISO 9660 image holding the pair.
-
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -16,24 +13,37 @@
 #include "../../../tools/dcdata/dcdata.hpp"
 #include "platform_fixture.hpp"
 
+/**
+ * Synthetic disc fixtures for the data tests: a DATA.DAT/DATA.HD2 pair laid out as the disc's,
+ * packs in the game's 76-byte entry format, and a minimal ISO 9660 image holding the pair.
+ */
 namespace datafix {
 
 namespace fs = std::filesystem;
 
 using Bytes = std::vector<unsigned char>;
 
+/**
+ * One named file of a synthetic disc or pack.
+ */
 struct File {
     std::string name;
     Bytes       data;
 };
 
+/**
+ * A synthetic DATA.DAT and DATA.HD2 pair and the files they hold.
+ */
 struct Disc {
     Bytes             dat;
     Bytes             hd2;
     std::vector<File> files;
 };
 
-// Resolved, as the working directory comes back: macOS's /var is a symlink.
+/**
+ * Creates an empty per-process temporary directory for the tag, with symlinks resolved as the
+ * working directory reports them (macOS's /var is a symlink).
+ */
 inline fs::path TempDir(const char *tag) {
     fs::path dir = fs::canonical(fs::temp_directory_path()) / std::format("dc_{}_{}", tag, dc::test::ProcessId());
     fs::remove_all(dir);
@@ -41,6 +51,9 @@ inline fs::path TempDir(const char *tag) {
     return dir;
 }
 
+/**
+ * A deterministic, never-zero byte pattern of the given size, varied by seed.
+ */
 inline Bytes Pattern(std::size_t size, unsigned seed) {
     Bytes data(size);
     for (std::size_t i = 0; i < size; i++) {
@@ -49,12 +62,18 @@ inline Bytes Pattern(std::size_t size, unsigned seed) {
     return data;
 }
 
+/**
+ * Stores a little-endian 32-bit value at the offset.
+ */
 inline void Put32(Bytes &data, std::size_t offset, std::uint32_t value) {
     for (int i = 0; i < 4; i++) {
         data[offset + i] = static_cast<unsigned char>(value >> (8 * i));
     }
 }
 
+/**
+ * Stores a 32-bit value in ISO 9660's both-endian form: little-endian then big-endian.
+ */
 inline void PutBoth32(Bytes &data, std::size_t offset, std::uint32_t value) {
     Put32(data, offset, value);
     for (int i = 0; i < 4; i++) {
@@ -62,16 +81,25 @@ inline void PutBoth32(Bytes &data, std::size_t offset, std::uint32_t value) {
     }
 }
 
+/**
+ * Writes the bytes to the path, creating its parent directories.
+ */
 inline void WriteBytes(const fs::path &path, const Bytes &data) {
     fs::create_directories(path.parent_path());
     std::ofstream(path, std::ios::binary).write(reinterpret_cast<const char *>(data.data()), data.size());
 }
 
+/**
+ * Reads the whole file at the path, or nothing if it cannot be opened.
+ */
 inline Bytes ReadBytes(const fs::path &path) {
     std::ifstream stream(path, std::ios::binary);
     return Bytes(std::istreambuf_iterator<char>(stream), {});
 }
 
+/**
+ * Builds a pack in the game's 76-byte entry format, each member 16-byte aligned.
+ */
 inline Bytes MakePack(const std::vector<File> &files) {
     std::size_t table = 76 * (files.size() + 1);
     Bytes       pack(table);
@@ -88,8 +116,11 @@ inline Bytes MakePack(const std::vector<File> &files) {
     return pack;
 }
 
-// Each file starts on its own sector, one empty sector in, with the tail of its last sector
-// filled with a non-zero byte so a reader that copies whole sectors is caught.
+/**
+ * Lays the files out as DATA.DAT and DATA.HD2. Each file starts on its own sector, one empty sector
+ * in, with the tail of its last sector filled with a non-zero byte so a reader that copies whole
+ * sectors is caught.
+ */
 inline Disc MakeDisc(std::vector<File> files) {
     Disc disc;
     disc.files = std::move(files);
@@ -117,10 +148,16 @@ inline Disc MakeDisc(std::vector<File> files) {
     return disc;
 }
 
+/**
+ * The number of disc sectors the data occupies.
+ */
 inline std::uint32_t SectorCount(const Bytes &data) {
     return static_cast<std::uint32_t>(dcdata::SectorsFor(data.size()));
 }
 
+/**
+ * An ISO 9660 directory record for a file or directory.
+ */
 inline Bytes DirectoryRecord(std::string_view name, std::uint32_t extent, std::size_t size, bool directory) {
     Bytes record(33 + name.size() + (name.size() % 2 == 0 ? 1 : 0));
     record[0] = static_cast<unsigned char>(record.size());
@@ -134,9 +171,11 @@ inline Bytes DirectoryRecord(std::string_view name, std::uint32_t extent, std::s
     return record;
 }
 
-// Sectors 16 and 17 are the primary descriptor and the terminator, the root directory takes 18
-// and 19 with the second file's record pushed into 19 so the zero tail of 18 must be skipped,
-// and the files follow from 20.
+/**
+ * A minimal ISO 9660 image of two files. Sectors 16 and 17 are the primary descriptor and the
+ * terminator, the root directory takes 18 and 19 with the second file's record pushed into 19 so
+ * the zero tail of 18 must be skipped, and the files follow from 20.
+ */
 inline Bytes MakeIso(const std::string &first_name, const Bytes &first, const std::string &second_name,
                      const Bytes &second) {
     constexpr std::uint32_t root_extent = 18;
@@ -173,6 +212,9 @@ inline Bytes MakeIso(const std::string &first_name, const Bytes &first, const st
     return image;
 }
 
+/**
+ * The standard disc's four-member pack, rmdat1.pak.
+ */
 inline File PackFile() {
     return {
         "rmdat\\rmdat1.pak", MakePack({{"info.cfg", Pattern(37, 1)},
@@ -183,8 +225,10 @@ inline File PackFile() {
     };
 }
 
-// The game's own paths, as DATA.HD2 spells them: backslashes, mixed case, one with a leading
-// separator, a later duplicate of the first, sizes on both sides of a sector, and an empty file.
+/**
+ * A disc of the game's own paths, as DATA.HD2 spells them: backslashes, mixed case, one with a
+ * leading separator, a later duplicate of the first, sizes on both sides of a sector, and an empty file.
+ */
 inline Disc StandardDisc() {
     return MakeDisc({
         {"DUN\\PACK\\MAINDAT.PAC", Pattern(5000, 10)},
@@ -197,6 +241,9 @@ inline Disc StandardDisc() {
     });
 }
 
+/**
+ * The number of distinct files StandardDisc extracts: its duplicate path is written once.
+ */
 inline constexpr std::size_t kStandardReachable = 6;
 
 } // namespace datafix

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -255,9 +256,9 @@ TEST_F(DialogFramework, WheelLargeDeltasWrapAcrossEnabledChoices) {
     // Talk, Open, and Never mind are enabled; the locked choice is skipped.
     EXPECT_TRUE(Dialog::InputScrollWheel(3));
     EXPECT_EQ(View().selected_choice, 0);
-    EXPECT_TRUE(Dialog::InputScrollWheel(INT32_MIN));
+    EXPECT_TRUE(Dialog::InputScrollWheel(std::numeric_limits<std::int32_t>::min()));
     EXPECT_EQ(View().selected_choice, 3);
-    EXPECT_TRUE(Dialog::InputScrollWheel(INT32_MAX));
+    EXPECT_TRUE(Dialog::InputScrollWheel(std::numeric_limits<std::int32_t>::max()));
     EXPECT_EQ(View().selected_choice, 2);
 }
 

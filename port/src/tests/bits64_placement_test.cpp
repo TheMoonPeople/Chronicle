@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <cstddef>
+#include <array>
 
 #include "bits64_fixture.hpp"
 #include "bound.hpp"
@@ -16,7 +16,7 @@ using dc::test::Arena;
 using dc::test::End;
 using dc::test::RetailRun;
 
-// clothread.cpp's, which no header declares.
+// Defined in clothread.cpp; no header declares it.
 CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
 
 namespace {
@@ -31,7 +31,7 @@ struct Wide {
 // The placement operators size the run from the object, not from the count retail wrote by hand.
 TEST(Bits64Placement, GrowsARunTheObjectOutgrows) {
     Arena arena(64);
-    Wide *wide = new (RetailRun(arena, 1)) Wide;
+    auto *wide = new (RetailRun(arena, 1)) Wide;
 
     EXPECT_EQ(arena.alloc.used, 3);
     EXPECT_GE(arena.Next(), End(wide));
@@ -40,7 +40,7 @@ TEST(Bits64Placement, GrowsARunTheObjectOutgrows) {
 
 TEST(Bits64Placement, GrowsARunAnArrayOutgrows) {
     Arena arena(64);
-    Wide *wide = new (RetailRun(arena, 1)) Wide[3];
+    auto *wide = new (RetailRun(arena, 1)) Wide[3];
 
     EXPECT_EQ(reinterpret_cast<u_char *>(wide), arena.alloc.base);
     EXPECT_EQ(arena.alloc.used, 8);
@@ -51,7 +51,7 @@ TEST(Bits64Placement, GrowsAnAlignedRun) {
     Arena arena(64);
     arena.alloc.Alloc(1);
     auto *block = reinterpret_cast<u_long128 *>(arena.alloc.Alloc64(1));
-    Wide *wide = new (block) Wide;
+    auto *wide = new (block) Wide;
 
     EXPECT_GE(arena.Next(), End(wide));
 }
@@ -74,12 +74,12 @@ TEST(Bits64Placement, LeavesARunThatIsNoLongerTheLast) {
 }
 
 TEST(Bits64Placement, LeavesStorageNoArenaHandedOut) {
-    Arena            arena(64);
-    static u_long128 storage[4];
+    Arena                           arena(64);
+    static std::array<u_long128, 4> storage;
     arena.alloc.Alloc(1);
-    Wide *wide = new (storage) Wide;
+    auto *wide = new (storage.data()) Wide;
 
-    EXPECT_EQ(reinterpret_cast<void *>(wide), static_cast<void *>(storage));
+    EXPECT_EQ(static_cast<void *>(wide), static_cast<void *>(storage.data()));
     EXPECT_EQ(arena.alloc.used, 1);
 }
 
@@ -87,8 +87,8 @@ TEST(Bits64Placement, LeavesStorageNoArenaHandedOut) {
 
 // InitCloth: 0x856 quadwords for the cloth, sixteen bytes short of the host's.
 TEST(Bits64Placement, ClothFitsItsRun) {
-    Arena   arena(4096);
-    CCloth *cloth = new (RetailRun(arena, 0x856)) CCloth(16, 16, 1.0f);
+    Arena arena(4096);
+    auto *cloth = new (RetailRun(arena, 0x856)) CCloth(16, 16, 1.0f);
 
     EXPECT_GE(arena.Next(), End(cloth));
 }
@@ -103,46 +103,46 @@ TEST(Bits64Placement, InitClothKeepsTheClothClearOfTheNextRun) {
 
 // CommandBOUND: 0x14 quadwords for a bound, sixteen bytes short of the host's.
 TEST(Bits64Placement, BoundFitsItsRun) {
-    Arena   arena(64);
-    CBound *bound = new (RetailRun(arena, 0x14)) CBound(1.0f, 1.0f, 1.0f);
+    Arena arena(64);
+    auto *bound = new (RetailRun(arena, 0x14)) CBound(1.0f, 1.0f, 1.0f);
 
     EXPECT_GE(arena.Next(), End(bound));
 }
 
 // InitFishing: 0xD8C quadwords for six fish, which hold nine fewer than the host's six.
 TEST(Bits64Placement, FishFitTheirRun) {
-    Arena  arena(8192);
-    CFish *fish = new (RetailRun(arena, 0xD8C)) CFish[6];
+    Arena arena(8192);
+    auto *fish = new (RetailRun(arena, 0xD8C)) CFish[6];
 
     EXPECT_GE(arena.Next(), End(fish, 6));
 }
 
 // CreateCollisionMDT: four quadwords for the collision, whose mesh_count is in the host's fifth.
 TEST(Bits64Placement, CollisionFitsItsRun) {
-    Arena          arena(64);
-    CCollisionMDT *collision = new (RetailRun(arena, 4)) CCollisionMDT;
+    Arena arena(64);
+    auto *collision = new (RetailRun(arena, 4)) CCollisionMDT;
 
     EXPECT_GE(arena.Next(), End(collision));
 }
 
 // LoadData: 0x600 quadwords for the interior's 128 function points.
 TEST(Bits64Placement, FunctionPointsFitTheirRun) {
-    Arena             arena(4096);
-    EPARTS_FUNC_DATA *points = new (RetailRun(arena, 0x600)) EPARTS_FUNC_DATA[128];
+    Arena arena(4096);
+    auto *points = new (RetailRun(arena, 0x600)) EPARTS_FUNC_DATA[128];
 
     EXPECT_GE(arena.Next(), End(points, 128));
 }
 
 // CopyFrame, CopyFrameVu1 and the frame arrays divide sizeof by sixteen, which drops a remainder.
 TEST(Bits64Placement, FramesFitTheirRuns) {
-    Arena   arena(256);
-    CFrame *frame = new (RetailRun(arena, sizeof(CFrame) / 16)) CFrame;
+    Arena arena(256);
+    auto *frame = new (RetailRun(arena, sizeof(CFrame) / 16)) CFrame;
     EXPECT_GE(arena.Next(), End(frame));
 
-    CFrameVu1 *drawn = new (RetailRun(arena, sizeof(CFrameVu1) / 16)) CFrameVu1;
+    auto *drawn = new (RetailRun(arena, sizeof(CFrameVu1) / 16)) CFrameVu1;
     EXPECT_GE(arena.Next(), End(drawn));
 
-    CFrameVu1 *frames = new (RetailRun(arena, 3 * sizeof(CFrameVu1) / 16)) CFrameVu1[3];
+    auto *frames = new (RetailRun(arena, 3 * sizeof(CFrameVu1) / 16)) CFrameVu1[3];
     EXPECT_EQ(reinterpret_cast<u_char *>(frames), reinterpret_cast<u_char *>(drawn + 1));
     EXPECT_GE(arena.Next(), End(frames, 3));
 }

@@ -21,7 +21,7 @@ bool Throws(F f, std::string_view needle) {
     try {
         f();
     } catch (const dcdata::Error &error) {
-        return std::string_view(error.what()).find(needle) != std::string_view::npos;
+        return std::string_view(error.what()).contains(needle);
     }
     return false;
 }
@@ -97,7 +97,7 @@ TEST(DataExtract, IndexRejectsBadRecords) {
     ASSERT_TRUE(Throws([&] { dcdata::ParseIndex(unterminated); }, "not terminated"));
 
     Disc escaping = MakeDisc({
-        {"dun\\..\\..\\etc\\passwd", Pattern(4, 0)}
+        {R"(dun\..\..\etc\passwd)", Pattern(4, 0)}
     });
     ASSERT_TRUE(Throws([&] { dcdata::ParseIndex(escaping.hd2); }, "unusable path"));
 
@@ -143,10 +143,39 @@ TEST(DataExtract, IsIdempotent) {
     fs::remove_all(dir);
 }
 
-static Bytes MakeIconBank(const std::vector<std::tuple<std::string, std::uint32_t, unsigned char>> &pictures);
+namespace {
+
+// An IM2 bank of 16 by 16 eight-bit pictures, each with its own palette and pixel fill.
+Bytes MakeIconBank(const std::vector<std::tuple<std::string, std::uint32_t, unsigned char>> &pictures) {
+    constexpr std::size_t picture = 16 + 48 + 256 + 1024;
+    Bytes                 bank(16 + pictures.size() * 48, 0);
+    std::memcpy(bank.data(), "IM2", 3);
+    Put32(bank, 4, static_cast<std::uint32_t>(pictures.size()));
+    for (std::size_t i = 0; i < pictures.size(); i++) {
+        const auto &[name, colour, pixel] = pictures[i];
+        std::memcpy(bank.data() + 16 + i * 48, name.c_str(), name.size());
+        Put32(bank, 16 + i * 48 + 32, static_cast<std::uint32_t>(bank.size()));
+        Bytes tim(picture, 0);
+        std::memcpy(tim.data(), "TIM2", 4);
+        Put32(tim, 16, 0x30030); // the wrong total the game's images carry
+        Put32(tim, 16 + 4, 1024);
+        Put32(tim, 16 + 8, 256);
+        tim[16 + 12] = 0x30;
+        tim[16 + 15] = 0x01;
+        tim[16 + 19] = 5;
+        tim[16 + 20] = 16;
+        tim[16 + 22] = 16;
+        std::fill(tim.begin() + 64, tim.begin() + 64 + 256, pixel);
+        for (int c = 0; c < 256; c++) {
+            Put32(tim, 64 + 256 + c * 4, colour + c);
+        }
+        bank.insert(bank.end(), tim.begin(), tim.end());
+    }
+    return bank;
+}
 
 // An NTSC town system pack: its pause and day-of-adventure pictures of the given colour.
-static Bytes MakeNtscSystemPack(std::uint32_t colour) {
+Bytes MakeNtscSystemPack(std::uint32_t colour) {
     return MakePack({
         {"whatsday.img", MakeIconBank({{"whatsday", colour + 1, 1}})},
         {"cursor.img", Pattern(8, 1)},
@@ -160,6 +189,8 @@ static Bytes MakeNtscSystemPack(std::uint32_t colour) {
         {"pause.img", MakeIconBank({{"pause", colour, 2}})},
     });
 }
+
+} // namespace
 
 TEST(DataExtract, NormalizesNtscAssets) {
     fs::path dir = TempDir("normalize_ntsc");
@@ -213,35 +244,6 @@ TEST(DataExtract, NormalizesNtscAssets) {
     EXPECT_EQ(again.written, 0);
     EXPECT_EQ(again.kept, 6);
     fs::remove_all(dir);
-}
-
-// An IM2 bank of 16 by 16 eight-bit pictures, each with its own palette and pixel fill.
-static Bytes MakeIconBank(const std::vector<std::tuple<std::string, std::uint32_t, unsigned char>> &pictures) {
-    constexpr std::size_t picture = 16 + 48 + 256 + 1024;
-    Bytes                 bank(16 + pictures.size() * 48, 0);
-    std::memcpy(bank.data(), "IM2", 3);
-    Put32(bank, 4, static_cast<std::uint32_t>(pictures.size()));
-    for (std::size_t i = 0; i < pictures.size(); i++) {
-        const auto &[name, colour, pixel] = pictures[i];
-        std::memcpy(bank.data() + 16 + i * 48, name.c_str(), name.size());
-        Put32(bank, 16 + i * 48 + 32, static_cast<std::uint32_t>(bank.size()));
-        Bytes tim(picture, 0);
-        std::memcpy(tim.data(), "TIM2", 4);
-        Put32(tim, 16, 0x30030); // the wrong total the game's images carry
-        Put32(tim, 16 + 4, 1024);
-        Put32(tim, 16 + 8, 256);
-        tim[16 + 12] = 0x30;
-        tim[16 + 15] = 0x01;
-        tim[16 + 19] = 5;
-        tim[16 + 20] = 16;
-        tim[16 + 22] = 16;
-        std::fill(tim.begin() + 64, tim.begin() + 64 + 256, pixel);
-        for (int c = 0; c < 256; c++) {
-            Put32(tim, 64 + 256 + c * 4, colour + c);
-        }
-        bank.insert(bank.end(), tim.begin(), tim.end());
-    }
-    return bank;
 }
 
 TEST(DataExtract, NormalizesIconSheets) {
@@ -395,9 +397,11 @@ TEST(DataExtract, SplitsNtscSystemPacks) {
     fs::remove_all(dir);
 }
 
+namespace {
+
 // An itempack.img: one 256 by 192 eight-bit picture named itempack, every texel `fill` but those of
 // the floor plate's first row, `plate`, and colour i of the palette at the CLUT slot of value i.
-static Bytes MakeItempack(const std::vector<std::uint32_t> &colours, unsigned char fill, unsigned char plate) {
+Bytes MakeItempack(const std::vector<std::uint32_t> &colours, unsigned char fill, unsigned char plate) {
     constexpr std::size_t pixels = 256 * 192;
     Bytes                 tim(16 + 48 + pixels + 1024, 0);
     std::memcpy(tim.data(), "TIM2", 4);
@@ -424,10 +428,13 @@ static Bytes MakeItempack(const std::vector<std::uint32_t> &colours, unsigned ch
     return bank;
 }
 
+} // namespace
+
 // The July 12 PAL prototype's blank floor plates take American English's, in each sheet's palette.
 TEST(DataExtract, FillsBlankFloorPlates) {
     fs::path                   dir = TempDir("floor_plates");
-    std::vector<std::uint32_t> american(256), british(256);
+    std::vector<std::uint32_t> american(256);
+    std::vector<std::uint32_t> british(256);
     for (int i = 0; i < 256; i++) {
         american[i] = 0x80000000u | (i * 0x010101u);        // grey i, opaque
         british[i] = 0x80000000u | ((255 - i) * 0x010101u); // the same greys, reversed

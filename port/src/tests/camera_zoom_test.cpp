@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <system_error>
 
 #include "../camera_port.hpp"
 #include "../camera_zoom.hpp"
@@ -17,21 +19,29 @@
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
+namespace {
+
+struct SaveRoot {
+    std::filesystem::path root;
+
+    explicit SaveRoot(const char *prefix)
+        : root(std::filesystem::temp_directory_path() / (prefix + std::to_string(dc::test::ProcessId()))) {}
+
+    SaveRoot(const SaveRoot &) = delete;
+    SaveRoot &operator=(const SaveRoot &) = delete;
+
+    ~SaveRoot() {
+        std::error_code error;
+        std::filesystem::remove(root / "config.json", error);
+        std::filesystem::remove(root, error);
+    }
+};
+
+} // namespace
+
 TEST(CameraZoom, RetailRelaxationCannotExpandPastAWallAndResetReturnsToNormal) {
-    auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-zoom-test-" + std::to_string(dc::test::ProcessId()));
-
-    struct Cleanup {
-        std::filesystem::path root;
-
-        ~Cleanup() {
-            std::error_code error;
-            std::filesystem::remove(root / "config.json", error);
-            std::filesystem::remove(root, error);
-        }
-    } cleanup{root};
-
-    PathsSetSaveRoot(root);
+    const SaveRoot save_root("chronicle-zoom-test-");
+    PathsSetSaveRoot(save_root.root);
     Config config;
     config.mouse_zoom = true;
     config.mouse_capture = false;
@@ -108,20 +118,8 @@ TEST(CameraZoom, RetailRelaxationCannotExpandPastAWallAndResetReturnsToNormal) {
 }
 
 TEST(CameraZoom, ExtendedDistanceInClearSpaceClampsAndResets) {
-    auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-zoom-range-test-" + std::to_string(dc::test::ProcessId()));
-
-    struct Cleanup {
-        std::filesystem::path root;
-
-        ~Cleanup() {
-            std::error_code error;
-            std::filesystem::remove(root / "config.json", error);
-            std::filesystem::remove(root, error);
-        }
-    } cleanup{root};
-
-    PathsSetSaveRoot(root);
+    const SaveRoot save_root("chronicle-zoom-range-test-");
+    PathsSetSaveRoot(save_root.root);
     Config config;
     config.mouse_zoom = true;
     config.mouse_capture = false;
@@ -157,20 +155,8 @@ TEST(CameraZoom, ExtendedDistanceInClearSpaceClampsAndResets) {
 }
 
 TEST(CameraZoom, StationaryContractedEyeCanZoomInAndTurnWithoutCrossingWall) {
-    auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-zoom-recovery-test-" + std::to_string(dc::test::ProcessId()));
-
-    struct Cleanup {
-        std::filesystem::path root;
-
-        ~Cleanup() {
-            std::error_code error;
-            std::filesystem::remove(root / "config.json", error);
-            std::filesystem::remove(root, error);
-        }
-    } cleanup{root};
-
-    PathsSetSaveRoot(root);
+    const SaveRoot save_root("chronicle-zoom-recovery-test-");
+    PathsSetSaveRoot(save_root.root);
     Config config;
     config.mouse_zoom = true;
     config.mouse_capture = false;

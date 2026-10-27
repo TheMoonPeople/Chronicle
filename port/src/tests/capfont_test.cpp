@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <cstdio>
+#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
+#include <print>
 #include <string>
 #include <vector>
 
@@ -18,27 +19,37 @@ struct Rendered {
     int                        y0 = 0;
 };
 
+std::filesystem::path RepoFont(const char *name) {
+    return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() / "tools" / "font" /
+           name;
+}
+
 bool LoadTestFont() {
     const char *path = std::getenv("DC_TEST_FONT");
     if (path != nullptr && *path != '\0') {
         return capfont::Load(path);
     }
-    return capfont::Load(std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() / "tools" / "font" /
-                         "ChronicleSharp-Bold.ttf");
+    return capfont::Load(RepoFont("ChronicleSharp-Bold.ttf"));
+}
+
+char DumpShade(unsigned char alpha) {
+    if (alpha > 160) {
+        return '#';
+    }
+    return alpha > 64 ? '+' : ' ';
 }
 
 Rendered Render(char32_t ch, int em_px = 40) {
     Rendered out;
     EXPECT_TRUE(capfont::RenderGlyph(ch, em_px, out.alpha, out.w, out.h, out.x0, out.y0)) << static_cast<unsigned>(ch);
     if (std::getenv("DC_TEST_FONT_DUMP") != nullptr) {
-        std::printf("U+%04X  %dx%d at (%d,%d)\n", static_cast<unsigned>(ch), out.w, out.h, out.x0, out.y0);
+        std::println("U+{:04X}  {}x{} at ({},{})", static_cast<unsigned>(ch), out.w, out.h, out.x0, out.y0);
         for (int row = 0; row < out.h; row++) {
+            std::string line;
             for (int col = 0; col < out.w; col++) {
-                const unsigned char a = out.alpha[static_cast<size_t>(row) * out.w + col];
-                std::putchar(a > 160 ? '#' : a > 64 ? '+'
-                                                    : ' ');
+                line += DumpShade(out.alpha[(static_cast<std::size_t>(row) * out.w) + col]);
             }
-            std::putchar('\n');
+            std::println("{}", line);
         }
     }
     return out;
@@ -99,8 +110,7 @@ TEST(CaptionFont, WhatItCannotBuildIsLeftToTheBitmap) {
 
 TEST(CaptionFont, KernsThePairsTheFontKerns) {
     // The title's font, which kerns through GPOS pair kerning, as most fonts made today do.
-    const auto title = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() / "tools" /
-                       "font" / "ChronicleTitle-Bold.ttf";
+    const auto title = RepoFont("ChronicleTitle-Bold.ttf");
     if (!capfont::Load(title)) {
         GTEST_SKIP() << "no " << title.string();
     }
@@ -111,13 +121,15 @@ TEST(CaptionFont, KernsThePairsTheFontKerns) {
 }
 
 TEST(CaptionFont, InkExtentIsTheOutlineAtAnySize) {
-    const auto title = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path() / "tools" /
-                       "font" / "ChronicleTitle-Bold.ttf";
+    const auto title = RepoFont("ChronicleTitle-Bold.ttf");
     if (!capfont::Load(title)) {
         GTEST_SKIP() << "no " << title.string();
     }
     // The outline doubles with the em exactly, as a glyph's picture, whose soft edge stays a pixel, doesn't.
-    float left40, right40, left80, right80;
+    float left40 = 0.0f;
+    float right40 = 0.0f;
+    float left80 = 0.0f;
+    float right80 = 0.0f;
     ASSERT_TRUE(capfont::GetInkExtent(U'H', 40, left40, right40));
     ASSERT_TRUE(capfont::GetInkExtent(U'H', 80, left80, right80));
     EXPECT_LT(left40, right40);
