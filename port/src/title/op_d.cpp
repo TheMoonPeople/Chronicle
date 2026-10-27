@@ -3,6 +3,8 @@
 #include <libgraph.h>
 #include <libvu0.h>
 
+#include <array>
+#include <bit>
 #include <cstdlib>
 
 #include "camera.hpp"
@@ -28,7 +30,7 @@
 #include "title/script.hpp"
 #include "title/seireiking.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// The texture and pack-file APIs take char * names, which this unit passes as string literals.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
 template <class T>
@@ -50,17 +52,17 @@ public:
 namespace {
 
 struct FACE_INFO {
-    char *plate;
-    char *strip;
-    int   eye_bottom;
-    int   eye_height;
-    int   mouth_bottom;
-    int   mouth_height;
-    int   eye;
-    int   mouth;
-    int   strip_bottom;
-    int   unk_24;
-    int   unk_28;
+    const char *plate;
+    const char *strip;
+    int         eye_bottom;
+    int         eye_height;
+    int         mouth_bottom;
+    int         mouth_height;
+    int         eye;
+    int         mouth;
+    int         strip_bottom;
+    int         unk_24;
+    int         unk_28;
 };
 
 } // namespace
@@ -68,74 +70,67 @@ struct FACE_INFO {
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw,
                    int dpsm, int dsax, int dsay, int dir);
 
-// op_d's FaceChange. The PS2 build renames the four title units' FaceChange apart and binds op_c's
-// call to this one as FaceChangeD (ps2/config/pal/object_fixups.json); the port gives it that name.
-// The texture-cache flushes around the transfers are gone: the copies are ordered on the renderer.
+// Copies the actor's current eye and mouth rows from its strip texture onto its face plate.
 void FaceChangeD(int actor_no) {
-    static FACE_INFO face[21] = {
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 256, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      32, 40, 84, 35, 0, 0, 448, 3, 0},
-        {"c09a01", "c09a01an",   10, 40, 73, 35, 0, 0, 448, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      8,  40, 76, 35, 0, 0, 256, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {"p09a01", "p09a01an_3", 44, 40, 92, 32, 0, 0, 192, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {"c01d01", "c01d01an_3", 27, 48, 78, 44, 0, 0, 512, 3, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0}
+    static std::array<FACE_INFO, 21> face = {
+        {{nullptr, nullptr, 42, 40, 87, 35, 0, 0, 256, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 32, 40, 84, 35, 0, 0, 448, 3, 0},
+         {"c09a01", "c09a01an", 10, 40, 73, 35, 0, 0, 448, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 8, 40, 76, 35, 0, 0, 256, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {"p09a01", "p09a01an_3", 44, 40, 92, 32, 0, 0, 192, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {"c01d01", "c01d01an_3", 27, 48, 78, 44, 0, 0, 512, 3, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0},
+         {nullptr, nullptr, 42, 40, 87, 35, 0, 0, 320, 2, 0}}
     };
-    CTexture *plate;
-    CTexture *strip;
-    int       sbp;
-    int       dbp;
-    int       sbw;
-    int       dbw;
 
-    if (actor_no < 0 || actor_no >= 21) {
+    if (actor_no < 0 || actor_no >= std::ssize(face)) {
         return;
     }
 
-    if (face[actor_no].plate == nullptr) {
+    FACE_INFO &info = face[actor_no];
+
+    if (info.plate == nullptr) {
         return;
     }
 
-    plate = TexManager.GetTexture(face[actor_no].plate, -1);
-    strip = TexManager.GetTexture(face[actor_no].strip, -1);
+    CTexture *plate = TexManager.GetTexture(const_cast<char *>(info.plate), -1);
+    CTexture *strip = TexManager.GetTexture(const_cast<char *>(info.strip), -1);
 
     if (plate == nullptr || strip == nullptr) {
         return;
     }
 
-    sbp = strip->tex0 & 0x3fff;
-    dbp = plate->tex0 & 0x3fff;
-    sbw = (strip->tex0 >> 14) & 0x3f;
-    dbw = (plate->tex0 >> 14) & 0x3f;
+    // TEX0 TBP0 (bits 0-13) and TBW (bits 14-19).
+    int sbp = strip->tex0 & 0x3fff;
+    int dbp = plate->tex0 & 0x3fff;
+    int sbw = (strip->tex0 >> 14) & 0x3f;
+    int dbw = (plate->tex0 >> 14) & 0x3f;
 
-    face[actor_no].eye = CScript__2.obj[actor_no].eye;
+    info.eye = CScript__2.obj[actor_no].eye;
 
-    CRect<int> eye(0, face[actor_no].strip_bottom - face[actor_no].eye_height * (face[actor_no].eye + 1), 128, face[actor_no].eye_height);
+    CRect<int> eye(0, info.strip_bottom - info.eye_height * (info.eye + 1), 128, info.eye_height);
 
-    MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, eye, dbp, dbw, SCE_GS_PSMT8, 0, 128 - face[actor_no].eye_height - face[actor_no].eye_bottom, 0);
+    MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, eye, dbp, dbw, SCE_GS_PSMT8, 0, 128 - info.eye_height - info.eye_bottom, 0);
 
     if (!Pause) {
         if (CScript__2.obj[actor_no].mouth_time >= CScript__2.motion_step) {
             CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
-            if (CScript__2.obj[actor_no].talk) {
-                if (static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
-                    CScript__2.obj[actor_no].mouth = rand() % 4;
-                }
+            if (CScript__2.obj[actor_no].talk && static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
+                CScript__2.obj[actor_no].mouth = rand() % 4;
             }
         } else {
             CScript__2.obj[actor_no].mouth = 0;
@@ -143,27 +138,29 @@ void FaceChangeD(int actor_no) {
         }
     }
 
-    face[actor_no].mouth = CScript__2.obj[actor_no].mouth;
+    info.mouth = CScript__2.obj[actor_no].mouth;
 
-    CRect<int> mouth(128, face[actor_no].strip_bottom - face[actor_no].mouth_height * (face[actor_no].mouth + 1), 128, face[actor_no].mouth_height);
+    CRect<int> mouth(128, info.strip_bottom - info.mouth_height * (info.mouth + 1), 128, info.mouth_height);
 
-    MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, mouth, dbp, dbw, SCE_GS_PSMT8, 0, 128 - face[actor_no].mouth_height - face[actor_no].mouth_bottom, 0);
+    MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, mouth, dbp, dbw, SCE_GS_PSMT8, 0, 128 - info.mouth_height - info.mouth_bottom, 0);
 }
 
 namespace {
 
-// clang-format off
-enum OpDSprite {
-    OPD_SPRITE_NONE         = 0,
-    OPD_SPRITE_HALL_LIGHT   = 1,
-    OPD_SPRITE_RUIN_STILL_1 = 2,
-    OPD_SPRITE_RUIN_STILL_2 = 3,
-    OPD_SPRITE_RUIN_STILL_3 = 4,
-    OPD_SPRITE_CAPTION_1    = 5,
-    OPD_SPRITE_CAPTION_2    = 6,
+// Values of CScript__2.sprite in this scene.
+enum class OpDSprite : int {
+    None = 0,
+    HallLight = 1,
+    RuinStill1 = 2,
+    RuinStill2 = 3,
+    RuinStill3 = 4,
+    Caption1 = 5,
+    Caption2 = 6,
 };
 
-// clang-format on
+OpDSprite CurrentSprite() {
+    return static_cast<OpDSprite>(CScript__2.sprite);
+}
 
 struct MAPOBJ_INFO {
     char *name;
@@ -178,9 +175,7 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src
 void DepthOfField(float *dist, int level, int alpha, int blur);
 void FaceChangeMovie(int actor);
 
-// Retail's OpD_InitProcess, OpD_InitProcess2 and OpD_DrawProcess: they index op_b's OP_NornMapObj,
-// which the port defines with the host's CMapObject where op_d.cpp declares a PS2-sized one of its
-// own. The rest of op_d stays retail's; its stub header exports the state and helpers these share.
+// State and helpers defined by the rest of op_d under OpD_-prefixed labels.
 extern CFrameVu1  *Hamon[4] asm("OpD_Hamon");
 extern float       HScale[5] asm("OpD_HScale");
 extern CCharacter  Effect asm("OpD_Effect");
@@ -197,8 +192,8 @@ void Setsumei() asm("OpD_Setsumei");
 void HamonProcess() asm("OpD_HamonProcess");
 
 void OpD_InitProcess() {
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     for (int i = 0; i < 17; i++) {
         TexManager.DeleteTextureBlock(i);
@@ -339,8 +334,8 @@ void OpD_InitProcess() {
 }
 
 void OpD_InitProcess2() {
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     LOADTEXTURE_INFO2 tex[] = {
         {nullptr, 10, 0},
@@ -378,13 +373,11 @@ void OpD_InitProcess2() {
         {"e01s01_1.mds", nullptr, {104.195f, 3.399f, -150.395f}, {0.0f, 0.0f, 0.0f}}
     };
     CFrameAttr attr;
-    CFrameVu1 *frame;
-    int        i;
 
     attr.fog_enable = true;
 
-    for (i = 1; i < 11; i++) {
-        frame = LoadMDSFile(GetPackFile(read_buffer, map[i - 1].name, nullptr), &MapDataBuffer, 2, nullptr, nullptr);
+    for (int i = 1; i < 11; i++) {
+        CFrameVu1 *frame = LoadMDSFile(GetPackFile(read_buffer, map[i - 1].name, nullptr), &MapDataBuffer, 2, nullptr, nullptr);
 
         if (i == 7) {
             attr.use_color = true;
@@ -477,8 +470,8 @@ void OpD_DrawProcess() {
     if (CScript__2.camera_start < 115) {
         TexManager.ReloadTexture(Vif1Packet, 11);
 
-        if (CScript__2.sprite == OPD_SPRITE_HALL_LIGHT && amb3 < 127) {
-            amb3 = amb3 + 1;
+        if (CurrentSprite() == OpDSprite::HallLight && amb3 < 127) {
+            ++amb3;
         }
 
         sceVu0FVECTOR ambient;
@@ -546,7 +539,7 @@ void OpD_DrawProcess() {
     for (int i = 0; i < 23; i++) {
         if (i != 22 && i != 5 && CScript__2.obj[i].disp) {
             TexManager.ReloadTexture(Vif1Packet, 23);
-            MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
+            MGBeginDrawShadow(std::bit_cast<sceGsTex0>(TexManager.GetTexture("shadow_buff", -1)->tex0));
 
             if (!Pause) {
                 Chara__3[i].ShadowStep();
@@ -599,32 +592,35 @@ void OpD_DrawProcess() {
         case 113:
             EffectAtraPrizum();
             break;
+
+        default:
+            break;
     }
 
     static int fade1 = 0;
     static int fade2 = 0;
     static int fade3 = 0;
 
-    if (CScript__2.sprite == OPD_SPRITE_RUIN_STILL_1) {
+    if (CurrentSprite() == OpDSprite::RuinStill1) {
         fade1 = 128;
     } else if (fade1 > 0) {
-        fade1 = fade1 - 2;
+        fade1 -= 2;
     }
 
-    if (CScript__2.sprite == OPD_SPRITE_RUIN_STILL_2) {
+    if (CurrentSprite() == OpDSprite::RuinStill2) {
         if (fade2 < 128) {
-            fade2 = fade2 + 2;
+            fade2 += 2;
         }
     } else if (fade2 > 0) {
-        fade2 = fade2 - 2;
+        fade2 -= 2;
     }
 
-    if (CScript__2.sprite == OPD_SPRITE_RUIN_STILL_3) {
+    if (CurrentSprite() == OpDSprite::RuinStill3) {
         if (fade3 < 128) {
-            fade3 = fade3 + 2;
+            fade3 += 2;
         }
     } else if (fade3 > 0) {
-        fade3 = fade3 - 1;
+        fade3 -= 1;
     }
 
     if (fade1) {
@@ -642,11 +638,14 @@ void OpD_DrawProcess() {
         set2DSprite(GetVif1Packet(), TexManager.GetTexture("i00022", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), static_cast<u_char>(fade3));
     }
 
-    switch (CScript__2.sprite) {
-        case OPD_SPRITE_CAPTION_1:
-        case OPD_SPRITE_CAPTION_2:
+    switch (CurrentSprite()) {
+        case OpDSprite::Caption1:
+        case OpDSprite::Caption2:
             TexManager.ReloadTexture(Vif1Packet, 7);
             Setsumei();
+            break;
+
+        default:
             break;
     }
 }

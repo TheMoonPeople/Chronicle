@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <string>
 
@@ -26,12 +27,13 @@ struct Row {
 
 // Retail's words for its painted rows (start.img and its French, German, Italian and Spanish
 // copies), then Exit.
-constexpr Row kRows[kRowCount] = {
-    {"title.menu.start",    "START"   },
-    {"title.menu.continue", "CONTINUE"},
-    {"title.menu.option",   "OPTION"  },
-    {"title.menu.exit",     "EXIT"    },
+constexpr std::array kRows = {
+    Row{.key = "title.menu.start",    .english = "START"   },
+    Row{.key = "title.menu.continue", .english = "CONTINUE"},
+    Row{.key = "title.menu.option",   .english = "OPTION"  },
+    Row{.key = "title.menu.exit",     .english = "EXIT"    },
 };
+static_assert(kRows.size() == kRowCount);
 
 // Where the letters stand on the PAL screen. Retail's painted capitals are 16 tall, from 263 across,
 // with their tops about 29 apart from 306, and the trademark lines start at about 405: a fourth row
@@ -118,7 +120,7 @@ float HandY(int row) {
 }
 
 int RowAt(float x, float y) {
-    const float top = static_cast<float>(kFirstTextTop - kRowAboveText);
+    const auto top = static_cast<float>(kFirstTextTop - kRowAboveText);
     if (x < kRowLeft || x >= kRowLeft + kRowWidth || y < top || y >= top + kRowCount * kRowStride) {
         return -1;
     }
@@ -132,13 +134,16 @@ namespace {
 // round one (C, O). This is how far the first letter of text sits right of where START's S does, in
 // logical pixels, from the two letters' left side bearings in the title font.
 float BearingFromS(const std::string &text) {
-    float      h[4], first[4], s[4];
+    float      h_bounds[4];
+    float      first_bounds[4];
+    float      s_bounds[4];
     const auto ch = static_cast<unsigned char>(text.empty() ? 'S' : text[0]);
-    if (ch >= 0x80 || !capfont::GetGlyphBounds(U'H', h, kTitleFontSlot) ||
-        !capfont::GetGlyphBounds(ch, first, kTitleFontSlot) || !capfont::GetGlyphBounds(U'S', s, kTitleFontSlot)) {
+    if (ch >= 0x80 || !capfont::GetGlyphBounds(U'H', h_bounds, kTitleFontSlot) ||
+        !capfont::GetGlyphBounds(ch, first_bounds, kTitleFontSlot) ||
+        !capfont::GetGlyphBounds(U'S', s_bounds, kTitleFontSlot)) {
         return 0.0f;
     }
-    return (first[0] - s[0]) * kCapHeight / (h[3] - h[1]) * kStretch;
+    return (first_bounds[0] - s_bounds[0]) * kCapHeight / (h_bounds[3] - h_bounds[1]) * kStretch;
 }
 
 } // namespace
@@ -155,7 +160,7 @@ void Draw(int selected, int selected_alpha, int other_alpha) {
     style.use_custom_rgb = true;
     style.see_through = true;
     // Label puts the capitals' top 3 below its y, less half what the scale adds to their height.
-    const int cap_offset = static_cast<int>(3.0f - (kCapHeight - 14.5f) * 0.5f + 0.5f);
+    const int cap_offset = static_cast<int>(std::lround(3.0f - ((kCapHeight - 14.5f) * 0.5f)));
 
     for (int row = 0; row < kRowCount; ++row) {
         const bool chosen = row == selected;
@@ -227,6 +232,7 @@ void DrawConfirm(int alpha) {
 
 std::vector<std::pair<std::string, std::string>> Strings() {
     std::vector<std::pair<std::string, std::string>> out;
+    out.reserve(kRows.size() + 2);
     for (const Row &row : kRows) {
         out.emplace_back(row.key, row.english);
     }

@@ -4,11 +4,13 @@
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <memory>
+#include <string_view>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -42,18 +44,13 @@
 #include "water.hpp"
 #include "wind.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// The engine's loaders and frame lookups take names as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's night, dance, majin and ruin scenes: OpC_DrawProcess reaches the static WaterProcess and
-// setTexAnim, whose TEXFLUSH packets are gone, and shares nearly every scene object with the set-ups,
-// sound and motion processes, so all of them move together.
-
-/* The rectangle a texture transfer takes, declared here rather than reached through rect.h for the
-   reason op_b.cpp declares its own: rect.h's four-argument constructor assigns h, w, y and x in
-   that order and every rectangle this file builds assigns them the other way round. The default
-   constructor keeps rect.h's order and is not dead code — the effect parameter block below carries
-   one as a member, so it runs wherever a caller builds that block. */
+/**
+ * The rectangle a texture transfer takes, as an x, y, width and height. MoveImageTest, set2DSprite
+ * and MGMoveImage are declared against this template, so it stays at namespace scope.
+ */
 template <class T>
 class CRect {
 public:
@@ -62,49 +59,37 @@ public:
     T w; /**< Width. */
     T h; /**< Height. */
 
-    CRect() {
-        h = 0;
-        w = 0;
-        y = 0;
-        x = 0;
-    }
+    CRect() : x(0), y(0), w(0), h(0) {}
 
-    CRect(T left, T top, T width, T height) {
-        x = left;
-        y = top;
-        w = width;
-        h = height;
-    }
+    CRect(T left, T top, T width, T height) : x(left), y(top), w(width), h(height) {}
 } __attribute__((aligned(16)));
 
-/* The three classes this scene places in the world, declared here rather than reached through
-   headers of their own because each is another unit's to type. Only the members this file touches
-   are named; the extents are the sizes the executable gives the objects below. */
+void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char r, u_char g, u_char b, u_char a);
+void MGMoveImage(sceGsTex0 *dst, const CRect<int> &rect, sceGsTex0 *src, int dsax, int dsay, int dir);
+void DepthOfField(float *dist, int level, int alpha, int blur);
 
-/* One piece of scenery as the scene was laid out: the model, the model its shadow is drawn
-   from, where it stands in tenths of a world unit, and its heading in degrees. */
+void FaceChangeD(int actor);
+
+namespace {
+/**
+ * One piece of scenery as the scene was laid out: the model, the model its shadow is drawn from,
+ * where it stands in tenths of a world unit, and its heading in degrees.
+ */
 struct MAPOBJ_INFO {
-    char *name;        /**< Model file, or zero to reuse the previous row's model. */
-    char *shadow_name; /**< Model file the shadow is drawn from, or zero for none. */
+    char *name;        /**< Model file, or null to reuse the previous row's model. */
+    char *shadow_name; /**< Model file the shadow is drawn from, or null for none. */
     float position[3]; /**< Position in tenths of a world unit. */
     float rotation[3]; /**< Rotation about each axis in degrees. */
 };
 
-/* The river the scene draws, which is a grid the file sizes and colours once and then shakes every
-   tick. Another unit's class to type; only what this file calls and the extent are named. */
-
-/* One particle of the smoke this scene gives off, and the pool the group hands them out of. Both
-   classes are another unit's to type; this file only sizes the pool and names the group. */
-class CEffect;
-class CEffectParam;
-
-/* One actor's face, as this scene animates it. The eyes and the mouth are two strips of frames
-   stacked bottom-up in one 256-wide texture — the eyes down the left half and the mouth down the
-   right — and a tick copies the current frame of each over the plate the model draws with. The
-   two offsets are measured from the bottom edge of the 128-pixel plate, and the two frame numbers
-   are kept here rather than read from the script twice because the transfer needs them twice. */
+/**
+ * One actor's face. The eyes and the mouth are two strips of frames stacked bottom-up in one
+ * 256-wide texture, the eyes down the left half and the mouth down the right; the offsets are
+ * measured from the bottom edge of the 128-pixel plate.
+ */
 struct FACE_INFO {
-    char *plate;        /**< Texture the model draws the face with, or zero for an actor without one. */
+    char *plate;        /**< Texture the model draws the face with, or null for an actor without one. */
     char *strip;        /**< Texture holding the eye and mouth frames. */
     int   eye_bottom;   /**< Distance of the eyes' bottom edge above the plate's bottom edge. */
     int   eye_height;   /**< Height of one eye frame. */
@@ -117,9 +102,10 @@ struct FACE_INFO {
     int   unk_28;
 };
 
-/* One sound the demon's rampage plays, timed against the scene's own tick count rather than against
-   a motion. Only the first four fields are read here; the two after them are the row as the table
-   was written and nothing reconstructed reaches them yet. */
+/**
+ * One sound the demon's rampage plays, timed against the scene's own tick count rather than
+ * against a motion.
+ */
 struct SND_INFO {
     int group; /**< Sound group the sample belongs to. */
     int no;    /**< Sound number within the group. */
@@ -129,14 +115,6 @@ struct SND_INFO {
     int unk_14;
 };
 
-void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char r, u_char g, u_char b, u_char a);
-void MGMoveImage(sceGsTex0 *dst, const CRect<int> &rect, sceGsTex0 *src, int dsax, int dsay, int dir);
-void DepthOfField(float *dist, int level, int alpha, int blur);
-
-void FaceChangeD(int actor);
-
-namespace {
 void MapLoad();
 void MapLoad2();
 void LoadCharaMajin();
@@ -146,10 +124,15 @@ void DrawShadow(int shadow_no, float x, float y, float z);
 void MajinBeemProcess();
 void SmokeProcess();
 void WaterProcess();
-int  KageCheck(int actor);
+bool KageCheck(int actor);
 void LightSet(float x, float y, float z, int actor);
 void setTexScroll();
 void setTexAnim();
+
+void SetFrameName(OBJ_ANIME_SEQ &sequence, std::string_view name) {
+    std::ranges::copy(name, sequence.frame_name);
+    sequence.frame_name[name.size()] = '\0';
+}
 
 CFireOmni     CFire;
 OBJ_ANIME_SEQ Fuusya[2];
@@ -178,13 +161,9 @@ int   DanceBgmCnt;
 int   SndCnt;
 } // namespace
 
-/* One actor's blinking and speaking. The mouth is driven from the script's own clock rather than
-   from a motion: while the actor is talking, a new mouth frame is picked at random every sixth
-   hundredth of a second left on the timer (in the PAL build, on a random one tick in five), and the
-   timer running out closes the mouth and ends the line. The eyes are whatever the script last asked
-   for. The cache is flushed on both sides of the two transfers because the plate is a texture the
-   previous tick drew from and the next one will. */
-// op_c's FaceChange, under the name op_b's scene calls it by (FaceChange__Fi__2 in the PS2 build).
+/* One actor's blinking and speaking. While the actor is talking, a new mouth frame is picked at
+   random every sixth hundredth of a second left on the timer, and the timer running out closes the
+   mouth and ends the line. The eyes are whatever the script last asked for. */
 void FaceChangeC(int actor_no) {
     static FACE_INFO face[21] = {
         {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 256, 2, 0},
@@ -209,28 +188,22 @@ void FaceChangeC(int actor_no) {
         {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0},
         {nullptr,  nullptr,      42, 40, 87, 35, 0, 0, 320, 2, 0}
     };
-    CTexture *plate;
-    CTexture *strip;
-    int       sbp;
-    int       dbp;
-    int       sbw;
-    int       dbw;
 
     if (face[actor_no].plate == nullptr) {
         return;
     }
 
-    plate = TexManager.GetTexture(face[actor_no].plate, -1);
-    strip = TexManager.GetTexture(face[actor_no].strip, -1);
+    CTexture *plate = TexManager.GetTexture(face[actor_no].plate, -1);
+    CTexture *strip = TexManager.GetTexture(face[actor_no].strip, -1);
 
     if (plate == nullptr || strip == nullptr) {
         return;
     }
 
-    sbp = strip->tex0 & 0x3fff;
-    dbp = plate->tex0 & 0x3fff;
-    sbw = (strip->tex0 >> 14) & 0x3f;
-    dbw = (plate->tex0 >> 14) & 0x3f;
+    const int sbp = static_cast<int>(strip->tex0 & 0x3fff);
+    const int dbp = static_cast<int>(plate->tex0 & 0x3fff);
+    const int sbw = static_cast<int>((strip->tex0 >> 14) & 0x3f);
+    const int dbw = static_cast<int>((plate->tex0 >> 14) & 0x3f);
 
     face[actor_no].eye = CScript__2.obj[actor_no].eye;
 
@@ -241,10 +214,8 @@ void FaceChangeC(int actor_no) {
     if (CScript__2.obj[actor_no].mouth_time >= CScript__2.motion_step) {
         CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
-        if (CScript__2.obj[actor_no].talk) {
-            if (static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
-                CScript__2.obj[actor_no].mouth = rand() % 4;
-            }
+        if (CScript__2.obj[actor_no].talk && static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
+            CScript__2.obj[actor_no].mouth = rand() % 4;
         }
     } else {
         CScript__2.obj[actor_no].mouth = 0;
@@ -258,17 +229,13 @@ void FaceChangeC(int actor_no) {
     MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, mouth, dbp, dbw, SCE_GS_PSMT8, 0, 128 - face[actor_no].mouth_height - face[actor_no].mouth_bottom, 0);
 }
 
-/* The background loads are one wrapper per file because the script names them by index: each waits
-   for the previous read to land, starts the next, and marks the load done by putting the script's
-   own load number back to none. */
-
 /* The set-up for the scene the dance is danced in: the whole of Norune at night, its scenery placed
    from a configuration file rather than a table of this file's own, and its images filled into a
    manifest whose first six rows are the registry's fixed surfaces. The second manifest is the same
    array written over again, because the second pack is read only once the first block is entered. */
 void OpC_InitProcess() {
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     auto tex = std::make_unique<LOADTEXTURE_INFO2[]>(23);
     tex[0] = {"#water_buff#640#" HALF_BUFFER_HEIGHT_STR "#4", 22, 0};
@@ -313,11 +280,7 @@ void OpC_InitProcess() {
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_US:
-            tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_UK:
             tex[21].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
@@ -338,7 +301,7 @@ void OpC_InitProcess() {
     TexManager.Initialize(16352);
     TexManager.LoadTextureBlock(-1, tex.get());
 
-    LoadFile("opdat/norn2/norn2b.pak", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/norn2/norn2b.pak", read_buffer, nullptr);
 
     tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "t0201.img", nullptr));
     tex[0].block_no = 12;
@@ -483,8 +446,8 @@ void OpC_InitProcess() {
 
     for (int i = 0; i < 2; i++) {
         Fuusya[i].Initialize();
-        Fuusya[i].property = 0;
-        Fuusya[i].mode = 0;
+        Fuusya[i].property = OBJ_ANIME_PROPERTY_ROTATION;
+        Fuusya[i].mode = OBJ_ANIME_MODE_LINEAR;
         Fuusya[i].from[2] = 0.0f;
         Fuusya[i].from[1] = 0.0f;
         Fuusya[i].from[0] = 0.0f;
@@ -494,34 +457,34 @@ void OpC_InitProcess() {
         Fuusya[i].step[1] = 0.0f;
         Fuusya[i].step[0] = 0.0f;
         Fuusya[i].step[2] = -0.5f;
-        strcpy(Fuusya[i].frame_name, "hane");
+        SetFrameName(Fuusya[i], "hane");
         InitObjAnime(DoransFuusya[i], &Fuusya[i]);
     }
 
     for (int i = 0; i < 8; i++) {
         Taimatsu[i].Initialize();
-        Taimatsu[i].property = 3;
-        Taimatsu[i].mode = 4;
+        Taimatsu[i].property = OBJ_ANIME_PROPERTY_COLOR;
+        Taimatsu[i].mode = OBJ_ANIME_MODE_RANDOM;
         Taimatsu[i].from[2] = 80.0f;
         Taimatsu[i].from[1] = 80.0f;
         Taimatsu[i].from[0] = 80.0f;
         Taimatsu[i].to[2] = 128.0f;
         Taimatsu[i].to[1] = 128.0f;
         Taimatsu[i].to[0] = 128.0f;
-        strcpy(Taimatsu[i].frame_name, "effect");
+        SetFrameName(Taimatsu[i], "effect");
         InitObjAnime(TaimatsuFrame[i], &Taimatsu[i]);
     }
 
     Taimatsu[8].Initialize();
-    Taimatsu[8].property = 3;
-    Taimatsu[8].mode = 4;
+    Taimatsu[8].property = OBJ_ANIME_PROPERTY_COLOR;
+    Taimatsu[8].mode = OBJ_ANIME_MODE_RANDOM;
     Taimatsu[8].from[0] = 110.0f;
     Taimatsu[8].from[2] = 120.0f;
     Taimatsu[8].from[1] = 120.0f;
     Taimatsu[8].to[0] = 128.0f;
     Taimatsu[8].to[2] = 125.0f;
     Taimatsu[8].to[1] = 125.0f;
-    strcpy(Taimatsu[8].frame_name, "hikari");
+    SetFrameName(Taimatsu[8], "hikari");
     InitObjAnime(TaimatsuFrame[8], &Taimatsu[8]);
 
     sceVu0FVECTOR corner0 = {-160.0f, 0.0f, -160.0f, 1.0f};
@@ -535,15 +498,15 @@ void OpC_InitProcess() {
     Water.SetParam(0.1f, 0.015f, 0.0f, 2.0f);
     Water.SetColor(128, 128, 128, 128);
 
-    for (int i = 0; i < 3; i++) {
+    for (CBombEffect &bomb : CBomb) {
         for (int j = 0; j < 8; j++) {
-            CBomb[i].active[j] = 0;
+            bomb.active[j] = 0;
         }
     }
 
-    for (int i = 0; i < 3; i++) {
-        CBeem[i].active = false;
-        CBeem[i].alphas[59] = 0.0f;
+    for (CMajinBeem &beam : CBeem) {
+        beam.active = false;
+        beam.alphas[59] = 0.0f;
     }
 
     MBeemCnt = 0;
@@ -555,8 +518,8 @@ void OpC_InitProcess() {
    share, then the five villagers who join the dance, each loaded straight after the block its
    images went into. */
 void OpC_InitProcess2() {
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     TexManager.DeleteTextureBlock(0);
     TexManager.DeleteTextureBlock(15);
@@ -583,9 +546,7 @@ void OpC_InitProcess2() {
 
     CFrameVu1 *shadow = LoadMDSFile(GetPackFile(read_buffer, "ashikage.mds", nullptr), &CharaDataBuffer__2[6], 2, nullptr, nullptr);
 
-    for (int i = 0; i < 16; i++) {
-        Shadow[i] = shadow;
-    }
+    std::ranges::fill(Shadow, shadow);
 
     tex[0].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p05b01.img", nullptr));
     tex[0].block_no = 4;
@@ -673,8 +634,8 @@ void OpC_InitProcess2() {
    pieces of sky and moonlight the rest of the scene is drawn against. The sky is given an attribute
    mask of its own because it is drawn behind everything rather than lit with it. */
 void OpC_InitProcess3() {
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     TexManager.DeleteTextureBlock(7);
     TexManager.DeleteTextureBlock(5);
@@ -807,14 +768,11 @@ void OpC_InitProcess3() {
     CScript__2.init_no = 0;
 }
 
-/* The village once the demon has been through it, which is the first scene's manifest with the
-   explosion and the dust it throws up added and everything the dance needed left out. */
-
 /* The burning village: the ruined map, the smoke pool the fires feed, and the five actors who walk
    through it. The cloth Toan carries is driven by this file's own wind rather than the scene's. */
 void OpC_InitProcess5() {
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     TexManager.DeleteTextureBlock(14);
     TexManager.DeleteTextureBlock(18);
@@ -933,8 +891,8 @@ void OpC_InitProcess5() {
     Chara__3[3].motion_type.state.playing_no = 0;
 
     Fuusya[0].Initialize();
-    Fuusya[0].property = 0;
-    Fuusya[0].mode = 0;
+    Fuusya[0].property = OBJ_ANIME_PROPERTY_ROTATION;
+    Fuusya[0].mode = OBJ_ANIME_MODE_LINEAR;
     Fuusya[0].from[2] = 0.0f;
     Fuusya[0].from[1] = 0.0f;
     Fuusya[0].from[0] = 0.0f;
@@ -944,12 +902,12 @@ void OpC_InitProcess5() {
     Fuusya[0].step[1] = 0.0f;
     Fuusya[0].step[0] = 0.0f;
     Fuusya[0].step[2] = -0.5f;
-    strcpy(Fuusya[0].frame_name, "hane");
+    SetFrameName(Fuusya[0], "hane");
     InitObjAnime(DoransFuusya[0], &Fuusya[0]);
 
     Fuusya[1].Initialize();
-    Fuusya[1].property = 0;
-    Fuusya[1].mode = 3;
+    Fuusya[1].property = OBJ_ANIME_PROPERTY_ROTATION;
+    Fuusya[1].mode = OBJ_ANIME_MODE_ONCE;
     Fuusya[1].from[2] = 0.0f;
     Fuusya[1].from[1] = 0.0f;
     Fuusya[1].from[0] = 0.0f;
@@ -959,41 +917,42 @@ void OpC_InitProcess5() {
     Fuusya[1].step[0] = 0.0f;
     Fuusya[1].step[1] = 0.0f;
     Fuusya[1].step[2] = -0.048f;
-    strcpy(Fuusya[1].frame_name, "obj1");
+    SetFrameName(Fuusya[1], "obj1");
     InitObjAnime(DoransFuusya[1], &Fuusya[1]);
 
     for (int i = 0; i < 5; i++) {
         Taimatsu[i].Initialize();
-        Taimatsu[i].property = 3;
-        Taimatsu[i].mode = 4;
+        Taimatsu[i].property = OBJ_ANIME_PROPERTY_COLOR;
+        Taimatsu[i].mode = OBJ_ANIME_MODE_RANDOM;
         Taimatsu[i].from[2] = 80.0f;
         Taimatsu[i].from[1] = 80.0f;
         Taimatsu[i].from[0] = 80.0f;
         Taimatsu[i].to[2] = 128.0f;
         Taimatsu[i].to[1] = 128.0f;
         Taimatsu[i].to[0] = 128.0f;
-        strcpy(Taimatsu[i].frame_name, "effect");
+        SetFrameName(Taimatsu[i], "effect");
         InitObjAnime(TaimatsuFrame[i], &Taimatsu[i]);
     }
 
     Taimatsu[8].Initialize();
-    Taimatsu[8].property = 3;
-    Taimatsu[8].mode = 4;
+    Taimatsu[8].property = OBJ_ANIME_PROPERTY_COLOR;
+    Taimatsu[8].mode = OBJ_ANIME_MODE_RANDOM;
     Taimatsu[8].from[0] = 110.0f;
     Taimatsu[8].from[2] = 120.0f;
     Taimatsu[8].from[1] = 120.0f;
     Taimatsu[8].to[0] = 128.0f;
     Taimatsu[8].to[2] = 125.0f;
     Taimatsu[8].to[1] = 125.0f;
-    strcpy(Taimatsu[8].frame_name, "hikari");
+    SetFrameName(Taimatsu[8], "hikari");
     InitObjAnime(TaimatsuFrame[8], &Taimatsu[8]);
 
-    // Retail asked for 12800 bytes, fifty of the PS2's 256-byte CEffect.
     EffectTable = reinterpret_cast<CEffect *>(CharaDataBuffer__2[0].Alloc(50 * sizeof(CEffect)));
     Smoke.Initialize(EffectTable, 50);
     Smoke.Clear();
     CScript__2.init_no = 0;
 }
+
+namespace {
 
 /**
  * Where the village stands, as the scene was laid out: a model, the model its shadow is drawn
@@ -1001,13 +960,7 @@ void OpC_InitProcess5() {
  * A row with no model of its own is another copy of the row above it, which is how a terrace of
  * identical houses costs one model load. The two windmills and the eight torches are kept aside as
  * they pass because the object animations are registered against those frames by name.
- *
- * @mangled MapLoad__Fv
- * @address 0x1DBE5A0
- * @size 0x6B8
- * @unknownret
  */
-namespace {
 void MapLoad() {
     MAPOBJ_INFO norn[] = {
         {"opdat/norn2/t0207.mds",    nullptr,                    {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     },
@@ -1087,16 +1040,15 @@ void MapLoad() {
         {"opdat/norn2/t0213.mds",    nullptr,                    {0.0f, 0.0f, 0.0f},           {0.0f, 0.0f, 0.0f}     }
     };
     CFrameAttr attr;
-    CFrameVu1 *frame;
-    int        i;
-    CFrameVu1 *ground_frame;
+    CFrameVu1 *frame = nullptr;
+    CFrameVu1 *ground_frame = nullptr;
 
     attr.fog_enable = true;
     MapDataBuffer.used = 0;
 
-    for (i = 0; i < 75; i++) {
+    for (int i = 0; i < 75; i++) {
         if (norn[i].name) {
-            LoadFile(norn[i].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(norn[i].name, read_buffer, nullptr);
             frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
@@ -1129,7 +1081,7 @@ void MapLoad() {
         object.FrameObjectOnOff("light1", 0);
 
         if (norn[i].shadow_name) {
-            LoadFile(norn[i].shadow_name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(norn[i].shadow_name, read_buffer, nullptr);
             object.shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, nullptr, nullptr);
             object.shadow_offset = -20.0f;
         }
@@ -1227,7 +1179,7 @@ void MapLoad() {
 
     for (int j = 0; j < 87; j++) {
         if (ground[j].name) {
-            LoadFile(ground[j].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(ground[j].name, read_buffer, nullptr);
             ground_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
@@ -1243,12 +1195,7 @@ void MapLoad() {
         if (j == 0) {
             CFrame *sun = ground_frame->SearchFrame("sun3");
 
-            float x, y, z;
-
-            y = 400.0f;
-            z = -30.0f;
-            x = 420.0f;
-            sun->SetPosition(x, y, z);
+            sun->SetPosition(420.0f, 400.0f, -30.0f);
         }
 
         CMapObject &object = OP_NornMapObj2[j];
@@ -1267,11 +1214,6 @@ void MapLoad() {
  * The same village after the demon has burned it, which is a second layout rather than a change to
  * the first: the models come out of the pack the background read left in memory rather than off the
  * disc, so every row is a name inside it.
- *
- * @mangled MapLoad2__Fv
- * @address 0x1DBEC60
- * @size 0x6A0
- * @unknownret
  */
 void MapLoad2() {
     MAPOBJ_INFO norn[] = {
@@ -1353,14 +1295,13 @@ void MapLoad2() {
         {"t0307.mds",    nullptr, {45.0f, 0.0f, 50.0f},         {0.0f, 180.0f, 0.0f}   }
     };
     CFrameAttr attr;
-    CFrameVu1 *frame;
-    int        i;
-    CFrameVu1 *ground_frame;
+    CFrameVu1 *frame = nullptr;
+    CFrameVu1 *ground_frame = nullptr;
 
     attr.fog_enable = true;
     CharaDataBuffer__2[0].used = 0;
 
-    for (i = 0; i < 76; i++) {
+    for (int i = 0; i < 76; i++) {
         if (norn[i].name) {
             frame = LoadMDSFile(GetPackFile(read_buffer, norn[i].name, nullptr), &CharaDataBuffer__2[0], 2, nullptr, nullptr);
         }
@@ -1394,7 +1335,7 @@ void MapLoad2() {
         object.FrameObjectOnOff("light1", 0);
 
         if (norn[i].shadow_name) {
-            LoadFile(norn[i].shadow_name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(norn[i].shadow_name, read_buffer, nullptr);
             object.shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, nullptr, nullptr);
             object.shadow_offset = -20.0f;
         }
@@ -1509,11 +1450,9 @@ void MapLoad2() {
 void OpC_MotionProcess() {
     for (int i = 0; i < 23; i++) {
         if (CScript__2.obj[i].disp) {
-            if (CScript__2.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
-                    CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
-                    CScript__2.obj[i].motion_end = -1;
-                }
+            if (CScript__2.obj[i].motion_end != -1 && Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
+                CScript__2.obj[i].motion_end = -1;
             }
 
             Chara__3[i].motion_type.state.blend_step = CScript__2.obj[i].step;
@@ -1677,17 +1616,13 @@ void OpC_MotionProcess() {
     }
 }
 
+namespace {
+
 /**
  * The demon's second half, which is loaded while the scene is already running: the script asks for
  * it by putting a load number on the actor, and this is the three ticks that answer — start the
  * read, wait for it, unpack it — after which both numbers go back to none.
- *
- * @mangled LoadCharaMajin__Fv
- * @address 0x1DBFB10
- * @size 0x10C
- * @unknownret
  */
-namespace {
 void LoadCharaMajin() {
     switch (CScript__2.obj[4].load_step) {
         case TSLOAD_START:
@@ -1724,12 +1659,7 @@ void LoadCharaMajin() {
    the two footfall samples the first actor takes is decided by which camera is running and how far
    its motion has gone, because the ground under him changes part way through the scene. */
 void OpC_SoundProcess() {
-    [[maybe_unused]] static float vol = 40.0f;
-    static int                    cnt = 0;
-
     if (!DanceBgmStart) {
-        vol = 40.0f;
-
         if (CScript__2.camera_start >= 58) {
             DanceBgmCnt = DanceBgmCnt + 1;
         }
@@ -1758,19 +1688,11 @@ void OpC_SoundProcess() {
 
         sceVu0FVECTOR river2 = {0.0f, 0.0f, 0.0f, 0.0f};
 
-        float river2_near;
-        float river2_far;
-        river2_far = static_cast<float>(CScript__2.camera_start - CScript__2.camera_start + 500);
-        river2_near = 50.0f;
-        OpSetVolPanSE(river2, river2_near, river2_far, 15, 16, 22);
+        OpSetVolPanSE(river2, 50.0f, 500.0f, 15, 16, 22);
 
         sceVu0FVECTOR river3 = {0.0f, 0.0f, 300.0f, 0.0f};
 
-        float river3_near;
-        float river3_far;
-        river3_far = static_cast<float>(cnt - cnt + 300);
-        river3_near = 100.0f;
-        OpSetVolPanSE(river3, river3_near, river3_far, 15, 16, 24);
+        OpSetVolPanSE(river3, 100.0f, 300.0f, 15, 16, 24);
     }
 
     static SND_INFO SndInfo[43] = {
@@ -1820,12 +1742,12 @@ void OpC_SoundProcess() {
     };
 
     if (!Pause && CScript__2.camera_start >= 70) {
-        SndCnt += 1.0f;
+        SndCnt++;
     }
 
-    for (int i = 0; i < 43; i++) {
-        if (SndCnt == SndInfo[i].count) {
-            OpPlayVolSE(SndInfo[i].group, SndInfo[i].no, SndInfo[i].voice, 1.0f);
+    for (const SND_INFO &sound : SndInfo) {
+        if (SndCnt == sound.count) {
+            OpPlayVolSE(sound.group, sound.no, sound.voice, 1.0f);
         }
     }
 
@@ -1846,10 +1768,9 @@ void OpC_SoundProcess() {
     if (CScript__2.obj[11].motion == 2 || CScript__2.obj[11].motion == 7) {
         static int    wait = 0;
         sceVu0FVECTOR position;
-        float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[11].pos);
-        motion_frame = static_cast<int>(Chara__3[11].motion_type.state.time);
+        const auto motion_frame = static_cast<float>(static_cast<int>(Chara__3[11].motion_type.state.time));
 
         if (wait == 0) {
             if (motion_frame > 73.0f && motion_frame < 75.0f) {
@@ -1864,7 +1785,7 @@ void OpC_SoundProcess() {
                 if (footstep_ground == 40) {
                     OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
                 } else {
-                    OpPlayVolPanSE(position, 10.0f, static_cast<float>(footstep_ground - footstep_ground + 400), MIDI_PORT_SE_DEFAULT, 21, 33);
+                    OpPlayVolPanSE(position, 10.0f, 400.0f, MIDI_PORT_SE_DEFAULT, 21, 33);
                 }
 
                 wait = 4;
@@ -1877,10 +1798,9 @@ void OpC_SoundProcess() {
     if (CScript__2.obj[11].motion == 5) {
         static int    wait = 0;
         sceVu0FVECTOR position;
-        float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[11].pos);
-        motion_frame = static_cast<int>(Chara__3[11].motion_type.state.time);
+        const auto motion_frame = static_cast<float>(static_cast<int>(Chara__3[11].motion_type.state.time));
 
         if (wait == 0) {
             if (motion_frame > 258.0f && motion_frame < 260.0f) {
@@ -1898,17 +1818,16 @@ void OpC_SoundProcess() {
     if (CScript__2.obj[13].disp) {
         static int    wait = 0;
         sceVu0FVECTOR position;
-        float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[13].pos);
-        motion_frame = static_cast<int>(Chara__3[13].motion_type.state.time);
+        const auto motion_frame = static_cast<float>(static_cast<int>(Chara__3[13].motion_type.state.time));
 
         if (wait == 0) {
             if (motion_frame > 123.0f && motion_frame < 125.0f) {
-                OpPlayVolPanSE(position, 10.0f, static_cast<float>(wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
+                OpPlayVolPanSE(position, 10.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
             } else if (motion_frame > 133.0f && motion_frame < 135.0f) {
-                OpPlayVolPanSE(position, 10.0f, static_cast<float>(wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 21);
+                OpPlayVolPanSE(position, 10.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
                 wait = 4;
             }
         } else {
@@ -1919,14 +1838,13 @@ void OpC_SoundProcess() {
     if (CScript__2.scene == OP_SCENE_NORUNE_RUINED && CScript__2.obj[12].disp) {
         static int    wait = 0;
         sceVu0FVECTOR position;
-        float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[12].pos);
-        motion_frame = static_cast<int>(Chara__3[12].motion_type.state.time);
+        const auto motion_frame = static_cast<float>(static_cast<int>(Chara__3[12].motion_type.state.time));
 
         if (wait == 0) {
             if (motion_frame > 33.0f && motion_frame < 35.0f) {
-                OpPlayVolPanSE(position, 10.0f, static_cast<float>(wait - wait + 300), MIDI_PORT_SE_DEFAULT, 21, 20);
+                OpPlayVolPanSE(position, 10.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 20);
                 wait = 4;
             } else if (motion_frame > 43.0f && motion_frame < 45.0f) {
                 OpPlayVolPanSE(position, 10.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 21);
@@ -1947,11 +1865,10 @@ void OpC_SoundProcess() {
 void OpC_DrawProcess() {
     sceVu0FMATRIX light_save;
     sceVu0FVECTOR ambient_save;
-    float         far_fog;
 
     sceVu0CopyMatrix(light_save, light);
     sceVu0CopyVector(ambient_save, ambientlight);
-    far_fog = op_fogRate[1];
+    float far_fog = op_fogRate[1];
 
     switch (CScript__2.camera_start) {
         case 58:
@@ -1989,11 +1906,11 @@ void OpC_DrawProcess() {
             TexManager.ReloadTexture(Vif1Packet, 10);
 
             for (int i = 0; i < 3; i++) {
-                (const_cast<CMapObject &>(OP_NornMapObj3[i])).Draw();
+                OP_NornMapObj3[i].Draw();
             }
 
             if (CScript__2.camera_start < 72) {
-                (const_cast<CMapObject &>(OP_NornMapObj3[3])).Draw();
+                OP_NornMapObj3[3].Draw();
             }
 
             break;
@@ -2202,14 +2119,14 @@ void OpC_DrawProcess() {
 
         CTexture texture;
 
-        texture.tex0 = *reinterpret_cast<u_long *>(&back);
+        texture.tex0 = std::bit_cast<u_long>(back);
         set2DSprite(Vif1Packet, &texture, CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, SCREEN_HALF_HEIGHT), 128, 128, 128, 105);
     }
 
     for (int i = 0; i < 23; i++) {
         if (KageCheck(i) && CScript__2.obj[i].disp) {
             TexManager.ReloadTexture(Vif1Packet, 23);
-            MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
+            MGBeginDrawShadow(std::bit_cast<sceGsTex0>(TexManager.GetTexture("shadow_buff", -1)->tex0));
 
             if (!Pause) {
                 Chara__3[i].ShadowStep();
@@ -2260,7 +2177,7 @@ void OpC_DrawProcess() {
 
     if (CScript__2.scene != OP_SCENE_MAJIN && CScript__2.camera_start < 60) {
         TexManager.ReloadTexture(Vif1Packet, 23);
-        MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
+        MGBeginDrawShadow(std::bit_cast<sceGsTex0>(TexManager.GetTexture("shadow_buff", -1)->tex0));
 
         if (CScript__2.scene != OP_SCENE_NORUNE_BURNING) {
             for (int i = 0; i < 75; i++) {
@@ -2384,20 +2301,14 @@ void OpC_DrawProcess() {
 
         TexManager.ReloadTexture(Vif1Packet, 18);
 
-        int dust;
+        const int dust = CScript__2.camera_start == 100 ? 1 : 0;
 
-        if (CScript__2.camera_start == 100) {
-            dust = 1;
-        } else {
-            dust = 0;
-        }
-
-        for (int i = 0; i < 3; i++) {
+        for (CBombEffect &bomb : CBomb) {
             if (!Pause) {
-                CBomb[i].Step();
+                bomb.Step();
             }
 
-            CBomb[i].Draw(&OP_MainCamera, dust);
+            bomb.Draw(&OP_MainCamera, dust);
         }
     }
 
@@ -2407,20 +2318,15 @@ void OpC_DrawProcess() {
     MGSetAmbient(ambientlight);
 }
 
+namespace {
+
 /**
  * The two dancers the crowd is watching, which are drawn from the camera's own frame tree rather
  * than from the scene: each is placed where a named frame of the camera's model stands, lit from
  * there, and given a pair of foot shadows of its own.
- *
- * @mangled DrawDancer__Fv
- * @address 0x1DC1A00
- * @size 0x4D8
- * @unknownret
  */
-namespace {
 void DrawDancer() {
-    sceVu0FMATRIX  matrix;
-    register float zero = 0.0f;
+    sceVu0FMATRIX matrix;
 
     if (CScript__2.obj[19].disp) {
         TexManager.ReloadTexture(Vif1Packet, CharaTex__2[19]);
@@ -2430,7 +2336,7 @@ void DrawDancer() {
 
         if (frame) {
             frame->GetLWMatrix(matrix);
-            CharaF[0]->SetRotation(zero, atan2f(matrix[2][0], matrix[2][2]), zero);
+            CharaF[0]->SetRotation(0.0f, atan2f(matrix[2][0], matrix[2][2]), 0.0f);
             float x = matrix[3][0];
             float y = matrix[3][1];
             float z = matrix[3][2];
@@ -2460,7 +2366,7 @@ void DrawDancer() {
 
         if (second_frame) {
             second_frame->GetLWMatrix(matrix);
-            CharaF[1]->SetRotation(0.0f, atan2f(matrix[2][0], matrix[2][2]), zero);
+            CharaF[1]->SetRotation(0.0f, atan2f(matrix[2][0], matrix[2][2]), 0.0f);
             float x = matrix[3][0];
             float y = matrix[3][1];
             float z = matrix[3][2];
@@ -2494,7 +2400,7 @@ void DrawDancer() {
             sceVu0FMATRIX matrix2;
 
             frame->GetLWMatrix(matrix2);
-            CharaF[2]->SetRotation(0.0f, atan2f(matrix2[2][0], matrix2[2][2]), zero);
+            CharaF[2]->SetRotation(0.0f, atan2f(matrix2[2][0], matrix2[2][2]), 0.0f);
             float x = matrix2[3][0];
             float y = matrix2[3][1];
             float z = matrix2[3][2];
@@ -2523,15 +2429,10 @@ void DrawDancer() {
  * Every dancer's feet, drawn as sixteen flat models placed under the frames they belong to rather
  * than as shadows the renderer casts, which is what the name says: the scene has more actors than
  * the shadow buffer would hold.
- *
- * @mangled InchikiShadow__Fv
- * @address 0x1DC1EE0
- * @size 0x478
- * @unknownret
  */
 void InchikiShadow() {
     sceVu0FMATRIX matrix;
-    CFrame       *frame;
+    CFrame       *frame = nullptr;
 
     if (CScript__2.obj[14].disp) {
         frame = Chara__3[14].frame->SearchFrame("r_foot");
@@ -2650,11 +2551,6 @@ void InchikiShadow() {
  * One of those flat models, placed and turned to face the light rather than the camera. The ambient
  * colour it is drawn under falls with the height it is drawn at, so a foot lifted far enough off
  * the ground has no shadow at all.
- *
- * @mangled DrawShadow__Fifff
- * @address 0x1DC2360
- * @size 0x134
- * @unknownret
  */
 void DrawShadow(int shadow_no, float x, float y, float z) {
     sceVu0FVECTOR ambient = {0.0f, 0.0f, 0.0f, 54.0f};
@@ -2679,26 +2575,14 @@ void DrawShadow(int shadow_no, float x, float y, float z) {
  * script marks as ending is aimed from a frame of the demon's own model at the frame the camera
  * carries; one it does not is aimed between the two points the script names. The tail is filled
  * with sixty copies of the head so that the first tick has a trail to shift along.
- *
- * @mangled MajinBeemProcess__Fv
- * @address 0x1DC24A0
- * @size 0x890
- * @unknownret
  */
 void MajinBeemProcess() {
     char *frame_names[10] = {"yubi", "heso", "l_asi", "r_asi", "kuti", "toutyou", "yubi", "yubi", "yubi",
                              "heso"};
 
     if (CScript__2.beem_req) {
-        float speed;
-
-        if (CScript__2.scene == OP_SCENE_MAJIN) {
-            speed = 4.5f;
-        } else {
-            speed = 8.0f;
-        }
-
-        int beam = CScript__2.beem_no;
+        const float speed = CScript__2.scene == OP_SCENE_MAJIN ? 4.5f : 8.0f;
+        const int   beam = CScript__2.beem_no;
 
         if (CScript__2.beem_end) {
             static sceVu0FVECTOR pos = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -2805,23 +2689,17 @@ void MajinBeemProcess() {
 
     TexManager.ReloadTexture(Vif1Packet, 18);
 
-    for (int i = 0; i < 3; i++) {
+    for (CMajinBeem &beam : CBeem) {
         if (!Pause) {
-            CBeem[i].Step();
+            beam.Step();
         }
 
-        CBeem[i].Draw(&OP_MainCamera);
+        beam.Draw(&OP_MainCamera);
     }
 
     if (CScript__2.obj[1].disp && CScript__2.scene == OP_SCENE_MAJIN) {
         sceVu0FVECTOR head;
-        int           part;
-
-        if (MBeemCnt == 0) {
-            part = 0;
-        } else {
-            part = MBeemCnt - 1;
-        }
+        const int     part = MBeemCnt == 0 ? 0 : MBeemCnt - 1;
 
         CFrame *frame = Chara__3[1].frame->SearchFrame(frame_names[part]);
 
@@ -2847,11 +2725,6 @@ void MajinBeemProcess() {
  * apiece every eighth tick. Everything about a particle but where it starts is random: its scale,
  * how fast it spins, how fast it turns and which of the four quarters of the smoke texture it is
  * drawn from.
- *
- * @mangled SmokeProcess__Fv__2
- * @address 0x1DC2D30
- * @size 0x564
- * @unknownret
  */
 void SmokeProcess() {
     static int cnt = 0;
@@ -2951,19 +2824,11 @@ void SmokeProcess() {
     Smoke.Draw();
 }
 
-} // namespace
-
 /**
  * The river, which is drawn as a grid that refracts what is already in the frame buffer: the frame
  * is copied into the surface the grid samples, the grid is placed under the camera, and the depth
  * write is turned off so the water does not occlude what is drawn after it.
- *
- * @mangled WaterProcess__Fv
- * @address 0x1DC32A0
- * @size 0x1D4
- * @unknownret
  */
-namespace {
 void WaterProcess() {
     setTexScroll();
     setTexAnim();
@@ -2973,7 +2838,7 @@ void WaterProcess() {
     MGGetFBuffTex(&frame_tex);
 
     CRect<int> rect(0, 0, 640, SCREEN_HALF_HEIGHT);
-    sceGsTex0  surface = *reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("water_buff", -1)->tex0);
+    auto       surface = std::bit_cast<sceGsTex0>(TexManager.GetTexture("water_buff", -1)->tex0);
 
     MGMoveImage(&frame_tex, rect, &surface, 0, 0, 0);
 
@@ -2997,58 +2862,53 @@ void WaterProcess() {
  * Which of the twenty-three actors gets a shadow drawn into the shadow buffer. The dancers do not,
  * because they carry the flat models InchikiShadow places instead; the demon does not, because it
  * is in the air.
- *
- * @mangled KageCheck__Fi
- * @address 0x1DC3480
- * @size 0x128
- * @unknownret
  */
-int KageCheck(int actor) {
+bool KageCheck(int actor) {
     if (actor == 1) {
-        return 0;
+        return false;
     }
 
     if (actor == 3) {
-        return 0;
+        return false;
     }
 
     if (actor == 4) {
-        return 0;
+        return false;
     }
 
     if (actor == 5) {
-        return 0;
+        return false;
     }
 
     if (actor == 14) {
-        return 0;
+        return false;
     }
 
     if (actor == 15) {
-        return 0;
+        return false;
     }
 
     if (actor == 16) {
-        return 0;
+        return false;
     }
 
     if (CScript__2.scene < OP_SCENE_NORUNE_BURNING && actor == 18) {
-        return 0;
+        return false;
     }
 
     if (actor == 17) {
-        return 0;
+        return false;
     }
 
     if (actor == 19) {
-        return 0;
+        return false;
     }
 
     if (actor == 20) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 /**
@@ -3056,11 +2916,6 @@ int KageCheck(int actor) {
  * from one direction for the whole frame, which is what gives the village its lamplight. The light
  * colour falls with distance and jitters by a few levels a tick, and the ambient colour falls with
  * distance too — except in the burning village, where it is raised instead.
- *
- * @mangled LightSet__Ffffi
- * @address 0x1DC35B0
- * @size 0x2C4
- * @unknownret
  */
 void LightSet(float x, float y, float z, int actor) {
     sceVu0FVECTOR dir;
@@ -3102,11 +2957,7 @@ void LightSet(float x, float y, float z, int actor) {
     to[2] = 299.99f;
     to[3] = 0.0f;
 
-    int falloff = static_cast<int>(DistVector(from, to)) / 20;
-
-    if (falloff > 60) {
-        falloff = 60;
-    }
+    int falloff = std::min(static_cast<int>(DistVector(from, to)) / 20, 60);
 
     color[0][0] = color[0][0] - static_cast<float>(falloff);
     color[0][0] = color[0][0] + static_cast<float>(rand() % 20 - 10);
@@ -3117,11 +2968,7 @@ void LightSet(float x, float y, float z, int actor) {
     sceVu0CopyVector(ambient, ambientlight);
 
     if (CScript__2.scene != OP_SCENE_NORUNE_BURNING) {
-        falloff = static_cast<int>(DistVector(from, to)) / 10;
-
-        if (falloff > 20) {
-            falloff = 20;
-        }
+        falloff = std::min(static_cast<int>(DistVector(from, to)) / 10, 20);
 
         ambient[0] += 20.0f;
         ambient[0] = ambient[0] - static_cast<float>(falloff);
@@ -3141,11 +2988,6 @@ float setTexAnimCntf;
 /**
  * The waterfall, which is one 128-pixel texture scrolled sideways over another at half a pixel a
  * tick and wrapped by copying the two halves separately.
- *
- * @mangled setTexScroll__Fv__2
- * @address 0x1DC3880
- * @size 0x250
- * @unknownret
  */
 void setTexScroll() {
     if (setTexScrollCntf >= 126.0f) {
@@ -3163,19 +3005,10 @@ void setTexScroll() {
         return;
     }
 
-    int       dbp = plate->tex0 & 0x3fff;
-    int       sbp = strip->tex0 & 0x3fff;
-    int       dbw = (plate->tex0 >> 14) & 0x3f;
-    int       sbw = (strip->tex0 >> 14) & 0x3f;
-    sceGsTex0 dst_tex;
-    sceGsTex0 src_tex;
-
-    dst_tex.TBP0 = dbp;
-    dst_tex.TBW = dbw;
-    dst_tex.PSM = SCE_GS_PSMT8;
-    src_tex.TBP0 = sbp;
-    src_tex.TBW = sbw;
-    src_tex.PSM = SCE_GS_PSMT8;
+    const int dbp = static_cast<int>(plate->tex0 & 0x3fff);
+    const int sbp = static_cast<int>(strip->tex0 & 0x3fff);
+    const int dbw = static_cast<int>((plate->tex0 >> 14) & 0x3f);
+    const int sbw = static_cast<int>((strip->tex0 >> 14) & 0x3f);
 
     if (setTexScrollCnt != 128) {
         MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, CRect<int>(setTexScrollCnt, 0, 128 - setTexScrollCnt, 128), dbp, dbw, SCE_GS_PSMT8, 0, 0, 0);
@@ -3190,11 +3023,6 @@ void setTexScroll() {
  * The river's surface, which is eight 64-pixel frames stacked in a strip of their own and copied
  * one at a time over the plate the grid samples, at a fifth of a frame per tick. The cache is
  * flushed on both sides because the plate is a texture the previous tick drew from.
- *
- * @mangled setTexAnim__Fv__2
- * @address 0x1DC3AD0
- * @size 0x1C0
- * @unknownret
  */
 void setTexAnim() {
     if (setTexAnimCntf >= 7.0f) {

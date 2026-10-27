@@ -6,13 +6,15 @@
 #include <libvu0.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <new>
+#include <string_view>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -41,29 +43,11 @@
 #include "vector3.hpp"
 #include "wind.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// The game APIs this file calls take names as char *, and string literals are passed to them.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's Norune scene: OpB_DrawProcess reaches the static setTexAnime, whose TEXFLUSH packets are
-// gone, and shares OP_ToanMapObj, CFire and Komono with the set-up, so those move with it.
-
-/**
- * Phases of an actor's blink, as FACE_INFO::blink holds them.
- */
-// clang-format off
-enum FaceBlink {
-    BLINK_IDLE    = 0, /**< Eyes open, waiting for the next blink. */
-    BLINK_CLOSING = 1, /**< Eyes closing towards the last eye frame. */
-    BLINK_OPENING = 2, /**< Eyes opening back to the first frame. */
-};
-
-// clang-format on
-
-typedef MOTION_INFO tagMOTION_KEY;
-
-/* The rectangle a texture transfer takes, declared here rather than reached through rect.h for
-   the reason title.cpp declares its own: every rectangle this overlay builds is built by a
-   constructor that assigns x, y, w and h in that order, and rect.h's assigns them in the other. */
+/* The title overlay's rectangle, whose constructor takes x, y, w and h in that order (rect.h's
+   takes them in another); MoveImageTest's adapter is declared against this type. */
 template <class T>
 class CRect {
 public:
@@ -72,19 +56,21 @@ public:
     T w; /**< Width in pixels. */
     T h; /**< Height in pixels. */
 
-    CRect() {}
+    CRect() = default;
 
-    CRect(T new_x, T new_y, T new_width, T new_height) {
-        x = new_x;
-        y = new_y;
-        w = new_width;
-        h = new_height;
-    }
+    CRect(T new_x, T new_y, T new_width, T new_height) : x(new_x), y(new_y), w(new_width), h(new_height) {}
 } __attribute__((aligned(16)));
 
-/* The three classes this scene places in the world, declared here rather than reached through
-   headers of their own because each is another unit's to type. Only the members this file touches
-   are named; the extents are the sizes the executable gives the objects below. */
+namespace {
+
+/**
+ * Phases of an actor's blink, as FACE_INFO::blink holds them.
+ */
+enum class FaceBlink : int {
+    Idle = 0,    /**< Eyes open, waiting for the next blink. */
+    Closing = 1, /**< Eyes closing towards the last eye frame. */
+    Opening = 2, /**< Eyes opening back to the first frame. */
+};
 
 /* One actor's face, as this scene animates it. The eyes and the mouth are two strips of frames
    stacked bottom-up in one 256-wide texture — the eyes down the left half and the mouth down the
@@ -92,17 +78,17 @@ public:
    offsets are measured from the bottom edge of the plate; the blink state is kept here because this
    scene blinks the cast on a clock of its own rather than from the script. */
 struct FACE_INFO {
-    char *plate;        /**< Texture the model's face is drawn from. */
-    char *strip;        /**< Texture holding the eye and mouth frames. */
-    int   eye_bottom;   /**< Height of the eye region above the plate's bottom edge. */
-    int   eye_height;   /**< Height of one eye frame. */
-    int   mouth_bottom; /**< Height of the mouth region above the plate's bottom edge. */
-    int   mouth_height; /**< Height of one mouth frame. */
-    int   eye;          /**< Eye frame currently shown. */
-    int   mouth;        /**< Mouth frame currently shown. */
-    int   strip_bottom; /**< Row the frame strips count up from. */
-    int   eye_max;      /**< Last eye frame of a blink. */
-    int   blink;        /**< Blink phase: zero idle, one closing, two opening. */
+    char     *plate;        /**< Texture the model's face is drawn from. */
+    char     *strip;        /**< Texture holding the eye and mouth frames. */
+    int       eye_bottom;   /**< Height of the eye region above the plate's bottom edge. */
+    int       eye_height;   /**< Height of one eye frame. */
+    int       mouth_bottom; /**< Height of the mouth region above the plate's bottom edge. */
+    int       mouth_height; /**< Height of one mouth frame. */
+    int       eye;          /**< Eye frame currently shown. */
+    int       mouth;        /**< Mouth frame currently shown. */
+    int       strip_bottom; /**< Row the frame strips count up from. */
+    int       eye_max;      /**< Last eye frame of a blink. */
+    FaceBlink blink;        /**< Blink phase. */
 };
 
 /* One piece of scenery as the scene was laid out: the model, the model its shadow is drawn
@@ -114,13 +100,19 @@ struct MAPOBJ_INFO {
     float rotation[3]; /**< Heading about each axis in degrees. */
 };
 
+void SetFrameName(OBJ_ANIME_SEQ &sequence, std::string_view name) {
+    std::ranges::copy(name, std::begin(sequence.frame_name));
+    sequence.frame_name[name.size()] = '\0';
+}
+
+} // namespace
+
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 void DepthOfField(float *dist, int level, int alpha, int blur);
 
 namespace {
 CFrameVu1 *ToansHouse;
 CFrameVu1 *DoransFuusya[2];
-int        VolFade;
 
 void setTexAnime();
 } // namespace
@@ -151,82 +143,64 @@ CMapObject    OP_ToanMapObj;
    has been on screen long enough, which is how a raised eyebrow outlasts the word that raised it.
    The mouth is driven from the script's own clock, a new frame picked at random every sixth
    hundredth of a second left on the line's timer while the actor is talking. */
-// op_b's FaceChange is the one op_a calls; FaceChangeC is op_c's body (port/src/title/op_c.cpp).
 void FaceChange(int actor_no) {
     static FACE_INFO face[8] = {
-        {"c07a01",  "c07a01an",  42, 40, 87, 35, 0, 0, 256, 2, 0},
-        {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {"c11a01",  "c11a01an",  32, 40, 84, 35, 0, 0, 448, 3, 0},
-        {"c09a01",  "c09a01an",  10, 40, 73, 35, 0, 0, 448, 2, 0},
-        {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, 0},
-        {"p19a_03", "p19a_03an", 8,  40, 76, 35, 0, 0, 256, 2, 0},
-        {"p17a01",  "p17a01an",  42, 40, 87, 35, 0, 0, 320, 2, 0}
+        {"c07a01",  "c07a01an",  42, 40, 87, 35, 0, 0, 256, 2, FaceBlink::Idle},
+        {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, FaceBlink::Idle},
+        {"c11a01",  "c11a01an",  32, 40, 84, 35, 0, 0, 448, 3, FaceBlink::Idle},
+        {"c09a01",  "c09a01an",  10, 40, 73, 35, 0, 0, 448, 2, FaceBlink::Idle},
+        {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, FaceBlink::Idle},
+        {"c08a01",  "c08a01an",  42, 40, 87, 35, 0, 0, 320, 2, FaceBlink::Idle},
+        {"p19a_03", "p19a_03an", 8,  40, 76, 35, 0, 0, 256, 2, FaceBlink::Idle},
+        {"p17a01",  "p17a01an",  42, 40, 87, 35, 0, 0, 320, 2, FaceBlink::Idle}
     };
-    CTexture *plate;
-    CTexture *strip;
-    int       sbp;
-    int       dbp;
-    int       sbw;
-    int       dbw;
-
-    plate = TexManager.GetTexture(face[actor_no].plate, -1);
-    strip = TexManager.GetTexture(face[actor_no].strip, -1);
+    CTexture *plate = TexManager.GetTexture(face[actor_no].plate, -1);
+    CTexture *strip = TexManager.GetTexture(face[actor_no].strip, -1);
 
     if (plate == nullptr || strip == nullptr) {
         return;
     }
 
-    sbp = strip->tex0 & 0x3fff;
-    dbp = plate->tex0 & 0x3fff;
-    sbw = (strip->tex0 >> 14) & 0x3f;
-    dbw = (plate->tex0 >> 14) & 0x3f;
+    const int sbp = static_cast<int>(strip->tex0 & 0x3fff);
+    const int dbp = static_cast<int>(plate->tex0 & 0x3fff);
+    const int sbw = static_cast<int>((strip->tex0 >> 14) & 0x3f);
+    const int dbw = static_cast<int>((plate->tex0 >> 14) & 0x3f);
 
-    if (actor_no == 1) {
-        return;
-    }
-
-    if (actor_no == 4) {
-        return;
-    }
-
-    if (actor_no == 5) {
-        return;
-    }
-
-    if (actor_no == 7) {
+    if (actor_no == 1 || actor_no == 4 || actor_no == 5 || actor_no == 7) {
         return;
     }
 
     if (!Pause) {
         if (CScript__2.obj[actor_no].eye > face[actor_no].eye_max) {
-            face[actor_no].blink = BLINK_IDLE;
+            face[actor_no].blink = FaceBlink::Idle;
         }
 
         if (CScript__2.obj[actor_no].eye_time >= CScript__2.motion_step) {
             CScript__2.obj[actor_no].eye_time -= CScript__2.motion_step;
 
             switch (face[actor_no].blink) {
-                case BLINK_CLOSING:
+                case FaceBlink::Closing:
                     if (CScript__2.obj[actor_no].eye < face[actor_no].eye_max) {
                         CScript__2.obj[actor_no].eye++;
 
                         if (CScript__2.obj[actor_no].eye == face[actor_no].eye_max) {
-                            face[actor_no].blink = BLINK_OPENING;
+                            face[actor_no].blink = FaceBlink::Opening;
                         }
                     }
 
                     break;
-                case BLINK_OPENING:
+                case FaceBlink::Opening:
                     if (CScript__2.obj[actor_no].eye > 0) {
                         CScript__2.obj[actor_no].eye--;
                     }
 
                     break;
+                case FaceBlink::Idle:
+                    break;
             }
         } else if (rand() % 200 == 0) {
             if (CScript__2.obj[actor_no].eye == 0) {
-                face[actor_no].blink = BLINK_CLOSING;
+                face[actor_no].blink = FaceBlink::Closing;
                 CScript__2.obj[actor_no].eye = 1;
                 CScript__2.obj[actor_no].eye_time = 15.0f * CScript__2.motion_step;
             }
@@ -236,11 +210,11 @@ void FaceChange(int actor_no) {
                 CScript__2.obj[2].eye_time = CScript__2.motion_step;
             } else {
                 CScript__2.obj[actor_no].eye = 0;
-                face[actor_no].blink = BLINK_IDLE;
+                face[actor_no].blink = FaceBlink::Idle;
             }
         } else {
             CScript__2.obj[actor_no].eye = 0;
-            face[actor_no].blink = BLINK_IDLE;
+            face[actor_no].blink = FaceBlink::Idle;
         }
     }
 
@@ -259,10 +233,8 @@ void FaceChange(int actor_no) {
             }
         }
 
-        if (CScript__2.obj[3].eye_time > 1.0f) {
-            if (CScript__2.obj[3].eye == 3) {
-                CScript__2.obj[3].eye = 4;
-            }
+        if (CScript__2.obj[3].eye_time > 1.0f && CScript__2.obj[3].eye == 3) {
+            CScript__2.obj[3].eye = 4;
         }
     }
 
@@ -270,10 +242,8 @@ void FaceChange(int actor_no) {
         if (CScript__2.obj[actor_no].mouth_time >= CScript__2.motion_step) {
             CScript__2.obj[actor_no].mouth_time -= CScript__2.motion_step;
 
-            if (CScript__2.obj[actor_no].talk) {
-                if (static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
-                    CScript__2.obj[actor_no].mouth = rand() % 4;
-                }
+            if (CScript__2.obj[actor_no].talk && static_cast<int>(100.0f * CScript__2.obj[actor_no].mouth_time) % 6 == 0) {
+                CScript__2.obj[actor_no].mouth = rand() % 4;
             }
         } else {
             CScript__2.obj[actor_no].mouth = 0;
@@ -285,10 +255,8 @@ void FaceChange(int actor_no) {
 
     MoveImageTest(Vif1Packet, sbp, sbw, SCE_GS_PSMT8, CRect<int>(128, face[actor_no].strip_bottom - face[actor_no].mouth_height * (face[actor_no].mouth + 1), 128, face[actor_no].mouth_height), dbp, dbw, SCE_GS_PSMT8, 0, 88 - face[actor_no].mouth_bottom, 0);
 
-    if (!Pause) {
-        if (CScript__2.obj[2].mouth == 4) {
-            CScript__2.obj[2].mouth = 5;
-        }
+    if (!Pause && CScript__2.obj[2].mouth == 4) {
+        CScript__2.obj[2].mouth = 5;
     }
 }
 
@@ -455,8 +423,8 @@ void OpB_InitProcess() {
         {"",                                                0,  0}
     };
 
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     texture_list[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01.img", nullptr));
     texture_list[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "e01b01.img", nullptr));
@@ -476,11 +444,7 @@ void OpB_InitProcess() {
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_US:
-            texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_UK:
             texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
@@ -495,6 +459,8 @@ void OpB_InitProcess() {
             break;
         case LANG_SPANISH:
             texture_list[20].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
+            break;
+        default:
             break;
     }
 
@@ -596,15 +562,15 @@ void OpB_InitProcess() {
         {"opdat/norn/e01g03_0.mds", nullptr,                   {0.0f, 0.0f, 0.0f},            {0.0f, 0.0f, 0.0f}  }
     };
     CFrameAttr  attr;
-    CFrameVu1  *frame;
-    CMapObject *object;
+    CFrameVu1  *frame = nullptr;
+    CMapObject *object = nullptr;
 
     attr.fog_enable = true;
     MapDataBuffer.used = 0;
 
     for (int i = 0; i < 68; i++) {
         if (norn[i].name) {
-            LoadFile(norn[i].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(norn[i].name, read_buffer, nullptr);
             frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
@@ -637,7 +603,7 @@ void OpB_InitProcess() {
         object->FrameObjectOnOff("light1", 0);
 
         if (norn[i].shadow_name) {
-            LoadFile(norn[i].shadow_name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(norn[i].shadow_name, read_buffer, nullptr);
             object->shadow_frame = LoadMDSFile(read_buffer, &MapDataBuffer, 14, nullptr, nullptr);
             object->shadow_offset = -20.0f;
         }
@@ -671,7 +637,7 @@ void OpB_InitProcess() {
 
     for (int i = 0; i < 23; i++) {
         if (ground[i].name) {
-            LoadFile(ground[i].name, reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(ground[i].name, read_buffer, nullptr);
             frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
         }
 
@@ -698,10 +664,10 @@ void OpB_InitProcess() {
         OP_NornMapObj2[i].category_no = 0;
 
         object->SetPosition(CVector3_f_(10.0f * ground[i].position[0], 10.0f * ground[i].position[1], 10.0f * ground[i].position[2]));
-        (const_cast<CMapObject &>(OP_NornMapObj2[i])).SetRotation(CVector3_f_(static_cast<float>(PI_D * ground[i].rotation[0] / 180), static_cast<float>(PI_D * ground[i].rotation[1] / 180), static_cast<float>(PI_D * ground[i].rotation[2] / 180)));
+        object->SetRotation(CVector3_f_(static_cast<float>(PI_D * ground[i].rotation[0] / 180), static_cast<float>(PI_D * ground[i].rotation[1] / 180), static_cast<float>(PI_D * ground[i].rotation[2] / 180)));
     }
 
-    LoadFile("opdat/chara/03p09a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/chara/03p09a.chr", read_buffer, nullptr);
     CharaDataBuffer__2[6].used = 0;
     Chara__3[9].LoadPackData(read_buffer, "03p09a.cfg", &CharaDataBuffer__2[6], nullptr);
 
@@ -726,7 +692,7 @@ void OpB_InitProcess() {
     Fuusya[0].step[1] = 0.0f;
     Fuusya[0].step[0] = 0.0f;
     Fuusya[0].step[2] = -0.5f;
-    strcpy(Fuusya[0].frame_name, "hane");
+    SetFrameName(Fuusya[0], "hane");
     InitObjAnime(DoransFuusya[0], &Fuusya[0]);
 
     Fuusya[1].Initialize();
@@ -741,7 +707,7 @@ void OpB_InitProcess() {
     Fuusya[1].step[1] = 0.0f;
     Fuusya[1].step[0] = 0.0f;
     Fuusya[1].step[2] = -0.5f;
-    strcpy(Fuusya[1].frame_name, "hane");
+    SetFrameName(Fuusya[1], "hane");
     InitObjAnime(DoransFuusya[1], &Fuusya[1]);
 
     for (int i = 0; i < 12; i++) {
@@ -754,11 +720,10 @@ void OpB_InitProcess() {
         Taimatsu[i].to[2] = 128.0f;
         Taimatsu[i].to[1] = 128.0f;
         Taimatsu[i].to[0] = 128.0f;
-        strcpy(Taimatsu[i].frame_name, "effect");
+        SetFrameName(Taimatsu[i], "effect");
         InitObjAnime(TaimatsuFrame[i], &Taimatsu[i]);
     }
 
-    VolFade = 0;
     CScript__2.init_no = 0;
 }
 
@@ -792,8 +757,8 @@ void OpB_InitProcess2() {
         {"",                                                0,  0}
     };
 
-    while (ReadBGSync())
-        ;
+    while (ReadBGSync()) {
+    }
 
     texture_list[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "gaiji.img", nullptr));
     texture_list[6].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "fuki256.img", nullptr));
@@ -809,11 +774,7 @@ void OpB_InitProcess2() {
 
     switch (LanguageCode) {
         case LANG_JAPANESE:
-            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_US:
-            texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
-            break;
         case LANG_ENGLISH_UK:
             texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_e.img", nullptr));
             break;
@@ -829,6 +790,8 @@ void OpB_InitProcess2() {
         case LANG_SPANISH:
             texture_list[16].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "pause_s.img", nullptr));
             break;
+        default:
+            break;
     }
 
     texture_list[17].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "p09a01an.img", nullptr));
@@ -840,7 +803,7 @@ void OpB_InitProcess2() {
     OPAnalyz("opdat/toan.cfg");
     OPMdsLoad();
 
-    LoadFile("opdat/toan/t0101.mds", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/toan/t0101.mds", read_buffer, nullptr);
     MapDataBuffer.used = 0;
     ToansHouse = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
     OP_ToanMapObj.Initialize();
@@ -848,7 +811,7 @@ void OpB_InitProcess2() {
     OP_ToanMapObj.handle = 0;
     OP_ToanMapObj.category_no = 0;
 
-    LoadFile("opdat/toan/03komono.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/toan/03komono.chr", read_buffer, nullptr);
     Komono.LoadPackData(read_buffer, "03komono.cfg", &MapDataBuffer, nullptr);
 
     CFrameAttr komono_attr;
@@ -860,7 +823,7 @@ void OpB_InitProcess2() {
     Komono.motion_type.state.motion_no = 0;
     Komono.motion_type.state.playing_no = 0;
 
-    LoadFile("opdat/chara/03p10a.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/chara/03p10a.chr", read_buffer, nullptr);
     Chara__3[10].LoadPackData(read_buffer, "03p10a.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr mother_attr;
@@ -878,7 +841,7 @@ void OpB_InitProcess2() {
         soup->attr.draw_on = 0;
     }
 
-    LoadFile("opdat/chara/03c01d.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/chara/03c01d.chr", read_buffer, nullptr);
     Chara__3[8].LoadPackData(read_buffer, "03c01d.cfg", &CharaDataBuffer__2[6], nullptr);
 
     CFrameAttr toan_attr;
@@ -901,7 +864,7 @@ void OpB_InitProcess2() {
     Chara__3[8].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind));
     Chara__3[8].ClothStep(-1);
 
-    LoadFile("opdat/chara/03c01d2.chr", reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile("opdat/chara/03c01d2.chr", read_buffer, nullptr);
     Chara__3[11].LoadPackData(read_buffer, "03c01d2.cfg", &CharaDataBuffer__2[6], nullptr);
 
     toan_attr.clip_enable = false;
@@ -923,7 +886,7 @@ void OpB_InitProcess2() {
     Door.step[0] = 0.0f;
     Door.step[1] = 0.0f;
     Door.step[2] = 0.0f;
-    strcpy(Door.frame_name, "door_1");
+    SetFrameName(Door, "door_1");
     InitObjAnime(ToansHouse, &Door);
 
     CSnd.SE_Stop(MIDI_PORT_SE_TITLE, 16, 22, 0);
@@ -941,11 +904,9 @@ void OpB_InitProcess2() {
 void OpB_MotionProcess() {
     for (int i = 8; i < 12; i++) {
         if (CScript__2.obj[i].disp) {
-            if (CScript__2.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
-                    CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
-                    CScript__2.obj[i].motion_end = -1;
-                }
+            if (CScript__2.obj[i].motion_end != -1 && Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
+                CScript__2.obj[i].motion_end = -1;
             }
 
             Chara__3[i].motion_type.state.blend_step = CScript__2.obj[i].step;
@@ -965,7 +926,8 @@ void OpB_MotionProcess() {
         if (frame) {
             frame->GetLWMatrix(matrix);
             float rot_y = atan2f(matrix[2][0], matrix[2][2]);
-            float rot_x = 0.0f, rot_z = 0.0f;
+            float rot_x = 0.0f;
+            float rot_z = 0.0f;
 
             Chara__3[i + 8].SetRotation(rot_x, rot_y, rot_z);
             float x = matrix[3][0];
@@ -1009,8 +971,8 @@ void OpB_MotionProcess() {
         ObjAnimePlay(&Fuusya[0]);
         ObjAnimePlay(&Fuusya[1]);
 
-        for (int i = 0; i < 12; i++) {
-            ObjAnimePlay(&Taimatsu[i]);
+        for (OBJ_ANIME_SEQ &torch : Taimatsu) {
+            ObjAnimePlay(&torch);
         }
     }
 
@@ -1030,13 +992,6 @@ void OpB_MotionProcess() {
         }
     }
 }
-
-/* The scene's per-tick sound. Two of the actors' footfalls are played from their own positions
-   rather than from a track, which is why each is a window on the actor's motion frame with a wait
-   behind it: a frame number is only inside its window for one tick at the motion's own rate, and
-   the wait keeps a stutter in the motion from playing the step twice. Which of the two samples a
-   footfall takes is decided by how far the camera's motion has run, because the ground changes
-   under the actor part way through the scene. */
 
 /* The scene's per-tick drawing, in the order the frame is built: the world, then the fires that
    are lights rather than models, then the actors' shadows onto the one buffer that holds them all,
@@ -1070,6 +1025,9 @@ void OpB_DrawProcess() {
         case OP_SCENE_TOAN_HOUSE:
             setTexAnime();
             OP_ToanMapObj.Draw();
+            break;
+
+        default:
             break;
     }
 
@@ -1115,7 +1073,7 @@ void OpB_DrawProcess() {
     }
 
     TexManager.ReloadTexture(Vif1Packet, 23);
-    MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
+    MGBeginDrawShadow(std::bit_cast<sceGsTex0>(TexManager.GetTexture("shadow_buff", -1)->tex0));
 
     for (int i = 8; i < 12; i++) {
         if (CScript__2.obj[i].disp) {
@@ -1158,7 +1116,7 @@ void OpB_DrawProcess() {
 
     if (CScript__2.scene == OP_SCENE_NORUNE) {
         TexManager.ReloadTexture(Vif1Packet, 23);
-        MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
+        MGBeginDrawShadow(std::bit_cast<sceGsTex0>(TexManager.GetTexture("shadow_buff", -1)->tex0));
 
         switch (CScript__2.scene) {
             case OP_SCENE_NORUNE:
@@ -1170,6 +1128,9 @@ void OpB_DrawProcess() {
 
             case OP_SCENE_TOAN_HOUSE:
                 OP_ToanMapObj.DrawShadow(0);
+                break;
+
+            default:
                 break;
         }
 
@@ -1185,53 +1146,33 @@ void OpB_DrawProcess() {
     }
 }
 
-/**
- * The village sign's one animated texture. The animation is a strip of eight 64-pixel frames in a
- * texture of its own and the plate the world draws is another, so a tick is a local-to-local
- * transfer of one frame over the plate; the counter advances by a half so that a frame stands for
- * two ticks, and the texture cache is flushed first because the plate about to be overwritten is
- * the one the previous tick drew from.
- *
- * @mangled setTexAnime__Fv
- * @address 0x1DBB8A0
- * @size 0x1EC
- * @unknownret
- */
 namespace {
-void setTexAnime() {
-    CTexture *plate;
-    CTexture *strip;
-    int       dbp;
-    int       dbw;
-    int       sbp;
-    int       sbw;
 
-    plate = TexManager.GetTexture("i01e01", -1);
-    strip = TexManager.GetTexture("i01e01_a", -1);
+/* The village sign's one animated texture: a strip of eight 64-pixel frames copied one at a time
+   over the plate the world draws. The counter advances by a half so that a frame stands for two
+   ticks. */
+void setTexAnime() {
+    CTexture *plate = TexManager.GetTexture("i01e01", -1);
+    CTexture *strip = TexManager.GetTexture("i01e01_a", -1);
 
     if (plate == nullptr || strip == nullptr) {
         return;
     }
 
-    dbp = plate->tex0 & 0x3fff;
-    dbw = (plate->tex0 >> 14) & 0x3f;
-    sbp = strip->tex0 & 0x3fff;
-    sbw = (strip->tex0 >> 14) & 0x3f;
+    const int dbp = static_cast<int>(plate->tex0 & 0x3fff);
+    const int dbw = static_cast<int>((plate->tex0 >> 14) & 0x3f);
+    const int sbp = static_cast<int>(strip->tex0 & 0x3fff);
+    const int sbw = static_cast<int>((strip->tex0 >> 14) & 0x3f);
 
-    static float cnt = 0.0f;
+    static float frame_counter = 0.0f;
 
-    MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, static_cast<int>(cnt) * 64, 64, 64), dbp, dbw, 0, 0, 0, 0);
+    MoveImageTest(Vif1Packet, sbp, sbw, 0, CRect<int>(0, static_cast<int>(frame_counter) * 64, 64, 64), dbp, dbw, 0, 0, 0, 0);
 
-    cnt += 0.5f;
+    frame_counter += 0.5f;
 
-    if (cnt > 7.0f) {
-        cnt = 0.0f;
+    if (frame_counter > 7.0f) {
+        frame_counter = 0.0f;
     }
 }
-} // namespace
 
-/* One actor's blinking and speaking. The mouth is driven from the script's own clock rather than
-   from a motion: while the actor is talking, a new mouth frame is picked at random every sixth
-   hundredth of a second left on the timer, and the timer running out closes the mouth and ends the
-   line. The eyes are whatever the script last asked for. The cache is flushed on both sides of the
-   two transfers because the plate is a texture the previous tick drew from and the next one will. */
+} // namespace

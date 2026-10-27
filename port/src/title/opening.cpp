@@ -1,9 +1,22 @@
-
 #include "common.h"
 
+#include <libvu0.h>
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
+#include <limits>
+#include <memory>
+#include <new>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -11,156 +24,102 @@
 #include "clsmes.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataread_port.hpp"
+#include "dataset.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
+#include "map.hpp"
+#include "mapobject.hpp"
 #include "mds.hpp"
 #include "mglib.hpp"
+#include "nowload.hpp"
+#include "objanime.hpp"
+#include "platform/arena.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
 #include "title/dispfade.hpp"
 #include "title/op_a.hpp"
+#include "title/op_b.hpp"
+#include "title/op_c.hpp"
+#include "title/op_d.hpp"
 #include "title/opening.hpp"
 #include "title/script.hpp"
 #include "vector.hpp"
 #include "vutext.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// The game's file and frame APIs take string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's opening loop: OpeningLoop reaches the static DrawProcess, which uploaded the VU1 program,
-// and DrawProcess shares the fade, the message window and the scene state with OpeningInit and the
-// other static processes, so they move together.
-
 /**
- * Steps of the camera-pack read LoadSceneBG runs, as SceneFlg holds them.
+ * Rectangle every 2D draw takes; declared here because rect.h's constructor takes its fields in another order.
  */
-// clang-format off
-enum SceneReadStep {
-    SCENE_READ_START = 0, /**< Start reading the next camera pack. */
-    SCENE_READ_WAIT  = 1, /**< Wait for the read, then unpack it. */
-    SCENE_READ_IDLE  = 2, /**< Nothing to do until the next pack is requested. */
-};
-
-// clang-format on
-
-/* The rectangle every 2D draw takes, declared here rather than reached through rect.h for the
-   reason title.cpp declares its own: the rectangles this file builds are temporaries whose four
-   stores come out ascending, and the constructor rect.h states assigns them in the other order. */
 template <class T>
-class CRect {
+class alignas(16) CRect {
 public:
     T x; /**< Left edge. */
     T y; /**< Top edge. */
     T w; /**< Width. */
     T h; /**< Height. */
 
-    CRect() {}
+    CRect() = default;
 
-    CRect(T left, T top, T width, T height) {
-        x = left;
-        y = top;
-        w = width;
-        h = height;
-    }
-} __attribute__((aligned(16)));
+    CRect(T left, T top, T width, T height) : x(left), y(top), w(width), h(height) {}
+};
 
 void MGSetViewMatrix(sceVu0FMATRIX view);
 void MGFillBox(const CRect<int> &rect, u_char r, u_char g, u_char b, u_char a);
-
-void wait_now_loading_vsync();
-void InitializeDataBuffer();
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char alpha);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char r, u_char g, u_char b, u_char a);
 
-void OpB_InitProcess();
-void OpB_InitProcess2();
-void OpB_LoadDataBG();
-void OpB_LoadDataBG2();
-void OpB_MotionProcess();
-void OpB_SoundProcess();
-void OpB_DrawProcess();
-void OpC_InitProcess();
-void OpC_InitProcess2();
-void OpC_InitProcess3();
-void OpC_InitProcess4();
-void OpC_InitProcess5();
-void OpC_LoadDataBG();
-void OpC_LoadDataBG2();
-void OpC_LoadDataBG3();
-void OpC_LoadDataBG4();
-void OpC_LoadDataBG5();
-void OpC_MotionProcess();
-void OpC_SoundProcess();
-void OpC_DrawProcess();
-void OpD_InitProcess();
-void OpD_InitProcess2();
-void OpD_LoadDataBG();
-void OpD_LoadDataBG2();
-void OpD_MotionProcess();
-void OpD_SoundProcess();
-void OpD_DrawProcess();
-
-namespace {
-static void LoadMessage();
-static void LoadScene();
-static void SceneChange();
-static void PauseProcess();
-static void SoundStop();
-static void WaitKeyProcess();
-static void MotionProcess();
-static void SoundProcess();
-static void DrawProcess();
-static void DrawMess();
-} // namespace
-
-extern CDataAlloc2<1> CharaDataBuffer__2[7];
-extern CDataAlloc2<1> DummyBuffer;
 extern CDataAlloc2<1> PassDataBuffer[3];
-extern CDataAlloc2<1> MapDataBuffer;
-extern CDataAlloc2<1> WaterBuffer__2;
 extern CDataAlloc2<1> testBuffer;
-
-extern CCharacter Chara__3[23];
-extern char       CharaTex__2[23];
-
-extern CCameraFollow OP_MainCamera;
-
-extern CCharacter  Cam__2[3];
-extern MOTION_INFO Op_MotionInfo;
+extern u_char        *PassReadBuffer;
+extern u_char        *MesBuffer;
 
 namespace {
-static ClsMes    Mes1;
-static CDispFade DispFade;
-} // namespace
 
-extern u_char *PassReadBuffer;
-extern u_char *MesBuffer;
-extern int     OpBgmSqPort;
+/**
+ * Steps of the camera-pack read LoadSceneBG runs.
+ */
+enum class SceneReadStep : int {
+    Start = 0, /**< Start reading the next camera pack. */
+    Wait = 1,  /**< Wait for the read, then unpack it. */
+    Idle = 2,  /**< Nothing to do until the next pack is requested. */
+};
 
-namespace {
-static tagFRAME_INF *frame_info_cam;
-} // namespace
+void LoadMessage();
+void LoadScene();
+void SceneChange();
+void PauseProcess();
+void SoundStop();
+void WaitKeyProcess();
+void MotionProcess();
+void SoundProcess();
+void DrawProcess();
+void DrawMess();
 
-extern int SceneNp__2;
-extern int Pause;
+ClsMes    Mes1;
+CDispFade DispFade;
 
-namespace {
-static int    CameraMode;
-static int    SceneRp;
-static int    SceneCnt;
-static int    SceneFlg;
-static int    SceneSw;
-static float  PauseFrame;
-static u_char End;
-static int    EndCnt;
-static int    BgmOff;
-static int    BgmVol;
-static int    BgmNo;
+tagFRAME_INF *frame_info_cam;
+
+int           CameraMode;
+int           SceneRp;
+int           SceneCnt;
+SceneReadStep SceneFlg;
+int           SceneSw;
+float         PauseFrame;
+u_char        End;
+int           EndCnt;
+int           BgmOff;
+int           BgmVol;
+int           BgmNo;
+
 } // namespace
 
 void OpeningInit() {
@@ -200,7 +159,7 @@ void OpeningInit() {
     SceneNp__2 = 0;
     SceneRp = 0;
     SceneCnt = 3;
-    SceneFlg = SCENE_READ_IDLE;
+    SceneFlg = SceneReadStep::Idle;
     SceneSw = 0;
     Pause = 0;
     End = 0;
@@ -212,16 +171,9 @@ void OpeningInit() {
     DispFade.FadeOutStart(128.0f, 0);
 }
 
-/**
- * Loads the opening movie's localized message resources.
- *
- * @mangled LoadMessage__Fv
- * @address 0x1DAF4C0
- * @size 0x1F4
- * @unknownret
- */
 namespace {
-static void LoadMessage() {
+
+void LoadMessage() {
     Mes1.Preset(MES_PRESET_AUTO_PAGE);
     Mes1.text_x = 90;
     Mes1.text_y = 350;
@@ -259,6 +211,8 @@ static void LoadMessage() {
         case LANG_SPANISH:
             LoadFile("opdat/optext_6.mes", MesBuffer, nullptr);
             break;
+        default:
+            break;
     }
 
     Mes1.buff = reinterpret_cast<short *>(MesBuffer);
@@ -266,24 +220,15 @@ static void LoadMessage() {
     Mes1.text += *reinterpret_cast<short *>(MesBuffer + 2);
 }
 
-/**
- * Loads the assets required by the selected opening scene.
- *
- * @mangled LoadScene__Fv
- * @address 0x1DAF6C0
- * @size 0x11C
- * @unknownret
- */
-static void LoadScene() {
+void LoadScene() {
     char *files[3][2] = {
         {"opdat/scene/0101acp.sne", "0101acp.cfg"},
         {"opdat/scene/0101bcp.sne", "0101bcp.cfg"},
         {"opdat/scene/0104cp.sne",  "0104cp.cfg" },
     };
-    int i;
 
-    for (i = 0; i < 3; i++) {
-        LoadFile(files[i][0], reinterpret_cast<void *>(read_buffer), nullptr);
+    for (int i = 0; i < 3; i++) {
+        LoadFile(files[i][0], read_buffer, nullptr);
         Cam__2[i].LoadPackData(read_buffer, files[i][1], &PassDataBuffer[i], nullptr);
         Cam__2[i].motion_type.state.time = 1.0f;
         Cam__2[i].motion_type.state.blend_step = 1.0f;
@@ -295,9 +240,7 @@ static void LoadScene() {
 } // namespace
 
 void LoadSceneBG() {
-    CDataAlloc2<1> *buffer;
-    int             slot;
-    char           *files[126][2] = {
+    char *files[126][2] = {
         {"opdat/scene/0101acp.sne",  "0101acp.cfg" },
         {"opdat/scene/0101bcp.sne",  "0101bcp.cfg" },
         {"opdat/scene/0104cp.sne",   "0104cp.cfg"  },
@@ -426,30 +369,29 @@ void LoadSceneBG() {
         {"-1",                       "-1"          },
     };
 
-    // Retail compares the pointer with the table's own merged "-1" literal.
-    if (strcmp(files[SceneCnt][0], "-1") == 0) {
+    if (std::string_view(files[SceneCnt][0]) == "-1") {
         return;
     }
 
     switch (SceneFlg) {
-        case SCENE_READ_START:
-            while (ReadBGSync())
-                ;
+        case SceneReadStep::Start:
+            while (ReadBGSync()) {
+            }
 
             if (SceneCnt % 5 == 0) {
                 StartReadBG();
             }
 
             LoadFileBG(files[SceneCnt][0], reinterpret_cast<u_long128 *>(PassReadBuffer), nullptr);
-            SceneFlg = SCENE_READ_WAIT;
+            SceneFlg = SceneReadStep::Wait;
             break;
-        case SCENE_READ_WAIT:
+        case SceneReadStep::Wait: {
             if (ReadBGSync()) {
                 break;
             }
 
-            slot = SceneRp;
-            buffer = &PassDataBuffer[slot];
+            const int       slot = SceneRp;
+            CDataAlloc2<1> *buffer = &PassDataBuffer[slot];
             buffer->used = 0;
             Cam__2[slot].LoadPackData(reinterpret_cast<u_int *>(PassReadBuffer), files[SceneCnt][1], buffer, nullptr);
             SceneCnt++;
@@ -459,9 +401,10 @@ void LoadSceneBG() {
                 SceneRp = 0;
             }
 
-            SceneFlg = SCENE_READ_IDLE;
+            SceneFlg = SceneReadStep::Idle;
             break;
-        case SCENE_READ_IDLE:
+        }
+        case SceneReadStep::Idle:
             break;
     }
 }
@@ -491,8 +434,6 @@ int OpeningLoop() {
         }
     }
 
-    /* These type-only names preserve the second exit's background-colour argument state. */
-
     if (CScript__2.end) {
         MGSetBGColor(0.0f, 0.0f, 0.0f, 128.0f);
         FadeCansel();
@@ -503,16 +444,9 @@ int OpeningLoop() {
     return 0;
 }
 
-/**
- * Advances to the next opening scene or loading phase.
- *
- * @mangled SceneChange__Fv
- * @address 0x1DAFAA0
- * @size 0x1B0
- * @unknownret
- */
 namespace {
-static void SceneChange() {
+
+void SceneChange() {
     switch (CScript__2.load_no) {
         case OP_SCENE_NORUNE:
             OpB_LoadDataBG();
@@ -540,6 +474,8 @@ static void SceneChange() {
             break;
         case OP_SCENE_MEADOW:
             OpD_LoadDataBG2();
+            break;
+        default:
             break;
     }
 
@@ -576,25 +512,19 @@ static void SceneChange() {
             SoundStop();
             OpD_InitProcess2();
             break;
+        default:
+            break;
     }
 }
 
-/**
- * Processes pause input and pause-screen state.
- *
- * @mangled PauseProcess__Fv
- * @address 0x1DAFC50
- * @size 0x280
- * @unknownret
- */
-static void PauseProcess() {
-    static int endflg = 0;
+void PauseProcess() {
+    static bool resuming = false;
 
     if (DispFade.GetRate() != 0.0) {
         return;
     }
 
-    if (!endflg) {
+    if (!resuming) {
         if (End) {
             return;
         }
@@ -615,11 +545,11 @@ static void PauseProcess() {
             CSnd.SetVol(MIDI_PORT_UNK_D, 0);
             CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 0);
             Pause = 1;
-            endflg = 0;
+            resuming = false;
             PauseFrame = Cam__2[SceneNp__2].motion_type.state.time;
         } else if (Pause == 1) {
             if (GamePad.Down(PAD_CIRCLE)) {
-                endflg = 1;
+                resuming = true;
                 CSnd.SetVol(MIDI_PORT_SE_TITLE, 256);
                 CSnd.SetVol(MIDI_PORT_SE_DEFAULT, 256);
                 CSnd.SetVol(MIDI_PORT_UNK_D, 256);
@@ -633,49 +563,32 @@ static void PauseProcess() {
                     CSnd.SQ_RePlay(MIDI_PORT_BGM);
                 }
             } else if (GamePad.Down(PAD_CROSS)) {
-                while (ReadBGSync())
-                    ;
+                while (ReadBGSync()) {
+                }
 
                 End = 1;
                 DispFade.FadeOutStart(1.0f, 0);
             }
         }
     } else {
-        endflg = 0;
+        resuming = false;
         Pause = 0;
     }
 }
 
-/**
- * Stops the opening scene's active sounds.
- *
- * @mangled SoundStop__Fv
- * @address 0x1DAFED0
- * @size 0x40
- * @unknownret
- */
-static void SoundStop() {
+void SoundStop() {
     SndStopAllSe();
     CSnd.Stop(MIDI_PORT_BGM);
     CSnd.StopVoice(0);
 }
 
-/**
- * Processes input while the movie is waiting for a key.
- *
- * @mangled WaitKeyProcess__Fv
- * @address 0x1DAFF10
- * @size 0x17C
- * @unknownret
- */
-static void WaitKeyProcess() {
-    static int                  flg = 0;
-    [[maybe_unused]] static int cnt = 0;
+void WaitKeyProcess() {
+    static bool frame_saved = false;
 
     if (CScript__2.mes_wait) {
-        if (!flg) {
+        if (!frame_saved) {
             PauseFrame = Cam__2[SceneNp__2].motion_type.state.time;
-            flg = 1;
+            frame_saved = true;
         }
 
         if (Pause) {
@@ -689,30 +602,20 @@ static void WaitKeyProcess() {
                 Mes1.GoNextPage();
             } else if (Mes1.State() == CLSMES_SHOWN) {
                 CScript__2.mes_wait = false;
-                flg = 0;
+                frame_saved = false;
             } else {
-                Mes1.text_rate = 0;
-                Mes1.text_rate_set = 0;
+                Mes1.text_rate = 0.0f;
+                Mes1.text_rate_set = 0.0f;
             }
         }
     } else {
-        flg = 0;
-        cnt = 0;
+        frame_saved = false;
         Mes1.text_rate = 1.0f;
         Mes1.text_rate_set = 1.0f;
     }
 }
 
-/**
- * Dispatches motion processing for the active opening scene.
- *
- * @mangled MotionProcess__Fv
- * @address 0x1DB0090
- * @size 0x3C0
- * @unknownret
- */
-static void MotionProcess() {
-    // PAL runs at 50 frames a second, so its fade speeds are raised by a fifth.
+void MotionProcess() {
     switch (CScript__2.fade) {
         case TSFADE_IN_BLACK:
             DispFade.FadeInStart(CScript__2.fade_speed, 0);
@@ -730,6 +633,8 @@ static void MotionProcess() {
             DispFade.FadeOutStart(CScript__2.fade_speed, 1);
             CScript__2.fade = TSFADE_NONE;
             break;
+        default:
+            break;
     }
 
     if (CScript__2.motion_req) {
@@ -746,27 +651,22 @@ static void MotionProcess() {
                     SceneNp__2 = 0;
                 }
 
-                SceneFlg = SCENE_READ_START;
+                SceneFlg = SceneReadStep::Start;
             }
 
             SceneSw = 1;
             Cam__2[SceneNp__2].motion_type.state.time = static_cast<float>(CScript__2.motion_start);
         } else {
-            while (ReadBGSync())
-                ;
+            while (ReadBGSync()) {
+            }
         }
     }
 
-    if (Cam__2[SceneNp__2].motion_type.state.time > static_cast<float>(CScript__2.motion_end - 1)) {
-        Cam__2[SceneNp__2].motion_type.state.time = static_cast<float>(CScript__2.motion_end - 1);
-    }
+    Cam__2[SceneNp__2].motion_type.state.time = std::min(Cam__2[SceneNp__2].motion_type.state.time, static_cast<float>(CScript__2.motion_end - 1));
 
     if (CameraMode == 0) {
         Cam__2[SceneNp__2].motion_type.state.camera = &OP_MainCamera;
-
-        if (PauseFrame > static_cast<float>(CScript__2.motion_end - 1)) {
-            PauseFrame = static_cast<float>(CScript__2.motion_end - 1);
-        }
+        PauseFrame = std::min(PauseFrame, static_cast<float>(CScript__2.motion_end - 1));
 
         if (Pause) {
             Cam__2[SceneNp__2].motion_type.state.time = PauseFrame - CScript__2.motion_step;
@@ -786,45 +686,27 @@ static void MotionProcess() {
                 OpA_MotionProcess();
                 break;
             case OP_SCENE_NORUNE:
-                OpB_MotionProcess();
-                break;
             case OP_SCENE_TOAN_HOUSE:
                 OpB_MotionProcess();
                 break;
             case OP_SCENE_NORUNE_NIGHT:
-                OpC_MotionProcess();
-                break;
             case OP_SCENE_DANCE:
-                OpC_MotionProcess();
-                break;
             case OP_SCENE_MAJIN:
-                OpC_MotionProcess();
-                break;
             case OP_SCENE_NORUNE_RUINED:
-                OpC_MotionProcess();
-                break;
             case OP_SCENE_NORUNE_BURNING:
                 OpC_MotionProcess();
                 break;
             case OP_SCENE_SEIREI_KING:
-                OpD_MotionProcess();
-                break;
             case OP_SCENE_MEADOW:
                 OpD_MotionProcess();
+                break;
+            default:
                 break;
         }
     }
 }
 
-/**
- * Dispatches sound processing for the active opening scene.
- *
- * @mangled SoundProcess__Fv
- * @address 0x1DB0450
- * @size 0x330
- * @unknownret
- */
-static void SoundProcess() {
+void SoundProcess() {
     if (CScript__2.se_stop == 0) {
         if (CScript__2.se_voice != 0) {
             switch (CScript__2.se_kind) {
@@ -833,6 +715,8 @@ static void SoundProcess() {
                     break;
                 case TSSE_SPECIAL:
                     OpPlayVolSE(MIDI_PORT_SE_SPECIAL, CScript__2.se_no, CScript__2.se_voice, 1.0f);
+                    break;
+                default:
                     break;
             }
 
@@ -846,22 +730,22 @@ static void SoundProcess() {
             case TSSE_SPECIAL:
                 CSnd.SE_Stop(MIDI_PORT_SE_SPECIAL, CScript__2.se_no, CScript__2.se_voice, 0);
                 break;
+            default:
+                break;
         }
 
         CScript__2.se_stop = false;
     }
 
     if (CScript__2.bgm_fade != 0) {
-        switch (CScript__2.se_kind) {
-            case TSSE_ALL:
-                CSnd.Fade(MIDI_PORT_BGM, static_cast<float>(CScript__2.bgm_fade) / 2.0f, CScript__2.se_fade_time);
-                CSnd.Fade(MIDI_PORT_AMBIENT, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
-                CSnd.Fade(MIDI_PORT_UNK_2, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
-                CSnd.Fade(MIDI_PORT_SE_TITLE, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
-                CSnd.Fade(MIDI_PORT_SE_DEFAULT, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
-                CSnd.Fade(MIDI_PORT_UNK_D, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
-                CSnd.Fade(MIDI_PORT_SE_SPECIAL, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
-                break;
+        if (CScript__2.se_kind == TSSE_ALL) {
+            CSnd.Fade(MIDI_PORT_BGM, static_cast<float>(CScript__2.bgm_fade) / 2.0f, CScript__2.se_fade_time);
+            CSnd.Fade(MIDI_PORT_AMBIENT, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
+            CSnd.Fade(MIDI_PORT_UNK_2, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
+            CSnd.Fade(MIDI_PORT_SE_TITLE, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
+            CSnd.Fade(MIDI_PORT_SE_DEFAULT, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
+            CSnd.Fade(MIDI_PORT_UNK_D, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
+            CSnd.Fade(MIDI_PORT_SE_SPECIAL, static_cast<float>(CScript__2.bgm_fade), CScript__2.se_fade_time);
         }
 
         CScript__2.bgm_fade = 0;
@@ -872,44 +756,26 @@ static void SoundProcess() {
             OpA_SoundProcess();
             break;
         case OP_SCENE_NORUNE:
-            OpB_SoundProcess();
-            break;
         case OP_SCENE_TOAN_HOUSE:
             OpB_SoundProcess();
             break;
         case OP_SCENE_NORUNE_NIGHT:
-            OpC_SoundProcess();
-            break;
         case OP_SCENE_DANCE:
-            OpC_SoundProcess();
-            break;
         case OP_SCENE_MAJIN:
-            OpC_SoundProcess();
-            break;
         case OP_SCENE_NORUNE_RUINED:
-            OpC_SoundProcess();
-            break;
         case OP_SCENE_NORUNE_BURNING:
             OpC_SoundProcess();
             break;
         case OP_SCENE_SEIREI_KING:
-            OpD_SoundProcess();
-            break;
         case OP_SCENE_MEADOW:
             OpD_SoundProcess();
+            break;
+        default:
             break;
     }
 }
 
-/**
- * Dispatches drawing for the active opening scene.
- *
- * @mangled DrawProcess__Fv
- * @address 0x1DB0780
- * @size 0x35C
- * @unknownret
- */
-static void DrawProcess() {
+void DrawProcess() {
     sceVu0FVECTOR position;
     sceVu0FMATRIX camera;
     sceVu0FMATRIX view;
@@ -938,31 +804,21 @@ static void DrawProcess() {
             OpA_DrawProcess();
             break;
         case OP_SCENE_NORUNE:
-            OpB_DrawProcess();
-            break;
         case OP_SCENE_TOAN_HOUSE:
             OpB_DrawProcess();
             break;
         case OP_SCENE_NORUNE_NIGHT:
-            OpC_DrawProcess();
-            break;
         case OP_SCENE_DANCE:
-            OpC_DrawProcess();
-            break;
         case OP_SCENE_MAJIN:
-            OpC_DrawProcess();
-            break;
         case OP_SCENE_NORUNE_RUINED:
-            OpC_DrawProcess();
-            break;
         case OP_SCENE_NORUNE_BURNING:
             OpC_DrawProcess();
             break;
         case OP_SCENE_SEIREI_KING:
-            OpD_DrawProcess();
-            break;
         case OP_SCENE_MEADOW:
             OpD_DrawProcess();
+            break;
+        default:
             break;
     }
 
@@ -973,8 +829,7 @@ static void DrawProcess() {
         MGFillBox(CRect<int>(0, 0, 10240, SCREEN_HEIGHT * 8), 0, 0, 0, 64);
         TexManager.ReloadTexture(Vif1Packet, 19);
 
-        // Not every opening scene loads a pause texture (the last scenes load none), so the
-        // overlay is only drawn when the language's texture is actually present (#113).
+        // The last opening scenes load no pause texture, so the overlay is drawn only when present.
         CTexture *pause_sprite = nullptr;
 
         switch (LanguageCode) {
@@ -982,8 +837,6 @@ static void DrawProcess() {
                 pause_sprite = TexManager.GetTexture("pause", -1);
                 break;
             case LANG_ENGLISH_US:
-                pause_sprite = TexManager.GetTexture("pause_e", -1);
-                break;
             case LANG_ENGLISH_UK:
                 pause_sprite = TexManager.GetTexture("pause_e", -1);
                 break;
@@ -999,6 +852,8 @@ static void DrawProcess() {
             case LANG_SPANISH:
                 pause_sprite = TexManager.GetTexture("pause_s", -1);
                 break;
+            default:
+                break;
         }
 
         if (pause_sprite != nullptr) {
@@ -1012,24 +867,13 @@ static void DrawProcess() {
 
     CTexture texture;
 
-    texture.tex0 = *reinterpret_cast<u_long *>(&tex0);
+    texture.tex0 = std::bit_cast<u_long>(tex0);
     set2DSprite(Vif1Packet, &texture, CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, SCREEN_HALF_HEIGHT), 128, 128, 128, 40);
     DispFade.FadeIn(Vif1Packet);
     DispFade.FadeOut(Vif1Packet);
 }
 
-/**
- * Draws opening subtitles and pause messages.
- *
- * @mangled DrawMess__Fv
- * @address 0x1DB0AE0
- * @size 0x3CC
- * @unknownret
- */
-static void DrawMess() {
-    int offset;
-    int center;
-
+void DrawMess() {
     if (CScript__2.scene > OP_SCENE_NORUNE_RUINED) {
         Mes1.auto_page = false;
     }
@@ -1040,10 +884,10 @@ static void DrawMess() {
 
     TexManager.ReloadTexture(Vif1Packet, Mes1.tex_block);
 
-    static int no = 0;
+    static int shown_mes_no = 0;
 
-    if (CScript__2.mes_no != no) {
-        no = CScript__2.mes_no;
+    if (CScript__2.mes_no != shown_mes_no) {
+        shown_mes_no = CScript__2.mes_no;
         Mes1MakeFlg = 1;
     } else {
         if (!Pause) {
@@ -1060,18 +904,13 @@ static void DrawMess() {
             CScript__2.mes_timer = 2.0f * CScript__2.motion_step;
 
             if (Mes1.State() == CLSMES_SHOWN || (Mes1.auto_page == 0 && Mes1.State() == CLSMES_PAGE_WAIT)) {
-                static int cnt = 0;
+                static int blink_count = 0;
 
-                if (cnt < 16) {
-                    Mes1.end_mark = true;
-                } else {
-                    Mes1.end_mark = false;
-                }
+                Mes1.end_mark = blink_count < 16;
+                blink_count++;
 
-                cnt++;
-
-                if (cnt > 31) {
-                    cnt = 0;
+                if (blink_count > 31) {
+                    blink_count = 0;
                 }
             } else {
                 Mes1.end_mark = false;
@@ -1095,8 +934,8 @@ static void DrawMess() {
         Mes1.grow_y = CScript__2.mes_y;
     }
 
-    center = Mes1.win_x + (Mes1.win_width >> 1);
-    offset = (center - Mes1.tail_to_x) >> 2;
+    const int center = Mes1.win_x + (Mes1.win_width >> 1);
+    const int offset = (center - Mes1.tail_to_x) >> 2;
     Mes1.tail_x = center - offset;
 
     if (CScript__2.mes_tail_x != 0) {
@@ -1126,7 +965,7 @@ static void DrawMess() {
 } // namespace
 
 void OpBgmPlay() {
-    int volumes[8] = {82, 106, 64, 69, 91, 92, 95, 108};
+    constexpr std::array<int, 8> volumes = {82, 106, 64, 69, 91, 92, 95, 108};
 
     if (BgmOff == 0) {
         CSnd.SQ_Play(MIDI_PORT_BGM, 0);
@@ -1138,136 +977,92 @@ void OpBgmPlay() {
     BgmNo++;
 }
 
-#include "common.h"
-
-#include <libvu0.h>
-
-#include <algorithm>
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <limits>
-#include <memory>
-#include <new>
-#include <string>
-
-#include "camera.hpp"
-#include "camerafollow.hpp"
-#include "character.hpp"
-#include "dataalloc.hpp"
-#include "dataread.hpp"
-#include "dataread_port.hpp"
-#include "frame.hpp"
-#include "framevu1.hpp"
-#include "main.hpp"
-#include "map.hpp"
-#include "mapobject.hpp"
-#include "mds.hpp"
-#include "mglib.hpp"
-#include "objanime.hpp"
-#include "platform/arena.hpp"
-#include "title/op_a.hpp"
-#include "title/opening.hpp"
-#include "title/script.hpp"
-#include "vector.hpp"
-
-// The bodies are retail's, which pass string literals as char *.
-#pragma clang diagnostic ignored "-Wwritable-strings"
-
-// Retail opening.cpp's scene-definition reader: OPMdsLoad places the scenery in op_a's maps and
-// registers op_a's object animations, which the port lays out with the host's CMap and
-// OBJ_ANIME_SEQ where opening.cpp declares PS2-sized ones of its own. OPAnalyz and the parse
-// state move with it.
-
 namespace {
-static int   debugModeFlag = 1;
-static float run_speed = 1.0f;
+
+int   debugModeFlag = 1;
+float run_speed = 1.0f;
 
 /* The water plane a definition file may place. The four corners are built from one width and one
    depth, so the quad is always centred on the position and always axis-aligned; everything after
    them is what the simulation reads. */
-static sceVu0FVECTOR WaterV1;
-static sceVu0FVECTOR WaterV2;
-static sceVu0FVECTOR WaterV3;
-static sceVu0FVECTOR WaterV4;
-static sceVu0FVECTOR WaterPos;
-static u_char        WaterR;
-static u_char        WaterG;
-static u_char        WaterB;
-static int           WaterFlag;
-static int           WaterMeshW;
-static int           WaterMeshH;
-static float         WaterShake;
-static float         WaterCourant;
-static float         WaterDecline;
-static float         WaterAmplitude;
-static float         WaterRefraction;
+sceVu0FVECTOR WaterV1;
+sceVu0FVECTOR WaterV2;
+sceVu0FVECTOR WaterV3;
+sceVu0FVECTOR WaterV4;
+sceVu0FVECTOR WaterPos;
+u_char        WaterR;
+u_char        WaterG;
+u_char        WaterB;
+int           WaterFlag;
+int           WaterMeshW;
+int           WaterMeshH;
+float         WaterShake;
+float         WaterCourant;
+float         WaterDecline;
+float         WaterAmplitude;
+float         WaterRefraction;
 
 /* The two lists the loader appends to as it goes: the shapes a scene is asked collision questions
    against, and the models that cast its shadows. */
-static CFrameVu1 *ColModel[64];
-static int        ColModelCount;
-static CFrameVu1 *ShadowModel[64];
-static int        shadowModelCount;
+CFrameVu1 *ColModel[64];
+int        ColModelCount;
+CFrameVu1 *ShadowModel[64];
+int        shadowModelCount;
 
-static int animeSpeed1;
-static int animeSpeed2;
+int animeSpeed1;
+int animeSpeed2;
 
 /* One command of the definition language: the number the loader knows it by, how many arguments it
-   takes, and one type per argument. A type-0 argument is a quoted string, a type-1 one a number
-   behind a comma and a type-2 one a number standing on its own. The rows are read as plain `int`
-   because that is how the reader takes them. */
-static int TEIGI_GRD_IMG[] = {0, 2, TSARG_STRING, TSARG_COMMA_VALUE};
-static int TEIGI_BLD_IMG[] = {1, 2, TSARG_STRING, TSARG_COMMA_VALUE};
-static int TEIGI_SKY_IMG[] = {2, 2, TSARG_STRING, TSARG_COMMA_VALUE};
-static int TEIGI_FIRE_IMG[] = {31, 1, TSARG_STRING};
-static int TEIGI_GRD[] = {3, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_BLD[] = {4, 8, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_LOD[] = {5, 1, TSARG_STRING};
-static int TEIGI_CRD[] = {6, 1, TSARG_STRING};
-static int TEIGI_SKY[] = {7, 2, TSARG_STRING, TSARG_COMMA_VALUE};
-static int TEIGI_FOG[] = {8, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_AMBIENT[] = {9, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_LIGHT_COL[] = {10, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_FARCLIP[] = {11, 1, TSARG_VALUE};
-static int TEIGI_BG_COL2[] = {12, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_BG_COL[] = {12, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_NORMALCLIP_OFF[] = {13, 1, TSARG_VALUE};
-static int TEIGI_RUN_SPEED[] = {14, 1, TSARG_VALUE};
-static int TEIGI_EDIT_FOG[] = {16, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_WATER_SET[] = {17, 5, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_WATER_RGB[] = {18, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_WATER_PARAM[] = {19, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_LEVEL_FAR[] = {21, 4, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_DebugFlag[] = {22, 1, TSARG_VALUE};
-static int TEIGI_AnimeSpeed[] = {23, 2, TSARG_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_UPER[] = {24, 8, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_UPR_IMG[] = {25, 2, TSARG_STRING, TSARG_COMMA_VALUE};
-static int TEIGI_PLIGHT[] = {26, 9, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_ADD_CRD[] = {27, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_DEF_PATS[] = {50, 0};
-static int TEIGI_DEF_ENDS[] = {51, 0};
-static int TEIGI_S_VOLUME[] = {28, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_PROJECTION[] = {29, 1, TSARG_VALUE};
-static int TEIGI_OBJ_ROT[] = {30, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_FIRE[] = {32, 5, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_MAPINFO[] = {80, 1, TSARG_STRING};
-static int TEIGI_PT_BASE[] = {52, 2, TSARG_STRING, TSARG_COMMA_VALUE};
-static int TEIGI_PT_COLS[] = {54, 1, TSARG_STRING};
-static int TEIGI_MAPD[] = {53, 32, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_PT_FIRE[] = {55, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
-static int TEIGI_PT_WATER[] = {56, 9, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+   takes, and one TitleScriptArgType per argument. */
+constexpr int TEIGI_GRD_IMG[] = {0, 2, TSARG_STRING, TSARG_COMMA_VALUE};
+constexpr int TEIGI_BLD_IMG[] = {1, 2, TSARG_STRING, TSARG_COMMA_VALUE};
+constexpr int TEIGI_SKY_IMG[] = {2, 2, TSARG_STRING, TSARG_COMMA_VALUE};
+constexpr int TEIGI_FIRE_IMG[] = {31, 1, TSARG_STRING};
+constexpr int TEIGI_GRD[] = {3, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_BLD[] = {4, 8, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_LOD[] = {5, 1, TSARG_STRING};
+constexpr int TEIGI_CRD[] = {6, 1, TSARG_STRING};
+constexpr int TEIGI_SKY[] = {7, 2, TSARG_STRING, TSARG_COMMA_VALUE};
+constexpr int TEIGI_FOG[] = {8, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_AMBIENT[] = {9, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_LIGHT_COL[] = {10, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_FARCLIP[] = {11, 1, TSARG_VALUE};
+constexpr int TEIGI_BG_COL2[] = {12, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_BG_COL[] = {12, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_NORMALCLIP_OFF[] = {13, 1, TSARG_VALUE};
+constexpr int TEIGI_RUN_SPEED[] = {14, 1, TSARG_VALUE};
+constexpr int TEIGI_EDIT_FOG[] = {16, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_WATER_SET[] = {17, 5, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_WATER_RGB[] = {18, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_WATER_PARAM[] = {19, 7, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_LEVEL_FAR[] = {21, 4, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_DebugFlag[] = {22, 1, TSARG_VALUE};
+constexpr int TEIGI_AnimeSpeed[] = {23, 2, TSARG_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_UPER[] = {24, 8, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_UPR_IMG[] = {25, 2, TSARG_STRING, TSARG_COMMA_VALUE};
+constexpr int TEIGI_PLIGHT[] = {26, 9, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_ADD_CRD[] = {27, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_DEF_PATS[] = {50, 0};
+constexpr int TEIGI_DEF_ENDS[] = {51, 0};
+constexpr int TEIGI_S_VOLUME[] = {28, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_PROJECTION[] = {29, 1, TSARG_VALUE};
+constexpr int TEIGI_OBJ_ROT[] = {30, 7, TSARG_STRING, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_FIRE[] = {32, 5, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_MAPINFO[] = {80, 1, TSARG_STRING};
+constexpr int TEIGI_PT_BASE[] = {52, 2, TSARG_STRING, TSARG_COMMA_VALUE};
+constexpr int TEIGI_PT_COLS[] = {54, 1, TSARG_STRING};
+constexpr int TEIGI_MAPD[] = {53, 32, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_PT_FIRE[] = {55, 3, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
+constexpr int TEIGI_PT_WATER[] = {56, 9, TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE};
 
 /* The projection the scene is drawn with, and the editor's own fog beside the renderer's. */
-static float  Projection = 800.0f;
-static u_char editFogColor[3] = {96, 160, 239};
-static float  editFogRate[4] = {1000.0f, 3500.0f, 0.0f, 255.0f};
+float  Projection = 800.0f;
+u_char editFogColor[3] = {96, 160, 239};
+float  editFogRate[4] = {1000.0f, 3500.0f, 0.0f, 255.0f};
 
 /* The four distances a level-of-detail object changes model at, which every such object in a scene
    shares because the loader copies them into the map's own row rather than into the object. */
-static float levelOfDitialZ[4] = {200.0f, 400.0f, 800.0f, 1600.0f};
+float levelOfDitialZ[4] = {200.0f, 400.0f, 800.0f, 1600.0f};
 
 /* One of the ninety-six lights a definition file may place. The first word is what the file has
    asked for and everything after it is what it asked for it to be, which is why the parser clears
@@ -1286,34 +1081,35 @@ struct POINT_LIGHT {
     float  arg9; /**< Ninth argument of the PLIGHT command. */
 };
 
-static POINT_LIGHT pointLight[96];
-static int         pointLightStack;
+POINT_LIGHT pointLight[96];
+int         pointLightStack;
 
 /* The parse state the two readers share. `argLevel` is the nesting the caller has reached, which
    is what gives each level of a definition its own row of the two argument buffers; the file size
    is read once by the loader and then bounds every walk over the text. */
-static int         argLevel;
-static int         teigiFileSize;
-static std::size_t argCapacity;
+int         argLevel;
+int         teigiFileSize;
+std::size_t argCapacity;
 
-/* The definition file is read straight into this one off the disc, and the drive transfers by
-   DMA into whole cache lines. */
-static std::unique_ptr<std::array<char, 64>[]>  argStrBuff;
-static std::unique_ptr<std::array<float, 64>[]> argValBuff;
+/* Per level: the string argument, and the command number followed by the numeric arguments. */
+std::unique_ptr<std::array<char, 64>[]>  argStrBuff;
+std::unique_ptr<std::array<float, 64>[]> argValBuff;
 
-/* The four model names one level-of-detail object is built from, as the loader hands them to the
-   loader below it: a null entry is a level the file left out. */
-static char *LODNameBuff[4];
+/* The four model names one level-of-detail object is built from; a null entry is a level the file
+   left out. */
+std::array<char *, 4> LODNameBuff;
 
-static int nowObjCnt;
-static int nowObjCnt2;
-static int nowPartsCnt;
+int nowObjCnt;
+int nowObjCnt2;
+int nowPartsCnt;
 
-static int skipSpace(char *buf, int pos);
-static int checkArg(char *buf, int pos, int *command);
-} // namespace
+int skipSpace(char *buffer, int position);
+int checkArg(char *buffer, int position, std::span<const int> command);
 
-namespace {
+/* Whether the text at `text` starts with `keyword`; reads exactly keyword.size() bytes. */
+bool MatchesKeyword(const char *text, std::string_view keyword) {
+    return std::string_view(text, keyword.size()) == keyword;
+}
 
 struct AlignedBufferDeleter {
     void operator()(char *buffer) const noexcept {
@@ -1330,28 +1126,22 @@ struct AlignedBufferDeleter {
    no command at all is fatal, because a definition file the loader half-understands would place
    half a scene. */
 void OPAnalyz(char *name) {
-    std::unique_ptr<char[], AlignedBufferDeleter> definition_buffer;
-    char                                         *buffer;
-    int                                           i;
-    int                                           position;
-    int                                           matched;
-
     argLevel = 0;
     const std::uintmax_t definition_size = DataFileSize(name);
 
-    if (definition_size > std::numeric_limits<int>::max()) {
+    if (std::cmp_greater(definition_size, std::numeric_limits<int>::max())) {
         ArenaOverflow("title definition file", std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
     }
 
-    const std::size_t buffer_capacity = static_cast<std::size_t>((definition_size + 0x7FF) & ~std::uintmax_t{0x7FF}) + 128;
-    definition_buffer.reset(static_cast<char *>(::operator new[](buffer_capacity, std::align_val_t{64})));
-    buffer = definition_buffer.get();
+    const std::size_t                                   buffer_capacity = static_cast<std::size_t>((definition_size + 0x7FF) & ~std::uintmax_t{0x7FF}) + 128;
+    const std::unique_ptr<char[], AlignedBufferDeleter> definition_buffer(static_cast<char *>(::operator new[](buffer_capacity, std::align_val_t{64})));
+    char *const                                         buffer = definition_buffer.get();
 
     if (LoadFile(name, buffer, &teigiFileSize) == 0) {
         return;
     }
 
-    if (teigiFileSize < 0 || static_cast<std::size_t>(teigiFileSize) > buffer_capacity) {
+    if (teigiFileSize < 0 || std::cmp_greater(teigiFileSize, buffer_capacity)) {
         exit__2(-1);
     }
 
@@ -1359,513 +1149,117 @@ void OPAnalyz(char *name) {
     argStrBuff = std::make_unique<std::array<char, 64>[]>(argCapacity);
     argValBuff = std::make_unique<std::array<float, 64>[]>(argCapacity);
 
-    std::memset(buffer + teigiFileSize, 0, buffer_capacity - static_cast<std::size_t>(teigiFileSize));
+    std::memset(&buffer[teigiFileSize], 0, buffer_capacity - static_cast<std::size_t>(teigiFileSize));
 
-    for (i = 0; i < teigiFileSize; i++) {
-        if (i + 1 < teigiFileSize && buffer[i] == 13 && buffer[i + 1] == 10) {
-            buffer[i + 1] = 0;
-            buffer[i] = 0;
+    for (int i = 0; i < teigiFileSize; i++) {
+        if (i + 1 < teigiFileSize && buffer[i] == '\r' && buffer[i + 1] == '\n') {
+            buffer[i + 1] = '\0';
+            buffer[i] = '\0';
         }
     }
 
-    for (i = 0; i < 96; i++) {
-        pointLight[i].used = 0;
+    for (POINT_LIGHT &point_light : pointLight) {
+        point_light.used = 0;
     }
 
     pointLightStack = 0;
 
-    position = 0;
+    int  position = 0;
+    bool matched = false;
+
+    // Skips `advance` bytes of keyword and reads the command's arguments into the next level; the
+    // level advances even when the arguments are rejected.
+    const auto read_command = [&](int advance, std::span<const int> command) {
+        position = skipSpace(buffer, position + advance);
+        position = checkArg(buffer, position, command);
+
+        if (position != -1) {
+            matched = true;
+        }
+
+        position = skipSpace(buffer, position);
+        argLevel++;
+    };
+
+    const auto try_command = [&](std::string_view keyword, std::span<const int> command) {
+        if (MatchesKeyword(&buffer[position], keyword)) {
+            read_command(static_cast<int>(keyword.size()), command);
+        }
+    };
+
+    // Commands without arguments only record their number at the next level.
+    const auto try_marker = [&](std::string_view keyword, std::span<const int> command) {
+        if (MatchesKeyword(&buffer[position], keyword)) {
+            position = skipSpace(buffer, position + static_cast<int>(keyword.size()));
+
+            if (std::cmp_greater_equal(argLevel, argCapacity)) {
+                exit__2(-1);
+            }
+
+            argValBuff[argLevel][0] = static_cast<float>(command[0]);
+            matched = true;
+            argLevel++;
+        }
+    };
 
     while (position < teigiFileSize) {
-        if (static_cast<std::size_t>(argLevel) >= argCapacity) {
+        if (std::cmp_greater_equal(argLevel, argCapacity)) {
             exit__2(-1);
         }
 
-        matched = 0;
+        matched = false;
 
         position = skipSpace(buffer, position);
 
-        if (memcmp(&buffer[position], "GRD_IMG", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_GRD_IMG);
+        try_command("GRD_IMG", TEIGI_GRD_IMG);
+        try_command("BLD_IMG", TEIGI_BLD_IMG);
+        try_command("SKY_IMG", TEIGI_SKY_IMG);
+        try_command("GND", TEIGI_GRD);
 
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
+        if (MatchesKeyword(&buffer[position], "BLD") && !MatchesKeyword(&buffer[position], "BLD_IMG")) {
+            read_command(3, TEIGI_BLD);
         }
 
-        if (memcmp(&buffer[position], "BLD_IMG", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_BLD_IMG);
+        try_command("LOD", TEIGI_LOD);
+        try_command("SKY", TEIGI_SKY);
+        try_command("FOG", TEIGI_FOG);
+        try_command("CRD", TEIGI_CRD);
+        try_command("AMBIENT", TEIGI_AMBIENT);
+        try_command("LIGHT_C", TEIGI_LIGHT_COL);
+        try_command("FARCLIP", TEIGI_FARCLIP);
 
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
+        // Skips only six bytes: the trailing `2` is not a separator, so the argument reader meets it.
+        if (MatchesKeyword(&buffer[position], "BG_COL2")) {
+            read_command(6, TEIGI_BG_COL2);
         }
 
-        if (memcmp(&buffer[position], "SKY_IMG", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_SKY_IMG);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "GND", 3) == 0) {
-            position = skipSpace(buffer, position + 3);
-            position = checkArg(buffer, position, TEIGI_GRD);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "BLD", 3) == 0 && memcmp(&buffer[position], "BLD_IMG", 7) != 0) {
-            position = skipSpace(buffer, position + 3);
-            position = checkArg(buffer, position, TEIGI_BLD);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "LOD", 3) == 0) {
-            position = skipSpace(buffer, position + 3);
-            position = checkArg(buffer, position, TEIGI_LOD);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "SKY", 3) == 0) {
-            position = skipSpace(buffer, position + 3);
-            position = checkArg(buffer, position, TEIGI_SKY);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "FOG", 3) == 0) {
-            position = skipSpace(buffer, position + 3);
-            position = checkArg(buffer, position, TEIGI_FOG);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "CRD", 3) == 0) {
-            position = skipSpace(buffer, position + 3);
-            position = checkArg(buffer, position, TEIGI_CRD);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "AMBIENT", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_AMBIENT);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "LIGHT_C", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_LIGHT_COL);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "FARCLIP", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_FARCLIP);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        /* Six where the keyword is seven, which is the original's own step: the `2` is left
-           standing, and a digit is not a separator, so it is the argument reader that meets it. */
-        if (memcmp(&buffer[position], "BG_COL2", 7) == 0) {
-            position = skipSpace(buffer, position + 6);
-            position = checkArg(buffer, position, TEIGI_BG_COL2);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "BG_COL", 6) == 0) {
-            position = skipSpace(buffer, position + 6);
-            position = checkArg(buffer, position, TEIGI_BG_COL);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "NORMALCLIP_OFF", 14) == 0) {
-            position = skipSpace(buffer, position + 14);
-            position = checkArg(buffer, position, TEIGI_NORMALCLIP_OFF);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "RUN_SPEED", 9) == 0) {
-            position = skipSpace(buffer, position + 9);
-            position = checkArg(buffer, position, TEIGI_RUN_SPEED);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "EDIT_FOG", 8) == 0) {
-            position = skipSpace(buffer, position + 8);
-            position = checkArg(buffer, position, TEIGI_EDIT_FOG);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "WATER_SET", 9) == 0) {
-            position = skipSpace(buffer, position + 9);
-            position = checkArg(buffer, position, TEIGI_WATER_SET);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "WATER_RGB", 9) == 0) {
-            position = skipSpace(buffer, position + 9);
-            position = checkArg(buffer, position, TEIGI_WATER_RGB);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "WATER_PARAM", 11) == 0) {
-            position = skipSpace(buffer, position + 11);
-            position = checkArg(buffer, position, TEIGI_WATER_PARAM);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "LEVEL_FAR", 9) == 0) {
-            position = skipSpace(buffer, position + 9);
-            position = checkArg(buffer, position, TEIGI_LEVEL_FAR);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "DebugFlag", 9) == 0) {
-            position = skipSpace(buffer, position + 9);
-            position = checkArg(buffer, position, TEIGI_DebugFlag);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "AnimeSpeed", 10) == 0) {
-            position = skipSpace(buffer, position + 10);
-            position = checkArg(buffer, position, TEIGI_AnimeSpeed);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "UPER", 4) == 0) {
-            position = skipSpace(buffer, position + 4);
-            position = checkArg(buffer, position, TEIGI_UPER);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "UPR_IMG", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_UPR_IMG);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "PLIGHT", 6) == 0) {
-            position = skipSpace(buffer, position + 6);
-            position = checkArg(buffer, position, TEIGI_PLIGHT);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "ADD_CRD", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_ADD_CRD);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "DEF_PATS", 8) == 0) {
-            position = skipSpace(buffer, position + 8);
-
-            if (static_cast<std::size_t>(argLevel) >= argCapacity) {
-                exit__2(-1);
-            }
-
-            argValBuff[argLevel][0] = static_cast<float>(TEIGI_DEF_PATS[0]);
-            matched = 1;
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "DEF_ENDS", 8) == 0) {
-            position = skipSpace(buffer, position + 8);
-
-            if (static_cast<std::size_t>(argLevel) >= argCapacity) {
-                exit__2(-1);
-            }
-
-            argValBuff[argLevel][0] = static_cast<float>(TEIGI_DEF_ENDS[0]);
-            matched = 1;
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "PT_BASE", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_PT_BASE);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "MAPD", 4) == 0) {
-            position = skipSpace(buffer, position + 4);
-            position = checkArg(buffer, position, TEIGI_MAPD);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "PT_COLS", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_PT_COLS);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "PT_FIRE", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_PT_FIRE);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "PT_WATER", 8) == 0) {
-            position = skipSpace(buffer, position + 8);
-            position = checkArg(buffer, position, TEIGI_PT_WATER);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "S_VOLUME", 8) == 0) {
-            position = skipSpace(buffer, position + 8);
-            position = checkArg(buffer, position, TEIGI_S_VOLUME);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "PROJECTION", 10) == 0) {
-            position = skipSpace(buffer, position + 10);
-            position = checkArg(buffer, position, TEIGI_PROJECTION);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "OBJ_ROT", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_OBJ_ROT);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "MAPINFO", 7) == 0) {
-            position = skipSpace(buffer, position + 7);
-            position = checkArg(buffer, position, TEIGI_MAPINFO);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "FIRE_IMG", 8) == 0) {
-            position = skipSpace(buffer, position + 8);
-            position = checkArg(buffer, position, TEIGI_FIRE_IMG);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
-
-        if (memcmp(&buffer[position], "FIRE", 4) == 0) {
-            position = skipSpace(buffer, position + 4);
-            position = checkArg(buffer, position, TEIGI_FIRE);
-
-            if (position != -1) {
-                matched = 1;
-            }
-
-            position = skipSpace(buffer, position);
-            argLevel++;
-        }
+        try_command("BG_COL", TEIGI_BG_COL);
+        try_command("NORMALCLIP_OFF", TEIGI_NORMALCLIP_OFF);
+        try_command("RUN_SPEED", TEIGI_RUN_SPEED);
+        try_command("EDIT_FOG", TEIGI_EDIT_FOG);
+        try_command("WATER_SET", TEIGI_WATER_SET);
+        try_command("WATER_RGB", TEIGI_WATER_RGB);
+        try_command("WATER_PARAM", TEIGI_WATER_PARAM);
+        try_command("LEVEL_FAR", TEIGI_LEVEL_FAR);
+        try_command("DebugFlag", TEIGI_DebugFlag);
+        try_command("AnimeSpeed", TEIGI_AnimeSpeed);
+        try_command("UPER", TEIGI_UPER);
+        try_command("UPR_IMG", TEIGI_UPR_IMG);
+        try_command("PLIGHT", TEIGI_PLIGHT);
+        try_command("ADD_CRD", TEIGI_ADD_CRD);
+        try_marker("DEF_PATS", TEIGI_DEF_PATS);
+        try_marker("DEF_ENDS", TEIGI_DEF_ENDS);
+        try_command("PT_BASE", TEIGI_PT_BASE);
+        try_command("MAPD", TEIGI_MAPD);
+        try_command("PT_COLS", TEIGI_PT_COLS);
+        try_command("PT_FIRE", TEIGI_PT_FIRE);
+        try_command("PT_WATER", TEIGI_PT_WATER);
+        try_command("S_VOLUME", TEIGI_S_VOLUME);
+        try_command("PROJECTION", TEIGI_PROJECTION);
+        try_command("OBJ_ROT", TEIGI_OBJ_ROT);
+        try_command("MAPINFO", TEIGI_MAPINFO);
+        try_command("FIRE_IMG", TEIGI_FIRE_IMG);
+        try_command("FIRE", TEIGI_FIRE);
 
         if (!matched) {
             exit__2(-1);
@@ -1884,21 +1278,15 @@ void OPMdsLoad() {
     CFrameAttr                 saved_attr;
     CFrameAttr                 attr;
     std::array<std::string, 4> path;
-    CFrameVu1                 *lod_frames[4];
+    std::array<CFrameVu1 *, 4> lod_frames{};
     sceVu0FVECTOR              light_dir;
-    int                        i;
-    int                        j;
-    int                        k;
-    int                        light_no;
-    int                        light_slot;
-    CFrameVu1                 *frame;
-    CFrameVu1                 *rot_frame;
-    CMapObject                *object;
-    CFrame                    *shadow;
-    float                      rx;
-    float                      ry;
-    float                      rz;
-    float                      light_x;
+    CFrameVu1                 *frame = nullptr;
+    CFrameVu1                 *rot_frame = nullptr;
+    CMapObject                *object = nullptr;
+    CFrame                    *shadow = nullptr;
+    float                      rx = 0.0f;
+    float                      ry = 0.0f;
+    float                      rz = 0.0f;
 
     attr.clip_depth = 20.0f;
     attr.clip_enable = true;
@@ -1907,7 +1295,7 @@ void OPMdsLoad() {
     nowObjCnt = 0;
     nowObjCnt2 = 0;
 
-    for (i = 0; i < argLevel; i++) {
+    for (int i = 0; i < argLevel; i++) {
         if (TEIGI_AnimeSpeed[0] == static_cast<int>(argValBuff[i][0])) {
             animeSpeed1 = static_cast<int>(argValBuff[i][1]);
             animeSpeed2 = static_cast<int>(argValBuff[i][2]);
@@ -1984,18 +1372,13 @@ void OPMdsLoad() {
         }
 
         if (TEIGI_LIGHT_COL[0] == static_cast<int>(argValBuff[i][0])) {
-            light_no = static_cast<int>(argValBuff[i][7]);
+            const int light_no = static_cast<int>(argValBuff[i][7]);
             light_dir[0] = argValBuff[i][1];
             light_dir[1] = argValBuff[i][2];
             light_dir[2] = argValBuff[i][3];
             sceVu0Normalize(light_dir, light_dir);
-            /* The row's index is materialised between the first component's load and its store,
-               and an assignment's right-hand side is emitted before the subscript it is stored
-               through, so the component has to already be in a register when the statement that
-               computes the index runs. */
-            light_x = light_dir[0];
-            light_slot = light_no - 1;
-            light[0][light_slot] = light_x;
+            const int light_slot = light_no - 1;
+            light[0][light_slot] = light_dir[0];
             light[1][light_slot] = light_dir[1];
             light[2][light_slot] = light_dir[2];
             lightcolor[light_slot][0] = argValBuff[i][4];
@@ -2013,7 +1396,7 @@ void OPMdsLoad() {
 
         if (TEIGI_CRD[0] == static_cast<int>(argValBuff[i][0])) {
             path[0] = std::string("sim:") + argStrBuff[i].data();
-            LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(path[0].data(), read_buffer, nullptr);
             OP_GroundCol = LoadCollisionFile(read_buffer);
         }
 
@@ -2060,7 +1443,7 @@ void OPMdsLoad() {
 
         if (TEIGI_GRD[0] == static_cast<int>(argValBuff[i][0])) {
             path[0] = std::string("sim:") + argStrBuff[i].data();
-            LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(path[0].data(), read_buffer, nullptr);
             frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
             rot_frame = frame;
             frame->SetAttr(attr, 1, 64);
@@ -2080,7 +1463,7 @@ void OPMdsLoad() {
 
         if (TEIGI_SKY[0] == static_cast<int>(argValBuff[i][0])) {
             path[0] = std::string("sim:") + argStrBuff[i].data();
-            LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(path[0].data(), read_buffer, nullptr);
             OP_SkyFrame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
 
             if (argValBuff[i][2] == 1.0f) {
@@ -2092,12 +1475,12 @@ void OPMdsLoad() {
             saved_attr = attr;
 
             if (argValBuff[i][8] == 0.0f) {
-                if (nowObjCnt >= static_cast<int>(std::size(OP_BuildingMap.object))) {
+                if (std::cmp_greater_equal(nowObjCnt, std::size(OP_BuildingMap.object))) {
                     exit__2(-1);
                 }
 
                 path[0] = std::string("sim:") + argStrBuff[i].data();
-                LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+                LoadFile(path[0].data(), read_buffer, nullptr);
                 frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
                 rot_frame = frame;
                 frame->SetAttr(attr, 1, 64);
@@ -2113,12 +1496,12 @@ void OPMdsLoad() {
                 CVector3_f_ rotation(rx, ry, rz);
                 object->SetRotation(rotation);
             } else {
-                if (nowObjCnt >= static_cast<int>(std::size(OP_BuildingMap.object))) {
+                if (std::cmp_greater_equal(nowObjCnt, std::size(OP_BuildingMap.object))) {
                     exit__2(-1);
                 }
 
-                for (j = 0; j < 4; j++) {
-                    if (static_cast<std::size_t>(i + j) < argCapacity && i + j < argLevel &&
+                for (int j = 0; j < 4; j++) {
+                    if (std::cmp_less(i + j, argCapacity) && i + j < argLevel &&
                         argStrBuff[i + j][0] != 0) {
                         path[j] = std::string("sim:") + argStrBuff[i + j].data();
                         LODNameBuff[j] = path[j].data();
@@ -2127,7 +1510,7 @@ void OPMdsLoad() {
                     }
                 }
 
-                LoadLODData(lod_frames, LODNameBuff, read_buffer, 0);
+                LoadLODData(lod_frames.data(), LODNameBuff.data(), read_buffer, 0);
 
                 object = OP_BuildingMap.GetObject(nowObjCnt++);
                 if (object == nullptr) {
@@ -2138,14 +1521,14 @@ void OPMdsLoad() {
 
                 CMapCategoryAttr *category = &OP_BuildingMap.category[1];
 
-                for (k = 0; k < 4; k++) {
+                for (int k = 0; k < 4; k++) {
                     category->lod[k] = levelOfDitialZ[k];
                 }
 
                 category->lowest = 0;
                 category->highest = 3;
 
-                for (j = 0; j < 4; j++) {
+                for (int j = 0; j < 4; j++) {
                     object->SetFrame(lod_frames[j], j);
 
                     if (lod_frames[j] != nullptr) {
@@ -2177,12 +1560,12 @@ void OPMdsLoad() {
             saved_attr = attr;
 
             if (argValBuff[i][8] == 0.0f) {
-                if (nowObjCnt2 >= static_cast<int>(std::size(OP_BuildingMap2.object))) {
+                if (std::cmp_greater_equal(nowObjCnt2, std::size(OP_BuildingMap2.object))) {
                     exit__2(-1);
                 }
 
                 path[0] = std::string("sim:") + argStrBuff[i].data();
-                LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+                LoadFile(path[0].data(), read_buffer, nullptr);
                 frame = LoadMDSFile(read_buffer, &MapDataBuffer, 2, nullptr, nullptr);
                 frame->SetAttr(attr, 1, 64);
                 SetFrameAttr(frame, 1);
@@ -2197,12 +1580,12 @@ void OPMdsLoad() {
                 CVector3_f_ rotation(rx, ry, rz);
                 object->SetRotation(rotation);
             } else {
-                if (nowObjCnt2 >= static_cast<int>(std::size(OP_BuildingMap2.object))) {
+                if (std::cmp_greater_equal(nowObjCnt2, std::size(OP_BuildingMap2.object))) {
                     exit__2(-1);
                 }
 
-                for (j = 0; j < 4; j++) {
-                    if (static_cast<std::size_t>(i + j) < argCapacity && i + j < argLevel &&
+                for (int j = 0; j < 4; j++) {
+                    if (std::cmp_less(i + j, argCapacity) && i + j < argLevel &&
                         argStrBuff[i + j][0] != 0) {
                         path[j] = std::string("sim:") + argStrBuff[i + j].data();
                         LODNameBuff[j] = path[j].data();
@@ -2211,7 +1594,7 @@ void OPMdsLoad() {
                     }
                 }
 
-                LoadLODData(lod_frames, LODNameBuff, read_buffer, 0);
+                LoadLODData(lod_frames.data(), LODNameBuff.data(), read_buffer, 0);
 
                 object = OP_BuildingMap2.GetObject(nowObjCnt2++);
                 if (object == nullptr) {
@@ -2222,14 +1605,14 @@ void OPMdsLoad() {
 
                 CMapCategoryAttr *category = &OP_BuildingMap2.category[1];
 
-                for (k = 0; k < 4; k++) {
+                for (int k = 0; k < 4; k++) {
                     category->lod[k] = levelOfDitialZ[k];
                 }
 
                 category->lowest = 0;
                 category->highest = 3;
 
-                for (j = 0; j < 4; j++) {
+                for (int j = 0; j < 4; j++) {
                     object->SetFrame(lod_frames[j], j);
 
                     if (lod_frames[j] != nullptr) {
@@ -2258,12 +1641,12 @@ void OPMdsLoad() {
         }
 
         if (TEIGI_S_VOLUME[0] == static_cast<int>(argValBuff[i][0])) {
-            if (shadowModelCount >= static_cast<int>(std::size(ShadowModel))) {
+            if (std::cmp_greater_equal(shadowModelCount, std::size(ShadowModel))) {
                 exit__2(-1);
             }
 
             path[0] = std::string("sim:") + argStrBuff[i].data();
-            LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(path[0].data(), read_buffer, nullptr);
             ShadowModel[shadowModelCount] = LoadMDSFile(read_buffer, 14, 0);
             ShadowModel[shadowModelCount]->SetPosition(10.0f * argValBuff[i][2], 10.0f * argValBuff[i][3], 10.0f * argValBuff[i][4]);
             rx = PI * argValBuff[i][5] / 180.0f;
@@ -2274,12 +1657,12 @@ void OPMdsLoad() {
         }
 
         if (TEIGI_ADD_CRD[0] == static_cast<int>(argValBuff[i][0])) {
-            if (ColModelCount >= static_cast<int>(std::size(ColModel))) {
+            if (std::cmp_greater_equal(ColModelCount, std::size(ColModel))) {
                 exit__2(-1);
             }
 
             path[0] = std::string("sim:") + argStrBuff[i].data();
-            LoadFile(path[0].data(), reinterpret_cast<void *>(read_buffer), nullptr);
+            LoadFile(path[0].data(), read_buffer, nullptr);
             ColModel[ColModelCount] = LoadCollisionFile(read_buffer);
             ColModel[ColModelCount]->SetPosition(10.0f * argValBuff[i][2], 10.0f * argValBuff[i][3], 10.0f * argValBuff[i][4]);
             rx = PI * argValBuff[i][5] / 180.0f;
@@ -2335,53 +1718,43 @@ void OPMdsLoad() {
     }
 }
 
-/**
- * The run of separators standing before a token. The loader turns every line ending into a pair of
- * NULs before anything reads the text, so a NUL is a separator here and a comment is the run up to
- * the next one; the ideographic space is two bytes, which is why the skip is a loop over the file
- * rather than a walk over one kind of byte.
- *
- * @mangled skipSpace__FPci
- * @address 0x1DB4830
- * @size 0x110
- * @unknownret
- */
 namespace {
-static int skipSpace(char *buffer, int position) {
-    int skipped;
 
+/* Skips the separators before a token: spaces, tabs, the two-byte ideographic space, NULs (every
+   line ending has become a NUL pair) and // comments, which run to the next NUL. */
+int skipSpace(char *buffer, int position) {
     if (position < 0) {
         return teigiFileSize;
     }
 
     while (position < teigiFileSize) {
-        skipped = 0;
+        bool skipped = false;
 
-        if (memcmp(&buffer[position], "\x81\x40", 2) == 0) {
+        if (MatchesKeyword(&buffer[position], "\x81\x40")) {
             position++;
-            skipped = 1;
+            skipped = true;
         }
 
         if (buffer[position] == ' ') {
-            skipped = 1;
+            skipped = true;
         }
 
         if (buffer[position] == '\t') {
-            skipped = 1;
+            skipped = true;
         }
 
         if (buffer[position] == '\0') {
             position++;
-            skipped = 1;
+            skipped = true;
         }
 
-        if (memcmp(&buffer[position], "//", 2) == 0) {
+        if (MatchesKeyword(&buffer[position], "//")) {
             while (buffer[position] != '\0') {
                 position++;
             }
 
             position++;
-            skipped = 1;
+            skipped = true;
         }
 
         if (!skipped) {
@@ -2394,46 +1767,82 @@ static int skipSpace(char *buffer, int position) {
     return teigiFileSize;
 }
 
-/**
- * One command's arguments, described by the row the caller passes: its own number, how many
- * arguments it takes, and one type per argument. A type-0 argument is a quoted string and lands in
- * the string buffer; the other two are numbers and land in the value buffer beside the command
- * number, and differ only in whether a comma has to stand in front. Anything the forms do not
- * cover hands back -1.
- *
- * @mangled checkArg__FPciPi
- * @address 0x1DB4940
- * @size 0x574
- * @unknownret
- */
-static int checkArg(char *buffer, int position, int *command) {
-    int i;
-    int cursor;
-    int char_count;
-    int accepted;
-
-    if (argLevel < 0 || static_cast<std::size_t>(argLevel) >= argCapacity || command[1] < 0 || command[1] > 63) {
+/* Reads one command's arguments into the current level as its row describes them: strings land in
+   the string buffer, numbers in the value buffer after the command number. Returns the position
+   after the arguments, or -1 when the text does not fit the row. */
+int checkArg(char *buffer, int position, std::span<const int> command) {
+    if (argLevel < 0 || std::cmp_greater_equal(argLevel, argCapacity) || command[1] < 0 || command[1] > 63) {
         return -1;
     }
 
-    cursor = position;
+    int cursor = position;
 
     if (command[1] == 0) {
         return position;
     }
 
-    for (i = 0; i < command[1]; i++) {
+    // Reads ON, OFF or a number of fewer than 32 characters into value slot `slot`.
+    const auto read_value = [&](int slot) {
+        if (MatchesKeyword(&buffer[cursor], "ON")) {
+            argValBuff[argLevel][slot] = 1.0f;
+            cursor += 2;
+            return true;
+        }
+
+        if (MatchesKeyword(&buffer[cursor], "OFF")) {
+            argValBuff[argLevel][slot] = 0.0f;
+            cursor += 3;
+            return true;
+        }
+
+        if (buffer[cursor] != '-' && (buffer[cursor] < '0' || buffer[cursor] > '9')) {
+            return false;
+        }
+
+        argValBuff[argLevel][slot] = static_cast<float>(std::strtod(&buffer[cursor], nullptr));
+
+        int char_count = 0;
+
+        for (; char_count < 32; char_count++) {
+            bool accepted = false;
+
+            if (buffer[cursor] == '-') {
+                cursor++;
+                accepted = true;
+            }
+
+            if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
+                cursor++;
+                accepted = true;
+            }
+
+            if (buffer[cursor] == '.') {
+                cursor++;
+                accepted = true;
+            }
+
+            if (!accepted) {
+                break;
+            }
+        }
+
+        return char_count != 32;
+    };
+
+    for (int i = 0; i < command[1]; i++) {
         argValBuff[argLevel][0] = static_cast<float>(command[0]);
 
         switch (command[2 + i]) {
-            case TSARG_STRING:
+            case TSARG_STRING: {
                 if (buffer[cursor] != '"') {
                     return -1;
                 }
 
                 cursor++;
 
-                for (char_count = 0; char_count < 64; char_count++) {
+                int char_count = 0;
+
+                for (; char_count < 64; char_count++) {
                     if (buffer[cursor] == '"') {
                         argStrBuff[argLevel][char_count] = '\0';
                         cursor++;
@@ -2450,6 +1859,7 @@ static int checkArg(char *buffer, int position, int *command) {
 
                 cursor = skipSpace(buffer, cursor);
                 break;
+            }
 
             case TSARG_COMMA_VALUE:
                 if (buffer[cursor] != ',') {
@@ -2458,117 +1868,27 @@ static int checkArg(char *buffer, int position, int *command) {
 
                 cursor = skipSpace(buffer, cursor + 1);
 
-                if (memcmp(&buffer[cursor], "ON", 2) == 0) {
-                    argValBuff[argLevel][1 + i] = 1.0f;
-                    cursor += 2;
-                } else if (memcmp(&buffer[cursor], "OFF", 3) == 0) {
-                    argValBuff[argLevel][1 + i] = 0;
-                    cursor += 3;
-                } else {
-                    accepted = 0;
-
-                    if (buffer[cursor] == '-') {
-                        accepted = 1;
-                    }
-
-                    if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                        accepted = 1;
-                    }
-
-                    if (!accepted) {
-                        return -1;
-                    }
-
-                    argValBuff[argLevel][1 + i] = static_cast<float>(atof(&buffer[cursor]));
-
-                    for (char_count = 0; char_count < 32; char_count++) {
-                        accepted = 0;
-
-                        if (buffer[cursor] == '-') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] == '.') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (!accepted) {
-                            break;
-                        }
-                    }
-
-                    if (char_count == 32) {
-                        return -1;
-                    }
+                if (!read_value(1 + i)) {
+                    return -1;
                 }
 
                 cursor = skipSpace(buffer, cursor);
                 break;
 
             case TSARG_VALUE:
-                if (memcmp(&buffer[cursor], "ON", 2) == 0) {
-                    argValBuff[argLevel][1 + i] = 1.0f;
-                    cursor += 2;
-                } else if (memcmp(&buffer[cursor], "OFF", 3) == 0) {
-                    argValBuff[argLevel][1 + i] = 0;
-                    cursor += 3;
-                } else {
-                    accepted = 0;
-
-                    if (buffer[cursor] == '-') {
-                        accepted = 1;
-                    }
-
-                    if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                        accepted = 1;
-                    }
-
-                    if (!accepted) {
-                        return -1;
-                    }
-
-                    argValBuff[argLevel][1 + i] = static_cast<float>(atof(&buffer[cursor]));
-
-                    for (char_count = 0; char_count < 32; char_count++) {
-                        accepted = 0;
-
-                        if (buffer[cursor] == '-') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] == '.') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (!accepted) {
-                            break;
-                        }
-                    }
-
-                    if (char_count == 32) {
-                        return -1;
-                    }
+                if (!read_value(1 + i)) {
+                    return -1;
                 }
 
                 cursor = skipSpace(buffer, cursor);
+                break;
+
+            default:
                 break;
         }
     }
 
     return cursor;
 }
+
 } // namespace

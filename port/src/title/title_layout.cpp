@@ -14,10 +14,8 @@
 #include "title_port.hpp"
 #include "water.hpp"
 
-// The title units declare these with PS2 layouts of their own (op_a.cpp's 144-byte OBJ_ANIME_SEQ,
-// rushmovi.cpp's 816-byte CWater and so on). The port's definitions are PORT_OVERRIDE, so everything
-// the title overlay reads goes through these host-sized ones. TitleOverlayConstruct builds them
-// again as retail's overlay loader did: the .bss zeroed, then the constructors.
+// The title overlay's objects use the host-sized layouts declared here rather than the title units'
+// own. TitleOverlayConstruct rebuilds them the way the overlay loader does: zeroed, then constructed.
 
 namespace {
 
@@ -37,7 +35,7 @@ extern CMapObject    OP_NornMapObj2[87];
 void TitleOverlayConstruct() {
     for (CMap *map : {&OP_GroundMap, &OP_BuildingMap, &OP_BuildingMap2}) {
         Construct(*map);
-        // op_a.cpp's CMap constructor initialises the map; map.hpp's leaves that to the caller.
+        // map.hpp's CMap constructor leaves initialisation to the caller.
         map->Initialize();
     }
     for (OBJ_ANIME_SEQ &sequence : OP_AnimeSeq) {
