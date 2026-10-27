@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * What the travel page offers, as NowGetGameFlagForBtlMenu returns it and MENU_MOVE_INFO::mode holds it.
  */
@@ -334,3 +336,5 @@ extern u_long128 *WepEffectMenuReadBuf;
  * Buffer the menu's weapon models are built in.
  */
 extern u_long128 *MenuWeaponModelBuildBuffer;
+
+} // namespace dc::game

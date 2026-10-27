@@ -2,6 +2,8 @@
 
 #include "runscript.hpp"
 
+namespace dc::game {
+
 /**
  * How the large treasure box shows its item, as TreasureboxBig_itemType holds it.
  */
@@ -267,3 +269,5 @@ int ItemThrowStep(float *position, float *velocity);
  * whether one is pending; this holds the slot itself.
  */
 extern RS_STACKDATA *PortItemSelectResult;
+
+} // namespace dc::game

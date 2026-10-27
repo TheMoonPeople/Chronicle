@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+namespace dc::game {
+
 /**
  * Steps of the manual, as MANUAL_MENU_STATE::mode holds them.
  */
@@ -118,3 +120,5 @@ void MenuManualDraw();
  * options screen's table of port strings.
  */
 std::vector<std::pair<std::string, std::string>> JournalStrings();
+
+} // namespace dc::game

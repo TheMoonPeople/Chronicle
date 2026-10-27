@@ -18,6 +18,8 @@
 #include "texture.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 SHOT_COLLISION_RESULT checkCollision(float *hit_position, float *position, float *movement, s32 target_mode, float radius) {
     sceVu0FVECTOR destination;
 
@@ -106,3 +108,5 @@ void set3DCellModel(float *world, char *texture_name, float size, s32 x, s32 y, 
         set3DSprite(Vif1Packet, texture, CRect_i_(x, y, width, height), top_left, top_right, bottom_left, bottom_right, blend);
     }
 }
+
+} // namespace dc::game

@@ -10,6 +10,8 @@
 #include "frame.hpp"
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr int kMapCellStride = 20;
@@ -259,3 +261,5 @@ void CDungeonEventMan::SetupEvent(CDungeonMap *map, int mode) {
         }
     }
 }
+
+} // namespace dc::game

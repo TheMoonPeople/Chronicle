@@ -1,6 +1,8 @@
 #pragma once
 
+namespace dc::game {
 struct RenderInfo;
+} // namespace dc::game
 
 /**
  * One shadow-volume triangle in the 11-quadword layout the VU1 shadow program consumes.

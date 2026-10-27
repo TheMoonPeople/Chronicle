@@ -6,6 +6,8 @@
 #include "sound.hpp"
 #include "title/tisound.hpp"
 
+namespace dc::game {
+
 void TiPlayVolSE(int group, int no, int voice, float volume) {
     const int    se_index = CSnd.GetSeNo(no, voice);
     const short *se_info = CSnd.GetSeInfTbl();
@@ -15,3 +17,5 @@ void TiPlayVolSE(int group, int no, int voice, float volume) {
 
     CSnd.SE_Play(group, no, voice, 64, 127, level, 0);
 }
+
+} // namespace dc::game

@@ -4,6 +4,8 @@
 
 #include "character.hpp"
 
+namespace dc::game {
+
 /**
  * Selects the movement or wait operation in an NPC sequence record.
  */
@@ -140,3 +142,5 @@ STATIC_ASSERT(sizeof(CNPCharacter) == 0x14A0);
  * Runtime character objects for the ten villagers selected for the current period.
  */
 extern CNPCharacter EdVillager[10];
+
+} // namespace dc::game

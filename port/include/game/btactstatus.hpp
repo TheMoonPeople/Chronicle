@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Defines what the player is doing in the dungeon this frame.
  */
@@ -86,3 +88,5 @@ STATIC_ASSERT(sizeof(BT_ACT_STATUS) == 0x150);
  * What the player is doing in the dungeon this frame.
  */
 extern BT_ACT_STATUS BtActStatus;
+
+} // namespace dc::game

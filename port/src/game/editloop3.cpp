@@ -69,6 +69,8 @@
 #include "textureanime.hpp"
 #include "visualvu1.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -9770,3 +9772,5 @@ int CheckPartsInfo(EDITPARTS_INFO *info) {
 
     return 1;
 }
+
+} // namespace dc::game

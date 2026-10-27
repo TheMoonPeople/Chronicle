@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CCPoly;
 class CDungeonMap;
 class CFrame;
@@ -308,3 +310,5 @@ extern s8 ItemPutListTbl12_bytes[];
  * Configuration entry name every model pack is opened with.
  */
 extern char info_cfg_literal[];
+
+} // namespace dc::game

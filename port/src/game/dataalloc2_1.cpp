@@ -5,6 +5,8 @@
 #include "dataalloc.hpp"
 #include "platform/arena.hpp"
 
+namespace dc::game {
+
 // Arena methods keep retail's arithmetic and off-by-one checks; overflow aborts naming the arena.
 
 namespace {
@@ -149,3 +151,5 @@ CDataAlloc2<1>::CDataAlloc2(int limit) : buffer(nullptr), used(0), limit(limit) 
 
     base = buffer;
 }
+
+} // namespace dc::game

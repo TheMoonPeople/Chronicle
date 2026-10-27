@@ -6,6 +6,8 @@
 
 #include "rect.hpp"
 
+namespace dc::game {
+
 /**
  * Describes one textured sprite and its draw colour.
  */
@@ -97,3 +99,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CSpriteTable) == 0x94);
+
+} // namespace dc::game

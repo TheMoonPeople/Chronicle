@@ -1,5 +1,7 @@
 #include "map.hpp"
 
+namespace dc::game {
+
 CMapObject *CMap::SetObject(int index, CFrameVu1 *frame, int category_no, int handle) {
     if (index >= 10 || index < 0) {
         return nullptr;
@@ -59,3 +61,5 @@ void CMap::Initialize() {
 
     draw_on = 1;
 }
+
+} // namespace dc::game

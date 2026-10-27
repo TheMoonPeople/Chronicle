@@ -12,7 +12,10 @@
 
 #include "gfx/gfx.hpp"
 
+namespace dc::game {
 class CTexture;
+} // namespace dc::game
+
 struct DataReadSource;
 
 /**

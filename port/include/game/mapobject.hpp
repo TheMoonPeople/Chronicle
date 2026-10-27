@@ -4,6 +4,8 @@
 
 #include "objectframe.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the object that a map places, with the frames that give it a
@@ -70,3 +72,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CMapObject) == 0xF0);
+
+} // namespace dc::game

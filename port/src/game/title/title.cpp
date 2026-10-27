@@ -34,6 +34,8 @@
 #include "title/scfader.hpp"
 #include "title/sprite.hpp"
 
+namespace dc::game {
+
 /**
  * Screen or texel rectangle taken by the title overlay's 2D draws, built as left, top, width, height.
  */
@@ -60,6 +62,8 @@ struct MAP_INFO {
     float rotation;    /**< Turn about the vertical axis, in degrees. */
 };
 
+} // namespace dc::game
+
 #include "gamemode.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
@@ -83,6 +87,8 @@ struct MAP_INFO {
 #include "vutext.hpp"
 #include "water.hpp"
 #include "wind.hpp"
+
+namespace dc::game {
 
 // String literals are passed to the game APIs as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
@@ -2125,3 +2131,5 @@ void TitleOverlayConstruct() {
     Construct(Water);
     Construct(Water__2);
 }
+
+} // namespace dc::game

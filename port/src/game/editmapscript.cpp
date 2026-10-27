@@ -62,6 +62,8 @@
 #include "texture.hpp"
 #include "weaponlevelup.hpp"
 
+namespace dc::game {
+
 namespace {
 
 using EDIT_SCRIPT_COMMAND = void (*)(void **arguments);
@@ -1894,3 +1896,5 @@ void StopAllSound() {
 void EdSetSoundOffCount(int count) {
     sound_off_cnt = std::clamp(count, 0, 10);
 }
+
+} // namespace dc::game

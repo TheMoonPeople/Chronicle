@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Starts Toan's special attack.
  */
@@ -36,3 +38,5 @@ void GoroKey_On();
  * Steps Goro's special attack by one frame.
  */
 void GoroKey_Play();
+
+} // namespace dc::game

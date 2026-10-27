@@ -7,6 +7,8 @@
 #include "character.hpp"
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * Number of bait kinds for which each fish records an attraction value.
  */
@@ -231,3 +233,5 @@ float FishSizeLift(float range);
  * max_size; any other size is returned unchanged.
  */
 float SmoothFishSize(float size, float base_size, float max_size);
+
+} // namespace dc::game

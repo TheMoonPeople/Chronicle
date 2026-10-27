@@ -8,6 +8,8 @@
 #include "mdt.hpp"
 #include "visualvu1.hpp"
 
+namespace dc::game {
+
 class CBound;
 class CFrame;
 
@@ -101,3 +103,5 @@ public:
      */
     virtual int DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state, int unknown1, int unknown2);
 };
+
+} // namespace dc::game

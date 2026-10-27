@@ -11,6 +11,8 @@
 #include "menu_save.hpp"
 #include "shop.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // A non-negative requirement is a minimum; a negative one is a maximum of its magnitude.
@@ -185,3 +187,5 @@ int EnableBuildUpModel(WEP_BUILDUP_INFO *build_info, WEAPON_HAVE *weapon) {
     build_info[count].weapon_no = -1;
     return 1;
 }
+
+} // namespace dc::game

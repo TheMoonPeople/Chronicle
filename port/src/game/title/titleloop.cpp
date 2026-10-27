@@ -55,6 +55,8 @@
 #include "vutext.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 // TexManager.GetTexture takes the texture name as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -762,3 +764,5 @@ void TitleDraw() {
     }
     TitlePortFeedback(35);
 }
+
+} // namespace dc::game

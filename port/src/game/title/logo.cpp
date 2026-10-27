@@ -15,6 +15,8 @@
 #include "title/title.hpp"
 #include "title/titleloop.hpp"
 
+namespace dc::game {
+
 namespace {
 
 struct SparkWindow {
@@ -124,3 +126,5 @@ void CLogo::Move() {
         FadeOut();
     }
 }
+
+} // namespace dc::game

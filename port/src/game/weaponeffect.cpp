@@ -9,6 +9,8 @@
 #include "rect.hpp"
 #include "snd.hpp"
 
+namespace dc::game {
+
 void CWeaponEffect::InitSet(CFrame *frame, char *root_name, char *tip_name) {
     tip = nullptr;
     root = nullptr;
@@ -133,3 +135,5 @@ void CWeaponEffect::Draw() {
     MGSetGsALPHA(nullptr);
     MGSetGsZBUF(nullptr);
 }
+
+} // namespace dc::game

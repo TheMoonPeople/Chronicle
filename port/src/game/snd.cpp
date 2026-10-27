@@ -34,6 +34,8 @@
 #include "texture.hpp"
 #include "ui/framework/buttons.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // clang-format off
@@ -3185,3 +3187,5 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, RECT *screen, RECT *t
     set2DSprite(packet, texture, CRect_i_(screen->x, screen->y, screen->width, screen->height),
                 CRect_i_(texel->x, texel->y, texel->width, texel->height), alpha);
 }
+
+} // namespace dc::game

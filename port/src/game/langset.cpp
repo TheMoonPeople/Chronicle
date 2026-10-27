@@ -16,6 +16,8 @@
 #include "texture.hpp"
 #include "vutext.hpp"
 
+namespace dc::game {
+
 Fader Fade;
 int   Cursor;
 int   Proc;
@@ -130,3 +132,5 @@ void LangsetDraw() {
         DrawPlateBand(entry_tops[language], 0x3C, opacities[language]);
     }
 }
+
+} // namespace dc::game

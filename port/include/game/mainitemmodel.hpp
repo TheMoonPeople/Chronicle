@@ -4,6 +4,8 @@
 
 #include "frame.hpp"
 
+namespace dc::game {
+
 /**
  * State of a held or thrown item model slot.
  */
@@ -119,3 +121,5 @@ STATIC_ASSERT(sizeof(CMainItemModel) == 0x2810);
  * Pool that owns the active item models used during dungeon play.
  */
 extern CMainItemModel mainItemModel;
+
+} // namespace dc::game

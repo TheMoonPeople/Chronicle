@@ -39,6 +39,8 @@
 #include "ui/menu_pointer.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 CEditPartsInfo    BtEditPartsInfo;
 MENU_ATORA_SEL    MenuAtoraSel;
 CMemoryCardAccess McAccess;
@@ -3599,3 +3601,5 @@ int SaveMenuKeyLoadConfig() {
     SaveMenu.file_no = static_cast<s32 *>(SaveData->GetConfigData())[17];
     return 1;
 }
+
+} // namespace dc::game

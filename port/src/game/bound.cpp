@@ -3,6 +3,8 @@
 #include "chararead.hpp"
 #include "frame.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // A non-positive extent keeps its previous reciprocal.
@@ -250,3 +252,5 @@ CBound::CBound(float half_width, float half_height, float half_depth) {
     sceVu0FVECTOR forward = {0.0f, 0.0f, 1.0f, 0.0f};
     SetDir(forward);
 }
+
+} // namespace dc::game

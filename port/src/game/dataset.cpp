@@ -26,6 +26,8 @@
 #include "platform/arena.hpp"
 #include "visual.hpp"
 
+namespace dc::game {
+
 void CCollisionMDT::Initialize() {
     model = nullptr;
     mesh = nullptr;
@@ -775,3 +777,5 @@ int CCollision::PickUpNearPoly(CCPoly * /*poly*/, float * /*position*/, float /*
 
 void CCollision::Initialize() {
 }
+
+} // namespace dc::game

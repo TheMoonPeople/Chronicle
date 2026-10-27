@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * What a collision polygon's area does, as CCPolyInfo::area_kind holds it.
  */
@@ -128,3 +130,5 @@ int CheckHit(CCPoly *poly, int count, float *from, float *to, float *hit_point, 
  * Finds the collision polygon under a point, and the one above it.
  */
 int GetFootPoly(float *position, float depth, CCPoly *found, float *ground, CCPoly *polys, int count, int mode);
+
+} // namespace dc::game

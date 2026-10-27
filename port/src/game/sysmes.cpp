@@ -16,6 +16,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 int SkipSpace__FR9input_str__3(input_str &input) {
     const char *text = input.data;
     int         position = input.pos;
@@ -302,3 +304,5 @@ void SetSystemMes(int message_no, int frames, int position, int input_key, int *
     SystemMesCount = frames;
     SystemMesPosition = position;
 }
+
+} // namespace dc::game

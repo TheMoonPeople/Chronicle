@@ -2,6 +2,8 @@
 
 #include <print>
 
+namespace dc::game {
+
 void CDungeonEventData::Set(CDungeonEvent *source) {
     if (source == nullptr) {
         std::println("******** event NULL !!");
@@ -32,3 +34,5 @@ void CDungeonEventData::Stop() {
 void CDungeonEventData::Start() {
     switch_on = 1;
 }
+
+} // namespace dc::game

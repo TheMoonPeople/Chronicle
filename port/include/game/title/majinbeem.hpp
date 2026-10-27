@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Steps of the demon's beam, as CMajinBeem::state holds them.
  */
@@ -61,3 +63,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CMajinBeem) == 0x6c0);
+
+} // namespace dc::game

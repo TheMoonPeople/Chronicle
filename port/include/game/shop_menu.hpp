@@ -5,6 +5,8 @@
 #include "menu_draw.hpp"
 #include "shop.hpp"
 
+namespace dc::game {
+
 /**
  * Shop UI bookkeeping shared by the charge shop and item shop screens: their
  * cursor, phase and animation state. Only the handful of fields read outside
@@ -54,3 +56,5 @@ extern ShopMenuWork ShopMenu;
  * Which shop is open. @see ShopKind
  */
 extern s16 ChargeOrShopFlag;
+
+} // namespace dc::game

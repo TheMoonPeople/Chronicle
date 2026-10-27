@@ -3,6 +3,8 @@
 #include "dun/gameloop.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr s32 kMessageDisplayFrames = 0xF0;
@@ -65,3 +67,5 @@ void CDngMessageMan::SetSteevMes(int first) {
         }
     }
 }
+
+} // namespace dc::game

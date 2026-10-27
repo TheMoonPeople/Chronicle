@@ -8,7 +8,9 @@
 #include "platform/config.hpp"
 #include "platform/window.hpp"
 
+namespace dc::game {
 class CSaveData;
+} // namespace dc::game
 
 /**
  * Returns whether the Options screen is open, from InitMenuOption until MenuOptionKey reports it

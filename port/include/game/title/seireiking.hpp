@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class CCamera;
 
 /**
@@ -50,3 +52,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CSeireiKing) == 0x1E0);
+
+} // namespace dc::game

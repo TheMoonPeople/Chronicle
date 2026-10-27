@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * MIDI ports the sound functions address.
  */
@@ -305,3 +307,5 @@ STATIC_ASSERT(sizeof(CSound) == 1);
  * every call reaches the platform sound backend.
  */
 extern CSound CSnd;
+
+} // namespace dc::game

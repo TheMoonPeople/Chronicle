@@ -9,6 +9,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * What the main loop runs; each mode loads its overlay and calls its own
  * initialise and step functions.
@@ -60,3 +62,5 @@ extern sceVu0FMATRIX light;
  * Initial parallel-light colour matrix used by the renderer.
  */
 extern sceVu0FMATRIX lightcolor;
+
+} // namespace dc::game

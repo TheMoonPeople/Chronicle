@@ -40,6 +40,8 @@
 #include "visualvu1.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 // Shared helpers: the IOP midi RPC, motion interpolation, collision and ground queries, and 2D
 // sprites.
 
@@ -2191,3 +2193,5 @@ int NameRegistCodeJtoE(int code) {
 
     return -0x2A7;
 }
+
+} // namespace dc::game

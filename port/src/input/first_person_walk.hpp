@@ -1,9 +1,11 @@
 #pragma once
 
+namespace dc::game {
 class CDungeonMap;
 struct DRAN_MAP_FIELD_SET;
 struct MoveCheckInfo;
 struct BT_ACT_STATUS;
+} // namespace dc::game
 
 /**
  * Moves the first-person character through the dungeon with character (not camera) collision.

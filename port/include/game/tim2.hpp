@@ -8,6 +8,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Pixel formats of a TIM2 picture, as TM2_head::image_type holds them.
  */
@@ -52,3 +54,5 @@ struct TM2_picture {
     char    unk_28[24];
     u_int   mipmap_size[8]; /**< Byte size of each stored mip level. */
 };
+
+} // namespace dc::game

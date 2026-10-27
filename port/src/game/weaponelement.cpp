@@ -10,6 +10,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // rand() spans [0, 2^31), so dividing by this gives [0, 1).
@@ -717,3 +719,5 @@ void CWeaponElement::Draw_Thunder() {
                     corner[2].data(), corner[3].data(), static_cast<u8>(1.6f * alpha[bolt_head[i]]));
     }
 }
+
+} // namespace dc::game

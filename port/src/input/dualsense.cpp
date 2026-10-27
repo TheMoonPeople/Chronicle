@@ -9,7 +9,9 @@
 #include "platform/input.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
 extern s32 mode;
+} // namespace dc::game
 
 LightbarColour LightbarForLife(int life, int max_life) {
     if (max_life <= 0) {

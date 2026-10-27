@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * How an item sits in a quick-use slot, as ITEM_DATA::stack_kind holds it.
  */
@@ -673,3 +675,5 @@ extern ITEM_DATA ITEM_LIST[];
  * picked-up weapon's owner from it.
  */
 extern WEAPON_DATA WeaponList[];
+
+} // namespace dc::game

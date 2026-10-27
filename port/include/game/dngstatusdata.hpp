@@ -2,6 +2,8 @@
 
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 /**
  * Extends the party status with dungeon-specific save data.
  */
@@ -146,3 +148,5 @@ public:
 };
 
 static_assert(sizeof(CDngStatusData) == 0x8C9C);
+
+} // namespace dc::game

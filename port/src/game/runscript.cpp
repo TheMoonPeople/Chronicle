@@ -14,6 +14,8 @@
 #include "dataalloc.hpp"
 #include "editloop3.hpp"
 
+namespace dc::game {
+
 // The script VM on the host. A compiled script (.stb) is read where it was loaded, as retail
 // does: the header, the program table and the instructions are 32-bit integers on disc and on
 // the host alike. The function records are not: on disc they are {addr, name, local, arg}, four
@@ -837,3 +839,5 @@ void CRunScript::exe(vmcode_t *entry) {
         pc++;
     }
 }
+
+} // namespace dc::game

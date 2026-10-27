@@ -6,6 +6,8 @@
 
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 class CCollisionMDT;
 class CFrame;
 class CFrameVu1;
@@ -103,3 +105,5 @@ CVisualMDTVu1 *CreateVisual(u_int *data, CDataAlloc2<1> *alloc, int attr);
  * Turns one collision model file into the object that answers queries about it.
  */
 CCollisionMDT *CreateCollisionMDT(u_int *data, CDataAlloc2<1> *alloc);
+
+} // namespace dc::game

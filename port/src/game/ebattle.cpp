@@ -43,6 +43,8 @@
 #include "sysmes.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 /**
  * Stores one event-battle key and its timing state.
  */
@@ -2618,3 +2620,5 @@ int EdInitGotoInterior(ED_EVENT_INFO *info, ED_EVENT_PARAM *param) {
     sceVu0CopyVector(info->vector_arguments[2], param->camera_pos);
     return param->point->minimum_progress;
 }
+
+} // namespace dc::game

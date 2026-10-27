@@ -40,6 +40,8 @@
 #include "visual.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 // rect.h's four-argument constructor assigns the fields in the opposite order to this one.
 template <class T>
 class CRect {
@@ -1368,3 +1370,5 @@ static void HamonProcess() {
 
     MGSetAmbient(ambientlight);
 }
+
+} // namespace dc::game

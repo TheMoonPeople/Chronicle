@@ -7,6 +7,8 @@
 #include "character.hpp"
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 void CActionSeq::Initialize(ACT_SEQ *records, int count) {
     ClearSeq();
     pool = records;
@@ -617,3 +619,5 @@ void CActionSeq::Play() {
         character->SetRotation(wrapped_rotation);
     }
 }
+
+} // namespace dc::game

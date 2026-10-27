@@ -11,12 +11,15 @@
 
 #include <libgraph.h>
 
+struct sceVif1Packet;
+
+namespace dc::game {
+
 class CCamera;
 class CRect_i_;
 class CTexture;
 struct i;
 struct spRGBA;
-struct sceVif1Packet;
 struct RECT;
 
 /**
@@ -531,3 +534,5 @@ struct SND_INFO {
 };
 
 STATIC_ASSERT(sizeof(SND_INFO) == 0x10);
+
+} // namespace dc::game

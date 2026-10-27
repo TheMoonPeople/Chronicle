@@ -18,6 +18,8 @@
 #include "platform/audio.hpp"
 #include "platform/config.hpp"
 
+namespace dc::game {
+
 // Banks and sequences live in audio::Mixer rather than in sound memory; the SPU address bookkeeping
 // below only keeps GetMidiState() reporting the addresses the game expects.
 
@@ -701,3 +703,5 @@ int CSound::LoadSeq_E(int /*address*/, int /*size*/) {
 int CSound::LoadSeq_I(int /*address*/, int /*size*/) {
     return -1;
 }
+
+} // namespace dc::game

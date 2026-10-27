@@ -10,8 +10,11 @@
 
 #include "dataalloc_fwd.hpp"
 
-class CFrameVu1;
 struct sceVif1Packet;
+
+namespace dc::game {
+
+class CFrameVu1;
 
 /**
  * Stores the location and extent of one file in DATA.DAT.
@@ -189,3 +192,5 @@ void SetPacketReadBuffer(int packet_quads, int read_quads);
  * Reports whether a background read is still running.
  */
 int check_now_loading();
+
+} // namespace dc::game

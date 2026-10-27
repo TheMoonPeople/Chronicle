@@ -2,6 +2,8 @@
 
 #include "vutext.hpp"
 
+namespace dc::game {
+
 /* The VU1 microprograms the renderers upload, in the order retail lays them out. The
    words are VU1 instruction pairs; the comments mark the jump targets the programs branch to. */
 
@@ -3291,3 +3293,5 @@ u_int Vu_progmain[88] __attribute__((section(".vutext"))) = {
     0x00000000, 0x00000000,
 };
 // clang-format on
+
+} // namespace dc::game

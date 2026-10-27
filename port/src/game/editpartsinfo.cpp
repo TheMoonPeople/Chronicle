@@ -7,6 +7,8 @@
 #include <cstring>
 #include <iterator>
 
+namespace dc::game {
+
 EDITPARTS_INFO *CEditPartsInfo::GetPartsInfo(int index) {
     if (index < 0 || index >= 24) {
         return nullptr;
@@ -305,3 +307,5 @@ EPARTS_INFO_HEADER *EPartsLoad(const void *record, CDataAlloc2<1> *arena) {
 
     return header;
 }
+
+} // namespace dc::game

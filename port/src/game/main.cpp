@@ -54,6 +54,8 @@
 #include "vutext.hpp"
 #include "water.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -806,3 +808,5 @@ MAP_NPC_MODEL &MAP_NPC_MODEL::operator=(const MAP_NPC_MODEL &other) {
     draw_num = other.draw_num;
     return *this;
 }
+
+} // namespace dc::game

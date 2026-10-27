@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Accumulates elapsed play time and applies it to time-sensitive inventory items.
  */
@@ -35,3 +37,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CMenuItemStep) == 0x2C);
+
+} // namespace dc::game

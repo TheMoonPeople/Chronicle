@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  *
  * Manages the particle state and rendering for Ozumond's fire stream.
@@ -58,3 +60,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CSHOT_FIREBAR) == 0xD10);
+
+} // namespace dc::game

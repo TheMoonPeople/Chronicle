@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * Buffers and draws the map editor's debug-text overlay.
  */
@@ -19,3 +21,5 @@ public:
      */
     void Draw();
 };
+
+} // namespace dc::game

@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Identifies what stopped a moving projectile during a collision query.
  */
@@ -21,3 +23,5 @@ SHOT_COLLISION_RESULT checkCollision(float *hit_position, float *position, float
  * Draws one cell of a model as a camera-facing sprite.
  */
 void set3DCellModel(float *world, char *texture_name, float size, s32 x, s32 y, s32 width, s32 height, u8 blend);
+
+} // namespace dc::game

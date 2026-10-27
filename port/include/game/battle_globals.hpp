@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CTexture;
 struct RS_STACKDATA;
 struct funcdata;
@@ -101,3 +103,5 @@ void modby0error();
  * Prints script values to standard output.
  */
 void print(RS_STACKDATA *data, int count);
+
+} // namespace dc::game

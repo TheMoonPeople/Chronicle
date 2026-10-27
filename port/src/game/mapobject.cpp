@@ -6,6 +6,8 @@
 #include "framevu1.hpp"
 #include "mglib.hpp"
 
+namespace dc::game {
+
 CFrame *CMapObject::GetCollisionFrame() {
     if (this->draw_on == 0) {
         return nullptr;
@@ -158,3 +160,5 @@ void CMapObject::Initialize() {
 CMapObject::CMapObject() {
     Initialize();
 }
+
+} // namespace dc::game

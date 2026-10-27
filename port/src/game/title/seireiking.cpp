@@ -10,6 +10,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 using Corner = std::array<int, 4>;
@@ -160,3 +162,5 @@ void CSeireiKing::Step() {
         count[i]++;
     }
 }
+
+} // namespace dc::game

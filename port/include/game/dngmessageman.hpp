@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * State of the dungeon message window: which message is shown, for how
  * long, and the names and numbers inserted into its text.
@@ -49,3 +51,5 @@ extern "C" CDngMessageMan DngMessMan;
  * gives the American prefix; retail sizes the table for the one row.
  */
 extern char *LanguageStr[7];
+
+} // namespace dc::game

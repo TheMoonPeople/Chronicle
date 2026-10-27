@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Everything a frame is drawn against, kept in one object so that a draw takes a single pointer:
  * the camera, the screen it is projected onto, the lights and the fog. Most of it is derived
@@ -81,3 +83,5 @@ struct RenderInfo {
         unlit = 0;
     }
 };
+
+} // namespace dc::game

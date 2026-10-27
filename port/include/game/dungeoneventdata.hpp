@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class CFrame;
 
 /**
@@ -65,3 +67,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CDungeonEventData) == 0x40);
+
+} // namespace dc::game

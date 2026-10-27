@@ -38,6 +38,8 @@
 #include "userstatus.hpp"
 #include "weaponlevelup.hpp"
 
+namespace dc::game {
+
 /** Shared UI state for the charge shop and item shop screens. */
 ShopMenuWork ShopMenu;
 
@@ -6284,3 +6286,5 @@ int FishRecordViewLoop() {
     FishRecordViewDraw();
     return done;
 }
+
+} // namespace dc::game

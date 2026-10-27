@@ -4,6 +4,8 @@
 
 #include "editloop.hpp"
 
+namespace dc::game {
+
 /**
  * What the town loop runs, as GameMode holds it.
  */
@@ -121,3 +123,5 @@ int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no);
  * Starts ambient playback unless the current map disables ambient sound.
  */
 void PlayAmbient(float volume);
+
+} // namespace dc::game

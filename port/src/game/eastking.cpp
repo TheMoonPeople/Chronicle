@@ -15,6 +15,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -371,3 +373,5 @@ void EastKingEventDraw() {
 
     AllFadeForMenu(std::clamp(fade, 0, kOpaqueAlpha));
 }
+
+} // namespace dc::game

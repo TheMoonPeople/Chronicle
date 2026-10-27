@@ -18,6 +18,8 @@
 #include "vector3.hpp"
 #include "visualvu1.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -866,3 +868,5 @@ float CEditArea::GetUnitAlt() {
 CEditArea::CEditArea() {
     Initialize();
 }
+
+} // namespace dc::game

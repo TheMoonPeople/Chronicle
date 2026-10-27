@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the rectangle that the sprite calls take.
@@ -50,3 +52,5 @@ struct spRGBA {
 };
 
 STATIC_ASSERT(sizeof(spRGBA) == 0x4);
+
+} // namespace dc::game

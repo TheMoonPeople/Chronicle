@@ -25,6 +25,8 @@
 #include "mglib.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /** The areas where items can be put down on map 1. */
@@ -2233,3 +2235,5 @@ void CDungeonParts::initalize() {
     heal_on = 0;
     direction = 0;
 }
+
+} // namespace dc::game

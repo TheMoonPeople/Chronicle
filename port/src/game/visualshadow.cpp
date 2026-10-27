@@ -21,6 +21,8 @@
 #include "render/shadowclip.hpp"
 #include "renderinfo.hpp"
 
+namespace dc::game {
+
 // Retail's three shadow microprograms all build volumes: each caster triangle becomes a prism from
 // the triangle down along light 0 to its drop onto the shadow plane, and the prism's faces are
 // counted into the stencil, incremented for faces turned towards the eye and decremented for faces
@@ -652,3 +654,5 @@ int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, Rende
     visual.indices.insert(visual.indices.end(), volume.cap.begin(), volume.cap.end());
     return vu_size;
 }
+
+} // namespace dc::game

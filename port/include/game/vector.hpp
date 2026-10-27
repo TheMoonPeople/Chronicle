@@ -2,6 +2,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * The game's own vector and matrix helpers, taking the same four-float vectors and four-by-four
  * matrices as the SDK's. frame.cpp defines its own inline MulMatrix, so it gets the helpers it
@@ -61,3 +63,5 @@ void LookAtMatrixZ(sceVu0FMATRIX matrix, float *direction);
  * per-call step in mode 0 and as a divisor in mode 1, as AngleInterpolate does.
  */
 void VectorInterpolate(float *out, float *from, float *to, float step, int mode);
+
+} // namespace dc::game

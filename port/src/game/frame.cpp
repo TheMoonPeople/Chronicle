@@ -32,6 +32,8 @@ void *operator new[](size_t size, u_long128 *block) {
     return PlaceDataAllocObject(size, block);
 }
 
+namespace dc::game {
+
 void DevInit() {
     sceDmaEnv env;
 
@@ -1104,3 +1106,5 @@ int CFrame::PickUpNearPoly(CCPoly *poly, const CBoxVu0 &box) {
 
     return num;
 }
+
+} // namespace dc::game

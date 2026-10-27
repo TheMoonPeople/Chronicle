@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CTexture;
 
 /**
@@ -56,3 +58,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CCandleEffect) == 0x30);
+
+} // namespace dc::game

@@ -6,6 +6,8 @@
 
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * Scenes of the opening movie, as CScript::scene, load_no and init_no hold them.
  */
@@ -150,3 +152,5 @@ extern u_char op_fogColor[3];
  * Range and thickness of the opening fog.
  */
 extern sceVu0FVECTOR op_fogRate;
+
+} // namespace dc::game

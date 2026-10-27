@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CEffect;
 class CEffectParam;
 
@@ -46,3 +48,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CEffectGroup) == 0x8);
+
+} // namespace dc::game

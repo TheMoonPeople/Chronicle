@@ -5,6 +5,8 @@
 #include "dataalloc_fwd.hpp"
 #include "gameutil.hpp"
 
+namespace dc::game {
+
 /**
  * A model with a skeleton and a set of motions, loaded together from one pack.
  */
@@ -38,3 +40,5 @@ STATIC_ASSERT(sizeof(CMotionModel) == 0xA0);
  * Gives the attribute that one weapon element hits with.
  */
 int GetWeaponElementAttr(int element);
+
+} // namespace dc::game

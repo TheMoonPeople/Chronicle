@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class CCamera;
 class CUserStatus;
 
@@ -91,3 +93,5 @@ int checkItemUsed(int slot);
 int SetBombEffect(float *position, int owner, int damage, float scale);
 
 STATIC_ASSERT(sizeof(CItemBombEffect) == 0xC0);
+
+} // namespace dc::game

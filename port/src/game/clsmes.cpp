@@ -44,6 +44,8 @@
 #include "texture.hpp"
 #include "ui/menu_pointer.hpp"
 
+namespace dc::game {
+
 void MakeRandTbl(float lo, float hi);
 void MakeRandTbl2(float lo, float hi);
 
@@ -3270,3 +3272,5 @@ void ClsMesSetMessageOverlay(const ClsMes *mes, short *file) {
     g_overlay_mes = mes != nullptr && file != nullptr ? mes : nullptr;
     g_overlay_file = g_overlay_mes != nullptr ? file : nullptr;
 }
+
+} // namespace dc::game

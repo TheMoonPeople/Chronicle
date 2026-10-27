@@ -20,6 +20,8 @@
 #include "snd.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 // Every opcode reads its arguments off the script's argument stack and reports whether the script
 // may carry on. The monster it acts on is the one NowMonstorUnit currently names, except where the
 // opcode takes a monster index of its own.
@@ -1961,3 +1963,5 @@ void BtSetEventExtendTable() {
         }
     }
 }
+
+} // namespace dc::game

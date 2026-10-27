@@ -6,6 +6,8 @@
 
 #include "dataread.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr int kCommandCount = static_cast<int>(TitleScriptCommand::Count);
@@ -459,3 +461,5 @@ int CScript::SkipSpace(const char *buffer, int position) {
 
     return size;
 }
+
+} // namespace dc::game

@@ -47,6 +47,8 @@
 #include "vector.hpp"
 #include "weaponeffect.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -1463,3 +1465,5 @@ int ItemThrowStep(float *position, float *velocity) {
     sceVu0CopyVector(position, next_position);
     return 0;
 }
+
+} // namespace dc::game

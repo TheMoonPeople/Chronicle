@@ -57,6 +57,8 @@
 #include "sysmes.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 int EdDebugEventEnable = 1;
 int EdDebugCameraFlag;
 int EdDebugParamDrawOff;
@@ -2575,3 +2577,5 @@ float InvertTime(float time) {
 
     return time;
 }
+
+} // namespace dc::game

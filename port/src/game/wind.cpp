@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstdlib>
 
+namespace dc::game {
+
 void CWind::SetDir(float *direction) {
     sceVu0Normalize(dir, direction);
 }
@@ -31,3 +33,5 @@ void CWind::Step() {
 }
 
 CWind::CWind() : gust(static_cast<float>(std::rand()) / 2147483648.0f), velocity(0.0f) {}
+
+} // namespace dc::game

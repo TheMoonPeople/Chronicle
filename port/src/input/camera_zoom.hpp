@@ -1,8 +1,10 @@
 #pragma once
 
+namespace dc::game {
 class CCameraFollow;
 class CEditGround;
 class CDungeonMap;
+} // namespace dc::game
 
 /**
  * Opens a town zoom scope for one walk update; collision correction still owns the eye.

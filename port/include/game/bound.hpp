@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class CFrame;
 
 /**
@@ -104,3 +106,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CBound) == 0x130);
+
+} // namespace dc::game

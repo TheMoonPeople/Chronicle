@@ -36,11 +36,13 @@ static_assert(sizeof(NameSelectView) == 0x2C);
 static_assert(offsetof(NameSelectView, cursor) == 12 && offsetof(NameSelectView, state) == 16);
 static_assert(offsetof(NameSelectView, cursor_x) == 24 && offsetof(NameSelectView, language) == 36);
 
+namespace dc::game {
 extern NameSelectView NameSelect;
 extern CTexture      *NameTemp;
 extern short          menu_euro_codetbl[5][2][13];
 extern signed char    menu_kigoutbl[40];
 extern signed char    euro_code_linelimmit[5];
+} // namespace dc::game
 
 namespace {
 

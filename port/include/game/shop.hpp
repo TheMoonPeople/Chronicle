@@ -5,6 +5,8 @@
 #include "itemdata.hpp"
 #include "stockitem.hpp"
 
+namespace dc::game {
+
 /**
  * What the shopkeeper is saying or prompting, as ShopMenuWork::talk_mode holds it.
  */
@@ -433,3 +435,5 @@ extern char FishFrameImage[];
  * Message file of the fish exchange.
  */
 extern char FishMessageFile[];
+
+} // namespace dc::game

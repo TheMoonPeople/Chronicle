@@ -11,6 +11,8 @@
 #include "mds.hpp"
 #include "snd.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr int MaxDranFields = 12;
@@ -101,3 +103,5 @@ void CDranMapField::Step() {
         }
     }
 }
+
+} // namespace dc::game

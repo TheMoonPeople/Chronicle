@@ -45,6 +45,8 @@
 #include "vector3.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 // The game APIs this file calls take names as char *, and string literals are passed to them.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -1325,3 +1327,5 @@ void setTexAnime() {
 }
 
 } // namespace
+
+} // namespace dc::game

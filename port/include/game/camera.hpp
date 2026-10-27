@@ -4,6 +4,8 @@
 
 #include "frame.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the camera that gives the view of the world.
@@ -135,3 +137,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CCamera) == 0x2C0);
+
+} // namespace dc::game

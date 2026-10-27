@@ -7,6 +7,8 @@
 #include "frame.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 /**
  * Font colours of FontColorTbl.
  */
@@ -416,3 +418,5 @@ extern u8 MesWinTexBuff_11[0x100];
  * Texture buffer the name message window draws its glyphs from.
  */
 extern u8 MesWinTexBuff_12[0x100];
+
+} // namespace dc::game

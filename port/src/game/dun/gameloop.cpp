@@ -94,6 +94,8 @@
 #include "weaponelement.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /* The weapon each character starts with. */
@@ -6130,3 +6132,5 @@ void EyeCamera() {
     NowCamera__3->SetPos(pos);
     NowCamera__3->SetRef(ref);
 }
+
+} // namespace dc::game

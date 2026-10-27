@@ -9,6 +9,8 @@
 #include "framevu1.hpp"
 #include "visualvu1.hpp"
 
+namespace dc::game {
+
 /**
  * Draws the water surface of one map part.
  */
@@ -99,3 +101,5 @@ STATIC_ASSERT(sizeof(CWater) == 0x320);
  * which the CWater::DrawVu1 member cannot carry.
  */
 extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info, sceVif1Packet *draw_packet, void *parent_info);
+
+} // namespace dc::game

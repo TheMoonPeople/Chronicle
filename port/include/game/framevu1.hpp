@@ -4,6 +4,8 @@
 
 #include "frame.hpp"
 
+namespace dc::game {
+
 class CVisualVu1;
 
 /**
@@ -50,3 +52,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CFrameVu1) == 0x270);
+
+} // namespace dc::game

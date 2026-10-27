@@ -10,6 +10,8 @@
 #include "rect.hpp"
 #include "snd.hpp"
 
+namespace dc::game {
+
 void C3DSprite::Draw() {
     if (texture == nullptr) {
         return;
@@ -300,3 +302,5 @@ void CEffect::Initialize() {
     texture_frames = nullptr;
     texture_frame_period = 0;
 }
+
+} // namespace dc::game

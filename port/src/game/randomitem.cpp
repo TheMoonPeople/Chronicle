@@ -17,6 +17,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 void CRandomItem::Draw() {
     for (int i = 0; i < 32; i++) {
         if (id[i] == -1 || distance[i] > 200.0f) {
@@ -234,3 +236,5 @@ void CRandomItem::Step() {
         }
     }
 }
+
+} // namespace dc::game

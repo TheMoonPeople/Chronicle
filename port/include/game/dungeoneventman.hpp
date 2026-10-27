@@ -4,6 +4,8 @@
 
 #include "dungeoneventdata.hpp"
 
+namespace dc::game {
+
 class CDungeonMap;
 
 /**
@@ -67,3 +69,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CDungeonEventMan) == 0x2800);
+
+} // namespace dc::game

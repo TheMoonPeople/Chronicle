@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * The wind one scene blows over its cloth. It holds a direction and a steady
  * speed, and wanders a gust strength between nothing and that speed so that
@@ -50,3 +52,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CWind) == 0x30);
+
+} // namespace dc::game

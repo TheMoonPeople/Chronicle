@@ -27,6 +27,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -1446,3 +1448,5 @@ void EdMenuManualDraw() {
 }
 
 } // namespace
+
+} // namespace dc::game

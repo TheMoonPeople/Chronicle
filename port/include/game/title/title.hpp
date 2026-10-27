@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Steps of the title screen, as CProcess::no holds them.
  */
@@ -180,3 +182,5 @@ extern CCursol CCursol;
  * static constructors did each time retail loaded TITLE.BIN.
  */
 void TitleOverlayConstruct();
+
+} // namespace dc::game

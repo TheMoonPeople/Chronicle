@@ -5,6 +5,7 @@
 #include "bits64_fixture.hpp"
 #include "bound.hpp"
 #include "cloth.hpp"
+#include "clothread.hpp"
 #include "collisionmdt.hpp"
 #include "fish.hpp"
 #include "frame.hpp"
@@ -15,9 +16,6 @@
 using dc::test::Arena;
 using dc::test::End;
 using dc::test::RetailRun;
-
-// Defined in clothread.cpp; no header declares it.
-CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
 
 namespace {
 

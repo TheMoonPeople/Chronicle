@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * Sound effects the game plays by number through SndSePlay.
  *
@@ -107,3 +109,5 @@ enum SoundEffect {
     SE_RUSH_DEEP_TONE = 1749,     /**< Attract movie: long deep tone. */
     SE_RUSH_SWELLING_TONE = 1755, /**< Attract movie: long swelling tone. */
 };
+
+} // namespace dc::game

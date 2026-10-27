@@ -2,8 +2,12 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CTexture;
+struct ATTACH_LIST;
 struct IHAVEITEM;
+struct ITEM_PACK;
 struct WEAPON_HAVE;
 
 /**
@@ -198,3 +202,5 @@ int ItemDataToHaveCopy(int item_no);
  * Draws a texture across the complete menu display rectangle.
  */
 void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha);
+
+} // namespace dc::game

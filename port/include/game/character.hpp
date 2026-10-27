@@ -10,6 +10,8 @@
 #include "object.hpp"
 #include "textureanime.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the character that a motion drives.
@@ -429,3 +431,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CMainChara) == 0x12A0);
+
+} // namespace dc::game

@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * Requests a transition to a map and optional starting event.
  */
@@ -54,3 +56,5 @@ void TrialStart();
  * Reports whether trial-version completion has been reached.
  */
 int CheckTrialEnd();
+
+} // namespace dc::game

@@ -8,6 +8,8 @@
 #include "character.hpp"
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * Manages the eight active projectile-effect slots.
  */
@@ -196,3 +198,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CSHOT_MACHINGUN) == 0x2C0);
+
+} // namespace dc::game

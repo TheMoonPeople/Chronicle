@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Steps of a controller's setup, as PAD_STATUS::phase holds them.
  */
@@ -336,3 +338,5 @@ int AxisCalibration(int axis);
  * Sets the buttons CGamePad::Down ignores, until cleared by passing 0.
  */
 void PadHoldDown(int mask);
+
+} // namespace dc::game

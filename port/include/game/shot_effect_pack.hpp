@@ -6,6 +6,8 @@
 #include "dataalloc_fwd.hpp"
 #include "shot_effect.hpp"
 
+namespace dc::game {
+
 /**
  * Holds the projectile effects the dungeon can run, and which one is being set up.
  */
@@ -41,3 +43,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CSHOT_EFFECT_PACK) == 0x326F0);
+
+} // namespace dc::game

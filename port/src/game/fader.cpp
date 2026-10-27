@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+namespace dc::game {
+
 int Fader::In() {
     if (this->value < 0x80) {
         this->value = std::min(this->value + 4, 0x80);
@@ -26,3 +28,5 @@ int Fader::Get(int maximum) {
     level *= static_cast<float>(maximum);
     return static_cast<int>(level);
 }
+
+} // namespace dc::game

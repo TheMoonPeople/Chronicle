@@ -1,6 +1,8 @@
 #pragma once
 
+namespace dc::game {
 class CRect_i_;
+} // namespace dc::game
 
 namespace credits {
 

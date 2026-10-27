@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Kinds of map part function marker, as EPARTS_FUNC_DATA::kind holds them.
  */
@@ -232,3 +234,5 @@ void EditEffectStep2();
  * Draws one editor effect, choosing the kind from its record.
  */
 void DrawEditEffect(EDIT_EFFECT_INFO *effect, CCamera *camera, CEffectGroup *group);
+
+} // namespace dc::game

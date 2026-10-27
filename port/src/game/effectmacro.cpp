@@ -20,6 +20,8 @@
 #include "render/screen.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 sceVu0FVECTOR wind_dir = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -472,3 +474,5 @@ void DepthOfField(float *focus, int level, int alpha, int blur) {
     services.set_test(nullptr);
     services.set_zbuf(nullptr);
 }
+
+} // namespace dc::game

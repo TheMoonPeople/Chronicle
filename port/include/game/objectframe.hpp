@@ -4,6 +4,8 @@
 
 #include "object.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the object that one or more frames draw.
@@ -81,3 +83,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CObjectFrame) == 0xD0);
+
+} // namespace dc::game

@@ -21,6 +21,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /** Frames a thrown model flies before it lands. */
@@ -326,3 +328,5 @@ int CActiveItemPack::CheckStatusType() {
 
     return ACTIVE_ITEM_NONE;
 }
+
+} // namespace dc::game

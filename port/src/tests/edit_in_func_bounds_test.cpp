@@ -10,7 +10,9 @@
 #include "editpartsinfo.hpp"
 #include "objanime.hpp"
 
+namespace dc::game {
 int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
+} // namespace dc::game
 
 TEST(EditInterior, RejectsFunctionTablePastFixedCapacity) {
     alignas(16) std::array<std::byte, 0x100> archive{};

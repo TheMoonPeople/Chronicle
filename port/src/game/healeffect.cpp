@@ -12,6 +12,8 @@
 #include "shot_freefuncs.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 void CHealEffect::Set(float *world) {
     sceVu0CopyVector(this->position, world);
     this->active = true;
@@ -94,3 +96,5 @@ void CHealEffect::Draw() {
         }
     }
 }
+
+} // namespace dc::game

@@ -2,6 +2,8 @@
 
 #include "vudata.hpp"
 
+namespace dc::game {
+
 // clang-format off
 u_int My_dma_start0[20] __attribute__((section(".vudata"))) = {
     0x10000001, 0x00000000, 0x00000000, 0x00000000,
@@ -27,3 +29,5 @@ u_int My_DrawEnv[44] __attribute__((section(".vudata"))) = {
     0x00000000, 0x00000000, 0x00000000, 0x00000000,
 };
 // clang-format on
+
+} // namespace dc::game

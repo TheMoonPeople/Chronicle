@@ -7,6 +7,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 void CCandleEffect::Initialize() {
     this->enabled = true;
     this->animation_frame = 0.0f;
@@ -80,3 +82,5 @@ void CCandleEffect::Draw() {
     MGSetGsALPHA(&mgAlpha);
     MGSetGsZBUF(&mgZBuffer);
 }
+
+} // namespace dc::game

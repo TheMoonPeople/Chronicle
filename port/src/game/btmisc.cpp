@@ -27,6 +27,8 @@
 #include "savedata.hpp"
 #include "snd.hpp"
 
+namespace dc::game {
+
 namespace {
 
 bool  battle_music_active;
@@ -262,3 +264,5 @@ int BtGetFloorLevel(int floor) {
 
     return 0;
 }
+
+} // namespace dc::game

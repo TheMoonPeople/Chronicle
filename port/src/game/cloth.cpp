@@ -18,6 +18,8 @@
 #include "vu0_ops.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 void CCloth::Draw() {
     CFrameVu1 draw_frame;
 
@@ -602,3 +604,5 @@ void CCloth::Initialize(MDT_HEADER *header, CDataAlloc2<1> *alloc) {
 
     Initialize(alloc);
 }
+
+} // namespace dc::game

@@ -43,6 +43,8 @@
 #include "userstatus.hpp"
 #include "weaponelement.hpp"
 
+namespace dc::game {
+
 int           hitCnt;
 BEE_STATE     BeeTbl[800];
 CTexAnimeData MonsterTexAnim[320];
@@ -2539,3 +2541,5 @@ int CMonstorUnit::SetupViewMonstor(int model_no, float *position, int event_flag
     alive_count++;
     return 1;
 }
+
+} // namespace dc::game

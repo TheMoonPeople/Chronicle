@@ -18,6 +18,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 float waveAnimeCnt[32];
 int   sw;
 
@@ -372,3 +374,5 @@ CRunEffect::CRunEffect() {
 
     lighting = false;
 }
+
+} // namespace dc::game

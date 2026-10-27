@@ -21,6 +21,8 @@
 #include "visual.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // Rounds a texture dimension up to the next power of two and gives its exponent.
@@ -818,3 +820,5 @@ int CVisualMDTVu1::RemakeData(u_int * /*block*/) {
     }
     return CreateVUdataFromMDTRemake(vu_data_buffer[0], data, 1);
 }
+
+} // namespace dc::game

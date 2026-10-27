@@ -26,6 +26,8 @@
 #include "texture.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 namespace {
 
 using tagMOTION_KEY = MOTION_INFO;
@@ -775,3 +777,5 @@ void StretchBind2(float *point_a, float *point_b, float *spring) {
 float vuabs(float *vector) {
     return vu0::Sqrt(vu0::LengthSquared(vector));
 }
+
+} // namespace dc::game

@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * What a shot effect does when it ends, as BT_SHOT_EFFECT::end_effect holds it.
  */
@@ -35,3 +37,5 @@ struct BT_SHOT_EFFECT {
 };
 
 STATIC_ASSERT(sizeof(BT_SHOT_EFFECT) == 0x70);
+
+} // namespace dc::game

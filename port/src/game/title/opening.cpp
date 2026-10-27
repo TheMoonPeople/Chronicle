@@ -52,6 +52,8 @@
 #include "vector.hpp"
 #include "vutext.hpp"
 
+namespace dc::game {
+
 // The game's file and frame APIs take string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -1980,3 +1982,5 @@ int checkArg(char *buffer, int position, std::span<const int> command) {
 }
 
 } // namespace
+
+} // namespace dc::game

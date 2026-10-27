@@ -86,6 +86,8 @@
 #include "weaponlevelup.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 // The bodies are retail's, which pass string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -5332,3 +5334,5 @@ int CheckEventPoint(ED_EVENT_POINT *point, float time) {
 
     return 1;
 }
+
+} // namespace dc::game

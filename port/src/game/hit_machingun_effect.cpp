@@ -4,6 +4,8 @@
 
 #include "shot_utils.hpp"
 
+namespace dc::game {
+
 void CHIT_MACHINGUN_EFFECT::Set(float *position) {
     for (s32 i = 0; i < 16; i++) {
         if (this->timer[i] < 0) {
@@ -30,3 +32,5 @@ void CHIT_MACHINGUN_EFFECT::Step() {
         }
     }
 }
+
+} // namespace dc::game

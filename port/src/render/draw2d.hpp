@@ -7,8 +7,10 @@
 #include "gfx/gfx.hpp"
 #include "render/texture_registry.hpp"
 
+namespace dc::game {
 class CTexture;
 class CRect_i_;
+} // namespace dc::game
 
 /**
  * Shared by the game units that draw 2D (snd, gameutil, clsmes, spritetable, dispctrl,

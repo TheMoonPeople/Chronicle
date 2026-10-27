@@ -6,3 +6,7 @@
  */
 
 #include "common.h"
+
+namespace dc::game {
+
+} // namespace dc::game

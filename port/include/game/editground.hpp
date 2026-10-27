@@ -7,6 +7,8 @@
 #include "mapparts.hpp"
 #include "water.hpp"
 
+namespace dc::game {
+
 /**
  * Towns with a Georama ground, as CEditGround::map_no holds them.
  */
@@ -386,3 +388,5 @@ STATIC_ASSERT(sizeof(CEditGround) == 0x20960);
  * them before the depth of field, so that it softens them with the ground they fall on.
  */
 void EdGroundDrawShadowBeyondNear(CEditGround *ground, float shadow_near);
+
+} // namespace dc::game

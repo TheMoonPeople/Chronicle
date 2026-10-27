@@ -7,6 +7,8 @@
 
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 s32 CCamera::StopCamera;
 
 void CCamera::Step(int steps) {
@@ -229,3 +231,5 @@ CCamera::CCamera(float speed) : speed(speed) {
 }
 
 CCamera::~CCamera() = default;
+
+} // namespace dc::game

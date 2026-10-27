@@ -10,6 +10,8 @@
 #include "runscript.hpp"
 #include "textureanime.hpp"
 
+namespace dc::game {
+
 /**
  * What the dungeon game loop runs, as BtGameModeFlag holds it.
  */
@@ -209,7 +211,7 @@ extern "C" CStealItem StealItem;
 /**
  * Item count animation of the dungeon's menus.
  */
-extern "C" CMenuItemStep ItemVolumeStep;
+extern CMenuItemStep ItemVolumeStep;
 
 /**
  * Model used to draw the monster cursor.
@@ -1214,3 +1216,5 @@ extern float         viewAngleV__2;
  * (ready phase 10) pushes straight away from its position.
  */
 void HitBlowVelocity(int hit_no, float *velocity);
+
+} // namespace dc::game

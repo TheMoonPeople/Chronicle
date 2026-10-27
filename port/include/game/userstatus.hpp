@@ -4,6 +4,8 @@
 
 #include "itemdata.hpp"
 
+namespace dc::game {
+
 /**
  * Restriction a dungeon floor places on the party, as CUserStatus::res_limit_zone_current holds it.
  */
@@ -185,3 +187,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CUserStatus) == 0x8B20);
+
+} // namespace dc::game

@@ -4,6 +4,8 @@
 
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 class CCamera;
 class CFrame;
 class CFrameVu1;
@@ -74,3 +76,5 @@ void BtBattleMusic_Stop();
  * Crossfades between the field and battle music as the party nears a monster.
  */
 void BtBattleMusic_Excg(float distance, float *field_volume, float *battle_volume);
+
+} // namespace dc::game

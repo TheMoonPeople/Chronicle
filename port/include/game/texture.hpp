@@ -5,6 +5,9 @@
 #include <libgraph.h>
 
 class sceVif1Packet;
+
+namespace dc::game {
+
 class CTexture;
 struct TM2_head;
 
@@ -250,3 +253,5 @@ public:
  * The game's one texture registry.
  */
 extern CTextureManager TexManager;
+
+} // namespace dc::game

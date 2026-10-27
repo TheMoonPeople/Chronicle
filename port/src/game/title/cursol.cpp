@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <utility>
 
+namespace dc::game {
+
 CCursol::CCursol() : y(288.0f), target_y(288.0f), alpha{}, select(TITLE_MENU_NEW_GAME) {}
 
 void CCursol::Init() {
@@ -66,3 +68,5 @@ int CCursol::GetSelect() {
 int CCursol::GetPos() {
     return static_cast<int>(y);
 }
+
+} // namespace dc::game

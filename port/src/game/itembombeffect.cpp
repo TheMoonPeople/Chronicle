@@ -15,6 +15,8 @@
 #include "texture.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /** Texture-sheet cell (column, row) of each blast puff; puffs past the third share the last cell. */
@@ -362,3 +364,5 @@ void CShockWave::Step() {
         }
     }
 }
+
+} // namespace dc::game

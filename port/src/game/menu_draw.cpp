@@ -49,6 +49,8 @@
 #include "ui/name_mouse.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 CTexture *PerBoardTex;
 
 /**
@@ -2793,3 +2795,5 @@ void DrawFullSizePicture(CTexture *texture, int x, int y, int alpha) {
     DrawMenu2DSprite(texture, CRect_i_(x, y, MenuDispRc.width, MenuDispRc.height),
                      CRect_i_(0, 0, 640, 448), alpha);
 }
+
+} // namespace dc::game

@@ -8,6 +8,8 @@
 #include "mathutil.hpp"
 #include "mglib.hpp"
 
+namespace dc::game {
+
 void CNPCharacter::Step() {
     if (!initialized || frame == nullptr) {
         return;
@@ -294,3 +296,5 @@ void CNPCharacter::Initialize() {
 CNPCharacter::CNPCharacter() {
     Initialize();
 }
+
+} // namespace dc::game

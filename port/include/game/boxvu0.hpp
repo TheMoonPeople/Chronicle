@@ -2,6 +2,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * An axis-aligned bound over any component type, held as the two extreme corners with the greater
  * one first. Its corners are spaced as quadwords, so a CBoxVu0 and a frame's own pair of extremes
@@ -43,3 +45,5 @@ float DistVector(float *a, float *b);
  * line misses, and writes the point through the last argument otherwise.
  */
 int IntersectionPoint_line_poly3(float *from, float *to, float *v0, float *v1, float *v2, float *normal, float *hit);
+
+} // namespace dc::game

@@ -9,6 +9,8 @@
 #include "input/mouse_look.hpp"
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 void CCameraFollow::Step(int steps) {
     if (CCamera::StopCamera) {
         return;
@@ -162,3 +164,5 @@ CCameraFollow::CCameraFollow(float distance, float height, float angle, float sp
 }
 
 CCameraFollow::~CCameraFollow() = default;
+
+} // namespace dc::game

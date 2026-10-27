@@ -5,6 +5,8 @@
 #include "frame.hpp"
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 CFrameAttr FrameAttr;
 
 void CObject::Step() {
@@ -191,3 +193,5 @@ void CObject::Initialize(float mass) {
     zero.z = 0.0f;
     this->rotation = this->rot_velocity = this->rot_acceleration = this->velocity = this->acceleration = this->gravity = zero;
 }
+
+} // namespace dc::game

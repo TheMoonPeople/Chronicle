@@ -14,6 +14,8 @@
 #include "gameutil.hpp"
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr std::array<FishInfo, 18> fish_info = {
@@ -524,3 +526,5 @@ char *GetFishFileName(int fish_kind) {
 
     return fish_file_names[fish_kind];
 }
+
+} // namespace dc::game

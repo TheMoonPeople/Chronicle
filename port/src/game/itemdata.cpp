@@ -30,6 +30,8 @@
 #include "textureanime.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /** Parsed string argument for each item-definition command. */
@@ -1906,3 +1908,5 @@ int GetCommonItemDataMsg(int item_no) {
 int GetCommonItemDataSystemMsg(int item_no) {
     return GetCommonItemDataMsg(item_no) + 100;
 }
+
+} // namespace dc::game

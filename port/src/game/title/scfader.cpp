@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+namespace dc::game {
+
 int CScFader::In() {
     if (value < 128) {
         value = std::min(value + 2, 128);
@@ -44,3 +46,5 @@ int CScFader::Get(int limit) {
 void CScFader::Skip() {
     value = 128;
 }
+
+} // namespace dc::game

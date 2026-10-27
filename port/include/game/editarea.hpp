@@ -9,6 +9,8 @@
 
 #include "collision.hpp"
 
+namespace dc::game {
+
 class CFrameVu1;
 class CMapParts;
 class CRect_i_;
@@ -306,3 +308,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CEditArea) == 0x2060);
+
+} // namespace dc::game

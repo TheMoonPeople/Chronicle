@@ -10,7 +10,9 @@
 #include "platform/config.hpp"
 #include "ui/framework.hpp"
 
+namespace dc::game {
 class CTexture;
+} // namespace dc::game
 
 namespace options {
 

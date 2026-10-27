@@ -9,6 +9,8 @@
 #include "dataalloc_fwd.hpp"
 #include "runscript.hpp"
 
+namespace dc::game {
+
 /**
  * What CMonstorUnit::CheckDmg reports.
  */
@@ -590,3 +592,5 @@ extern "C" BT_ENEMY_FLOOR *BtEnemyLayoutList[];
 
 /** The same for the back dungeon. */
 extern "C" BT_ENEMY_FLOOR *BtUraEnemyLayoutList[];
+
+} // namespace dc::game

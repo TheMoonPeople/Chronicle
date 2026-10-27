@@ -38,6 +38,8 @@
 #include "title/opening.hpp"
 #include "title/script.hpp"
 
+namespace dc::game {
+
 // The texture and frame APIs take string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -1307,3 +1309,5 @@ void OpA_MotionProcess() {
         }
     }
 }
+
+} // namespace dc::game

@@ -16,6 +16,7 @@
 #include "shop.hpp"
 #include "text/gametext.hpp"
 
+namespace dc::game {
 // The shop price table, as custom_shop.cpp declares it.
 struct ITEM_MONEY_ENTRY {
     s16 buy_price;
@@ -23,6 +24,7 @@ struct ITEM_MONEY_ENTRY {
 };
 
 extern ITEM_MONEY_ENTRY PriceList[296];
+} // namespace dc::game
 
 namespace {
 

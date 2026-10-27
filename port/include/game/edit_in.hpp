@@ -5,6 +5,8 @@
 #include "editground.hpp"
 #include "editloop.hpp"
 
+namespace dc::game {
+
 /**
  * Holds the settings and records an interior's info script describes.
  */
@@ -57,3 +59,5 @@ void GetMapJumpPos(CCharacter *chara);
  * Reads one interior object's levels of detail and hangs them off its part.
  */
 void LoadMapObject(CMapParts *parts, u_int **data, CDataAlloc2<1> *alloc);
+
+} // namespace dc::game

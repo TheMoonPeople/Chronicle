@@ -4,6 +4,8 @@
 
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the reader that fills a character out of a pack file.
@@ -31,3 +33,5 @@ float vuabs(float *vector);
  * Assigns an image whose script-provided slot is also its image number.
  */
 void CommandIMG(void **argv);
+
+} // namespace dc::game

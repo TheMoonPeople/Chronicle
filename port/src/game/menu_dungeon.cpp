@@ -45,6 +45,8 @@
 #include "userstatus.hpp"
 #include "weaponelement.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -2710,3 +2712,5 @@ void DrawItemDataView(int item_no) {
 }
 
 } // namespace
+
+} // namespace dc::game

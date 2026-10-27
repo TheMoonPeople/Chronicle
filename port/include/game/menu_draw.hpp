@@ -5,6 +5,8 @@
 #include "itemdata.hpp"
 #include "shop.hpp"
 
+namespace dc::game {
+
 /**
  * Pages of a personal board, as PERSONAL_BOARD::page holds them.
  */
@@ -481,3 +483,5 @@ int GetAttachKind(int item_no);
  * Texture the menu's percentage bars are drawn from.
  */
 extern CTexture *PerBoardTex;
+
+} // namespace dc::game

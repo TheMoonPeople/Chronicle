@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Tracks the title screen's signed scene-fade value.
  */
@@ -34,3 +36,5 @@ public:
      */
     void Skip();
 };
+
+} // namespace dc::game

@@ -7,6 +7,8 @@
 
 #include "texture.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the calls that drive the loading screen while the disc is read.
@@ -104,3 +106,5 @@ extern int now_loding_off;
  * Whether the loading display has completed a field.
  */
 extern int now_loading_vsync_end;
+
+} // namespace dc::game

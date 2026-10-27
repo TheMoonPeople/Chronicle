@@ -1,5 +1,7 @@
 #include "objectframe.hpp"
 
+namespace dc::game {
+
 void CObjectFrame::SetMoment(CVector3_f_ moment) {
     this->moment = moment;
     this->rotation_changed = true;
@@ -26,3 +28,5 @@ void CObjectFrame::SetRotAcceleration(CVector3_f_ rot_acceleration) {
     this->rot_acceleration = rot_acceleration;
     this->rotation_changed = true;
 }
+
+} // namespace dc::game

@@ -46,6 +46,8 @@
 #include "weapon_buildup.hpp"
 #include "weaponlevelup.hpp"
 
+namespace dc::game {
+
 namespace {
 
 int  GetVisitInfo(int place, int menu_mode);
@@ -8801,3 +8803,5 @@ void MenuClsMes::Draw1(int x, int y, int draw_alpha) {
         }
     }
 }
+
+} // namespace dc::game

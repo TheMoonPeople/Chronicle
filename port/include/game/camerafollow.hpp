@@ -4,6 +4,8 @@
 
 #include "camera.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the camera that circles a point in the world.
@@ -120,3 +122,5 @@ public:
      */
     ~CCameraFollow() override;
 };
+
+} // namespace dc::game

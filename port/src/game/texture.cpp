@@ -32,6 +32,8 @@
 #include "texture.hpp"
 #include "tim2.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr int kBlockCount = 72;
@@ -1124,3 +1126,5 @@ int CTextureManager::EnterTextureFile(LOADTEXTURE_INFO *table) {
 
 void CTextureManager::print_buff_info() {
 }
+
+} // namespace dc::game

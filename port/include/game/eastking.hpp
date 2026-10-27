@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class ClsMes;
 
 /**
@@ -38,3 +40,5 @@ int EastKingEventKey();
  * Draws the East King event image, message, and fade overlay.
  */
 void EastKingEventDraw();
+
+} // namespace dc::game

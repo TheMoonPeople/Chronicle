@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class CCamera;
 class CTexture;
 
@@ -70,3 +72,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CFireOmni) == 0x40);
+
+} // namespace dc::game

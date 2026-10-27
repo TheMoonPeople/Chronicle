@@ -9,6 +9,8 @@
 #include "mathutil.hpp"
 #include "mglib.hpp"
 
+namespace dc::game {
+
 void CStealItem::Initialize(CFrameVu1 *model) {
     this->frame = model;
 
@@ -119,3 +121,5 @@ int CStealItem::checkEvent() {
 
     return -1;
 }
+
+} // namespace dc::game

@@ -41,6 +41,8 @@
 #include "texture.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 s32   DebugStatus[21];
 float StatusColor[3];
 int   statusAlarmRate;
@@ -1025,3 +1027,5 @@ void BtSet3DCellModel(float *world, CTexture *texture, float size, int x, int y,
         set3DSprite(Vif1Packet, texture, CRect_i_(x, y, width, height), top_left, top_right, bottom_left, bottom_right, static_cast<unsigned char>(alpha));
     }
 }
+
+} // namespace dc::game

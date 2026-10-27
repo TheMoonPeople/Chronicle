@@ -10,6 +10,8 @@
 #include "menu_inventory.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr std::array<s32, 6> defWeapon = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN,
@@ -740,3 +742,5 @@ void CDngStatusData::GetAtraData(int georama_no, int floor, int atra_id) {
         }
     }
 }
+
+} // namespace dc::game

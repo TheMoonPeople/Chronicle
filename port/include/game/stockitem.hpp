@@ -4,6 +4,8 @@
 
 #include "itemdata.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the stock inventory records and operations.
@@ -106,3 +108,5 @@ static_assert(sizeof(CStockItem) == 0x21C0);
  * returning 1, -1 or 0 like a three-way comparison.
  */
 int CompChargeItem(int first_item_no, int second_item_no);
+
+} // namespace dc::game

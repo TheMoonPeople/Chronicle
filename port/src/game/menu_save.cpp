@@ -35,6 +35,8 @@
 #include "ui/menu_pointer.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 SAVE_MENU_STATE SaveMenu;
 CTexture       *SaveMenuMojiTextbl[4];
 
@@ -1553,3 +1555,5 @@ int TransWepNoNewToOld(int weapon_no) {
     std::println("olditemno is {}", item_no);
     return item_no;
 }
+
+} // namespace dc::game

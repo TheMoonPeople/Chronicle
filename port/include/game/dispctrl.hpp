@@ -4,6 +4,8 @@
 
 struct sceVif1Packet;
 
+namespace dc::game {
+
 /**
  * Opens a direct-mode GIF tag in the supplied VIF packet.
  */
@@ -70,3 +72,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CDispCtrl) == 0xC);
+
+} // namespace dc::game

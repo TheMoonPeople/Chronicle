@@ -17,6 +17,8 @@
 #include "texture.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // pretest parks the cell matrix and step in VU0 registers for the Trans_AddCell calls that follow.
@@ -428,3 +430,5 @@ CWater::CWater() : rows(0), columns(0), wave_speed(0.1f), damping(0.015f), heigh
     color[2] = 0x80;
     color[3] = 0x80;
 }
+
+} // namespace dc::game

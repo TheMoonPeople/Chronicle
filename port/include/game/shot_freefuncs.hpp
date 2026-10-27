@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CTexture;
 struct spRGBA;
 
@@ -161,3 +163,5 @@ void getCharacterVector(float *vector, float pitch);
  * Gives the way a thrown thing has to leave one point to land on another.
  */
 void ParabolicInitialVector(float *velocity, float *from, float *to, float gravity, float time);
+
+} // namespace dc::game

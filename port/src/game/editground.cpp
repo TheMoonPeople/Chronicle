@@ -24,6 +24,8 @@
 #include "savedata.hpp"
 #include "vector3.hpp"
 
+namespace dc::game {
+
 namespace {
 
 int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z);
@@ -2977,3 +2979,5 @@ void CEditGround::YellowRequest(CMapParts *(*placed)[64]) {
         }
     }
 }
+
+} // namespace dc::game

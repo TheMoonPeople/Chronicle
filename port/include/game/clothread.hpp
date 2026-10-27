@@ -6,6 +6,8 @@
 
 #include "rect.hpp"
 
+namespace dc::game {
+
 class CCloth;
 class CFrameVu1;
 struct input_str;
@@ -42,3 +44,5 @@ float unitRotation(CFrameVu1 *frame, float heading);
  * The direction only orders overlapping transfers within one buffer.
  */
 void MoveImageTest(sceVif1Packet *packet, int src_base, int src_width, int src_format, const CRect_i_ &rect, int dst_base, int dst_width, int dst_format, int dst_x, int dst_y, int direction);
+
+} // namespace dc::game

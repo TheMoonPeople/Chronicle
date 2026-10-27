@@ -4,6 +4,8 @@
 
 struct sceVif1Packet;
 
+namespace dc::game {
+
 /**
  * Direction a CDispFade is currently moving in.
  */
@@ -55,3 +57,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CDispFade) == 0x10);
+
+} // namespace dc::game

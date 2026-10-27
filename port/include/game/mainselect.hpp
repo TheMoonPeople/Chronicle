@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 extern s32    MapNo;
 extern s32    OldMapNo;
 extern s32    LocalMapNo;
@@ -27,3 +29,5 @@ extern s32 old_main_mode;
  * Enables the developer's debug behaviours, such as fixed fishing catches.
  */
 extern s32 DebugMode;
+
+} // namespace dc::game

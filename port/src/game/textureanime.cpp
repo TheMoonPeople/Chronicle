@@ -6,6 +6,8 @@
 #include "scriptinterpreter.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 s32 CTextureAnime::stop_anime;
 
 namespace {
@@ -434,3 +436,5 @@ void CTextureAnime::LoadCFGFile(char *script, int script_size) {
         CommandExe[command](interpreter.arguments);
     }
 }
+
+} // namespace dc::game

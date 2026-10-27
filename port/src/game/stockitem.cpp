@@ -9,6 +9,8 @@
 #include "itemdata.hpp"
 #include "menu_draw.hpp"
 
+namespace dc::game {
+
 /** Selects the first item type for the next stock sort operation. */
 int sort_top_type__3 = ITEM_SORT_FOOD;
 
@@ -299,3 +301,5 @@ int CStockItem::GetNowModeSpace(int search_space) {
 
     return -1;
 }
+
+} // namespace dc::game

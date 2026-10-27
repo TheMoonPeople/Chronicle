@@ -9,6 +9,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 void CHitMark::Set(float *position, float *direction, int kind, float spread, float shrink, float gravity, float speed, int count, float floor_y) {
     SetPosition(position);
     this->kind = kind;
@@ -237,3 +239,5 @@ char DebugInfoMsgEventTest[] __attribute__((section(".rodata"))) = "EVENT TEST  
 char DebugInfoMsgSetStatus[] __attribute__((section(".rodata"))) = "SET STATUS     = %s\n";
 char DebugInfoMsgSePlay[] __attribute__((section(".rodata"))) = "SE PLAY        = %d\n";
 char DebugInfoMsgSetChrKey[] __attribute__((section(".rodata"))) = "SET CHRKEY     = %d\n";
+
+} // namespace dc::game

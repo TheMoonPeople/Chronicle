@@ -17,6 +17,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -508,3 +510,5 @@ void DrawEditEffect(EDIT_EFFECT_INFO *effect, CCamera *camera, CEffectGroup *gro
             break;
     }
 }
+
+} // namespace dc::game

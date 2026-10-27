@@ -29,6 +29,8 @@
 #include "texture.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 int            DBuffID;
 int            mgWaitVSync;
 sceVif1Packet *Vif1Packet;
@@ -1139,3 +1141,5 @@ void MGEndDrawShadow(u_char alpha) {
 
     MGPortRestoreRegisters();
 }
+
+} // namespace dc::game

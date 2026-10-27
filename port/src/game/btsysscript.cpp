@@ -44,6 +44,8 @@
 #include "snd.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 BT_EVENT_INFO                 BtEventInfo;
 std::array<BT_OBJ_HANDLE, 32> BtObjHdl;
 std::array<char, 32>          BtLoadMapFileName;
@@ -1145,3 +1147,5 @@ void AddSystemEventScript() {
         }
     }
 }
+
+} // namespace dc::game

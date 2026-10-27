@@ -19,6 +19,8 @@
 #include "localize/localize.hpp"
 #include "platform/paths.hpp"
 
+namespace dc::game {
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -341,3 +343,5 @@ int GetPackFileExt(u_int *pack, char *extension, u_int **files, int max_files, i
     }
     return found;
 }
+
+} // namespace dc::game

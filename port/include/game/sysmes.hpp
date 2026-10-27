@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Carries a mutable text buffer and the parser's current position.
  */
@@ -100,3 +102,5 @@ int CheckChar__Fc__3(char value);
  * Blanks out // and block comments in a script in place.
  */
 void PreProcess__FR9input_str__2(input_str &input);
+
+} // namespace dc::game

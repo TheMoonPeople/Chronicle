@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CWater;
 
 /**
@@ -78,3 +80,5 @@ void OpC_DrawProcess();
  * Water surface of the opening.
  */
 extern CWater Water;
+
+} // namespace dc::game

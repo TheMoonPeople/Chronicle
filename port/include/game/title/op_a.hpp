@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class OBJ_ANIME_SEQ;
 class CMap;
 class CFrame;
@@ -109,3 +111,5 @@ extern MOTION_INFO dancer[];
  * Motion keys of the cursed villager.
  */
 extern MOTION_INFO noroi[];
+
+} // namespace dc::game

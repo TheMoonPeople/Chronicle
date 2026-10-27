@@ -17,6 +17,8 @@ void *operator new(std::size_t size, u_long128 *block);
  */
 void *operator new[](std::size_t size, u_long128 *block);
 
+namespace dc::game {
+
 /**
  * Backs the placement operators: returns block, first growing it to size bytes when it is still the
  * last run a CDataAlloc2<1> handed out, so nothing allocated afterwards lies under the object's tail.
@@ -264,3 +266,5 @@ extern CDataAlloc2<1> workbuffer;
  * Buffer the common-menu effect models are read into.
  */
 extern CDataAlloc2<1> MenuEffectCashBuffer;
+
+} // namespace dc::game

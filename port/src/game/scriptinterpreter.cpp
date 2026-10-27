@@ -8,6 +8,8 @@
 #include <string>
 #include <string_view>
 
+namespace dc::game {
+
 namespace {
 
 // Script text may contain NUL bytes; a token compares and converts only up to the first one.
@@ -349,3 +351,5 @@ int CScriptInterpreter::SearchCommand(int *tag_index) {
     *tag_index = -1;
     return 1;
 }
+
+} // namespace dc::game

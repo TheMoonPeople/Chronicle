@@ -25,10 +25,11 @@
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 
+namespace dc::game {
 extern int   viewMode, chara_mode, chara_fishing;
 extern float viewAngleH, viewAngleV;
 void         EyeCamera(CCamera *, CCharacter *, int);
-int          PortEdMoveCheck(float *, float *, float *, MoveCheckInfo *, CCPoly *, int, int);
+} // namespace dc::game
 
 namespace {
 void Keyboard(const std::vector<int> &keys, float dx = 0) {

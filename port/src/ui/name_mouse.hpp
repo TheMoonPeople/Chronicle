@@ -5,8 +5,10 @@
 // so the game's code does the rest. MenuMouseUpdate (menu_mouse.cpp) calls these ahead of the game's
 // read of the pad.
 
+namespace dc::game {
 class CTexture;
 class CRect_i_;
+} // namespace dc::game
 
 /**
  * Reports whether the screen is open: its textures are read and the game has not closed it.

@@ -13,8 +13,10 @@
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 
+namespace dc::game {
 extern float camera_near_dist;
 extern float camera_far_dist;
+} // namespace dc::game
 
 namespace {
 constexpr float kMinDistance = 30.0f;

@@ -13,6 +13,8 @@
 #include "texture.hpp"
 #include "weaponelement.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr int kStreamParticles = 24;
@@ -155,3 +157,5 @@ void CSHOT_FIREBAR::Draw() {
         set3DCellModel(position[particle], "c05w_h", size[particle], column << 7, row << 7, 0x80, 0x80, static_cast<u8>(static_cast<int>(opacity[particle])));
     }
 }
+
+} // namespace dc::game

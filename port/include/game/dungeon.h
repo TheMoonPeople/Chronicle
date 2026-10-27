@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * Dungeons in the order the game numbers them (selectMapNo); dungeon n loads
  * the dun/d0<n+1>*.cfg maps.
@@ -14,3 +16,5 @@ enum Dungeon {
     DUNGEON_DEMON_SHAFT = 6,       /**< Demon Shaft. */
     DUNGEON_COUNT = 7,             /**< Number of dungeons. */
 };
+
+} // namespace dc::game

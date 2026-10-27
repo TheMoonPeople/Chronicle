@@ -6,6 +6,8 @@
 #include "itemdata.hpp"
 #include "savedata.hpp"
 
+namespace dc::game {
+
 void CMenuItemStep::Initialize() {
     frame = 0;
     last_item = -1;
@@ -104,3 +106,5 @@ void CMenuItemStep::CheckItemVolume() {
         frame = 0;
     }
 }
+
+} // namespace dc::game

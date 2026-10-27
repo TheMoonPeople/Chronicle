@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * VU1 microprogram of the model renderer.
  */
@@ -39,3 +41,5 @@ extern u_int Vu_shadow3[];
  * VU1 microprogram of the main scene renderer.
  */
 extern u_int Vu_progmain[];
+
+} // namespace dc::game

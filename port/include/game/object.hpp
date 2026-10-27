@@ -6,6 +6,8 @@
 
 #include "vector3.hpp"
 
+namespace dc::game {
+
 class CFrameAttr;
 
 /**
@@ -228,3 +230,5 @@ STATIC_ASSERT(sizeof(CObject) == 0xB0);
  * Shared frame attribute block, constructed at start-up.
  */
 extern CFrameAttr FrameAttr;
+
+} // namespace dc::game

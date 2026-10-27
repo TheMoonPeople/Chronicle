@@ -6,6 +6,8 @@
 
 #include <array>
 
+namespace dc::game {
+
 /**
  *          Animates and draws the nine-letter title logo.
  */
@@ -57,3 +59,5 @@ public:
      */
     void Move();
 };
+
+} // namespace dc::game

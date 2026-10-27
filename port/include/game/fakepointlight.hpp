@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the light that stands in for a point light.
@@ -29,3 +31,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CFakePointLight) == 0x30);
+
+} // namespace dc::game

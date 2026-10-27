@@ -2,6 +2,10 @@
 
 #include "common.h"
 
+#include <libpkt.h>
+
+namespace dc::game {
+
 /**
  * What a message window is doing, as ClsMes::State reports it.
  */
@@ -96,7 +100,6 @@ enum MesAutoPos {
 class CCharacter;
 class CRect_i_;
 class CTexture;
-struct sceVif1Packet;
 
 /**
  * One pass of the outline a message window's text draws behind itself.
@@ -472,3 +475,5 @@ void ClsMesSetChoiceScroll(bool more_above, bool more_below);
  * (custom_shop.cpp). One window at a time; a null mes or file ends it.
  */
 void ClsMesSetMessageOverlay(const ClsMes *mes, short *file);
+
+} // namespace dc::game

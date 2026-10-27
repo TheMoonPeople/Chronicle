@@ -4,53 +4,15 @@
 // menus' frame (DrawMenuWaku).
 #include "battlemenu.hpp"
 #include "memcard.hpp"
+#include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
 #include "platform/config.hpp"
 #include "render/draw2d.hpp"
+#include "snd.hpp"
 #include "texture.hpp"
 #include "ui/framework.hpp"
-
-/**
- * Texture name of the shared menu frame and cursor sprite sheet.
- */
-extern char AtoraVibeTextureName[];
-
-/**
- * Texture holding standard inventory item icons.
- */
-extern CTexture *ItemIcon;
-
-/**
- * Texture holding weapon inventory icons.
- */
-extern CTexture *WepIcon;
-
-/**
- * Texture holding shared menu frames, numbers, and cursors.
- */
-extern CTexture *StayTex;
-
-/**
- * Texture holding the personal inventory board frame.
- */
-extern CTexture *PerBoardTex;
-
-/**
- * Texture holding weapon status bars, tags, and banners.
- */
-extern CTexture *WepStatus;
-
-/**
- * Draws the 9-slice translucent help window frame.
- */
-void MenuHelpWinDraw(int x, int y, float w, float h, int alpha);
-
-/**
- * Sets whether textures are sampled with bilinear filtering.
- */
-void setbilinear(int n);
 
 namespace UI::detail {
 

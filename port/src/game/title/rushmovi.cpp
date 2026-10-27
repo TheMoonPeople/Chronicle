@@ -45,6 +45,8 @@
 #include "water.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 // The bodies are retail's, which pass string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -1101,3 +1103,5 @@ void WaterProcess() {
     DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(&Water__2, &mgRenderInfo, GetVif1Packet(), nullptr);
     MGSetGsZBUF(&mgZBuffer);
 }
+
+} // namespace dc::game

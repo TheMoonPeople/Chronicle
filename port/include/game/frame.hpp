@@ -2,13 +2,15 @@
 
 #include "common.h"
 
+#include <libpkt.h>
 #include <libvu0.h>
+
+namespace dc::game {
 
 class CBoxVu0;
 class CCollision;
 class CCPoly;
 struct RenderInfo;
-class sceVif1Packet;
 
 /**
  * Resets the EE DMA environment and the GS transfer path used for rendering.
@@ -258,3 +260,5 @@ int LookAt(CFrameVu1 *frame, float *target, _FRAMECONSTRAINT constraint);
  * Turns a frame towards another frame.
  */
 int LookAt(CFrameVu1 *frame, CFrameVu1 *target, _FRAMECONSTRAINT constraint);
+
+} // namespace dc::game

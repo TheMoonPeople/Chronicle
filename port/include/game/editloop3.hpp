@@ -10,6 +10,8 @@
 #include "dataalloc_fwd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 /**
  * Periods of a town day, as EdGetTime reports them.
  */
@@ -376,3 +378,5 @@ int _SET_MES_AUTOSET(RS_STACKDATA *stack, int argument_count);
  * Whether the running event is a simple one.
  */
 extern int simple_event;
+
+} // namespace dc::game

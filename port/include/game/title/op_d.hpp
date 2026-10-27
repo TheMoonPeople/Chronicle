@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Copies the actor's current eye and mouth rows from its strip texture onto its face plate.
  */
@@ -41,3 +43,5 @@ void OpD_SoundProcess();
  * Draws the scene, its effects, the screen fades and the caption.
  */
 void OpD_DrawProcess();
+
+} // namespace dc::game

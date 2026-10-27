@@ -7,6 +7,8 @@
 #include <cstring>
 #include <limits>
 
+namespace dc::game {
+
 /**
  * The VU0 macro-mode operations the game's inline assembly is built from. A matrix is four column
  * vectors: m[i] is column i, as in sce/libvu0.cpp.
@@ -196,3 +198,5 @@ inline void Cross(float out[3], const float a[4], const float b[4]) {
 }
 
 } // namespace vu0
+
+} // namespace dc::game

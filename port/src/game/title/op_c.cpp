@@ -49,6 +49,8 @@
 #include "water.hpp"
 #include "wind.hpp"
 
+namespace dc::game {
+
 /**
  * The rectangle a texture transfer takes, as an x, y, width and height. MoveImageTest, set2DSprite
  * and MGMoveImage are declared against this template, so it stays at namespace scope.
@@ -3126,3 +3128,5 @@ void setTexAnim() {
     MGMoveImage(reinterpret_cast<sceGsTex0 *>(&strip->tex0), CRect<int>(0, setTexAnimCnt * 64, 64, 64), reinterpret_cast<sceGsTex0 *>(&plate->tex0), 0, 0, 0);
 }
 } // namespace
+
+} // namespace dc::game

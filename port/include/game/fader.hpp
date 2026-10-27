@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Tracks a linearly changing 0-to-128 fade level.
  */
@@ -28,3 +30,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(Fader) == 0x4);
+
+} // namespace dc::game

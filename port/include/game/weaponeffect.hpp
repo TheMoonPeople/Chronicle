@@ -6,6 +6,8 @@
 
 #include "rect.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the trail that a swung weapon leaves behind it.
@@ -72,3 +74,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CWeaponEffect) == 0x540);
+
+} // namespace dc::game

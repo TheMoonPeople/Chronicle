@@ -22,6 +22,8 @@
 #include "snd.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /** The action code of each debug overlay line, ended by -1. */
@@ -784,3 +786,5 @@ void CCollisionData::SetKickBack(float *origin, float speed, float decay, int mo
     record.knockback_decay = decay;
     record.knockback_mode = mode;
 }
+
+} // namespace dc::game

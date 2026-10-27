@@ -5,6 +5,8 @@
 #include "collision.hpp"
 #include "mapobject.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares one part that an edited map is built from.
@@ -169,3 +171,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CMapParts) == 0x2A0);
+
+} // namespace dc::game

@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 inline constexpr float PI = 3.1415927f;
 inline constexpr float TWO_PI = 6.2831855f;
 inline constexpr float HALF_PI = 1.5707964f;
@@ -23,3 +25,5 @@ inline constexpr float DEG_TO_RAD_SHORT = 0.017453289f;
 inline constexpr double PI_D = 3.141592653589793;
 inline constexpr double TWO_PI_D = 6.283185307179586;
 inline constexpr double TWELFTH_PI_D = 0.2617993877991494;
+
+} // namespace dc::game

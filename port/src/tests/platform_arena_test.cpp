@@ -12,7 +12,9 @@
 #include "platform/memory.hpp"
 #include "platform_fixture.hpp"
 
+namespace dc::game {
 extern CDataAlloc<1, 6000> SystemMesBuffer;
+} // namespace dc::game
 
 namespace {
 

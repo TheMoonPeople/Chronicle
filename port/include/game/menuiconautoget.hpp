@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Describes one item icon flying from where the party picked it up to the
  * inventory slot it lands in.
@@ -59,3 +61,5 @@ public:
      */
     void IconAutoMoveDraw();
 };
+
+} // namespace dc::game

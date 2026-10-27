@@ -4,6 +4,8 @@
 
 #include <array>
 
+namespace dc::game {
+
 /**
  * Rows of the title menu, as CCursol::select holds them.
  */
@@ -59,3 +61,5 @@ public:
      */
     int GetPos();
 };
+
+} // namespace dc::game

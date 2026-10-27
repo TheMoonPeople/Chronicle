@@ -1,5 +1,7 @@
 #include "editpartsdata.hpp"
 
+namespace dc::game {
+
 EDIT_PARTS_DATA EditPartsData[6] = {
     {{
         {1, 0, 0, 0, 1, {{18, -1, {"taru", "", "", ""}, -1}, {19, -1, {"entotu", "", "", ""}, 12}, {20, -1, {"koya", "door2 -door1", "", ""}, 12}, {52, -1, {"", "", "", ""}, -1}, {40, -1, {"", "", "", ""}, -1}, {54, -1, {"", "", "", ""}, -1}}},
@@ -404,3 +406,5 @@ ATRA_APPEAR *AtraAppearData[6] = {
     AtraAppearData0, AtraAppearData1, AtraAppearData2, AtraAppearData3, AtraAppearData4, AtraAppearData5,
 };
 // clang-format on
+
+} // namespace dc::game

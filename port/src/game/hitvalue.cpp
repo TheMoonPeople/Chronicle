@@ -18,6 +18,8 @@
 #include "texture.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 int defWeapon__2[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
 
 int element_tbl[6] = {1, 2, 4, 8, 0x10, 0};
@@ -319,3 +321,5 @@ void CHitValue::Step() {
         }
     }
 }
+
+} // namespace dc::game

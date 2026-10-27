@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the language-selection screen the game shows before the title.
@@ -57,3 +59,5 @@ int LangsetProc();
  * Draws the language plate and its five entries, brightening the selected one.
  */
 void LangsetDraw();
+
+} // namespace dc::game

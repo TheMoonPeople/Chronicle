@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Identifies the operation performed by a queued action.
  */
@@ -226,3 +228,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CActionSeq) == 0xD0);
+
+} // namespace dc::game

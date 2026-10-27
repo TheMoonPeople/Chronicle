@@ -72,3 +72,11 @@ T &Ps2Lvalue(T &&value) {
 #include "common.h"
 #undef STATIC_ASSERT
 #define STATIC_ASSERT(expr)
+
+namespace dc::game {}
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::game;
+#endif
+// DC_TRANSITIONAL_END

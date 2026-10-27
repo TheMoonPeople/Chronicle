@@ -49,16 +49,18 @@
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
 
-int  EditInit(void *param);
-int  EditLoop();
-bool TakeBattleMenuLoadRequest();
-bool TakeBattleMenuTitleRequest();
+namespace dc::game {
+int EditInit(void *param);
+int EditLoop();
 
 extern s32 mode;
-extern s32 gameTask;
 extern int viewMode;
 extern s32 mc_mode;
 extern s32 NextMapNo;
+} // namespace dc::game
+
+bool TakeBattleMenuLoadRequest();
+bool TakeBattleMenuTitleRequest();
 
 namespace {
 

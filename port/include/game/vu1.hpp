@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * The Vector Unit program a CVisualVu1 draws with, taken by value in the DrawVu1 declarations.
  * Its enumerators are not known yet; these placeholders only let those declarations compile.
@@ -11,3 +13,5 @@ enum VU1_PROGRAM {
 };
 
 // clang-format on
+
+} // namespace dc::game

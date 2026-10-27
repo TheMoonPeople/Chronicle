@@ -4,9 +4,11 @@
 
 #include "collision.hpp"
 
+namespace dc::game {
 class CEditGround;
 class CCameraFollow;
 class CDungeonMap;
+} // namespace dc::game
 
 /**
  * Collects town camera geometry into polys, proving an allocation bound before each retail collector.

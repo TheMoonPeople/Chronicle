@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CTexture;
 
 /**
@@ -135,3 +137,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CTextureAnime) == 0x1F0);
+
+} // namespace dc::game

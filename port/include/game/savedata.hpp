@@ -7,6 +7,8 @@
 #include "dngstatusdata.hpp"
 #include "stockitem.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the save slot record and its operations.
@@ -343,3 +345,5 @@ public:
 extern CSaveData *SaveData;
 
 STATIC_ASSERT(sizeof(CSaveData) == 78272);
+
+} // namespace dc::game

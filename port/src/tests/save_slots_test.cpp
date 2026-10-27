@@ -34,7 +34,9 @@
 
 namespace fs = std::filesystem;
 
+namespace dc::game {
 extern int (*SaveMenuFunc[26])();
+} // namespace dc::game
 
 namespace {
 

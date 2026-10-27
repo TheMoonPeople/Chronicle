@@ -4,6 +4,8 @@
 
 #include "menu_draw.hpp"
 
+namespace dc::game {
+
 /**
  * Steps of the save menu, indexing SaveMenuFunc, as SAVE_MENU_STATE::key_no holds them.
  */
@@ -317,3 +319,5 @@ extern s32 MiniEventTextureBlock;
  * Handles pointer input while the door/object item picker owns the menu.
  */
 bool EventItemPointerUpdate();
+
+} // namespace dc::game

@@ -30,6 +30,8 @@
 #include "textureanime.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 /**
  * What a grid cell holds while a floor is being built, as bit flags.
  */
@@ -3588,3 +3590,5 @@ void CDungeonMap::initalize() {
 
     this->draw_dist_scale = 4.0f;
 }
+
+} // namespace dc::game

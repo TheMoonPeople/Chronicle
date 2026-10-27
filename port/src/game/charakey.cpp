@@ -25,6 +25,8 @@
 #include "userstatus.hpp"
 #include "weaponeffect.hpp"
 
+namespace dc::game {
+
 namespace {
 
 void sound_play(float from, float to, float now, int se_no) {
@@ -1111,3 +1113,5 @@ void GoroKey_Play() {
         }
     }
 }
+
+} // namespace dc::game

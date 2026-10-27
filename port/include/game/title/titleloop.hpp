@@ -7,6 +7,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * First fade counter of the title sequence.
  */
@@ -56,3 +58,5 @@ extern int brinkcnt;
  * Frames the title effect has run for.
  */
 extern int EffCnt;
+
+} // namespace dc::game

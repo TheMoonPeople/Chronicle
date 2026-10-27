@@ -23,6 +23,8 @@
 #include "save/save_state.hpp"
 #include "savedata.hpp"
 
+namespace dc::game {
+
 MC_DIR_ENTRY  SaveFileInfo[MC_DIR_ENTRY_MAX];
 SV_CONFIG_SYS sys_config;
 
@@ -556,3 +558,5 @@ bool SaveSlotWriteAutosave() {
     QuestHostSave(SaveSlotDirectory(kSaveSlotAutosave));
     return true;
 }
+
+} // namespace dc::game

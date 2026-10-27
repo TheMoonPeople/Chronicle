@@ -2,6 +2,8 @@
 
 #include "collision.hpp"
 
+namespace dc::game {
+
 template <int T>
 class CDataAlloc2;
 class CFish;
@@ -406,3 +408,5 @@ extern char fishing_err_format[];
  * variables do not all hold baits (a script laid out otherwise).
  */
 bool ListBaitForScript(RS_STACKDATA *choice, int bait);
+
+} // namespace dc::game

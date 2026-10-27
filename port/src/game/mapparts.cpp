@@ -10,6 +10,8 @@
 #include "mglib.hpp"
 #include "objanime.hpp"
 
+namespace dc::game {
+
 void CMapParts::GetPosition(float *out_position) {
     sceVu0CopyVector(out_position, this->pos);
 }
@@ -450,3 +452,5 @@ void CMapParts::DrawEffect(CCamera *camera, float time, CEffectGroup *group) {
         DrawEditEffect(effect_info, camera, group);
     }
 }
+
+} // namespace dc::game

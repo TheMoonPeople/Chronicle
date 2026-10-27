@@ -5,6 +5,8 @@
 #include "menu_draw.hpp"
 #include "menuetc.hpp"
 
+namespace dc::game {
+
 /**
  * What MenuAtoraSelectKey reports.
  */
@@ -481,3 +483,5 @@ extern CTexture *AttachIcon;
  * The texture that the save screen's file boards draw from.
  */
 extern CTexture *SaveBoard;
+
+} // namespace dc::game

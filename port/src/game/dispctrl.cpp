@@ -11,6 +11,8 @@
 #include "render/draw2d.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -341,3 +343,5 @@ float CDispCtrl::FadeIn(sceVif1Packet * /*packet*/) {
 
     return rate;
 }
+
+} // namespace dc::game

@@ -2,8 +2,11 @@
 
 #include "common.h"
 
-class RenderInfo;
 class sceVif1Packet;
+
+namespace dc::game {
+
+class RenderInfo;
 struct MDT_MATERIAL;
 
 /**
@@ -155,3 +158,5 @@ public:
      */
     int CreateVUdataShadowCLIP(u_int *block, u_int *model_data, RenderInfo *info, float (*matrix)[4]);
 };
+
+} // namespace dc::game

@@ -6,6 +6,8 @@
 
 #include "mathutil.hpp"
 
+namespace dc::game {
+
 /**
  * Actions of the dungeon debug overlay, as DebugInfoCode and DebugInfomationIF give them.
  */
@@ -191,3 +193,5 @@ int DebugInfomationIF();
  * Draws the caption naming the dungeon and floor the party has just entered.
  */
 void StartMessageDraw(CTexture *texture, int dungeon, int floor, int ura, int alpha);
+
+} // namespace dc::game

@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Draws the short muzzle-hit flashes produced by the machine gun.
  */
@@ -27,3 +29,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CHIT_MACHINGUN_EFFECT) == 0x140);
+
+} // namespace dc::game

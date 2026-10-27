@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Animates the ring of healing particles around the player character.
  */
@@ -35,3 +37,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CHealEffect) == 0x520);
+
+} // namespace dc::game

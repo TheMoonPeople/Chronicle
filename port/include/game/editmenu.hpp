@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * What the edit menu hands back to the town, as EDIT_MENU_STATUS::mode holds it.
  */
@@ -59,3 +61,5 @@ int EditMenuLoop();
  * Draws the edit menu for its current state.
  */
 void EditMenuDraw();
+
+} // namespace dc::game

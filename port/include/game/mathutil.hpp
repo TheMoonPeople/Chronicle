@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the game's vector, geometry, interpolation, and trigonometry helpers.
@@ -172,3 +174,5 @@ float Sinf(float angle);
  * Returns the cosine of an angle in radians from the lookup table.
  */
 float Cosf(float angle);
+
+} // namespace dc::game

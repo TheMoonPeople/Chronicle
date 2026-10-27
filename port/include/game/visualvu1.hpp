@@ -6,8 +6,11 @@
 
 #include "vu1.hpp"
 
-struct RenderInfo;
 struct sceVif1Packet;
+
+namespace dc::game {
+
+struct RenderInfo;
 
 class CVisualVu1 {
 public:
@@ -97,3 +100,5 @@ public:
 
     int unk_0C;
 };
+
+} // namespace dc::game

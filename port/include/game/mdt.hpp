@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Describes the sections and vertex data of an MDT resource.
  */
@@ -86,3 +88,5 @@ struct MDT_SHADOW {
     int        unk_0c;
     MDT_SSHAPE shape[1]; /**< First shape; each is followed directly by the next. */
 };
+
+} // namespace dc::game

@@ -32,6 +32,8 @@
 #include "sysmes.hpp"
 #include "visualvu1.hpp"
 
+namespace dc::game {
+
 CCloth *pCloth;
 
 namespace {
@@ -534,3 +536,5 @@ float unitRotation(CFrameVu1 *frame, float heading) {
 
     return rotation[1];
 }
+
+} // namespace dc::game

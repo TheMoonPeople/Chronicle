@@ -2,11 +2,14 @@
 
 #include "common.h"
 
+#include <libpkt.h>
 #include <libvu0.h>
 
 #include "dataalloc_fwd.hpp"
 #include "edit.hpp"
 #include "objanime.hpp"
+
+namespace dc::game {
 
 /**
  * Kinds of town event point, as ED_EVENT_POINT::event_type holds them.
@@ -30,7 +33,6 @@ class CRect_i_;
 class CEditArea;
 class CWind;
 class CRunEffect;
-struct sceVif1Packet;
 
 /** Working arena used to load event villagers and the event player model. */
 extern CDataAlloc2<1> EdVillagerBuffer;
@@ -926,3 +928,5 @@ extern CCharacter *Chara;
  * Records of the map's texture animation.
  */
 extern CTexAnimeData TexAnimeData[];
+
+} // namespace dc::game

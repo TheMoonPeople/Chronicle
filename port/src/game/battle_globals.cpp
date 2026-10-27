@@ -19,6 +19,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 /**
  * Keyboards of the name-entry screen, as NAME_SELECT::input_mode holds them.
  */
@@ -2287,3 +2289,5 @@ void OpeningBookDraw() {
             break;
     }
 }
+
+} // namespace dc::game

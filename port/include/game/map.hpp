@@ -4,6 +4,8 @@
 
 #include "mapobject.hpp"
 
+namespace dc::game {
+
 /**
  * Selects the distance range used to draw one map-object category.
  */
@@ -58,3 +60,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CMap) == 0xAF0);
+
+} // namespace dc::game

@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Steps of a stolen item flying back, as CStealItem::state holds them.
  */
@@ -70,3 +72,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CStealItem) == 0x160);
+
+} // namespace dc::game

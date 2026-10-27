@@ -3,6 +3,8 @@
 #include "common.h"
 #include "sce/libmc.h"
 
+namespace dc::game {
+
 /**
  * Errors MC_ERROR_INFO::code records.
  */
@@ -348,3 +350,5 @@ extern char AtoraVibeTextureName[];
  * write failed, the autosave then keeping what it held.
  */
 bool SaveSlotWriteAutosave();
+
+} // namespace dc::game

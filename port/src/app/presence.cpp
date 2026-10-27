@@ -12,7 +12,9 @@
 #include "main.hpp"
 #include "savedata.hpp"
 
+namespace dc::game {
 extern s32 mode;
+} // namespace dc::game
 
 namespace {
 

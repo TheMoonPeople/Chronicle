@@ -9,6 +9,8 @@
 #include "mathutil.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // vu_hold_box parks the query box in VU0 registers for the vu_box_missed calls that follow.
@@ -383,3 +385,5 @@ int CCollisionMDT::PickUpNearPoly(CCPoly *poly) {
 
     return num;
 }
+
+} // namespace dc::game

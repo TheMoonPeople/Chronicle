@@ -35,6 +35,8 @@
 #include "ui/journal_chest.hpp"
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr int ENTRIES_PER_CATEGORY = 6;
@@ -648,3 +650,5 @@ std::vector<std::pair<std::string, std::string>> JournalStrings() {
     JournalChest::AppendStrings(out);
     return out;
 }
+
+} // namespace dc::game

@@ -2,11 +2,13 @@
 
 #include <functional>
 
+namespace dc::game {
 class CBoxVu0;
 class CCamera;
 class CCameraFollow;
 class CCPoly;
 class CEditGround;
+} // namespace dc::game
 
 // The mouse turns the game's cameras where the right stick does, by the angle it moved
 // (InputGetMouseLook) rather than through a stick's dead zone, steps and full deflection. A camera

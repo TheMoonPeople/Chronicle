@@ -6,6 +6,8 @@
 
 #include "userstatus.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Defines the height of the character the player controls, where hits on that character are placed.
@@ -19,3 +21,5 @@ static inline float CharaHeight(CUserStatus *status) {
 
     return chara_height[status->cur_chara];
 }
+
+} // namespace dc::game

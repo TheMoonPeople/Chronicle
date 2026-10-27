@@ -2,14 +2,16 @@
 
 #include "common.h"
 
-class CFrame;
-
 #include "dataalloc_fwd.hpp"
 
 /**
  * @file
  * Declares the calls that build a model out of the data that was read.
  */
+
+namespace dc::game {
+
+class CFrame;
 
 /**
  * Clears the global data arena and prepares its persistent scene banks.
@@ -46,3 +48,5 @@ extern CDataAlloc2<1> *WorkBuffer;
  * Points at whichever per-frame VU data arena the current frame builds into.
  */
 extern CDataAlloc2<1> *ActiveData;
+
+} // namespace dc::game

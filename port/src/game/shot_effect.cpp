@@ -23,6 +23,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 void CSHOT::draw() {
     for (int shot = 0; shot < 12; shot++) {
         if (used[shot] != 0) {
@@ -634,3 +636,5 @@ void CSHOT_MACHINGUN::Step() {
         position[slot][2] += velocity[slot][2];
     }
 }
+
+} // namespace dc::game

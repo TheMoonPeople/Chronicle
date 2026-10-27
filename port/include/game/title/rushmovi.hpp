@@ -5,6 +5,8 @@
 #include "dataalloc_fwd.hpp"
 #include "title/script.hpp"
 
+namespace dc::game {
+
 /**
  * Scenes of the attract movie, as CScript::scene, load_no and init_no hold them.
  */
@@ -158,3 +160,5 @@ extern float atraGetStatusRate;
  * Script state of the rush movie, which the title screen reads as well.
  */
 extern class CScript CScript;
+
+} // namespace dc::game

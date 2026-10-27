@@ -9,6 +9,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 /* The tail, which is drawn where its elements already are: the head is the only element `Step`
    moves and every other one is a place the head has been. */
 void CMajinBeem::Draw(CCamera *camera) {
@@ -180,3 +182,5 @@ void CMajinBeem::Step() {
             break;
     }
 }
+
+} // namespace dc::game

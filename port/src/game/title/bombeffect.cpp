@@ -8,6 +8,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 constexpr s32 kBillboardCount = 8;
@@ -198,3 +200,5 @@ void CBombEffect::Step() {
         }
     }
 }
+
+} // namespace dc::game

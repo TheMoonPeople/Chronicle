@@ -6,6 +6,8 @@
 #include "menu_draw.hpp"
 #include "savedata.hpp"
 
+namespace dc::game {
+
 int CMenuIconAutoGet::IsMoveIcon() {
     int moving = 0;
 
@@ -100,3 +102,5 @@ void CMenuIconAutoGet::IconAutoMoveDraw() {
         }
     }
 }
+
+} // namespace dc::game

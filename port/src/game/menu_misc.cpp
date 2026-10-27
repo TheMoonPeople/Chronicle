@@ -48,6 +48,8 @@
 #include "weaponeffect.hpp"
 #include "weaponlevelup.hpp"
 
+namespace dc::game {
+
 int MenuWeaponModelData[42];
 int MenuWeaponModelInfo[10][2];
 
@@ -1794,3 +1796,5 @@ int WeaponDataChangeByRGate(WEAPON_HAVE *weapon, int kind) {
 
     return 1;
 }
+
+} // namespace dc::game

@@ -4,8 +4,11 @@
 
 #include "rect.hpp"
 
-class CTexture;
 struct sceVif1Packet;
+
+namespace dc::game {
+
+class CTexture;
 
 /**
  * Blends two texture regions into a frame-buffer texture.
@@ -71,3 +74,5 @@ extern float waveAnimeCnt[32];
  * Toggled each draw of the running effect to alternate between its two footprint textures.
  */
 extern int sw;
+
+} // namespace dc::game

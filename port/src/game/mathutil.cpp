@@ -9,6 +9,8 @@
 
 #include "vu0_ops.hpp"
 
+namespace dc::game {
+
 extern "C" void *__vt__Q23std9exception[4] = {};
 
 extern "C" void __unexpected(void * /*exception_record*/) {
@@ -411,3 +413,5 @@ float Sinf(float angle) {
 float Cosf(float angle) {
     return Sinf(PI / 2.0f + angle);
 }
+
+} // namespace dc::game

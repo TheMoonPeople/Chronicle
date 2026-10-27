@@ -13,6 +13,8 @@
 #include "dataalloc.hpp"
 #include "objanime.hpp"
 
+namespace dc::game {
+
 class CSaveData;
 
 /**
@@ -257,3 +259,5 @@ void EPartsReadFunc(const void *record, int index, EPARTS_FUNC_DATA *out);
  * the record's bytes (which the cell map and element names point into) and the function table.
  */
 EPARTS_INFO_HEADER *EPartsLoad(const void *record, CDataAlloc2<1> *arena);
+
+} // namespace dc::game

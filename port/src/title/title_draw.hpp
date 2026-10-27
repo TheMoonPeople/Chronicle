@@ -6,7 +6,9 @@
 
 #include "rect.hpp"
 
+namespace dc::game {
 class CTexture;
+} // namespace dc::game
 
 /**
  * Draws the previous frame over the whole logical frame at alpha (0x80 opaque) through the

@@ -4,6 +4,8 @@
 
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * Opcodes of the script virtual machine, as vmcode_t::op holds them.
  */
@@ -296,3 +298,5 @@ void EventScriptSetItemGet(int item);
  * not have. Retail's EdRunEvent leaves that result in v0 without returning it.
  */
 int PortEdRunEvent(int program, CDataAlloc2<1> *arena);
+
+} // namespace dc::game

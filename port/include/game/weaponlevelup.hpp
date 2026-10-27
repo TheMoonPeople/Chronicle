@@ -5,6 +5,8 @@
 #include "character.hpp"
 #include "itemdata.hpp"
 
+namespace dc::game {
+
 /**
  * Weapon effects the menus play, as CWeaponLevelUp::operation_kind holds them.
  */
@@ -218,3 +220,5 @@ void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int 
  * Timer that ages time-sensitive inventory items while the menus run.
  */
 extern CMenuItemStep ItemVolumeStep;
+
+} // namespace dc::game

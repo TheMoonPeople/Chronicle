@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 class CEffectGroup;
 
 /**
@@ -30,3 +32,5 @@ void EffectHamon(CEffectGroup *group, float *position, float size);
  * Blurs screen regions outside the two depth intervals surrounding the focus.
  */
 void DepthOfField(float *focus, int level, int alpha, int blur);
+
+} // namespace dc::game

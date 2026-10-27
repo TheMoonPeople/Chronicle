@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * Steps of a dropped item, as CRandomItem::state holds them.
  */
@@ -79,3 +81,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CRandomItem) == 0x620);
+
+} // namespace dc::game

@@ -4,6 +4,8 @@
 
 #include <array>
 
+namespace dc::game {
+
 /**
  * The spark that streaks across the title screen, trailing a tail of fading points.
  */
@@ -39,3 +41,5 @@ public:
      */
     int Se();
 };
+
+} // namespace dc::game

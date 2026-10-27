@@ -58,6 +58,8 @@
 #include "texture.hpp"
 #include "water.hpp"
 
+namespace dc::game {
+
 // Retail passes string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -2176,3 +2178,5 @@ void CommandWATER_SHAKE(void **arguments) {
     }
 }
 } // namespace
+
+} // namespace dc::game

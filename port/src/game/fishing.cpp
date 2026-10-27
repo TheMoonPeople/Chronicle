@@ -27,6 +27,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 namespace {
 
 /**
@@ -1174,3 +1176,5 @@ bool ListBaitForScript(RS_STACKDATA *choice, int bait) {
     choice[1].i = bait;
     return true;
 }
+
+} // namespace dc::game

@@ -5,6 +5,8 @@
 #include "mglib.hpp"
 #include "rect.hpp"
 
+namespace dc::game {
+
 namespace {
 
 // Covers the screen in 64x16-pixel tiles; rect coordinates are in sixteenths of a pixel.
@@ -84,3 +86,5 @@ float CDispFade::FadeIn(sceVif1Packet * /*packet*/) {
 
     return fade_rate;
 }
+
+} // namespace dc::game

@@ -4,6 +4,8 @@
 
 #include "effect.hpp"
 
+namespace dc::game {
+
 namespace {
 
 std::span<CEffect> Pool(CEffect *table, int count) {
@@ -45,3 +47,5 @@ void CEffectGroup::Initialize(CEffect *table, int count) {
     effect_table = table;
     capacity = count;
 }
+
+} // namespace dc::game

@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * Languages the game can run in, as LanguageCode holds them; each loads the
  * matching dun/img/<prefix>/ images.
@@ -14,3 +16,5 @@ enum Language {
     LANG_SPANISH = 6,    /**< Spanish, dun/img/sp/. */
     LANG_COUNT = 7,      /**< Number of languages. */
 };
+
+} // namespace dc::game

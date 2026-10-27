@@ -13,6 +13,8 @@
 
 #include "renderinfo.hpp"
 
+namespace dc::game {
+
 class CBoxVu0;
 class CFrame;
 class CRect_i_;
@@ -395,3 +397,5 @@ void MGGetFBuffBackTex(sceGsTex0 *tex0);
  * Draws a source texture rectangle into a differently sized destination rectangle.
  */
 void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, sceGsTex0 *dst, const CRect_i_ &dst_rect);
+
+} // namespace dc::game

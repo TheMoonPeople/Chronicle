@@ -12,6 +12,8 @@
 #include "platform/input.hpp"
 #include "ui/menu_pointer.hpp"
 
+namespace dc::game {
+
 CGamePad GamePad;
 
 namespace {
@@ -588,3 +590,5 @@ void CGamePad::StopVibration() {
     SetVibration(1, 0, 0);
     Step();
 }
+
+} // namespace dc::game

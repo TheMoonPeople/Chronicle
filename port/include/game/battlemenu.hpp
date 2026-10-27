@@ -7,6 +7,8 @@
 #include "menu_draw.hpp"
 #include "rect.hpp"
 
+namespace dc::game {
+
 /**
  * Where the battle menu was opened from, as BtlMenuMode holds it.
  */
@@ -1251,3 +1253,5 @@ extern CCharacter DngWeaponFrm[];
  * Name of the status board texture.
  */
 extern char CharaStatusTextureName[];
+
+} // namespace dc::game

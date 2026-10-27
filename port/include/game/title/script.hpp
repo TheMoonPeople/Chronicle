@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Commands of the title script, in the order the parser's table holds them.
  */
@@ -216,3 +218,5 @@ STATIC_ASSERT(sizeof(CScript) == 0xE300);
  */
 // The elaborated specifier is needed where rushmovi.hpp's CScript object hides the class.
 extern class CScript CScript__2;
+
+} // namespace dc::game

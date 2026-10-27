@@ -6,6 +6,8 @@
 
 #include "rect.hpp"
 
+namespace dc::game {
+
 /**
  * Kinds of floating hit value, as CHitValue::kind holds them.
  */
@@ -85,3 +87,5 @@ extern int element_tbl[6];
  * Default weapon of each character, as the hit-value unit holds it.
  */
 extern int defWeapon__2[6];
+
+} // namespace dc::game

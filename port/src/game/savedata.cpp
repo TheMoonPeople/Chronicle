@@ -12,6 +12,8 @@
 #include "editatra.hpp"
 #include "object.hpp"
 
+namespace dc::game {
+
 void CObject::SetPosition(float *position) {
     sceVu0CopyVector(this->pos, position);
 }
@@ -520,3 +522,5 @@ CSaveData::CSaveData() {
     this->menu_cursor.InitPos();
     this->Initialize();
 }
+
+} // namespace dc::game

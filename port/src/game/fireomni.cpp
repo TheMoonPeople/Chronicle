@@ -13,6 +13,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::game {
+
 CFireOmni::CFireOmni()
     : unk_00(0), raster_phase(0.0f), flame_phase(0.0f), cell_phase(15.0f), flicker_width(0.0f), flicker_height(0.0f), flicker_seed(0),
       // Starting the count somewhere in the cycle keeps two fires out of step.
@@ -212,3 +214,5 @@ void CFireOmni::DrawRaster() {
     blendTextuerTest(Vif1Packet, blend.TBP0, blend.TBW, blend.PSM, CRect_i_(x, y >> 1, width, height), TexManager.GetTexture("alpha01", -1), CRect_i_(0, 0, width, height), CRect_i_(0, 0, 64, 64), top_left[2] >> 4, raster_phase);
     set2DSprite(Vif1Packet, TexManager.GetTexture("blender", -1), CRect_i_(x, y, width, height * 2), CRect_i_(1, 1, width - 2, height - 2));
 }
+
+} // namespace dc::game

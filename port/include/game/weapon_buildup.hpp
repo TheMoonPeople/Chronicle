@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 struct WEAPON_HAVE;
 
 /**
@@ -43,3 +45,5 @@ int EnableBuildUpModelSpecial(WEP_BUILDUP_INFO *build_info, WEAPON_HAVE *weapon)
  * Populates the build-up destinations currently available to a weapon.
  */
 int EnableBuildUpModel(WEP_BUILDUP_INFO *build_info, WEAPON_HAVE *weapon);
+
+} // namespace dc::game

@@ -90,6 +90,8 @@
 #pragma clang diagnostic ignored "-Wchar-subscripts"
 #pragma clang diagnostic ignored "-Wunused-value"
 
+namespace dc::game {
+
 namespace {
 
 // The lock-on taken into the quick change (game.swap_keeps_lock_on), or -1.
@@ -2846,3 +2848,5 @@ void DunMoveChara() {
 
     motionDrive();
 }
+
+} // namespace dc::game

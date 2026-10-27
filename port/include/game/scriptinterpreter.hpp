@@ -4,6 +4,8 @@
 
 #include "sysmes.hpp"
 
+namespace dc::game {
+
 /** Types used to decode values following a script tag or command. */
 enum SCRIPT_ARGUMENT_TYPE {
     SCRIPT_ARGUMENT_STRING = 0,  /**< A quoted text argument. */
@@ -103,3 +105,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CScriptInterpreter) == 0x890);
+
+} // namespace dc::game

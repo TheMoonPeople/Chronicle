@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the objects that every menu screen shares.
@@ -40,3 +42,5 @@ extern ClsMes AtoraNameMes;
  * The whole screen, which the menus draw full-screen pictures into.
  */
 extern CRect_i_ MenuDispRc;
+
+} // namespace dc::game

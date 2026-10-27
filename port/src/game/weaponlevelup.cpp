@@ -25,6 +25,8 @@
 #include "texture.hpp"
 #include "weapon_buildup.hpp"
 
+namespace dc::game {
+
 CDataAlloc2<1> MenuEffectCashBuffer(-1);
 
 CWeaponLevelUp MenuWepLevelUp;
@@ -1110,3 +1112,5 @@ void CWeaponLevelUp::DrawMes() {
         DrawMenuClsMes(&CommonMenuMes1, x, y);
     }
 }
+
+} // namespace dc::game

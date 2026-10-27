@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the vector that the game passes by value.
@@ -38,3 +40,5 @@ public:
 
 STATIC_ASSERT(sizeof(CVector3_i_) == 0x10);
 STATIC_ASSERT(alignof(CVector3_i_) == 0x10);
+
+} // namespace dc::game

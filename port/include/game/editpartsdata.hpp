@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the Georama editor's part and element attribute tables and the Atla each dungeon hands out.
@@ -122,3 +124,5 @@ STATIC_ASSERT(sizeof(EDIT_GAIJI) == 0x20);
  * code -0x300 (clsmes.cpp).
  */
 extern EDIT_GAIJI *const EditGaijiTbl;
+
+} // namespace dc::game

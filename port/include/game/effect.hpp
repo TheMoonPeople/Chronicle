@@ -4,6 +4,8 @@
 
 #include "rect.hpp"
 
+namespace dc::game {
+
 /**
  * How an effect's opacity changes.
  */
@@ -170,3 +172,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(C3DSprite) == 0x40);
+
+} // namespace dc::game

@@ -4,7 +4,9 @@
 
 #include "app/presentation.hpp"
 
+namespace dc::game {
 class CSaveData;
+} // namespace dc::game
 
 /**
  * The game's main(): start-up, then one mode after another. The window, renderer, input and clock

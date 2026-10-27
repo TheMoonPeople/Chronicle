@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the sparks that an element-charged weapon throws off.
@@ -169,3 +171,5 @@ STATIC_ASSERT(sizeof(CWeaponElement) == 0x7C0);
  * Elemental weapon effects the dungeon can run.
  */
 extern CWeaponElement CWeaponElFx[4];
+
+} // namespace dc::game

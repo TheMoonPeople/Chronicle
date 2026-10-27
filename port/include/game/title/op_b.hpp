@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+namespace dc::game {
+
 class CMapObject;
 
 /**
@@ -69,3 +71,5 @@ extern CMapObject OP_NornMapObj[76];
  * Second set of map objects of Norune village.
  */
 extern CMapObject OP_NornMapObj2[87];
+
+} // namespace dc::game

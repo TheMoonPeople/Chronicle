@@ -4,6 +4,8 @@
 
 #include "menu_draw.hpp"
 
+namespace dc::game {
+
 /**
  * Returns how much a weapon's attachments raise one of its values.
  */
@@ -157,3 +159,5 @@ void QuickChangeOpenElements(bool elements);
  * offer a choice.
  */
 bool ElementPickerHasChoice();
+
+} // namespace dc::game

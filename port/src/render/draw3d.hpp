@@ -10,7 +10,9 @@
 #include "render/gs_state.hpp"
 #include "render/texture_registry.hpp"
 
+namespace dc::game {
 struct RenderInfo;
+} // namespace dc::game
 
 /**
  * The GS registers the game last sent (MGSetGs*, and the clears, fills, stretches and shadow

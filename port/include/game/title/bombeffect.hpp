@@ -4,6 +4,8 @@
 
 #include <libvu0.h>
 
+namespace dc::game {
+
 /**
  * Phases of one billboard of the bomb effect, as CBombEffect::phases holds them.
  */
@@ -53,3 +55,5 @@ public:
 };
 
 STATIC_ASSERT(sizeof(CBombEffect) == 0x120);
+
+} // namespace dc::game

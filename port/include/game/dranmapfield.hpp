@@ -5,6 +5,8 @@
 #include "character.hpp"
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * Loads, draws and advances one Dran field model.
  */
@@ -87,3 +89,5 @@ STATIC_ASSERT(sizeof(DRAN_MAP_FIELD_SET) == 0xD4B0);
  * Dran field models and runtime state for the current dungeon.
  */
 extern DRAN_MAP_FIELD_SET DranMapField;
+
+} // namespace dc::game

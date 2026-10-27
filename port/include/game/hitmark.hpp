@@ -6,6 +6,8 @@
 
 #include "object.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the marks that a hit throws off.
@@ -188,3 +190,5 @@ extern char DebugInfoMsgSetChrKey[];
  * Virtual table of CHitMark under the name main's array constructors install it by.
  */
 extern "C" void *GeneratedHitMarkVtable[];
+
+} // namespace dc::game

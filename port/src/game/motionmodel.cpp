@@ -12,6 +12,8 @@
 #include "hitvalue.hpp"
 #include "mglib.hpp"
 
+namespace dc::game {
+
 int GetWeaponElementAttr(int element) {
     if (element < 0 || element > 5) {
         element = 5;
@@ -89,3 +91,5 @@ void CMotionModel::Draw() {
         MGDraw(frame);
     }
 }
+
+} // namespace dc::game

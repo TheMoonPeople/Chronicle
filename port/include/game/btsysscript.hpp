@@ -6,6 +6,8 @@
 
 #include "dataalloc_fwd.hpp"
 
+namespace dc::game {
+
 /**
  * @file
  * Declares the opcodes a dungeon floor's system script can call.
@@ -424,3 +426,5 @@ int _GET_PIERO_ITEM(RS_STACKDATA *stack, int argument_count);
  * Fills the opcode table from the extension list, refusing a list that names one twice.
  */
 void AddSystemEventScript();
+
+} // namespace dc::game

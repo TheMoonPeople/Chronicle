@@ -20,6 +20,8 @@
 #include "textureanime.hpp"
 #include "visualvu1.hpp"
 
+namespace dc::game {
+
 s32 CCharacter::MotionStopFlag;
 
 namespace {
@@ -1015,3 +1017,5 @@ void CMainChara::Initialize() {
     this->unk_11C8 = 0;
     this->unk_11CC = 0;
 }
+
+} // namespace dc::game

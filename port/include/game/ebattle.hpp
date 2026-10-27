@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::game {
+
 /**
  * Steps of town fishing, as chara_fishing holds them.
  */
@@ -172,3 +174,5 @@ int PortEdMoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *
  * The part of the screen the event battle's opening wipe has reached.
  */
 extern CRect_i_ draw_rect;
+
+} // namespace dc::game

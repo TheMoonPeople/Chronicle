@@ -6,6 +6,8 @@
 #include "mathutil.hpp"
 #include "mglib.hpp"
 
+namespace dc::game {
+
 void CObjectFrame::SetFrame(CFrameVu1 *frame, int level) {
     if (level < 0) {
         return;
@@ -135,3 +137,5 @@ void CObjectFrame::Initialize(CFrameVu1 *frame) {
     this->scale[1] = 1.0f;
     this->scale[2] = 1.0f;
 }
+
+} // namespace dc::game

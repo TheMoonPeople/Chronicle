@@ -29,6 +29,8 @@
 #include "tim2.hpp"
 #include "ui/area_card.hpp"
 
+namespace dc::game {
+
 int end_flag = 1;
 
 CTexture nl_tex;
@@ -434,3 +436,5 @@ void LoadTexture(TM2_head *image, CTexture *texture, int /*image_address*/, int 
     SetTextureInfo(texture, name, image);
     Upload(texture);
 }
+
+} // namespace dc::game

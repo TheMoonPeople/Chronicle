@@ -9,6 +9,8 @@
  * Declares the Georama editor's shared state, sound, menu and message helpers.
  */
 
+namespace dc::game {
+
 /**
  * What a town event asks for when it ends, as ED_EVENT_INFO::return_code holds it.
  */
@@ -762,3 +764,5 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
  * Holds the edit cursor inside the area the map allows.
  */
 void LimitEditCursorPos(float *position, float *movement);
+
+} // namespace dc::game
