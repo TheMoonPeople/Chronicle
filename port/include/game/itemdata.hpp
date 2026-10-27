@@ -666,14 +666,24 @@ inline int GetDungeonItemStart() { return ITEM_DUNGEON_START; }
 inline int GetDungeonItemEnd() { return ITEM_WEAPON_SLOT_EMPTY; }
 
 /**
+ * Every item's kind, table index, icon and name, indexed by item number less ITEM_ATTACH_START.
+ */
+extern COM_ITEM_INFO ComItemInfo[296];
+
+/**
  * The item data table, one entry per item from ITEM_ATTACH_START on.
  */
-extern ITEM_DATA ITEM_LIST[];
+extern ITEM_DATA ITEM_LIST[175];
+
+/**
+ * The attachment table, indexed by COM_ITEM_INFO::index.
+ */
+extern ATTACH_DATA AttachList[50];
 
 /**
  * Weapon table, one entry per weapon from ITEM_WEAPON_START on. CDngStatusData::GetItem reads a
  * picked-up weapon's owner from it.
  */
-extern WEAPON_DATA WeaponList[];
+extern WEAPON_DATA WeaponList[120];
 
 } // namespace dc::game

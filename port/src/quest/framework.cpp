@@ -201,6 +201,13 @@ Condition HasItem(int item, int count) {
     return [item, count](const Context &ctx) { return ctx.Game().ItemCount(item) >= count; };
 }
 
+Condition HasItem(std::string_view id, int count) {
+    return [id = std::string(id), count](const Context &ctx) {
+        const item::Def *found = item::Find(id);
+        return found != nullptr && ctx.Game().ItemCount(found->number) >= count;
+    };
+}
+
 Condition HasMoney(int amount) {
     return [amount](const Context &ctx) { return ctx.Game().Money() >= amount; };
 }

@@ -42,8 +42,9 @@ quest that ends in a shop (`FetchQuest`).
 - **Rules** (`Advance`) move a quest from one stage to another once a condition holds. `Evaluate`
   applies them until none does; it runs whenever an NPC's menu is put together, and again after
   each quest choice.
-- **Conditions** are plain functions of the quest's `Context`: `AtStage`, `AtStages`, `HasItem`,
-  `HasMoney`, `FloorReached`, `DungeonStarted`, `PartyMember`, `VarAtLeast`, the game's flags
+- **Conditions** are plain functions of the quest's `Context`: `AtStage`, `AtStages`, `HasItem` (by
+  number, or by item ID: `HasItem("vanilla:bread", 2)`, docs/ITEM_FRAMEWORK.md), `HasItemWith<T>`
+  (items with an item trait between them: `HasItemWith<item::Fish>(3)`), `HasMoney`, `FloorReached`, `DungeonStarted`, `PartyMember`, `VarAtLeast`, the game's flags
   (`GameFlagSet`, `GameNumberAtLeast`, `MapFlagSet`), its georama (`PartPlaced`, `PartComplete`,
   `EventDone`, `RequestMet`, `VillagerHome`), and `All`, `Any`, `Not` to combine them. A lambda works
   too.

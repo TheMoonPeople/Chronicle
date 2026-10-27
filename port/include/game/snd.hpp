@@ -535,4 +535,10 @@ struct SND_INFO {
 
 STATIC_ASSERT(sizeof(SND_INFO) == 0x10);
 
+/**
+ * Reads one sound configuration script, a sound pack's .cfg, through the
+ * script interpreter; a command the script lacks leaves its fields zero.
+ */
+void LoadSoundInfo(SND_INFO *info, char *script, int script_size);
+
 } // namespace dc::game

@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "app/gameloop.hpp"
 #include "battlemenu.hpp"
 #include "btactstatus.hpp"
 #include "btitem.hpp"
@@ -1661,7 +1662,7 @@ void DunMoveChara() {
                     break;
                 case BT_REQUEST_ENTRANCE_WINDOW:
                     BtEventInfo.request = BT_REQUEST_NONE;
-                    InitDunEnterMenu(0x17, selectMapNo, -1);
+                    InitDunEnterMenu(0x17, selectMapNo, app::GameTakeResumeFloor());
                     BtGameModeFlag = BT_GAME_MODE_ENTRANCE_MENU;
                     break;
                 case BT_REQUEST_ESCAPE_WINDOW:
@@ -1705,6 +1706,7 @@ void DunMoveChara() {
                     startCnt2 = 0;
                     gameTask = GAME_TASK_PLAY;
                     printf("go dungeon\n");
+                    app::GameAutosaveFloor();
                     break;
                 case BT_REQUEST_RUN_SCRIPT:
                     BtEventInfo.request = BT_REQUEST_NONE;

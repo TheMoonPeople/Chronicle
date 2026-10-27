@@ -26,25 +26,13 @@
 #include "savedata.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "vu0_ops.hpp"
 
 namespace dc::game {
 
 using namespace dc::render;
 
-namespace {
-
-/**
- * Describes one kind of bait that can be put on the hook.
- */
-struct EsaInfo {
-    int   item_no; /**< Item the bait is made from. */
-    float radius;  /**< Distance from which fish notice the bait. */
-};
-
-/**
- * The kinds of bait, indexed by esa_type.
- */
-constexpr std::array<EsaInfo, 13> esa_info = {
+std::array<EsaInfo, 13> esa_info = {
     {
      {.item_no = ITEM_EVY, .radius = 50.0f},
      {.item_no = ITEM_MIMI, .radius = 25.0f},
@@ -61,6 +49,8 @@ constexpr std::array<EsaInfo, 13> esa_info = {
      {.item_no = ITEM_PETITE_FISH, .radius = 40.0f},
      }
 };
+
+namespace {
 
 /**
  * The pairs of hook points held apart by a fixed length.
@@ -867,8 +857,8 @@ void FishLineStep(float *rod_position, float * /*unused*/) {
             sceVu0SubVector(diff, previous, current);
             float length = DistVector(diff);
             float stretch = length - distp;
-            float scale = rest * stretch / length;
-            weight = weight * stretch / length;
+            float scale = vu0::Div(rest * stretch, length);
+            weight = vu0::Div(weight * stretch, length);
             sceVu0ScaleVector(move0, diff, scale);
             sceVu0ScaleVector(move1, diff, weight);
             sceVu0SubVector(previous, previous, move0);
@@ -880,7 +870,7 @@ void FishLineStep(float *rod_position, float * /*unused*/) {
         for (int i = 0; i < 3; i++) {
             sceVu0SubVector(diff, hookp[hook_link[i][0]], hookp[hook_link[i][1]]);
             float length = DistVector(diff);
-            sceVu0ScaleVector(move0, diff, 0.5f * (length - hook_dist[i]) / length);
+            sceVu0ScaleVector(move0, diff, vu0::Div(0.5f * (length - hook_dist[i]), length));
             sceVu0SubVector(hookp[hook_link[i][0]], hookp[hook_link[i][0]], move0);
             sceVu0AddVector(hookp[hook_link[i][1]], hookp[hook_link[i][1]], move0);
         }
@@ -888,8 +878,8 @@ void FishLineStep(float *rod_position, float * /*unused*/) {
         sceVu0SubVector(diff, point[18], ukip[0]);
         float length = DistVector(diff);
         weight = 0.2f;
-        float scale = length * (1.0f - weight) / length;
-        weight = length * weight / length;
+        float scale = vu0::Div(length * (1.0f - weight), length);
+        weight = vu0::Div(length * weight, length);
         sceVu0ScaleVector(move0, diff, scale);
         sceVu0ScaleVector(move1, diff, weight);
         sceVu0SubVector(point[18], point[18], move0);
@@ -898,7 +888,7 @@ void FishLineStep(float *rod_position, float * /*unused*/) {
         for (int i = 0; i < 6; i++) {
             sceVu0SubVector(diff, ukip[uki_link[i][0]], ukip[uki_link[i][1]]);
             float link_length = DistVector(diff);
-            sceVu0ScaleVector(move0, diff, 0.5f * (link_length - uki_dist[i]) / link_length);
+            sceVu0ScaleVector(move0, diff, vu0::Div(0.5f * (link_length - uki_dist[i]), link_length));
             sceVu0SubVector(ukip[uki_link[i][0]], ukip[uki_link[i][0]], move0);
             sceVu0AddVector(ukip[uki_link[i][1]], ukip[uki_link[i][1]], move0);
         }

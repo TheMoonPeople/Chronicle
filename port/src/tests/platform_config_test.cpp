@@ -693,6 +693,14 @@ TEST(PlatformConfig, SwapKeepsLockOn) {
     ASSERT_TRUE(!ConfigParse(R"({"game": {"swap_keeps_lock_on": "yes"}})").swap_keeps_lock_on);
 }
 
+TEST(PlatformConfig, Autosave) {
+    ASSERT_TRUE(ConfigParse("").autosave);
+    Config config = ConfigParse(R"({"game": {"autosave": false}})");
+    ASSERT_TRUE(!config.autosave);
+    ASSERT_TRUE(!ConfigParse(ConfigSerialize(config)).autosave);
+    ASSERT_TRUE(ConfigParse(R"({"game": {"autosave": "no"}})").autosave);
+}
+
 TEST(PlatformConfig, TextFontIsNoLongerWritten) {
     // An older config.json's text font setting is read without complaint and not written back.
     const Config config = ConfigParse(R"({"video": {"text_font": "original"}})");

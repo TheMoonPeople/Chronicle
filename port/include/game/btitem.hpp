@@ -20,7 +20,7 @@ enum TreasureboxItemPose {
 /**
  * Base name of each item's model and texture files, beginning with attachments.
  */
-extern const char *const ITEM_NAME_TBL_NEW[];
+extern const char *ITEM_NAME_TBL_NEW[175];
 
 /**
  * Step the large-treasure-box presentation is on.

@@ -92,10 +92,28 @@ void GameSetFastLoad(bool fast);
 bool GameSetGive(const char *list);
 
 /**
- * Whether a town that starts without an event overwrites the autosave; off for headless and --jump
- * runs.
+ * Whether the autosave may be written, with game.autosave on; off for headless and --jump runs. A
+ * town that starts without an event writes it, and so does each dungeon floor as it starts.
  */
 void GameSetAutosave(bool on);
+
+/**
+ * Writes the autosave for the dungeon floor the party has just started, once per floor, recording
+ * the dungeon's map number as the map to resume on.
+ */
+void GameAutosaveFloor();
+
+/**
+ * Called by the title with a save just loaded: a save written on a dungeon floor makes that
+ * dungeon's next start keep the party's status and event flags and offer the saved floor.
+ */
+void GameResumeLoaded();
+
+/**
+ * Returns the floor the dungeon entrance's floor list should start on for a resumed save, or -1,
+ * and forgets it.
+ */
+int GameTakeResumeFloor();
 
 /**
  * Whether the loading screen's holds and fades are cut short (GameSetFastLoad).

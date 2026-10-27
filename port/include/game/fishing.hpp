@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "collision.hpp"
 
 namespace dc::game {
@@ -56,6 +58,19 @@ extern CFrameVu1 *EsaFrame;
  * The kind of bait on the hook, or -1 when the hook is bare.
  */
 extern int esa_type;
+
+/**
+ * Describes one kind of bait that can be put on the hook.
+ */
+struct EsaInfo {
+    int   item_no; /**< Item the bait is made from. */
+    float radius;  /**< Distance from which fish notice the bait. */
+};
+
+/**
+ * The kinds of bait, indexed by esa_type.
+ */
+extern std::array<EsaInfo, 13> esa_info;
 
 /**
  * The line's hook model.

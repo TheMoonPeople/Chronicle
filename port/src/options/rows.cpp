@@ -615,7 +615,8 @@ constexpr Row kGameRows[] = {
     OnOffRow<&Config::element_quick_select>("game.element_quick_select", "Element Quick Select",
                                             "\"Element Quick Select\"\nD-pad Up in a dungeon\npicks the element."),
     OnOffRow<&Config::swap_keeps_lock_on>("game.swap_keeps_lock_on", "Swap Keeps Lock-On",
-                                          "\"Swap Keeps Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on.")
+                                          "\"Swap Keeps Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on."),
+    OnOffRow<&Config::autosave>("game.autosave", "Autosave", "\"Autosave\"\nSaves on arriving in a\ntown or dungeon floor.")
 };
 
 constexpr Row kDisplayRows[] = {

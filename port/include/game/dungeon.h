@@ -17,4 +17,16 @@ enum Dungeon {
     DUNGEON_COUNT = 7,             /**< Number of dungeons. */
 };
 
+/**
+ * Map number of dungeon 0; dungeon n is map DUNGEON_MAP_BASE + n.
+ */
+inline constexpr int DUNGEON_MAP_BASE = 200;
+
+/**
+ * Whether map_no is one of the dungeons' map numbers.
+ */
+constexpr bool IsDungeonMap(int map_no) {
+    return map_no >= DUNGEON_MAP_BASE && map_no < DUNGEON_MAP_BASE + DUNGEON_COUNT;
+}
+
 } // namespace dc::game

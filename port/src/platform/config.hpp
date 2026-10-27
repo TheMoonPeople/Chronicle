@@ -48,6 +48,7 @@ struct Config : HostSettings {
     bool qte_always_win = false;
     bool element_quick_select = false;
     bool swap_keeps_lock_on = false;
+    bool autosave = true;
     bool text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
 #if defined(__SWITCH__)
     bool interpolation = false;

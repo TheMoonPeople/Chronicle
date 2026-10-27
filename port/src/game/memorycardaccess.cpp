@@ -369,11 +369,14 @@ int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
     info.state = 1;
     info.file_no = file_no + 1;
     std::memcpy(info.name, save->GetCharaName(0), sizeof(info.name));
-    info.map_no = save->map_no;
+    info.map_no = save->GetMapNo();
     info.play_time = save->GetPlayTime();
     info.party_size = save->GetDngStatus()->GetPartySize();
 
-    // DrawSaveBoard names the map from a table of 62.
+    // DrawSaveBoard names the map from a table of 62; a dungeon's autosave shows its town.
+    if (IsDungeonMap(info.map_no)) {
+        info.map_no -= DUNGEON_MAP_BASE;
+    }
     if (info.map_no < 0 || info.map_no >= 62) {
         info.map_no = 0;
     }

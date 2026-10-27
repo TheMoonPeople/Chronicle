@@ -34,6 +34,9 @@ jobs:
       - name: Check the Flatpak stages Kazarov's downloads
         run: python3 scripts/port/flatpak_sources.py
 
+      - name: Check the vanilla item IDs follow port/include/game/itemdata.hpp
+        run: python3 scripts/port/item_ids.py --check
+
       - name: Install the toolchain and libraries
         run: |
           sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#https://archive.ubuntu.com/ubuntu#g' /etc/apt/apt-mirrors.txt

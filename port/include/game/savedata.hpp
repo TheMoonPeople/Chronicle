@@ -103,9 +103,6 @@ struct SV_GEORAMA_DATA {
  * Contains the data of one save slot.
  */
 class CSaveData {
-    // CMemoryCardAccess::GetSaveFileInfoFromMc reads map_no out of the save
-    // image that it reads from the card.
-    friend class CMemoryCardAccess;
     // EdMoveChara counts the Mardan Garayan the player lands.
     friend void EdMoveChara();
     // The fish exchange debug shortcut records a Mardan Garayan catch.
@@ -172,6 +169,16 @@ public:
      * Returns the play time.
      */
     int GetPlayTime();
+
+    /**
+     * Returns the map that the game resumes on.
+     */
+    int GetMapNo();
+
+    /**
+     * Sets the map that the game resumes on.
+     */
+    void SetMapNo(int map_no);
 
     /**
      * Sets the time of day.

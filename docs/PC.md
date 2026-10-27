@@ -149,6 +149,7 @@ key is optional; these are the defaults:
         "qte_always_win": false,    // button-prompt events (event battles) still play, but always end in a perfect
         "element_quick_select": false, // D-pad Up in a dungeon opens the quick-change menu as an element picker
         "swap_keeps_lock_on": false, // switching characters with SELECT keeps the lock-on
+        "autosave": true,           // write the autosave on arriving in a town or on a dungeon floor
         "text_wipe": false,         // developer tool: F9 splits the screen between picture text and runtime text (docs/TEXTWIPE.md)
         "save_cursor_position": true, // the game's own options, for every save (see "The Options screen")
         "message_speed": "normal",  // normal or fast
@@ -1199,10 +1200,15 @@ state write explicitly record the current game's clear flag.
 
 The autosave is `<save>/saves/autosave/save.dat`, the same image as a
 numbered save. It is written over whenever a town starts without an event,
-the only place retail lets the game be saved, and never by the save screen.
-The load screen lists it first, its board reading "Auto"; loading it leaves
-`last_save` on the last numbered save. Headless and `--jump` runs do not
-write it.
+and once on each dungeon floor as the floor starts (`BT_REQUEST_GO_DUNGEON`),
+never by the save screen. A floor's autosave records the dungeon's map number
+(`DUNGEON_MAP_BASE` plus the dungeon); loading it enters that dungeon as from
+town but keeps the party's status and the dungeon's event flags, and answers
+the entrance's floor list with the saved floor through `InitDunEnterMenu`'s
+otherwise unused direct mode. Its board names the dungeon's town. The load
+screen lists it first, its board reading "Auto"; loading it leaves
+`last_save` on the last numbered save. `game.autosave` (Options, Game page)
+turns it off; headless and `--jump` runs never write it.
 
 `port/src/game/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
@@ -1387,7 +1393,7 @@ help. Retail's screen-position row is gone: `MGAdjustScreen` moves nothing on PC
 
 | Page | Rows |
 |---|---|
-| Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select, swap keeps lock-on |
+| Game | save cursor position, clock, time speed, dungeon map, enemy damage, party damage, enemy HP, names, Discord Rich Presence, element quick select, swap keeps lock-on, autosave |
 | Display | window mode, resolution (the monitor's own and the sizes that fit it), V-Sync (`fifo`, `mailbox`, `immediate`), frame limit, aspect ratio, interface size (`ui_scale`), smooth motion (`interpolation`), FPS counter, FPS info (`fps_detail`), anisotropic filter (`anisotropy`), soft focus |
 | Audio | volume, sound (mono, stereo or surround), soundtrack (PS2 or custom) |
 | Controls | vibration, mouse sensitivity (in hundredths below 1 and tenths above, whatever its unit), invert mouse Y, vertical return, mouse wheel zoom, reset zoom (its binding), stick sensitivity, invert stick X and Y, gyro, gyro sensitivity, invert gyro X and Y |
@@ -1734,7 +1740,7 @@ The root `CMakeLists.txt` only picks the platform:
 - The rest of `port/src` is the platform layer, one directory per subsystem,
   each its own namespace: `app/` (`dc::app`), `platform/`, `data/`,
   `render/`, `input/`, `ui/`, `options/`, `title/`, `battlemenu/`, `dialog/`,
-  `quest/`, `text/`, `localize/` and `save/` (`dc::platform`, `dc::data`,
+  `quest/`, `item/`, `text/`, `localize/` and `save/` (`dc::platform`, `dc::data`,
   `dc::render` and so on). A platform file includes another by its path under
   `port/src` (`"render/draw2d.hpp"`) and a game header by its bare name
   (`"btitem.hpp"`). `port/CMakeLists.txt` is the port's build. `main.cpp`,
@@ -1928,6 +1934,7 @@ The game reads extracted files from a plain directory or a sibling `data.zip` ar
 port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
 port/build/pc/dcdata pack data
 port/build/pc/dcdata list "rom/pal/Dark Cloud (PAL).iso"
+port/build/pc/dcdata publish-sound data
 ```
 
 `pack` takes an existing extracted directory and writes a ZIP archive beside it by default; a second output path is optional. It stores files without compression so the port can read them on Switch without a decompression cost. The runtime also reads standard deflated ZIP entries. ZIP64, encrypted and multi-disk archives are unsupported. The game gives `data.zip` priority over loose files when both exist. Do not modify an archive while the game is running.
@@ -1941,7 +1948,10 @@ lowercased with `/` separators and no leading separator, at its exact size,
 and copies the index itself to `<data>/data.hd2`. A file already present at
 its size is kept, so a rerun only repairs what is missing. When a path is
 listed twice, only the first is written, as the game only ever finds the
-first. `list` prints each file's sector, size and path.
+first. `list` prints each file's sector, size and path. `publish-sound`
+converts an extracted folder's sound packs into ChronicleTwo's bank, sample
+and sequence formats beside the originals, which the game still plays
+(`docs/AUDIO_FRAMEWORK.md`).
 
 The layout of `data/` or the root of `data.zip` is the disc archive's own: `dun/pack/maindat.pac`,
 `commenu/a_eng/savetex.pak`, `sound/bgm/...` and so on. Lookups fold case,

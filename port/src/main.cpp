@@ -37,6 +37,7 @@
 #include "dun/gameloop.hpp"
 #include "gamemode.hpp"
 #include "gfx/gfx.hpp"
+#include "item/host.hpp"
 #include "langset.hpp"
 #include "localize/localize.hpp"
 #include "menu_save.hpp"
@@ -46,6 +47,7 @@
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
 #include "platform/data_archive.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/discord.hpp"
 #include "platform/display.hpp"
 #include "platform/firstrun.hpp"
@@ -89,6 +91,7 @@ struct Options {
     bool         screenshot_fps = false;
     bool         perf_log = false;
     const char  *export_text = nullptr;
+    const char  *export_gameplay = nullptr;
     const char  *font = nullptr;
     const char  *seed_save = nullptr;
 #ifdef __SWITCH__
@@ -136,6 +139,8 @@ float g_switch_render_scale = 0.0f;
                  "  --display-per-tick N  headless: also render N interpolated display frames per tick\n"
 #endif
                  "  --export-text DIR  write the game's message files to DIR as language JSON (docs/LOCALIZATION.md)\n"
+                 "  --export-gameplay DIR  write the item tables to DIR as gameplay documents, a starting point\n"
+                 "                     for a datapack (docs/ITEM_FRAMEWORK.md)\n"
                  "  --font FILE        draw message text from this TrueType font (else lang/font.ttf)\n"
                  "  --show-fps         draw the FPS counter on presented frames when headless too\n"
                  "  --perf-log         log tick, render and GPU timings once a second\n"
@@ -198,6 +203,8 @@ Options ParseOptions(int argc, const char **argv) {
             options.fast_load = true;
         } else if (arg == "--export-text") {
             options.export_text = value();
+        } else if (arg == "--export-gameplay") {
+            options.export_gameplay = value();
         } else if (arg == "--font") {
             options.font = value();
         } else if (arg == "--show-fps") {
@@ -546,6 +553,10 @@ int Run(int argc, const char **argv) {
         }
         std::fprintf(stderr, "seeded --save %s from %s\n", explicit_save, options.seed_save);
     }
+    if (options.export_gameplay != nullptr) {
+        // The tables are compiled in, so this needs no disc data, no window and no game.
+        return item::Export(PathsFromUtf8(options.export_gameplay)) ? kExitOk : kExitFailure;
+    }
     FirstRunIfNoData(options.headless);
     DC_ANDROID_TRACE("Run: first-run check passed");
     if (options.jump == nullptr) {
@@ -568,6 +579,8 @@ int Run(int argc, const char **argv) {
     RequireData();
     GameLoadTraceCheckpoint("data_ready");
     DC_ANDROID_TRACE("Run: data available");
+    datapacks::Load(PathsDataRoot());
+    item::Load();
     if (!options.headless) {
         GameSetDataIcon();
     }

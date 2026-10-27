@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "app/gameloop.hpp"
 #include "battle_globals.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -232,9 +233,6 @@ void TitleInit(int mode) {
 }
 
 namespace {
-// CSaveData::map_no is private; this is its offset, as gameloop.cpp reads it.
-constexpr int kSaveMapNoOffset = 0x1C8;
-
 // A title menu row's screen y: laid out for NTSC's 448-line picture, lowered to stay centred in PAL.
 constexpr int MenuY(int y) {
     return y + (SCREEN_HEIGHT - 448) / 2;
@@ -533,7 +531,8 @@ int TitleLoop() {
                     CFade.In();
                     break;
                 case MENU_SAVE_LOADED:
-                    MapJump(*reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset), -1);
+                    MapJump(SaveData->GetMapNo(), -1);
+                    app::GameResumeLoaded();
                     CProcess.no = TITLE_STEP_EXIT;
                     break;
                 case MENU_SAVE_CLOSED:

@@ -155,6 +155,7 @@ protected:
     void SetUp() override {
         LanguageCode = 2; // en_gb: the built-in English.
         quest::Clear();
+        item::Clear();
         quest::SetGame(&game);
         dialog::Shutdown();
         dialog::Init();
@@ -167,6 +168,7 @@ protected:
         dialog::Shutdown();
         quest::SetGame(nullptr);
         quest::Clear();
+        item::Clear();
     }
 
     static dialog::NpcContext Npc(int map_no, int npc_id) {
@@ -604,6 +606,44 @@ TEST_F(QuestFramework, TheSuppliesQuestTakesOverOnlyTheMayors) {
     EXPECT_TRUE(quest::TakesOver(Npc(0, 13), quest::Retail::MayorSupplies));
     EXPECT_FALSE(quest::TakesOver(Npc(0, 12), quest::Retail::MayorSupplies));
     EXPECT_FALSE(quest::TakesOver(Npc(1, 13), quest::Retail::MayorSupplies));
+}
+
+TEST_F(QuestFramework, ItemsCanBeNamedByTheirIds) {
+    item::Register({.id = "test:bread", .number = ITEM_BREAD});
+    quest::Register(quest::Builder("by_id").Stages({"start", "end"}).Advance("start", quest::HasItem("test:bread", 2), "end").Build());
+    game.items[ITEM_BREAD] = 1;
+    quest::Evaluate();
+    EXPECT_EQ(Stage("by_id"), "start");
+    game.items[ITEM_BREAD] = 2;
+    quest::Evaluate();
+    EXPECT_EQ(Stage("by_id"), "end");
+}
+
+TEST_F(QuestFramework, AnIdIsLookedUpAsTheConditionIsChecked) {
+    quest::Register(quest::Builder("later").Stages({"start", "end"}).Advance("start", quest::HasItem("test:cake"), "end").Build());
+    game.items[-1] = 5;
+    quest::Evaluate();
+    EXPECT_EQ(Stage("later"), "start");
+
+    item::Register({.id = "test:cake", .number = ITEM_CHEESE});
+    game.items[ITEM_CHEESE] = 1;
+    quest::Evaluate();
+    EXPECT_EQ(Stage("later"), "end");
+}
+
+TEST_F(QuestFramework, ItemsCanBeCountedByTrait) {
+    item::Register({.id = "test:bread", .number = ITEM_BREAD});
+    item::Register(item::Def{.id = "test:flapping_fish", .number = ITEM_FLAPPING_FISH}.With(item::Fish{}));
+    item::Register(item::Def{.id = "test:rotten_fish", .number = ITEM_ROTTEN_FISH}.With(item::Fish{}));
+    quest::Register(quest::Builder("fishmonger").Stages({"start", "end"}).Advance("start", quest::HasItemWith<item::Fish>(3), "end").Build());
+    game.items[ITEM_BREAD] = 5;
+    game.items[ITEM_FLAPPING_FISH] = 2;
+    quest::Evaluate();
+    EXPECT_EQ(Stage("fishmonger"), "start");
+    EXPECT_EQ(quest::ItemCountWith<item::Fish>(game), 2);
+    game.items[ITEM_ROTTEN_FISH] = 1;
+    quest::Evaluate();
+    EXPECT_EQ(Stage("fishmonger"), "end");
 }
 
 } // namespace

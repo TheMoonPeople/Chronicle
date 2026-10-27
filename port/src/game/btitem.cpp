@@ -1226,7 +1226,7 @@ void setShotVector(float *velocity, float speed, float angle_y, float angle_x) {
     sceVu0ApplyMatrix(velocity, rotation, velocity);
 }
 
-const char *const ITEM_NAME_TBL_NEW[] = {
+const char *ITEM_NAME_TBL_NEW[175] = {
     "atfire",
     "atice",
     "atthunde",

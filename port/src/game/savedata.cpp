@@ -53,6 +53,14 @@ int CSaveData::GetPlayTime() {
     return this->play_time;
 }
 
+int CSaveData::GetMapNo() {
+    return this->map_no;
+}
+
+void CSaveData::SetMapNo(int map_no) {
+    this->map_no = map_no;
+}
+
 void CSaveData::SetNowTime(float time) {
     this->now_time = time;
 }

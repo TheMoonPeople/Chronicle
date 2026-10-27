@@ -1694,9 +1694,8 @@ void CommandTABLE(void **arguments) {
 /** The handler LoadSoundInfo calls for each of Command__3's tags. */
 constexpr std::array<void (*)(void **), 2> CommandExe__3 = {CommandREVERBE, CommandTABLE};
 
-/**
- * Reads one sound configuration file through the script interpreter.
- */
+} // namespace
+
 void LoadSoundInfo(SND_INFO *info, char *script, int script_size) {
     *info = {};
     SoundInfo = info;
@@ -1708,6 +1707,8 @@ void LoadSoundInfo(SND_INFO *info, char *script, int script_size) {
         CommandExe__3[tag](interpreter.arguments);
     }
 }
+
+namespace {
 
 /** The background music's play state, as SndBgmCheck reports it. */
 enum class BgmPlayState : int {

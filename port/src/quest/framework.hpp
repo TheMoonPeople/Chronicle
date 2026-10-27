@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "dialog/framework.hpp"
+#include "item/framework.hpp"
 
 /**
  * Quests (docs/QUEST_FRAMEWORK.md). A quest is a state machine: named stages, its own numbers, rules
@@ -294,11 +295,37 @@ struct NpcMatch {
 };
 
 /**
+ * How many items with trait T the player carries, each counted as IGame::ItemCount counts it.
+ */
+template <class T>
+int ItemCountWith(const IGame &game) {
+    int count = 0;
+    for (const item::Def *item : item::With<T>()) {
+        count += game.ItemCount(item->number);
+    }
+    return count;
+}
+
+/**
  * Conditions, for rules and choices.
  */
 Condition AtStage(std::string_view stage);
 Condition AtStages(std::initializer_list<std::string_view> stages);
 Condition HasItem(int item, int count = 1);
+/**
+ * At least count of the item with an ID, looked up as the condition is checked so a quest can be
+ * built before the items are registered. Never holds for an ID no item has.
+ */
+Condition HasItem(std::string_view id, int count = 1);
+
+/**
+ * At least count items with trait T between them, of any kind: HasItemWith<item::Fish>() for any fish.
+ */
+template <class T>
+Condition HasItemWith(int count = 1) {
+    return [count](const Context &ctx) { return ItemCountWith<T>(ctx.Game()) >= count; };
+}
+
 Condition HasMoney(int amount);
 Condition FloorReached(int dungeon, int floor = 0);
 Condition DungeonStarted(int dungeon);

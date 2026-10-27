@@ -11,6 +11,7 @@
 #include <memory>
 #include <print>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "app/exitcodes.hpp"
@@ -111,9 +112,6 @@ constexpr int kConfigScreenX = 12;
 constexpr int kConfigScreenY = 13;
 constexpr int kConfigGameClear = 14;
 constexpr int kConfigLastFile = 17;
-
-// CSaveData::map_no is private; retail's main() writes it by offset.
-constexpr int kSaveMapNoOffset = 0x1C8;
 
 constexpr int kWarmUpTicks = 60;
 
@@ -338,7 +336,7 @@ void ApplyJump() {
         case GAME_MODE_DUNGEON:
             selectMapNo = g_jump.map;
             main_select_menu_no = g_jump.map;
-            MapJump(g_jump.map + 200, -1);
+            MapJump(DUNGEON_MAP_BASE + g_jump.map, -1);
             MGSetBGColor(0.0f, 0.0f, 0.0f, 128.0f);
             GameFollowMapJump();
             break;
@@ -719,6 +717,43 @@ void GameSetAutosave(bool on) {
     g_autosave = on;
 }
 
+namespace {
+
+int                                              g_autosaved_floor = -1;
+int                                              g_resume_floor = -1;
+std::array<s8, sizeof(CUserStatus::event_flags)> g_resume_event_flags;
+
+void WriteAutosave() {
+    if (g_autosave && ConfigGet().autosave && !SaveSlotWriteAutosave()) {
+        std::println(stderr, "autosave: could not write {}", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)));
+    }
+}
+
+} // namespace
+
+void GameAutosaveFloor() {
+    const int floor = UserStatus->cur_georama * 100 + UserStatus->cur_floor;
+    if (floor == g_autosaved_floor) {
+        return;
+    }
+    g_autosaved_floor = floor;
+    SaveData->SetMapNo(DUNGEON_MAP_BASE + UserStatus->cur_georama);
+    WriteAutosave();
+}
+
+void GameResumeLoaded() {
+    const CUserStatus *status = SaveData->GetDngStatus();
+    g_resume_floor = -1;
+    if (IsDungeonMap(SaveData->GetMapNo()) && status->cur_floor >= 0) {
+        g_resume_floor = status->cur_floor;
+        std::ranges::copy(status->event_flags, g_resume_event_flags.begin());
+    }
+}
+
+int GameTakeResumeFloor() {
+    return std::exchange(g_resume_floor, -1);
+}
+
 void GameSetFastLoad(bool fast) {
     g_fast_load = fast;
 }
@@ -861,7 +896,19 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         // A save loaded since the last mode brought its own options.
         GameOptionsApply(ConfigGet().options);
         bool event_start = StartEventNo >= 0;
+        // A resumed floor keeps the party's status and the dungeon's event flags, which entering
+        // from town resets.
+        const bool resume = mode == GAME_MODE_DUNGEON && g_resume_floor >= 0;
+        if (resume) {
+            BtEventInfo.no_status_recover = 1;
+        } else {
+            g_resume_floor = -1;
+        }
         ModeInit(title_ran, exist_data, skip_title);
+        if (resume) {
+            std::ranges::copy(g_resume_event_flags, std::begin(UserStatus->event_flags));
+        }
+        g_autosaved_floor = -1;
         GameLoadTraceCheckpoint("mode_init_done");
 
         NextMapNo = -1;
@@ -874,9 +921,9 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         LoadDrawEnv();
         ClockSyncV();
         MGPortCutInterpolation();
-        *reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset) = MapNo;
-        if (g_autosave && mode == GAME_MODE_EDIT && !event_start && !SaveSlotWriteAutosave()) {
-            std::println(stderr, "autosave: could not write {}", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)));
+        SaveData->SetMapNo(MapNo);
+        if (mode == GAME_MODE_EDIT && !event_start) {
+            WriteAutosave();
         }
 
         int  result = 0;
@@ -913,9 +960,8 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
             }
 
             if (result == 0 && battlemenu::TakeBattleMenuLoadRequest()) {
-                const s32 loaded_map = *reinterpret_cast<const s32 *>(
-                    reinterpret_cast<const char *>(SaveData) + kSaveMapNoOffset);
-                MapNo = (loaded_map >= 0 && loaded_map < 200) ? loaded_map : 0;
+                const int loaded_map = SaveData->GetMapNo();
+                MapNo = (loaded_map >= 0 && loaded_map < DUNGEON_MAP_BASE) ? loaded_map : 0;
                 LocalMapNo = MapNo;
                 OldMapNo = -1;
                 NextMapNo = -1;
