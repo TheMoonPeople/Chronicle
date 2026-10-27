@@ -6,13 +6,13 @@
 #include <string>
 #include <system_error>
 
-#include "../camera_port.hpp"
-#include "../camera_zoom.hpp"
-#include "../mouse_collision.hpp"
 #include "camerafollow.hpp"
 #include "collision.hpp"
 #include "dungeonmap.hpp"
 #include "frame.hpp"
+#include "input/camera_zoom.hpp"
+#include "input/mouse_collision.hpp"
+#include "input/mouse_look.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"

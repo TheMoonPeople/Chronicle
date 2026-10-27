@@ -15,10 +15,10 @@
 #include <span>
 #include <string>
 
+#include "app/presence.hpp"
 #include "editmapscript.hpp"
 #include "main.hpp"
 #include "platform/discord.hpp"
-#include "presence.hpp"
 
 using Json = nlohmann::json;
 

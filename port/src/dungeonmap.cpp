@@ -23,7 +23,7 @@
 #include "mathutil.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
-#include "screen.hpp"
+#include "render/screen.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
 #include "textureanime.hpp"

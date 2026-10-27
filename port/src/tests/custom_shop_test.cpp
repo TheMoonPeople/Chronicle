@@ -8,13 +8,13 @@
 #include <string_view>
 
 #include "clsmes.hpp"
-#include "custom_shop.hpp"
-#include "dataread_port.hpp"
-#include "gametext.hpp"
+#include "data/data_read.hpp"
 #include "itemdata.hpp"
 #include "menuetc.hpp"
 #include "platform/paths.hpp"
+#include "quest/custom_shop.hpp"
 #include "shop.hpp"
+#include "text/gametext.hpp"
 
 // The shop price table, as custom_shop.cpp declares it.
 struct ITEM_MONEY_ENTRY {

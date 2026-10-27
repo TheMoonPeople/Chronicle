@@ -21,12 +21,12 @@
 #include <utility>
 #include <vector>
 
-#include "caption_text.hpp"
+#include "data/data_read.hpp"
 #include "dataalloc.hpp"
-#include "dataread_port.hpp"
-#include "localize_texture.hpp"
+#include "localize/localize_texture.hpp"
 #include "mglib.hpp"
-#include "texture_port.hpp"
+#include "render/texture_registry.hpp"
+#include "text/caption_text.hpp"
 #include "tim2.hpp"
 
 namespace {

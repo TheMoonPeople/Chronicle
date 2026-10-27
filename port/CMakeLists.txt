@@ -98,8 +98,10 @@ if(WIN32 AND (NOT MINGW OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
     message(FATAL_ERROR "The Windows build requires clang/llvm-mingw")
 endif()
 
+# The game units may include the platform layer's headers (port/src and the generated headers), so
+# dc_ps2 gets dc_port's include path and libraries; dc_port_includes below adds the include path.
 add_library(dc_ps2 OBJECT ${GAME_SOURCES})
-target_link_libraries(dc_ps2 PRIVATE dc_options)
+target_link_libraries(dc_ps2 PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json kz_port_headers)
 # Retail's code reads locals it never set and falls off the end of functions
 # that return a value, and ps2/src keeps both because the match depends on
 # them. MWCC gave each a defined if arbitrary result; these flags give the port
@@ -166,15 +168,20 @@ if(NINTENDO_SWITCH)
     dc_switch_port(dc_port)
 endif()
 target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json kz_port_headers)
-target_include_directories(dc_port PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
-# captionfont.cpp rasterizes with stb_truetype and platform/png_image.cpp decodes with stb_image, which
-# Kazarov stages (or fetches) for dc_host.
-get_target_property(dc_host_includes dc_host INCLUDE_DIRECTORIES)
-foreach(include_dir IN LISTS dc_host_includes)
-    if(EXISTS ${include_dir}/stb_truetype.h OR EXISTS ${include_dir}/stb_image.h)
-        target_include_directories(dc_port PRIVATE ${include_dir})
-    endif()
-endforeach()
+# port/src, the generated headers and the stb directories: captionfont.cpp rasterizes with
+# stb_truetype and platform/png_image.cpp decodes with stb_image, which Kazarov stages (or fetches)
+# for dc_host.
+function(dc_port_includes target)
+    target_include_directories(${target} PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
+    get_target_property(dc_host_includes dc_host INCLUDE_DIRECTORIES)
+    foreach(include_dir IN LISTS dc_host_includes)
+        if(EXISTS ${include_dir}/stb_truetype.h OR EXISTS ${include_dir}/stb_image.h)
+            target_include_directories(${target} PRIVATE ${include_dir})
+        endif()
+    endforeach()
+endfunction()
+dc_port_includes(dc_port)
+dc_port_includes(dc_ps2)
 # The game's headers trip a few warnings that only describe how MWCC's source
 # was written, not a problem in the port.
 target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label

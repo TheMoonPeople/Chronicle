@@ -3,10 +3,10 @@
 #include <set>
 #include <string>
 
-#include "caption_text.hpp"
 #include "mainselect.hpp"
 #include "menu_draw.hpp"
-#include "texture_port.hpp"
+#include "render/texture_registry.hpp"
+#include "text/caption_text.hpp"
 
 TEST(Caption, ColoursAreThePaintedEnglishOnes) {
     EXPECT_EQ(caption::kFill[0], 232);

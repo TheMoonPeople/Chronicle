@@ -8,7 +8,7 @@
 #include <span>
 #include <string_view>
 
-#include "../gameloop.hpp"
+#include "app/gameloop.hpp"
 #include "gamepad.hpp"
 #include "mainselect.hpp"
 #include "platform/clock.hpp"

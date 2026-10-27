@@ -11,21 +11,21 @@
 #include <string>
 #include <string_view>
 
-#include "area_card.hpp"
+#include "app/gameloop.hpp"
+#include "data/data_read.hpp"
 #include "dataread.hpp"
-#include "dataread_port.hpp"
-#include "gameloop.hpp"
 #include "gfx/gfx.hpp"
-#include "localize_texture.hpp"
+#include "localize/localize_texture.hpp"
 #include "mainselect.hpp"
 #include "mglib.hpp"
-#include "mglib_port.hpp"
 #include "nowload.hpp"
 #include "platform/clock.hpp"
 #include "rect.hpp"
-#include "texture_port.hpp"
-#include "textwipe.hpp"
+#include "render/gs_state.hpp"
+#include "render/texture_registry.hpp"
+#include "text/textwipe.hpp"
 #include "tim2.hpp"
+#include "ui/area_card.hpp"
 
 namespace {
 

@@ -8,22 +8,22 @@
 #include <string_view>
 #include <vector>
 
-#include "caption_text.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
 #include "itemdata.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "memcard.hpp"
 #include "menu_dungeon.hpp"
 #include "menu_inventory.hpp"
-#include "menu_pointer.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
-#include "name_mouse.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
+#include "text/caption_text.hpp"
+#include "text/textwipe.hpp"
 #include "texture.hpp"
-#include "textwipe.hpp"
+#include "ui/menu_pointer.hpp"
+#include "ui/name_mouse.hpp"
 
 extern PERSONAL_BOARD *PerBoardPt;
 extern CTexture       *DunLogBoard;

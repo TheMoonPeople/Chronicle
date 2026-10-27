@@ -2,9 +2,9 @@
 
 #include "clsmes.hpp"
 #include "memcard.hpp"
-#include "menu_pointer.hpp"
 #include "menu_save.hpp"
 #include "platform/input.hpp"
+#include "ui/menu_pointer.hpp"
 
 namespace {
 void Open(int state) {

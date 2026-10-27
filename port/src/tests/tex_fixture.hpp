@@ -11,8 +11,8 @@
 #include <vector>
 
 #include "gfx_fixture.hpp"
+#include "render/texture_registry.hpp"
 #include "texture.hpp"
-#include "texture_port.hpp"
 #include "tim2.hpp"
 
 /**

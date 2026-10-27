@@ -10,7 +10,6 @@
 #include <string_view>
 #include <vector>
 
-#include "../first_person_walk.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
 #include "character.hpp"
@@ -21,6 +20,7 @@
 #include "frame.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
+#include "input/first_person_walk.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"

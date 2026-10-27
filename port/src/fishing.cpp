@@ -7,13 +7,13 @@
 #include <array>
 #include <vector>
 
-#include "draw2d_port.hpp"
 #include "fish_port.hpp"
 #include "framevu1.hpp"
 #include "itemdata.hpp"
 #include "mathutil.hpp"
 #include "mglib.hpp"
-#include "mglib_port.hpp"
+#include "render/draw2d.hpp"
+#include "render/gs_state.hpp"
 #include "runscript.hpp"
 #include "texture.hpp"
 

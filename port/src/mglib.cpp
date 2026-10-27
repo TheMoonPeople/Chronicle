@@ -10,19 +10,19 @@
 #include <cstring>
 #include <optional>
 
+#include "app/gameloop.hpp"
 #include "collision.hpp"
 #include "dataalloc.hpp"
 #include "dataset.hpp"
-#include "draw3d.hpp"
 #include "frame.hpp"
-#include "gameloop.hpp"
 #include "mathutil.hpp"
 #include "platform/clock.hpp"
 #include "rect.hpp"
+#include "render/draw3d.hpp"
+#include "render/screen.hpp"
 #include "renderinfo.hpp"
-#include "screen.hpp"
+#include "text/textwipe.hpp"
 #include "texture.hpp"
-#include "textwipe.hpp"
 
 CRect_i_ mgWindowRect;
 

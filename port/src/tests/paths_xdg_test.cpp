@@ -11,7 +11,7 @@
 #include <sstream>
 #include <string>
 
-#include "exitcodes.hpp"
+#include "app/exitcodes.hpp"
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 

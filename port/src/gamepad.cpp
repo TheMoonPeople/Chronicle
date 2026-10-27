@@ -4,11 +4,11 @@
 
 #include <memory>
 
-#include "dualsense.hpp"
 #include "gamepad_port.hpp"
+#include "input/dualsense.hpp"
 #include "mainselect.hpp"
-#include "menu_pointer.hpp"
 #include "platform/input.hpp"
+#include "ui/menu_pointer.hpp"
 
 // The pad read and stick replacements tell the host when to latch mouse motion and when movement
 // keys must also press the d-pad. Button replacements require a deliberate modifier for retail's

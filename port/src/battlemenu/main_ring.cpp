@@ -3,7 +3,7 @@
 
 #include "battlemenu/internal.hpp"
 #include "battlemenu/strings.hpp"
-#include "save_slots.hpp"
+#include "save/save_slots.hpp"
 #include "savedata.hpp"
 
 namespace {

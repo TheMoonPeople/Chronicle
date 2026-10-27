@@ -152,7 +152,7 @@ for COFF:
 - lld's MinGW driver has no `--defsym`, so the aliases `draw_rect` and
   `WorkBuffer__2` are `/alternatename` directives in `port/src/linknames.cpp`.
 - lld resolves every name a COFF object uses before it drops the sections
-  nothing reaches, so `port/src/runtime.cpp` replaces `port/src/game`'s stand-ins
+  nothing reaches, so `port/src/app/runtime.cpp` replaces `port/src/game`'s stand-ins
   for the PS2 runtime, which use names only the PS2 link defines
   (`docs/PC.md`, "What is still a stub").
 

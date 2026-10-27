@@ -26,15 +26,15 @@
 #include <utility>
 #include <vector>
 
+#include "app/exitcodes.hpp"
 #include "config.hpp"
-#include "exitcodes.hpp"
 #include "gfx/gfx.hpp"
 #include "platform/data_archive.hpp"
 #include "platform/overlay.hpp"
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
 #include "platform/window.hpp"
-#include "screen.hpp"
+#include "render/screen.hpp"
 
 namespace fs = std::filesystem;
 

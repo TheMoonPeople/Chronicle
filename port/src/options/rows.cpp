@@ -9,8 +9,8 @@
 #include <string_view>
 #include <vector>
 
-#include "localize.hpp"
-#include "menu_option.hpp"
+#include "localize/localize.hpp"
+#include "options/menu_option.hpp"
 #include "platform/input.hpp"
 #include "platform/window.hpp"
 

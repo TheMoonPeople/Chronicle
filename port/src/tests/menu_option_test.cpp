@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "memorycardaccess.hpp"
-#include "menu_option.hpp"
+#include "options/menu_option.hpp"
 #include "options/rows.hpp"
 #include "savedata.hpp"
 #include "userstatus.hpp"

@@ -4,7 +4,7 @@ class CCloth;
 #include "clothread.hpp"
 
 #include "rect.hpp"
-#include "texture_port.hpp"
+#include "render/texture_registry.hpp"
 
 // A local-to-local GS transfer between two images the registry knows by base pointer. The direction
 // only orders overlapping transfers within one buffer, which the renderer's copy does not need.

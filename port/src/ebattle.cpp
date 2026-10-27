@@ -6,7 +6,6 @@
 #include <cmath>
 
 #include "camera.hpp"
-#include "camera_port.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataread.hpp"
@@ -15,6 +14,7 @@
 #include "fishing.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
+#include "input/mouse_look.hpp"
 #include "menu_save.hpp"
 #include "npcharacter.hpp"
 #include "platform/config.hpp"

@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "clsmes.hpp"
-#include "gametext.hpp"
 #include "gameutil.hpp"
+#include "text/gametext.hpp"
 
 namespace {
 

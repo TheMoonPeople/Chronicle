@@ -13,16 +13,16 @@
 #include <string_view>
 #include <vector>
 
-#include "gameloop.hpp"
+#include "app/gameloop.hpp"
 #include "gamepad.hpp"
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_save.hpp"
 #include "platform/input.hpp"
 #include "platform/paths.hpp"
-#include "platform/save_state.hpp"
 #include "platform_fixture.hpp"
-#include "save_slots.hpp"
+#include "save/save_slots.hpp"
+#include "save/save_state.hpp"
 #include "savedata.hpp"
 
 #ifndef _WIN32

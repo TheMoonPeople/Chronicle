@@ -5,11 +5,11 @@
 #include <string>
 #include <vector>
 
-#include "localize.hpp"
-#include "localize_texture.hpp"
+#include "localize/localize.hpp"
+#include "localize/localize_texture.hpp"
 #include "mainselect.hpp"
 #include "platform_fixture.hpp"
-#include "texture_port.hpp"
+#include "render/texture_registry.hpp"
 
 namespace {
 

@@ -1,4 +1,4 @@
-"""Previews the port's picture shadow (LocalizeCastShadow in port/src/localize_texture.cpp) the way the game casts it.
+"""Previews the port's picture shadow (LocalizeCastShadow in port/src/localize/localize_texture.cpp) the way the game casts it.
 
     python shadow_preview.py <folder with the pictures> <name> <area|floor|boss> <out.png>
 

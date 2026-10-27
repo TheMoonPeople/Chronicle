@@ -11,7 +11,7 @@
 #include "title/op_b.hpp"
 #include "title/op_c.hpp"
 #include "title/rushmovi.hpp"
-#include "title_port.hpp"
+#include "title/title_draw.hpp"
 #include "water.hpp"
 
 // The title overlay's objects use the host-sized layouts declared here rather than the title units'

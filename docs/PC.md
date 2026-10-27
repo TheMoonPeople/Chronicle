@@ -113,7 +113,7 @@ release build; a debug build always asks for it), `DC_PRESENT_STATS=1` (print
 draws per tick and render times at exit, and what the FPS counter said last
 when it is on), and SDL's own variables.
 
-Exit statuses (`port/src/exitcodes.hpp`): 0 when the window was closed or
+Exit statuses (`port/src/app/exitcodes.hpp`): 0 when the window was closed or
 `--frames` ran out, 1 when the window, the renderer or the screenshot failed,
 2 for bad arguments, 3 when the data directory is missing or holds no file
 and no disc was given at the first-run prompt (one line names it and the
@@ -202,7 +202,7 @@ key is optional; these are the defaults:
 }
 ```
 
-Discord Rich Presence (`port/src/presence.cpp`, `port/src/platform/discord.cpp`) speaks Discord's
+Discord Rich Presence (`port/src/app/presence.cpp`, `port/src/platform/discord.cpp`) speaks Discord's
 local IPC protocol over its Unix socket (a named pipe on Windows), so it needs no Discord library. It shows the character
 played and the town, or the dungeon and floor, and reconnects whenever Discord starts. Discord
 names the game after Chronicle's Discord application, whose id is `kDiscordClientId`
@@ -420,7 +420,7 @@ Controller-only first-person look retains its retail controls.
 
 The mouse turns each camera the right stick turns, by the angle it moved:
 `mouse_sensitivity` degrees per count, with no dead zone, no steps and no
-full deflection to cap it (`port/src/camera_port.cpp`). The dungeon's,
+full deflection to cap it (`port/src/input/mouse_look.cpp`). The dungeon's,
 the interior's and the georama view's cameras and the first-person views
 read it in the stick's units, added to the stick's reading, so their own
 conditions see both alike; the town's walk camera takes it apart (below). A
@@ -599,7 +599,7 @@ While `DebugMode` is set, Start and Select on pad 1 go to the developer menu
 at once from every mode: the language select, the attract movie, the
 title, the opening, a town or an interior, the dungeon loader, a dungeon
 and the save screen (`GameDeveloperMenuRequested`,
-`port/src/gameloop.cpp`, after every frame of the main loop). The frame the
+`port/src/app/gameloop.cpp`, after every frame of the main loop). The frame the
 second of the two goes down ends the mode where it stands: there is no fade
 and the town is not saved back to the save data; sound stops, the pad is
 unlocked and a pending map jump or start event is dropped
@@ -726,7 +726,7 @@ is added; then `RunGame`. After it returns: the screenshot, then
 `main.cpp` also forwards the names MWCC gives the calls in retail `main`
 (below).
 
-`RunGame` (`port/src/gameloop.cpp`) is retail `main` (`ps2/src/main.cpp`)
+`RunGame` (`port/src/app/gameloop.cpp`) is retail `main` (`ps2/src/main.cpp`)
 with the hardware taken out, line for line otherwise:
 
 - `init_all` is reduced to `InitCDFile`, `MGInit`, `InitMemoryFile`,
@@ -1013,7 +1013,7 @@ shape. With `video.aspect` `auto` the rest of the window is not bars:
   screen's sky model, its cloud (whose animation parks spheres just outside
   the frame's sides; it is spread across, not enlarged) and the attract
   movie's turning title card are drawn larger by as much as the view is wider
-  (`TitlePortBackdropScale`, `port/src/title/title_port.cpp`).
+  (`TitlePortBackdropScale`, `port/src/title/title_draw.cpp`).
 - **The FPS counter** is the host's and is never carried past the frame
   (`gfx::RenderOptions::host`).
 - **Game logic** is unchanged: `MGRotTransPers*` answer in retail's GS and
@@ -1188,7 +1188,7 @@ write it.
 
 `port/src/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
-(`port/src/save_slots.cpp` names and lists them, `port/src/platform/save_state.cpp`
+(`port/src/save/save_slots.cpp` names and lists them, `port/src/save/save_state.cpp`
 reads and writes `state.json`); each finishes in the step that starts it. Every write goes through `FilesWrite`
 (`tools/kazarov/src/cpp/platform/files.cpp`): a temporary file of its own beside the
 target, `<target>.<16 hex digits>.tmp`, created exclusively, written,
@@ -1302,7 +1302,7 @@ device prefix stripped (the debug dump `edit.cpp` writes to `host0:`), and
 
 ## Game text
 
-`port/src/gametext.cpp` writes the port's own text in the game's message
+`port/src/text/gametext.cpp` writes the port's own text in the game's message
 font, so menus the port adds can match the game's. A message is an s16 code
 per character ending in `MES_CODE_END` (-0xFF); a space is
 `MES_CODE_SPACE` (-0xFE) and a line break `MES_CODE_NEWLINE` (-0x100). The
@@ -1347,7 +1347,7 @@ disc's text as the fallback: see `docs/LOCALIZATION.md`.
 ## The Options screen
 
 The game's Options screen, from the title, the town menu and the dungeon menu,
-is the port's settings screen (`port/src/menu_option.cpp` replaces
+is the port's settings screen (`port/src/options/menu_option.cpp` replaces
 `InitMenuOption`, `MenuOptionKey`, `DrawMenuOption` and
 `OptionMenuFadeOutStart` and hands them to `port/src/options/`: `rows` defines
 the pages and their rows, `screen` runs input and help, `draw` lays it out). It keeps the game's frame, cursor, sounds, EXIT
@@ -1472,7 +1472,7 @@ the pad when a pad button or the left stick is used.
   when it closes (or as it opens, from the book before it) acts only once
   released, so no click reaches the next screen.
 
-The hit areas (`port/src/name_mouse_layout.cpp`) are the places
+The hit areas (`port/src/ui/name_mouse_layout.cpp`) are the places
 `DrawNameTemplete`, `DrawCharaName` and `NameEnterDraw` draw at, for PAL's
 languages: the alphabet keyboard with the accented rows of French, German,
 Italian and Spanish, the symbol keyboard without its blank keys, and each
@@ -1495,14 +1495,14 @@ which retail only sets on the way out, so `TitleLoop`'s handling of the other ro
 
 Quit in the pause menu, in a town or a dungeon, asks "Return to the title?" and on Yes goes back to
 the title screen instead of the desktop. The main loop leaves the mode where it stands, as the
-developer menu does (`TakeBattleMenuTitleRequest`, `port/src/gameloop.cpp`): it waits for loads in
+developer menu does (`TakeBattleMenuTitleRequest`, `port/src/app/gameloop.cpp`): it waits for loads in
 flight, stops the sound and jumps to map 800, so the title starts as it does at start-up. Nothing is
 saved on the way.
 
 ## The mouse in the pause menu
 
 The pause menu (the ring of pages in a dungeon, and the same ring in town) takes the mouse as a
-pointer the way the Register Name screen does, through `MenuPointer` (`port/src/menu_pointer.cpp`):
+pointer the way the Register Name screen does, through `MenuPointer` (`port/src/ui/menu_pointer.cpp`):
 its relative motion, mapped through the 2D's own mapping, drives the game's hand, which
 `DrawMenuObjectVibe` now draws at the pointer while it is in use, brackets and all staying on the
 control the pointer is over. A hover moves the game's own cursor (state the pad would set, and the
@@ -1608,7 +1608,7 @@ Everything else from the SDK is implemented in `tools/kazarov/src/cpp/sce/`: lib
 C++ (static constructors call it before `main`), libpad, libmc, sifdev,
 eekernel (`FlushCache` and friends do nothing, `Exit` exits), libcdvd's
 `sceCdInit`/`sceCdMmode` and sifrpc's IOP boot and module loads (no-ops).
-The Metrowerks runtime calls are in `port/src/runtime.cpp`: `mwInit` does
+The Metrowerks runtime calls are in `port/src/app/runtime.cpp`: `mwInit` does
 nothing; `LoadOverlay` reconstructs selected title objects when switching to
 the title overlay; `mwLoadOverlay` succeeds, `__assert` prints and exits with
 status 4, `exit__2` exits. The same file replaces the stand-ins in `port/src/game`
@@ -1699,7 +1699,7 @@ where retail asked for fifty 256-byte ones).
 The port defines those objects itself and the forked title units leave them out, so the
 title units' own are left out and only the port's constructors run over them
 at start-up, never the title units' at the PS2 strides. `LoadOverlay`
-(`port/src/runtime.cpp`) does what retail's overlay loader did when a mode
+(`port/src/app/runtime.cpp`) does what retail's overlay loader did when a mode
 needs TITLE.BIN and DUN.BIN (or nothing) was loaded before:
 `TitleOverlayConstruct` zeroes those objects and constructs them again (and
 initialises the maps, as op_a's constructor did).

@@ -16,12 +16,12 @@
 
 #include "clsmes.hpp"
 #include "data_fixture.hpp"
-#include "gametext.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "mainselect.hpp"
-#include "menu_option.hpp"
+#include "options/menu_option.hpp"
 #include "platform/config.hpp"
 #include "platform/paths.hpp"
+#include "text/gametext.hpp"
 
 namespace {
 

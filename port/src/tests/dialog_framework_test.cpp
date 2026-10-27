@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-#include "dialog_framework.hpp"
+#include "dialog/framework.hpp"
 #include "mainselect.hpp"
 
 namespace {

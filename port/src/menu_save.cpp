@@ -6,16 +6,16 @@
 #include <utility>
 
 #include "battle_globals.hpp"
-#include "gametext.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
-#include "quest_host.hpp"
+#include "quest/host.hpp"
 #include "rect.hpp"
-#include "save_slots.hpp"
+#include "save/save_slots.hpp"
+#include "text/gametext.hpp"
 #include "texture.hpp"
 
 int PlayerAllItemCheck(int item) {

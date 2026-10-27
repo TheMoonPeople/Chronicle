@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "platform/config.hpp"
-#include "textwipe.hpp"
+#include "text/textwipe.hpp"
 
 TEST(TextWipe, SweepStartsAtTheRightAndReachesTheLeft) {
     EXPECT_FLOAT_EQ(textwipe::SweepPosition(0.0), 640.0f);

@@ -10,10 +10,10 @@
 
 #include "boxvu0.hpp"
 #include "dataalloc.hpp"
-#include "draw3d.hpp"
 #include "framevu1.hpp"
 #include "mathutil.hpp"
 #include "mglib.hpp"
+#include "render/draw3d.hpp"
 #include "renderinfo.hpp"
 #include "stubs/frame.hpp"
 #include "visualvu1.hpp"

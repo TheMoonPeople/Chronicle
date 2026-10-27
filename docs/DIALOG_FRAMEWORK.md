@@ -17,13 +17,13 @@ Villagers nothing adds a choice to are left alone: their conversation never touc
 
 Dependencies flow downward only.
 
-1. **`UI::` presentation** (`port/include/ui_framework/`). Window plates, labels, cursor, brackets,
+1. **`UI::` presentation** (`port/src/ui/framework/`). Window plates, labels, cursor, brackets,
    scrollbar. No conversation state.
-2. **`Dialog::` runtime** (`port/include/dialog_framework.hpp`, `port/src/dialog_framework.cpp`). The
+2. **`Dialog::` runtime** (`port/src/dialog/framework.hpp`, `port/src/dialog/framework.cpp`). The
    page stack, word wrap and layout, token substitution, option providers, input and the default
    renderer. Its public header includes no PS2 headers, and it knows nothing of the systems that
    register providers.
-3. **Host glue** (`port/src/dialog_npc.cpp`, `port/src/editloop3.cpp`). Offers each villager
+3. **Host glue** (`port/src/dialog/npc.cpp`, `port/src/editloop3.cpp`). Offers each villager
    conversation to the framework, reads the pad for it, and hands "Talk" back to retail.
 4. **Providers** (quests, special shops, mods). Register an `OptionProviderFn` and look at the
    `Dialog::NpcContext` to decide what to add.
@@ -80,7 +80,7 @@ but not exactly the talk window's.
 ## 3. Writing a provider
 
 ```cpp
-#include "dialog_framework.hpp"
+#include "dialog/framework.hpp"
 
 Dialog::RegisterOptionProvider([](const Dialog::NpcContext &ctx, std::vector<Dialog::ChoiceItem> &out) {
     if (ctx.map_no != 0 || ctx.npc_id != 3) {

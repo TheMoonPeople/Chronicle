@@ -6,11 +6,11 @@
 #include <memory>
 #include <vector>
 
-#include "draw3d.hpp"
 #include "gfx/displaylist.hpp"
 #include "gfx_fixture.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
+#include "render/draw3d.hpp"
 #include "renderinfo.hpp"
 #include "visual.hpp"
 

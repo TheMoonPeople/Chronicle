@@ -7,18 +7,18 @@
 #include <thread>
 #include <vector>
 
+#include "app/gameloop.hpp"
 #include "cloth.hpp"
-#include "draw3d.hpp"
 #include "frame.hpp"
-#include "gameloop.hpp"
 #include "gfx/displaylist.hpp"
 #include "gfx_fixture.hpp"
 #include "menu_draw.hpp"
 #include "menu_inventory.hpp"
 #include "platform/clock.hpp"
+#include "render/draw3d.hpp"
+#include "render/texture_registry.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
-#include "texture_port.hpp"
 
 TEST(ChroniclePresentation, FullSizePictureFillsWidescreenWithoutSamplingPastArtwork) {
     dc::test::GfxFixture fixture(1280, 720, 1.0f, dc::test::GfxOptions{.offscreen = true});

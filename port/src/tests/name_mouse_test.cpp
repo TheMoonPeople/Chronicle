@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "name_mouse_layout.hpp"
+#include "ui/name_mouse_layout.hpp"
 
 extern short       menu_euro_codetbl[5][2][13];
 extern signed char menu_kigoutbl[40];

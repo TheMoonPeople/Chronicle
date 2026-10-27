@@ -13,11 +13,11 @@
 
 #include "dataalloc.hpp"
 #include "dataset.hpp"
-#include "draw3d.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
+#include "render/draw3d.hpp"
+#include "render/shadowclip.hpp"
 #include "renderinfo.hpp"
-#include "shadowclip.hpp"
 
 // Retail's three shadow microprograms all build volumes: each caster triangle becomes a prism from
 // the triangle down along light 0 to its drop onto the shadow plane, and the prism's faces are

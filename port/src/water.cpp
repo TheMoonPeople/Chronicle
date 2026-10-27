@@ -4,10 +4,10 @@
 #include <optional>
 #include <vector>
 
-#include "draw3d.hpp"
 #include "mglib.hpp"
+#include "render/draw3d.hpp"
+#include "render/screen.hpp"
 #include "renderinfo.hpp"
-#include "screen.hpp"
 #include "stubs/water.hpp"
 #include "texture.hpp"
 #include "vu0_ops.hpp"

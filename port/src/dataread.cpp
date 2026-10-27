@@ -27,9 +27,9 @@
 #include <vector>
 
 #include "../../tools/dcdata/dcdata.hpp"
+#include "data/data_read.hpp"
 #include "dataalloc.hpp"
-#include "dataread_port.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "platform/data_archive.hpp"
 #include "platform/paths.hpp"
 

@@ -6,20 +6,20 @@
 #include <utility>
 
 #include "battlemenu/strings.hpp"
-#include "caption_text.hpp"
 #include "clsmes.hpp"
 #include "gamepad.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
-#include "menu_pointer.hpp"
 #include "menu_save.hpp"
 #include "menuetc.hpp"
 #include "mglib.hpp"
 #include "options/screen.hpp"
 #include "rect.hpp"
-#include "save_slots.hpp"
+#include "save/save_slots.hpp"
 #include "snd.hpp"
+#include "text/caption_text.hpp"
 #include "texture.hpp"
+#include "ui/menu_pointer.hpp"
 
 int InitMenuOption(int mode, int block_no, u_long128 *buffer) {
     return options::Open(mode, block_no, buffer);

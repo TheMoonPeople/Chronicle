@@ -9,10 +9,10 @@
 #include <optional>
 #include <vector>
 
-#include "draw2d_port.hpp"
 #include "mglib.hpp"
-#include "mglib_port.hpp"
 #include "rect.hpp"
+#include "render/draw2d.hpp"
+#include "render/gs_state.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
 

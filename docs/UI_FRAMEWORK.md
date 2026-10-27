@@ -62,9 +62,9 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Battle menu ring, captions, Save/Load and Quit modals | `port/src/battlemenu/main_ring.cpp` | `Label`, `HelpBox`, `ConfirmModal`, `Cursor` |
 | Weapon menu, its buttons and help | `port/src/battlemenu/weapon_menu.cpp` | `BevelButton`, `TrackerWindow`, `HelpBox`, `Label`, `WrapText` |
 | World map and leave-dungeon prompt | `port/src/battlemenu/move_menu.cpp` | `ConfirmModal`, `Cursor` |
-| Journal: manuals and chest tracker | `port/src/menu_manual.cpp`, `port/src/menu_journal_chest.cpp` | `TrackerWindow`, `ProgressBar`, `ItemIcon`, `DrawCounter`, `Brackets` |
+| Journal: manuals and chest tracker | `port/src/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `TrackerWindow`, `ProgressBar`, `ItemIcon`, `DrawCounter`, `Brackets` |
 | Options | `port/src/options/` | `TabPlate`, `TextureButton`, `ScrollBar`, `Cursor`, `Label` |
-| Villager conversation hub | `port/src/dialog_framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
+| Villager conversation hub | `port/src/dialog/framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
 
 Still retail's: the save and load boards (`DrawMenuSave`, port-drawn but copied from retail), the
@@ -74,15 +74,15 @@ select and the dungeon HUD.
 ### What the code holds
 
 ```text
-port/include/ui_framework.hpp          umbrella header
-port/include/ui_framework/
+port/src/ui/framework.hpp       umbrella header
+port/src/ui/framework/
     types.hpp      palette constants, Metrics, Alignment, FontWeight, Anchor, Rect, ZLayer, LayerQueue
     text.hpp       TextStyle, Label, WrapText, DrawTextBox, DrawCounter, DrawStatus*
     surfaces.hpp   WindowPreset, TrackerWindow, PaperWindow, HelpBox, Window, TabPlate, Divider, SubWindow
     buttons.hpp    ButtonPreset, ButtonStyle (Thick, Thin), BevelButton, DrawPaintedPlate, TextureButton
     widgets.hpp    ItemIcon, Cursor, Brackets, ScrollBar, ProgressBar, MenuHeader
     dialogs.hpp    DialogBox, ConfirmModal, ListView
-port/src/ui_framework/                 their implementations, and internal.hpp (UI::detail)
+    *.cpp          their implementations, and internal.hpp (UI::detail)
 ```
 
 About a third of the public API has no caller: `DialogBox`, `ListView`, `LayerQueue` and `ZLayer`,
@@ -118,7 +118,7 @@ Each move is its own pull request and follows the same steps.
   the screen. The battle menu's ring text is `port/src/battlemenu/strings.cpp`; each screen's
   translation keys live with that screen.
 - **Other frameworks use its public headers only.** Everything is in one codebase, so this isn't
-  about a boundary between projects: `port/src/ui_framework/internal.hpp` is the framework's working
+  about a boundary between projects: `port/src/ui/framework/internal.hpp` is the framework's working
   detail (game headers, texture blocks, helpers) that it changes freely, and a unit reaching into it
   breaks without warning when it does. **Proposal:** `dialog_framework.cpp` reads
   `UI::detail::kMessageTextureBlock` there today; the framework gains one public call that readies the
@@ -133,7 +133,7 @@ Each move is its own pull request and follows the same steps.
 
 ### Fonts
 
-`port/src/captionfont.{hpp,cpp}` and `port/src/caption_text.{hpp,cpp}` keep four TrueType font
+`port/src/text/captionfont.{hpp,cpp}` and `port/src/text/caption_text.{hpp,cpp}` keep four TrueType font
 slots, switched with `capfont::UseFontSlot`:
 
 | Slot | Font | `UI::FontWeight` | Draws |
@@ -179,7 +179,7 @@ alpha transparency instead, as retail's sprites fade (section 7).
 
 ### Effects
 
-`TextStyle` and `DrawScaledText` (`port/src/ui_framework/text.cpp`) support:
+`TextStyle` and `DrawScaledText` (`port/src/ui/framework/text.cpp`) support:
 
 - **Recessed** (`recessed`): the label stamped into a button's surface, a catch-light below right and
   a cast shadow above left, coloured per button preset. Used by `ButtonStyle::Thick`.
@@ -295,7 +295,7 @@ theme from a newer version of the port still loads.
 `ConfirmModal::Hit` and `ConfirmModal::ButtonRect` are the first: the box grows with its text, so its
 buttons move, and the mouse and the hand's first position read them rather than copies of the
 coordinates. **Proposal:** the rest follow as their screens move (`ListView::HitTest` exists), and
-`port/src/menu_mouse.cpp` (1,200 lines, most of them screens' coordinates kept a second time) shrinks
+`port/src/ui/menu_mouse.cpp` (1,200 lines, most of them screens' coordinates kept a second time) shrinks
 as each screen's widgets answer for themselves.
 
 ---

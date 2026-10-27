@@ -2,8 +2,8 @@
 
 #include <filesystem>
 
-#include "captionfont.hpp"
 #include "gfx_fixture.hpp"
+#include "text/captionfont.hpp"
 
 namespace {
 

@@ -6,14 +6,14 @@
 #include <fstream>
 #include <string_view>
 
-#include "area_card.hpp"
-#include "caption_text.hpp"
-#include "captionfont.hpp"
 #include "gfx/context.hpp"
 #include "gfx_fixture.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "mainselect.hpp"
-#include "texture_port.hpp"
+#include "render/texture_registry.hpp"
+#include "text/caption_text.hpp"
+#include "text/captionfont.hpp"
+#include "ui/area_card.hpp"
 
 namespace {
 

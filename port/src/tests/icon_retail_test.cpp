@@ -7,7 +7,7 @@
 #include <span>
 #include <vector>
 
-#include "icon_retail.hpp"
+#include "app/icon_retail.hpp"
 
 namespace {
 std::vector<std::uint8_t> Triangle() {

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "captionfont.hpp"
+#include "text/captionfont.hpp"
 
 namespace {
 

@@ -6,11 +6,11 @@
 #include <format>
 #include <string_view>
 
+#include "app/gameloop.hpp"
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "ebattle.hpp"
 #include "editpartsdata.hpp"
-#include "gameloop.hpp"
 #include "gamemode.hpp"
 #include "gameutil.hpp"
 #include "main.hpp"

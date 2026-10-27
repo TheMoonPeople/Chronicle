@@ -5,16 +5,15 @@
 #include <memory>
 #include <optional>
 
-#include "area_card.hpp"
+#include "app/gameloop.hpp"
 #include "battlemenu/strings.hpp"
 #include "clsmes.hpp"
 #include "dataread.hpp"
-#include "dialog_framework.hpp"
-#include "gameloop.hpp"
+#include "dialog/framework.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
@@ -23,12 +22,13 @@
 #include "platform/display.hpp"
 #include "platform/input.hpp"
 #include "platform/window.hpp"
-#include "quests/quests.hpp"
+#include "quest/quests.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
 #include "title/title_menu.hpp"
-#include "ui_framework.hpp"
+#include "ui/area_card.hpp"
+#include "ui/framework.hpp"
 
 namespace options {
 

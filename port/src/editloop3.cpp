@@ -18,7 +18,7 @@
 #include "collision.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
-#include "dialog_npc.hpp"
+#include "dialog/npc.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
 #include "editloop.hpp"
@@ -34,7 +34,7 @@
 #include "mglib.hpp"
 #include "npcharacter.hpp"
 #include "platform/config.hpp"
-#include "quest_host.hpp"
+#include "quest/host.hpp"
 #include "runscript.hpp"
 #include "savedata.hpp"
 

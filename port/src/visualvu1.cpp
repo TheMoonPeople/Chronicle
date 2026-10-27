@@ -11,9 +11,9 @@
 
 #include "dataalloc.hpp"
 #include "dataset.hpp"
-#include "draw3d.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
+#include "render/draw3d.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
 #include "visual.hpp"

@@ -10,9 +10,9 @@
 #include "options/screen.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
+#include "text/textwipe.hpp"
 #include "texture.hpp"
-#include "textwipe.hpp"
-#include "ui_framework.hpp"
+#include "ui/framework.hpp"
 
 namespace options {
 

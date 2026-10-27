@@ -12,8 +12,6 @@
 #include <string_view>
 #include <vector>
 
-#include "../camera_port.hpp"
-#include "../mouse_collision.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
@@ -25,6 +23,8 @@
 #include "editground.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
+#include "input/mouse_collision.hpp"
+#include "input/mouse_look.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"

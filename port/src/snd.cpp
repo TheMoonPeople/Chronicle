@@ -13,13 +13,13 @@
 #include <string_view>
 #include <tuple>
 
-#include "credits_text.hpp"
-#include "draw2d_port.hpp"
-#include "glyph_draw.hpp"
-#include "mglib_port.hpp"
 #include "rect.hpp"
+#include "render/draw2d.hpp"
+#include "render/gs_state.hpp"
+#include "text/credits_text.hpp"
+#include "text/glyph_draw.hpp"
 #include "texture.hpp"
-#include "ui_framework/buttons.hpp"
+#include "ui/framework/buttons.hpp"
 
 extern unsigned int *snd_read_buf;
 

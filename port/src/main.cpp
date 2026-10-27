@@ -30,23 +30,23 @@ void TouchOverlaySetOpacity(float opacity);
 void TouchOverlayPoll();
 #endif
 
+#include "app/exitcodes.hpp"
+#include "app/gameloop.hpp"
+#include "app/identity.hpp"
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
-#include "exitcodes.hpp"
-#include "gameloop.hpp"
 #include "gamemode.hpp"
 #include "gfx/gfx.hpp"
-#include "identity.hpp"
 #include "langset.hpp"
-#include "localize.hpp"
-#include "menu_option.hpp"
+#include "localize/localize.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"
+#include "options/menu_option.hpp"
 #include "platform/arena.hpp"
 #include "platform/audio.hpp"
 #include "platform/clock.hpp"
@@ -60,12 +60,12 @@ void TouchOverlayPoll();
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
 #include "platform/window.hpp"
-#include "screen.hpp"
+#include "render/screen.hpp"
 #include "snd.hpp"
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
-#include "title/title_port.hpp"
+#include "title/title_draw.hpp"
 
 namespace fs = std::filesystem;
 

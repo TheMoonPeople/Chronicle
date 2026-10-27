@@ -5,7 +5,7 @@
 #include <string_view>
 
 #include "battlemenu.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "menu_dungeon.hpp"
 #include "menu_misc.hpp"
 #include "menuetc.hpp"

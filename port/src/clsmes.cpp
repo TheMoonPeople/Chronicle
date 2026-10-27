@@ -14,26 +14,26 @@
 #include <utility>
 #include <vector>
 
-#include "caption_text.hpp"
-#include "captionfont.hpp"
 #include "clsmes_port.hpp"
-#include "draw2d_port.hpp"
-#include "gametext.hpp"
 #include "gameutil.hpp"
-#include "glyph_draw.hpp"
-#include "localize.hpp"
-#include "menu_pointer.hpp"
+#include "localize/localize.hpp"
 #include "mglib.hpp"
-#include "mglib_port.hpp"
 #include "platform/config.hpp"
 #include "platform/glyphs.hpp"
 #include "platform/ttffont.hpp"
 #include "rect.hpp"
-#include "screen.hpp"
+#include "render/draw2d.hpp"
+#include "render/gs_state.hpp"
+#include "render/screen.hpp"
 #include "snd.hpp"
-#include "text_shadow.hpp"
+#include "text/caption_text.hpp"
+#include "text/captionfont.hpp"
+#include "text/gametext.hpp"
+#include "text/glyph_draw.hpp"
+#include "text/text_shadow.hpp"
+#include "text/textwipe.hpp"
 #include "texture.hpp"
-#include "textwipe.hpp"
+#include "ui/menu_pointer.hpp"
 
 extern float     RandTbl[64];
 extern float     RandTbl2[64];

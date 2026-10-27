@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "dualsense.hpp"
+#include "input/dualsense.hpp"
 #include "platform/config.hpp"
 #include "platform/touchpad.hpp"
 

@@ -70,13 +70,13 @@ paths removed by source consolidation still appear in `git ls-files`.
 ## Gameplay, world, dungeon, edit, and title
 
 The gameplay reviewer’s final organization and source checks covered
-`port/src/camera_zoom.cpp`, `port/src/first_person_walk.cpp`,
+`port/src/input/camera_zoom.cpp`, `port/src/input/first_person_walk.cpp`,
 `port/src/title/titleloop.cpp`, `port/src/edit.cpp`, `port/src/edit_in.cpp`,
 `port/src/editloop.cpp`, `port/src/editloop3.cpp`,
 `port/src/title/opening.cpp`, `port/src/title/op_a.cpp`,
 `port/src/title/op_b.cpp`, `port/src/title/rushmovi.cpp`,
 `port/src/title/title.cpp`, and `port/src/dun/movechara.cpp`.
-`port/src/gameloop.cpp` received the caller-boundary fix described below;
+`port/src/app/gameloop.cpp` received the caller-boundary fix described below;
 `port/src/tests/integration_gameloop_test.cpp` received the matching regression
 assertions and a full formatting pass. The verifier owns `op_c.cpp`; its
 recovery and patch audit are recorded separately below. The other assigned

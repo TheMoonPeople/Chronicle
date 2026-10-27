@@ -2,9 +2,9 @@
 
 #include <array>
 
-#include "draw2d_port.hpp"
 #include "mglib.hpp"
-#include "mglib_port.hpp"
+#include "render/draw2d.hpp"
+#include "render/gs_state.hpp"
 
 // Layers draw from the last to the first, so layer 0 ends up on top. The table blends with mglib's
 // ALPHA shadow whatever the register held, and leaves ALPHA, TEST and ZBUF at the shadows.

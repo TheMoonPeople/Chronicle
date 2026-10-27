@@ -10,11 +10,11 @@
 #include <utility>
 #include <vector>
 
-#include "dialog_framework.hpp"
+#include "dialog/framework.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
-#include "quest_framework.hpp"
-#include "quests/quests.hpp"
+#include "quest/framework.hpp"
+#include "quest/quests.hpp"
 
 namespace {
 

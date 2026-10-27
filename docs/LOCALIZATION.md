@@ -361,11 +361,11 @@ Set `DC_LOCALIZE_TRACE=1` to log every message file the game loads and whether t
 
 ## In the code
 
-`port/src/localize.{hpp,cpp}`: `LocalizeText` and `LocalizeFormat` give the port's own strings,
+`port/src/localize/localize.{hpp,cpp}`: `LocalizeText` and `LocalizeFormat` give the port's own strings,
 `LocalizeMessageKey` makes a file's key, `LocalizeParse` reads a language's
 file, `LocalizeMessages` lays texts over a disc message file (through `GameTextFile`), `LocalizeFile` and
 `LocalizePack` are the hooks, and `LocalizeExport` is `--export-text`. The Options screen asks
-`LocalizeText` for each of its words (`port/src/menu_option.cpp`; `OptionStrings()` lists them for the export),
+`LocalizeText` for each of its words (`port/src/options/menu_option.cpp`; `OptionStrings()` lists them for the export),
 and lays its text out again when it is opened in another language. The hooks sit in
 `port/src/dataread.cpp`: `LoadFile2` and `LoadFileBG` pass each file they read to `LocalizeLoaded` and
 `LocalizeFile`, and the port's `GetPackFile` gives a message entry through `LocalizePack`. Tests:

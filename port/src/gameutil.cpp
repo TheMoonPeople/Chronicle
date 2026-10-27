@@ -16,14 +16,14 @@
 
 #include "audio/mixer.hpp"
 #include "audio/trace.hpp"
-#include "draw2d_port.hpp"
 #include "framevu1.hpp"
 #include "mathutil.hpp"
 #include "mdt.hpp"
 #include "rect.hpp"
+#include "render/draw2d.hpp"
+#include "render/texture_registry.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
-#include "texture_port.hpp"
 #include "visualvu1.hpp"
 #include "vu0_ops.hpp"
 

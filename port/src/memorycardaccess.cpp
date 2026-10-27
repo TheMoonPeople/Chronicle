@@ -14,12 +14,12 @@
 #include <vector>
 
 #include "dngstatusdata.hpp"
-#include "menu_option.hpp"
 #include "menu_save.hpp"
+#include "options/menu_option.hpp"
 #include "platform/files.hpp"
-#include "platform/save_state.hpp"
-#include "quest_host.hpp"
-#include "save_slots.hpp"
+#include "quest/host.hpp"
+#include "save/save_slots.hpp"
+#include "save/save_state.hpp"
 #include "savedata.hpp"
 
 // There is no memory card: the operations read and write the files save_slots.hpp names. Each

@@ -10,12 +10,12 @@ conversations through the dialog framework (`docs/DIALOG_FRAMEWORK.md`).
 
 Dependencies flow downward only.
 
-1. **`Quest::` runtime** (`port/include/quest_framework.hpp`, `port/src/quest_framework.cpp`). The
+1. **`Quest::` runtime** (`port/src/quest/framework.hpp`, `port/src/quest/framework.cpp`). The
    registry, stages, rules, conditions, conversation choices and saving. No PS2 headers: a quest
    reaches the game only through `Quest::IGame`.
-2. **Host** (`port/src/quest_host.cpp`). `IGame` over the save data, the dialog option provider, the
+2. **Host** (`port/src/quest/host.cpp`). `IGame` over the save data, the dialog option provider, the
    save files, and the shop screen.
-3. **Quests** (`port/src/quests/`). One file each, listed in `RegisterAllQuests` (`quests.cpp`).
+3. **Quests** (`port/src/quest/`). One file each, listed in `RegisterAllQuests` (`quests.cpp`).
 
 ---
 
@@ -33,7 +33,7 @@ Quest::Definition CarlsSlingshot() {
 }
 ```
 
-That is the whole of the port's example quest (section 7, `port/src/quests/carls_slingshot.cpp`): two
+That is the whole of the port's example quest (section 7, `port/src/quest/carls_slingshot.cpp`): two
 NPCs, and a stage for each step between them. `port/src/tests/quest_framework_test.cpp` also has a
 quest that ends in a shop (`FetchQuest`).
 
@@ -117,7 +117,7 @@ A test runs quests against a fake `IGame` (`port/src/tests/quest_framework_test.
 
 ## 4. Shops
 
-A quest's shop is a **custom shop** (`port/src/custom_shop.cpp`): retail's item shop screen with goods,
+A quest's shop is a **custom shop** (`port/src/quest/custom_shop.cpp`): retail's item shop screen with goods,
 prices, a shopkeeper and lines of its own. Retail's shops keep theirs:
 
 | What | How the custom shop gives it |
@@ -163,7 +163,7 @@ when the save is loaded:
 
 ## 6. The Mayor's supplies
 
-`port/src/quests/mayor_supplies.cpp`. Retail's talk script (`gedit/e01/event.stb`, event 0x100) hands
+`port/src/quest/mayor_supplies.cpp`. Retail's talk script (`gedit/e01/event.stb`, event 0x100) hands
 the player one each of Tasty Water, Bread, Repair Powder, Escape Powder and Antidote Drink they have
 none of, in the pack or stored (`_SITEM_CHECK_ALL`, `_SITEM_GET`), whenever they talk to the Mayor,
 once they have been into the Divine Beast Cave (`QuestDungeon(0, 0)`) and until Gaffer's Buggy is
@@ -185,7 +185,7 @@ tick in `EdTalkMode` (`QuestHostTalkOpened`).
 
 ## 7. Carl's Slingshot
 
-`port/src/quests/carls_slingshot.cpp`, the example quest. Carl (villager 7 of Norune) and Gina
+`port/src/quest/carls_slingshot.cpp`, the example quest. Carl (villager 7 of Norune) and Gina
 (villager 9) are two of the village's children, and come back with two different georama pieces.
 
 | Stage | Carl | Gina |

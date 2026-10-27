@@ -8,7 +8,7 @@
 
 #include "options/rows.hpp"
 #include "platform/config.hpp"
-#include "ui_framework.hpp"
+#include "ui/framework.hpp"
 
 class CTexture;
 

@@ -7,12 +7,12 @@
 #include <cmath>
 #include <string>
 
-#include "captionfont.hpp"
 #include "gamepad.hpp"
-#include "localize.hpp"
+#include "localize/localize.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
-#include "ui_framework.hpp"
+#include "text/captionfont.hpp"
+#include "ui/framework.hpp"
 
 void TiPlayVolSE(int group, int no, int voice, float volume);
 

@@ -8,9 +8,9 @@
 #include <string>
 #include <string_view>
 
-#include "../glyph_draw.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"
+#include "text/glyph_draw.hpp"
 
 // The button symbols (platform/glyphs.hpp): their two settings, the key names the keyboard style looks
 // glyphs up by, and the shipped glyphs.json the names must be found in.

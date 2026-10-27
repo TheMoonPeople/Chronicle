@@ -9,12 +9,12 @@
 #include <cstdlib>
 #include <vector>
 
-#include "draw2d_port.hpp"
-#include "draw3d.hpp"
 #include "mglib.hpp"
-#include "mglib_port.hpp"
 #include "rect.hpp"
-#include "screen.hpp"
+#include "render/draw2d.hpp"
+#include "render/draw3d.hpp"
+#include "render/gs_state.hpp"
+#include "render/screen.hpp"
 #include "texture.hpp"
 
 namespace {

@@ -17,7 +17,6 @@
 #include "gamepad.hpp"
 #include "main.hpp"
 #include "memcard.hpp"
-#include "menu_pointer.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
@@ -30,9 +29,10 @@
 #include "title/scfader.hpp"
 #include "title/sprite.hpp"
 #include "title/title.hpp"
+#include "title/title_draw.hpp"
 #include "title/title_menu.hpp"
 #include "title/titleloop.hpp"
-#include "title_port.hpp"
+#include "ui/menu_pointer.hpp"
 
 // TexManager.GetTexture takes the texture name as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
