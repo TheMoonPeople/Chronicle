@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <span>
 #include <typeinfo>
 
 #include "camerafollow.hpp"
@@ -49,13 +50,20 @@ double PointSegment(Vec p, Vec a, Vec b) {
 }
 
 double SegmentSegment(Vec a, Vec b, Vec c, Vec d) {
-    Vec    u = b - a, v = d - c, w = a - c;
-    double aa = Dot(u, u), bb = Dot(u, v), cc = Dot(v, v), dd = Dot(u, w), ee = Dot(v, w);
+    Vec    u = b - a;
+    Vec    v = d - c;
+    Vec    w = a - c;
+    double aa = Dot(u, u);
+    double bb = Dot(u, v);
+    double cc = Dot(v, v);
+    double dd = Dot(u, w);
+    double ee = Dot(v, w);
     double result = std::min({PointSegment(a, c, d), PointSegment(b, c, d),
                               PointSegment(c, a, b), PointSegment(d, a, b)});
     double det = aa * cc - bb * bb;
     if (det > 1e-20) {
-        double s = (bb * ee - cc * dd) / det, t = (aa * ee - bb * dd) / det;
+        double s = (bb * ee - cc * dd) / det;
+        double t = (aa * ee - bb * dd) / det;
         if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
             result = std::min(result, Length(w + u * s - v * t));
         }
@@ -64,8 +72,9 @@ double SegmentSegment(Vec a, Vec b, Vec c, Vec d) {
 }
 
 bool Inside(Vec p, Vec a, Vec b, Vec c, Vec normal) {
-    double s0 = Dot(Cross(b - a, p - a), normal), s1 = Dot(Cross(c - b, p - b), normal),
-           s2 = Dot(Cross(a - c, p - c), normal);
+    double s0 = Dot(Cross(b - a, p - a), normal);
+    double s1 = Dot(Cross(c - b, p - b), normal);
+    double s2 = Dot(Cross(a - c, p - c), normal);
     return s0 >= -1e-12 && s1 >= -1e-12 && s2 >= -1e-12;
 }
 
@@ -84,7 +93,9 @@ double PointTriangle(Vec p, Vec a, Vec b, Vec c) {
 }
 
 double SegmentTriangle(Vec from, Vec to, const CCPoly &poly) {
-    Vec    a = V(poly.vertex[0]), b = V(poly.vertex[1]), c = V(poly.vertex[2]);
+    Vec    a = V(poly.vertex[0]);
+    Vec    b = V(poly.vertex[1]);
+    Vec    c = V(poly.vertex[2]);
     Vec    n = Cross(b - a, c - a);
     double denom = Dot(to - from, n);
     if (std::fabs(denom) > 1e-20) {
@@ -134,33 +145,41 @@ int FrameBound(CFrame *frame, int &visits, int depth = 0) {
 
 Vec Orbit(Vec p, Vec ref, double angle) {
     Vec    d = p - ref;
-    double c = std::cos(angle), s = std::sin(angle);
+    double c = std::cos(angle);
+    double s = std::sin(angle);
     return {ref.x + d.x * c + d.z * s, p.y, ref.z + d.z * c - d.x * s};
 }
 
 struct Bound {
-    Vec min{INFINITY, INFINITY, INFINITY}, max{-INFINITY, -INFINITY, -INFINITY};
+    static constexpr double kInf = std::numeric_limits<double>::infinity();
+
+    Vec min{kInf, kInf, kInf};
+    Vec max{-kInf, -kInf, -kInf};
 
     void Add(Vec p, double radius = 0) {
         min = {std::min(min.x, p.x - radius), std::min(min.y, p.y), std::min(min.z, p.z - radius)};
         max = {std::max(max.x, p.x + radius), std::max(max.y, p.y), std::max(max.z, p.z + radius)};
     }
 
-    Vec Centre() const { return (min + max) * 0.5; }
+    [[nodiscard]] Vec Centre() const { return (min + max) * 0.5; }
 
-    double Radius() const { return Length(max - min) * 0.5; }
+    [[nodiscard]] double Radius() const { return Length(max - min) * 0.5; }
 };
 
 bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *polys, int count,
                    float floor_clearance = 18.0f) {
     constexpr double turn = 2 * std::numbers::pi;
     double           gap = std::remainder(static_cast<double>(camera.next_angle) - camera.angle, turn);
-    Vec              ref = V(camera.ref), next_ref = V(camera.next_ref), follow = V(camera.follow);
-    Vec              eye = V(camera.pos), next_eye = V(camera.next_pos);
+    Vec              ref = V(camera.ref);
+    Vec              next_ref = V(camera.next_ref);
+    Vec              follow = V(camera.follow);
+    Vec              eye = V(camera.pos);
+    Vec              next_eye = V(camera.next_pos);
     if (!Finite(ref) || !Finite(next_ref) || !Finite(follow) || !Finite(eye) || !Finite(next_eye)) {
         return false;
     }
-    Bound eyes, refs;
+    Bound eyes;
+    Bound refs;
     // Rotation moves each point by at most this chord distance from the interval midpoint.
     auto add = [&](Vec p, Vec r) {
         double radius = std::hypot(p.x - r.x, p.z - r.z);
@@ -168,20 +187,23 @@ bool CorridorClear(CCameraFollow &camera, double middle, double half, CCPoly *po
     };
     add(eye, ref);
     add(next_eye, next_ref);
-    double a = camera.angle + middle + gap / 2;
-    Vec    target{follow.x + camera.distance * std::sin(a), follow.y + camera.height,
-                  follow.z + camera.distance * std::cos(a)};
+    double target_angle = camera.angle + middle + gap / 2;
+    Vec    target{follow.x + camera.distance * std::sin(target_angle), follow.y + camera.height,
+                  follow.z + camera.distance * std::cos(target_angle)};
     double reach = 2 * std::fabs(camera.distance) * std::sin(std::min(std::numbers::pi, std::fabs(gap) / 2 + half) / 2);
     eyes.Add(target, reach);
     refs.Add(ref);
     refs.Add(next_ref);
     refs.Add(follow);
-    Vec   e = eyes.Centre(), r = refs.Centre();
-    float ep[4] = {static_cast<float>(e.x), static_cast<float>(e.y), static_cast<float>(e.z), 1};
-    float rp[4] = {static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.z), 1};
+    Vec                  eye_centre = eyes.Centre();
+    Vec                  ref_centre = refs.Centre();
+    std::array<float, 4> eye_point = {static_cast<float>(eye_centre.x), static_cast<float>(eye_centre.y),
+                                      static_cast<float>(eye_centre.z), 1};
+    std::array<float, 4> ref_point = {static_cast<float>(ref_centre.x), static_cast<float>(ref_centre.y),
+                                      static_cast<float>(ref_centre.z), 1};
     // CCamera eases coordinates separately (and may snap/limit a coordinate), so bounding each
     // coordinate encloses its subsequent states, including the generated follow destinations.
-    return MouseCameraClear(ep, rp, static_cast<float>(eyes.Radius()), static_cast<float>(refs.Radius()), polys, count,
+    return MouseCameraClear(eye_point.data(), ref_point.data(), static_cast<float>(eyes.Radius()), static_cast<float>(refs.Radius()), polys, count,
                             static_cast<float>((eyes.max.y - eyes.min.y) / 2), floor_clearance);
 }
 
@@ -259,7 +281,7 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
         frame->SetRotation(part.rotation.x, part.rotation.y, part.rotation.z);
         auto start = polys.size();
         polys.resize(start + bound);
-        int found = frame->PickUpNearPoly(polys.data() + start, box);
+        int found = frame->PickUpNearPoly(&polys[start], box);
         if (found < 0 || found > bound) {
             return false;
         }
@@ -298,7 +320,7 @@ int MouseCameraPolys(CEditGround &ground, CBoxVu0 &box, int mask, std::vector<CC
         polys.resize(start + bound);
         if (bound) {
             CRect_i_ rect(0, 0, area->width, area->height);
-            int      found = area->PickUpPoly(polys.data() + start, rect);
+            int      found = area->PickUpPoly(&polys[start], rect);
             if (found < 0 || found > bound) {
                 return -1;
             }
@@ -319,7 +341,7 @@ int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys)
         if (bound < 0 || bound > kPolyBudget - static_cast<int>(polys.size()) || turn < 0 || turn > 6) {
             return false;
         }
-        // Match the retail transform, without relying on camera_dist's old draw visibility.
+        // Matches the retail transform, independent of draw visibility.
         if (turn > 3) {
             turn -= 3;
         }
@@ -333,7 +355,7 @@ int MouseCameraPolys(CDungeonMap &map, CBoxVu0 &box, std::vector<CCPoly> &polys)
         }
         auto start = polys.size();
         polys.resize(start + bound);
-        int found = frame->PickUpNearPoly(polys.data() + start, box);
+        int found = frame->PickUpNearPoly(&polys[start], box);
         if (found < 0 || found > bound) {
             return false;
         }
@@ -376,24 +398,25 @@ bool MouseCameraClear(const float *eye, const float *look, float eye_radius, flo
     if (eye == nullptr || look == nullptr) {
         return false;
     }
-    Vec e = V(eye), r = V(look);
-    if (count < 0 || (count && !polys) || !Finite(e) || !Finite(r) ||
+    Vec eye_point = V(eye);
+    Vec look_point = V(look);
+    if (count < 0 || (count && !polys) || !Finite(eye_point) || !Finite(look_point) ||
         !std::isfinite(eye_radius) || !std::isfinite(look_radius) || !std::isfinite(vertical_radius) ||
         eye_radius < 0 || look_radius < 0 || vertical_radius < 0 ||
         !std::isfinite(floor_clearance) || floor_clearance <= 0) {
         return false;
     }
     double ray_margin = std::max(eye_radius, look_radius) + kMargin;
-    Vec    down = e + Vec{0, -floor_clearance, 0}, up = e + Vec{0, 15, 0};
-    for (int i = 0; i < count; ++i) {
-        const CCPoly &p = polys[i];
+    Vec    down = eye_point + Vec{0, -floor_clearance, 0};
+    Vec    up = eye_point + Vec{0, 15, 0};
+    for (const CCPoly &p : std::span(polys, static_cast<std::size_t>(count))) {
         if (!Finite(V(p.vertex[0])) || !Finite(V(p.vertex[1])) || !Finite(V(p.vertex[2]))) {
             return false;
         }
         Vec    normal = Cross(V(p.vertex[1]) - V(p.vertex[0]), V(p.vertex[2]) - V(p.vertex[0]));
         bool   horizontal = std::fabs(normal.y) > 0.5 * Length(normal);
         double clearance = horizontal ? std::min(10.0f, floor_clearance) : 10.0;
-        if (SegmentTriangle(r, e, p) <= ray_margin || PointTriangle(e, V(p.vertex[0]), V(p.vertex[1]), V(p.vertex[2])) <= clearance + eye_radius + kMargin) {
+        if (SegmentTriangle(look_point, eye_point, p) <= ray_margin || PointTriangle(eye_point, V(p.vertex[0]), V(p.vertex[1]), V(p.vertex[2])) <= clearance + eye_radius + kMargin) {
             return false;
         }
         double floor_min = std::min({static_cast<double>(p.vertex[0][1]), static_cast<double>(p.vertex[1][1]),

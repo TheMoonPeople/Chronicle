@@ -10,18 +10,19 @@
 namespace {
 
 // TEXA as vudata.cpp's My_DrawEnv leaves it before the game sends its own.
-sceGsTexa InitialTexa() {
+constexpr sceGsTexa InitialTexa() {
     sceGsTexa texa = {};
     texa.TA0 = 0x80;
     texa.AEM = 1;
     return texa;
 }
 
-MGPortRegisters g_current = {
-    {},
-    {},
-    {},
-    InitialTexa(), {0.0f, 0.0f, kScreenWidth, kScreenHeight}
+constinit MGPortRegisters g_current = {
+    .test = {},
+    .zbuf = {},
+    .alpha = {},
+    .texa = InitialTexa(),
+    .window = {.x = 0.0f, .y = 0.0f, .w = kScreenWidth, .h = kScreenHeight},
 };
 
 constexpr int kGsOriginX = 27648;

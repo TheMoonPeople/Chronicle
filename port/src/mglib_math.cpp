@@ -1,3 +1,4 @@
+#include <bit>
 #include <cstdint>
 #include <initializer_list>
 
@@ -46,10 +47,8 @@ int MGRotTransPers3DSprite(int *top_left, int *bottom_right, float *position, fl
         status |= vu0::StatusFlags(4096.0f - corner[0]) | vu0::StatusFlags(4096.0f - corner[1]);
     }
 
-    std::int32_t w;
-    if (!fog) {
-        w = std::bit_cast<std::int32_t>(point[3]);
-    } else {
+    auto w = std::bit_cast<std::int32_t>(point[3]);
+    if (fog) {
         float density = mgRenderInfo.fog_a + vu0::Mul(mgRenderInfo.fog_b, q);
         density = vu0::Min(density, mgRenderInfo.fog_near);
         density = vu0::Max(density, mgRenderInfo.fog_far);
@@ -70,8 +69,8 @@ void MGCalcColor(float *color, float *normal) {
 
     float n[4];
     vu0::Copy(n, normal);
-    const float(*direction)[4] = mgRenderInfo.light_direction;
-    const float(*intensity)[4] = mgRenderInfo.light_color;
+    const float (*direction)[4] = mgRenderInfo.light_direction;
+    const float (*intensity)[4] = mgRenderInfo.light_color;
     const float *ambient = mgRenderInfo.ambient;
 
     float facing[4];

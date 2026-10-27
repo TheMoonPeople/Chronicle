@@ -1,6 +1,6 @@
 #include "name_mouse_layout.hpp"
 
-#include <algorithm>
+#include <array>
 
 namespace namemouse {
 
@@ -10,25 +10,33 @@ namespace {
 constexpr int kFrameX = 0x42;
 constexpr int kFrameY = 0x9E;
 
+constexpr int kLanguageCount = 7;
+
+using TabTable = std::array<std::array<short, kTabCount>, kLanguageCount>;
+
 // Where each language's tabs lie across the frame (Get_NameTemp_PutX) and how wide they are
 // (DrawNameTemplete's tab_width). A width of 0 is a tab the language does not have.
-constexpr short kTabX[7][kTabCount] = {
-    {40, 125, 209, 261, 311, 378, 40, 74, 111, 168, 223},
-    {0,  0,   40,  223, 303, 384, 40, 74, 111, 168, 223},
-    {0,  0,   40,  144, 303, 384, 40, 74, 111, 168, 223},
-    {0,  0,   40,  140, 303, 384, 40, 74, 111, 168, 223},
-    {0,  0,   40,  150, 303, 384, 40, 74, 111, 168, 223},
-    {0,  0,   40,  142, 303, 384, 40, 74, 111, 168, 223},
-    {0,  0,   40,  132, 283, 384, 40, 74, 111, 168, 223},
+constexpr TabTable kTabX = {
+    {
+     {40, 125, 209, 261, 311, 378, 40, 74, 111, 168, 223},
+     {0, 0, 40, 223, 303, 384, 40, 74, 111, 168, 223},
+     {0, 0, 40, 144, 303, 384, 40, 74, 111, 168, 223},
+     {0, 0, 40, 140, 303, 384, 40, 74, 111, 168, 223},
+     {0, 0, 40, 150, 303, 384, 40, 74, 111, 168, 223},
+     {0, 0, 40, 142, 303, 384, 40, 74, 111, 168, 223},
+     {0, 0, 40, 132, 283, 384, 40, 74, 111, 168, 223},
+     }
 };
-constexpr short kTabWidth[7][kTabCount] = {
-    {78, 78, 44,  44,  60, 52, 24, 24, 48, 48, 112},
-    {0,  0,  176, 75,  74, 70, 24, 24, 48, 48, 112},
-    {0,  0,  96,  155, 74, 70, 24, 24, 48, 48, 112},
-    {0,  0,  92,  159, 76, 70, 24, 24, 48, 48, 112},
-    {0,  0,  103, 148, 74, 70, 24, 24, 48, 48, 112},
-    {0,  0,  94,  157, 75, 70, 24, 24, 48, 48, 112},
-    {0,  0,  86,  145, 95, 70, 24, 24, 48, 48, 112},
+constexpr TabTable kTabWidth = {
+    {
+     {78, 78, 44, 44, 60, 52, 24, 24, 48, 48, 112},
+     {0, 0, 176, 75, 74, 70, 24, 24, 48, 48, 112},
+     {0, 0, 96, 155, 74, 70, 24, 24, 48, 48, 112},
+     {0, 0, 92, 159, 76, 70, 24, 24, 48, 48, 112},
+     {0, 0, 103, 148, 74, 70, 24, 24, 48, 48, 112},
+     {0, 0, 94, 157, 75, 70, 24, 24, 48, 48, 112},
+     {0, 0, 86, 145, 95, 70, 24, 24, 48, 48, 112},
+     }
 };
 
 // A key is drawn 22 by 22; the area that counts as on it reaches a little past, so the sliver between
@@ -47,10 +55,10 @@ constexpr int kFirstEuroCode = 0x104;
 constexpr int kNameX = 182;
 constexpr int kNameY = 108;
 
-bool ValidLanguage(int language) { return language >= 0 && language < 7; }
+bool ValidLanguage(int language) { return language >= 0 && language < kLanguageCount; }
 
 Rect PaddedKey(int x, int y) {
-    return Rect{x - kKeyPadX, y - kKeyPadY, x + kKeySize + kKeyPadX, y + kKeySize + kKeyPadY};
+    return Rect{.left = x - kKeyPadX, .top = y - kKeyPadY, .right = x + kKeySize + kKeyPadX, .bottom = y + kKeySize + kKeyPadY};
 }
 
 } // namespace
@@ -66,7 +74,7 @@ Rect TabRect(int language, int tab) {
         top += 4;
         height = 0x28;
     }
-    return Rect{left, top, left + kTabWidth[language][tab], top + height};
+    return Rect{.left = left, .top = top, .right = left + kTabWidth[language][tab], .bottom = top + height};
 }
 
 Rect KeyRect(const Screen &screen, int key) {
@@ -106,17 +114,17 @@ Rect SlotRect(int slot) {
         return Rect{};
     }
     int left = kNameX + slot * 22;
-    return Rect{left, kNameY, left + 22, kNameY + 32};
+    return Rect{.left = left, .top = kNameY, .right = left + 22, .bottom = kNameY + 32};
 }
 
 Rect DialogRect(int area) {
     switch (area) {
         case kAreaHelp:
-            return Rect{0xAE, 0xAA, 0xAE + 0x12C, 0xAA + 0x60};
+            return Rect{.left = 0xAE, .top = 0xAA, .right = 0xAE + 0x12C, .bottom = 0xAA + 0x60};
         case kAreaConfirm:
-            return Rect{0xD8, 0xB8, 0xD8 + 0xDA, 0xB8 + 0x60};
+            return Rect{.left = 0xD8, .top = 0xB8, .right = 0xD8 + 0xDA, .bottom = 0xB8 + 0x60};
         case kAreaEmptyNotice:
-            return Rect{0xBA, 0xB8, 0xBA + 0x116, 0xB8 + 0x60};
+            return Rect{.left = 0xBA, .top = 0xB8, .right = 0xBA + 0x116, .bottom = 0xB8 + 0x60};
         default:
             return Rect{};
     }
@@ -142,18 +150,18 @@ int ConfirmChoice(float x, float y) {
 Hit HitTest(const Screen &screen, float x, float y) {
     for (int tab = 0; tab < kTabCount; ++tab) {
         if (TabRect(screen.language, tab).Contains(x, y)) {
-            return Hit{Kind::Tab, tab};
+            return Hit{.kind = Kind::Tab, .index = tab};
         }
     }
     int keys = screen.input_mode == kInputSymbol ? kSymbolKeys : kAlphabetKeys + kEuroKeys;
     for (int key = 0; key < keys; ++key) {
         if (KeyRect(screen, key).Contains(x, y)) {
-            return Hit{Kind::Key, key};
+            return Hit{.kind = Kind::Key, .index = key};
         }
     }
     for (int slot = 0; slot < kNameSlots; ++slot) {
         if (SlotRect(slot).Contains(x, y)) {
-            return Hit{Kind::Slot, slot};
+            return Hit{.kind = Kind::Slot, .index = slot};
         }
     }
     return Hit{};

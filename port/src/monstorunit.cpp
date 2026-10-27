@@ -8,34 +8,38 @@
 #include "mglib.hpp"
 #include "platform/config.hpp"
 
-// Retail's DrawShadowMonstor, which casts the shadows of the monsters taking part. A dormant
-// monster within video.detail_distance of the player draws its model (DrawMonstorDetail,
-// dun/gameloop.cpp), so it casts its shadow here too.
+// Casts the shadows of the monsters taking part. A dormant monster within video.detail_distance of
+// the player still draws its model (DrawMonstorDetail), so it casts its shadow too.
 void CMonstorUnit::DrawShadowMonstor() {
     sceVu0FVECTOR position;
     sceVu0FVECTOR rotation;
     sceVu0FVECTOR light = {0.0f, 1.0f, 0.0f, 0.0f};
-    float         detail = ConfigDetailDistance();
+    const float   detail_distance = ConfigDetailDistance();
 
     for (int i = 0; i < 16; i++) {
-        bool drawn = monster[i].state == 2 || (monster[i].state == 1 && monster[i].player_distance < detail);
+        const MONSTOR &mon = monster[i];
+        const bool     drawn = mon.state == 2 || (mon.state == 1 && mon.player_distance < detail_distance);
 
-        if (drawn && monster[i].shadow_visible != 0 && monster[i].revealed != 0) {
-            if (chara[i][0].shadow_frame != nullptr) {
-                CCharacter *character = &chara[i][0];
-                character->ShadowStep();
-                character->GetPosition(position);
-                character->GetRotation(rotation);
-                chara[i][0].shadow_frame->SetPosition(position);
-                chara[i][0].shadow_frame->SetRotation(0.0f, rotation[1], 0.0f);
-                position[1] -= monster[i].shadow_length;
-                MGDrawShadowFast(chara[i][0].shadow_frame, position, light);
-            }
+        if (!drawn || mon.shadow_visible == 0 || mon.revealed == 0) {
+            continue;
         }
+
+        CCharacter &character = chara[i][0];
+        if (character.shadow_frame == nullptr) {
+            continue;
+        }
+
+        character.ShadowStep();
+        character.GetPosition(position);
+        character.GetRotation(rotation);
+        character.shadow_frame->SetPosition(position);
+        character.shadow_frame->SetRotation(0.0f, rotation[1], 0.0f);
+        position[1] -= mon.shadow_length;
+        MGDrawShadowFast(character.shadow_frame, position, light);
     }
 }
 
-/* Retail's MonstorTable (ps2/src/monstorunit.cpp), with one fix: sixteen regular monsters ship with
+/* Retail's monster table with one fix: sixteen regular monsters ship with
    drops_items 0, so a kill skips the death drop entirely (no money, attachment, gate key or rare
    item) though most of them have a money chance and a rare item set. Here they drop as the others
    do. Wine Keg and Gacious keep 0: they are MONSTER_KIND_NO_LOCK_ON, which never drops. */

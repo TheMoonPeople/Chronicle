@@ -1,6 +1,8 @@
 #include "name_mouse.hpp"
 
 #include <cstddef>
+#include <cstdint>
+#include <iterator>
 
 #include "gamepad.hpp"
 #include "menu_draw.hpp"
@@ -9,7 +11,9 @@
 #include "platform/input.hpp"
 #include "rect.hpp"
 
-// NAME_SELECT of ps2/src/battle_globals.cpp, which keeps the struct and its enums to itself.
+/**
+ * The Register Name screen's state (NAME_SELECT), laid out as the game's global NameSelect.
+ */
 struct NameSelectView {
     short chara_no;
     short area;
@@ -42,20 +46,23 @@ namespace {
 
 using namespace namemouse;
 
-// NameSelectState.
+// NameSelect.state values.
 constexpr int kStateIdle = 0;
 constexpr int kStateExit = 3;
 constexpr int kStateTabFlash = 6;
 constexpr int kStateHelp = 8;
 
+// menu_euro_codetbl and euro_code_linelimmit are indexed from British, which has no accented keys.
 constexpr int kLanguageBritish = 2;
+
+constexpr std::uint32_t kMouseLeft = 1;
+constexpr std::uint32_t kMouseRight = 2;
 
 struct State {
     MenuPointer pointer;
-    // What the pointer was last over, with the screen it was over it on.
-    Hit hovered;
-    int hovered_mode = -1;
-    int hovered_language = -1;
+    Hit         hovered; /**< What the pointer was last over, with the screen it was over it on. */
+    int         hovered_mode = -1;
+    int         hovered_language = -1;
 };
 
 State g_state;
@@ -65,9 +72,10 @@ Screen CurrentScreen() {
     screen.language = NameSelect.language;
     screen.input_mode = NameSelect.input_mode;
     screen.symbol_cells = menu_kigoutbl;
-    if (NameSelect.language > kLanguageBritish && NameSelect.language < 7) {
-        screen.euro_codes = &menu_euro_codetbl[NameSelect.language - 2][0][0];
-        screen.euro_rows = euro_code_linelimmit[NameSelect.language - 2];
+    int euro_index = NameSelect.language - kLanguageBritish;
+    if (euro_index > 0 && euro_index < std::ssize(euro_code_linelimmit)) {
+        screen.euro_codes = &menu_euro_codetbl[euro_index][0][0];
+        screen.euro_rows = euro_code_linelimmit[euro_index];
     }
     return screen;
 }
@@ -122,13 +130,13 @@ void NameMouseUpdate() {
         int  pressed = 0;
         if (area == kAreaConfirm) {
             int choice = ConfirmChoice(x, y);
-            if ((take.clicked & 1) != 0 && choice != 0) {
+            if ((take.clicked & kMouseLeft) != 0 && choice != 0) {
                 pressed = choice > 0 ? kInputCross : kInputCircle;
             }
-        } else if ((take.clicked & 1) != 0 && inside) {
+        } else if ((take.clicked & kMouseLeft) != 0 && inside) {
             pressed = kInputCross;
         }
-        if (pressed == 0 && (take.clicked & 2) != 0) {
+        if (pressed == 0 && (take.clicked & kMouseRight) != 0) {
             pressed = kInputCircle;
         }
         MenuPointerPress(pressed);
@@ -156,20 +164,19 @@ void NameMouseUpdate() {
     g_state.hovered_mode = screen.input_mode;
     g_state.hovered_language = screen.language;
 
-    if ((hit.kind == Kind::Key || hit.kind == Kind::Tab) && (changed || (take.clicked & 1) != 0)) {
-        if (PutCursorOn(hit)) {
-            ComMenuSePlay(MENU_SOUND_CURSOR);
-        }
+    if ((hit.kind == Kind::Key || hit.kind == Kind::Tab) && (changed || (take.clicked & kMouseLeft) != 0) &&
+        PutCursorOn(hit)) {
+        ComMenuSePlay(MENU_SOUND_CURSOR);
     }
 
-    if ((take.clicked & 1) != 0) {
+    if ((take.clicked & kMouseLeft) != 0) {
         if (hit.kind == Kind::Key || hit.kind == Kind::Tab) {
             MenuPointerPress(kInputCross);
         } else if (hit.kind == Kind::Slot && NameSelect.name_pos != hit.index) {
             NameSelect.name_pos = static_cast<short>(hit.index);
             ComMenuSePlay(MENU_SOUND_CONFIRM);
         }
-    } else if ((take.clicked & 2) != 0) {
+    } else if ((take.clicked & kMouseRight) != 0) {
         MenuPointerPress(kInputCircle);
     }
 }

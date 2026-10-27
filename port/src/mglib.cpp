@@ -4,6 +4,7 @@
 #include <libvu0.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -23,18 +24,7 @@
 #include "texture.hpp"
 #include "textwipe.hpp"
 
-// Retail defines the window rectangle as mgWindowRectStore and renames it at link time; the port
-// defines the name its callers use.
 CRect_i_ mgWindowRect;
-
-// Defined by ps2/src/mglib.cpp without a header declaration.
-extern int           mgWaitVSync;
-extern int           mgAdjustX;
-extern int           mgAdjustY;
-extern sceVu0FVECTOR mgZeroVector;
-extern sceVu0FVECTOR mgUnitVector;
-extern sceVu0FVECTOR mgZeroVector2;
-extern sceVu0FVECTOR mgUnitVector2;
 
 namespace {
 
@@ -111,7 +101,7 @@ struct ResolvedRect {
 
 // A rect in a TEX0 buffer's own rows, in the logical units gfx takes for that texture.
 std::optional<ResolvedRect> ResolveRect(const sceGsTex0 &tex0, int x, int y, int width, int height) {
-    PortTextureRef ref = Draw3DResolveTex0(*reinterpret_cast<const u_long *>(&tex0));
+    PortTextureRef ref = Draw3DResolveTex0(std::bit_cast<u_long>(tex0));
     if (!ref.valid || ref.binding.texture == gfx::kNullTexture) {
         return std::nullopt;
     }
@@ -127,8 +117,8 @@ void BlitWithin(gfx::TextureHandle texture, gfx::Rect src, gfx::Rect dst, gfx::F
     static uint32_t           scratch_width = 0;
     static uint32_t           scratch_height = 0;
     static bool               scratch_frame = false;
-    uint32_t                  width = static_cast<uint32_t>(std::abs(src.w));
-    uint32_t                  height = static_cast<uint32_t>(std::abs(src.h));
+    auto                      width = static_cast<uint32_t>(std::abs(src.w));
+    auto                      height = static_cast<uint32_t>(std::abs(src.h));
     // A move of the frame's whole width carries the sides past the logical frame through a frame
     // target of its own.
     std::optional<gfx::TextureInfo> info = gfx::GetTextureInfo(texture);
@@ -318,7 +308,8 @@ Draw3DExtent Draw3DVisibleExtent() {
     float                           height = info ? static_cast<float>(info->height) : kScreenHeight;
     float                           wider = std::max({0.0f, -visible.x, visible.x + visible.w - width});
     float                           taller = std::max({0.0f, -visible.y, visible.y + visible.h - height});
-    return {kScreenWidth * 0.5f + wider, SCREEN_HALF_HEIGHT_F + taller / MGPortTargetRowScale(target)};
+    return {.half_width = kScreenWidth * 0.5f + wider,
+            .half_height = SCREEN_HALF_HEIGHT_F + taller / MGPortTargetRowScale(target)};
 }
 
 bool MGPortFrameTarget(std::string_view name) {
@@ -436,7 +427,7 @@ void Draw3DSceneConstants(gfx::MeshConstants &constants, const RenderInfo &info,
 // ambient light takes the diffuse colour; the second vector only tints the specular programs'
 // highlight and never scales the ambient (the cloth's is 0.3 under a diffuse of 1).
 void Draw3DMaterial(gfx::MeshConstants &constants, const RenderInfo &info, const float *diffuse,
-                    const float *ambient, const float *specular) {
+                    const float * /*ambient*/, const float *specular) {
     for (int channel = 0; channel < 4; channel++) {
         constants.diffuse[channel] = diffuse[channel];
         constants.ambient_material[channel] = diffuse[channel];
@@ -445,14 +436,13 @@ void Draw3DMaterial(gfx::MeshConstants &constants, const RenderInfo &info, const
     constants.diffuse[3] = diffuse[3] * info.ambient[3] / 128.0f;
 }
 
-gfx::DrawState Draw3DState(const RenderInfo &info, bool fog) {
+gfx::DrawState Draw3DState(const RenderInfo & /*info*/, bool fog) {
     gfx::DrawState state = MGPortDrawState();
     state.blend = true;
     state.fog = fog;
     float rows = MGPortTargetRowScale(gfx::CurrentRenderTarget());
     state.scissor_rect.y *= rows;
     state.scissor_rect.h *= rows;
-    (void) info;
     return state;
 }
 
@@ -486,7 +476,7 @@ void MGInit() {
     g_null_packet.pCurrent = reinterpret_cast<u_int *>(g_null_packet_words);
     Vif1Packet = &g_null_packet;
 
-    *reinterpret_cast<u_long128 *>(&GiftagAD) = 0;
+    GiftagAD = {};
     GiftagAD.EOP = 1;
     GiftagAD.NREG = 1;
     GiftagAD.REGS0 = SCE_GIF_PACKED_AD;
@@ -556,7 +546,7 @@ void MGInitVSyncCallBack(int (*callback)(int)) {
 }
 
 // The renderer builds no VIF packets; nothing reads the packet builders.
-void MGInitVif1Packet(u_long128 *buffer0, u_long128 *buffer1) {}
+void MGInitVif1Packet(u_long128 * /*buffer0*/, u_long128 * /*buffer1*/) {}
 
 void MGPortCutInterpolation() {
     g_cut_next_tick = true;
@@ -583,7 +573,7 @@ void MGBeginFrame() {
     }
     Draw3DSweepVisuals();
 
-    *reinterpret_cast<u_long128 *>(&GiftagAD) = 0;
+    GiftagAD = {};
     GiftagAD.EOP = 1;
     GiftagAD.NREG = 1;
     GiftagAD.REGS0 = SCE_GIF_PACKED_AD;
@@ -754,10 +744,10 @@ float MGGetProjection() {
 // SCAX0 takes half of x, as retail sends it; the rectangle counts field rows.
 void MGSetWindowRect(CRect_i_ rect) {
     mgWindowRect = rect;
-    float left = static_cast<float>(rect.x >> 1);
-    float right = static_cast<float>(rect.x + rect.width + 1);
-    float top = static_cast<float>(rect.y * 2);
-    float bottom = static_cast<float>((rect.y + rect.height + 1) * 2);
+    auto left = static_cast<float>(rect.x >> 1);
+    auto right = static_cast<float>(rect.x + rect.width + 1);
+    auto top = static_cast<float>(rect.y * 2);
+    auto bottom = static_cast<float>((rect.y + rect.height + 1) * 2);
     MGPortCurrent().window = {left, top, right - left, bottom - top};
 }
 
@@ -833,8 +823,7 @@ void MGScisioringForce(int force) {
 
 // ---- CPU projections -------------------------------------------------------------------------
 
-// view_scaled no longer halves y, so the field squeeze is applied here to keep the GS coordinates
-// retail produced.
+// view_scaled is unsqueezed, so the field squeeze is applied here to give GS field coordinates.
 int MGRotTransPers(int *screen, float *position, int fog) {
     sceVu0FVECTOR point;
     int           visible = true;
@@ -866,8 +855,7 @@ int MGRotTransPers(int *screen, float *position, int fog) {
     return visible;
 }
 
-// Logical frame pixels: retail doubled the squeezed y back, which with an unsqueezed view is the
-// identity. The on-screen test still runs in GS field units, as retail's did.
+// Logical frame pixels; the on-screen test runs in GS field units.
 int MGRotTransPers2D(int *screen, float *position, int fog) {
     sceVu0FVECTOR point;
     int           visible = true;
@@ -984,16 +972,16 @@ void MGSetGsTEXA(sceGsTexa *texa) {
 }
 
 void MGGetFBuffTex(sceGsTex0 *tex0) {
-    *reinterpret_cast<u_long *>(tex0) = FrameTex0(kMGPortFrameTbp0);
+    *tex0 = std::bit_cast<sceGsTex0>(FrameTex0(kMGPortFrameTbp0));
 }
 
 void MGGetFBuffBackTex(sceGsTex0 *tex0) {
-    *reinterpret_cast<u_long *>(tex0) = FrameTex0(kMGPortPreviousFrameTbp0);
+    *tex0 = std::bit_cast<sceGsTex0>(FrameTex0(kMGPortPreviousFrameTbp0));
 }
 
 // Moves between two of the texture manager's images (CLUT moves included) are its business; a move
 // that reads or writes the frame scales the frame's field rows to its logical ones.
-void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {
+void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x, int dst_y, int /*direction*/) {
     if (rect.width <= 0 || rect.height <= 0) {
         return;
     }
@@ -1007,7 +995,6 @@ void MGMoveImage(sceGsTex0 *src, const CRect_i_ &rect, sceGsTex0 *dst, int dst_x
         return;
     }
     Blit(*from, *to, gfx::Filter::Nearest);
-    (void) direction;
 }
 
 // The sprite of a stretch whose source TEX0 says PSMCT24: the source is sampled through a target
@@ -1017,8 +1004,8 @@ namespace {
 
 void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::TextureHandle dst, gfx::Rect dst_rect,
                      const sceGsTexa &texa) {
-    uint32_t width = static_cast<uint32_t>(kScreenWidth);
-    uint32_t height = static_cast<uint32_t>(kScreenHeight);
+    auto width = static_cast<uint32_t>(kScreenWidth);
+    auto height = static_cast<uint32_t>(kScreenHeight);
     if (src != gfx::kMainTarget) {
         std::optional<gfx::TextureInfo> info = gfx::GetTextureInfo(src);
         if (!info) {
@@ -1048,12 +1035,12 @@ void StretchColour24(gfx::TextureHandle src, gfx::Rect src_rect, gfx::TextureHan
     binding.texture = colour;
     binding.filter = gfx::Filter::Linear;
 
-    float         left = static_cast<float>(dst_rect.x);
-    float         top = static_cast<float>(dst_rect.y);
+    auto          left = static_cast<float>(dst_rect.x);
+    auto          top = static_cast<float>(dst_rect.y);
     float         right = left + static_cast<float>(dst_rect.w);
     float         bottom = top + static_cast<float>(dst_rect.h);
-    float         u0 = static_cast<float>(src_rect.x);
-    float         v0 = static_cast<float>(src_rect.y);
+    auto          u0 = static_cast<float>(src_rect.x);
+    auto          v0 = static_cast<float>(src_rect.y);
     float         u1 = u0 + static_cast<float>(src_rect.w);
     float         v1 = v0 + static_cast<float>(src_rect.h);
     gfx::Vertex2D corners[4] = {};
@@ -1111,7 +1098,7 @@ void MGStretchMoveImage(sceGsTex0 *src, const CRect_i_ &src_rect, sceGsTex0 *dst
 namespace {
 
 void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
-    PortTextureRef ref = Draw3DResolveTex0(*reinterpret_cast<u_long *>(dst));
+    PortTextureRef ref = Draw3DResolveTex0(std::bit_cast<u_long>(*dst));
     if (!ref.valid || ref.binding.texture == gfx::kNullTexture || ref.binding.texture == gfx::kMainTarget ||
         ref.binding.texture == gfx::kPreviousFrame) {
         return;
@@ -1123,11 +1110,8 @@ void MoveFrameImage(gfx::TextureHandle frame, sceGsTex0 *dst) {
 } // namespace
 
 // Retail weaves the two fields line by line into a full-height image; one blit of the frame does.
-void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction) {
+void MGMoveFrameBuffImage(sceGsTex0 *dst, int /*x*/, int /*y*/, int /*direction*/) {
     MoveFrameImage(gfx::kMainTarget, dst);
-    (void) x;
-    (void) y;
-    (void) direction;
 }
 
 void MGPortMovePreviousFrameImage(sceGsTex0 *dst) {
@@ -1223,7 +1207,7 @@ void MGDrawShade(CFrame *frame) {
 // Retail points FRAME_1 at shadow_buf and clears it black with a sprite, Z untouched; the volumes
 // then count into it against the scene's depth. The port counts in the stencil of the target being
 // drawn, which holds the scene's depth: the stencil is the shadow_buf, a count of 0 its black.
-void MGBeginDrawShadow(sceGsTex0 tex0) {
+void MGBeginDrawShadow(sceGsTex0 /*tex0*/) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 1;
     test.bits.aref = 0;
@@ -1236,7 +1220,6 @@ void MGBeginDrawShadow(sceGsTex0 tex0) {
     current.alpha = mgAlpha;
     current.test = test;
     current.zbuf = zbuf;
-    (void) tex0;
 
     g_shadow_active = true;
     gfx::ClearStencil(0);

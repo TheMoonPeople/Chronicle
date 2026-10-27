@@ -1,8 +1,9 @@
 #include "menu_save.hpp"
 
+#include <array>
 #include <filesystem>
-#include <iterator>
 #include <system_error>
+#include <utility>
 
 #include "battle_globals.hpp"
 #include "gametext.hpp"
@@ -21,69 +22,117 @@ int PlayerAllItemCheck(int item) {
     return QuestHostPlayerAllItemCheck(item);
 }
 
-// Message numbers of allmenu.mes the save screens show.
-enum SaveMenuMessage {
-    SAVE_MES_NONE = 0,
-    SAVE_MES_WANT_TO_SAVE = 260,  /**< "Want to save?" */
-    SAVE_MES_SAVED = 262,         /**< "Saving completed." */
-    SAVE_MES_REPLACE = 264,       /**< "Data exist on file N. Replace it?" */
-    SAVE_MES_SAVE_FAILED = 266,   /**< "Saving failed." */
-    SAVE_MES_WANT_TO_LOAD = 270,  /**< "Want to load?" */
-    SAVE_MES_LOAD_FAILED = 274,   /**< "Loading failed." */
-    SAVE_MES_FORMAT_FAILED = 282, /**< "Formatting failed." */
-    SAVE_MES_DELETE = 290,        /**< "Delete file?" */
-    SAVE_MES_COPY = 292,          /**< "Want to copy file?" */
-    SAVE_MES_OTHER_VERSION = 299, /**< "Data not loaded due to change in data format. Deleting No. N data." */
+namespace {
+
+/**
+ * Message numbers of allmenu.mes that the save screens show.
+ */
+enum class SaveMenuMessage : int {
+    NONE = 0,
+    WANT_TO_SAVE = 260,  /**< "Want to save?" */
+    SAVED = 262,         /**< "Saving completed." */
+    REPLACE = 264,       /**< "Data exist on file N. Replace it?" */
+    SAVE_FAILED = 266,   /**< "Saving failed." */
+    WANT_TO_LOAD = 270,  /**< "Want to load?" */
+    LOAD_FAILED = 274,   /**< "Loading failed." */
+    FORMAT_FAILED = 282, /**< "Formatting failed." */
+    DELETE = 290,        /**< "Delete file?" */
+    COPY = 292,          /**< "Want to copy file?" */
+    OTHER_VERSION = 299, /**< "Data not loaded due to change in data format. Deleting No. N data." */
 };
 
-// Retail's, with no message that names the memory card. The card operations finish within the
-// frame after the one that starts them and show nothing; the save after the ending asks "Want to
-// save?" where retail asked to save the cleared data to the card; the alerts only a card raised
-// say the save or the load failed.
-int GetSaveMenuMsgNo() {
+SaveMenuMessage SaveMenuMessageFor() {
     if (McAccess.GetFuncNo() != MC_OPERATION_IDLE) {
-        return SAVE_MES_NONE;
+        return SaveMenuMessage::NONE;
     }
 
     switch (SaveMenu.key_no) {
         case SAVE_KEY_SAVE_DECIDE:
-            return SAVE_MES_REPLACE;
+            return SaveMenuMessage::REPLACE;
         case SAVE_KEY_LOAD_DECIDE:
-            return SAVE_MES_WANT_TO_LOAD;
+            return SaveMenuMessage::WANT_TO_LOAD;
         case SAVE_KEY_ALERT:
             switch (SaveMenu.alert_no) {
                 case SAVE_ALERT_NONE:
                 case SAVE_ALERT_UNK_3:
                 case SAVE_ALERT_UNK_4:
                 case SAVE_ALERT_UNK_5:
-                    return SAVE_MES_NONE;
+                    return SaveMenuMessage::NONE;
                 case SAVE_ALERT_FORMAT_FAILED:
-                    return SAVE_MES_FORMAT_FAILED;
+                    return SaveMenuMessage::FORMAT_FAILED;
                 case SAVE_ALERT_SAVE_FAILED:
-                    return SAVE_MES_SAVE_FAILED;
+                    return SaveMenuMessage::SAVE_FAILED;
                 case SAVE_ALERT_LOAD_FAILED:
-                    return SAVE_MES_LOAD_FAILED;
+                    return SaveMenuMessage::LOAD_FAILED;
                 default:
-                    return SaveMenu.access_kind == SAVE_ACCESS_LOAD ? SAVE_MES_LOAD_FAILED : SAVE_MES_SAVE_FAILED;
+                    return SaveMenu.access_kind == SAVE_ACCESS_LOAD ? SaveMenuMessage::LOAD_FAILED : SaveMenuMessage::SAVE_FAILED;
             }
         case SAVE_KEY_DELETE:
-            return SAVE_MES_DELETE;
+            return SaveMenuMessage::DELETE;
         case SAVE_KEY_COPY:
-            return SAVE_MES_COPY;
+            return SaveMenuMessage::COPY;
         case SAVE_KEY_DIF_VERSION:
-            return SAVE_MES_OTHER_VERSION;
+            return SaveMenuMessage::OTHER_VERSION;
         case SAVE_KEY_AFTER_ENDING:
-            return SAVE_MES_WANT_TO_SAVE;
+            return SaveMenuMessage::WANT_TO_SAVE;
         case SAVE_KEY_END_SAVE:
         case SAVE_KEY_END_SAVE_ENDING:
-            return SAVE_MES_SAVED;
+            return SaveMenuMessage::SAVED;
         default:
-            return SAVE_MES_NONE;
+            return SaveMenuMessage::NONE;
     }
 }
 
-// Retail's looked for a card holding the save directory and its configuration. Data exists once
-// state.json or a save folder does.
+// Alpha at screen row y: ramps up over the top 128 rows and down over the bottom 128.
+int SaveBoardEdgeAlpha(int y, int alpha) {
+    if (y < 0) {
+        return 0;
+    }
+    if (y < 0x81) {
+        return (y * alpha) >> 7;
+    }
+    if (y < SCREEN_HEIGHT - 0x7F) {
+        return (alpha * 0x80) >> 7;
+    }
+    if (y < SCREEN_HEIGHT + 1) {
+        return ((SCREEN_HEIGHT - y) * alpha) >> 7;
+    }
+    return 0;
+}
+
+void GetSaveBoardAlphaInfo(int y, int height, int &start_alpha, int &end_alpha, int alpha) {
+    start_alpha = SaveBoardEdgeAlpha(y, alpha);
+    end_alpha = SaveBoardEdgeAlpha(y + height, alpha);
+}
+
+constexpr RECT number_rect = {.x = 0x88, .y = 0xCA, .width = 0xC, .height = 0x10};
+
+// Draws number right to left, its last digit ending at right_x.
+void DrawSaveBoardNumber(int number, int right_x, int draw_y, spRGBA &top, spRGBA &bottom) {
+    for (int digits = GetNumberKeta(number); digits > 0; digits--) {
+        int       clip_y = draw_y;
+        const int digit = number % 10;
+        const int width = number_rect.width;
+        right_x -= width - 1;
+        const int src_x = number_rect.x + width * digit;
+        int       src_y = number_rect.y;
+        int       height = number_rect.height;
+        MenuTextureClip(clip_y, src_y, height, 0, SCREEN_HEIGHT);
+        DrawMenu2DSprite(SaveBoard, CRect_i_(right_x, clip_y, width, height - 1), CRect_i_(src_x, src_y, width, height), &top, &top, &bottom, &bottom);
+        number /= 10;
+    }
+}
+
+} // namespace
+
+// Message number for the save screens, with no message that names the memory card. Card
+// operations finish within the frame after the one that starts them and show nothing; the save
+// after the ending asks "Want to save?"; alerts only a card raised report a failed save or load.
+int GetSaveMenuMsgNo() {
+    return static_cast<int>(SaveMenuMessageFor());
+}
+
+// Data exists once state.json or a save folder does.
 int InitExistData() {
     if (McAccess.InitForMC() != 0) {
         return 0;
@@ -92,68 +141,30 @@ int InitExistData() {
     McAccess.port = 0;
     McAccess.LoadSysConfig();
     std::error_code error;
-    return std::filesystem::exists(SaveStatePath(), error) || !SaveSlotFiles().empty();
+    return static_cast<int>(std::filesystem::exists(SaveStatePath(), error) || !SaveSlotFiles().empty());
 }
 
-namespace {
-
-void GetSaveBoardAlphaInfo(int x, int width, int &start_alpha, int &end_alpha, int alpha) {
-    if (x < 0) {
-        start_alpha = 0;
-    } else if ((0 <= x) && (x < 0x81)) {
-        start_alpha = (x * alpha) >> 7;
-    } else if ((x > 0x80) && (x < SCREEN_HEIGHT - 0x7F)) {
-        start_alpha = (alpha * 0x80) >> 7;
-    } else if ((x > SCREEN_HEIGHT - 0x80) && (x < SCREEN_HEIGHT + 1)) {
-        start_alpha = ((SCREEN_HEIGHT - x) * alpha) >> 7;
-    } else {
-        start_alpha = 0;
-    }
-
-    x += width;
-
-    if (x < 0) {
-        end_alpha = 0;
-    } else if ((0 <= x) && (x < 0x81)) {
-        end_alpha = (x * alpha) >> 7;
-    } else if ((x > 0x80) && (x < SCREEN_HEIGHT - 0x7F)) {
-        end_alpha = (alpha * 0x80) >> 7;
-    } else if ((x > SCREEN_HEIGHT - 0x80) && (x < SCREEN_HEIGHT + 1)) {
-        end_alpha = ((SCREEN_HEIGHT - x) * alpha) >> 7;
-    } else {
-        end_alpha = 0;
-    }
-}
-
-} // namespace
-
-// Retail's, with the autosave's board labelled in place of a number.
-void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int unused, int alpha) {
-    int i;
-    int draw_x;
-    int draw_y;
+// The autosave's board is labelled in place of a number.
+void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int /*unused*/, int alpha) {
     if (info == nullptr) {
         return;
     }
 
-    spRGBA top = {0x80, 0x80, 0x80, 0};
-    top.a = alpha;
-    spRGBA bottom = {0x80, 0x80, 0x80, 0};
-    bottom.a = alpha;
-    int start_alpha;
-    int end_alpha;
+    spRGBA top = {.r = 0x80, .g = 0x80, .b = 0x80, .a = 0};
+    spRGBA bottom = {.r = 0x80, .g = 0x80, .b = 0x80, .a = 0};
+    int    start_alpha = 0;
+    int    end_alpha = 0;
     GetSaveBoardAlphaInfo(y, 0x88, start_alpha, end_alpha, alpha);
     top.a = start_alpha;
     bottom.a = end_alpha;
     DrawMenu2DSprite(SaveBoard, CRect_i_(x, y, 0x180, 0x87), CRect_i_(0, 0, 0x180, 0x88), &top, &top, &bottom, &bottom);
 
-    draw_x = x + 0x54;
+    int draw_x = x + 0x54;
 #ifdef PAL
     constexpr s8 number_shift[] = {0, 0, 0, 10, 0, 4, 13};
     draw_x += number_shift[GetMenuLangFlag()];
 #endif
-    draw_y = y + 8;
-    RECT number_rect = {0x88, 0xCA, 0xC, 0x10};
+    int draw_y = y + 8;
     GetSaveBoardAlphaInfo(y, 0x10, start_alpha, end_alpha, alpha);
     top.a = start_alpha;
     bottom.a = end_alpha;
@@ -163,27 +174,7 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
         label.Set(LocalizeText("save.autosave", "Auto"));
         label.Draw(draw_x - label.Width(), draw_y - 2, start_alpha);
     } else {
-        int digits;
-        int number = info->file_no;
-        int clip_y;
-        int src_y;
-        int height;
-        int digit;
-        int width;
-        int src_x;
-
-        for (digits = GetNumberKeta(number); 0 < digits; digits--) {
-            clip_y = draw_y;
-            digit = number % 10;
-            width = number_rect.width;
-            draw_x -= width - 1;
-            src_x = number_rect.x + width * digit;
-            src_y = number_rect.y;
-            height = number_rect.height;
-            MenuTextureClip(clip_y, src_y, height, 0, SCREEN_HEIGHT);
-            DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, clip_y, width, height - 1), CRect_i_(src_x, src_y, width, height), &top, &top, &bottom, &bottom);
-            number /= 10;
-        }
+        DrawSaveBoardNumber(info->file_no, draw_x, draw_y, top, bottom);
     }
 
     draw_x = x + 0x1A;
@@ -191,13 +182,11 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
     GetSaveBoardAlphaInfo(y, 0x16, start_alpha, end_alpha, alpha);
     top.a = start_alpha;
     bottom.a = end_alpha;
-    int name_x = draw_x + 8;
-
-    DrawSaveBoardCharaName2(name_x, draw_y, reinterpret_cast<short *>(info->name), name_texture, top, bottom);
+    DrawSaveBoardCharaName2(draw_x + 8, draw_y, reinterpret_cast<short *>(info->name), name_texture, top, bottom);
 
     // Play time, as hours, minutes and seconds.
-    RECT time_rect = {0x88, 0xB8, 0xC, 0x12};
-    int  column = x + 0x92;
+    constexpr RECT time_rect = {.x = 0x88, .y = 0xB8, .width = 0xC, .height = 0x12};
+    const int      column = x + 0x92;
     draw_x = column + 0xA;
     draw_y = y + 0x36;
     GetSaveBoardAlphaInfo(draw_y, 0x12, start_alpha, end_alpha, alpha);
@@ -214,15 +203,15 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
     const int minutes = (frames / 60 - hours * 60) % 60;
     const int seconds = frames % 60;
 
+    const std::array<int, 3> parts = {hours, minutes, seconds};
     for (int part = 2; part >= 0; part--) {
-        const int value = part == 2 ? seconds : part == 1 ? minutes
-                                                          : hours;
+        const int value = parts[part];
         DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, time_rect.width, time_rect.height), CRect_i_(time_rect.x + time_rect.width * (value / 10), time_rect.y, time_rect.width, time_rect.height), &top, &top, &bottom, &bottom);
         DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x + time_rect.width, draw_y, time_rect.width, time_rect.height), CRect_i_(time_rect.x + time_rect.width * (value % 10), time_rect.y, time_rect.width, time_rect.height), &top, &top, &bottom, &bottom);
         draw_x -= 0x1E;
     }
 
-    CRect_i_ colon(0x100, 0xB8, 0xC, 0x12);
+    const CRect_i_ colon(0x100, 0xB8, 0xC, 0x12);
     GetSaveBoardAlphaInfo(draw_y, 0x12, start_alpha, end_alpha, alpha);
     top.a = start_alpha;
     bottom.a = end_alpha;
@@ -235,33 +224,11 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
     GetSaveBoardAlphaInfo(draw_y, 0x12, start_alpha, end_alpha, alpha);
     top.a = start_alpha;
     bottom.a = end_alpha;
-    {
-        int digits;
-        int number = info->quest_total;
-        int clip_y;
-        int src_y;
-        int height;
-        int digit;
-        int width;
-        int src_x;
-
-        for (digits = GetNumberKeta(number); 0 < digits; digits--) {
-            clip_y = draw_y;
-            digit = number % 10;
-            width = number_rect.width;
-            draw_x -= width - 1;
-            src_x = number_rect.x + width * digit;
-            src_y = number_rect.y;
-            height = number_rect.height;
-            MenuTextureClip(clip_y, src_y, height, 0, SCREEN_HEIGHT);
-            DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, clip_y, width, height - 1), CRect_i_(src_x, src_y, width, height), &top, &top, &bottom, &bottom);
-            number /= 10;
-        }
-    }
+    DrawSaveBoardNumber(info->quest_total, draw_x, draw_y, top, bottom);
 
     // Row of each map's name on the board texture; a map from 14 on is in the second block.
-    int                  map = info->map_no;
-    static constexpr s16 map_name[62] = {
+    const int                            map = info->map_no;
+    static constexpr std::array<s16, 62> map_name = {
         0,
         1,
         2,
@@ -325,19 +292,12 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
         14,
         14,
     };
-    if (map >= 0 && map < static_cast<int>(std::size(map_name))) {
-        int name_index = map_name[map];
-        int name_u;
-        int name_v;
-
-        if (name_index < 0xE) {
-            name_u = (name_index / 7) * 0x88;
-            name_v = (name_index % 7) * 0x14 + 0xB8;
-        } else {
-            name_index -= 0xE;
-            name_u = (name_index / 7) * 0x88;
-            name_v = (name_index % 7) * 0x14 + 0x144;
-        }
+    if (map >= 0 && std::cmp_less(map, map_name.size())) {
+        const int  name_index = map_name[map];
+        const bool second_block = name_index >= 0xE;
+        const int  block_index = second_block ? name_index - 0xE : name_index;
+        const int  name_u = (block_index / 7) * 0x88;
+        const int  name_v = (block_index % 7) * 0x14 + (second_block ? 0x144 : 0xB8);
 
         draw_x = x + 0x23;
         draw_y = y + 0x63;
@@ -348,14 +308,14 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
     }
 
     // A face for each member of the party, three to a row.
-    int face_x = x + 0xCF;
+    const int face_x = x + 0xCF;
     draw_x = face_x;
     draw_y = y + 0x1A;
     GetSaveBoardAlphaInfo(draw_y, 0x30, start_alpha, end_alpha, alpha);
     top.a = start_alpha;
     bottom.a = end_alpha;
 
-    for (i = 0; i < info->party_size; i++) {
+    for (int i = 0; i < info->party_size; i++) {
         DrawMenu2DSprite(SaveBoard, CRect_i_(draw_x, draw_y, 0x30, 0x31), CRect_i_(i * 0x30, 0x88, 0x30, 0x30), &top, &top, &bottom, &bottom);
         draw_x += 0x38;
 
