@@ -4,10 +4,15 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <format>
 #include <fstream>
+#include <limits>
 #include <map>
+#include <print>
 #include <set>
+#include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -41,10 +46,12 @@ struct Atlas {
     std::set<std::string>                     painted_missing; // ones that could not be made
 };
 
-Font     g_fonts[4];
-int      g_variant = 0;
-Atlas    g_atlas;
-unsigned g_generation = 0;
+constexpr int kSlotCount = 4;
+
+std::array<Font, kSlotCount> g_fonts;
+int                          g_variant = 0;
+Atlas                        g_atlas;
+unsigned                     g_generation = 0;
 
 void ResetAtlas() {
     if (g_atlas.texture != gfx::kNullTexture) {
@@ -52,6 +59,25 @@ void ResetAtlas() {
     }
     g_atlas = {};
     g_generation++;
+}
+
+// Moves the atlas's pen to a new row, or clears the whole atlas, so an image width x height (unpadded) fits.
+// Clearing invalidates glyph coordinates already queued for this frame.
+void MakeRoom(int width, int height) {
+    if (g_atlas.x + width + 2 * kPad > kAtlasSize) {
+        g_atlas.x = 0;
+        g_atlas.y += g_atlas.row_height;
+        g_atlas.row_height = 0;
+    }
+    if (g_atlas.y + height + 2 * kPad > kAtlasSize) {
+        std::println(stderr, "font: atlas full, starting again");
+        const gfx::TextureHandle keep = g_atlas.texture;
+        g_atlas = {};
+        g_generation++;
+        g_atlas.texture = keep;
+        const std::vector<unsigned char> blank(static_cast<size_t>(kAtlasSize) * kAtlasSize * 4, 0);
+        gfx::UpdateTextureNow(keep, 0, 0, 0, kAtlasSize, kAtlasSize, blank.data());
+    }
 }
 
 bool EnsureAtlas() {
@@ -81,7 +107,8 @@ int DrawnGlyph(char32_t ch) {
 
 Bitmap Raster(const stbtt_fontinfo &info, int index, float scale_x, float scale_y) {
     Bitmap bitmap;
-    int    x1, y1;
+    int    x1 = 0;
+    int    y1 = 0;
     stbtt_GetGlyphBitmapBox(&info, index, scale_x, scale_y, &bitmap.x0, &bitmap.y0, &x1, &y1);
     bitmap.w = x1 - bitmap.x0;
     bitmap.h = y1 - bitmap.y0;
@@ -103,7 +130,10 @@ struct Part {
 };
 
 Bitmap Combine(const std::vector<Part> &parts) {
-    int x0 = INT32_MAX, y0 = INT32_MAX, x1 = INT32_MIN, y1 = INT32_MIN;
+    int x0 = std::numeric_limits<int>::max();
+    int y0 = std::numeric_limits<int>::max();
+    int x1 = std::numeric_limits<int>::min();
+    int y1 = std::numeric_limits<int>::min();
     for (const Part &part : parts) {
         if (part.bitmap->w <= 0 || part.bitmap->h <= 0) {
             continue;
@@ -149,52 +179,52 @@ struct Accented {
     Mark     mark;
 };
 
-constexpr Accented kAccented[] = {
-    {U'À', U'A', Mark::Grave     },
-    {U'Á', U'A', Mark::Acute     },
-    {U'Â', U'A', Mark::Circumflex},
-    {U'Ä', U'A', Mark::Diaeresis },
-    {U'È', U'E', Mark::Grave     },
-    {U'É', U'E', Mark::Acute     },
-    {U'Ê', U'E', Mark::Circumflex},
-    {U'Ë', U'E', Mark::Diaeresis },
-    {U'Ì', U'I', Mark::Grave     },
-    {U'Í', U'I', Mark::Acute     },
-    {U'Î', U'I', Mark::Circumflex},
-    {U'Ï', U'I', Mark::Diaeresis },
-    {U'Ñ', U'N', Mark::Tilde     },
-    {U'Ò', U'O', Mark::Grave     },
-    {U'Ó', U'O', Mark::Acute     },
-    {U'Ô', U'O', Mark::Circumflex},
-    {U'Ö', U'O', Mark::Diaeresis },
-    {U'Ù', U'U', Mark::Grave     },
-    {U'Ú', U'U', Mark::Acute     },
-    {U'Û', U'U', Mark::Circumflex},
-    {U'Ü', U'U', Mark::Diaeresis },
-    {U'Ç', U'C', Mark::Cedilla   },
-    {U'à', U'a', Mark::Grave     },
-    {U'á', U'a', Mark::Acute     },
-    {U'â', U'a', Mark::Circumflex},
-    {U'ä', U'a', Mark::Diaeresis },
-    {U'è', U'e', Mark::Grave     },
-    {U'é', U'e', Mark::Acute     },
-    {U'ê', U'e', Mark::Circumflex},
-    {U'ë', U'e', Mark::Diaeresis },
-    {U'ì', U'i', Mark::Grave     },
-    {U'í', U'i', Mark::Acute     },
-    {U'î', U'i', Mark::Circumflex},
-    {U'ï', U'i', Mark::Diaeresis },
-    {U'ñ', U'n', Mark::Tilde     },
-    {U'ò', U'o', Mark::Grave     },
-    {U'ó', U'o', Mark::Acute     },
-    {U'ô', U'o', Mark::Circumflex},
-    {U'ö', U'o', Mark::Diaeresis },
-    {U'ù', U'u', Mark::Grave     },
-    {U'ú', U'u', Mark::Acute     },
-    {U'û', U'u', Mark::Circumflex},
-    {U'ü', U'u', Mark::Diaeresis },
-    {U'ç', U'c', Mark::Cedilla   },
-};
+constexpr auto kAccented = std::to_array<Accented>({
+    {.ch = U'À', .base = U'A', .mark = Mark::Grave     },
+    {.ch = U'Á', .base = U'A', .mark = Mark::Acute     },
+    {.ch = U'Â', .base = U'A', .mark = Mark::Circumflex},
+    {.ch = U'Ä', .base = U'A', .mark = Mark::Diaeresis },
+    {.ch = U'È', .base = U'E', .mark = Mark::Grave     },
+    {.ch = U'É', .base = U'E', .mark = Mark::Acute     },
+    {.ch = U'Ê', .base = U'E', .mark = Mark::Circumflex},
+    {.ch = U'Ë', .base = U'E', .mark = Mark::Diaeresis },
+    {.ch = U'Ì', .base = U'I', .mark = Mark::Grave     },
+    {.ch = U'Í', .base = U'I', .mark = Mark::Acute     },
+    {.ch = U'Î', .base = U'I', .mark = Mark::Circumflex},
+    {.ch = U'Ï', .base = U'I', .mark = Mark::Diaeresis },
+    {.ch = U'Ñ', .base = U'N', .mark = Mark::Tilde     },
+    {.ch = U'Ò', .base = U'O', .mark = Mark::Grave     },
+    {.ch = U'Ó', .base = U'O', .mark = Mark::Acute     },
+    {.ch = U'Ô', .base = U'O', .mark = Mark::Circumflex},
+    {.ch = U'Ö', .base = U'O', .mark = Mark::Diaeresis },
+    {.ch = U'Ù', .base = U'U', .mark = Mark::Grave     },
+    {.ch = U'Ú', .base = U'U', .mark = Mark::Acute     },
+    {.ch = U'Û', .base = U'U', .mark = Mark::Circumflex},
+    {.ch = U'Ü', .base = U'U', .mark = Mark::Diaeresis },
+    {.ch = U'Ç', .base = U'C', .mark = Mark::Cedilla   },
+    {.ch = U'à', .base = U'a', .mark = Mark::Grave     },
+    {.ch = U'á', .base = U'a', .mark = Mark::Acute     },
+    {.ch = U'â', .base = U'a', .mark = Mark::Circumflex},
+    {.ch = U'ä', .base = U'a', .mark = Mark::Diaeresis },
+    {.ch = U'è', .base = U'e', .mark = Mark::Grave     },
+    {.ch = U'é', .base = U'e', .mark = Mark::Acute     },
+    {.ch = U'ê', .base = U'e', .mark = Mark::Circumflex},
+    {.ch = U'ë', .base = U'e', .mark = Mark::Diaeresis },
+    {.ch = U'ì', .base = U'i', .mark = Mark::Grave     },
+    {.ch = U'í', .base = U'i', .mark = Mark::Acute     },
+    {.ch = U'î', .base = U'i', .mark = Mark::Circumflex},
+    {.ch = U'ï', .base = U'i', .mark = Mark::Diaeresis },
+    {.ch = U'ñ', .base = U'n', .mark = Mark::Tilde     },
+    {.ch = U'ò', .base = U'o', .mark = Mark::Grave     },
+    {.ch = U'ó', .base = U'o', .mark = Mark::Acute     },
+    {.ch = U'ô', .base = U'o', .mark = Mark::Circumflex},
+    {.ch = U'ö', .base = U'o', .mark = Mark::Diaeresis },
+    {.ch = U'ù', .base = U'u', .mark = Mark::Grave     },
+    {.ch = U'ú', .base = U'u', .mark = Mark::Acute     },
+    {.ch = U'û', .base = U'u', .mark = Mark::Circumflex},
+    {.ch = U'ü', .base = U'u', .mark = Mark::Diaeresis },
+    {.ch = U'ç', .base = U'c', .mark = Mark::Cedilla   },
+});
 
 // Missing accent marks are composed from the font's punctuation glyphs.
 char32_t MarkGlyph(Mark mark) {
@@ -227,24 +257,22 @@ bool Compose(char32_t ch, float scale, int em_px, Bitmap &out) {
         if (base_index == 0 || mark_index == 0) {
             return false;
         }
-        const bool   upper = accented.base >= U'A' && accented.base <= U'Z';
-        const float  k = accented.mark == Mark::Cedilla ? 0.9f : upper ? 0.7f
-                                                                       : 0.85f;
+        const bool cedilla = accented.mark == Mark::Cedilla;
+        const bool upper = accented.base >= U'A' && accented.base <= U'Z';
+        float      mark_scale = upper ? 0.7f : 0.85f;
+        if (cedilla) {
+            mark_scale = 0.9f;
+        }
         const Bitmap base = Raster(base_index, scale, scale);
-        const Bitmap mark = Raster(mark_index, scale * k, scale * k);
+        const Bitmap mark = Raster(mark_index, scale * mark_scale, scale * mark_scale);
         if (base.w <= 0 || mark.w <= 0) {
             return false;
         }
         const int dx = (base.x0 + base.w / 2) - (mark.x0 + mark.w / 2);
-        int       dy;
-        if (accented.mark == Mark::Cedilla) {
-            dy = (base.y0 + base.h - 2) - mark.y0;
-        } else {
-            dy = base.y0 - gap - (mark.y0 + mark.h);
-        }
+        const int dy = cedilla ? (base.y0 + base.h - 2) - mark.y0 : base.y0 - gap - (mark.y0 + mark.h);
         out = Combine({
-            {&base, 0,  0 },
-            {&mark, dx, dy}
+            {.bitmap = &base, .dx = 0,  .dy = 0 },
+            {.bitmap = &mark, .dx = dx, .dy = dy}
         });
         return out.w > 0;
     }
@@ -274,8 +302,8 @@ bool Compose(char32_t ch, float scale, int em_px, Bitmap &out) {
         const Bitmap left = Raster(first, scale * 0.65f, scale);
         const Bitmap right = Raster(second, scale * 0.65f, scale);
         out = Combine({
-            {&left,  0,                               0},
-            {&right, left.x0 + left.w - right.x0 - 1, 0}
+            {.bitmap = &left,  .dx = 0,                               .dy = 0},
+            {.bitmap = &right, .dx = left.x0 + left.w - right.x0 - 1, .dy = 0}
         });
         return out.w > 0;
     }
@@ -283,36 +311,40 @@ bool Compose(char32_t ch, float scale, int em_px, Bitmap &out) {
 }
 
 // Squared Euclidean distance transform (Felzenszwalb and Huttenlocher).
-void DistanceLine(std::vector<float> &f, std::vector<int> &v, std::vector<float> &z, std::vector<float> &out) {
-    const int n = static_cast<int>(f.size());
-    int       k = 0;
-    v[0] = 0;
-    z[0] = -1e30f;
-    z[1] = 1e30f;
-    for (int q = 1; q < n; q++) {
-        float s;
+// samples is one line of squared distances; apexes and bounds are scratch (the lower envelope's parabola apexes and the
+// boundaries between them, bounds one longer than samples).
+void DistanceLine(const std::vector<float> &samples, std::vector<int> &apexes, std::vector<float> &bounds,
+                  std::vector<float> &out) {
+    const int count = static_cast<int>(samples.size());
+    size_t    hull = 0;
+    apexes[0] = 0;
+    bounds[0] = -1e30f;
+    bounds[1] = 1e30f;
+    for (int at = 1; at < count; at++) {
+        float crossing = 0.0f;
         for (;;) {
-            const int p = v[static_cast<size_t>(k)];
-            s = ((f[static_cast<size_t>(q)] + static_cast<float>(q * q)) - (f[static_cast<size_t>(p)] + static_cast<float>(p * p))) /
-                (2.0f * static_cast<float>(q - p));
-            if (s <= z[static_cast<size_t>(k)] && k > 0) {
-                k--;
+            const int apex = apexes[hull];
+            crossing = ((samples[static_cast<size_t>(at)] + static_cast<float>(at * at)) -
+                        (samples[static_cast<size_t>(apex)] + static_cast<float>(apex * apex))) /
+                       (2.0f * static_cast<float>(at - apex));
+            if (crossing <= bounds[hull] && hull > 0) {
+                hull--;
             } else {
                 break;
             }
         }
-        k++;
-        v[static_cast<size_t>(k)] = q;
-        z[static_cast<size_t>(k)] = s;
-        z[static_cast<size_t>(k) + 1] = 1e30f;
+        hull++;
+        apexes[hull] = at;
+        bounds[hull] = crossing;
+        bounds[hull + 1] = 1e30f;
     }
-    k = 0;
-    for (int q = 0; q < n; q++) {
-        while (z[static_cast<size_t>(k) + 1] < static_cast<float>(q)) {
-            k++;
+    hull = 0;
+    for (int at = 0; at < count; at++) {
+        while (bounds[hull + 1] < static_cast<float>(at)) {
+            hull++;
         }
-        const int p = v[static_cast<size_t>(k)];
-        out[static_cast<size_t>(q)] = static_cast<float>((q - p) * (q - p)) + f[static_cast<size_t>(p)];
+        const int apex = apexes[hull];
+        out[static_cast<size_t>(at)] = static_cast<float>((at - apex) * (at - apex)) + samples[static_cast<size_t>(apex)];
     }
 }
 
@@ -326,7 +358,8 @@ Bitmap Dilate(const Bitmap &in, int radius) {
     out.y0 = in.y0 - pad;
     out.w = in.w + 2 * pad;
     out.h = in.h + 2 * pad;
-    const int          width = out.w, height = out.h;
+    const int          width = out.w;
+    const int          height = out.h;
     const float        far_distance = 1e12f;
     std::vector<float> grid(static_cast<size_t>(width) * height, far_distance);
     for (int row = 0; row < in.h; row++) {
@@ -337,14 +370,16 @@ Bitmap Dilate(const Bitmap &in, int radius) {
         }
     }
     const int          longest = std::max(width, height);
-    std::vector<float> line(static_cast<size_t>(longest)), result(static_cast<size_t>(longest)), z(static_cast<size_t>(longest) + 1);
-    std::vector<int>   v(static_cast<size_t>(longest));
+    std::vector<float> line(static_cast<size_t>(longest));
+    std::vector<float> result(static_cast<size_t>(longest));
+    std::vector<float> bounds(static_cast<size_t>(longest) + 1);
+    std::vector<int>   apexes(static_cast<size_t>(longest));
     for (int col = 0; col < width; col++) {
         line.resize(static_cast<size_t>(height));
         for (int row = 0; row < height; row++) {
             line[static_cast<size_t>(row)] = grid[static_cast<size_t>(row) * width + col];
         }
-        DistanceLine(line, v, z, result);
+        DistanceLine(line, apexes, bounds, result);
         for (int row = 0; row < height; row++) {
             grid[static_cast<size_t>(row) * width + col] = result[static_cast<size_t>(row)];
         }
@@ -354,7 +389,7 @@ Bitmap Dilate(const Bitmap &in, int radius) {
         for (int col = 0; col < width; col++) {
             line[static_cast<size_t>(col)] = grid[static_cast<size_t>(row) * width + col];
         }
-        DistanceLine(line, v, z, result);
+        DistanceLine(line, apexes, bounds, result);
         for (int col = 0; col < width; col++) {
             grid[static_cast<size_t>(row) * width + col] = result[static_cast<size_t>(col)];
         }
@@ -364,7 +399,8 @@ Bitmap Dilate(const Bitmap &in, int radius) {
         for (int col = 0; col < width; col++) {
             const float d = std::sqrt(grid[static_cast<size_t>(row) * width + col]);
             float       cover = std::clamp(static_cast<float>(radius) + 0.5f - d, 0.0f, 1.0f) * 255.0f;
-            const int   src_row = row - pad, src_col = col - pad;
+            const int   src_row = row - pad;
+            const int   src_col = col - pad;
             if (src_row >= 0 && src_row < in.h && src_col >= 0 && src_col < in.w) {
                 cover = std::max(cover, static_cast<float>(in.alpha[static_cast<size_t>(src_row) * in.w + src_col]));
             }
@@ -378,10 +414,13 @@ Bitmap Dilate(const Bitmap &in, int radius) {
 // finer bitmap's origin rounded out to whole pixels first.
 Bitmap Downsample(const Bitmap &in, int factor) {
     Bitmap out;
-    auto   floor_div = [](int v, int d) { return v >= 0 ? v / d : -((-v + d - 1) / d); };
+    auto   floor_div = [](int value, int divisor) {
+        return value >= 0 ? value / divisor : -((-value + divisor - 1) / divisor);
+    };
     out.x0 = floor_div(in.x0, factor);
     out.y0 = floor_div(in.y0, factor);
-    const int shift_x = in.x0 - out.x0 * factor, shift_y = in.y0 - out.y0 * factor;
+    const int shift_x = in.x0 - out.x0 * factor;
+    const int shift_y = in.y0 - out.y0 * factor;
     out.w = (in.w + shift_x + factor - 1) / factor;
     out.h = (in.h + shift_y + factor - 1) / factor;
     out.alpha.assign(static_cast<size_t>(std::max(out.w, 0)) * std::max(out.h, 0), 0);
@@ -390,9 +429,10 @@ Bitmap Downsample(const Bitmap &in, int factor) {
             int sum = 0;
             for (int dy = 0; dy < factor; dy++) {
                 for (int dx = 0; dx < factor; dx++) {
-                    const int r = row * factor + dy - shift_y, c = col * factor + dx - shift_x;
-                    if (r >= 0 && r < in.h && c >= 0 && c < in.w) {
-                        sum += in.alpha[static_cast<size_t>(r) * in.w + c];
+                    const int src_row = row * factor + dy - shift_y;
+                    const int src_col = col * factor + dx - shift_x;
+                    if (src_row >= 0 && src_row < in.h && src_col >= 0 && src_col < in.w) {
+                        sum += in.alpha[static_cast<size_t>(src_row) * in.w + src_col];
                     }
                 }
             }
@@ -422,13 +462,14 @@ float AdvanceOf(char32_t ch, float scale) {
     if (index == 0) {
         index = stbtt_FindGlyphIndex(&g_fonts[g_variant].info, static_cast<int>(drawn));
     }
-    int advance = 0, bearing = 0;
+    int advance = 0;
+    int bearing = 0;
     stbtt_GetGlyphHMetrics(&g_fonts[g_variant].info, index, &advance, &bearing);
     return static_cast<float>(advance) * scale;
 }
 
 bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
-    if (slot < 0 || slot >= 4 || bytes.empty()) {
+    if (slot < 0 || slot >= kSlotCount || bytes.empty()) {
         return false;
     }
     Font font;
@@ -445,17 +486,16 @@ bool InitFontSlotFromBytes(int slot, std::vector<unsigned char> &&bytes) {
 }
 
 bool LoadFontSlot(int slot, const std::filesystem::path &file) {
-    if (slot < 0 || slot >= 4) {
+    if (slot < 0 || slot >= kSlotCount) {
         return false;
     }
     std::ifstream stream(file, std::ios::binary);
     if (!stream) {
         return false;
     }
-    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)),
-                                     std::istreambuf_iterator<char>());
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
     if (!InitFontSlotFromBytes(slot, std::move(bytes))) {
-        std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
+        std::println(stderr, "font: {} is not a TrueType font", PathsDisplay(file));
         return false;
     }
     return true;
@@ -467,13 +507,12 @@ bool Load(const std::filesystem::path &file) {
     g_variant = 0;
     std::ifstream stream(file, std::ios::binary);
     if (!stream) {
-        std::fprintf(stderr, "font: cannot read %s\n", PathsDisplay(file).c_str());
+        std::println(stderr, "font: cannot read {}", PathsDisplay(file));
         return false;
     }
-    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)),
-                                     std::istreambuf_iterator<char>());
+    std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
     if (!InitFontSlotFromBytes(0, std::move(bytes))) {
-        std::fprintf(stderr, "font: %s is not a TrueType font\n", PathsDisplay(file).c_str());
+        std::println(stderr, "font: {} is not a TrueType font", PathsDisplay(file));
         return false;
     }
     ResetAtlas();
@@ -500,8 +539,8 @@ bool LoadStatusFontMemory(const unsigned char *data, std::size_t size) {
     if (data == nullptr || size == 0) {
         return false;
     }
-    std::vector<unsigned char> bytes(data, data + size);
-    return InitFontSlotFromBytes(2, std::move(bytes));
+    const std::span<const unsigned char> source(data, size);
+    return InitFontSlotFromBytes(2, std::vector<unsigned char>(source.begin(), source.end()));
 }
 
 bool StatusFontLoaded() {
@@ -512,8 +551,8 @@ bool LoadTitleFontMemory(const unsigned char *data, std::size_t size) {
     if (data == nullptr || size == 0) {
         return false;
     }
-    std::vector<unsigned char> bytes(data, data + size);
-    return InitFontSlotFromBytes(3, std::move(bytes));
+    const std::span<const unsigned char> source(data, size);
+    return InitFontSlotFromBytes(3, std::vector<unsigned char>(source.begin(), source.end()));
 }
 
 bool TitleFontLoaded() {
@@ -530,15 +569,7 @@ float KernPixels(char32_t left, char32_t right, int em_px) {
 }
 
 void UseFontSlot(int slot) {
-    if (slot == 3 && g_fonts[3].loaded) {
-        g_variant = 3;
-    } else if (slot == 2 && g_fonts[2].loaded) {
-        g_variant = 2;
-    } else if (slot == 1 && g_fonts[1].loaded) {
-        g_variant = 1;
-    } else {
-        g_variant = 0;
-    }
+    g_variant = slot > 0 && slot < kSlotCount && g_fonts[slot].loaded ? slot : 0;
 }
 
 void UseVariant(bool variant) {
@@ -566,7 +597,7 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
         out = found->second;
         return true;
     }
-    if (g_atlas.missing.count(key) != 0) {
+    if (g_atlas.missing.contains(key)) {
         return false;
     }
     if (!EnsureAtlas()) {
@@ -595,21 +626,7 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
     const int height = bitmap.h;
 
     if (width > 0 && height > 0) {
-        if (g_atlas.x + width + 2 * kPad > kAtlasSize) {
-            g_atlas.x = 0;
-            g_atlas.y += g_atlas.row_height;
-            g_atlas.row_height = 0;
-        }
-        if (g_atlas.y + height + 2 * kPad > kAtlasSize) {
-            // Resetting a full atlas invalidates glyph coordinates already queued for this frame.
-            std::fprintf(stderr, "font: atlas full, starting again\n");
-            gfx::TextureHandle keep = g_atlas.texture;
-            g_atlas = {};
-            g_generation++;
-            g_atlas.texture = keep;
-            std::vector<unsigned char> blank(static_cast<size_t>(kAtlasSize) * kAtlasSize * 4, 0);
-            gfx::UpdateTextureNow(keep, 0, 0, 0, kAtlasSize, kAtlasSize, blank.data());
-        }
+        MakeRoom(width, height);
     }
 
     Glyph glyph = {};
@@ -625,9 +642,11 @@ bool GetShapedGlyph(char32_t ch, int em_px, int outline_px, int stretch, bool sm
         std::vector<unsigned char> pixels(static_cast<size_t>(w) * h * 4, 0);
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
-                unsigned char *texel = &pixels[(static_cast<size_t>(row + kPad) * w + col + kPad) * 4];
-                texel[0] = texel[1] = texel[2] = 255;
-                texel[3] = bitmap.alpha[static_cast<size_t>(row) * width + col];
+                const size_t texel = (static_cast<size_t>(row + kPad) * w + col + kPad) * 4;
+                pixels[texel] = 255;
+                pixels[texel + 1] = 255;
+                pixels[texel + 2] = 255;
+                pixels[texel + 3] = bitmap.alpha[static_cast<size_t>(row) * width + col];
             }
         }
         gfx::UpdateTextureNow(g_atlas.texture, 0, static_cast<uint32_t>(g_atlas.x), static_cast<uint32_t>(g_atlas.y),
@@ -660,29 +679,16 @@ bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) 
     if (w <= 0 || h <= 0 || w > 1024 || h > 1024 || rgba.size() < static_cast<size_t>(w) * h * 4 || !EnsureAtlas()) {
         return false;
     }
-    if (g_atlas.x + w + 2 * kPad > kAtlasSize) {
-        g_atlas.x = 0;
-        g_atlas.y += g_atlas.row_height;
-        g_atlas.row_height = 0;
-    }
-    if (g_atlas.y + h + 2 * kPad > kAtlasSize) {
-        std::fprintf(stderr, "font: atlas full, starting again\n");
-        gfx::TextureHandle keep = g_atlas.texture;
-        g_atlas = {};
-        g_generation++;
-        g_atlas.texture = keep;
-        std::vector<unsigned char> blank(static_cast<size_t>(kAtlasSize) * kAtlasSize * 4, 0);
-        gfx::UpdateTextureNow(keep, 0, 0, 0, kAtlasSize, kAtlasSize, blank.data());
-    }
-    const int                  pw = w + 2 * kPad;
-    const int                  ph = h + 2 * kPad;
-    std::vector<unsigned char> pixels(static_cast<size_t>(pw) * ph * 4, 0);
+    MakeRoom(w, h);
+    const int                  padded_w = w + 2 * kPad;
+    const int                  padded_h = h + 2 * kPad;
+    std::vector<unsigned char> pixels(static_cast<size_t>(padded_w) * padded_h * 4, 0);
     for (int row = 0; row < h; row++) {
         std::copy_n(&rgba[static_cast<size_t>(row) * w * 4], static_cast<size_t>(w) * 4,
-                    &pixels[(static_cast<size_t>(row + kPad) * pw + kPad) * 4]);
+                    &pixels[(static_cast<size_t>(row + kPad) * padded_w + kPad) * 4]);
     }
     gfx::UpdateTextureNow(g_atlas.texture, 0, static_cast<uint32_t>(g_atlas.x), static_cast<uint32_t>(g_atlas.y),
-                          static_cast<uint32_t>(pw), static_cast<uint32_t>(ph), pixels.data());
+                          static_cast<uint32_t>(padded_w), static_cast<uint32_t>(padded_h), pixels.data());
     out = {};
     out.u0 = static_cast<float>(g_atlas.x + kPad);
     out.v0 = static_cast<float>(g_atlas.y + kPad);
@@ -690,8 +696,8 @@ bool AddImage(const std::vector<unsigned char> &rgba, int w, int h, Glyph &out) 
     out.v1 = static_cast<float>(g_atlas.y + kPad + h);
     out.width = static_cast<float>(w);
     out.height = static_cast<float>(h);
-    g_atlas.x += pw;
-    g_atlas.row_height = std::max(g_atlas.row_height, ph);
+    g_atlas.x += padded_w;
+    g_atlas.row_height = std::max(g_atlas.row_height, padded_h);
     return true;
 }
 
@@ -707,47 +713,53 @@ std::vector<std::vector<Point>> Contours(const stbtt_fontinfo &info, int index) 
     const int                       count = stbtt_GetGlyphShape(&info, index, &vertices);
     std::vector<std::vector<Point>> out;
     Point                           at = {};
-    for (int i = 0; i < count; i++) {
-        const stbtt_vertex &v = vertices[i];
-        const Point         to = {static_cast<float>(v.x), static_cast<float>(v.y)};
-        if (v.type == STBTT_vmove) {
+    for (const stbtt_vertex &vertex : std::span(vertices, static_cast<size_t>(std::max(count, 0)))) {
+        const Point to = {.x = static_cast<float>(vertex.x), .y = static_cast<float>(vertex.y)};
+        if (vertex.type == STBTT_vmove) {
             out.push_back({to});
-        } else if (!out.empty() && v.type == STBTT_vline) {
+        } else if (!out.empty() && vertex.type == STBTT_vline) {
             out.back().push_back(to);
-        } else if (!out.empty() && v.type == STBTT_vcurve) {
-            const Point c = {static_cast<float>(v.cx), static_cast<float>(v.cy)};
+        } else if (!out.empty() && vertex.type == STBTT_vcurve) {
+            const Point control = {.x = static_cast<float>(vertex.cx), .y = static_cast<float>(vertex.cy)};
             for (int step = 1; step <= 16; step++) {
-                const float t = static_cast<float>(step) / 16, s = 1 - t;
-                out.back().push_back({s * s * at.x + 2 * s * t * c.x + t * t * to.x, s * s * at.y + 2 * s * t * c.y + t * t * to.y});
+                const float t = static_cast<float>(step) / 16;
+                const float s = 1 - t;
+                out.back().push_back({.x = s * s * at.x + 2 * s * t * control.x + t * t * to.x,
+                                      .y = s * s * at.y + 2 * s * t * control.y + t * t * to.y});
             }
-        } else if (!out.empty() && v.type == STBTT_vcubic) {
-            const Point c0 = {static_cast<float>(v.cx), static_cast<float>(v.cy)};
-            const Point c1 = {static_cast<float>(v.cx1), static_cast<float>(v.cy1)};
+        } else if (!out.empty() && vertex.type == STBTT_vcubic) {
+            const Point c0 = {.x = static_cast<float>(vertex.cx), .y = static_cast<float>(vertex.cy)};
+            const Point c1 = {.x = static_cast<float>(vertex.cx1), .y = static_cast<float>(vertex.cy1)};
             for (int step = 1; step <= 16; step++) {
-                const float t = static_cast<float>(step) / 16, s = 1 - t;
-                out.back().push_back({s * s * s * at.x + 3 * s * s * t * c0.x + 3 * s * t * t * c1.x + t * t * t * to.x,
-                                      s * s * s * at.y + 3 * s * s * t * c0.y + 3 * s * t * t * c1.y + t * t * t * to.y});
+                const float t = static_cast<float>(step) / 16;
+                const float s = 1 - t;
+                out.back().push_back({.x = s * s * s * at.x + 3 * s * s * t * c0.x + 3 * s * t * t * c1.x + t * t * t * to.x,
+                                      .y = s * s * s * at.y + 3 * s * s * t * c0.y + 3 * s * t * t * c1.y + t * t * t * to.y});
             }
         }
         at = to;
     }
     stbtt_FreeShape(&info, vertices);
-    std::erase_if(out, [](const std::vector<Point> &c) { return c.size() < 3; });
+    std::erase_if(out, [](const std::vector<Point> &contour) { return contour.size() < 3; });
     return out;
 }
 
-float Area(const std::vector<Point> &c) {
+// Signed (shoelace) area; its sign is the contour's winding direction.
+float Area(const std::vector<Point> &contour) {
     float sum = 0;
-    for (size_t i = 0, j = c.size() - 1; i < c.size(); j = i++) {
-        sum += c[j].x * c[i].y - c[i].x * c[j].y;
+    for (size_t i = 0, j = contour.size() - 1; i < contour.size(); j = i++) {
+        sum += contour[j].x * contour[i].y - contour[i].x * contour[j].y;
     }
     return sum / 2;
 }
 
-bool Inside(const std::vector<Point> &c, Point p) {
+// Even-odd point-in-polygon test.
+bool Inside(const std::vector<Point> &contour, Point point) {
     bool in = false;
-    for (size_t i = 0, j = c.size() - 1; i < c.size(); j = i++) {
-        if ((c[i].y > p.y) != (c[j].y > p.y) && p.x < (c[j].x - c[i].x) * (p.y - c[i].y) / (c[j].y - c[i].y) + c[i].x) {
+    for (size_t i = 0, j = contour.size() - 1; i < contour.size(); j = i++) {
+        const Point &a = contour[i];
+        const Point &b = contour[j];
+        if ((a.y > point.y) != (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) {
             in = !in;
         }
     }
@@ -760,16 +772,16 @@ std::vector<std::vector<Point>> Piece(std::vector<std::vector<Point>> contours, 
         return contours;
     }
     float largest = 0;
-    for (const auto &c : contours) {
-        largest = std::abs(Area(c)) > std::abs(largest) ? Area(c) : largest;
+    for (const auto &contour : contours) {
+        largest = std::abs(Area(contour)) > std::abs(largest) ? Area(contour) : largest;
     }
     std::vector<std::vector<std::vector<Point>>> pieces;
     std::vector<const std::vector<Point> *>      holes;
-    for (const auto &c : contours) {
-        if ((Area(c) > 0) == (largest > 0)) {
-            pieces.push_back({c});
+    for (const auto &contour : contours) {
+        if ((Area(contour) > 0) == (largest > 0)) {
+            pieces.push_back({contour});
         } else {
-            holes.push_back(&c);
+            holes.push_back(&contour);
         }
     }
     for (const auto *hole : holes) {
@@ -781,43 +793,41 @@ std::vector<std::vector<Point>> Piece(std::vector<std::vector<Point>> contours, 
         }
     }
     auto left_top = [](const std::vector<std::vector<Point>> &piece) {
-        float x = 1e9f, y = -1e9f;
-        for (const Point &p : piece[0]) {
-            x = std::min(x, p.x);
-            y = std::max(y, p.y);
+        float left = 1e9f;
+        float top = -1e9f;
+        for (const Point &point : piece[0]) {
+            left = std::min(left, point.x);
+            top = std::max(top, point.y);
         }
-        return std::make_pair(x, -y);
+        return std::make_pair(left, -top);
     };
     std::sort(pieces.begin(), pieces.end(), [&](const auto &a, const auto &b) { return left_top(a) < left_top(b); });
-    return part < static_cast<int>(pieces.size()) ? pieces[static_cast<size_t>(part)] : std::vector<std::vector<Point>>{};
+    return std::cmp_less(part, pieces.size()) ? pieces[static_cast<size_t>(part)] : std::vector<std::vector<Point>>{};
 }
-
-} // namespace
-
-namespace {
 
 // Every field of a Paint, for the painted glyphs' cache keys.
 std::string PaintKey(const Paint &paint) {
     std::string key;
-    for (float v : {paint.depth_x, paint.depth_y, paint.stroke, static_cast<float>(paint.strokes), paint.outline, paint.shadow_x,
-                    paint.shadow_y, paint.shadow_grow, paint.shadow_soft, paint.shadow_alpha, paint.band_alpha, paint.band_y,
-                    paint.band_core, paint.band_fade, paint.band_left, paint.band_right, static_cast<float>(paint.slot),
-                    paint.shadow_only ? 1.0f : 0.0f}) {
-        key += std::to_string(std::lround(v * 64)) + ",";
+    for (float value : {paint.depth_x, paint.depth_y, paint.stroke, static_cast<float>(paint.strokes), paint.outline,
+                        paint.shadow_x, paint.shadow_y, paint.shadow_grow, paint.shadow_soft, paint.shadow_alpha, paint.band_alpha,
+                        paint.band_y, paint.band_core, paint.band_fade, paint.band_left, paint.band_right,
+                        static_cast<float>(paint.slot), paint.shadow_only ? 1.0f : 0.0f}) {
+        key += std::format("{},", std::lround(value * 64));
     }
     for (const unsigned char *colour : {paint.fill, paint.body, paint.ring, paint.shade}) {
-        key += std::to_string(colour[0] << 16 | colour[1] << 8 | colour[2]) + ",";
+        key += std::format("{},", colour[0] << 16 | colour[1] << 8 | colour[2]);
     }
     return key;
 }
 
 // Contours in a box's pixels (y down) painted into the atlas; the glyph's offsets are from the box's top left.
 bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w, float box_h, const Paint &paint, Glyph &out) {
-    float span_left = 1e9f, span_right = -1e9f;
-    for (const auto &c : contours) {
-        for (const Point &p : c) {
-            span_left = std::min(span_left, p.x);
-            span_right = std::max(span_right, p.x);
+    float span_left = 1e9f;
+    float span_right = -1e9f;
+    for (const auto &contour : contours) {
+        for (const Point &point : contour) {
+            span_left = std::min(span_left, point.x);
+            span_right = std::max(span_right, point.x);
         }
     }
     if (paint.band_right > paint.band_left) {
@@ -843,9 +853,9 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
     };
 
     std::vector<Segment> segments;
-    for (const auto &c : contours) {
-        for (size_t i = 0, j = c.size() - 1; i < c.size(); j = i++) {
-            segments.push_back({c[j], c[i]});
+    for (const auto &contour : contours) {
+        for (size_t i = 0, j = contour.size() - 1; i < contour.size(); j = i++) {
+            segments.push_back({.a = contour[j], .b = contour[i]});
         }
     }
     std::vector<float> distance(static_cast<size_t>(w) * h, band);
@@ -856,10 +866,13 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
         const int   gx1 = std::min(w - 1, static_cast<int>(std::ceil(std::max(s.a.x, s.b.x) + band)) - left);
         const int   gy0 = std::max(0, static_cast<int>(std::floor(std::min(s.a.y, s.b.y) - band)) - top);
         const int   gy1 = std::min(h - 1, static_cast<int>(std::ceil(std::max(s.a.y, s.b.y) + band)) - top);
-        const float dx = s.b.x - s.a.x, dy = s.b.y - s.a.y, length = dx * dx + dy * dy;
+        const float dx = s.b.x - s.a.x;
+        const float dy = s.b.y - s.a.y;
+        const float length = dx * dx + dy * dy;
         for (int gy = gy0; gy <= gy1; gy++) {
             for (int gx = gx0; gx <= gx1; gx++) {
-                const float px = static_cast<float>(gx + left) + 0.5f, py = static_cast<float>(gy + top) + 0.5f;
+                const float px = static_cast<float>(gx + left) + 0.5f;
+                const float py = static_cast<float>(gy + top) + 0.5f;
                 const float t = length > 0 ? std::clamp(((px - s.a.x) * dx + (py - s.a.y) * dy) / length, 0.0f, 1.0f) : 0.0f;
                 float      &d = distance[static_cast<size_t>(gy) * w + gx];
                 d = std::min(d, std::hypot(px - (s.a.x + t * dx), py - (s.a.y + t * dy)));
@@ -889,9 +902,12 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
     }
     auto sample = [&](const std::vector<float> &field, float far, float px, float py) {
         // Bilinear between pixel centres; beyond the bitmap, outside.
-        const float fx = px - static_cast<float>(left) - 0.5f, fy = py - static_cast<float>(top) - 0.5f;
-        const int   ix = static_cast<int>(std::floor(fx)), iy = static_cast<int>(std::floor(fy));
-        const float tx = fx - static_cast<float>(ix), ty = fy - static_cast<float>(iy);
+        const float fx = px - static_cast<float>(left) - 0.5f;
+        const float fy = py - static_cast<float>(top) - 0.5f;
+        const int   ix = static_cast<int>(std::floor(fx));
+        const int   iy = static_cast<int>(std::floor(fy));
+        const float tx = fx - static_cast<float>(ix);
+        const float ty = fy - static_cast<float>(iy);
         auto        get = [&](int gx, int gy) {
             return gx < 0 || gy < 0 || gx >= w || gy >= h ? far : field[static_cast<size_t>(gy) * w + gx];
         };
@@ -904,7 +920,8 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
     std::vector<unsigned char> rgba(static_cast<size_t>(w) * h * 4);
     for (int gy = 0; gy < h; gy++) {
         for (int gx = 0; gx < w; gx++) {
-            const float px = static_cast<float>(gx + left) + 0.5f, py = static_cast<float>(gy + top) + 0.5f;
+            const float px = static_cast<float>(gx + left) + 0.5f;
+            const float py = static_cast<float>(gy + top) + 0.5f;
             const float d = distance[static_cast<size_t>(gy) * w + gx];
             // The letter swept along its depth: the nearest of its copies back along the sweep.
             float wall = d;
@@ -912,10 +929,12 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
                 const float t = static_cast<float>(step) / static_cast<float>(steps);
                 wall = std::min(wall, at(px - t * paint.depth_x, py - t * paint.depth_y));
             }
-            float rgb[3] = {paint.ring[0], paint.ring[1], paint.ring[2]};
-            auto  over = [&](const unsigned char (&colour)[3], float k, float amount) {
-                for (int c = 0; c < 3; c++) {
-                    rgb[c] += (static_cast<float>(colour[c]) * (1 - k) + static_cast<float>(paint.fill[c]) * k - rgb[c]) * amount;
+            std::array<float, 3> rgb = {paint.ring[0], paint.ring[1], paint.ring[2]};
+            // Blends rgb by amount towards colour mixed with the fill (blend 0 all colour, 1 all fill).
+            auto over = [&](const unsigned char (&colour)[3], float blend, float amount) {
+                for (size_t c = 0; c < 3; c++) {
+                    rgb[c] += (static_cast<float>(colour[c]) * (1 - blend) + static_cast<float>(paint.fill[c]) * blend - rgb[c]) *
+                              amount;
                 }
             };
             over(paint.body, 0, cover(wall));
@@ -923,8 +942,8 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
                 over(paint.body, paint.strokes > 0 ? static_cast<float>(i) / static_cast<float>(paint.strokes) : 1.0f,
                      cover(d + static_cast<float>(i) * paint.stroke));
             }
-            unsigned char *texel = &rgba[(static_cast<size_t>(gy) * w + gx) * 4];
-            float          alpha = paint.shadow_only ? 0.0f : cover(wall - paint.outline);
+            const size_t texel = (static_cast<size_t>(gy) * w + gx) * 4;
+            float        alpha = paint.shadow_only ? 0.0f : cover(wall - paint.outline);
             if (paint.shadow_alpha > 0) {
                 // The letter over its soft shadow: darkest against the moved letter (grown by shadow_grow), fading
                 // to nothing shadow_soft beyond it.
@@ -940,15 +959,15 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
                 }
                 const float shadow = glow * (1 - alpha);
                 const float total = alpha + shadow;
-                for (int c = 0; c < 3; c++) {
+                for (size_t c = 0; c < 3; c++) {
                     rgb[c] = total > 0 ? (rgb[c] * alpha + static_cast<float>(paint.shade[c]) * shadow) / total : rgb[c];
                 }
                 alpha = total;
             }
-            for (int c = 0; c < 3; c++) {
-                texel[c] = static_cast<unsigned char>(std::lround(std::clamp(rgb[c], 0.0f, 255.0f)));
+            for (size_t c = 0; c < 3; c++) {
+                rgba[texel + c] = static_cast<unsigned char>(std::lround(std::clamp(rgb[c], 0.0f, 255.0f)));
             }
-            texel[3] = static_cast<unsigned char>(std::lround(alpha * 255));
+            rgba[texel + 3] = static_cast<unsigned char>(std::lround(alpha * 255));
         }
     }
     Glyph glyph;
@@ -964,18 +983,17 @@ bool PaintContours(const std::vector<std::vector<Point>> &contours, float box_w,
 } // namespace
 
 bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Paint &paint, Glyph &out) {
-    const Font &font = g_fonts[std::clamp(paint.slot, 0, 3)];
+    const Font &font = g_fonts[std::clamp(paint.slot, 0, kSlotCount - 1)];
     if (!font.loaded || box_w < 1 || box_h < 1 || box_w > 512 || box_h > 512) {
         return false;
     }
-    const std::string key = "g" + std::to_string(static_cast<unsigned>(ch)) + ":" + std::to_string(part) + ":" +
-                            std::to_string(std::lround(box_w * 8)) + "," + std::to_string(std::lround(box_h * 8)) + ":" +
-                            PaintKey(paint);
+    const std::string key = std::format("g{}:{}:{},{}:{}", static_cast<unsigned>(ch), part, std::lround(box_w * 8),
+                                        std::lround(box_h * 8), PaintKey(paint));
     if (auto found = g_atlas.painted.find(key); found != g_atlas.painted.end()) {
         out = found->second;
         return true;
     }
-    if (g_atlas.painted_missing.count(key) != 0) {
+    if (g_atlas.painted_missing.contains(key)) {
         return false;
     }
     const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch));
@@ -986,19 +1004,23 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
     }
 
     // The outline in the box's pixels, y down.
-    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
-    for (const auto &c : contours) {
-        for (const Point &p : c) {
-            x0 = std::min(x0, p.x);
-            x1 = std::max(x1, p.x);
-            y0 = std::min(y0, p.y);
-            y1 = std::max(y1, p.y);
+    float x0 = 1e9f;
+    float y0 = 1e9f;
+    float x1 = -1e9f;
+    float y1 = -1e9f;
+    for (const auto &contour : contours) {
+        for (const Point &point : contour) {
+            x0 = std::min(x0, point.x);
+            x1 = std::max(x1, point.x);
+            y0 = std::min(y0, point.y);
+            y1 = std::max(y1, point.y);
         }
     }
-    const float sx = box_w / std::max(x1 - x0, 1.0f), sy = box_h / std::max(y1 - y0, 1.0f);
-    for (auto &c : contours) {
-        for (Point &p : c) {
-            p = {(p.x - x0) * sx, (y1 - p.y) * sy};
+    const float sx = box_w / std::max(x1 - x0, 1.0f);
+    const float sy = box_h / std::max(y1 - y0, 1.0f);
+    for (auto &contour : contours) {
+        for (Point &point : contour) {
+            point = {.x = (point.x - x0) * sx, .y = (y1 - point.y) * sy};
         }
     }
 
@@ -1013,16 +1035,15 @@ bool GetPaintedGlyph(char32_t ch, int part, float box_w, float box_h, const Pain
 }
 
 bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint, Glyph &out) {
-    const Font &font = g_fonts[std::clamp(paint.slot, 0, 3)];
+    const Font &font = g_fonts[std::clamp(paint.slot, 0, kSlotCount - 1)];
     if (!font.loaded || letters.empty()) {
         return false;
     }
-    // The key: every letter and its box, and the look.
     std::string key = "w";
     for (const PlacedLetter &letter : letters) {
-        key += std::to_string(static_cast<unsigned>(letter.ch)) + ":";
-        for (float v : {letter.x, letter.y, letter.w, letter.h}) {
-            key += std::to_string(std::lround(v * 64)) + ",";
+        key += std::format("{}:", static_cast<unsigned>(letter.ch));
+        for (float value : {letter.x, letter.y, letter.w, letter.h}) {
+            key += std::format("{},", std::lround(value * 64));
         }
     }
     key += PaintKey(paint);
@@ -1030,33 +1051,38 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
         out = found->second;
         return true;
     }
-    if (g_atlas.painted_missing.count(key) != 0) {
+    if (g_atlas.painted_missing.contains(key)) {
         return false;
     }
     // Every letter's outline stretched to its box, together in the word's pixels.
     std::vector<std::vector<Point>> contours;
-    float                           box_w = 1.0f, box_h = 1.0f;
+    float                           box_w = 1.0f;
+    float                           box_h = 1.0f;
     for (const PlacedLetter &letter : letters) {
         const int                       index = stbtt_FindGlyphIndex(&font.info, static_cast<int>(letter.ch));
         std::vector<std::vector<Point>> own = index != 0 ? Contours(font.info, index) : std::vector<std::vector<Point>>{};
         if (own.empty()) {
             continue;
         }
-        float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
-        for (const auto &c : own) {
-            for (const Point &p : c) {
-                x0 = std::min(x0, p.x);
-                x1 = std::max(x1, p.x);
-                y0 = std::min(y0, p.y);
-                y1 = std::max(y1, p.y);
+        float x0 = 1e9f;
+        float y0 = 1e9f;
+        float x1 = -1e9f;
+        float y1 = -1e9f;
+        for (const auto &contour : own) {
+            for (const Point &point : contour) {
+                x0 = std::min(x0, point.x);
+                x1 = std::max(x1, point.x);
+                y0 = std::min(y0, point.y);
+                y1 = std::max(y1, point.y);
             }
         }
-        const float sx = letter.w / std::max(x1 - x0, 1.0f), sy = letter.h / std::max(y1 - y0, 1.0f);
-        for (auto &c : own) {
-            for (Point &p : c) {
-                p = {letter.x + (p.x - x0) * sx, letter.y + (y1 - p.y) * sy};
+        const float sx = letter.w / std::max(x1 - x0, 1.0f);
+        const float sy = letter.h / std::max(y1 - y0, 1.0f);
+        for (auto &contour : own) {
+            for (Point &point : contour) {
+                point = {.x = letter.x + (point.x - x0) * sx, .y = letter.y + (y1 - point.y) * sy};
             }
-            contours.push_back(std::move(c));
+            contours.push_back(std::move(contour));
         }
         box_w = std::max(box_w, letter.x + letter.w);
         box_h = std::max(box_h, letter.y + letter.h);
@@ -1072,19 +1098,19 @@ bool GetPaintedWord(const std::vector<PlacedLetter> &letters, const Paint &paint
 }
 
 bool GetGlyphBounds(char32_t ch, float (&bounds)[4], int slot) {
-    const Font &font = g_fonts[std::clamp(slot, 0, 3)];
+    const Font &font = g_fonts[std::clamp(slot, 0, kSlotCount - 1)];
     const int   index = font.loaded ? stbtt_FindGlyphIndex(&font.info, static_cast<int>(ch)) : 0;
     if (index == 0) {
         return false;
     }
     bounds[0] = bounds[1] = 1e9f;
     bounds[2] = bounds[3] = -1e9f;
-    for (const auto &c : Contours(font.info, index)) {
-        for (const Point &p : c) {
-            bounds[0] = std::min(bounds[0], p.x);
-            bounds[1] = std::min(bounds[1], p.y);
-            bounds[2] = std::max(bounds[2], p.x);
-            bounds[3] = std::max(bounds[3], p.y);
+    for (const auto &contour : Contours(font.info, index)) {
+        for (const Point &point : contour) {
+            bounds[0] = std::min(bounds[0], point.x);
+            bounds[1] = std::min(bounds[1], point.y);
+            bounds[2] = std::max(bounds[2], point.x);
+            bounds[3] = std::max(bounds[3], point.y);
         }
     }
     return bounds[0] < bounds[2] && bounds[1] < bounds[3];
@@ -1096,11 +1122,12 @@ bool GetInkExtent(char32_t ch, int em_px, float &left, float &right) {
     if (index == 0) {
         return false;
     }
-    float x0 = 1e9f, x1 = -1e9f;
-    for (const auto &c : Contours(font.info, index)) {
-        for (const Point &p : c) {
-            x0 = std::min(x0, p.x);
-            x1 = std::max(x1, p.x);
+    float x0 = 1e9f;
+    float x1 = -1e9f;
+    for (const auto &contour : Contours(font.info, index)) {
+        for (const Point &point : contour) {
+            x0 = std::min(x0, point.x);
+            x1 = std::max(x1, point.x);
         }
     }
     if (x0 >= x1) {
@@ -1137,7 +1164,7 @@ bool RenderGlyph(char32_t ch, int em_px, std::vector<unsigned char> &alpha, int 
 
 bool RenderGlyphScaled(char32_t ch, int slot, float scale, std::vector<unsigned char> &alpha, int &w, int &h, int &x0,
                        int &y0) {
-    if (slot < 0 || slot > 3 || !g_fonts[slot].loaded) {
+    if (slot < 0 || slot >= kSlotCount || !g_fonts[slot].loaded) {
         return false;
     }
     const int index = stbtt_FindGlyphIndex(&g_fonts[slot].info, static_cast<int>(ch));
@@ -1161,19 +1188,25 @@ gfx::TextureBinding Binding() {
 }
 
 Metrics GetMetrics() {
-    Metrics metrics = {0.8f, 0.2f, 0.6f, 0.7f};
+    Metrics metrics = {.ascent = 0.8f, .descent = 0.2f, .advance = 0.6f, .cap = 0.7f};
     if (!g_fonts[g_variant].loaded) {
         return metrics;
     }
-    int ascent, descent, gap;
+    int ascent = 0;
+    int descent = 0;
+    int gap = 0;
     stbtt_GetFontVMetrics(&g_fonts[g_variant].info, &ascent, &descent, &gap);
     const float em = 1.0f / stbtt_ScaleForMappingEmToPixels(&g_fonts[g_variant].info, 1.0f);
     metrics.ascent = static_cast<float>(ascent) / em;
     metrics.descent = static_cast<float>(-descent) / em;
-    int advance, bearing;
+    int advance = 0;
+    int bearing = 0;
     stbtt_GetCodepointHMetrics(&g_fonts[g_variant].info, '0', &advance, &bearing);
     metrics.advance = static_cast<float>(advance) / em;
-    int x0, y0, x1, y1;
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
     if (stbtt_GetCodepointBox(&g_fonts[g_variant].info, 'H', &x0, &y0, &x1, &y1) != 0 && y1 > y0) {
         metrics.cap = static_cast<float>(y1 - y0) / em;
         metrics.cap_drop = static_cast<float>(-y0) / em;

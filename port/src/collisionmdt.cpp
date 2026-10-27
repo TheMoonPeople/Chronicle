@@ -23,11 +23,11 @@ void vu_maxmin3(float *max, float *min, float *a, float *b, float *c) {
 
 // Retail stores w from a register vopmsub never writes; nothing reads it, so it is zeroed.
 void vu_normal(float *normal, float *a, float *b, float *c) {
-    float e0[4] = {b[0] - a[0], b[1] - a[1], b[2] - a[2], 0.0f};
-    float e1[4] = {c[0] - a[0], c[1] - a[1], c[2] - a[2], 0.0f};
-    float n[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    vu0::Cross(n, e0, e1);
-    vu0::Copy(normal, n);
+    float edge_ab[4] = {b[0] - a[0], b[1] - a[1], b[2] - a[2], 0.0f};
+    float edge_ac[4] = {c[0] - a[0], c[1] - a[1], c[2] - a[2], 0.0f};
+    float cross[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    vu0::Cross(cross, edge_ab, edge_ac);
+    vu0::Copy(normal, cross);
 }
 
 void vu_hold_box(float *max, float *min) {

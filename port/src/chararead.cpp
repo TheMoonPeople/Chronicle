@@ -1,6 +1,7 @@
 #include "chararead.hpp"
 
 #include <cstring>
+#include <iterator>
 
 #include "dataalloc.hpp"
 #include "dataread.hpp"
@@ -18,7 +19,7 @@ void CommandIMG(void **argv) {
     }
 
     const int slot = *static_cast<int *>(argv[0]);
-    if (slot < 0 || slot >= 4) {
+    if (slot < 0 || slot >= std::ssize(load_img)) {
         return;
     }
 
@@ -39,16 +40,16 @@ void CommandIMG(void **argv) {
 }
 
 void StretchBind2(float *point_a, float *point_b, float *spring) {
-    float d[3] = {point_a[0] - point_b[0], point_a[1] - point_b[1], point_a[2] - point_b[2]};
-    float length_squared = d[0] * d[0];
-    length_squared = length_squared + d[1] * d[1];
-    length_squared = length_squared + d[2] * d[2];
-    float q = vu0::Rsqrt(spring[0], length_squared);
+    float delta[3] = {point_a[0] - point_b[0], point_a[1] - point_b[1], point_a[2] - point_b[2]};
+    float length_squared = delta[0] * delta[0];
+    length_squared = length_squared + delta[1] * delta[1];
+    length_squared = length_squared + delta[2] * delta[2];
+    float inverse_scale = vu0::Rsqrt(spring[0], length_squared);
     float pull_a = spring[1];
     float pull_b = spring[2];
 
     for (int i = 0; i < 3; i++) {
-        float slack = d[i] - vu0::Mul(d[i], q);
+        float slack = delta[i] - vu0::Mul(delta[i], inverse_scale);
         point_a[i] = point_a[i] - slack * pull_a;
         point_b[i] = point_b[i] + slack * pull_b;
     }

@@ -1,13 +1,20 @@
 #include "cloth.hpp"
 
+#include <libvu0.h>
+
+#include <algorithm>
 #include <cstring>
 #include <memory>
 
+#include "bound.hpp"
 #include "draw3d.hpp"
 #include "frame.hpp"
 #include "mglib.hpp"
 #include "renderinfo.hpp"
+#include "stubs/cloth.hpp"
 #include "texture.hpp"
+#include "vu0_ops.hpp"
+#include "wind.hpp"
 
 namespace {
 
@@ -38,6 +45,25 @@ void ClothDrawMatrix(CFrame *frame, sceVu0FMATRIX matrix) {
     sceVu0CopyVector(matrix[1], y);
     sceVu0CopyVector(matrix[2], z);
     matrix[0][3] = matrix[1][3] = matrix[2][3] = 0.0f;
+}
+
+void Follow(float *vertex, float *velocity, float *world_home, const float *home, const float *delta,
+            const float matrix[4][4], const float *stiffness) {
+    float carried[4];
+    vu0::Apply(carried, matrix, home);
+    vertex[3] = 1.0f;
+    velocity[3] = 1.0f;
+    vu0::Copy(world_home, carried);
+
+    float force[4];
+    for (int i = 0; i < 4; i++) {
+        force[i] = delta[i] + (carried[i] - vertex[i]) * stiffness[i];
+    }
+
+    for (int i = 0; i < 3; i++) {
+        vertex[i] = (vertex[i] + velocity[i]) + force[i];
+        velocity[i] = 0.0f - force[i];
+    }
 }
 
 } // namespace
@@ -96,7 +122,7 @@ int CCloth::CreateVUData(u_int *packet) {
     };
 
     for (int i = 0; i < num_i - 1; i++) {
-        uint32_t first = static_cast<uint32_t>(visual.vertices.size());
+        auto first = static_cast<uint32_t>(visual.vertices.size());
         for (int j = 0; j < num_j; j++) {
             if (polygon_divide[i] != 0) {
                 add(i + 1, j);
@@ -113,8 +139,8 @@ int CCloth::CreateVUData(u_int *packet) {
     return kDraw3DBlockQuads;
 }
 
-int CCloth::DrawVu1(u_int *packet, float (* /*matrix*/)[4], RenderInfo *info, VU1_PROGRAM program, u_long128 *draw_state,
-                                  int unknown1, int unknown2) {
+int CCloth::DrawVu1(u_int * /*packet*/, float (* /*matrix*/)[4], RenderInfo *info, VU1_PROGRAM program,
+                    u_long128 * /*draw_state*/, int /*unknown1*/, int /*unknown2*/) {
     CreateVUData(vu_block[DBuffID]);
     vu_data = vu_block[DBuffID];
     if (const Draw3DVisual *visual = Draw3DFindVisual(vu_data)) {
@@ -126,80 +152,39 @@ int CCloth::DrawVu1(u_int *packet, float (* /*matrix*/)[4], RenderInfo *info, VU
     return 0;
 }
 
-int CCloth::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                  u_long128 *draw_state, int unknown1, int unknown2) {
+int CCloth::DrawVu1(sceVif1Packet * /*packet*/, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+                    u_long128 *draw_state, int unknown1, int unknown2) {
     return CCloth::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }
-
-#include <libvu0.h>
-
-#include <cstring>
-
-#include "bound.hpp"
-#include "cloth.hpp"
-#include "stubs/cloth.hpp"
-#include "vu0_ops.hpp"
-#include "wind.hpp"
-
-namespace {
-
-void Follow(float *vertex, float *velocity, float *world_home, const float *home, const float *delta,
-            const float matrix[4][4], const float *stiffness) {
-    float carried[4];
-    vu0::Apply(carried, matrix, home);
-    vertex[3] = 1.0f;
-    velocity[3] = 1.0f;
-    vu0::Copy(world_home, carried);
-
-    float force[4];
-    for (int i = 0; i < 4; i++) {
-        force[i] = delta[i] + (carried[i] - vertex[i]) * stiffness[i];
-    }
-
-    for (int i = 0; i < 3; i++) {
-        vertex[i] = (vertex[i] + velocity[i]) + force[i];
-        velocity[i] = 0.0f - force[i];
-    }
-}
-
-} // namespace
 
 void CCloth::Step(int step) {
     if (num_i <= 0 || num_i > 16 || num_j <= 0 || num_j > 16) {
         return;
     }
 
-    float        *velocity;
-    int           i;
-    int           j;
-    int           pass;
-    int           reset;
-    float         ground;
-    float        *vertex;
-    sceVu0FVECTOR root;
-    sceVu0FVECTOR delta = {0.0f, 0.0f, 0.0f, 0.0f};
-    sceVu0FMATRIX matrix = {};
-    sceVu0FVECTOR scratch = {};
-
-    // Retail solves in the scratchpad: the grid, then the per-column stretch parameters, then the
-    // hit point. Nothing in it outlives the call.
-    auto work = std::make_unique<sceVu0FVECTOR[]>(static_cast<std::size_t>(num_i) * static_cast<std::size_t>(num_j));
-    auto work_at = [&](int i, int j) -> float * {
-        return work[static_cast<std::size_t>(i) * static_cast<std::size_t>(num_j) + static_cast<std::size_t>(j)];
-    };
-    auto  stretch_params = std::make_unique<sceVu0FVECTOR[]>(static_cast<std::size_t>(num_j));
-    float hit_point[4] = {};
-
     if (step < 0) {
         Clear();
         return;
     }
 
-    reset = 0;
-    ground = floor_y;
+    sceVu0FVECTOR root;
+    sceVu0FVECTOR delta = {0.0f, 0.0f, 0.0f, 0.0f};
+    sceVu0FMATRIX matrix = {};
+    sceVu0FVECTOR scratch = {};
 
-    for (i = 0; i < num_i; i++) {
-        for (j = 0; j < num_j; j++) {
+    // The simulation works on a copy of the grid; point is only updated once the step completes.
+    auto work = std::make_unique<sceVu0FVECTOR[]>(static_cast<std::size_t>(num_i) * static_cast<std::size_t>(num_j));
+    auto work_at = [&](int row, int column) -> float * {
+        return work[(static_cast<std::size_t>(row) * static_cast<std::size_t>(num_j)) + static_cast<std::size_t>(column)];
+    };
+    auto  stretch_params = std::make_unique<sceVu0FVECTOR[]>(static_cast<std::size_t>(num_j));
+    float hit_point[4] = {};
+
+    bool        reset = false;
+    const float ground = floor_y;
+
+    for (int i = 0; i < num_i; i++) {
+        for (int j = 0; j < num_j; j++) {
             vu0::Copy(work_at(i, j), point[i][j]);
         }
     }
@@ -210,7 +195,7 @@ void CCloth::Step(int step) {
         sceVu0SubVector(delta, root, last_position);
 
         if (vuabs(delta) > 10.0f || stop != 0) {
-            reset = 1;
+            reset = true;
         } else {
             delta[0] *= follow[0];
             delta[1] *= follow[1];
@@ -225,12 +210,12 @@ void CCloth::Step(int step) {
     float stiffness_held[4];
     vu0::Copy(stiffness_held, stiffness);
 
-    for (j = 0; j < num_j; j++) {
-        for (i = 0; i < num_i; i++) {
-            vertex = work_at(i, j);
-            velocity = speed[i][j];
+    for (int j = 0; j < num_j; j++) {
+        for (int i = 0; i < num_i; i++) {
+            float *vertex = work_at(i, j);
+            float *velocity = speed[i][j];
 
-            if (reset != 0) {
+            if (reset) {
                 vertex[0] += delta[0];
                 vertex[1] += delta[1];
                 vertex[2] += delta[2];
@@ -247,14 +232,14 @@ void CCloth::Step(int step) {
     scratch[1] = 0.5f;
     scratch[2] = 0.5f;
 
-    for (j = 0; j < num_j - 1; j++) {
+    for (int j = 0; j < num_j - 1; j++) {
         stretch_params[j][1] = 0.3f + 0.2f * (static_cast<float>(j) / static_cast<float>(num_j));
         stretch_params[j][2] = 1.0f - stretch_params[j][1];
     }
 
-    for (pass = 0; pass < 4 && reset == 0; pass++) {
-        for (j = 0; j < num_j - 1; j++) {
-            for (i = 0; i < num_i; i++) {
+    for (int pass = 0; pass < 4 && !reset; pass++) {
+        for (int j = 0; j < num_j - 1; j++) {
+            for (int i = 0; i < num_i; i++) {
                 if (i > 1) {
                     scratch[0] = 2.0f * rest[i][j][0];
                     StretchBind2(work_at(i, j), work_at(i - 2, j), scratch);
@@ -267,11 +252,11 @@ void CCloth::Step(int step) {
             }
         }
 
-        for (j = 0; j < num_i; j++) {
+        for (int row = 0; row < num_i; row++) {
             if (frame == nullptr) {
-                sceVu0CopyVector(work_at(j, 0), home[j][0]);
+                sceVu0CopyVector(work_at(row, 0), home[row][0]);
             } else {
-                vu0::Copy(work_at(j, 0), world_home[j][0]);
+                vu0::Copy(work_at(row, 0), world_home[row][0]);
             }
         }
     }
@@ -280,23 +265,19 @@ void CCloth::Step(int step) {
         bound->UpDate();
     }
 
-    for (j = 1; j < num_j; j++) {
-        for (i = 0; i < num_i; i++) {
-            CBound       *box = bound;
-            int           touched = 0;
+    for (int j = 1; j < num_j; j++) {
+        for (int i = 0; i < num_i; i++) {
+            bool          touched = false;
             float         hit_count = 0.0f;
-            sceVu0FVECTOR hit_sum;
-            hit_sum[2] = 0.0f;
-            hit_sum[1] = 0.0f;
-            hit_sum[0] = 0.0f;
-            float friction = 0.0f;
+            sceVu0FVECTOR hit_sum = {};
+            float         friction = 0.0f;
 
-            for (; box != nullptr; box = box->next) {
-                if ((mask[i][j] & (1 << box->mask_bit)) && box->InCheck(work_at(i, j), hit_point) != 0) {
+            for (CBound *box = bound; box != nullptr; box = box->next) {
+                if ((mask[i][j] & (1 << box->mask_bit)) != 0 && box->InCheck(work_at(i, j), hit_point) != 0) {
                     hit_count += 1.0f;
                     sceVu0AddVector(hit_sum, hit_sum, hit_point);
                     friction += box->friction;
-                    touched = 1;
+                    touched = true;
                 }
             }
 
@@ -313,13 +294,13 @@ void CCloth::Step(int step) {
 
     sceVu0FVECTOR wind_force = {0.0f, 0.0f, 0.0f, 0.0f};
 
-    for (i = 0; i < num_i; i++) {
+    for (int i = 0; i < num_i; i++) {
         if (wind != nullptr) {
-            (static_cast<CWind *>(wind))->GetWindNoise(wind_force);
+            static_cast<CWind *>(wind)->GetWindNoise(wind_force);
             sceVu0ScaleVector(wind_force, wind_force, wind_effect);
         }
 
-        for (j = 0; j < num_j; j++) {
+        for (int j = 0; j < num_j; j++) {
             speed[i][j][0] += gravity[0] + (work_at(i, j)[0] - last[i][j][0]);
             speed[i][j][1] += gravity[1] + (work_at(i, j)[1] - last[i][j][1]);
             speed[i][j][2] += gravity[2] + (work_at(i, j)[2] - last[i][j][2]);
@@ -331,11 +312,7 @@ void CCloth::Step(int step) {
                 facing *= -1.0f;
             }
 
-            float damping = 0.6f + (1.0f - facing);
-
-            if (damping > 1.0f) {
-                damping = 1.0f;
-            }
+            const float damping = std::min(0.6f + (1.0f - facing), 1.0f);
 
             speed[i][j][0] += facing * wind_force[0];
             speed[i][j][1] += facing * wind_force[1];
@@ -344,7 +321,7 @@ void CCloth::Step(int step) {
             speed[i][j][1] *= damping;
             speed[i][j][2] *= damping;
 
-            if (reset != 0) {
+            if (reset) {
                 speed[i][j][0] = 0.0f;
                 speed[i][j][1] = 0.0f;
                 speed[i][j][2] = 0.0f;
@@ -365,35 +342,15 @@ void CCloth::Step(int step) {
     }
 
     sceVu0FVECTOR edge[4];
-    sceVu0FVECTOR normal;
+    sceVu0FVECTOR normal = {};
     sceVu0FVECTOR cross[4];
-    normal[3] = 0.0f;
-    normal[2] = 0.0f;
-    normal[1] = 0.0f;
-    normal[0] = 0.0f;
 
-    for (j = 0; j < num_j; j++) {
-        for (i = 0; i < num_i; i++) {
-            int next_i = i + 1;
-            int prev_i = i - 1;
-            int prev_j = j - 1;
-            int next_j = j + 1;
-
-            if (prev_i < 0) {
-                prev_i = 0;
-            }
-
-            if (prev_j < 0) {
-                prev_j = 0;
-            }
-
-            if (next_i >= num_i) {
-                next_i = num_i - 1;
-            }
-
-            if (next_j >= num_j) {
-                next_j = num_j - 1;
-            }
+    for (int j = 0; j < num_j; j++) {
+        for (int i = 0; i < num_i; i++) {
+            const int next_i = std::min(i + 1, num_i - 1);
+            const int prev_i = std::max(i - 1, 0);
+            const int prev_j = std::max(j - 1, 0);
+            const int next_j = std::min(j + 1, num_j - 1);
 
             sceVu0SubVector(edge[0], work_at(next_i, j), work_at(i, j));
             sceVu0SubVector(edge[1], work_at(prev_i, j), work_at(i, j));
@@ -411,8 +368,8 @@ void CCloth::Step(int step) {
         }
     }
 
-    for (i = 0; i < num_i; i++) {
-        for (j = 0; j < num_j; j++) {
+    for (int i = 0; i < num_i; i++) {
+        for (int j = 0; j < num_j; j++) {
             vu0::Copy(point[i][j], work_at(i, j));
         }
     }

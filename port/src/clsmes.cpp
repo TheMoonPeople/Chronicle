@@ -7,9 +7,11 @@
 #include <cstdlib>
 #include <iterator>
 #include <map>
+#include <print>
 #include <span>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "caption_text.hpp"
@@ -33,22 +35,21 @@
 #include "texture.hpp"
 #include "textwipe.hpp"
 
-extern float RandTbl[64];
-extern float RandTbl2[64];
+extern float     RandTbl[64];
+extern float     RandTbl2[64];
 extern MES_FUCHI FuchiTbl_E[];
 
 namespace {
 
-enum {
-    GAIJI_CODE,
-    GAIJI_U,
-    GAIJI_V,
-    GAIJI_WIDTH,
-    GAIJI_HEIGHT,
-    GAIJI_X_OFF,
-    GAIJI_Y_OFF,
-    GAIJI_CELLS,
-};
+// Columns of a GaijiDataTbl row.
+constexpr int kGaijiCode = 0;
+constexpr int kGaijiU = 1;
+constexpr int kGaijiV = 2;
+constexpr int kGaijiWidth = 3;
+constexpr int kGaijiHeight = 4;
+constexpr int kGaijiXOff = 5;
+constexpr int kGaijiYOff = 6;
+constexpr int kGaijiCells = 7;
 
 // The window ClsMesSetChoiceRows names, its first choice row, and whether its choices run on past it.
 const ClsMes *g_choice_mes = nullptr;
@@ -103,12 +104,10 @@ bool TtfReady() {
         tried = true;
         std::filesystem::path file = LocalizeFindFile("font.ttf");
         if (!file.empty() && ttffont::Load(file)) {
-            std::fprintf(stderr, "font: message text from %s\n", file.string().c_str());
+            std::println(stderr, "font: message text from {}", file.string());
         } else if (file.empty()) {
-            // Chronicle Sharp ships in lang/; this is someone who removed it, so say where one goes.
-            std::fprintf(stderr,
-                         "font: no font.ttf in lang/ beside the executable or in the save folder, and no --font; message "
-                         "text uses the game's bitmaps (docs/LOCALIZATION.md)\n");
+            std::println(stderr, "font: no font.ttf in lang/ beside the executable or in the save folder, and no --font; "
+                                 "message text uses the game's bitmaps (docs/LOCALIZATION.md)");
         }
     }
     return ttffont::Loaded();
@@ -146,16 +145,21 @@ unsigned                                            g_cells_generation = 0;
 // coverage moved down and right, blurred a little and thickened, at most half dark. Its shape was measured on the
 // game's 88 cells; `scale` is pixels per game pixel.
 std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, float scale) {
-    constexpr float kShiftX = 0.866f, kShiftY = 0.841f, kBlur = 0.741f, kGain = 9.21f, kMost = 0.512f;
-    const float     sigma = kBlur * scale;
-    const int       reach = static_cast<int>(std::ceil(3 * sigma + std::max(kShiftX, kShiftY) * scale)) + 1;
+    constexpr float shift_x = 0.866f;
+    constexpr float shift_y = 0.841f;
+    constexpr float blur = 0.741f;
+    constexpr float gain = 9.21f;
+    constexpr float most = 0.512f;
+    const float     sigma = blur * scale;
+    const int       reach = static_cast<int>(std::ceil(3 * sigma + std::max(shift_x, shift_y) * scale)) + 1;
     auto            kernel = [&](float shift) {
         std::vector<float> k(static_cast<size_t>(2 * reach + 1));
         float              sum = 0;
         for (int t = -reach; t <= reach; t++) {
             const float d = static_cast<float>(t) - shift;
-            k[static_cast<size_t>(t + reach)] = std::exp(-d * d / (2 * sigma * sigma));
-            sum += k[static_cast<size_t>(t + reach)];
+            const int   tap = t + reach;
+            k[static_cast<size_t>(tap)] = std::exp(-d * d / (2 * sigma * sigma));
+            sum += k[static_cast<size_t>(tap)];
         }
         for (float &v : k) {
             v /= sum;
@@ -163,15 +167,17 @@ std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, floa
         return k;
     };
     // A pixel's shadow comes from the letter up and to the left of it: the kernels are centred that far back.
-    const std::vector<float> kx = kernel(kShiftX * scale);
-    const std::vector<float> ky = kernel(kShiftY * scale);
-    std::vector<float>       across(cov.size(), 0.0f), out(cov.size(), 0.0f);
+    const std::vector<float> kx = kernel(shift_x * scale);
+    const std::vector<float> ky = kernel(shift_y * scale);
+    std::vector<float>       across(cov.size(), 0.0f);
+    std::vector<float>       out(cov.size(), 0.0f);
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             float sum = 0;
             for (int t = -reach; t <= reach; t++) {
+                const int tap = t + reach;
                 if (x - t >= 0 && x - t < w) {
-                    sum += kx[static_cast<size_t>(t + reach)] * cov[static_cast<size_t>(y) * w + (x - t)];
+                    sum += kx[static_cast<size_t>(tap)] * cov[static_cast<size_t>(y) * w + (x - t)];
                 }
             }
             across[static_cast<size_t>(y) * w + x] = sum;
@@ -181,11 +187,13 @@ std::vector<float> BakedShadow(const std::vector<float> &cov, int w, int h, floa
         for (int x = 0; x < w; x++) {
             float sum = 0;
             for (int t = -reach; t <= reach; t++) {
-                if (y - t >= 0 && y - t < h) {
-                    sum += ky[static_cast<size_t>(t + reach)] * across[static_cast<size_t>(y - t) * w + x];
+                const int tap = t + reach;
+                const int from_y = y - t;
+                if (from_y >= 0 && from_y < h) {
+                    sum += ky[static_cast<size_t>(tap)] * across[static_cast<size_t>(from_y) * w + x];
                 }
             }
-            out[static_cast<size_t>(y) * w + x] = kMost * std::min(1.0f, kGain * sum);
+            out[static_cast<size_t>(y) * w + x] = most * std::min(1.0f, gain * sum);
         }
     }
     return out;
@@ -210,10 +218,14 @@ bool CellGlyph(int set, int index, int size, capfont::Glyph &out) {
         return true;
     }
     const float                scale = static_cast<float>(size) / kCellH;
-    const int                  width = static_cast<int>(std::lround(kCellW * scale)), height = size;
+    const int                  width = static_cast<int>(std::lround(kCellW * scale));
+    const int                  height = size;
     const int                  baseline = static_cast<int>(std::lround(15 * scale));
     std::vector<unsigned char> alpha;
-    int                        w, h, x0, y0;
+    int                        w = 0;
+    int                        h = 0;
+    int                        x0 = 0;
+    int                        y0 = 0;
     if (!capfont::RenderGlyphScaled(static_cast<unsigned char>(kLetterOrder[static_cast<size_t>(index)]), set, scale / 50.0f,
                                     alpha, w, h, x0, y0)) {
         return false;
@@ -221,7 +233,8 @@ bool CellGlyph(int set, int index, int size, capfont::Glyph &out) {
     std::vector<float> cov(static_cast<size_t>(width) * height, 0.0f);
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            const int cx = x0 + x, cy = baseline + y0 + y;
+            const int cx = x0 + x;
+            const int cy = baseline + y0 + y;
             if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
                 cov[static_cast<size_t>(cy) * width + cx] = alpha[static_cast<size_t>(y) * w + x] / 255.0f;
             }
@@ -264,7 +277,15 @@ bool FontLetter(const CRect_i_ &texel) {
 // The letter at texel, to be drawn at x, y (logical) from the font once DrawMesWin has laid out its window.
 void LetterQuad(const CRect_i_ &texel, float x, float y, float width, float height, int r, int g, int b, int alpha) {
     auto clamp = [](int v) { return static_cast<u_char>(std::clamp(v, 0, 255)); };
-    g_letters->push_back({texel, x, y, width, height, clamp(r), clamp(g), clamp(b), clamp(alpha)});
+    g_letters->push_back({.texel = texel,
+                          .x = x,
+                          .y = y,
+                          .width = width,
+                          .height = height,
+                          .r = clamp(r),
+                          .g = clamp(g),
+                          .b = clamp(b),
+                          .a = clamp(alpha)});
 }
 
 // The window's letters, each from its cell drawn at the screen's height for a cell.
@@ -283,16 +304,24 @@ void DrawLetters(const std::vector<PendingLetter> &letters) {
         quads.clear();
         for (const PendingLetter &letter : letters) {
             const int      across = letter.texel.x - kLettersU;
-            const int      set = across / 128, in_set = across % 128;
-            const int      cell_u = kLettersU + set * 128 + in_set / kCellW * kCellW, cell_v = letter.texel.y / kCellH * kCellH;
+            const int      set = across / 128;
+            const int      in_set = across % 128;
+            const int      cell_u = kLettersU + set * 128 + in_set / kCellW * kCellW;
+            const int      cell_v = letter.texel.y / kCellH * kCellH;
             capfont::Glyph cell;
             if (!CellGlyph(set, (letter.texel.y / kCellH) * 9 + in_set / kCellW, size, cell)) {
                 continue;
             }
-            const float du = (cell.u1 - cell.u0) / kCellW, dv = (cell.v1 - cell.v0) / kCellH;
-            const float u0 = cell.u0 + static_cast<float>(letter.texel.x - cell_u) * du, u1 = u0 + static_cast<float>(letter.texel.width) * du;
-            const float v0 = cell.v0 + static_cast<float>(letter.texel.y - cell_v) * dv, v1 = v0 + static_cast<float>(letter.texel.height) * dv;
-            const float x0 = letter.x, x1 = letter.x + letter.width, y0 = letter.y * rows, y1 = (letter.y + letter.height) * rows;
+            const float du = (cell.u1 - cell.u0) / kCellW;
+            const float dv = (cell.v1 - cell.v0) / kCellH;
+            const float u0 = cell.u0 + static_cast<float>(letter.texel.x - cell_u) * du;
+            const float u1 = u0 + static_cast<float>(letter.texel.width) * du;
+            const float v0 = cell.v0 + static_cast<float>(letter.texel.y - cell_v) * dv;
+            const float v1 = v0 + static_cast<float>(letter.texel.height) * dv;
+            const float x0 = letter.x;
+            const float x1 = letter.x + letter.width;
+            const float y0 = letter.y * rows;
+            const float y1 = (letter.y + letter.height) * rows;
             quads.push_back(draw2d::Vertex(x0, y0, 0.0f, u0, v0, letter.r, letter.g, letter.b, letter.a));
             quads.push_back(draw2d::Vertex(x1, y0, 0.0f, u1, v0, letter.r, letter.g, letter.b, letter.a));
             quads.push_back(draw2d::Vertex(x1, y1, 0.0f, u1, v1, letter.r, letter.g, letter.b, letter.a));
@@ -316,16 +345,17 @@ bool LetterFuchi(const ClsMes &mes, const CRect_i_ &screen, const CRect_i_ &texe
     if (g_letters == nullptr || !FontLetter(texel)) {
         return false;
     }
-    constexpr int kSteps = 4;
-    float         spread = 1.0f, weaken = 1.0f;
+    constexpr int steps = 4;
+    float         spread = 1.0f;
+    float         weaken = 1.0f;
     auto          pass = [&](float dx, float dy, int r, int g, int b, int alpha) {
         const float strength = weaken * static_cast<float>(std::min(alpha, 0x80)) / 128.0f;
-        const float each = 1.0f - std::pow(1.0f - std::min(strength, 0.999f), 1.0f / (kSteps * kSteps));
+        const float each = 1.0f - std::pow(1.0f - std::min(strength, 0.999f), 1.0f / (steps * steps));
         const int   tap_alpha = static_cast<int>(std::lround(each * 128.0f));
-        for (int i = 0; i < kSteps; i++) {
-            for (int j = 0; j < kSteps; j++) {
-                const float sx = ((static_cast<float>(i) + 0.5f) / kSteps - 0.5f) * spread;
-                const float sy = ((static_cast<float>(j) + 0.5f) / kSteps - 0.5f) * spread;
+        for (int i = 0; i < steps; i++) {
+            for (int j = 0; j < steps; j++) {
+                const float sx = ((static_cast<float>(i) + 0.5f) / steps - 0.5f) * spread;
+                const float sy = ((static_cast<float>(j) + 0.5f) / steps - 0.5f) * spread;
                 LetterQuad(texel, static_cast<float>(screen.x) + dx + sx, static_cast<float>(screen.y) + dy + sy,
                            static_cast<float>(screen.width), static_cast<float>(screen.height), r, g, b, tap_alpha);
             }
@@ -346,14 +376,16 @@ bool LetterFuchi(const ClsMes &mes, const CRect_i_ &screen, const CRect_i_ &texe
             spread = 1.2f;
             weaken = 0.85f;
             for (int i = 0; FuchiTbl_E[i].alpha > 0; i++) {
-                constexpr float kReach = 0.8f;
-                pass(static_cast<float>(FuchiTbl_E[i].x) * kReach, static_cast<float>(FuchiTbl_E[i].y) * kReach, FuchiTbl_E[i].r,
+                constexpr float reach = 0.8f;
+                pass(static_cast<float>(FuchiTbl_E[i].x) * reach, static_cast<float>(FuchiTbl_E[i].y) * reach, FuchiTbl_E[i].r,
                      FuchiTbl_E[i].g, FuchiTbl_E[i].b, std::min(cap, FuchiTbl_E[i].alpha));
             }
             break;
         case MES_EDGE_DOUBLE:
             pass(1, 1, 0x40, 0x40, 0x40, std::min(cap, 0x80));
             pass(2, 2, 0, 0, 0, std::min(cap, 0x80));
+            break;
+        default:
             break;
     }
     return true;
@@ -434,9 +466,11 @@ void GlyphTint(int clut, int dark, int wide, int &r, int &g, int &b, int &alpha)
 
 void TtfQuad(std::vector<gfx::Vertex2D> &out, const ttffont::Glyph &glyph, float x, float y, float width,
              float height, int r, int g, int b, int alpha) {
-    auto         clamp = [](int v) { return static_cast<u_char>(v < 0 ? 0 : v > 255 ? 255
-                                                                                    : v); };
-    const u_char red = clamp(r), green = clamp(g), blue = clamp(b), a = clamp(alpha);
+    auto         clamp = [](int v) { return static_cast<u_char>(std::clamp(v, 0, 255)); };
+    const u_char red = clamp(r);
+    const u_char green = clamp(g);
+    const u_char blue = clamp(b);
+    const u_char a = clamp(alpha);
     out.push_back(draw2d::Vertex(x, y, 0.0f, glyph.u0, glyph.v0, red, green, blue, a));
     out.push_back(draw2d::Vertex(x + width, y, 0.0f, glyph.u1, glyph.v0, red, green, blue, a));
     out.push_back(draw2d::Vertex(x + width, y + height, 0.0f, glyph.u1, glyph.v1, red, green, blue, a));
@@ -450,7 +484,7 @@ constexpr float kTextHeight = 1.28f;
 constexpr float kMinSqueeze = 0.78f;
 constexpr float kBaselineShift = 0.6f;
 
-float TtfEm(const ClsMes &mes, const ttffont::Metrics &) {
+float TtfEm(const ClsMes &mes, const ttffont::Metrics & /*metrics*/) {
     return mes.char_height * 0.82f * kTextHeight * textwipe::Get(textwipe::MessageKind()).size;
 }
 
@@ -490,7 +524,7 @@ void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs, std::vector<float> &sque
     int word = 0;
     int word_y = -1;
     while (i < count) {
-        ttffont::Glyph glyph;
+        ttffont::Glyph glyph{};
         if (!glyph_of(i, glyph)) {
             i++;
             continue;
@@ -525,18 +559,18 @@ void TtfLayoutRows(ClsMes &mes, std::vector<float> &xs, std::vector<float> &sque
         if (tune.lock > 0.0f) {
             // Sprite centering preserves retail's narrow-character offsets and integer rounding.
             for (int k = i; k < last; k++) {
-                ttffont::Glyph letter;
+                ttffont::Glyph letter{};
                 if (!glyph_of(k, letter)) {
                     continue;
                 }
                 const float ink = letter.width / mapping.scale_x * squeeze[static_cast<size_t>(k)];
                 const auto &data = GaijiDataTbl[mes.win_line[k].code + 0x300];
-                int         dx = (mes.char_width * data[GAIJI_CELLS] - data[GAIJI_WIDTH]) / 2 + data[GAIJI_X_OFF];
-                if (mes.narrow_gaiji && (data[GAIJI_CODE] == -0x2BD || data[GAIJI_CODE] == -0x2BA)) {
+                int         dx = (mes.char_width * data[kGaijiCells] - data[kGaijiWidth]) / 2 + data[kGaijiXOff];
+                if (mes.narrow_gaiji && (data[kGaijiCode] == -0x2BD || data[kGaijiCode] == -0x2BA)) {
                     dx -= 3;
                 }
                 const float centred = static_cast<float>(mes.win_line[k].x + dx) +
-                                      (static_cast<float>(data[GAIJI_WIDTH]) - ink) / 2;
+                                      (static_cast<float>(data[kGaijiWidth]) - ink) / 2;
                 float      &place = xs[static_cast<size_t>(k)];
                 place += (centred - place) * std::min(1.0f, tune.lock);
             }
@@ -560,15 +594,16 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
     const ttffont::Metrics    metrics = ttffont::GetMetrics();
     const float               em = TtfEm(mes, metrics);
     const int                 em_px = static_cast<int>(em * mapping.scale_x + 0.5f);
-    ttffont::Glyph            glyph;
+    ttffont::Glyph            glyph{};
     if (!ttffont::GetGlyph(ch, em_px, glyph)) {
         return false;
     }
 
     // The window's origin for this row, as the bitmap characters take it.
     const int row = line.y / mes.char_height;
-    float     origin_x, cell_y;
-    if (row < 0 || row >= static_cast<int>(std::size(mes.line_pos)) || mes.line_pos[row].x < 0 ||
+    float     origin_x = 0.0f;
+    float     cell_y = 0.0f;
+    if (row < 0 || std::cmp_greater_equal(row, std::size(mes.line_pos)) || mes.line_pos[row].x < 0 ||
         mes.line_pos[row].y < 0) {
         origin_x = static_cast<float>(offset_x + mes.text_x);
         cell_y = static_cast<float>(offset_y + line.y + mes.text_y);
@@ -593,7 +628,10 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
     y = snap(y, mapping.scale_y, mapping.offset_y);
 
     const int wide = ChoiceRowDim(mes, row, line.clut);
-    int       r, g, b, alpha;
+    int       r = 0;
+    int       g = 0;
+    int       b = 0;
+    int       alpha = 0;
     GlyphTint(line.clut, dark, wide, r, g, b, alpha);
 
     // The outline and the drop shadow sit at the offsets the bitmaps' use: the shadow is part of the
@@ -619,22 +657,17 @@ bool QueueTtfGlyph(ClsMes &mes, int index, int dark, int offset_x, int offset_y,
             edge(1, 1, 0xFF, 0xFF, 0xFF, 0x40);
             break;
         case MES_EDGE_BLACK:
-            cast();
-            break;
         case MES_EDGE_TABLE:
-            cast();
-            break;
         case MES_EDGE_DOUBLE:
             cast();
             break;
+        default:
+            break;
     }
     if (tune.weight > 0.0f) {
-        const float half = tune.weight / 2;
-        const float shifts[4][2] = {
-            {-half, 0.0f },
-            {half,  0.0f },
-            {0.0f,  -half},
-            {0.0f,  half }
+        const float                               half = tune.weight / 2;
+        const std::array<std::array<float, 2>, 4> shifts = {
+            {{-half, 0.0f}, {half, 0.0f}, {0.0f, -half}, {0.0f, half}}
         };
         for (const auto &shift : shifts) {
             TtfQuad(fills, glyph, x + shift[0], y + shift[1] * rows, width, height, r, g, b, std::min(cap, alpha));
@@ -653,7 +686,7 @@ struct Shape {
 // starts a fan or a triangle list, every XYZF2 is a point in fukidashibase's texel rows.
 std::vector<Shape> g_shapes;
 
-void BeginShape(gfx::Primitive primitive) { g_shapes.push_back({primitive, {}}); }
+void BeginShape(gfx::Primitive primitive) { g_shapes.push_back({.primitive = primitive, .vertices = {}}); }
 
 void ShapePoint(int x, int y) {
     if (g_shapes.empty()) {
@@ -683,9 +716,9 @@ void MakeRandTbl(float lo, float hi) {
     if (GameTextKeepsRandom()) {
         return;
     }
-    for (int i = 0; i < 64; ++i) {
-        RandTbl[i] = ((hi - lo) * static_cast<float>(std::rand())) / 2147483648.0f;
-        RandTbl[i] += lo;
+    for (float &value : RandTbl) {
+        value = ((hi - lo) * static_cast<float>(std::rand())) / 2147483648.0f;
+        value += lo;
     }
 }
 
@@ -693,9 +726,9 @@ void MakeRandTbl2(float lo, float hi) {
     if (GameTextKeepsRandom()) {
         return;
     }
-    for (int i = 0; i < 64; ++i) {
-        RandTbl2[i] = ((hi - lo) * static_cast<float>(std::rand())) / 2147483648.0f;
-        RandTbl2[i] += lo;
+    for (float &value : RandTbl2) {
+        value = ((hi - lo) * static_cast<float>(std::rand())) / 2147483648.0f;
+        value += lo;
     }
 }
 
@@ -704,8 +737,8 @@ void GetPos_AbsPosSet(int x, int y, int width, int height, int win_width, int wi
 void MyMenuHelpWinDraw(int x, int y, int width, int height, int shade, int u, int v, CTexture *texture);
 
 // Named the other way round from set2DSprite: src is where the sprite lands, dst the texels.
-void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
-                                 u8 g, u8 b, u8 a) {
+void Myset2DSprite(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &src, const CRect_i_ &dst, u8 r,
+                   u8 g, u8 b, u8 a) {
     if (texture == nullptr) {
         return;
     }
@@ -716,14 +749,14 @@ void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src
     state.cull = gfx::CullMode::None;
     MGPortApplyZbuf(state, mgZBuffer);
 
-    const float x0 = static_cast<float>(src.x);
-    const float y0 = static_cast<float>(src.y);
-    const float x1 = static_cast<float>(src.x + src.width);
-    const float y1 = static_cast<float>(src.y + src.height);
-    const float u0 = static_cast<float>(dst.x);
-    const float v0 = static_cast<float>(dst.y);
-    const float u1 = static_cast<float>(dst.x + dst.width);
-    const float v1 = static_cast<float>(dst.y + dst.height);
+    const auto x0 = static_cast<float>(src.x);
+    const auto y0 = static_cast<float>(src.y);
+    const auto x1 = static_cast<float>(src.x + src.width);
+    const auto y1 = static_cast<float>(src.y + src.height);
+    const auto u0 = static_cast<float>(dst.x);
+    const auto v0 = static_cast<float>(dst.y);
+    const auto u1 = static_cast<float>(dst.x + dst.width);
+    const auto v1 = static_cast<float>(dst.y + dst.height);
 
     std::array<gfx::Vertex2D, 4> quad = {
         draw2d::Vertex(x0, y0, 0.0f, u0, v0, r, g, b, a),
@@ -735,30 +768,25 @@ void Myset2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &src
     draw2d::Get().set_zbuf(nullptr);
 }
 
-void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int lift, int unused, int rough,
-                            int prim) {
-    float across;
-    float down;
-    float turn;
-    int   px;
-    int   py;
-    int   step;
+namespace {
 
+void DrawMaru(sceVif1Packet * /*packet*/, int x, int y, int width, int height, int lift, int /*unused*/, int rough,
+              int /*prim*/) {
     BeginShape(gfx::Primitive::TriangleFan);
 
-    px = x + (width >> 1);
-    py = y + (height >> 1) - lift;
+    int px = x + (width >> 1);
+    int py = y + (height >> 1) - lift;
 
     ShapePoint(px, py);
 
-    turn = 0.0f;
-    step = 0;
+    float turn = 0.0f;
+    int   step = 0;
 
     while (turn < 128.0f) {
         float angle = TWO_PI * turn / 128.0f;
 
-        across = cosf(angle);
-        down = sinf(angle);
+        float across = std::cos(angle);
+        float down = std::sin(angle);
 
         if (rough == 1 && step % 2 == 1) {
             across *= 0.9f;
@@ -788,8 +816,8 @@ void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int li
         step++;
     }
 
-    across = 1.0f;
-    down = 0.0f;
+    float across = 1.0f;
+    float down = 0.0f;
 
     if (rough == 1 && step % 2 == 1) {
         across *= 0.9f;
@@ -811,60 +839,42 @@ void DrawMaru(sceVif1Packet *packet, int x, int y, int width, int height, int li
     ShapePoint(px, py);
 }
 
+} // namespace
+
 void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
-    float grown_width;
-    float grown_height;
-    int   x;
-    int   y;
-    int   top;
-    int   i;
-    int   mirror;
-
-    top = this->win_y;
-
-    if (this->grow_y < top) {
-        top = this->grow_y;
-    }
+    int x = 0;
+    int y = 0;
+    int top = std::min(this->win_y, this->grow_y);
 
     if (this->tail_on != 0) {
-        if (this->tail_left_y < top) {
-            top = this->tail_left_y;
-        }
-
-        if (this->tail_right_y < top) {
-            top = this->tail_right_y;
-        }
-
-        if (this->tail_tip_y < top) {
-            top = this->tail_tip_y;
-        }
+        top = std::min({top, this->tail_left_y, this->tail_right_y, this->tail_tip_y});
 
         if (this->fukidashi_shape == 2) {
-            if (this->tail_tip_y - 5 < top) {
-                top = this->tail_tip_y - 5;
-            }
+            top = std::min(top, this->tail_tip_y - 5);
         }
     }
 
-    grown_width = this->win_width * this->fade;
-    grown_height = this->win_height * this->fade;
+    const float grown_width = this->win_width * this->fade;
+    const float grown_height = this->win_height * this->fade;
 
-    float shape[15][2] = {
-        {0.5f,  0.5f },
-        {0.02f, 0.29f},
-        {0.22f, 0.03f},
-        {0.51f, 0.06f},
-        {0.73f, 0.0f },
-        {0.92f, 0.1f },
-        {0.98f, 0.36f},
-        {0.98f, 0.74f},
-        {0.9f,  0.91f},
-        {0.7f,  0.99f},
-        {0.43f, 0.91f},
-        {0.2f,  0.97f},
-        {0.03f, 0.8f },
-        {0.0f,  0.52f},
-        {0.02f, 0.29f},
+    constexpr std::array<std::array<float, 2>, 15> shape = {
+        {
+         {0.5f, 0.5f},
+         {0.02f, 0.29f},
+         {0.22f, 0.03f},
+         {0.51f, 0.06f},
+         {0.73f, 0.0f},
+         {0.92f, 0.1f},
+         {0.98f, 0.36f},
+         {0.98f, 0.74f},
+         {0.9f, 0.91f},
+         {0.7f, 0.99f},
+         {0.43f, 0.91f},
+         {0.2f, 0.97f},
+         {0.03f, 0.8f},
+         {0.0f, 0.52f},
+         {0.02f, 0.29f},
+         }
     };
 
     if (this->fukidashi_shape == 0) {
@@ -873,19 +883,19 @@ void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
         int base_x = static_cast<int>(LinerInterpolation(this->grow_x, this->win_x, this->fade));
         int base_y = static_cast<int>(LinerInterpolation(this->grow_y, this->win_y, this->fade));
 
-        mirror = static_cast<int>(RandTbl[0]);
+        const int mirror = static_cast<int>(RandTbl[0]);
 
-        for (i = 0; i < 15; i++) {
+        for (const auto &point : shape) {
             if (mirror % 2 != 0) {
-                x = static_cast<int>(grown_width * (1.0f - shape[i][0]));
+                x = static_cast<int>(grown_width * (1.0f - point[0]));
             } else {
-                x = static_cast<int>(grown_width * shape[i][0]);
+                x = static_cast<int>(grown_width * point[0]);
             }
 
             if (mirror > 1) {
-                y = static_cast<int>(grown_height * (1.0f - shape[i][1]));
+                y = static_cast<int>(grown_height * (1.0f - point[1]));
             } else {
-                y = static_cast<int>(grown_height * shape[i][1]);
+                y = static_cast<int>(grown_height * point[1]);
             }
 
             x += base_x;
@@ -903,9 +913,9 @@ void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
         if (bubble_shape == 1) {
             DrawMaru(packet, x, y, static_cast<int>(grown_width), static_cast<int>(grown_height), top, 0x20, bubble_shape, prim);
         } else {
-            int   upper_width = static_cast<int>(grown_width) - this->char_width;
-            int   half_height = static_cast<int>(grown_height) >> 1;
-            float half_height_float = static_cast<float>(half_height);
+            int  upper_width = static_cast<int>(grown_width) - this->char_width;
+            int  half_height = static_cast<int>(grown_height) >> 1;
+            auto half_height_float = static_cast<float>(half_height);
 
             DrawMaru(packet, x, y, upper_width, static_cast<int>(half_height_float + 1.5f * this->char_height), top,
                      0x20, 0, prim);
@@ -925,24 +935,19 @@ void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
 
         int oval_width = static_cast<int>(grown_width);
         int oval_height = static_cast<int>(grown_height);
-        int px;
-        int py;
-
-        px = x + (oval_width >> 1);
-        py = y + (oval_height >> 1) - top;
+        int px = x + (oval_width >> 1);
+        int py = y + (oval_height >> 1) - top;
 
         ShapePoint(px, py);
 
-        float across;
-        float down;
         float turn = 0.0f;
         int   step = 0;
 
         while (turn < 128.0f) {
             float angle = TWO_PI * turn / 128.0f;
 
-            across = cosf(angle);
-            down = sinf(angle);
+            float across = std::cos(angle);
+            float down = std::sin(angle);
 
             across = across * RandTbl2[step];
             down = down * RandTbl2[step];
@@ -963,8 +968,8 @@ void ClsMes::MakeFukidashi_sub(sceVif1Packet *packet, int prim) {
             step++;
         }
 
-        across = 1.0f;
-        down = 0.0f;
+        float across = 1.0f;
+        float down = 0.0f;
 
         across = across * RandTbl2[0];
         down = down * RandTbl2[0];
@@ -1043,10 +1048,10 @@ void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
         state.cull = gfx::CullMode::None;
         state.scissor = false;
 
-        const uint8_t none[4] = {};
-        gfx::Clear(false, none, true, 1.0f);
+        constexpr std::array<uint8_t, 4> none{};
+        gfx::Clear(false, none.data(), true, 1.0f);
 
-        const float                  fill_bottom = static_cast<float>(SCREEN_HALF_HEIGHT);
+        const auto                   fill_bottom = static_cast<float>(SCREEN_HALF_HEIGHT);
         std::array<gfx::Vertex2D, 4> fill = {
             draw2d::Vertex(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
             draw2d::Vertex(kScreenWidth, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
@@ -1067,12 +1072,12 @@ void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
         if (paper != nullptr) {
             gfx::DrawState tiles = state;
             tiles.depth_test = gfx::DepthTest::GEqual;
-            const u_char               alpha = this->edge_alpha < 0x80 ? this->edge_alpha : 0x80;
+            const u_char               alpha = std::min(this->edge_alpha, 0x80);
             std::vector<gfx::Vertex2D> quads;
             for (int row = 0; row < 4; row++) {
                 for (int col = 0; col < 5; col++) {
-                    const float x0 = static_cast<float>(col * 0x80);
-                    const float y0 = static_cast<float>(row * 0x80);
+                    const auto x0 = static_cast<float>(col * 0x80);
+                    const auto y0 = static_cast<float>(row * 0x80);
                     quads.push_back(draw2d::Vertex(x0, y0, 0.0f, 0.0f, 0.0f, 0x80, 0x80, 0x80, alpha));
                     quads.push_back(draw2d::Vertex(x0 + 0x80, y0, 0.0f, 0x80, 0.0f, 0x80, 0x80, 0x80, alpha));
                     quads.push_back(
@@ -1147,7 +1152,7 @@ int ClsMes::SetMesWinTbl(int code, int mode, short x, short y) {
 namespace {
 
 bool DrawPadGlyph(int code, const CRect_i_ &screen, int alpha) {
-    glyphs::Button button;
+    glyphs::Button button{};
     switch (code) {
         case -0x300:
             button = glyphs::Button::Select;
@@ -1196,31 +1201,29 @@ bool DrawPadGlyph(int code, const CRect_i_ &screen, int alpha) {
 
 } // namespace
 
-// Read a colour only for a palette entry FontColorTbl has. Retail looks up the red text's 0xFF too,
-// 240 entries past the table, and then sets that colour itself.
+// A colour is read only for a palette entry FontColorTbl has; the red text's 0xFF, past the table,
+// sets its own.
 void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, const CRect_i_ &screen,
-                                         int wide, int dark) {
-    u8  r;
-    u8  g;
-    u8  b;
-    u8  alpha;
-    u8  clut;
-    int code;
-    int u;
-    int v;
+                           int wide, int dark) {
+    u8  r = 0;
+    u8  g = 0;
+    u8  b = 0;
+    u8  alpha = 0;
+    int u = 0;
+    int v = 0;
 
-    code = this->win_line[index].code;
+    const int code = this->win_line[index].code;
 
     if (code >= -0x300 && code < -0x2DF) {
-        if (DrawPadGlyph(code, screen, this->edge_alpha < 0x80 ? this->edge_alpha : 0x80)) {
+        if (DrawPadGlyph(code, screen, std::min(this->edge_alpha, 0x80))) {
             return;
         }
         set2DSprite_Core(Vif1Packet, texture, screen, texel, 0x80, 0x80, 0x80,
-                         this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
+                         std::min(this->edge_alpha, 0x80));
         return;
     }
 
-    clut = this->win_line[index].clut;
+    const u8 clut = this->win_line[index].clut;
 
     switch (clut < std::size(FontColorTbl) ? FontColorTbl[clut] : 0) {
         case FONT_COLOR_WHITE:
@@ -1320,9 +1323,9 @@ void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, 
 
     if (g_letters != nullptr && FontLetter(texel)) {
         LetterQuad(texel, static_cast<float>(screen.x), static_cast<float>(screen.y), static_cast<float>(screen.width),
-                   static_cast<float>(screen.height), r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
+                   static_cast<float>(screen.height), r, g, b, std::min(this->edge_alpha, static_cast<int>(alpha)));
     } else {
-        set2DSprite_Core(Vif1Packet, texture, screen, texel, r, g, b, this->edge_alpha < alpha ? this->edge_alpha : alpha);
+        set2DSprite_Core(Vif1Packet, texture, screen, texel, r, g, b, std::min(this->edge_alpha, static_cast<int>(alpha)));
     }
 
     switch (this->win_line[index].code) {
@@ -1392,39 +1395,30 @@ void ClsMes::DrawGaijiFont(CTexture *texture, int index, const CRect_i_ &texel, 
             return;
     }
 
-    if (this->narrow_gaiji_set != 1) {
-        if (this->narrow_gaiji_set == 2) {
-            u += 0x80;
-        } else if (this->char_width < 0xB) {
-            u += 0x80;
-        }
+    if (this->narrow_gaiji_set != 1 && (this->narrow_gaiji_set == 2 || this->char_width < 0xB)) {
+        u += 0x80;
     }
 
     this->Myset2DSprite_Fuchi(Vif1Packet, texture, screen.x, screen.y, screen.width, screen.height, u, v, 14, 20);
     set2DSprite_Core(Vif1Packet, texture, screen, CRect_i_(u, v, 14, 20), r, g, b,
-                     this->edge_alpha < alpha ? this->edge_alpha : alpha);
+                     std::min(this->edge_alpha, static_cast<int>(alpha)));
 }
 
 void ClsMes::DrawMesWin() {
-    CTexture *texture;
-    int       offset_x;
-    int       offset_y;
-    int       dark;
-    int       index;
-
     if (this->mes_made < 0) {
         return;
     }
 
     TexManager.ReloadTexture(Vif1Packet, this->tex_block);
 
-    offset_x = 0;
+    CTexture *texture = nullptr;
+    int       offset_x = 0;
 
     if (this->fukidashi != 0 && this->text_columns < 4) {
         offset_x = (4 - this->text_columns) * this->char_width >> 1;
     }
 
-    offset_y = 0;
+    int offset_y = 0;
 
     if (this->fukidashi == 0 && this->centre_rows != 0) {
         offset_y = this->char_height * (this->rows - this->text_rows) >> 1;
@@ -1449,8 +1443,6 @@ void ClsMes::DrawMesWin() {
         this->fade = 1.0f;
 
         if (this->stay_frame != 0) {
-            int px;
-            int py;
             int width = this->char_width * this->text_columns + 0x20;
             int height = this->char_height * this->text_rows + 0x1C;
 
@@ -1462,8 +1454,8 @@ void ClsMes::DrawMesWin() {
                 height = this->stay_height;
             }
 
-            px = this->text_x + offset_x - 0x10;
-            py = this->text_y + offset_y - 0xE;
+            int px = this->text_x + offset_x - 0x10;
+            int py = this->text_y + offset_y - 0xE;
 
             if (0 < this->auto_pos) {
                 GetPos_AbsPosSet(0x10, 0x10, 0x260, 0x1A0, width, height, this->auto_pos, &px, &py);
@@ -1485,6 +1477,7 @@ void ClsMes::DrawMesWin() {
         return;
     }
 
+    int dark = 0;
     if ((this->blink / 0x1C) % 2 != 0) {
         this->clut[100] = 0x80222280;
         dark = 0;
@@ -1516,7 +1509,7 @@ void ClsMes::DrawMesWin() {
         const int line_count = std::clamp(this->win_line_num, 0, MES_WIN_LINE_MAX);
         const int first_line = std::clamp(this->text_from, 0, line_count);
         const int end_line = std::clamp(this->text_no, first_line, line_count);
-        for (index = first_line; index < end_line; index++) {
+        for (int index = first_line; index < end_line; index++) {
             if (MesAbsDrawOff != 0) {
                 continue;
             }
@@ -1532,34 +1525,27 @@ void ClsMes::DrawMesWin() {
             }
 
             int gaiji_index = code + 0x300;
-            int u = GaijiDataTbl[gaiji_index][GAIJI_U];
+            int u = GaijiDataTbl[gaiji_index][kGaijiU];
 
-            if (code >= -0x2DF && code < -0x251) {
-                if (this->narrow_gaiji_set != 1) {
-                    if (this->narrow_gaiji_set == 2) {
-                        u += 0x80;
-                    } else if (this->char_width < 0xB) {
-                        u += 0x80;
-                    }
-                }
+            if (code >= -0x2DF && code < -0x251 && this->narrow_gaiji_set != 1 &&
+                (this->narrow_gaiji_set == 2 || this->char_width < 0xB)) {
+                u += 0x80;
             }
 
-            int v = GaijiDataTbl[gaiji_index][GAIJI_V];
-            int glyph_width = GaijiDataTbl[gaiji_index][GAIJI_WIDTH];
-            int glyph_height = GaijiDataTbl[gaiji_index][GAIJI_HEIGHT];
-            int dx = (this->char_width * GaijiDataTbl[gaiji_index][GAIJI_CELLS] - glyph_width) / 2;
+            int v = GaijiDataTbl[gaiji_index][kGaijiV];
+            int glyph_width = GaijiDataTbl[gaiji_index][kGaijiWidth];
+            int glyph_height = GaijiDataTbl[gaiji_index][kGaijiHeight];
+            int dx = (this->char_width * GaijiDataTbl[gaiji_index][kGaijiCells] - glyph_width) / 2;
             int dy = (this->char_height - glyph_height) / 2;
 
-            dx += GaijiDataTbl[gaiji_index][GAIJI_X_OFF];
+            dx += GaijiDataTbl[gaiji_index][kGaijiXOff];
 
-            if (this->narrow_gaiji != 0) {
-                if (GaijiDataTbl[gaiji_index][GAIJI_CODE] == -0x2BD ||
-                    GaijiDataTbl[gaiji_index][GAIJI_CODE] == -0x2BA) {
-                    dx -= 3;
-                }
+            if (this->narrow_gaiji != 0 && (GaijiDataTbl[gaiji_index][kGaijiCode] == -0x2BD ||
+                                            GaijiDataTbl[gaiji_index][kGaijiCode] == -0x2BA)) {
+                dx -= 3;
             }
 
-            dy += GaijiDataTbl[gaiji_index][GAIJI_Y_OFF];
+            dy += GaijiDataTbl[gaiji_index][kGaijiYOff];
 
             if (this->char_height == 0x14) {
                 dy += 1;
@@ -1567,7 +1553,7 @@ void ClsMes::DrawMesWin() {
 
             int row = this->win_line[index].y / this->char_height;
 
-            if (row < 0 || row >= static_cast<int>(std::size(this->line_pos)) || this->line_pos[row].x < 0 ||
+            if (row < 0 || std::cmp_greater_equal(row, std::size(this->line_pos)) || this->line_pos[row].x < 0 ||
                 this->line_pos[row].y < 0) {
                 int      line_x = this->win_line[index].x + this->text_x;
                 int      line_y = this->win_line[index].y + this->text_y;
@@ -1622,22 +1608,19 @@ void ClsMes::DrawMesWin() {
         text_pass(!letters_ready && TtfReady());
     }
 
-    if (this->page_arrow != 0) {
-        if ((this->text_no >= this->text_len && this->cursor_row < 0) || this->waiting != 0) {
-            if ((this->blink >> 4) % 2 != 0) {
-                texture = draw2d::Get().find_texture("syst04");
+    if (this->page_arrow != 0 &&
+        ((this->text_no >= this->text_len && this->cursor_row < 0) || this->waiting != 0) &&
+        (this->blink >> 4) % 2 != 0) {
+        texture = draw2d::Get().find_texture("syst04");
 
-                int screen_x = this->text_x + (this->char_width * this->text_columns >> 1) - 8;
-                int screen_y = this->text_y + this->char_height * this->text_rows;
+        int screen_x = this->text_x + (this->char_width * this->text_columns >> 1) - 8;
+        int screen_y = this->text_y + this->char_height * this->text_rows;
 
-                CRect_i_ screen(screen_x + offset_x, screen_y + offset_y, 0x10, 0x10);
-                CRect_i_ texel(0, 0, 0x10, 0x10);
+        CRect_i_ screen(screen_x + offset_x, screen_y + offset_y, 0x10, 0x10);
+        CRect_i_ texel(0, 0, 0x10, 0x10);
 
-                if (MesAbsDrawOff == 0) {
-                    set2DSprite(Vif1Packet, texture, screen, texel,
-                                this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
-                }
-            }
+        if (MesAbsDrawOff == 0) {
+            set2DSprite(Vif1Packet, texture, screen, texel, std::min(this->edge_alpha, 0x80));
         }
     }
 
@@ -1652,7 +1635,7 @@ void ClsMes::DrawMesWin() {
 
         if (MesAbsDrawOff == 0) {
             set2DSprite(Vif1Packet, texture, screen, texel,
-                        this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
+                        std::min(this->edge_alpha, 0x80));
         }
     }
 
@@ -1664,7 +1647,7 @@ void ClsMes::DrawMesWin() {
         texture = draw2d::Get().find_texture("syst04");
 
         int       screen_x = this->text_x + (this->char_width * this->text_columns >> 1) - 8 + offset_x;
-        const int alpha = this->edge_alpha < 0x80 ? this->edge_alpha : 0x80;
+        const int alpha = std::min(this->edge_alpha, 0x80);
 
         if (g_choice_more_above) {
             int screen_y = this->text_y + this->char_height * g_choice_first_row - 0x10;
@@ -1703,7 +1686,7 @@ void ClsMes::DrawMesWin() {
 
         if (MesAbsDrawOff == 0) {
             set2DSprite(Vif1Packet, texture, screen, texel,
-                        this->edge_alpha < 0x80 ? this->edge_alpha : 0x80);
+                        std::min(this->edge_alpha, 0x80));
         }
     } else {
         this->cursor_y = 0;

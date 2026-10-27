@@ -1,8 +1,9 @@
 #include "credits_text.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
-#include <cstring>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -254,10 +255,11 @@ constexpr CreditBar kCreditBars[] = {
 // The lettering's colour, and its shadow: black right behind the letters, fading away from them, measured round the
 // painted letters as 0.75 strong a page pixel out, then 0.5, 0.32, 0.14 and 0.05. Each word's shadow is painted as one,
 // at the page's own resolution (it is soft, so no finer is needed), and the letters over it at the screen's.
-constexpr unsigned char kInk[3] = {217, 204, 130};
-constexpr float         kShadowAlpha = 0.7f;
-constexpr float         kShadowGrow = 0.3f;
-constexpr float         kShadowSoft = 6.5f;
+constexpr std::array<unsigned char, 3> kInk = {217, 204, 130};
+constexpr std::array<unsigned char, 3> kWhite = {255, 255, 255};
+constexpr float                        kShadowAlpha = 0.7f;
+constexpr float                        kShadowGrow = 0.3f;
+constexpr float                        kShadowSoft = 6.5f;
 
 // The regular dialogue set, as the credits are lettered, its letters kGap ems apart and a space kSpace ems.
 constexpr int   kSlot = 1;
@@ -281,19 +283,27 @@ constexpr Accent kAccents[] = {
     {U'ñ', U'n', U'~' },
 };
 
+size_t SequenceLength(unsigned char lead) {
+    if (lead < 0x80) {
+        return 1;
+    }
+    if (lead < 0xE0) {
+        return 2;
+    }
+    return lead < 0xF0 ? 3 : 4;
+}
+
 std::u32string Decode(std::string_view utf8) {
     std::u32string out;
-    for (size_t i = 0; i < utf8.size();) {
-        const unsigned char c = static_cast<unsigned char>(utf8[i]);
-        const int           n = c < 0x80 ? 1 : c < 0xE0 ? 2
-                                           : c < 0xF0   ? 3
-                                                        : 4;
-        char32_t            ch = n == 1 ? c : c & (0x3F >> (n - 1));
-        for (int k = 1; k < n && i + static_cast<size_t>(k) < utf8.size(); k++) {
-            ch = (ch << 6) | (static_cast<unsigned char>(utf8[i + static_cast<size_t>(k)]) & 0x3F);
+    for (size_t pos = 0; pos < utf8.size();) {
+        const auto   lead = static_cast<unsigned char>(utf8[pos]);
+        const size_t length = SequenceLength(lead);
+        char32_t     ch = length == 1 ? lead : lead & (0x3F >> (length - 1));
+        for (size_t k = 1; k < length && pos + k < utf8.size(); k++) {
+            ch = (ch << 6) | (static_cast<unsigned char>(utf8[pos + k]) & 0x3F);
         }
         out.push_back(ch);
-        i += static_cast<size_t>(n);
+        pos += length;
     }
     return out;
 }
@@ -341,10 +351,12 @@ struct Layers {
     std::vector<gfx::Vertex2D> shadow, ink;
 };
 
-void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x, float y, float w, float h, const unsigned char (&rgb)[3],
-          int alpha) {
-    const u_char r = static_cast<u_char>(rgb[0] / 2), g = static_cast<u_char>(rgb[1] / 2), b = static_cast<u_char>(rgb[2] / 2);
-    const u_char a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
+void Quad(std::vector<gfx::Vertex2D> &out, const capfont::Glyph &glyph, float x, float y, float w, float h,
+          const std::array<unsigned char, 3> &rgb, int alpha) {
+    const auto r = static_cast<u_char>(rgb[0] / 2);
+    const auto g = static_cast<u_char>(rgb[1] / 2);
+    const auto b = static_cast<u_char>(rgb[2] / 2);
+    const auto a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
     out.push_back(draw2d::Vertex(x, y, 0.0f, glyph.u0, glyph.v0, r, g, b, a));
     out.push_back(draw2d::Vertex(x + w, y, 0.0f, glyph.u1, glyph.v0, r, g, b, a));
     out.push_back(draw2d::Vertex(x + w, y + h, 0.0f, glyph.u1, glyph.v1, r, g, b, a));
@@ -374,14 +386,14 @@ void LayLine(const CreditLine &line, float origin_x, float origin_y, int alpha, 
     // The line the letters sit on: where most of those that sit on it end.
     std::vector<float> bottoms;
     for (size_t i = 0; i < laid.fills.size(); i++) {
-        if (kOffTheLine.find(laid.chars[i]) == std::u32string_view::npos) {
+        if (!kOffTheLine.contains(laid.chars[i])) {
             bottoms.push_back(laid.fills[i].y_offset + laid.fills[i].height);
         }
     }
-    std::sort(bottoms.begin(), bottoms.end());
+    std::ranges::sort(bottoms);
     const float baseline = bottoms.empty() ? laid.bottom : bottoms[bottoms.size() / 2];
     auto        lift = [&](size_t i) {
-        const bool descends = kOffTheLine.find(laid.chars[i]) != std::u32string_view::npos;
+        const bool descends = kOffTheLine.contains(laid.chars[i]);
         return descends ? 0.0f : baseline - (laid.fills[i].y_offset + laid.fills[i].height);
     };
 
@@ -406,23 +418,25 @@ void LayLine(const CreditLine &line, float origin_x, float origin_y, int alpha, 
     paint.shadow_grow = kShadowGrow;
     paint.shadow_soft = kShadowSoft;
     paint.slot = kSlot;
-    const float page_x = mapping.scale_x, page_y = mapping.scale_y;
+    const float page_x = mapping.scale_x;
+    const float page_y = mapping.scale_y;
     for (size_t first = 0; first < laid.fills.size();) {
         size_t last = first;
         while (last < laid.fills.size() && laid.words[last] == laid.words[first]) {
             last++;
         }
-        const float                        word_x = ink_x(first), word_y = origin_y * rows;
+        const float                        word_x = ink_x(first);
+        const float                        word_y = origin_y * rows;
         std::vector<capfont::PlacedLetter> letters;
         for (size_t i = first; i < last; i++) {
             const capfont::Glyph &fill = laid.fills[i];
-            const float           x = (ink_x(i) - word_x), y = (ink_y(i, fill.y_offset) - word_y) / rows;
-            const float           w = fill.width * kx / page_x, h = fill.height * ky / page_y / rows;
-            const Accent         *accent = nullptr;
-            for (const Accent &a : kAccents) {
-                accent = a.ch == laid.chars[i] ? &a : accent;
-            }
-            capfont::Glyph base;
+            const float           x = ink_x(i) - word_x;
+            const float           y = (ink_y(i, fill.y_offset) - word_y) / rows;
+            const float           w = fill.width * kx / page_x;
+            const float           h = fill.height * ky / page_y / rows;
+            const auto           *found = std::ranges::find(kAccents, laid.chars[i], &Accent::ch);
+            const Accent         *accent = found != std::ranges::end(kAccents) ? found : nullptr;
+            capfont::Glyph        base;
             if (accent != nullptr && capfont::GetStretchedGlyph(accent->base, em_px, 0.0f, stretch64, false, base) && base.height > 0) {
                 // The letter at the bottom of the composed one's ink, its mark in the rest above it.
                 const float base_h = base.height * ky / page_y / rows;
@@ -435,17 +449,19 @@ void LayLine(const CreditLine &line, float origin_x, float origin_y, int alpha, 
         }
         capfont::Glyph shadow;
         if (!letters.empty() && capfont::GetPaintedWord(letters, paint, shadow)) {
-            static constexpr unsigned char kGrey[3] = {255, 255, 255};
             Quad(layers.shadow, shadow, word_x + shadow.x_offset, word_y + shadow.y_offset * rows, shadow.width, shadow.height * rows,
-                 kGrey, alpha);
+                 kWhite, alpha);
         }
         first = last;
     }
 }
 
 // An untextured rectangle in a colour, for an underline and its halo.
-void Rect(std::vector<gfx::Vertex2D> &out, float x0, float y0, float x1, float y1, const unsigned char (&rgb)[3], int alpha) {
-    const u_char r = rgb[0], g = rgb[1], b = rgb[2], a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
+void Rect(std::vector<gfx::Vertex2D> &out, float x0, float y0, float x1, float y1, const std::array<unsigned char, 3> &rgb, int alpha) {
+    const u_char r = rgb[0];
+    const u_char g = rgb[1];
+    const u_char b = rgb[2];
+    const auto   a = static_cast<u_char>(std::clamp(alpha, 0, 0x80));
     out.push_back(draw2d::Vertex(x0, y0, 0.0f, 0, 0, r, g, b, a));
     out.push_back(draw2d::Vertex(x1, y0, 0.0f, 0, 0, r, g, b, a));
     out.push_back(draw2d::Vertex(x1, y1, 0.0f, 0, 0, r, g, b, a));
@@ -456,18 +472,23 @@ void Rect(std::vector<gfx::Vertex2D> &out, float x0, float y0, float x1, float y
 // on the screen to their own whole pixel, so they meet a pixel or two apart, and a line drawn a part in each would show
 // the seam.
 bool Holds(const CRect_i_ &texel, int left, int right, int top, int bottom) {
-    const int x = (left + right) / 2, y = (top + bottom) / 2;
+    const int x = (left + right) / 2;
+    const int y = (top + bottom) / 2;
     return x >= texel.x && x < texel.x + texel.width && y >= texel.y && y < texel.y + texel.height;
 }
 
 } // namespace
 
 bool DrawBand(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
-    if (texture == nullptr || std::strncmp(texture, "endname", 7) != 0 || texture[7] < '1' || texture[7] > '4' || texture[8] != 0 ||
-        texel.width <= 0 || texel.height <= 0 || !caption::ThinReady()) {
+    if (texture == nullptr) {
         return false;
     }
-    const int   page = texture[7] - '0';
+    const std::string_view name = texture;
+    if (name.size() != 8 || !name.starts_with("endname") || name[7] < '1' || name[7] > '4' || texel.width <= 0 || texel.height <= 0 ||
+        !caption::ThinReady()) {
+        return false;
+    }
+    const int   page = name[7] - '0';
     const float sx = static_cast<float>(screen.width) / static_cast<float>(texel.width);
     const float sy = static_cast<float>(screen.height) / static_cast<float>(texel.height);
     auto        at_x = [&](float page_x) { return static_cast<float>(screen.x) + (page_x - static_cast<float>(texel.x)) * sx; };
@@ -486,11 +507,10 @@ bool DrawBand(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel
     shade.shadow_soft = kShadowSoft;
     shade.slot = kSlot;
     capfont::Paint dot = {0.0f, 0.0f, 0.0f, 0, 0.0f, {}, {}, {}};
-    for (unsigned char (*colour)[3] : {&dot.fill, &dot.body, &dot.ring}) {
-        std::copy_n(kInk, 3, *colour);
-    }
+    std::ranges::copy(kInk, std::begin(dot.fill));
+    std::ranges::copy(kInk, std::begin(dot.body));
+    std::ranges::copy(kInk, std::begin(dot.ring));
     dot.slot = kSlot;
-    static constexpr unsigned char kWhite[3] = {255, 255, 255};
     // Made again, once, if the atlas started over while the letters were fetched.
     for (int attempt = 0; attempt < 2; attempt++) {
         const unsigned generation = capfont::Generation();
@@ -506,8 +526,10 @@ bool DrawBand(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel
             if (bar.page != page || !Holds(texel, bar.left, bar.right, bar.top, bar.bottom)) {
                 continue;
             }
-            const float    x0 = at_x(static_cast<float>(bar.left)), x1 = at_x(static_cast<float>(bar.right));
-            const float    y0 = at_y(static_cast<float>(bar.top)), y1 = at_y(static_cast<float>(bar.bottom));
+            const float    x0 = at_x(static_cast<float>(bar.left));
+            const float    x1 = at_x(static_cast<float>(bar.right));
+            const float    y0 = at_y(static_cast<float>(bar.top));
+            const float    y1 = at_y(static_cast<float>(bar.bottom));
             const float    h = y1 - y0;
             capfont::Glyph glyph;
             if (capfont::GetPaintedGlyph(U'-', -1, x1 - x0, h, shade, glyph)) {
