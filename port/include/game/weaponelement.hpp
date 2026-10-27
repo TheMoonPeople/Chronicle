@@ -9,11 +9,15 @@
  * Declares the sparks that an element-charged weapon throws off.
  */
 
-/** Number of sparks that one charged weapon can throw off. */
-#define WEAPON_ELEMENT_SPARK_MAX 32
+/**
+ * Number of sparks that one charged weapon can throw off.
+ */
+inline constexpr int WEAPON_ELEMENT_SPARK_MAX = 32;
 
-/** Number of bolts that the thunder element can arc between its sparks. */
-#define WEAPON_ELEMENT_BOLT_MAX 16
+/**
+ * Number of bolts that the thunder element can arc between its sparks.
+ */
+inline constexpr int WEAPON_ELEMENT_BOLT_MAX = 16;
 
 /**
  * Names the element that a weapon is charged with, which picks both the way
@@ -65,177 +69,103 @@ public:
 
     /**
      * Frees every spark slot, so that the cloud throws nothing.
-     *
-     * @mangled Initialize__14CWeaponElementFv
-     * @address 0x1B7800
-     * @size 0x3C
      */
     void Initialize();
 
     /**
      * Charges the cloud with one element and starts its first sparks.
-     *
-     * @mangled Set__14CWeaponElementFPA4_fPffif
-     * @address 0x1B7840
-     * @size 0xF4
      */
     void Set(sceVu0FVECTOR *origin, float *position, float power, int kind, float spread);
 
     /**
      * Moves the cloud one step, by the way the charged element calls for.
-     *
-     * @mangled Step__14CWeaponElementFv
-     * @address 0x1B7940
-     * @size 0xB0
      */
     void Step();
 
     /**
      * Draws the cloud, by the way the charged element calls for.
-     *
-     * @mangled Draw__14CWeaponElementFv
-     * @address 0x1B79F0
-     * @size 0xB0
      */
     void Draw();
 
     /**
      * Starts a cloud of sparks that rise slowly away from the blade.
-     *
-     * @mangled Init_Holy__14CWeaponElementFPf
-     * @address 0x1B7AA0
-     * @size 0x340
      */
     void Init_Holy(float *position);
 
     /**
      * Raises every holy spark, and starts free slots again while the budget lasts.
-     *
-     * @mangled Step_Holy__14CWeaponElementFv
-     * @address 0x1B7DE0
-     * @size 0x4AC
      */
     void Step_Holy();
 
     /**
      * Draws every holy spark that still carries a blend.
-     *
-     * @mangled Draw_Holy__14CWeaponElementFv
-     * @address 0x1B8290
-     * @size 0x1EC
      */
     void Draw_Holy();
 
     /**
      * Starts a cloud of sparks that fall away from the blade.
-     *
-     * @mangled Init_Cold__14CWeaponElementFPf
-     * @address 0x1B8480
-     * @size 0x340
      */
     void Init_Cold(float *position);
 
     /**
      * Drops every cold spark, and starts free slots again while the budget lasts.
-     *
-     * @mangled Step_Cold__14CWeaponElementFv
-     * @address 0x1B87C0
-     * @size 0x4E0
      */
     void Step_Cold();
 
     /**
      * Draws every cold spark that still carries a blend.
-     *
-     * @mangled Draw_Cold__14CWeaponElementFv
-     * @address 0x1B8CA0
-     * @size 0x1EC
      */
     void Draw_Cold();
 
     /**
      * Starts a cloud of sparks that blow away on a rising wind, each spinning.
-     *
-     * @mangled Init_Wind__14CWeaponElementFPf
-     * @address 0x1B8E90
-     * @size 0x434
      */
     void Init_Wind(float *position);
 
     /**
      * Blows every wind spark along, turning it, and starts free slots again.
-     *
-     * @mangled Step_Wind__14CWeaponElementFv
-     * @address 0x1B92D0
-     * @size 0x5AC
      */
     void Step_Wind();
 
     /**
      * Draws every wind spark, turned about the vertical by the spin it carries.
-     *
-     * @mangled Draw_Wind__14CWeaponElementFv
-     * @address 0x1B9880
-     * @size 0x234
      */
     void Draw_Wind();
 
     /**
      * Starts a cloud of sparks that drift upward off the blade.
-     *
-     * @mangled Init_Fire__14CWeaponElementFPf
-     * @address 0x1B9AC0
-     * @size 0x354
      */
     void Init_Fire(float *position);
 
     /**
      * Raises every fire spark, and starts free slots again while the budget lasts.
-     *
-     * @mangled Step_Fire__14CWeaponElementFv
-     * @address 0x1B9E20
-     * @size 0x4E0
      */
     void Step_Fire();
 
     /**
      * Draws every fire spark that still carries a blend.
-     *
-     * @mangled Draw_Fire__14CWeaponElementFv
-     * @address 0x1BA300
-     * @size 0x1E8
      */
     void Draw_Fire();
 
     /**
      * Starts a cloud of sparks that fly apart, and the bolts that arc between them.
-     *
-     * @mangled Init_Thunder__14CWeaponElementFPf
-     * @address 0x1BA4F0
-     * @size 0x528
      */
     void Init_Thunder(float *position);
 
     /**
      * Carries every thunder spark along its own line, and gives the bolts new ends.
-     *
-     * @mangled Step_Thunder__14CWeaponElementFv
-     * @address 0x1BAA20
-     * @size 0x2D8
      */
     void Step_Thunder();
 
     /**
      * Draws every thunder spark, then a bolt across each pair the charge picked.
-     *
-     * @mangled Draw_Thunder__14CWeaponElementFv
-     * @address 0x1BAD00
-     * @size 0x35C
      */
     void Draw_Thunder();
 };
 
 STATIC_ASSERT(sizeof(CWeaponElement) == 0x7C0);
 
-/** Elemental weapon effects the dungeon can run. */
-extern "C" CWeaponElement CWeaponElFx[4];
+/**
+ * Elemental weapon effects the dungeon can run.
+ */
+extern CWeaponElement CWeaponElFx[4];

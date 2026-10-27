@@ -1,9 +1,12 @@
 #include "weaponlevelup.hpp"
 
+#include <array>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <print>
+#include <string>
+#include <string_view>
 
 #include "battlemenu.hpp"
 #include "clsmes.hpp"
@@ -26,25 +29,36 @@ CDataAlloc2<1> MenuEffectCashBuffer(-1);
 
 CWeaponLevelUp MenuWepLevelUp;
 
-/** Timer that ages time-sensitive inventory items while the menus run. */
 CMenuItemStep ItemVolumeStep;
 
+namespace {
+
+/** Effect file each WepEffectKind loads, indexing the name tables below. */
+constexpr std::array<int, WEP_EFFECT_KIND_COUNT> kEffectFileNo = {0, 1, 2, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+
+/** Sound effect set each WepEffectKind loads, or -1 for none. */
+constexpr std::array<int, WEP_EFFECT_KIND_COUNT> kEffectSeNo = {25, 26, 28, -1, -1, -1, -1, 20, 20, -1, 20, 20, 20, 20};
+
+constexpr std::array<std::string_view, 5> kEffectFileNames = {"wlevelup.pak", "s_break.pak", "buildup.chr", "menu_ex.chr", "w_recover.chr"};
+constexpr std::array<std::string_view, 5> kEffectImageNames = {"wlevelup", "s_break", "buildup", "menu_ex", "w_recover"};
+constexpr std::array<std::string_view, 5> kEffectConfigNames = {"wlevelup", "info", "buildup", "info", "w_recover"};
+
+} // namespace
+
 void AttachMentValuePlus(ATTACH_LIST *total, ATTACH_LIST *attach, float scale) {
-    WEAPON_DATA *weapon_data;
-    int          i;
-    int          sum;
+    int sum = 0;
 
-    weapon_data = GetWeaponData(total->sphere_weapon_no);
+    WEAPON_DATA *weapon_data = GetWeaponData(total->sphere_weapon_no);
 
-    int limit[4] = {999, 99, 99, 999};
+    std::array<int, 4> limit = {999, 99, 99, 999};
 
-    if (weapon_data != NULL) {
+    if (weapon_data != nullptr) {
         limit[0] = weapon_data->attack_max;
         limit[3] = weapon_data->magic_max;
     }
 
-    for (i = 0; i < 4; i++) {
-        sum = total->status[i] + (s16) (int) ((float) attach->status[i] * scale);
+    for (int i = 0; i < 4; i++) {
+        sum = total->status[i] + static_cast<s16>(static_cast<int>(static_cast<float>(attach->status[i]) * scale));
 
         if (sum >= limit[i]) {
             total->status[i] = limit[i];
@@ -53,8 +67,8 @@ void AttachMentValuePlus(ATTACH_LIST *total, ATTACH_LIST *attach, float scale) {
         }
     }
 
-    for (i = 0; i < 5; i++) {
-        sum = total->elem[i] + (int) ((float) attach->elem[i] * scale);
+    for (int i = 0; i < 5; i++) {
+        sum = total->elem[i] + static_cast<int>(static_cast<float>(attach->elem[i]) * scale);
 
         if (sum >= 99) {
             total->elem[i] = 99;
@@ -63,8 +77,8 @@ void AttachMentValuePlus(ATTACH_LIST *total, ATTACH_LIST *attach, float scale) {
         }
     }
 
-    for (i = 0; i < 10; i++) {
-        sum = total->vs_monster[i] + (int) ((float) attach->vs_monster[i] * scale);
+    for (int i = 0; i < 10; i++) {
+        sum = total->vs_monster[i] + static_cast<int>(static_cast<float>(attach->vs_monster[i]) * scale);
 
         if (sum >= 99) {
             total->vs_monster[i] = 99;
@@ -74,36 +88,30 @@ void AttachMentValuePlus(ATTACH_LIST *total, ATTACH_LIST *attach, float scale) {
     }
 }
 
-void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int unused) {
-    ATTACH_LIST  total;
-    int          i;
-    int          synth_count;
-    int          flags;
-    WEAPON_DATA *weapon_data;
-    ATTACH_LIST *attach;
-    int          hole;
-    int          has_double;
-    int          sum;
-    float        scale;
+void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int /*unused*/) {
+    ATTACH_LIST total{};
+    int         sum = 0;
 
-    if (src == NULL) {
+    if (src == nullptr) {
         return;
     }
 
-    memset(&total, 0, 0x20);
-    memset(dst, 0, 0xF8);
-    synth_count = 0;
-    flags = 1;
+    memset(dst, 0, sizeof(*dst));
+    int synth_count = 0;
+    int flags = 1;
     flags |= src->flags;
-    weapon_data = GetWeaponData(src->item_no);
+    WEAPON_DATA *weapon_data = GetWeaponData(src->item_no);
+
+    // The inner loops share the level counter, so each pass leaves it at 10.
+    int i = 0;
 
     for (i = 0; i < levels; i++) {
         for (i = 0; i < 6; i++) {
             if (weapon_data->hole[i] > 0) {
-                attach = &src->attach[i];
+                ATTACH_LIST *attach = &src->attach[i];
 
                 if (attach->item_no >= ITEM_ATTACH_START) {
-                    scale = 1.0f;
+                    float scale = 1.0f;
 
                     if (src->attach_kind[i] == 3) {
                         scale = 2.0f;
@@ -122,8 +130,8 @@ void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int 
             }
         }
 
-        memset(dst->attach, 0, 0xC0);
-        memcpy(dst, src, 0xF8);
+        memset(dst->attach, 0, sizeof(dst->attach));
+        memcpy(dst, src, sizeof(*dst));
         dst->attack += total.status[0] + 1;
 
         if (dst->attack > weapon_data->attack_max) {
@@ -149,7 +157,7 @@ void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int 
         }
 
         for (i = 0; i < 5; i++) {
-            sum = (s8) dst->elem[i] + total.elem[i];
+            sum = dst->elem[i] + total.elem[i];
 
             if (sum >= 99) {
                 dst->elem[i] = 99;
@@ -174,15 +182,15 @@ void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int 
             dst->durability = 99;
         }
 
-        has_double = 0;
+        bool has_double = false;
 
-        for (hole = 0; hole < 6; hole++) {
+        for (int hole = 0; hole < 6; hole++) {
             if (weapon_data->hole[hole] > 0 && weapon_data->hole[hole] != 2) {
-                if (has_double != 0) {
+                if (has_double) {
                     dst->attach_kind[hole] = 0;
                 } else if (rand() % 50 == 5) {
                     dst->attach_kind[hole] = 3;
-                    has_double = 1;
+                    has_double = true;
                 } else {
                     dst->attach_kind[hole] = 0;
                 }
@@ -195,36 +203,28 @@ void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int 
 }
 
 void CWeaponLevelUp::CMenuEffectDataLoad(CWeaponLevelUp *load_buffer, int kind) {
-    int size;
-    int file_no;
-    int se_no;
+    int size = 0;
 
-    effect_buffer = (u_long128 *) load_buffer;
+    effect_buffer = reinterpret_cast<u_long128 *>(load_buffer);
     effect_buffer = MenuCalcBufAlignment(effect_buffer);
-    {
-        char *file_names[5] = {"wlevelup.pak", "s_break.pak", "buildup.chr", "menu_ex.chr", "w_recover.chr"};
-        char  path[0x40] = "commenu/effect/";
-        char  file_table[WEP_EFFECT_KIND_COUNT] = {0, 1, 2, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
-        s16   se_table[WEP_EFFECT_KIND_COUNT] = {25, 26, 28, -1, -1, -1, -1, 20, 20, -1, 20, 20, 20, 20};
 
-        file_no = file_table[kind];
-        se_no = se_table[kind];
+    int se_no = kEffectSeNo[kind];
 
-        if (kind == WEP_EFFECT_BUILDUP && IsLastWeapon(buildup_weapon_no) != 0) {
-            se_no = 21;
-            printf("last weapon\n");
-        }
-
-        strcat(path, file_names[file_no]);
-        StartReadBG();
-        LoadFileBG(path, effect_buffer, &size);
+    if (kind == WEP_EFFECT_BUILDUP && IsLastWeapon(buildup_weapon_no) != 0) {
+        se_no = 21;
+        std::println("last weapon");
     }
+
+    std::string path = "commenu/effect/";
+    path += kEffectFileNames[kEffectFileNo[kind]];
+    StartReadBG();
+    LoadFileBG(path.data(), effect_buffer, &size);
 
     if (0 <= se_no) {
         effect_buffer += (size >> 4) + 1;
         effect_buffer = MenuCalcBufAlignment(effect_buffer);
-        SndSPSeLoadBG(se_no, (u_int *) effect_buffer, &size);
-        printf("effect snd size = %d\n", size);
+        SndSPSeLoadBG(se_no, reinterpret_cast<u_int *>(effect_buffer), &size);
+        std::println("effect snd size = {}", size);
         effect_buffer += (size >> 4) + 1;
     }
 
@@ -232,11 +232,12 @@ void CWeaponLevelUp::CMenuEffectDataLoad(CWeaponLevelUp *load_buffer, int kind) 
 }
 
 void CWeaponLevelUp::Initialize() {
-    memset(this, -1, 0xF8);
-    memset(&status_item_no, 0, 0x20);
-    effect.frame = NULL;
-    effect_buffer = NULL;
-    weapon = NULL;
+    memset(&preview, -1, sizeof(preview));
+    // The status fields through unk_117 form one ATTACH_LIST-shaped record.
+    memset(&status_item_no, 0, sizeof(ATTACH_LIST));
+    effect.frame = nullptr;
+    effect_buffer = nullptr;
+    weapon = nullptr;
     reserved_word = 0;
     effect_active = false;
     effect_timer = -1.0f;
@@ -253,22 +254,11 @@ void CWeaponLevelUp::Initialize() {
 }
 
 void CWeaponLevelUp::SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block) {
-    ATTACH_LIST  total;
-    int          i;
-    WEAPON_DATA *weapon_data;
-    int          flags;
-    ATTACH_LIST *attach;
-    int          j;
-    int          icon_count;
-    int          slot;
-    int          sum;
-    int          has_double;
-    int          hole;
-    int          option;
-    float        scale;
+    ATTACH_LIST total{};
+    int         sum = 0;
 
-    if (have == NULL) {
-        printf("src is NULL\n");
+    if (have == nullptr) {
+        std::println("src is NULL");
         return;
     }
 
@@ -279,18 +269,17 @@ void CWeaponLevelUp::SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, C
     synthesis_count = 0;
     chara = character;
     weapon = have;
-    memcpy(&preview, weapon, 0xF8);
-    weapon_data = GetWeaponData(preview.item_no);
-    memset(&total, 0, 0x20);
-    flags = 1;
+    memcpy(&preview, weapon, sizeof(preview));
+    WEAPON_DATA *weapon_data = GetWeaponData(preview.item_no);
+    int          flags = 1;
     flags |= preview.flags;
 
-    for (i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++) {
         if (weapon_data->hole[i] > 0) {
-            attach = &preview.attach[i];
+            ATTACH_LIST *attach = &preview.attach[i];
 
             if (preview.attach[i].item_no >= ITEM_ATTACH_START) {
-                scale = 1.0f;
+                float scale = 1.0f;
 
                 if (preview.attach_kind[i] == 3) {
                     scale = 2.0f;
@@ -335,7 +324,7 @@ void CWeaponLevelUp::SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, C
         preview.magic = weapon_data->magic_max;
     }
 
-    for (j = 0; j < 5; j++) {
+    for (int j = 0; j < 5; j++) {
         sum = preview.elem[j] + total.elem[j];
 
         if (sum >= 99) {
@@ -345,7 +334,7 @@ void CWeaponLevelUp::SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, C
         }
     }
 
-    for (j = 0; j < 10; j++) {
+    for (int j = 0; j < 10; j++) {
         sum = preview.vs_monster[j] + total.vs_monster[j];
 
         if (sum >= 99) {
@@ -359,11 +348,11 @@ void CWeaponLevelUp::SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, C
         preview.durability = 99;
     }
 
-    memset(attachment_icons, 0, 0xA);
-    memset(attachment_values, 0, 0xA);
-    icon_count = 0;
+    memset(attachment_icons, 0, sizeof(attachment_icons));
+    memset(attachment_values, 0, sizeof(attachment_values));
+    int icon_count = 0;
 
-    for (slot = 0; slot < 5; slot++) {
+    for (int slot = 0; slot < 5; slot++) {
         if (preview.attach[slot].item_no >= ITEM_ATTACH_START) {
             attachment_icons[icon_count] = preview.attach[slot].item_no;
             attachment_values[icon_count] = 0;
@@ -380,29 +369,29 @@ void CWeaponLevelUp::SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, C
         }
     }
 
-    memset(weapon->attach, 0, 0xC0);
-    memset(preview.attach, 0, 0xC0);
+    memset(weapon->attach, 0, sizeof(weapon->attach));
+    memset(preview.attach, 0, sizeof(preview.attach));
 
-    for (j = 0; j < 6; j++) {
-        weapon->attach[j].item_no = -1;
+    for (ATTACH_LIST &attach : weapon->attach) {
+        attach.item_no = -1;
     }
 
-    has_double = 0;
+    bool has_double = false;
 
-    for (hole = 0; hole < 5; hole++) {
+    for (int hole = 0; hole < 5; hole++) {
         if (weapon_data->hole[hole] > 0 && weapon_data->hole[hole] != 2) {
-            if (has_double != 0) {
+            if (has_double) {
                 preview.attach_kind[hole] = 0;
             } else if (rand() % 50 == 5) {
                 preview.attach_kind[hole] = 3;
-                has_double = 1;
+                has_double = true;
             } else {
                 preview.attach_kind[hole] = 0;
             }
         }
     }
 
-    memcpy(weapon, &preview, 0xF8);
+    memcpy(weapon, &preview, sizeof(*weapon));
     effect_state = WEP_EFFECT_STATE_LEVELUP_LOAD;
 }
 
@@ -443,18 +432,11 @@ void CWeaponLevelUp::SetLevelUpWeaponData() {
 }
 
 void CWeaponLevelUp::SetStatusBreak(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block) {
-    ATTACH_LIST     total;
-    int             page;
-    int             i;
-    int             slot_no;
-    ATTACH_LIST    *items;
-    s16             flags;
-    ATTACH_LIST    *slot;
-    float           scale;
-    CDngStatusData *dng_status;
+    ATTACH_LIST total{};
+    int         page = 0;
 
-    if (have == NULL) {
-        printf("src is NULL\n");
+    if (have == nullptr) {
+        std::println("src is NULL");
         return;
     }
 
@@ -465,37 +447,32 @@ void CWeaponLevelUp::SetStatusBreak(WEAPON_HAVE *have, CCharacter *character, CW
     CMenuEffectDataLoad(load_buffer, 1);
     chara = character;
     weapon = have;
-    memset(&status_item_no, 0, 0x20);
+    memset(&status_item_no, 0, sizeof(ATTACH_LIST));
     status_item_no = ITEM_ATTACH_SYNTHESIS_SPHERE;
     status_weapon_no = weapon->item_no;
     status_weapon_level = weapon->level;
 
-    s16 base_stats[4] = {0, 0, 0, 0};
-    base_stats[0] = weapon->attack;
-    base_stats[1] = weapon->endurance;
-    base_stats[2] = weapon->speed;
-    base_stats[3] = weapon->magic;
+    const std::array<s16, 4> base_stats = {weapon->attack, weapon->endurance, weapon->speed, weapon->magic};
 
-    for (i = 0; i < 4; i++) {
-        status_stats[i] = 0.6f * (float) base_stats[i];
+    for (int i = 0; i < 4; i++) {
+        status_stats[i] = 0.6f * static_cast<float>(base_stats[i]);
     }
 
-    scale = 0.6f;
+    float scale = 0.6f;
 
-    for (i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++) {
         status_elements[i] = weapon->elem[i] * scale;
     }
 
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         status_monster[i] = weapon->vs_monster[i] * scale;
     }
 
-    flags = 0;
+    s16 flags = 0;
     flags |= weapon->flags;
-    memset(&total, 0, 0x20);
     total.sphere_weapon_no = status_weapon_no;
 
-    for (i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++) {
         if (weapon->attach[i].item_no >= ITEM_ATTACH_START) {
             scale = 1.0f;
 
@@ -505,21 +482,19 @@ void CWeaponLevelUp::SetStatusBreak(WEAPON_HAVE *have, CCharacter *character, CW
 
             AttachMentValuePlus(&total, &have->attach[i], scale);
 
-            if (weapon->attach[i].item_no == ITEM_ATTACH_SYNTHESIS_SPHERE) {
-                if (weapon->attach[i].sphere_flags != 0 && weapon->attach[i].sphere_flags != 1) {
-                    flags |= weapon->attach[i].sphere_flags;
-                }
+            if (weapon->attach[i].item_no == ITEM_ATTACH_SYNTHESIS_SPHERE && weapon->attach[i].sphere_flags != 0 && weapon->attach[i].sphere_flags != 1) {
+                flags |= weapon->attach[i].sphere_flags;
             }
         }
     }
 
-    AttachMentValuePlus((ATTACH_LIST *) &status_item_no, &total, 0.6f);
+    AttachMentValuePlus(reinterpret_cast<ATTACH_LIST *>(&status_item_no), &total, 0.6f);
     flags = CheckWeaponOptionStatus(flags);
-    dng_status = SaveData->GetDngStatus();
-    slot_no = GetBoardSpace(0x5A, &page);
-    items = (ATTACH_LIST *) dng_status->consumable_items;
-    slot = &items[slot_no];
-    memcpy(slot, &status_item_no, 0x20);
+    CDngStatusData *dng_status = SaveData->GetDngStatus();
+    int             slot_no = GetBoardSpace(0x5A, &page);
+    auto           *items = reinterpret_cast<ATTACH_LIST *>(dng_status->consumable_items);
+    ATTACH_LIST    *slot = &items[slot_no];
+    memcpy(slot, &status_item_no, sizeof(ATTACH_LIST));
     slot->item_no = ITEM_ATTACH_SYNTHESIS_SPHERE;
     items[slot_no].sphere_level = weapon->level;
     items[slot_no].sphere_weapon_no = weapon->item_no;
@@ -527,7 +502,7 @@ void CWeaponLevelUp::SetStatusBreak(WEAPON_HAVE *have, CCharacter *character, CW
 }
 
 void CWeaponLevelUp::SetBuildUp(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block) {
-    if (have == NULL) {
+    if (have == nullptr) {
         return;
     }
 
@@ -538,17 +513,17 @@ void CWeaponLevelUp::SetBuildUp(WEAPON_HAVE *have, CCharacter *character, CWeapo
     CMenuEffectDataLoad(load_buffer, operation_kind);
     chara = character;
     weapon = have;
-    memcpy(&preview, weapon, 0xF8);
+    memcpy(&preview, weapon, sizeof(preview));
     SetWeaponBuildValue(&preview, buildup_weapon_no);
 
     if (have->item_no == ITEM_WEAPON_MARDAN_EINS || have->item_no == ITEM_WEAPON_MARDAN_TWEI) {
         ClearFishMardanGarayanNum();
-        printf("mardan num clear!!\n");
+        std::println("mardan num clear!!");
     }
 }
 
 void CWeaponLevelUp::WepRecover(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block) {
-    if (have == NULL || character == NULL || load_buffer == NULL) {
+    if (have == nullptr || character == nullptr || load_buffer == nullptr) {
         return;
     }
 
@@ -565,8 +540,8 @@ void CWeaponLevelUp::CureEffect(int x, int y, CWeaponLevelUp *load_buffer, int t
     CMenuEffectDataLoad(load_buffer, kind);
     texture_block = tex_block;
     operation_kind = kind;
-    effect_state = (operation_kind - 4) * 2 + 12;
-    effect_motion = operation_kind - 4;
+    effect_state = (operation_kind - WEP_EFFECT_CURE_HEAL_HP) * 2 + WEP_EFFECT_STATE_CURE_HEAL_HP_LOAD;
+    effect_motion = operation_kind - WEP_EFFECT_CURE_HEAL_HP;
 
     if (kind == WEP_EFFECT_CURE_POCKET) {
         effect_motion = 2;
@@ -580,8 +555,8 @@ void CWeaponLevelUp::CureEffect(int x, int y, CWeaponLevelUp *load_buffer, int t
         }
     }
 
-    effect_x = (float) x;
-    effect_y = (float) y;
+    effect_x = static_cast<float>(x);
+    effect_y = static_cast<float>(y);
 }
 
 void CWeaponLevelUp::InitSnd() {
@@ -605,11 +580,11 @@ void CWeaponLevelUp::SetSnd(int from, int to, int step) {
     }
 
     if (DebugMode) {
-        printf("menu snd para:\n");
-        printf("        start:%d\n", snd_from);
-        printf("          now:%d\n", snd_volume);
-        printf("       limmit:%d\n", snd_to);
-        printf("         step:%d\n", snd_step);
+        std::println("menu snd para:");
+        std::println("        start:{}", snd_from);
+        std::println("          now:{}", snd_volume);
+        std::println("       limmit:{}", snd_to);
+        std::println("         step:{}", snd_step);
     }
 }
 
@@ -618,29 +593,23 @@ void CWeaponLevelUp::StepSnd() {
         snd_volume = snd_volume + snd_step;
         SndSetBgmVol(snd_volume);
 
-        if (snd_step > 0) {
-            if (snd_to <= snd_volume) {
-                snd_volume = snd_to;
-                snd_step = 0;
-            }
+        if (snd_step > 0 && snd_to <= snd_volume) {
+            snd_volume = snd_to;
+            snd_step = 0;
         }
 
-        if (snd_step < 0) {
-            if (snd_to >= snd_volume) {
-                snd_volume = snd_to;
-                snd_step = 0;
-            }
+        if (snd_step < 0 && snd_to >= snd_volume) {
+            snd_volume = snd_to;
+            snd_step = 0;
         }
     }
 }
 
 void CWeaponLevelUp::CheckSnd() {
-    int volume;
-
-    printf("snd check\n");
+    std::println("snd check");
 
     if (snd_from > 0 || snd_step != 0) {
-        volume = SndGetBgmVol();
+        const int volume = SndGetBgmVol();
 
         if (volume != snd_volume) {
             SndSetBgmVol(volume);
@@ -651,26 +620,13 @@ void CWeaponLevelUp::CheckSnd() {
 }
 
 void CWeaponLevelUp::Step() {
-    int           size;
-    int           motion_state;
-    int           ready_count;
-    int           se_no;
-    int           volume;
-    int           file_no;
-    BG_READ_INFO *read_info;
-    u_int        *pack_data;
-    u_long128    *cache_base;
-    int           discard;
-    int           option;
-    float         motion_time;
-
     if (operation_kind == WEP_EFFECT_NONE) {
         return;
     }
 
-    motion_state = 0;
+    int motion_state = 0;
 
-    if (effect.frame != NULL) {
+    if (effect.frame != nullptr) {
         motion_state = effect.motion_state;
     }
 
@@ -692,9 +648,9 @@ void CWeaponLevelUp::Step() {
         case WEP_EFFECT_STATE_CURE_REVIVAL_POWDER_LOAD:
         case WEP_EFFECT_STATE_CURE_GOURD_LOAD:
         case WEP_EFFECT_STATE_CURE_FRUIT_OF_EDEN_LOAD:
-        case WEP_EFFECT_STATE_CURE_POCKET_LOAD:
+        case WEP_EFFECT_STATE_CURE_POCKET_LOAD: {
             ReadBG();
-            ready_count = 0;
+            int ready_count = 0;
 
             if (ReadBGSync() == 0) {
                 ready_count++;
@@ -704,50 +660,47 @@ void CWeaponLevelUp::Step() {
                 ready_count++;
 
                 if (operation_kind != WEP_EFFECT_CURE_REPAIR && operation_kind != WEP_EFFECT_RECOVER && operation_kind != WEP_EFFECT_CURE_AILMENT && operation_kind != WEP_EFFECT_CURE_HEAL_HP && operation_kind != WEP_EFFECT_CURE_DRINK) {
-                    volume = BtlMenuBGMvol;
+                    const int volume = BtlMenuBGMvol;
                     SetSnd(volume, volume >> 2, 7);
                 }
             }
 
             if (ready_count >= 2) {
-                LOADTEXTURE_INFO2 textures[3] = {
-                    {"#frame_menu_level#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-                    {NULL,                                            0, 0},
-                    {NULL,                                            0, 0}
+                std::array<LOADTEXTURE_INFO2, 3> textures = {
+                    {
+                     {.name = const_cast<char *>("#frame_menu_level#640#" SCREEN_HEIGHT_STR "#4"), .block_no = 0, .mipmap = 0},
+                     {.name = nullptr, .block_no = 0, .mipmap = 0},
+                     {.name = nullptr, .block_no = 0, .mipmap = 0},
+                     }
                 };
                 textures[0].block_no = texture_block;
                 textures[1].block_no = texture_block;
-                char  file_table[WEP_EFFECT_KIND_COUNT] = {0, 1, 2, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
-                char *image_names[5] = {"wlevelup", "s_break", "buildup", "menu_ex", "w_recover"};
-                char *config_names[14] = {"wlevelup", "info", "buildup", "info", "w_recover",
-                                          NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-                char  config_name[0x20];
-                char  image_name[0x20];
 
-                file_no = file_table[operation_kind];
-                strcpy(config_name, config_names[file_no]);
-                strcpy(image_name, image_names[file_no]);
-                strcat(image_name, ".img");
-                strcat(config_name, ".cfg");
-                read_info = GetReadBGFile(0);
-                textures[1].name = (char *) GetPackFile((u_int *) read_info->buffer, image_name, &size);
+                const int   file_no = kEffectFileNo[operation_kind];
+                std::string config_name{kEffectConfigNames[file_no]};
+                std::string image_name{kEffectImageNames[file_no]};
+                image_name += ".img";
+                config_name += ".cfg";
+                BG_READ_INFO *read_info = GetReadBGFile(0);
+                int           size = 0;
+                textures[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(read_info->buffer), image_name.data(), &size));
                 TexManager.DeleteTextureBlock(texture_block);
                 TexManager.CleanUpTextureList();
-                TexManager.LoadTextureBlockEX(-1, textures);
-                pack_data = (u_int *) read_info->buffer;
-                cache_base = read_info->buffer + (read_info->size >> 4) + 1;
+                TexManager.LoadTextureBlockEX(-1, textures.data());
+                auto      *pack_data = reinterpret_cast<u_int *>(read_info->buffer);
+                u_long128 *cache_base = read_info->buffer + (read_info->size >> 4) + 1;
                 cache_base = MenuCalcBufAlignment(cache_base);
                 effect.Initialize();
-                MenuEffectCashBuffer.base = (u8 *) cache_base;
+                MenuEffectCashBuffer.base = reinterpret_cast<u8 *>(cache_base);
                 MenuEffectCashBuffer.limit = 0x9100;
                 MenuEffectCashBuffer.used = 0;
-                effect.LoadPackData(pack_data, config_name, &MenuEffectCashBuffer, &MenuEffectCashBuffer);
-                effect_buffer = (u_long128 *) ((MenuEffectCashBuffer.used << 4) + MenuEffectCashBuffer.base);
+                effect.LoadPackData(pack_data, config_name.data(), &MenuEffectCashBuffer, &MenuEffectCashBuffer);
+                effect_buffer = reinterpret_cast<u_long128 *>((MenuEffectCashBuffer.used << 4) + MenuEffectCashBuffer.base);
                 effect_state++;
                 effect_timer = 0.0f;
                 effect_active = true;
 
-                float position[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+                std::array<float, 4> position = {0.0f, 0.0f, 1.0f, 1.0f};
 
                 switch (operation_kind) {
                     case WEP_EFFECT_CURE_HEAL_HP:
@@ -762,37 +715,31 @@ void CWeaponLevelUp::Step() {
                         position[0] = effect_x;
                         position[1] = effect_y;
                         break;
+                    default:
+                        break;
                 }
 
-                effect.SetPosition(position);
+                effect.SetPosition(position.data());
 
-                float scale[3] = {1.0f, 1.0f, 1.0f};
+                std::array<float, 3> scale = {1.0f, 1.0f, 1.0f};
 
                 switch (operation_kind) {
                     case WEP_EFFECT_STATUS_BREAK:
-                        int i;
-
-                        for (i = 0; i < 3; i++) {
-                            scale[i] = 1.38f;
-                        }
-
+                        scale.fill(1.38f);
                         break;
                     case WEP_EFFECT_BUILDUP:
-                        int j;
-
-                        for (j = 0; j < 3; j++) {
-                            scale[j] = 2.0f;
-                        }
-
+                        scale.fill(2.0f);
+                        break;
+                    default:
                         break;
                 }
 
-                effect.SetScale(scale);
+                effect.SetScale(scale.data());
                 effect.motion_no = effect_motion;
                 effect.motion_flags = 6;
                 effect.motion_speed = -1.0f;
                 effect.Step();
-                se_no = -1;
+                int se_no = -1;
 
                 switch (operation_kind) {
                     case WEP_EFFECT_STATUS_BREAK:
@@ -817,6 +764,8 @@ void CWeaponLevelUp::Step() {
                     case WEP_EFFECT_CURE_REVIVAL_POWDER:
                         se_no = 0x14;
                         break;
+                    default:
+                        break;
                 }
 
                 if (se_no >= 0) {
@@ -825,17 +774,15 @@ void CWeaponLevelUp::Step() {
 
                 for (int i = 0; i < 4; i++) {
                     CommonMenuMes1.mes_no[i] = -1;
-
-                    if (i >= 0 && i < 10) {
-                        CommonMenuMes1.line_pos[i].x = -1;
-                        CommonMenuMes1.line_pos[i].y = -1;
-                    }
+                    CommonMenuMes1.line_pos[i].x = -1;
+                    CommonMenuMes1.line_pos[i].y = -1;
                 }
 
                 return;
             }
 
             break;
+        }
         case WEP_EFFECT_STATE_LEVELUP_ORBIT:
             effect_timer += 1.0f;
 
@@ -865,16 +812,16 @@ void CWeaponLevelUp::Step() {
                 effect.motion_speed = -1.0f;
                 effect_state++;
                 effect_timer = 0.0f;
-                discard = 1;
+                bool discard = true;
 
                 if (IsDefaultWeapon(weapon->item_no) >= 0) {
-                    discard = 0;
+                    discard = false;
                     weapon->level = 0;
                     lost_default_weapon = true;
                 }
 
-                if (discard != 0) {
-                    memset(weapon, 0, 0xF8);
+                if (discard) {
+                    memset(weapon, 0, sizeof(*weapon));
                     weapon->item_no = -1;
                     return;
                 }
@@ -901,7 +848,7 @@ void CWeaponLevelUp::Step() {
                 weapon->item_no = buildup_weapon_no;
                 weapon->level = 0;
                 weapon->experience = 0;
-                option = DefaultWeaponOptionSet(buildup_weapon_no);
+                int option = DefaultWeaponOptionSet(buildup_weapon_no);
 
                 if (option != 1) {
                     option = CheckWeaponOptionStatus(option);
@@ -913,7 +860,7 @@ void CWeaponLevelUp::Step() {
                 effect.motion_no = effect_motion;
                 effect.motion_flags = 6;
                 effect.motion_speed = -1.0f;
-                printf("effect setmotion tuuka \n");
+                std::println("effect setmotion tuuka ");
                 effect_state++;
                 return;
             }
@@ -933,13 +880,14 @@ void CWeaponLevelUp::Step() {
             }
 
             break;
-        case WEP_EFFECT_STATE_CURE_DRINK_PLAY:
-            motion_time = effect.motion_type.state.time;
+        case WEP_EFFECT_STATE_CURE_DRINK_PLAY: {
+            const float motion_time = effect.motion_type.state.time;
 
             if (motion_time > 52.0 && motion_time < 52.3) {
                 ComMenuSePlay(SE_EFFECT_CHIME);
             }
-            /* fallthrough */
+        }
+            [[fallthrough]];
         case WEP_EFFECT_STATE_CURE_HEAL_HP_PLAY:
         case WEP_EFFECT_STATE_CURE_REPAIR_PLAY:
         case WEP_EFFECT_STATE_UNK_13:
@@ -970,18 +918,6 @@ void CWeaponLevelUp::Step() {
 }
 
 void CWeaponLevelUp::Draw() {
-    s16   icons[5];
-    s16   values[5];
-    int   i;
-    int   alpha;
-    int   count;
-    float angle_step;
-    float orbit_radius;
-    float angular_rate;
-    float angle;
-    float x;
-    float y;
-
     if (effect_state == WEP_EFFECT_STATE_IDLE) {
         return;
     }
@@ -990,19 +926,14 @@ void CWeaponLevelUp::Draw() {
         return;
     }
 
-    alpha = 128;
+    int alpha = 128;
 
-    switch (effect_state) {
-        case WEP_EFFECT_STATE_BREAK_DONE:
-            if (!(effect.GetNowTime() < 134.0f)) {
-                MenuTextureReload(MenuShadowReadBlock);
-                DrawIconParts(ITEM_ATTACH_SYNTHESIS_SPHERE, 0x132, 0xD0, 0, 0x280, alpha, status_weapon_no);
-            }
-
-            break;
+    if (effect_state == WEP_EFFECT_STATE_BREAK_DONE && !(effect.GetNowTime() < 134.0f)) {
+        MenuTextureReload(MenuShadowReadBlock);
+        DrawIconParts(ITEM_ATTACH_SYNTHESIS_SPHERE, 0x132, 0xD0, 0, 0x280, alpha, status_weapon_no);
     }
 
-    if (effect.frame != NULL) {
+    if (effect.frame != nullptr) {
         MenuTextureReload(texture_block);
         effect.Step();
         effect.Draw();
@@ -1016,10 +947,12 @@ void CWeaponLevelUp::Draw() {
         case WEP_EFFECT_STATE_BREAK_LOAD:
         case WEP_EFFECT_STATE_BUILDUP_LOAD:
             return;
-        case WEP_EFFECT_STATE_LEVELUP_ORBIT:
-            count = 0;
+        case WEP_EFFECT_STATE_LEVELUP_ORBIT: {
+            std::array<s16, 5> icons{};
+            std::array<s16, 5> values{};
+            int                count = 0;
 
-            for (i = 0; i < 5; i++) {
+            for (int i = 0; i < 5; i++) {
                 if (attachment_icons[i] < ITEM_ATTACH_START) {
                     break;
                 }
@@ -1033,12 +966,12 @@ void CWeaponLevelUp::Draw() {
                 return;
             }
 
-            angle_step = TWO_PI / (float) count;
-            angular_rate = angle_step / 140.0f;
-            orbit_radius = 128.0f - 128.0f * (effect_timer / 140.0f);
+            const float angle_step = TWO_PI / static_cast<float>(count);
+            const float angular_rate = angle_step / 140.0f;
+            const float orbit_radius = 128.0f - 128.0f * (effect_timer / 140.0f);
 
             if (!(effect_timer < 100.0f)) {
-                alpha = 128 - (int) (effect_timer - 100.0f) * 4;
+                alpha = 128 - static_cast<int>(effect_timer - 100.0f) * 4;
 
                 if (alpha < 0) {
                     alpha = 0;
@@ -1047,23 +980,23 @@ void CWeaponLevelUp::Draw() {
 
             MenuTextureReload(MenuShadowReadBlock);
 
-            for (i = 0; i < count; i++) {
-                angle = angular_rate * effect_timer + angle_step * (float) i;
-                x = orbit_radius * cosf(angle);
-                y = orbit_radius * sinf(angle);
+            for (int i = 0; i < count; i++) {
+                const float angle = angular_rate * effect_timer + angle_step * static_cast<float>(i);
+                float       x = orbit_radius * cosf(angle);
+                float       y = orbit_radius * sinf(angle);
                 x = 320.0f + x - 12.0f;
-                (int) x;
                 y = SCREEN_HALF_HEIGHT_F + y - 12.0f;
-                (int) y;
-                DrawIconParts(icons[i], (int) x, (int) y, 0, 0x280, alpha, values[i]);
+                DrawIconParts(icons[i], static_cast<int>(x), static_cast<int>(y), 0, 0x280, alpha, values[i]);
             }
 
             break;
+        }
         case WEP_EFFECT_STATE_LEVELUP_DONE:
         case WEP_EFFECT_STATE_BREAK_PLAY:
         case WEP_EFFECT_STATE_BREAK_DONE:
         case WEP_EFFECT_STATE_BUILDUP_PLAY:
         case WEP_EFFECT_STATE_BUILDUP_DONE:
+        default:
             break;
     }
 
@@ -1071,9 +1004,6 @@ void CWeaponLevelUp::Draw() {
 }
 
 void CWeaponLevelUp::DrawMes() {
-    int x;
-    int y;
-
     if (effect_active == 0 && operation_kind != WEP_EFFECT_NONE) {
         switch (effect_state) {
             case WEP_EFFECT_STATE_IDLE:
@@ -1083,11 +1013,13 @@ void CWeaponLevelUp::DrawMes() {
             case WEP_EFFECT_STATE_BREAK_PLAY:
             case WEP_EFFECT_STATE_BUILDUP_LOAD:
                 return;
+            default:
+                break;
         }
 
-        int mes_id = 0;
-        int mes_no[2] = {-1, -1};
-        int values[2] = {-1, -1};
+        int                mes_id = 0;
+        std::array<int, 2> mes_no = {-1, -1};
+        std::array<int, 2> values = {-1, -1};
 
         switch (effect_state) {
             case WEP_EFFECT_STATE_LEVELUP_DONE:
@@ -1134,6 +1066,8 @@ void CWeaponLevelUp::DrawMes() {
                 mes_id = 0x198;
                 mes_no[0] = message_no + 50;
                 break;
+            default:
+                break;
         }
 
         if (CommonMenuMes1.mes_made != mes_id || CommonMenuMes1.mes_no[0] != mes_no[0] || CommonMenuMes1.values[0] != values[0]) {
@@ -1156,8 +1090,8 @@ void CWeaponLevelUp::DrawMes() {
 
         CommonMenuMes1.stay_frame = true;
         MenuTextureReload(CommonMenuMes1.tex_block);
-        x = 0x164;
-        y = 0x96;
+        int x = 0x164;
+        int y = 0x96;
 
         if (effect_state == WEP_EFFECT_STATE_CURE_FRUIT_OF_EDEN_PLAY || effect_state == WEP_EFFECT_STATE_CURE_GOURD_PLAY || effect_state == WEP_EFFECT_STATE_CURE_POCKET_PLAY || effect_state == WEP_EFFECT_STATE_CURE_AILMENT_PLAY || effect_state == WEP_EFFECT_STATE_CURE_STATUS_PLAY) {
             x = 0x100;

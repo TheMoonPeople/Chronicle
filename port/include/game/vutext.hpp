@@ -2,7 +2,7 @@
 
 /**
  * @file
- * The VU1 microprograms the renderers upload, which ps2/src/vutext.cpp holds.
+ * The VU1 microprograms the renderers upload.
  */
 
 #include "common.h"

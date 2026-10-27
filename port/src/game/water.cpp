@@ -2,6 +2,9 @@
 
 #include <libpkt.h>
 
+#include <algorithm>
+#include <cstddef>
+
 #include "boxvu0.hpp"
 #include "dataalloc.hpp"
 #include "mglib.hpp"
@@ -21,8 +24,6 @@ void CWater::SetColor(unsigned char red, unsigned char green, unsigned char blue
     color[3] = alpha;
 }
 
-extern "C" int DrawVu1__6CWaterFP10RenderInfoP13sceVif1PacketP1(CWater *water, RenderInfo *info, sceVif1Packet *draw_packet, void *parent_info);
-
 int CWater::CheckClip() {
     sceVu0FVECTOR box[2];
     sceVu0FVECTOR corner[4];
@@ -32,23 +33,14 @@ int CWater::CheckClip() {
     frame.GetWorldPosition(corner[2], vertex[2]);
     frame.GetWorldPosition(corner[3], vertex[3]);
     VectorMaxMin(box[0], box[1], corner[0], corner[1], corner[2], corner[3]);
-    return MGClipBox((CBoxVu0 *) box);
+    return MGClipBox(reinterpret_cast<CBoxVu0 *>(box));
 }
 
 void CWater::Hamon() {
-    int    i;
-    int    j;
-    float *source;
-    float *target;
-
     // The two buffers hold this step and the last; the older one is written.
-    if (height == height_a) {
-        source = height_a;
-        target = height_b;
-    } else {
-        target = height_a;
-        source = height_b;
-    }
+    const bool drawing_a = height == height_a;
+    float     *source = drawing_a ? height_a : height_b;
+    float     *target = drawing_a ? height_b : height_a;
 
     height = target;
 
@@ -56,15 +48,15 @@ void CWater::Hamon() {
     float centre = 2.0f * (1.0f - 2.0f * speed);
     float loss = damping;
 
-    for (i = 1; i < rows - 1; i++) {
-        for (j = 1; j < columns - 1; j++) {
-            float *cell = &source[j + i * columns];
-            float *out = &target[j + i * columns];
-            float  around = *(cell - columns) + (cell[-1] + cell[1] + *(cell + columns));
+    for (int row = 1; row < rows - 1; row++) {
+        for (int column = 1; column < columns - 1; column++) {
+            int   index = column + row * columns;
+            float cell = source[index];
+            float around = source[index - columns] + (source[index - 1] + source[index + 1] + source[index + columns]);
             around *= speed;
-            float centre_term = centre * *cell;
-            float previous = *out;
-            *out = around + (centre_term - previous) - loss * (*cell - previous);
+            float centre_term = centre * cell;
+            float previous = target[index];
+            target[index] = around + (centre_term - previous) - loss * (cell - previous);
         }
     }
 }
@@ -81,40 +73,28 @@ void CWater::Shake(int row, int column, float height_change) {
     column %= columns;
 
     // The edge cells hold the surface still, so a ripple starts inside them.
-    if (row <= 0) {
-        row = 1;
-    }
+    row = std::max(row, 1);
+    column = std::max(column, 1);
+    row = std::min(row, rows - 2);
+    column = std::min(column, columns - 2);
 
-    if (column <= 0) {
-        column = 1;
-    }
-
-    if (row > rows - 2) {
-        row = rows - 2;
-    }
-
-    if (column > columns - 2) {
-        column = columns - 2;
-    }
-
-    float *cell = &height[column];
-    cell[row * columns] += height_change;
+    height[column + row * columns] += height_change;
 }
 
 void CWater::SetSize(int row_count, int column_count, CDataAlloc2<1> *arena) {
-    if (arena == NULL) {
+    if (arena == nullptr) {
         arena = &WaterData;
     }
 
     int quads = ((row_count * column_count) >> 2) + 1;
-    height_a = (float *) arena->Alloc(quads);
-    height_b = (float *) arena->Alloc(quads);
+    height_a = reinterpret_cast<float *>(arena->Alloc(quads));
+    height_b = reinterpret_cast<float *>(arena->Alloc(quads));
     rows = row_count;
     columns = column_count;
 
-    for (int i = 0; i < rows * columns; i++) {
-        height_b[i] = 0.0f;
-        height_a[i] = 0.0f;
+    for (int cell = 0; cell < rows * columns; cell++) {
+        height_b[cell] = 0.0f;
+        height_a[cell] = 0.0f;
     }
 
     height = height_a;
@@ -122,26 +102,20 @@ void CWater::SetSize(int row_count, int column_count, CDataAlloc2<1> *arena) {
     RenderInfo info;
     tags_built = 0;
     arena->Align64();
-    packet[1] = (u_int *) (arena->base + arena->used * 16);
+    packet[1] = reinterpret_cast<u_int *>(&arena->base[static_cast<std::ptrdiff_t>(arena->used) * 16]);
     int packet_quads = CreateVUData(packet[1], &info);
     arena->Alloc(packet_quads);
-    packet[2] = (u_int *) arena->Alloc64(packet_quads);
+    packet[2] = reinterpret_cast<u_int *>(arena->Alloc64(packet_quads));
     CreateVUData(packet[2], &info);
     tags_built = 1;
 }
 
-CWater::CWater() {
-    rows = 0;
-    columns = 0;
-    packet[2] = NULL;
-    packet[1] = NULL;
-    packet[0] = NULL;
+CWater::CWater() : rows(0), columns(0), wave_speed(0.1f), damping(0.015f), height_scale(0.0f), distortion(0.0f) {
+    packet[2] = nullptr;
+    packet[1] = nullptr;
+    packet[0] = nullptr;
     color[0] = 0x80;
     color[1] = 0x80;
     color[2] = 0x80;
     color[3] = 0x80;
-    wave_speed = 0.1f;
-    damping = 0.015f;
-    height_scale = 0.0f;
-    distortion = 0.0f;
 }

@@ -123,162 +123,98 @@ public:
 
     /**
      * Loads the package and sound data for one menu effect.
-     *
-     * @mangled CMenuEffectDataLoad__14CWeaponLevelUpFP1i
-     * @address 0x00236000
-     * @size 0x1E4
      */
     void CMenuEffectDataLoad(CWeaponLevelUp *load_buffer, int kind);
 
     /**
      * Clears the menu's tables and runtime state.
-     *
-     * @mangled Initialize__14CWeaponLevelUpFv
-     * @address 0x002361F0
-     * @size 0x90
      */
     void Initialize();
 
     /**
      * Calculates and starts the weapon level-up effect.
-     *
-     * @mangled SetLevelUpValue__14CWeaponLevelUpFP11WEAPON_HAVEP10CCharacterP1i
-     * @address 0x00236280
-     * @size 0x4E8
      */
     void SetLevelUpValue(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block);
 
     /**
      * Applies the completed level-up values to the weapon.
-     *
-     * @mangled SetLevelUpWeaponData__14CWeaponLevelUpFv
-     * @address 0x00236770
-     * @size 0x158
      */
     void SetLevelUpWeaponData();
 
     /**
      * Calculates and starts the status-break effect.
-     *
-     * @mangled SetStatusBreak__14CWeaponLevelUpFP11WEAPON_HAVEP10CCharacterP1i
-     * @address 0x002368D0
-     * @size 0x358
      */
     void SetStatusBreak(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block);
 
     /**
      * Calculates and starts the weapon build-up effect.
-     *
-     * @mangled SetBuildUp__14CWeaponLevelUpFP11WEAPON_HAVEP10CCharacterP1i
-     * @address 0x00236C30
-     * @size 0xCC
      */
     void SetBuildUp(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block);
 
     /**
      * Starts the weapon recovery effect.
-     *
-     * @mangled WepRecover__14CWeaponLevelUpFP11WEAPON_HAVEP10CCharacterP1i
-     * @address 0x00236D00
-     * @size 0x8C
      */
     void WepRecover(WEAPON_HAVE *have, CCharacter *character, CWeaponLevelUp *load_buffer, int tex_block);
 
     /**
      * Starts an effect for curing a weapon-related status.
-     *
-     * @mangled CureEffect__14CWeaponLevelUpFiiP1ii
-     * @address 0x00236D90
-     * @size 0x100
      */
     void CureEffect(int x, int y, CWeaponLevelUp *load_buffer, int tex_block, int kind);
 
     /**
      * Resets the background-music fade state.
-     *
-     * @mangled InitSnd__14CWeaponLevelUpFv
-     * @address 0x00236E90
-     * @size 0x1C
      */
     void InitSnd();
 
     /**
      * Starts a background-music fade from one volume to another.
-     *
-     * @mangled SetSnd__14CWeaponLevelUpFiii
-     * @address 0x00236EB0
-     * @size 0x3C
      */
     void SetSnd(int from, int to, int step);
 
     /**
      * Advances the active background-music fade by one step.
-     *
-     * @mangled StepSnd__14CWeaponLevelUpFv
-     * @address 0x00236EF0
-     * @size 0x98
      */
     void StepSnd();
 
     /**
      * Restores the current background-music volume and clears the fade.
-     *
-     * @mangled CheckSnd__14CWeaponLevelUpFv
-     * @address 0x00236F90
-     * @size 0x78
      */
     void CheckSnd();
 
     /**
      * Advances the active weapon effect state machine.
-     *
-     * @mangled Step__14CWeaponLevelUpFv
-     * @address 0x00237010
-     * @size 0x91C
      */
     void Step();
 
     /**
      * Draws the active weapon effect and its attachment icons.
-     *
-     * @mangled Draw__14CWeaponLevelUpFv
-     * @address 0x00237930
-     * @size 0x36C
      */
     void Draw();
 
     /**
      * Draws the result message for the active weapon effect.
-     *
-     * @mangled DrawMes__14CWeaponLevelUpFv
-     * @address 0x00237CA0
-     * @size 0x404
      */
     void DrawMes();
 };
 
 STATIC_ASSERT(sizeof(CWeaponLevelUp) == 0x1330);
 
-/** State of the weapon menu's repair, level-up and build-up effects. */
+/**
+ * State of the weapon menu's repair, level-up and build-up effects.
+ */
 extern CWeaponLevelUp MenuWepLevelUp;
 
 /**
  * Adds scaled attachment values to an accumulated attachment record.
- *
- * @mangled AttachMentValuePlus__FP11ATTACH_LISTP11ATTACH_LISTf
- * @address 0x00235A10
- * @size 0x1EC
  */
 void AttachMentValuePlus(ATTACH_LIST *total, ATTACH_LIST *attach, float scale);
 
 /**
  * Calculates the weapon values produced by one or more level-ups.
- *
- * @mangled WeaponLevelUpValueCalc__FP11WEAPON_HAVEP11WEAPON_HAVEii
- * @address 0x00235C00
- * @size 0x3FC
  */
 void WeaponLevelUpValueCalc(WEAPON_HAVE *src, WEAPON_HAVE *dst, int levels, int unused);
 
-/** Whether an interior is being entered, and the item-volume step to check. */
+/**
+ * Timer that ages time-sensitive inventory items while the menus run.
+ */
 extern CMenuItemStep ItemVolumeStep;

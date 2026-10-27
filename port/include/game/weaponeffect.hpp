@@ -11,8 +11,10 @@
  * Declares the trail that a swung weapon leaves behind it.
  */
 
-/** Number of steps of the swing that the trail keeps. */
-#define WEAPON_EFFECT_STEP_MAX 32
+/**
+ * Number of steps of the swing that the trail keeps.
+ */
+inline constexpr int WEAPON_EFFECT_STEP_MAX = 32;
 
 class CFrame;
 
@@ -50,37 +52,21 @@ public:
 
     /**
      * Points the trail at the two ends of one weapon's blade.
-     *
-     * @mangled InitSet__13CWeaponEffectFP6CFramePcPc
-     * @address 0x1D65C0
-     * @size 0x74
      */
     void InitSet(CFrame *frame, char *root_name, char *tip_name);
 
     /**
      * Starts a swing, and lays down its first step.
-     *
-     * @mangled Set__13CWeaponEffectFiff
-     * @address 0x1D6640
-     * @size 0x120
      */
     void Set(int hold, float fade, float fade_out);
 
     /**
      * Lays down one more step of the swing and fades the ones behind it.
-     *
-     * @mangled Step__13CWeaponEffectFv
-     * @address 0x1D6760
-     * @size 0x1D8
      */
     void Step();
 
     /**
      * Fills the gap between each pair of steps the swing still holds.
-     *
-     * @mangled Draw__13CWeaponEffectFv
-     * @address 0x1D6940
-     * @size 0x298
      */
     void Draw();
 };
