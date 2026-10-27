@@ -1,8 +1,7 @@
 #include "glyph_draw.hpp"
 
 #include <algorithm>
-#include <cstring>
-#include <iterator>
+#include <string_view>
 #include <vector>
 
 #include "draw2d_port.hpp"
@@ -12,13 +11,16 @@
 
 namespace {
 
+/**
+ * A button symbol painted into a game texture:
+ * the texture's name and the art's box in its texels.
+ */
 struct Baked {
-    const char    *texture;
-    int            x, y, w, h; // the art's box in the texture
-    glyphs::Button button;
+    std::string_view texture;
+    int              x, y, w, h;
+    glyphs::Button   button;
 };
 
-// Boxes found by dumping the textures (DC_TEXTURE_DUMP) and tracing the draws (DC_SPRITE_TRACE).
 constexpr Baked kBaked[] = {
     // name entry: the L1/R1 hints beside the name (the strip also holds L2 and R2)
     {"nametemp",  0,   472, 24, 24, glyphs::Button::L2    },
@@ -45,12 +47,12 @@ constexpr Baked kBaked[] = {
     {"skip_bord", 86,  94,  16, 16, glyphs::Button::Cross },
 };
 
-int Overlap(const Baked &b, const CRect_i_ &texel) {
-    int x0 = std::max(b.x, texel.x);
-    int y0 = std::max(b.y, texel.y);
-    int x1 = std::min(b.x + b.w, texel.x + texel.width);
-    int y1 = std::min(b.y + b.h, texel.y + texel.height);
-    return x1 > x0 && y1 > y0 ? (x1 - x0) * (y1 - y0) : 0;
+int Overlap(const Baked &baked, const CRect_i_ &texel) {
+    const int left = std::max(baked.x, texel.x);
+    const int top = std::max(baked.y, texel.y);
+    const int right = std::min(baked.x + baked.w, texel.x + texel.width);
+    const int bottom = std::min(baked.y + baked.h, texel.y + texel.height);
+    return right > left && bottom > top ? (right - left) * (bottom - top) : 0;
 }
 
 } // namespace
@@ -67,26 +69,34 @@ bool GlyphDrawSlot(glyphs::Button button, const CRect_i_ &slot, int alpha, float
     // Round buttons are sized by their diameter (the atlas keeps their proportions to the shoulder buttons
     // and the d-pad); keycaps and the mouse by their height, so a short wide key (Tab, Space) is as tall
     // as a letter key. A key may reach into the spaces beside it, not further.
-    float       scale = slot_h * (image.key ? (grow > 0.0f ? 1.3f : 0.92f) : (grow > 0.0f ? 1.0f : 0.84f)) /
-                        (image.key ? image.height : glyphs::kReference);
+    const bool over_art = grow > 0.0f;
+    float      fill = over_art ? 1.0f : 0.84f;
+    float      reach = image.key ? 1.7f : 0.96f;
+    if (image.key) {
+        fill = over_art ? 1.3f : 0.92f;
+    }
+    if (over_art) {
+        reach = 2.2f;
+    }
+    float       scale = slot_h * fill / (image.key ? image.height : glyphs::kReference);
     float       width = image.width * scale;
     float       height = image.height * scale;
-    const float max_w = slot_w * (grow > 0.0f ? 2.2f : (image.key ? 1.7f : 0.96f));
+    const float max_w = slot_w * reach;
     if (width > max_w) {
         height *= max_w / width;
         width = max_w;
     }
-    float x = static_cast<float>(slot.x) - grow + (slot_w - width) * 0.5f;
-    float y = static_cast<float>(slot.y) - grow + (slot_h - height) * 0.5f;
-    auto  a = static_cast<u_char>(alpha);
-    // In text the symbol casts a shadow (text_shadow.hpp) in its own shape, so it lifts off the
-    // picture like the words beside it; config glyph_shadow sets how strong, apart from the letters'. Painted over art it has none (the art has its own).
+    float      x = static_cast<float>(slot.x) - grow + (slot_w - width) * 0.5f;
+    float      y = static_cast<float>(slot.y) - grow + (slot_h - height) * 0.5f;
+    const auto alpha_byte = static_cast<u_char>(alpha);
+    // In text the symbol casts a shadow in its own shape, like the words beside it; config glyph_shadow
+    // sets its strength. Painted over art it has none (the art has its own).
     std::vector<gfx::Vertex2D> quad;
-    auto                       add = [&](float ox, float oy, u_char r, u_char g, u_char b, u_char alpha_byte) {
-        quad.push_back(draw2d::Vertex(x + ox, y + oy, 0.0f, image.u0, image.v0, r, g, b, alpha_byte));
-        quad.push_back(draw2d::Vertex(x + ox + width, y + oy, 0.0f, image.u1, image.v0, r, g, b, alpha_byte));
-        quad.push_back(draw2d::Vertex(x + ox + width, y + oy + height, 0.0f, image.u1, image.v1, r, g, b, alpha_byte));
-        quad.push_back(draw2d::Vertex(x + ox, y + oy + height, 0.0f, image.u0, image.v1, r, g, b, alpha_byte));
+    auto                       add = [&](float ox, float oy, u_char r, u_char g, u_char b, u_char a) {
+        quad.push_back(draw2d::Vertex(x + ox, y + oy, 0.0f, image.u0, image.v0, r, g, b, a));
+        quad.push_back(draw2d::Vertex(x + ox + width, y + oy, 0.0f, image.u1, image.v0, r, g, b, a));
+        quad.push_back(draw2d::Vertex(x + ox + width, y + oy + height, 0.0f, image.u1, image.v1, r, g, b, a));
+        quad.push_back(draw2d::Vertex(x + ox, y + oy + height, 0.0f, image.u0, image.v1, r, g, b, a));
     };
     if (grow <= 0.0f) {
         const float rows = draw2d::RowScale();
@@ -95,32 +105,34 @@ bool GlyphDrawSlot(glyphs::Button button, const CRect_i_ &slot, int alpha, float
                 static_cast<u_char>(tap.grey), static_cast<u_char>(std::min<int>(alpha, tap.alpha)));
         });
     }
-    add(0.0f, 0.0f, 0x80, 0x80, 0x80, a);
+    add(0.0f, 0.0f, 0x80, 0x80, 0x80, alpha_byte);
     textwipe::Draw2D(gfx::Primitive::Quads, quad, image.binding, draw2d::SpriteState());
     draw2d::RestoreTestZbuf();
     return true;
 }
 
 int GlyphBakedCount(const char *texture) {
-    int n = 0;
-    for (const Baked &b : kBaked) {
-        n += std::strcmp(b.texture, texture) == 0;
+    const std::string_view name = texture;
+    int                    count = 0;
+    for (const Baked &baked : kBaked) {
+        count += baked.texture == name ? 1 : 0;
     }
-    return n;
+    return count;
 }
 
 bool GlyphReplaceSprite(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
     if (texture == nullptr || texel.width <= 0 || texel.height <= 0) {
         return false;
     }
-    for (const Baked &b : kBaked) {
-        if (std::strcmp(b.texture, texture) != 0) {
+    const std::string_view name = texture;
+    for (const Baked &baked : kBaked) {
+        if (baked.texture != name) {
             continue;
         }
-        int overlap = Overlap(b, texel);
+        const int overlap = Overlap(baked, texel);
         // the drawn rectangle is the art: most of it is inside the box, and the box is mostly inside it
-        if (overlap * 10 >= texel.width * texel.height * 6 && overlap * 10 >= b.w * b.h * 6) {
-            return GlyphDrawSlot(b.button, screen, alpha);
+        if (overlap * 10 >= texel.width * texel.height * 6 && overlap * 10 >= baked.w * baked.h * 6) {
+            return GlyphDrawSlot(baked.button, screen, alpha);
         }
     }
     return false;
@@ -130,20 +142,21 @@ void GlyphOverlaySprite(const char *texture, const CRect_i_ &screen, const CRect
     if (texture == nullptr || texel.width <= 0 || texel.height <= 0) {
         return;
     }
-    const float sx = static_cast<float>(screen.width) / static_cast<float>(texel.width);
-    const float sy = static_cast<float>(screen.height) / static_cast<float>(texel.height);
-    for (const Baked &b : kBaked) {
-        if (std::strcmp(b.texture, texture) != 0) {
+    const float            scale_x = static_cast<float>(screen.width) / static_cast<float>(texel.width);
+    const float            scale_y = static_cast<float>(screen.height) / static_cast<float>(texel.height);
+    const std::string_view name = texture;
+    for (const Baked &baked : kBaked) {
+        if (baked.texture != name) {
             continue;
         }
         // only a box wholly inside a larger rectangle: whole-rectangle matches were replaced
-        if (b.x < texel.x || b.y < texel.y || b.x + b.w > texel.x + texel.width ||
-            b.y + b.h > texel.y + texel.height || b.w * b.h * 2 > texel.width * texel.height) {
+        if (baked.x < texel.x || baked.y < texel.y || baked.x + baked.w > texel.x + texel.width ||
+            baked.y + baked.h > texel.y + texel.height || baked.w * baked.h * 2 > texel.width * texel.height) {
             continue;
         }
-        CRect_i_ slot(screen.x + static_cast<int>(static_cast<float>(b.x - texel.x) * sx),
-                      screen.y + static_cast<int>(static_cast<float>(b.y - texel.y) * sy),
-                      static_cast<int>(static_cast<float>(b.w) * sx), static_cast<int>(static_cast<float>(b.h) * sy));
-        GlyphDrawSlot(b.button, slot, alpha, 1.0f);
+        CRect_i_ slot(screen.x + static_cast<int>(static_cast<float>(baked.x - texel.x) * scale_x),
+                      screen.y + static_cast<int>(static_cast<float>(baked.y - texel.y) * scale_y),
+                      static_cast<int>(static_cast<float>(baked.w) * scale_x), static_cast<int>(static_cast<float>(baked.h) * scale_y));
+        GlyphDrawSlot(baked.button, slot, alpha, 1.0f);
     }
 }

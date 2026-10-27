@@ -4,7 +4,14 @@
 
 #include "platform/game_icon.hpp"
 
-// Kazarov draws the icon from glTF, but dcdata extracts the disc's as it is: a PS2 model in each language's
-// commenu/<language>/savetex.pak. It is converted here, in memory, with nothing written to the data.
+/**
+ * Converts a retail PS2 save icon (as stored in commenu/<language>/savetex.pak) to an in-memory glTF
+ * binary; returns an empty vector when the icon is malformed.
+ */
 std::vector<std::uint8_t> RetailIconToGlb(std::span<const std::uint8_t> bytes);
-GameIconSource            RetailIconSource(const std::filesystem::path &root);
+
+/**
+ * Builds a game icon source that reads the disc's own icon from the data under root and converts it in
+ * memory, writing nothing back to the data.
+ */
+GameIconSource RetailIconSource(const std::filesystem::path &root);

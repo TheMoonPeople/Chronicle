@@ -4,18 +4,23 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iomanip>
 #include <locale>
 #include <memory>
+#include <print>
+#include <ranges>
 #include <set>
 #include <sstream>
 #include <unordered_map>
+#include <utility>
 
 #include "../../tools/dcdata/dcdata.hpp"
 #include "dataread.hpp"
@@ -54,18 +59,20 @@ State &Get() {
 // Each problem is told once, so a file loaded every frame does not fill the log.
 void Report(const std::string &what) {
     if (Get().reported.insert(what).second) {
-        std::fprintf(stderr, "localize: %s\n", what.c_str());
+        std::println(stderr, "localize: {}", what);
     }
 }
 
 // The file each LanguageCode reads and the export writes, named as Minecraft's language files are
 // (language_COUNTRY.json), and the folder its menu packs are in.
-constexpr const char *kLanguageFiles[7] = {"ja_jp", "en_us", "en_gb", "fr_fr", "de_de", "it_it", "es_es"};
-constexpr const char *kLanguageDirs[7] = {"a_jpn", "a_usa", "a_eng", "a_fre", "a_ger", "a_ita", "a_spa"};
+constexpr std::array<std::string_view, 7> kLanguageFiles = {"ja_jp", "en_us", "en_gb", "fr_fr",
+                                                            "de_de", "it_it", "es_es"};
+constexpr std::array<std::string_view, 7> kLanguageDirs = {"a_jpn", "a_usa", "a_eng", "a_fre",
+                                                           "a_ger", "a_ita", "a_spa"};
 
-// The file suffix of a language code, or null for a code that is none.
-const char *LanguageFile(int code) {
-    return code >= 0 && code < 7 ? kLanguageFiles[code] : nullptr;
+// The file suffix of a language code, or empty for a code that is none.
+std::string_view LanguageFile(int code) {
+    return code >= 0 && std::cmp_less(code, kLanguageFiles.size()) ? kLanguageFiles[code] : std::string_view{};
 }
 
 std::vector<fs::path> Directories() {
@@ -93,9 +100,9 @@ bool ReadText(const fs::path &file, std::string &text) {
 
 // One language's files (<language>.json, the save folder's over the executable's), without patches.
 LocalizeTable LoadLanguage(int code) {
-    LocalizeTable table;
-    const char   *name = LanguageFile(code);
-    if (name == nullptr) {
+    LocalizeTable          table;
+    const std::string_view name = LanguageFile(code);
+    if (name.empty()) {
         return table;
     }
     for (const fs::path &directory : Directories()) {
@@ -124,19 +131,20 @@ const LocalizeTable &Table() {
     }
     state.language = LanguageCode;
     state.table = LoadLanguage(LanguageCode);
-    if (LanguageFile(LanguageCode) == nullptr) {
+    if (LanguageFile(LanguageCode).empty()) {
         return state.table;
     }
     // Patches: every .json in <dir>/patches, by name, whatever the language.
     for (const fs::path &directory : Directories()) {
         std::error_code       error;
         std::vector<fs::path> names;
-        for (fs::directory_iterator it(directory / "patches", error), end; !error && it != end; it.increment(error)) {
-            if (it->path().extension() == ".json") {
-                names.push_back(it->path());
+        for (fs::directory_iterator entry(directory / "patches", error), end; !error && entry != end;
+             entry.increment(error)) {
+            if (entry->path().extension() == ".json") {
+                names.push_back(entry->path());
             }
         }
-        std::sort(names.begin(), names.end());
+        std::ranges::sort(names);
         for (const fs::path &file : names) {
             std::string text;
             if (!ReadText(file, text)) {
@@ -159,7 +167,7 @@ const LocalizeTable &Table() {
 void Trace(const std::string &key, bool has_entry) {
     static const bool on = std::getenv("DC_LOCALIZE_TRACE") != nullptr;
     if (on && Get().reported.insert("trace " + key).second) {
-        std::fprintf(stderr, "localize-trace: %s %s\n", key.c_str(), has_entry ? "json" : "retail");
+        std::println(stderr, "localize-trace: {} {}", key, has_entry ? "json" : "retail");
     }
 }
 
@@ -206,7 +214,7 @@ bool ReadRetail(const s16 *file, size_t words, std::vector<Message> &out) {
     if (words < 2 || file[0] < 0) {
         return false;
     }
-    const size_t count = static_cast<size_t>(file[0]);
+    const auto count = static_cast<size_t>(file[0]);
     if (2 + count * 2 > words) {
         return false;
     }
@@ -214,11 +222,11 @@ bool ReadRetail(const s16 *file, size_t words, std::vector<Message> &out) {
     for (size_t i = 0; i < count; i++) {
         const int  id = file[2 + i * 2];
         const long start = static_cast<long>(base) + file[3 + i * 2];
-        if (start < 0 || static_cast<size_t>(start) >= words) {
+        if (start < 0 || std::cmp_greater_equal(start, words)) {
             continue;
         }
-        Message message{id, {}};
-        size_t  at = static_cast<size_t>(start);
+        Message message{.id = id, .codes = {}};
+        auto    at = static_cast<size_t>(start);
         while (at < words && file[at] != MES_CODE_END) {
             message.codes.push_back(file[at++]);
         }
@@ -248,25 +256,25 @@ std::string LocalizeTextHash(std::string_view text) {
 std::string LocalizeMessageKey(std::string_view path) {
     std::string key = FileKey(path);
     // The folder a language's menu packs are in, a_fre/ and the like, is not part of the key.
-    for (const char *dir : kLanguageDirs) {
+    for (const std::string_view dir : kLanguageDirs) {
         const std::string folder = std::string(dir) + "/";
-        if (key.compare(0, folder.size(), folder) == 0) {
+        if (key.starts_with(folder)) {
             key.erase(0, folder.size());
         } else if (size_t at = key.find("/" + folder); at != std::string::npos) {
             key.erase(at + 1, folder.size());
         }
     }
-    if (key.size() >= 9 && key.compare(key.size() - 9, 9, "opmes.bin") == 0) {
+    if (key.ends_with("opmes.bin")) {
         key.erase(key.size() - 4);
     }
-    if (key.size() >= 4 && key.compare(key.size() - 4, 4, ".mes") == 0) {
+    if (key.ends_with(".mes")) {
         key.erase(key.size() - 4);
         // The language is the last number of the name: d01_3, steve07_1_4.
         if (key.size() >= 2 && key[key.size() - 2] == '_' && key.back() >= '0' && key.back() <= '6') {
             key.erase(key.size() - 2);
         }
     }
-    std::replace(key.begin(), key.end(), '/', '.');
+    std::ranges::replace(key, '/', '.');
     return key;
 }
 
@@ -289,7 +297,7 @@ bool ParsePatches(const Json &patches, LocalizeTable &read, std::string &error) 
         number++;
         const std::string where = "patch " + std::to_string(number);
         if (!item.is_object() || !item.contains("file") || !item["file"].is_string() || !item.contains("id")) {
-            error = where + " needs a \"file\" and an \"id\"";
+            error = where + R"( needs a "file" and an "id")";
             return false;
         }
         LocalizePatch patch;
@@ -311,7 +319,7 @@ bool ParsePatches(const Json &patches, LocalizeTable &read, std::string &error) 
         const bool has_text = item.contains("text");
         const bool has_replace = item.contains("replace");
         if (has_text == has_replace) {
-            error = where + " needs exactly one of \"text\" and \"replace\"";
+            error = where + R"( needs exactly one of "text" and "replace")";
             return false;
         }
         if (has_text) {
@@ -496,7 +504,7 @@ std::map<int, std::string> Wanted(const LocalizeTable &table, const std::string 
     }
     for (const LocalizePatch &patch : patches->second) {
         const std::string name = key + " message " + std::to_string(patch.id);
-        if (table.files.count(key) != 0 && table.files.at(key).count(patch.id) != 0) {
+        if (table.files.contains(key) && table.files.at(key).contains(patch.id)) {
             continue;
         }
         auto message = current.find(patch.id);
@@ -517,7 +525,7 @@ std::map<int, std::string> Wanted(const LocalizeTable &table, const std::string 
             for (const auto &[find, with] : patch.replace) {
                 size_t at = text.find(find);
                 if (at == std::string::npos) {
-                    Report(name + ": \"" + find + "\" is not in the disc's text; that replacement skipped");
+                    Report(std::format(R"({}: "{}" is not in the disc's text; that replacement skipped)", name, find));
                     continue;
                 }
                 applied++;
@@ -551,7 +559,7 @@ bool LocalizeFile(std::string_view path, void *buffer, size_t capacity, int *siz
     }
     const LocalizeTable &table = Table();
     const std::string    key = LocalizeMessageKey(path);
-    const bool           known = table.files.count(key) != 0 || table.patches.count(key) != 0;
+    const bool           known = table.files.contains(key) || table.patches.contains(key);
     Trace(key, known);
     if (!known || size == nullptr || *size < 4) {
         return false;
@@ -593,17 +601,17 @@ const u_int *LocalizePack(const u_int *pack, std::string_view name, const u_int 
     }
     const LocalizeTable &table = Table();
     const std::string    key = LocalizeMessageKey(from->second + "/" + std::string(name));
-    const bool           known = table.files.count(key) != 0 || table.patches.count(key) != 0;
+    const bool           known = table.files.contains(key) || table.patches.contains(key);
     Trace(key, known);
     if (!known || *size < 4) {
         return data;
     }
     // The same pack read again hands out the same text again, as long as the retail bytes and the
     // language are the same.
-    const size_t bytes = static_cast<size_t>(*size);
-    std::string  tag = key + "#" + std::to_string(LanguageCode) + "#" +
-                       std::to_string(std::hash<std::string_view>{}(
-                           std::string_view(reinterpret_cast<const char *>(data), bytes)));
+    const auto  bytes = static_cast<size_t>(*size);
+    std::string tag = key + "#" + std::to_string(LanguageCode) + "#" +
+                      std::to_string(std::hash<std::string_view>{}(
+                          std::string_view(reinterpret_cast<const char *>(data), bytes)));
     if (auto cached = state.built.find(tag); cached != state.built.end()) {
         *size = static_cast<int>(cached->second->size() * 2);
         return reinterpret_cast<const u_int *>(cached->second->data());
@@ -625,8 +633,8 @@ const u_int *LocalizePack(const u_int *pack, std::string_view name, const u_int 
     }
     // The game reads whole quadwords off a message file's end, as it does off the disc's.
     out.resize((out.size() + 7) & ~size_t{7}, MES_CODE_END);
-    auto  kept = std::make_unique<std::vector<s16>>(std::move(out));
-    auto *result = reinterpret_cast<const u_int *>(kept->data());
+    auto        kept = std::make_unique<std::vector<s16>>(std::move(out));
+    const auto *result = reinterpret_cast<const u_int *>(kept->data());
     *size = static_cast<int>(kept->size() * 2);
     state.built[tag] = std::move(kept);
     return result;
@@ -678,11 +686,11 @@ std::filesystem::path LocalizeFindFile(std::string_view name) {
         if (fs::is_regular_file(g_font_path, error)) {
             return g_font_path;
         }
-        std::fprintf(stderr, "font: --font %s is not a file\n", PathsDisplay(g_font_path).c_str());
+        std::println(stderr, "font: --font {} is not a file", PathsDisplay(g_font_path));
     }
-    std::vector<fs::path> directories = Directories();
-    for (auto directory = directories.rbegin(); directory != directories.rend(); ++directory) {
-        fs::path        file = *directory / std::string(name);
+    const std::vector<fs::path> directories = Directories();
+    for (const fs::path &directory : std::views::reverse(directories)) {
+        fs::path        file = directory / std::string(name);
         std::error_code error;
         if (fs::is_regular_file(file, error)) {
             return file;
@@ -692,8 +700,7 @@ std::filesystem::path LocalizeFindFile(std::string_view name) {
 }
 
 std::string LocalizeLanguageFile() {
-    const char *file = LanguageFile(LanguageCode);
-    return file != nullptr ? file : "";
+    return std::string(LanguageFile(LanguageCode));
 }
 
 namespace {
@@ -746,18 +753,9 @@ namespace {
 // Which language a message file is for, from where the game keeps it: "_N.mes", "img_N" or an
 // "a_xxx" directory. -1 where its path says none.
 int FileLanguage(const std::string &key) {
-    static const std::pair<const char *, int> dirs[] = {
-        {"a_jpn/", 0},
-        {"a_usa/", 1},
-        {"a_eng/", 2},
-        {"a_fre/", 3},
-        {"a_ger/", 4},
-        {"a_ita/", 5},
-        {"a_spa/", 6}
-    };
-    for (const auto &[dir, code] : dirs) {
-        if (key.find(dir) != std::string::npos) {
-            return code;
+    for (size_t code = 0; code < kLanguageDirs.size(); code++) {
+        if (key.contains(std::string(kLanguageDirs[code]) + "/")) {
+            return static_cast<int>(code);
         }
     }
     std::string_view name = key;
@@ -774,7 +772,7 @@ int FileLanguage(const std::string &key) {
 struct Exported {
     std::string                key;
     std::map<int, std::string> messages;
-    int                        language;
+    int                        language = -1;
     // The language came from what the text is, not from the path.
     bool derived = false;
 };
@@ -820,19 +818,19 @@ int LocalizeExport(const fs::path &out, bool verify) {
                 if (!LocalizeReadMessages(rebuilt.data(), rebuilt.size(), back) || back != item.messages ||
                     stats.missing != 0 || stats.rejected != 0) {
                     mismatched++;
-                    std::fprintf(stderr, "export: %s does not read back as it was (missing %d, rejected %d)\n",
-                                 key.c_str(), stats.missing, stats.rejected);
+                    std::println(stderr, "export: {} does not read back as it was (missing {}, rejected {})", key,
+                                 stats.missing, stats.rejected);
                 }
             } else {
                 mismatched++;
-                std::fprintf(stderr, "export: %s could not be rebuilt\n", key.c_str());
+                std::println(stderr, "export: {} could not be rebuilt", key);
             }
         }
         found.push_back(std::move(item));
     };
 
     for (const std::string &key : DataReadListFiles()) {
-        const bool        mes = IsMessageName(key);
+        const bool mes = IsMessageName(key);
         if (!mes && !IsPackName(key)) {
             continue;
         }
@@ -852,7 +850,9 @@ int LocalizeExport(const fs::path &out, bool verify) {
             if (entry[0] == 0) {
                 break;
             }
-            int offset, size, next;
+            int offset = 0;
+            int size = 0;
+            int next = 0;
             std::memcpy(&offset, entry + kPackName, 4);
             std::memcpy(&size, entry + kPackName + 4, 4);
             std::memcpy(&next, entry + kPackName + 8, 4);
@@ -878,8 +878,12 @@ int LocalizeExport(const fs::path &out, bool verify) {
     for (int code = 0; code < 7; code++) {
         std::map<std::string, const Exported *>           chosen;
         std::map<std::string, std::map<int, std::string>> keyed;
-        auto                                              rank = [](const Exported &item) { return item.language == -1 ? 0 : item.derived ? 1
-                                                                                                                                          : 2; };
+        auto                                              rank = [](const Exported &item) {
+            if (item.language == -1) {
+                return 0;
+            }
+            return item.derived ? 1 : 2;
+        };
         for (const Exported &item : found) {
             if (item.language != code && item.language != -1) {
                 continue;
@@ -890,8 +894,7 @@ int LocalizeExport(const fs::path &out, bool verify) {
                 chosen[key] = &item;
             } else if (rank(item) == rank(*at->second) && at->second->key != item.key) {
                 collisions++;
-                std::fprintf(stderr, "export: %s and %s are both \"%s\"\n", at->second->key.c_str(),
-                             item.key.c_str(), key.c_str());
+                std::println(stderr, R"(export: {} and {} are both "{}")", at->second->key, item.key, key);
             }
         }
         for (const auto &[key, item] : chosen) {
@@ -918,10 +921,10 @@ int LocalizeExport(const fs::path &out, bool verify) {
             << hashes.dump(4, ' ', false, Json::error_handler_t::replace) << '\n';
     }
     if (collisions != 0) {
-        std::fprintf(stderr, "export: %d message files share a key with another\n", collisions);
+        std::println(stderr, "export: {} message files share a key with another", collisions);
     }
     if (verify) {
-        std::fprintf(stderr, "export: %d of %zu message files do not read back as they were\n", mismatched,
+        std::println(stderr, "export: {} of {} message files do not read back as they were", mismatched,
                      found.size());
     }
     return static_cast<int>(found.size());

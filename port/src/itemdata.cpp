@@ -1,6 +1,12 @@
 #include "common.h"
 
+#include <algorithm>
 #include <cstring>
+#include <iterator>
+#include <print>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "dataalloc.hpp"
 #include "dataread.hpp"
@@ -22,27 +28,26 @@ extern ITEM_DATA     ITEM_LIST[175];
 extern WEAPON_DATA   WeaponList[120];
 
 void TEIGIImgLoad(u_int *pack, CDataAlloc2<1> *arena) {
-    char full_path[256];
-    int  ground_count = 0;
+    int ground_count = 0;
 
-    std::strcpy(pathName, "");
+    pathName[0] = '\0';
     LOADTEXTURE_INFO2 ground_images[5] = {
-        {"", 0, 0},
-        {"", 0, 0},
-        {"", 0, 0},
-        {"", 0, 0},
-        {"", 0, 0}
+        {.name = "", .block_no = 0, .mipmap = 0},
+        {.name = "", .block_no = 0, .mipmap = 0},
+        {.name = "", .block_no = 0, .mipmap = 0},
+        {.name = "", .block_no = 0, .mipmap = 0},
+        {.name = "", .block_no = 0, .mipmap = 0}
     };
     LOADTEXTURE_INFO2 fire_images[3] = {
-        {"#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", 14, 0},
-        {"",                                          14, 0},
-        {"",                                          0,  0}
+        {.name = "#blender#640#" HALF_BUFFER_HEIGHT_STR "#4", .block_no = 14, .mipmap = 0},
+        {.name = "",                                          .block_no = 14, .mipmap = 0},
+        {.name = "",                                          .block_no = 0,  .mipmap = 0}
     };
     LOADTEXTURE_INFO2 minimap_images[2] = {
-        {"", 31, 0},
-        {"", 0,  0}
+        {.name = "", .block_no = 31, .mipmap = 0},
+        {.name = "", .block_no = 0,  .mipmap = 0}
     };
-    int size;
+    int size = 0;
 
     for (int i = 0; i < 4; i++) {
         TexManager.DeleteTextureBlock(i + 64);
@@ -52,15 +57,16 @@ void TEIGIImgLoad(u_int *pack, CDataAlloc2<1> *arena) {
 
     for (int i = 0; i < argLevel; i++) {
         if (TEIGI_SET_PATH[0] == static_cast<int>(argValBuff[i][0])) {
-            std::strcpy(pathName, argStrBuff[i]);
+            const std::string_view path_arg = argStrBuff[i];
+            std::ranges::copy(path_arg, pathName);
+            pathName[path_arg.size()] = '\0';
         }
 
         if (TEIGI_GRD_IMG[0] == static_cast<int>(argValBuff[i][0])) {
-            std::strcpy(full_path, pathName);
-            std::strcat(full_path, argStrBuff[i]);
-            std::strcpy(argStrBuff[i], full_path);
+            const std::string full_path = std::string(pathName) + argStrBuff[i];
+            std::memcpy(argStrBuff[i], full_path.c_str(), full_path.size() + 1);
 
-            u_char        *destination = arena->used * 16 + arena->base;
+            u_char        *destination = &arena->base[static_cast<std::ptrdiff_t>(arena->used) * 16];
             u_int         *image = GetPackFile(pack, argStrBuff[i], &size);
             DataReadSource source;
             const bool     has_source = image != nullptr && size > 0 &&
@@ -92,9 +98,7 @@ void TEIGIImgLoad(u_int *pack, CDataAlloc2<1> *arena) {
         }
 
         if (TEIGI_FIRE_IMG[0] == static_cast<int>(argValBuff[i][0])) {
-            std::strcpy(full_path, pathName);
-            std::strcat(full_path, argStrBuff[i]);
-            std::printf("%s\n", argStrBuff[i]);
+            std::println("{}", std::string_view(argStrBuff[i]));
             fire_images[1].name = reinterpret_cast<char *>(GetPackFile(pack, const_cast<char *>("fire.img"), &size));
             if (fire_images[1].name == nullptr) {
                 exit__2(-1);
@@ -106,9 +110,8 @@ void TEIGIImgLoad(u_int *pack, CDataAlloc2<1> *arena) {
         }
 
         if (TEIGI_MINIMAP_IMG[0] == static_cast<int>(argValBuff[i][0])) {
-            std::strcpy(full_path, pathName);
-            std::strcat(full_path, argStrBuff[i]);
-            minimap_images[0].name = reinterpret_cast<char *>(GetPackFile(pack, full_path, &size));
+            std::string full_path = std::string(pathName) + argStrBuff[i];
+            minimap_images[0].name = reinterpret_cast<char *>(GetPackFile(pack, full_path.data(), &size));
             if (minimap_images[0].name == nullptr) {
                 exit__2(-1);
             }
@@ -120,9 +123,8 @@ void TEIGIImgLoad(u_int *pack, CDataAlloc2<1> *arena) {
     }
 }
 
-/* ComItemInfo holds items 81 to 376. Retail indexes it with no check, and PresetSmallItemNo_Get
-   asks about weapons up to 379, which reads the words after the table; the port answers nothing
-   for an item the table does not hold. */
+// ComItemInfo holds items 81 to 376; PresetSmallItemNo_Get asks about weapons up to 379, so
+// anything outside the table yields nullptr.
 COM_ITEM_INFO *GetCommonItemInfo(int item_no) {
     if (item_no <= 0) {
         return nullptr;
@@ -135,16 +137,15 @@ COM_ITEM_INFO *GetCommonItemInfo(int item_no) {
         item_no -= ITEM_ATTACH_START;
     }
 
-    if (item_no >= 296) {
+    if (std::cmp_greater_equal(item_no, std::size(ComItemInfo))) {
         return nullptr;
     }
 
     return &ComItemInfo[item_no];
 }
 
-/* The retail accessors trust the kind and index in ComItemInfo. Keep both checks
-   here so an invalid ID or a corrupt table entry cannot address a neighbouring
-   item table (or masquerade as an attachment). */
+// The kind and index checks stop an invalid ID or corrupt table entry from addressing a
+// neighbouring item table.
 int GetItemTypeInfo(int item_no, s8 *kind) {
     if (kind == nullptr) {
         return -1;
@@ -162,7 +163,7 @@ int GetItemTypeInfo(int item_no, s8 *kind) {
 
 ATTACH_DATA *GetAttachData(int item_no) {
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == nullptr || info->kind != ITEMKIND_ATTACH || info->index < 0 || info->index >= 50) {
+    if (info == nullptr || info->kind != ITEMKIND_ATTACH || info->index < 0 || std::cmp_greater_equal(info->index, std::size(AttachList))) {
         return nullptr;
     }
 
@@ -171,7 +172,7 @@ ATTACH_DATA *GetAttachData(int item_no) {
 
 ITEM_DATA *GetItemData(int item_no) {
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == nullptr || info->kind != ITEMKIND_ITEM || info->index < 0 || info->index >= 175) {
+    if (info == nullptr || info->kind != ITEMKIND_ITEM || info->index < 0 || std::cmp_greater_equal(info->index, std::size(ITEM_LIST))) {
         return nullptr;
     }
 
@@ -180,7 +181,7 @@ ITEM_DATA *GetItemData(int item_no) {
 
 WEAPON_DATA *GetWeaponData(int item_no) {
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
-    if (info == nullptr || info->kind != ITEMKIND_WEAPON || info->index < 0 || info->index >= 120) {
+    if (info == nullptr || info->kind != ITEMKIND_WEAPON || info->index < 0 || std::cmp_greater_equal(info->index, std::size(WeaponList))) {
         return nullptr;
     }
 

@@ -4,22 +4,32 @@
 #include <filesystem>
 #include <system_error>
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 #include <SDL3/SDL_system.h>
 #endif
 
 #include "icon/chronicle.hpp"
 #include "icon_retail.hpp"
-#include "platform/game_icon.hpp"
 #include "platform/data_archive.hpp"
+#include "platform/game_icon.hpp"
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
 #include "platform/window.hpp"
 
+namespace {
+
+#ifdef __ANDROID__
+constexpr const char *kWindowTitle = "Chronicle: Dark Cloud";
+#else
+constexpr const char *kWindowTitle = "Dark Cloud";
+#endif
+
+} // namespace
+
 void GameSetIdentity() {
     SettingsSetEnvPrefix("DC");
     PathsConfigure({.app_dir = "chronicle", .env_data = "DC_DATA", .env_save = "DC_SAVE"});
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     const char *private_root = SDL_GetAndroidInternalStoragePath();
     if (private_root != nullptr) {
         PathsSetDataRoot(std::filesystem::path(private_root) / "data");
@@ -28,7 +38,7 @@ void GameSetIdentity() {
 #else
     const char *data_override = std::getenv("DC_DATA");
     if (data_override == nullptr || *data_override == '\0') {
-        std::error_code error;
+        std::error_code             error;
         const std::filesystem::path current_data = std::filesystem::current_path(error) / "data";
         if (!error && DataArchivePresent(current_data)) {
             PathsSetDataRoot(current_data);
@@ -40,19 +50,13 @@ void GameSetIdentity() {
         }
     }
 #endif
-#if defined(__ANDROID__)
-    WindowSetIdentity({ .title = "Chronicle: Dark Cloud",
-#else
-    WindowSetIdentity({.title = "Dark Cloud",
-#endif
-                        .app_id = "dcdecomp.darkcloud",
-                        .icon_rgba = kIconRgba,
-                        .icon_size = kIconSize });
+    WindowSetIdentity(
+        {.title = kWindowTitle, .app_id = "dcdecomp.darkcloud", .icon_rgba = kIconRgba, .icon_size = kIconSize});
 }
 
 void GameSetDataIcon() {
-    // The save menu's pack in each language folder (menu_draw.cpp's ComMenuContryName) carries the memory
-    // card icon; a disc holds only its own languages, so every folder is tried, English first.
+    // The save menu's pack in each language folder carries the memory card icon; a disc holds only
+    // its own languages, so every folder is tried, English first.
     GameIconSource source = RetailIconSource(PathsDataRoot());
     source.ico_file = L"darkcloud.ico";
     const std::wstring shortcut = (PathsDataRoot().parent_path() / "Dark Cloud").wstring();

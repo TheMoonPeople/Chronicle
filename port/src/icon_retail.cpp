@@ -3,10 +3,6 @@
 // No renderer or platform implementation is duplicated.
 #include "icon_retail.hpp"
 
-#include "dataread_port.hpp"
-#include "platform/data_archive.hpp"
-#include "platform/paths.hpp"
-
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -14,15 +10,26 @@
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <span>
+#include <string_view>
+
+#include "dataread_port.hpp"
+#include "platform/data_archive.hpp"
+#include "platform/paths.hpp"
+
 namespace fs = std::filesystem;
 
 namespace {
-constexpr int kTextureSize = 128;
+constexpr int         kTextureSize = 128;
+constexpr std::size_t kTexels = static_cast<std::size_t>(kTextureSize) * kTextureSize;
+
+// Icon positions, normals and UVs are 4.12 fixed point.
+constexpr float kFixedOne = 4096.0f;
 
 struct Vertex {
-    float pos[3];
-    float normal[3];
-    float uv[2];
+    std::array<float, 3> pos;
+    std::array<float, 3> normal;
+    std::array<float, 2> uv;
 };
 
 struct Model {
@@ -32,59 +39,63 @@ struct Model {
 
 class Reader {
 public:
-    Reader(const std::uint8_t *data, std::size_t size) : data_(data), size_(size) {}
+    explicit Reader(std::span<const std::uint8_t> data) : data(data) {}
 
     bool Skip(std::size_t bytes) {
-        if (bytes > size_ - at_) {
+        if (bytes > data.size() - at) {
             return false;
         }
-        at_ += bytes;
+        at += bytes;
         return true;
     }
 
     template <typename T>
     bool Read(T &out) {
-        if (sizeof(T) > size_ - at_) {
+        if (sizeof(T) > data.size() - at) {
             return false;
         }
-        std::memcpy(&out, data_ + at_, sizeof(T));
-        at_ += sizeof(T);
+        std::memcpy(&out, data.subspan(at).data(), sizeof(T));
+        at += sizeof(T);
         return true;
     }
 
-    std::size_t At() const { return at_; }
+    [[nodiscard]] std::size_t At() const { return at; }
 
 private:
-    const std::uint8_t *data_;
-    std::size_t         size_;
-    std::size_t         at_ = 0;
+    std::span<const std::uint8_t> data;
+    std::size_t                   at = 0;
 };
 
 // The PS2 icon layout: a header, every vertex with one position per animation shape, its normal, UV and
 // colour, the animation frames and then a 128x128 texture, run-length compressed when bit 3 of the
 // texture type is set.
-bool Decode(const std::uint8_t *data, std::size_t size, Model &model) {
-    Reader        in(data, size);
-    std::uint32_t magic, shapes, texture_type, vertex_count;
-    float         reserved;
+bool Decode(std::span<const std::uint8_t> data, Model &model) {
+    Reader        in(data);
+    std::uint32_t magic = 0;
+    std::uint32_t shapes = 0;
+    std::uint32_t texture_type = 0;
+    std::uint32_t vertex_count = 0;
+    float         reserved = 0.0f;
     if (!in.Read(magic) || !in.Read(shapes) || !in.Read(texture_type) || !in.Read(reserved) ||
         !in.Read(vertex_count) || magic != 0x10000 || shapes == 0 || shapes > 16 || vertex_count == 0 ||
-        vertex_count % 3 != 0 || vertex_count > size / 16) {
+        vertex_count % 3 != 0 || vertex_count > data.size() / 16) {
         return false;
     }
     model.vertices.resize(vertex_count);
     for (Vertex &vertex : model.vertices) {
-        std::int16_t position[4], normal[4], uv[2];
-        for (int i = 0; i < 4; ++i) {
-            if (!in.Read(position[i])) {
+        std::array<std::int16_t, 4> position{};
+        std::array<std::int16_t, 4> normal{};
+        std::array<std::int16_t, 2> uv{};
+        for (std::int16_t &component : position) {
+            if (!in.Read(component)) {
                 return false;
             }
         }
-        if (!in.Skip(8 * (shapes - 1))) {
+        if (!in.Skip(std::size_t{8} * (shapes - 1))) {
             return false;
         }
-        for (int i = 0; i < 4; ++i) {
-            if (!in.Read(normal[i])) {
+        for (std::int16_t &component : normal) {
+            if (!in.Read(component)) {
                 return false;
             }
         }
@@ -92,39 +103,42 @@ bool Decode(const std::uint8_t *data, std::size_t size, Model &model) {
             return false;
         }
         // The icon's y and z point down and away; flip them to a y-up, z-towards-the-viewer frame.
-        constexpr float kOne = 4096.0f;
-        vertex.pos[0] = position[0] / kOne;
-        vertex.pos[1] = -position[1] / kOne;
-        vertex.pos[2] = -position[2] / kOne;
-        vertex.normal[0] = normal[0] / kOne;
-        vertex.normal[1] = -normal[1] / kOne;
-        vertex.normal[2] = -normal[2] / kOne;
-        vertex.uv[0] = uv[0] / kOne;
-        vertex.uv[1] = uv[1] / kOne;
+        vertex.pos[0] = position[0] / kFixedOne;
+        vertex.pos[1] = -position[1] / kFixedOne;
+        vertex.pos[2] = -position[2] / kFixedOne;
+        vertex.normal[0] = normal[0] / kFixedOne;
+        vertex.normal[1] = -normal[1] / kFixedOne;
+        vertex.normal[2] = -normal[2] / kFixedOne;
+        vertex.uv[0] = uv[0] / kFixedOne;
+        vertex.uv[1] = uv[1] / kFixedOne;
     }
-    std::uint32_t tag, frame_length, play_offset, frames;
-    float         speed;
+    std::uint32_t tag = 0;
+    std::uint32_t frame_length = 0;
+    std::uint32_t play_offset = 0;
+    std::uint32_t frames = 0;
+    float         speed = 0.0f;
     if (!in.Read(tag) || !in.Read(frame_length) || !in.Read(speed) || !in.Read(play_offset) || !in.Read(frames) ||
         frames > 1024) {
         return false;
     }
-    for (std::uint32_t i = 0; i < frames; ++i) {
-        std::uint32_t shape, keys;
-        if (!in.Read(shape) || !in.Read(keys) || keys > 1024 || !in.Skip(8 * std::size_t(keys))) {
+    for (std::uint32_t frame = 0; frame < frames; ++frame) {
+        std::uint32_t shape = 0;
+        std::uint32_t keys = 0;
+        if (!in.Read(shape) || !in.Read(keys) || keys > 1024 || !in.Skip(8 * static_cast<std::size_t>(keys))) {
             return false;
         }
     }
-    constexpr std::size_t kTexels = kTextureSize * kTextureSize;
     model.texture.clear();
     model.texture.reserve(kTexels);
     if (texture_type & 8) {
-        std::uint32_t packed;
-        if (!in.Read(packed) || packed > size - in.At()) {
+        std::uint32_t packed = 0;
+        if (!in.Read(packed) || packed > data.size() - in.At()) {
             return false;
         }
         const std::size_t end = in.At() + packed;
         while (in.At() < end && model.texture.size() < kTexels) {
-            std::uint16_t count, value;
+            std::uint16_t count = 0;
+            std::uint16_t value = 0;
             if (!in.Read(count)) {
                 return false;
             }
@@ -143,7 +157,7 @@ bool Decode(const std::uint8_t *data, std::size_t size, Model &model) {
             }
         }
     } else {
-        std::uint16_t value;
+        std::uint16_t value = 0;
         while (model.texture.size() < kTexels && in.Read(value)) {
             model.texture.push_back(value);
         }
@@ -164,13 +178,10 @@ bool ReadFile(const fs::path &path, std::vector<std::uint8_t> &out) {
     return true;
 }
 
-bool SameName(const char *a, const char *b) {
-    for (; *a != 0 && *b != 0; ++a, ++b) {
-        if (std::tolower(static_cast<unsigned char>(*a)) != std::tolower(static_cast<unsigned char>(*b))) {
-            return false;
-        }
-    }
-    return *a == *b;
+bool SameName(std::string_view a, std::string_view b) {
+    return std::ranges::equal(a, b, [](char left, char right) {
+        return std::tolower(static_cast<unsigned char>(left)) == std::tolower(static_cast<unsigned char>(right));
+    });
 }
 
 // relative under root, each component matched without regard to case: extraction may fold the disc's names.
@@ -185,7 +196,7 @@ bool FindFolded(const fs::path &root, const fs::path &relative, fs::path &out) {
         const std::string wanted = part.generic_string();
         bool              found = false;
         for (fs::directory_iterator it(at, error), end; !error && it != end; it.increment(error)) {
-            if (SameName(it->path().filename().generic_string().c_str(), wanted.c_str())) {
+            if (SameName(it->path().filename().generic_string(), wanted)) {
                 at = it->path();
                 found = true;
                 break;
@@ -195,23 +206,26 @@ bool FindFolded(const fs::path &root, const fs::path &relative, fs::path &out) {
             return false;
         }
     }
-    out = at;
+    out = std::move(at);
     return true;
 }
 
 // A PACK is a chain of 0x4C-byte entries (name[64], data offset, size, next entry), each offset relative
 // to its own entry; an empty name ends it.
-bool PackMember(const std::vector<std::uint8_t> &pack, const char *wanted, std::vector<std::uint8_t> &out) {
+bool PackMember(const std::vector<std::uint8_t> &pack, std::string_view wanted, std::vector<std::uint8_t> &out) {
     std::size_t at = 0;
     while (at + 0x4C <= pack.size() && pack[at] != 0) {
-        char name[65] = {};
-        std::memcpy(name, &pack[at], 64);
-        std::int32_t offset, size, next;
+        std::string_view name(reinterpret_cast<const char *>(&pack[at]), 64);
+        name = name.substr(0, name.find('\0'));
+        std::int32_t offset = 0;
+        std::int32_t size = 0;
+        std::int32_t next = 0;
         std::memcpy(&offset, &pack[at + 64], 4);
         std::memcpy(&size, &pack[at + 68], 4);
         std::memcpy(&next, &pack[at + 72], 4);
         if (SameName(name, wanted)) {
-            if (offset < 0 || size <= 0 || at + offset > pack.size() || std::size_t(size) > pack.size() - at - offset) {
+            if (offset < 0 || size <= 0 || at + offset > pack.size() ||
+                static_cast<std::size_t>(size) > pack.size() - at - offset) {
                 return false;
             }
             out.assign(pack.begin() + at + offset, pack.begin() + at + offset + size);
@@ -226,80 +240,82 @@ bool PackMember(const std::vector<std::uint8_t> &pack, const char *wanted, std::
 }
 
 // In-memory PNG encoding derived from upstream gfx/readback.cpp.
-uint32_t Crc32(const uint8_t *data, size_t size, uint32_t crc = 0) {
-    static const std::array<uint32_t, 256> table = [] {
-        std::array<uint32_t, 256> entries{};
-        for (uint32_t i = 0; i < 256; i++) {
-            uint32_t value = i;
-            for (int bit = 0; bit < 8; bit++) {
-                value = (value & 1) ? 0xEDB88320u ^ (value >> 1) : value >> 1;
-            }
-            entries[i] = value;
+constexpr std::array<std::uint32_t, 256> kCrcTable = [] {
+    std::array<std::uint32_t, 256> entries{};
+    for (std::uint32_t i = 0; i < 256; i++) {
+        std::uint32_t value = i;
+        for (int bit = 0; bit < 8; bit++) {
+            value = (value & 1) ? 0xEDB88320u ^ (value >> 1) : value >> 1;
         }
-        return entries;
-    }();
+        entries[i] = value;
+    }
+    return entries;
+}();
+
+std::uint32_t Crc32(std::span<const std::uint8_t> data, std::uint32_t crc = 0) {
     crc = ~crc;
-    for (size_t i = 0; i < size; i++) {
-        crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
+    for (std::uint8_t byte : data) {
+        crc = kCrcTable[(crc ^ byte) & 0xFF] ^ (crc >> 8);
     }
     return ~crc;
 }
 
-void PutBigEndian(std::vector<uint8_t> &out, uint32_t value) {
-    out.push_back(static_cast<uint8_t>(value >> 24));
-    out.push_back(static_cast<uint8_t>(value >> 16));
-    out.push_back(static_cast<uint8_t>(value >> 8));
-    out.push_back(static_cast<uint8_t>(value));
+void PutBigEndian(std::vector<std::uint8_t> &out, std::uint32_t value) {
+    out.push_back(static_cast<std::uint8_t>(value >> 24));
+    out.push_back(static_cast<std::uint8_t>(value >> 16));
+    out.push_back(static_cast<std::uint8_t>(value >> 8));
+    out.push_back(static_cast<std::uint8_t>(value));
 }
 
-void PutChunk(std::vector<uint8_t> &out, const char type[4], const std::vector<uint8_t> &data) {
-    PutBigEndian(out, static_cast<uint32_t>(data.size()));
-    size_t start = out.size();
-    out.insert(out.end(), type, type + 4);
+void PutChunk(std::vector<std::uint8_t> &out, std::string_view type, const std::vector<std::uint8_t> &data) {
+    PutBigEndian(out, static_cast<std::uint32_t>(data.size()));
+    const std::size_t start = out.size();
+    out.insert(out.end(), type.begin(), type.end());
     out.insert(out.end(), data.begin(), data.end());
-    PutBigEndian(out, Crc32(out.data() + start, out.size() - start));
+    PutBigEndian(out, Crc32(std::span(out).subspan(start)));
 }
 
-std::vector<uint8_t> EncodePng(const uint8_t *rgba, uint32_t width, uint32_t height) {
-    std::vector<uint8_t> raw;
-    raw.reserve((static_cast<size_t>(width) * 3 + 1) * height);
-    for (uint32_t y = 0; y < height; y++) {
+std::vector<std::uint8_t> EncodePng(std::span<const std::uint8_t> rgba, std::uint32_t width, std::uint32_t height) {
+    std::vector<std::uint8_t> raw;
+    raw.reserve((static_cast<std::size_t>(width) * 3 + 1) * height);
+    for (std::uint32_t y = 0; y < height; y++) {
         raw.push_back(0);
-        const uint8_t *row = rgba + static_cast<size_t>(y) * width * 4;
-        for (uint32_t x = 0; x < width; x++) {
-            raw.insert(raw.end(), row + x * 4, row + x * 4 + 3);
+        const auto row = rgba.subspan(static_cast<std::size_t>(y) * width * 4, static_cast<std::size_t>(width) * 4);
+        for (std::uint32_t x = 0; x < width; x++) {
+            const auto rgb = row.subspan(static_cast<std::size_t>(x) * 4, 3);
+            raw.insert(raw.end(), rgb.begin(), rgb.end());
         }
     }
 
     // zlib stream of stored deflate blocks: no compressor, and screenshots are for tests.
-    std::vector<uint8_t> zlib = {0x78, 0x01};
-    size_t               pos = 0;
+    std::vector<std::uint8_t> zlib = {0x78, 0x01};
+    std::size_t               pos = 0;
     do {
-        size_t length = std::min<size_t>(raw.size() - pos, 0xFFFF);
-        bool   last = pos + length == raw.size();
+        const std::size_t length = std::min<std::size_t>(raw.size() - pos, 0xFFFF);
+        const bool        last = pos + length == raw.size();
         zlib.push_back(last ? 1 : 0);
-        zlib.push_back(static_cast<uint8_t>(length));
-        zlib.push_back(static_cast<uint8_t>(length >> 8));
-        zlib.push_back(static_cast<uint8_t>(~length));
-        zlib.push_back(static_cast<uint8_t>(~length >> 8));
+        zlib.push_back(static_cast<std::uint8_t>(length));
+        zlib.push_back(static_cast<std::uint8_t>(length >> 8));
+        zlib.push_back(static_cast<std::uint8_t>(~length));
+        zlib.push_back(static_cast<std::uint8_t>(~length >> 8));
         zlib.insert(zlib.end(), raw.begin() + static_cast<std::ptrdiff_t>(pos),
                     raw.begin() + static_cast<std::ptrdiff_t>(pos + length));
         pos += length;
     } while (pos < raw.size());
-    uint32_t a = 1;
-    uint32_t b = 0;
-    for (uint8_t byte : raw) {
-        a = (a + byte) % 65521;
-        b = (b + a) % 65521;
+    std::uint32_t adler_a = 1;
+    std::uint32_t adler_b = 0;
+    for (std::uint8_t byte : raw) {
+        adler_a = (adler_a + byte) % 65521;
+        adler_b = (adler_b + adler_a) % 65521;
     }
-    PutBigEndian(zlib, (b << 16) | a);
+    PutBigEndian(zlib, (adler_b << 16) | adler_a);
 
-    std::vector<uint8_t> header;
+    std::vector<std::uint8_t> header;
     PutBigEndian(header, width);
     PutBigEndian(header, height);
     header.insert(header.end(), {8, 2, 0, 0, 0});
 
-    std::vector<uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+    std::vector<std::uint8_t> png = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
     PutChunk(png, "IHDR", header);
     PutChunk(png, "IDAT", zlib);
     PutChunk(png, "IEND", {});
@@ -311,60 +327,62 @@ class IconFile final : public vfs::Mount {
 public:
     std::vector<std::uint8_t> bytes;
 
-    std::size_t Count() const override { return 1; }
+    [[nodiscard]] std::size_t Count() const override { return 1; }
 
-    std::string Name(std::size_t) const override { return "dkicon.glb"; }
+    [[nodiscard]] std::string Name(std::size_t /*index*/) const override { return "dkicon.glb"; }
 
-    std::string Display(std::size_t) const override { return "retail-icon/dkicon.glb"; }
+    [[nodiscard]] std::string Display(std::size_t /*index*/) const override { return "retail-icon/dkicon.glb"; }
 
-    std::optional<std::size_t> Find(std::string_view name) const override {
+    [[nodiscard]] std::optional<std::size_t> Find(std::string_view name) const override {
         return name == "dkicon.glb" ? std::optional<std::size_t>(0) : std::nullopt;
     }
 
-    std::optional<std::uint64_t> Size(std::size_t i) const override {
-        return i == 0 ? std::optional<std::uint64_t>(bytes.size()) : std::nullopt;
+    [[nodiscard]] std::optional<std::uint64_t> Size(std::size_t index) const override {
+        return index == 0 ? std::optional<std::uint64_t>(bytes.size()) : std::nullopt;
     }
 
-    bool Read(std::size_t i, std::vector<std::uint8_t> &out, std::uint64_t max) const override {
-        if (i || bytes.size() > max) {
+    bool Read(std::size_t index, std::vector<std::uint8_t> &out, std::uint64_t max) const override {
+        if (index != 0 || bytes.size() > max) {
             return false;
         }
         out = bytes;
         return true;
     }
 
-    bool ReadInto(std::size_t i, void *out, std::size_t size) const override {
-        if (i || bytes.size() != size) {
+    bool ReadInto(std::size_t index, void *out, std::size_t size) const override {
+        if (index != 0 || bytes.size() != size) {
             return false;
         }
         std::memcpy(out, bytes.data(), size);
         return true;
     }
 
-    std::string Stamp(std::size_t) const override { return "retail-icon"; }
+    [[nodiscard]] std::string Stamp(std::size_t /*index*/) const override { return "retail-icon"; }
 
-    std::vector<vfs::Member> List(std::string_view directory) const override {
-        return directory.empty() ? std::vector<vfs::Member>{
-                                       {"dkicon.glb", false}
+    [[nodiscard]] std::vector<vfs::Member> List(std::string_view directory) const override {
+        if (!directory.empty()) {
+            return {};
         }
-                                 : std::vector<vfs::Member>{};
+        return {
+            {.name = "dkicon.glb", .directory = false}
+        };
     }
 };
 } // namespace
 
 std::vector<std::uint8_t> RetailIconToGlb(std::span<const std::uint8_t> bytes) {
     Model model;
-    if (!Decode(bytes.data(), bytes.size(), model)) {
+    if (!Decode(bytes, model)) {
         return {};
     }
     std::vector<std::uint8_t> rgba;
-    for (auto texel : model.texture) {
-        for (int shift : {0, 5, 10}) {
-            rgba.push_back(((texel >> shift) & 31) << 3);
+    for (const std::uint16_t texel : model.texture) {
+        for (const int shift : {0, 5, 10}) {
+            rgba.push_back(static_cast<std::uint8_t>(((texel >> shift) & 31) << 3));
         }
         rgba.push_back(255);
     }
-    const auto                png = EncodePng(rgba.data(), 128, 128);
+    const auto                png = EncodePng(rgba, kTextureSize, kTextureSize);
     const auto                vertex_bytes = model.vertices.size() * sizeof(Vertex);
     std::vector<std::uint8_t> binary(vertex_bytes);
     std::memcpy(binary.data(), model.vertices.data(), vertex_bytes);
@@ -372,28 +390,27 @@ std::vector<std::uint8_t> RetailIconToGlb(std::span<const std::uint8_t> bytes) {
     using Json = nlohmann::json;
     Json accessors = Json::array();
     for (int attribute = 0; attribute < 3; ++attribute) {
-        Json a = {
-            {"bufferView",    0                                                              },
-            {"byteOffset",    attribute == 0 ? 0 : attribute == 1 ? 12
-                                                               : 24},
-            {"componentType", 5126                                                           },
-            {"count",         model.vertices.size()                                          },
-            {"type",          attribute == 2 ? "VEC2" : "VEC3"                               }
+        // Positions, normals and UVs are 12 bytes apart within a Vertex.
+        Json accessor = {
+            {"bufferView",    0                               },
+            {"byteOffset",    attribute * 12                  },
+            {"componentType", 5126                            },
+            {"count",         model.vertices.size()           },
+            {"type",          attribute == 2 ? "VEC2" : "VEC3"}
         };
         if (attribute == 0) {
-            std::array<float, 3> lo, hi;
-            std::copy_n(model.vertices[0].pos, 3, lo.begin());
-            hi = lo;
-            for (const auto &v : model.vertices) {
-                for (int j = 0; j < 3; ++j) {
-                    lo[j] = std::min(lo[j], v.pos[j]);
-                    hi[j] = std::max(hi[j], v.pos[j]);
+            std::array<float, 3> lo = model.vertices[0].pos;
+            std::array<float, 3> hi = lo;
+            for (const Vertex &vertex : model.vertices) {
+                for (std::size_t axis = 0; axis < 3; ++axis) {
+                    lo[axis] = std::min(lo[axis], vertex.pos[axis]);
+                    hi[axis] = std::max(hi[axis], vertex.pos[axis]);
                 }
             }
-            a["min"] = lo;
-            a["max"] = hi;
+            accessor["min"] = lo;
+            accessor["max"] = hi;
         }
-        accessors.push_back(a);
+        accessors.push_back(accessor);
     }
     Json doc = {
         {"asset",       {{"version", "2.0"}}                                                                                                                                                                      },
@@ -416,15 +433,18 @@ std::vector<std::uint8_t> RetailIconToGlb(std::span<const std::uint8_t> bytes) {
         binary.push_back(0);
     }
     std::vector<std::uint8_t> glb;
-    auto                      word = [&](std::uint32_t v) { for(int i=0;i<4;++i){ glb.push_back(v>>(8*i));
-} };
+    const auto                word = [&glb](std::uint32_t value) {
+        for (int shift = 0; shift < 32; shift += 8) {
+            glb.push_back(static_cast<std::uint8_t>(value >> shift));
+        }
+    };
     word(0x46546C67);
     word(2);
-    word(12 + 8 + json.size() + 8 + binary.size());
-    word(json.size());
+    word(static_cast<std::uint32_t>(12 + 8 + json.size() + 8 + binary.size()));
+    word(static_cast<std::uint32_t>(json.size()));
     word(0x4E4F534A);
     glb.insert(glb.end(), json.begin(), json.end());
-    word(binary.size());
+    word(static_cast<std::uint32_t>(binary.size()));
     word(0x004E4942);
     glb.insert(glb.end(), binary.begin(), binary.end());
     return glb;
@@ -438,12 +458,13 @@ GameIconSource RetailIconSource(const fs::path &root) {
     source.member = "dkicon.glb";
     source.candidates = [root](const fs::path &relative) {
         fs::path                  path;
-        std::vector<std::uint8_t> pack, icon;
+        std::vector<std::uint8_t> pack;
+        std::vector<std::uint8_t> icon;
         std::vector<vfs::Ref>     result;
-        const fs::path pack_name = relative.parent_path();
-        const bool read = root == PathsDataRoot() && DataArchivePresent(root)
-                              ? DataReadReadFile(pack_name.generic_string(), pack)
-                              : FindFolded(root, pack_name, path) && ReadFile(path, pack);
+        const fs::path            pack_name = relative.parent_path();
+        const bool                read = root == PathsDataRoot() && DataArchivePresent(root)
+                                             ? DataReadReadFile(pack_name.generic_string(), pack)
+                                             : FindFolded(root, pack_name, path) && ReadFile(path, pack);
         if (read && PackMember(pack, "dkicon.ico", icon)) {
             auto file = std::make_shared<IconFile>();
             file->bytes = RetailIconToGlb(icon);

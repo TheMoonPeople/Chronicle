@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <span>
 
 #include "btitem.hpp"
 #include "btmisc.hpp"
@@ -34,14 +35,14 @@
 #endif
 
 // The literals, as the PAL executable has them.
-PORT_LINK_NAME char       BtAtraShortCharaFile[] = "dun/mainchara/c01d_ex00.chr";
-PORT_LINK_NAME char       BtEffectInfoFile[] = "info.cfg";
-PORT_LINK_NAME char       MdsExtension[] = ".mds";
-PORT_LINK_NAME char       OverMessage[] = " ************* over!!\n";
-PORT_LINK_NAME char       HealEffectTextureName[] = "basefx00";
-PORT_LINK_NAME char       gamemode_empty_string[] = "";
-PORT_LINK_NAME char       manual_frame_image[] = "#frame_image#640#480#4";
-PORT_LINK_NAME char       allmenu_mes[] = "allmenu.mes";
+PORT_LINK_NAME char              BtAtraShortCharaFile[] = "dun/mainchara/c01d_ex00.chr";
+PORT_LINK_NAME char              BtEffectInfoFile[] = "info.cfg";
+PORT_LINK_NAME char              MdsExtension[] = ".mds";
+PORT_LINK_NAME char              OverMessage[] = " ************* over!!\n";
+PORT_LINK_NAME char              HealEffectTextureName[] = "basefx00";
+PORT_LINK_NAME char              gamemode_empty_string[] = "";
+PORT_LINK_NAME char              manual_frame_image[] = "#frame_image#640#480#4";
+PORT_LINK_NAME char              allmenu_mes[] = "allmenu.mes";
 PORT_LINK_NAME extern const char CharaFileExtension[5] = ".chr";
 PORT_LINK_NAME extern const char FrameImageTexture[] = "#frame_image#640#480#4";
 
@@ -139,7 +140,11 @@ PORT_LINK_NAME MAP_NPC_MODEL &MAP_NPC_MODEL::operator=(const MAP_NPC_MODEL &othe
 // not the other, the port gives the table its own storage, copied from GaijiDataTbl before main (which
 // nothing writes), and names its end with an assembler alias. Mach-O marks the alias an alt entry, so it
 // stays in the storage's atom.
+namespace {
+
 constexpr int kEditGaijiCodes = 0x300;
+
+} // namespace
 
 alignas(16) EDIT_GAIJI PortEditGaijiStorage[kEditGaijiCodes + 1];
 
@@ -151,15 +156,15 @@ asm(".globl " PORT_EDIT_GAIJI_TBL "\n"
 namespace {
 
 [[gnu::constructor]] void CopyEditGaijiTable() {
-    const unsigned char  *table = reinterpret_cast<const unsigned char *>(GaijiDataTbl);
-    constexpr std::size_t kFirstWord = 0x1C;
+    const auto            table = std::as_bytes(std::span(GaijiDataTbl));
+    constexpr std::size_t first_word_offset = 0x1C;
     for (std::size_t i = 0; i < kEditGaijiCodes; i++) {
-        std::size_t start = kFirstWord + i * sizeof(EDIT_GAIJI);
+        std::size_t start = first_word_offset + i * sizeof(EDIT_GAIJI);
         if (start >= sizeof(GaijiDataTbl)) {
             break;
         }
-        std::size_t bytes = std::min(sizeof(EDIT_GAIJI), sizeof(GaijiDataTbl) - start);
-        std::memcpy(&PortEditGaijiStorage[i], table + start, bytes);
+        const auto entry = table.subspan(start, std::min(sizeof(EDIT_GAIJI), table.size() - start));
+        std::memcpy(&PortEditGaijiStorage[i], entry.data(), entry.size());
     }
 }
 
