@@ -1,5 +1,6 @@
 #include "menu_draw.hpp"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <span>
@@ -40,26 +41,26 @@ struct BoardName {
 };
 
 const BoardName kBoardNames[] = {
-    {"DIVINE BEAST DRAN'S CHAMBER", 5.02f, 0.636f, {{U'B', 0.0f, 0.0f, 0.0f, -0.6f}, {U'R', 0.0f, 0.0f, 0.0f, -0.6f, 0}}},
-    {"DWELLING OF FOREST GUARD", 4.10f, 0.714f, {{U'R', 0.0f, -1.2f}, {U'D', -1.4f, 0.0f}, {U'N', 1.6f, -1.6f}, {U'A', 0.9f, 0.0f, 0.0f, -1.0f}}},
-    {"CHURCH OF MEMORY", 3.57f, 0.954f, {{U'R', 0.0f, -2.0f, -2.0f}, {U'H', 0.0f, 0.5f}, {U'U', 0.0f, 0.0f, 0.8f}}},
-    {"COFFIN'S CHAMBER", 3.00f, 0.978f, {{U'N', 0.8f, -0.8f}, {U'S', -0.8f, 0.8f}, {U' ', 0.0f, 0.0f, 2.0f}, {U'R', 0.0f, -2.2f}, {U'E', 0.0f, -0.8f}}},
-    {"COLISEUM", 3.70f, 0.944f, {{U'C', 0.8f, -0.8f}, {U'S', 0.8f, -0.8f}, {U'U', -0.8f, 0.8f}}},
-    {"NIGHT OF INCIDENT", 3.26f, 1.000f, {{U'I', 0.0f, 0.0f, 0.0f, -0.8f}, {U'I', 0.0f, 0.0f, 0.0f, 0.8f, 1}, {U'G', -0.8f, 0.8f}, {U'C', 0.0f, 0.0f, 0.0f, -1.2f}, {U'D', -0.6f, 0.0f, 0.0f, 0.6f}, {U'E', 0.0f, -1.4f}, {U'N', 0.0f, 0.0f, 0.0f, -1.4f, 2}}},
-    {"TOP FLOOR", 4.46f, 0.956f, {{U'O', 0.0f, -0.6f}, {U'P', 1.6f, 0.0f}, {U'R', 0.0f, -2.2f}, {U'O', 0.0f, 0.0f, 0.0f, 0.6f, 1}, {U'O', 0.0f, 0.0f, 0.0f, 0.6f, 2}}},
+    {"DIVINE BEAST DRAN'S CHAMBER", 5.02f, 0.636f, {{U'B', 0.0f, 0.0f, 0.0f, -0.6f}, {U'R', 0.0f, 0.0f, 0.0f, -0.6f, 0}}                                                                                                                                               },
+    {"DWELLING OF FOREST GUARD",    4.10f, 0.714f, {{U'R', 0.0f, -1.2f}, {U'D', -1.4f, 0.0f}, {U'N', 1.6f, -1.6f}, {U'A', 0.9f, 0.0f, 0.0f, -1.0f}}                                                                                                                    },
+    {"CHURCH OF MEMORY",            3.57f, 0.954f, {{U'R', 0.0f, -2.0f, -2.0f}, {U'H', 0.0f, 0.5f}, {U'U', 0.0f, 0.0f, 0.8f}}                                                                                                                                          },
+    {"COFFIN'S CHAMBER",            3.00f, 0.978f, {{U'N', 0.8f, -0.8f}, {U'S', -0.8f, 0.8f}, {U' ', 0.0f, 0.0f, 2.0f}, {U'R', 0.0f, -2.2f}, {U'E', 0.0f, -0.8f}}                                                                                                      },
+    {"COLISEUM",                    3.70f, 0.944f, {{U'C', 0.8f, -0.8f}, {U'S', 0.8f, -0.8f}, {U'U', -0.8f, 0.8f}}                                                                                                                                                     },
+    {"NIGHT OF INCIDENT",           3.26f, 1.000f, {{U'I', 0.0f, 0.0f, 0.0f, -0.8f}, {U'I', 0.0f, 0.0f, 0.0f, 0.8f, 1}, {U'G', -0.8f, 0.8f}, {U'C', 0.0f, 0.0f, 0.0f, -1.2f}, {U'D', -0.6f, 0.0f, 0.0f, 0.6f}, {U'E', 0.0f, -1.4f}, {U'N', 0.0f, 0.0f, 0.0f, -1.4f, 2}}},
+    {"TOP FLOOR",                   4.46f, 0.956f, {{U'O', 0.0f, -0.6f}, {U'P', 1.6f, 0.0f}, {U'R', 0.0f, -2.2f}, {U'O', 0.0f, 0.0f, 0.0f, 0.6f, 1}, {U'O', 0.0f, 0.0f, 0.0f, 0.6f, 2}}                                                                                },
 };
 
 bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
     if (texture == nullptr || texture != DunLogBoard || texel.x != 0xFC || texel.width != 0xDC || texel.y < 0x20 ||
-        texel.height <= 0 || texel.height > 0x18 || !caption::Ready() || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+        texel.height <= 0 || texel.height > 0x18 || !caption::Ready() || !LocalizeLanguageFile().starts_with("en_")) {
         return false;
     }
     // The row the strip is cut from; the list clips a row at its edges by starting the strip lower or ending it sooner.
     const int row = (texel.y - 0x20) / 0x18;
-    if (row >= static_cast<int>(std::size(kBoardNames)) || texel.y + texel.height > 0x20 + (row + 1) * 0x18) {
+    if (row >= std::ssize(kBoardNames) || texel.y + texel.height > 0x20 + (row + 1) * 0x18) {
         return false;
     }
-    const float      row_top = static_cast<float>(screen.y - (texel.y - (0x20 + row * 0x18)));
+    const auto       row_top = static_cast<float>(screen.y - (texel.y - (0x20 + row * 0x18)));
     const BoardName &name = kBoardNames[row];
     return caption::DrawBoardName(name.english, static_cast<float>(screen.x) + name.left, row_top + 4.17f, name.squeeze,
                                   name.adjust, static_cast<float>(screen.y), static_cast<float>(screen.y + screen.height),
@@ -70,31 +71,31 @@ bool DrawBoardName(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &te
 // dungeon's from (English: the other languages' painted words stay): each word's painted letters' box in its row (or,
 // by_capitals, from where they run from and to, their capitals' top and baseline).
 struct FloorLabel {
-    int         u, v;
-    const char *english;
-    float       left, top, right, bottom;
-    std::vector<caption::FloorAdjust> adjust;      // where this word's painting departs from the font's spacing
+    int                               u, v;
+    const char                       *english;
+    float                             left, top, right, bottom;
+    std::vector<caption::FloorAdjust> adjust;        // where this word's painting departs from the font's spacing
     bool                              by_capitals{}; // top and bottom are the capitals' top and the baseline
     float                             squeeze{};     // its letters this much as wide as tall as the font's, from left
 };
 
 const FloorLabel kFloorLabels[] = {
-    {0x00, 0x00, "B",         29.0f, 5.0f, 43.4f,  23.2f},
-    {0x80, 0x00, "Floor",     17.0f, 4.75f, 62.4f, 22.7f},
-    {0x00, 0x20, "Territory", 6.0f,  4.0f, 69.4f,  24.2f, {{0, 0.6f}, {1, 0.0f, -2.5f}}},
+    {0x00, 0x00, "B", 29.0f, 5.0f, 43.4f, 23.2f},
+    {0x80, 0x00, "Floor", 17.0f, 4.75f, 62.4f, 22.7f},
+    {0x00, 0x20, "Territory", 6.0f, 4.0f, 69.4f, 24.2f, {{0, 0.6f}, {1, 0.0f, -2.5f}}},
     // Layer by its capitals: 18 pixels tall, half a pixel above Territory's baseline.
-    {0x00, 0x40, "Layer",     16.0f, 4.4f, 62.4f,  22.4f, {}, true},
+    {0x00, 0x40, "Layer", 16.0f, 4.4f, 62.4f, 22.4f, {}, true},
     // Level as Layer, its letters as wide, its L where the painting's is, the rest a little further on, the v on the line
     // (the font's dips below it).
-    {0x00, 0x60, "Level",     16.0f, 4.4f, 60.4f,  22.4f, {{1, 0.0f, 0.6f}, {2, 0.0f, 1.0f, 0.5f}, {3, 0.0f, 0.2f}, {4, 0.0f, 0.8f}}, true, 0.852f},
-    {0x00, 0x80, "No.",       3.0f,  5.0f, 20.4f,  22.9f, {{0, 0.25f}, {1, 0.25f, -0.25f}, {2, 0.0f, -0.55f, -3.15f}}}, // its N and o a little wider, its stop down by the o
-    {0x00, 0x80, "Craters",   58.0f, 5.0f, 109.4f, 22.9f},
+    {0x00, 0x60, "Level", 16.0f, 4.4f, 60.4f, 22.4f, {{1, 0.0f, 0.6f}, {2, 0.0f, 1.0f, 0.5f}, {3, 0.0f, 0.2f}, {4, 0.0f, 0.8f}}, true, 0.852f},
+    {0x00, 0x80, "No.", 3.0f, 5.0f, 20.4f, 22.9f, {{0, 0.25f}, {1, 0.25f, -0.25f}, {2, 0.0f, -0.55f, -3.15f}}}, // its N and o a little wider, its stop down by the o
+    {0x00, 0x80, "Craters", 58.0f, 5.0f, 109.4f, 22.9f},
     {0x00, 0xA0, "Years ago", 50.0f, 4.75f, 110.4f, 24.2f, {{1, 0.0f, -1.1f}, {3, 0.0f, 0.25f}, {4, 0.0f, -0.5f, 0.25f}, {5, 0.0f, 0.5f}, {6, 0.0f, 0.0f, -1.1f}}}, // its g's top level with the a's
 };
 
 bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
     if (texture == nullptr || std::string_view(texture->name) != "kaisou" || texel.width != 0x70 || texel.height <= 0 ||
-        texel.height > 0x1C || texel.y >= 0xC0 || !caption::Ready() || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+        texel.height > 0x1C || texel.y >= 0xC0 || !caption::Ready() || !LocalizeLanguageFile().starts_with("en_")) {
         return false;
     }
     // The row the strip is cut from; the list clips a row at its edges by starting the strip lower or ending it sooner.
@@ -102,8 +103,9 @@ bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &
     if (texel.y + texel.height > row_v + 0x1C) {
         return false;
     }
-    const float left = static_cast<float>(screen.x), row_top = static_cast<float>(screen.y - (texel.y - row_v));
-    bool        drew = false;
+    const auto left = static_cast<float>(screen.x);
+    const auto row_top = static_cast<float>(screen.y - (texel.y - row_v));
+    bool       drew = false;
     for (const FloorLabel &label : kFloorLabels) {
         if (label.u == texel.x && label.v == row_v) {
             drew = caption::DrawFloorLabel(label.english, left + label.left, row_top + label.top, left + label.right,
@@ -119,13 +121,14 @@ bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &
 // The name entry's painted title, REGISTER NAME (0xAE by 0x20 at 0xC0, 0x178 of "nametemp"), in the captions' look.
 bool DrawNameTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
     if (texture == nullptr || std::string_view(texture->name) != "nametemp" || texel.x != 0xC0 || texel.y != 0x178 ||
-        texel.width != 0xAE || texel.height != 0x20 || LocalizeLanguageFile().rfind("en_", 0) != 0) {
+        texel.width != 0xAE || texel.height != 0x20 || !LocalizeLanguageFile().starts_with("en_")) {
         return false;
     }
     // The painted letters run from about 3 to 164 of it, their capitals from row 8 to 27.6, the words 5 pixels apart.
     const float rows = static_cast<float>(screen.height) / static_cast<float>(texel.height);
     // English's RE, EG, GI, IS and ER closer, and ST, TE and NA closer still, as painted, NAME where it was.
-    static constexpr float kClose = -0.8f, kCloser = -1.6f;
+    static constexpr float kClose = -0.8f;
+    static constexpr float kCloser = -1.6f;
     static constexpr float kEnglish[] = {kClose + 0.4f, kClose, kClose, kClose, kCloser, kCloser, kClose, 0.1f - 2 * kClose, kCloser};
     // NAME half a pixel further on than the painting's.
     return caption::DrawTitle("REGISTER NAME", screen.x, screen.y, 3.2f, 163.7f, 8.0f * rows + 0.2f, 26.2f * rows + 1.4f, 0.1f,
@@ -144,7 +147,8 @@ struct PaintedTitle {
     const char            *english;
     int                    left, right, top, bottom;
     float                  space = 0.1f;
-    std::span<const float> after = {}, narrow = {};
+    std::span<const float> after;
+    std::span<const float> narrow;
 };
 
 // CHECK-INCOUNTER's letters are painted nearly touching, its dash a short one tucked under the K's leg.
@@ -166,11 +170,11 @@ bool DrawPaintedTitle(CTexture *texture, const CRect_i_ &screen, const CRect_i_ 
     }
     for (const PaintedTitle &title : kPaintedTitles) {
         if (texel.x != title.u || texel.y != title.v || texel.width != title.width || texel.height != title.height ||
-            std::strcmp(texture->name, title.texture) != 0) {
+            std::string_view(texture->name) != title.texture) {
             continue;
         }
         std::string word = LocalizeText(title.key, "");
-        const bool  english = word.empty() && LocalizeLanguageFile().rfind("en_", 0) == 0;
+        const bool  english = word.empty() && LocalizeLanguageFile().starts_with("en_");
         if (english) {
             word = title.english;
         }
@@ -209,7 +213,7 @@ void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *attachment) {
 }
 
 u_long128 *MenuCalcBufAlignment(u_long128 *buffer) {
-    // Align the buffer address to a 64-byte boundary across the full 64-bit address space.
+    // Aligns to 64 bytes using the full pointer width.
     auto address = reinterpret_cast<std::uintptr_t>(buffer);
     return reinterpret_cast<u_long128 *>((address + 63) & ~std::uintptr_t{63});
 }
@@ -241,7 +245,7 @@ void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, int al
 }
 
 void DrawMenu2DSprite(CTexture *texture, CRect_i_ screen, CRect_i_ texel, unsigned char r, unsigned char g,
-                                    unsigned char b, int alpha) {
+                      unsigned char b, int alpha) {
     // Clamp 1:1 sprite source heights so adjacent atlas rows are not sampled when scaled.
     if (screen.width > 0 && screen.height > 0 &&
         texel.width == screen.width &&
@@ -273,14 +277,14 @@ void DrawMainMenuIcon(int x, int y, int icon, int selected, int bright, int alph
         return;
     }
 
+    static constexpr std::array<std::array<s16, 2>, 2> kFrameSize = {
+        {{0x30, 0x20}, {0x3A, 0x28}}
+    };
+
     int u = info->u;
     int v = info->v;
-    s16 frame_size[2][2] = {
-        {0x30, 0x20},
-        {0x3A, 0x28}
-    };
-    int width = frame_size[selected][0];
-    int height = frame_size[selected][1];
+    int width = kFrameSize[selected][0];
+    int height = kFrameSize[selected][1];
     if (selected) {
         u = info->selected_u;
         v = info->selected_v;
@@ -311,7 +315,7 @@ void DrawMainMenuIcon(int x, int y, int icon, int selected, int bright, int alph
     painted(StayTex);
 }
 
-void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, int alpha) {
+void DrawMenuVibeItem(int x, int y, int offset_x, int offset_y, [[maybe_unused]] int alpha) {
     float pointer_x = 0.0f;
     float pointer_y = 0.0f;
 

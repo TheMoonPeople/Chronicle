@@ -1,7 +1,9 @@
 #include "memcard.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
+#include <utility>
 
 #include "battlemenu/strings.hpp"
 #include "caption_text.hpp"
@@ -36,9 +38,8 @@ int OptionMenuFadeOutStart() {
 }
 
 // The save screens without a memory card: no card is chosen, and the boards are every save of
-// SaveSlots in file order, then on the save screen one "New file" board for a new save. The
-// screens keep retail's steps otherwise; SaveMenu.file_no still names the file a step works on,
-// so the confirmations, the save and the load are retail's.
+// SaveSlots in file order, then on the save screen one "New file" board for a new save.
+// SaveMenu.file_no names the file a step works on.
 
 void ExitSaveSelect();
 
@@ -80,6 +81,8 @@ void LeaveSaveMenu() {
             SaveMenu.key_no = SAVE_KEY_FADE_OUT;
             CommonMenuMes2.stay_frame = false;
             break;
+        default:
+            break;
     }
 
     SaveMenu.step_time = 0;
@@ -87,26 +90,20 @@ void LeaveSaveMenu() {
 }
 
 bool Listed(int file_no) {
-    for (const SAVEDATA_INFO &info : SaveSlots.saves) {
-        if (info.file_no == file_no + 1) {
-            return true;
-        }
-    }
-
-    return false;
+    return std::ranges::any_of(SaveSlots.saves, [file_no](const SAVEDATA_INFO &info) { return info.file_no == file_no + 1; });
 }
 
 bool NewSaveBoard() {
     return SaveMenu.access_kind == SAVE_ACCESS_SAVE;
 }
 
-// In place of the card choice: the one card is taken at once, as retail's Cross on slot 1 did.
+// Replaces the card choice: the only card is taken at once.
 int SaveMenuKeyOpen() {
     if (!SaveMenu.texture_ready) {
         return 1;
     }
 
-    // The town and dungeon menus that open the save screen repeat the d-pad already; the title
+    // The town and dungeon menus that open the save screen already repeat the d-pad; the title
     // repeats only left and right.
     if (SaveMenu.mode == SAVE_MENU_MODE_LOAD) {
         GamePad.SetAutoRepeat(PAD_UP | PAD_DOWN, 30, 5);
@@ -157,7 +154,7 @@ int SaveMenuKeyFileSelect() {
     if (GamePad.Down(PAD_CROSS)) {
         switch (SaveMenu.access_kind) {
             case SAVE_ACCESS_SAVE:
-                SaveSlotNew = row == static_cast<int>(SaveSlots.saves.size());
+                SaveSlotNew = std::cmp_equal(row, SaveSlots.saves.size());
                 SaveMenu.key_no = SAVE_KEY_SAVE_CHECK;
                 McAccess.SetFuncNo(MC_OPERATION_SEARCH_TYPE);
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
@@ -171,19 +168,21 @@ int SaveMenuKeyFileSelect() {
                 }
 
                 break;
+            default:
+                break;
         }
     }
 
     return 1;
 }
 
-// Retail's, with the cursor on the file written, which a new save may have had to move on from.
+// Ends the save with the cursor on the file written, which a new save may have moved on from.
 int SaveMenuKeySaved() {
     SaveMenu.file_no = McAccess.file_no;
     return SaveMenuKeyEndSave();
 }
 
-// Retail's, with the save looked up in SaveSlots rather than McAccess.file_info.
+// Confirms the load of the chosen save, looked up in SaveSlots.
 int SaveMenuKeyLoadDecide() {
     if (GamePad.Down(PAD_CROSS)) {
         if (Listed(SaveMenu.file_no)) {
@@ -206,8 +205,8 @@ int SaveMenuKeyLoadDecide() {
     return 1;
 }
 
-// Alerts after the ending: Cross asks again and Circle closes the screen. Retail's alert went back
-// to the card choice, which would now save again at once.
+// Alerts after the ending: Cross asks again and Circle closes the screen, since the card choice
+// would save again at once.
 int SaveMenuKeyAlert() {
     if (SaveMenu.mode != SAVE_MENU_MODE_ENDING) {
         return SaveMenuKeyArart();
@@ -223,8 +222,8 @@ int SaveMenuKeyAlert() {
     return 1;
 }
 
-// The save after the ending writes the configuration alone. Retail started the write and waited on
-// it, and nothing answered its failure, so the screen waited for ever; the write finishes here.
+// The save after the ending writes the configuration alone and finishes the write here, so a
+// failure reaches the alert.
 int SaveMenuKeySaveEnding() {
     if (McAccess.SaveSysConfig() == 1) {
         SaveMenu.key_no = SAVE_KEY_END_SAVE_ENDING;
@@ -236,7 +235,7 @@ int SaveMenuKeySaveEnding() {
     return 1;
 }
 
-// Retail went back to the card choice, which would now save again; the screen closes instead.
+// Closes the screen after the ending's save; the card choice would save again.
 int SaveMenuKeyEndSaveEnding() {
     if (GamePad.Down(PAD_CROSS)) {
         McAccess.SetFuncNo(MC_OPERATION_IDLE);
@@ -279,10 +278,10 @@ int (*SaveMenuFunc[26])() = {
     SaveMenuKeyEndSaveEnding,
 };
 
-// Retail's, with the boards of SaveSlots: the chosen one sits where retail's did and the rest
-// scroll past above and below it, only those on screen drawn. The boards stay up while the
-// list is read again after a save, which no longer takes long enough to show.
-void DrawMenuSave(char *frame_name) {
+// Draws the boards of SaveSlots: the chosen one at a fixed place and the rest scrolling past above
+// and below it, only those on screen drawn. The boards stay up while the list is read again after
+// a save.
+void DrawMenuSave(char * /*frame_name*/) {
     if (SaveMenu.texture_ready == 0) {
         return;
     }
@@ -296,26 +295,20 @@ void DrawMenuSave(char *frame_name) {
         case SAVE_MENU_MODE_ENDING:
             AllFillBoxForMenu(0, 0, 0, 0x80);
             break;
+        default:
+            break;
     }
 
     int alpha = 0x80;
 
     switch (SaveMenu.key_no) {
         case SAVE_KEY_FADE_IN:
-            alpha = SaveMenu.step_time * 6;
-
-            if (alpha > 0x80) {
-                alpha = 0x80;
-            }
-
+            alpha = std::min(SaveMenu.step_time * 6, 0x80);
             break;
         case SAVE_KEY_FADE_OUT:
-            alpha = 0x80 - SaveMenu.step_time * 4;
-
-            if (alpha < 0) {
-                alpha = 0;
-            }
-
+            alpha = std::max(0x80 - SaveMenu.step_time * 4, 0);
+            break;
+        default:
             break;
     }
 
@@ -337,6 +330,8 @@ void DrawMenuSave(char *frame_name) {
         case SAVE_KEY_DIF_VERSION:
             bright = 0x40;
             break;
+        default:
+            break;
     }
 
     int show = 0;
@@ -348,6 +343,8 @@ void DrawMenuSave(char *frame_name) {
         case SAVE_KEY_LOAD_DECIDE:
         case SAVE_KEY_LOAD:
             show = 1;
+            break;
+        default:
             break;
     }
 
@@ -361,7 +358,7 @@ void DrawMenuSave(char *frame_name) {
                 continue;
             }
 
-            if (row < static_cast<int>(SaveSlots.saves.size())) {
+            if (std::cmp_less(row, SaveSlots.saves.size())) {
                 DrawSaveBoard(&SaveSlots.saves[row], SaveMenuMojiTextbl, static_cast<int>(board_x), static_cast<int>(y), bright, alpha);
             } else {
                 DrawNewFileTemplete(static_cast<int>(board_x), static_cast<int>(y), alpha);
@@ -396,10 +393,6 @@ void DrawMenuSave(char *frame_name) {
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
                     break;
                 case SAVE_KEY_DIF_VERSION:
-                    text_x = 196.0f;
-                    text_y = 140.0f;
-                    CommonMenuMes2.auto_pos = MES_POS_CENTRE;
-                    break;
                 case SAVE_KEY_ALERT:
                 case SAVE_KEY_AFTER_ENDING:
                 case SAVE_KEY_END_SAVE_ENDING:
@@ -407,6 +400,8 @@ void DrawMenuSave(char *frame_name) {
                     text_x = 196.0f;
                     text_y = 140.0f;
                     CommonMenuMes2.auto_pos = MES_POS_CENTRE;
+                    break;
+                default:
                     break;
             }
 
@@ -424,15 +419,7 @@ void DrawMenuSave(char *frame_name) {
     }
 
     MenuTextureReload(CommonMenuMes2.tex_block);
-    CommonMenuMes2.edge_alpha = alpha;
-
-    if (CommonMenuMes2.edge_alpha > 0x80) {
-        CommonMenuMes2.edge_alpha = 0x80;
-    }
-
-    if (CommonMenuMes2.edge_alpha < 0) {
-        CommonMenuMes2.edge_alpha = 0;
-    }
+    CommonMenuMes2.edge_alpha = std::clamp(alpha, 0, 0x80);
 
     DrawMenuClsMes(&CommonMenuMes2, static_cast<int>(text_x), static_cast<int>(text_y));
     int hand_x = -1;
@@ -450,20 +437,21 @@ void DrawMenuSave(char *frame_name) {
             }
 
             break;
+        default:
+            break;
     }
 
-    if (0 < hand_x && 0 < hand_y) {
-        static int ct = 0;
-        RECT       hand = {0x160, 0xD6, 0x20, 0x20};
-        float      draw_x = static_cast<float>(hand_x) + 7.0f * cosf(0.0805536583f * ct);
-        float      draw_y = static_cast<float>(hand_y) + 5.0f * sinf(0.116355285f * ct);
+    if (hand_x > 0 && hand_y > 0) {
+        static int hand_frame = 0;
+        float      draw_x = static_cast<float>(hand_x) + 7.0f * cosf(0.0805536583f * hand_frame);
+        float      draw_y = static_cast<float>(hand_y) + 5.0f * sinf(0.116355285f * hand_frame);
         CRect_i_   source(0x160, 0xD6, 0x20, 0x20);
-        DrawMenu2DSprite(SaveBoard, CRect_i_(static_cast<int>(5.0f + draw_x), static_cast<int>(3.0f + draw_y), hand.width, hand.height), source, 0, 0, 0, alpha);
-        DrawMenu2DSprite(SaveBoard, CRect_i_(static_cast<int>(draw_x), static_cast<int>(draw_y), hand.width, hand.height), source, alpha);
-        ct++;
+        DrawMenu2DSprite(SaveBoard, CRect_i_(static_cast<int>(5.0f + draw_x), static_cast<int>(3.0f + draw_y), source.width, source.height), source, 0, 0, 0, alpha);
+        DrawMenu2DSprite(SaveBoard, CRect_i_(static_cast<int>(draw_x), static_cast<int>(draw_y), source.width, source.height), source, alpha);
+        hand_frame++;
 
-        if (!(static_cast<float>(ct) < 105299.0f)) {
-            ct = 0;
+        if (!(static_cast<float>(hand_frame) < 105299.0f)) {
+            hand_frame = 0;
         }
     }
 
@@ -481,9 +469,13 @@ void DrawMenuSave(char *frame_name) {
     switch (SaveMenu.mode) {
         case SAVE_MENU_MODE_LOAD: {
             DrawMenu2DSprite(SaveBoard, CRect_i_(0x46, 0x32, 0x3A, 0x27), CRect_i_(0x110, 0xD8, 0x3A, 0x28), alpha);
-            // LOAD in the menu captions' lettering, over the painted one: its letters from 6 to 72 of the picture, their
-            // capitals from row 5 to 24. The painted LOAD without the font.
-            std::string title, desc, save_word, load_word, prompt;
+            // LOAD in the menu captions' lettering over the painted one: its letters span x 6 to 72 of
+            // the picture and its capitals rows 5 to 24. Without the font the painted LOAD is drawn.
+            std::string title;
+            std::string desc;
+            std::string save_word;
+            std::string load_word;
+            std::string prompt;
             GetLocalizedSaveLoadStrings(title, desc, save_word, load_word, prompt);
             if (caption::DrawTitle(load_word, 0x86, 0x37, 6, 72, 5, 24, 0.1f, {}, alpha)) {
                 return;
@@ -493,6 +485,8 @@ void DrawMenuSave(char *frame_name) {
         }
         case SAVE_MENU_MODE_ENDING:
             DrawMainMenuIcon(0x46, 0x32, 5, 1, 0x80, alpha);
+            break;
+        default:
             break;
     }
 }

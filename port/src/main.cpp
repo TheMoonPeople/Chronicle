@@ -1,29 +1,31 @@
 #include <SDL3/SDL_stdinc.h>
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
 #include <SDL3/SDL.h>
 
 #include "switch_main.hpp"
 #endif
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <iterator>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 #include <android/log.h>
 #define DC_ANDROID_TRACE(message) __android_log_write(ANDROID_LOG_INFO, "Chronicle", message)
 #else
 #define DC_ANDROID_TRACE(message) ((void) 0)
 #endif
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 void TouchOverlaySetOpacity(float opacity);
 void TouchOverlayPoll();
 #endif
@@ -65,10 +67,6 @@ void TouchOverlayPoll();
 #include "title/title.hpp"
 #include "title/title_port.hpp"
 
-int  EditInit(void *param);
-int  EditLoop();
-void SndInit();
-
 namespace fs = std::filesystem;
 
 namespace {
@@ -87,15 +85,15 @@ struct Options {
     bool         fast_load = false;
     bool         show_fps = false;
     bool         screenshot_fps = false;
-    const char *export_text = nullptr;
-    const char *font = nullptr;
-#if defined(__SWITCH__)
+    const char  *export_text = nullptr;
+    const char  *font = nullptr;
+#ifdef __SWITCH__
     bool switch_core_affinity = true;
 #endif
 };
 
 Options g_options;
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
 float g_switch_render_scale = 0.0f;
 #endif
 
@@ -103,11 +101,11 @@ float g_switch_render_scale = 0.0f;
     std::fprintf(stderr,
                  "usage: %s [--data DIR] [--save DIR] [--headless] [--frames N] [--screenshot PATH]\n"
                  "          [--input FILE]"
-#if !defined(__SWITCH__)
+#ifndef __SWITCH__
                  " [--width W] [--height H]"
 #endif
                  " [--offscreen]\n"
-#if !defined(__SWITCH__)
+#ifndef __SWITCH__
                  "          [--display-per-tick N]"
 #endif
                  " [--show-fps] [--jump MODE[:MAP]] [--fast-load]\n"
@@ -123,12 +121,12 @@ float g_switch_render_scale = 0.0f;
                  "  --frames N         stop after N frames of the game's main loop\n"
                  "  --screenshot PATH  write the last tick's image (no FPS counter) to PATH on exit\n"
                  "  --input FILE       drive pad 1 from a script (default: DC_INPUT); see docs/PC.md\n"
-#if !defined(__SWITCH__)
+#ifndef __SWITCH__
                  "  --width, --height  window size in pixels (default: config.json, then the monitor's)\n"
 #endif
                  "  --screenshot-fps   with --screenshot and --show-fps: the image as a window shows it, the\n"
                  "                     FPS counter over it\n"
-#if !defined(__SWITCH__)
+#ifndef __SWITCH__
                  "  --display-per-tick N  headless: also render N interpolated display frames per tick\n"
 #endif
                  "  --export-text DIR  write the game's message files to DIR as language JSON (docs/LOCALIZATION.md)\n"
@@ -141,7 +139,7 @@ float g_switch_render_scale = 0.0f;
                  "  --give ITEM,...    give the party these item and weapon numbers when a town or dungeon\n"
                  "                     starts, unless it holds them (DC_GIVE); see docs/PC.md\n",
                  program);
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     std::fprintf(stderr, "  --switch-core-affinity separate|auto  pin game and render to separate cores "
                          "(default: separate)\n");
 #endif
@@ -152,13 +150,13 @@ Options ParseOptions(int argc, const char **argv) {
     Options options;
     for (int i = 1; i < argc; i++) {
         std::string_view arg = argv[i];
-        auto             value = [&]() {
+        auto             value = [&] {
             if (i + 1 >= argc) {
                 Usage(argv[0]);
             }
             return argv[++i];
         };
-        auto number = [&]() {
+        auto number = [&] {
             char *end = nullptr;
             long  result = std::strtol(value(), &end, 10);
             if (end == nullptr || *end != '\0' || result < 0) {
@@ -177,7 +175,7 @@ Options ParseOptions(int argc, const char **argv) {
             options.screenshot = value();
         } else if (arg == "--input") {
             options.input = value();
-#if !defined(__SWITCH__)
+#ifndef __SWITCH__
         } else if (arg == "--width") {
             options.width = static_cast<int>(number());
         } else if (arg == "--height") {
@@ -197,11 +195,11 @@ Options ParseOptions(int argc, const char **argv) {
             options.show_fps = true;
         } else if (arg == "--screenshot-fps") {
             options.screenshot_fps = true;
-#if !defined(__SWITCH__)
+#ifndef __SWITCH__
         } else if (arg == "--display-per-tick") {
             options.display_per_tick = static_cast<int>(number());
 #endif
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
         } else if (arg == "--switch-core-affinity") {
             std::string_view mode = value();
             if (mode != "separate" && mode != "auto") {
@@ -245,7 +243,7 @@ void RequireData() {
                      "no game data: %s %s; extract the disc with `dcdata extract <disc image> %s` "
                      "or place data.zip beside it\n",
                      PathsDisplay(root).c_str(), why, PathsDisplay(root).c_str());
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
         SwitchShowMissingData();
 #endif
         std::exit(kExitNoData);
@@ -255,15 +253,15 @@ void RequireData() {
 // The Options screen keeps the interface at 100%, so a size that takes the HUD past the window
 // cannot take the screen's own controls with it.
 gfx::FrameLayout Layout(const Config &config) {
-#if defined(__SWITCH__)
-    return {gfx::AspectMode::Fill, MenuOptionOpen() ? 1.0f : config.ui_scale};
+#ifdef __SWITCH__
+    return {.aspect = gfx::AspectMode::Fill, .ui_scale = MenuOptionOpen() ? 1.0f : config.ui_scale};
 #else
-    return {config.aspect == ConfigAspect::Auto ? gfx::AspectMode::Fill : gfx::AspectMode::Letterbox,
-            MenuOptionOpen() ? 1.0f : config.ui_scale};
+    return {.aspect = config.aspect == ConfigAspect::Auto ? gfx::AspectMode::Fill : gfx::AspectMode::Letterbox,
+            .ui_scale = MenuOptionOpen() ? 1.0f : config.ui_scale};
 #endif
 }
 
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
 void UpdateSwitchRenderScale() {
     if (gfx::InFrame()) {
         return;
@@ -323,7 +321,7 @@ void PumpHost() {
         GameRequestStop();
     }
     DisplayPump();
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     UpdateSwitchRenderScale();
 #endif
     // A change of video.aspect or video.ui_scale, or the Options screen opening or closing, waits
@@ -335,7 +333,7 @@ void PumpHost() {
             gfx::SetFrameLayout(layout);
         }
     }
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     TouchOverlayPoll();
 #endif
     InputPoll();
@@ -368,17 +366,17 @@ void LoadInputScript(const char *path) {
     InputScriptInstall(std::move(script));
 }
 
-void RenderAudio(void *, float *out, int frames) {
+void RenderAudio(void * /*user*/, float *out, int frames) {
     audio::DefaultMixer().Render(out, frames);
 }
 
 void ReportShaderProgress(uint32_t done, uint32_t total) {
     static uint32_t    reported = 0;
-    constexpr uint32_t kSteps = 4;
+    constexpr uint32_t steps = 4;
     if (total == 0) {
         return;
     }
-    uint32_t step = done * kSteps / total;
+    uint32_t step = done * steps / total;
     if (done == 0 || step > reported) {
         reported = step;
         std::fprintf(stderr, "compiling shaders %u/%u\n", done, total);
@@ -386,7 +384,7 @@ void ReportShaderProgress(uint32_t done, uint32_t total) {
 }
 
 gfx::PresentMode PresentMode(ConfigPresentMode mode) {
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     static_cast<void>(mode);
     return gfx::PresentMode::Fifo;
 #else
@@ -402,7 +400,7 @@ gfx::PresentMode PresentMode(ConfigPresentMode mode) {
 }
 
 GamePresentSettings PresentSettings(const Config &config) {
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     return {.interpolation = false,
             .max_fps = 60.0,
             .display_per_tick = 0,
@@ -430,7 +428,7 @@ void ApplyConfigChange(const Config &before, const Config &after) {
     audio::DefaultMixer().SetMasterGain(after.master_volume);
     AudioSetSurround(after.surround);
     InputApplyConfig(after);
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     ClockSetTickRate(60.0);
 #else
     if (after.tick_rate != before.tick_rate) {
@@ -443,12 +441,12 @@ void ApplyConfigChange(const Config &before, const Config &after) {
     }
     gfx::SetPresentMode(PresentMode(after.present_mode));
     gfx::SetAnisotropy(after.anisotropy);
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     if (after.render_scale != before.render_scale) {
         gfx::SetRenderScale(after.render_scale);
     }
 #endif
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     if (after.touch_overlay_opacity != before.touch_overlay_opacity) {
         TouchOverlaySetOpacity(after.touch_overlay_opacity / 100.0f);
     }
@@ -468,8 +466,8 @@ void ReportPresentStats() {
     if (stats.ticks == 0) {
         return;
     }
-    double ticks = static_cast<double>(stats.ticks);
-    double displays = static_cast<double>(std::max<std::uint64_t>(stats.display_frames, 1));
+    auto ticks = static_cast<double>(stats.ticks);
+    auto displays = static_cast<double>(std::max<std::uint64_t>(stats.display_frames, 1));
     std::fprintf(stderr,
                  "present: %.0f ticks, per tick %.1f mesh draws (%.1f keyed), %.1f 2D draws, %.1f stateful, "
                  "at most %.0f draws; canonical %.2f ms per tick; %.0f display frames, %.2f ms each\n",
@@ -553,13 +551,13 @@ int Run(int argc, const char **argv) {
     audio::SoundtrackEnsure();
     const Config &config = ConfigGet();
 
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     DisplaySetOverrides(0, 0, options.headless);
 #else
     DisplaySetOverrides(options.width, options.height, options.headless);
 #endif
     WindowConfig window = DisplayWindowConfig(config);
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     SwitchDisplaySize(window.width, window.height);
     window.fullscreen = false;
 #endif
@@ -568,7 +566,7 @@ int Run(int argc, const char **argv) {
     WindowInit(window);
     DC_ANDROID_TRACE("Run: window initialized");
     InputInit();
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     TouchOverlaySetOpacity(config.touch_overlay_opacity / 100.0f);
 #endif
 
@@ -579,7 +577,7 @@ int Run(int argc, const char **argv) {
     renderer.display_aspect = 4.0f / 3.0f;
     renderer.present_mode = PresentMode(config.present_mode);
     renderer.pipeline_cache = PathsSaveRoot() / "pipeline_cache.bin";
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     SwitchConfigureRenderer(renderer);
     g_switch_render_scale = renderer.render_scale;
 #endif
@@ -597,19 +595,19 @@ int Run(int argc, const char **argv) {
         SDL_setenv_unsafe("KZ_RENDER_THREAD", "off", 1);
     }
     renderer.layout = Layout(config);
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     renderer.render_scale = config.render_scale;
 #endif
     renderer.validation = renderer.validation || SettingsEnv("VULKAN_VALIDATION") != nullptr;
     gfx::RendererInit(WindowHandle(), renderer);
     DC_ANDROID_TRACE("Run: renderer initialized");
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     if (options.switch_core_affinity) {
         SwitchConfigureThreads();
     }
 #endif
     gfx::SetAnisotropy(config.anisotropy);
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     gfx::SetRenderScale(config.render_scale);
 #endif
 
@@ -617,7 +615,7 @@ int Run(int argc, const char **argv) {
     AudioSetSurround(config.surround);
     AudioOutputStart(audio::DefaultMixer().Rate(), RenderAudio, nullptr);
 
-#if defined(__SWITCH__)
+#ifdef __SWITCH__
     ClockSetTickRate(60.0);
 #else
     ClockSetTickRate(config.tick_rate);
@@ -654,191 +652,16 @@ int Run(int argc, const char **argv) {
 
 } // namespace
 
-
-extern "C" {
-void init_all__Fv() {
-    init_all();
-}
-
-void initialize_data__Fv() {
-    initialize_data();
-}
-
-void GlobalNameInit__Fv() {
-    GlobalNameInit();
-}
-
-void InitReadBG__Fv() {
-    InitReadBG();
-}
-
-void SndInit__Fv() {
-    SndInit();
-}
-
-void LoadOverlay__Fi(int mode) {
-    LoadOverlay(mode);
-}
-
-void MGSetRenderInfo__Ffff(float scale, float near_z, float far_z) {
-    MGSetRenderInfo(scale, near_z, far_z);
-}
-
-void init_now_loading__Fi(int title_number) {
-    init_now_loading(title_number);
-}
-
-void LoadSystemMessage__Fv() {
-    LoadSystemMessage();
-}
-
-void SndInitialize__Fiiii(int unused0, int unused1, int unused2, int unused3) {
-    SndInitialize(unused0, unused1, unused2, unused3);
-}
-
-int InitExistData__Fv() {
-    return InitExistData();
-}
-
-void MapJump__Fii(int map_no, int event_no) {
-    MapJump(map_no, event_no);
-}
-
-void EditInit__FPv(void *param) {
-    EditInit(param);
-}
-
-void MenuInit__Fv(int mode) {
-    MenuInit();
-}
-
-void MemCheckInit__Fv(int mode) {
-    MemCheckInit();
-}
-
-void TrialEndInit__Fv(int mode) {
-    TrialEndInit();
-}
-
-void InitSave__Fv(int mode) {
-    InitSave();
-}
-
-void LangsetInit__Fv(int mode) {
-    LangsetInit();
-}
-
-int check_now_loading__Fv() {
-    return check_now_loading();
-}
-
-void MGInitVSyncCallBack__FPFi_i(int (*callback)(int)) {
-    MGInitVSyncCallBack(callback);
-}
-
-void PlayTimeCount__Fi(int add) {
-    PlayTimeCount(add);
-}
-
-void MGBeginFrame__Fv() {
-    MGBeginFrame();
-}
-
-void SetEnv__FP13sceVif1Packet(sceVif1Packet *vif1_packet) {
-    SetEnv(vif1_packet);
-}
-
-int EditLoop__Fv() {
-    return EditLoop();
-}
-
-int MenuLoop__Fv() {
-    return MenuLoop();
-}
-
-int MemCheckLoop__Fv() {
-    return MemCheckLoop();
-}
-
-int TrialEndLoop__Fv() {
-    return TrialEndLoop();
-}
-
-int LoopSave__Fv() {
-    return LoopSave();
-}
-
-int LangsetLoop__Fv() {
-    return LangsetLoop();
-}
-
-void MGEndFrame__Fv() {
-    MGEndFrame();
-}
-
-int CheckTrialEnd__Fv() {
-    return CheckTrialEnd();
-}
-
-int ReadBGSync__Fv() {
-    return ReadBGSync();
-}
-
-void TrialStart__Fv() {
-    TrialStart();
-}
-
-void func_01DAC1C0() {
-    GameInit();
-}
-
-int func_01DAD980(int mode) {
-    return GameLoop();
-}
-
-void func_01DAF1C0() {
-    OpeningInit();
-}
-
-int func_01DAF970() {
-    return OpeningLoop();
-}
-
-void func_01DC1420(int mode) {
-    LoaderInit();
-}
-
-int func_01DC1510() {
-    return LoaderLoop();
-}
-
-void func_01DC8C50() {
-    RushInit();
-}
-
-int func_01DC8EB0() {
-    return RushLoop();
-}
-
-void func_01DD1AB0(int inited) {
-    TitleInit(inited);
-}
-
-int func_01DD2220() {
-    return TitleLoop();
-}
-}
-
 #ifndef DC_NO_ENTRYPOINT
-int main(int argc, const char **argv, const char **envp) {
-#if defined(__SWITCH__)
+int main(int argc, const char **argv) {
+#ifdef __SWITCH__
     return SwitchMain(argc, argv, Run);
 #else
     return Run(argc, argv);
 #endif
 }
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 // SDLActivity resolves SDL_main from the native application library.
 extern "C" int SDL_main(int argc, char **argv) {
     DC_ANDROID_TRACE("SDL_main: entry");
@@ -850,6 +673,8 @@ extern "C" int SDL_main(int argc, char **argv) {
 int wmain(int argc, wchar_t **wide_argv) {
     std::vector<std::string>  args;
     std::vector<const char *> argv;
+    args.reserve(static_cast<std::size_t>(argc));
+    argv.reserve(static_cast<std::size_t>(argc) + 1);
     for (int i = 0; i < argc; ++i) {
         args.push_back(PathsDisplay(fs::path(wide_argv[i])));
     }
@@ -862,33 +687,17 @@ int wmain(int argc, wchar_t **wide_argv) {
 #endif
 #endif
 
-extern "C" void *__ct__10CCharacterFv(void *self) {
-    PS2_UNIMPLEMENTED();
-}
-
-extern "C" void *__ct__13CTextureAnimeFv(void *self) {
-    PS2_UNIMPLEMENTED();
-}
-
-extern "C" void *__ct__7CObjectFv(void *self) {
-    PS2_UNIMPLEMENTED();
-}
-
-extern "C" void *__ct__8CHitMarkFv(void *self) {
-    PS2_UNIMPLEMENTED();
-}
-
 void LoadOverlay(int mode) {
     enum class Overlay {
         None,
         Title,
         Dungeon
     };
-    constexpr Overlay overlay_modes[] = {Overlay::Title, Overlay::Title, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
-                                         Overlay::Title, Overlay::None, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
-                                         Overlay::None, Overlay::None, Overlay::None, Overlay::None, Overlay::None};
-    static Overlay    loaded = Overlay::None;
-    if (mode < 0 || mode >= static_cast<int>(std::size(overlay_modes)) || overlay_modes[mode] == Overlay::None ||
+    constexpr std::array overlay_modes = {Overlay::Title, Overlay::Title, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                          Overlay::Title, Overlay::None, Overlay::None, Overlay::Dungeon, Overlay::Dungeon,
+                                          Overlay::None, Overlay::None, Overlay::None, Overlay::None, Overlay::None};
+    static Overlay       loaded = Overlay::None;
+    if (mode < 0 || std::cmp_greater_equal(mode, overlay_modes.size()) || overlay_modes[mode] == Overlay::None ||
         overlay_modes[mode] == loaded) {
         return;
     }
@@ -902,12 +711,12 @@ u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
     if (quads < 0 || used < 0 || used > 6000 || quads > 6000 - used) {
         ArenaOverflow(this, -1, 6000);
     }
-    u_char *run = reinterpret_cast<u_char *>(block) + used * 16;
+    auto *run = reinterpret_cast<u_char *>(&block[used]);
     used += quads;
     return run;
 }
 
-void SetEnv(sceVif1Packet *packet) {
+void SetEnv(sceVif1Packet * /*packet*/) {
     MGSetGsTEST(nullptr);
     MGSetGsZBUF(nullptr);
     MGSetGsALPHA(nullptr);

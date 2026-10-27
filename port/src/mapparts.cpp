@@ -5,8 +5,12 @@
 // Road tiles must clear the uneven ground at the same height. A small lift lets the ground win the
 // depth test in places as the camera moves, exposing a different, darker surface beneath the road.
 // The constant road lift is within retail's distance-dependent range and keeps adjacent tiles level.
+namespace {
+
 constexpr float kPartsLiftDepth = 0.1f;
 constexpr float kRoadLiftDepth = 0.5f;
+
+} // namespace
 
 void CMapParts::DrawLOD(float *distance, int lowest, int highest, int *out_level) {
     sceVu0FVECTOR saved_pos;
@@ -27,7 +31,7 @@ void CMapParts::DrawLOD(float *distance, int lowest, int highest, int *out_level
         lifted_pos[1] += kRoadLiftDepth;
     } else if (this->lift > 0.0f) {
         if (this->lift > 1.0f) {
-            lifted_pos[1] += 0.1f;
+            lifted_pos[1] += kPartsLiftDepth;
         } else {
             lifted_pos[1] += kPartsLiftDepth * this->lift;
         }

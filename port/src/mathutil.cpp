@@ -66,7 +66,7 @@ void VectorMaxMin(float *max, float *min, float *a, float *b, float *c, float *d
     vu0::Copy(min, lo);
 }
 
-// Retail stores w from a register vopmsub never writes; nothing reads it, so it is zeroed.
+// w is left zero; no caller reads it.
 void PlaneNormal(float *normal, float *v0, float *v1, float *v2) {
     float e0[4] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2], 0.0f};
     float e1[4] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2], 0.0f};
@@ -123,13 +123,13 @@ void ApplyMatrixN(sceVu0FVECTOR *out, sceVu0FMATRIX matrix, sceVu0FVECTOR *in, i
 }
 
 // The host has already run every static constructor before main starts.
-extern "C" void mwInit(int argc, const char **argv, const char **envp) {}
+extern "C" void mwInit(int /*argc*/, const char ** /*argv*/, const char ** /*envp*/) {}
 
-extern "C" int mwLoadOverlay(char *path, void *address) {
+extern "C" int mwLoadOverlay(char * /*path*/, void * /*address*/) {
     return 1;
 }
 
-extern "C" void __unexpected(void *exception_record) {
+extern "C" void __unexpected(void * /*exception_record*/) {
     PS2_UNIMPLEMENTED();
 }
 

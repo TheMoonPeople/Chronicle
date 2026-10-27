@@ -7,6 +7,9 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <print>
+#include <span>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -19,10 +22,10 @@
 #include "save_slots.hpp"
 #include "savedata.hpp"
 
-// The port has no memory card: the operations read and write the files save_slots.hpp names.
-// Each finishes in the step that starts it and returns 1, or -1 where retail's card would have
-// failed, so the save screen's own flow and alerts still apply. The card the screens check is
-// always there, formatted and roomy, and its save directory always exists.
+// There is no memory card: the operations read and write the files save_slots.hpp names. Each
+// finishes in the step that starts it and returns 1, or -1 where a card would have failed, so the
+// save screen's own flow and alerts still apply. The card the screens check is always there,
+// formatted and roomy, and its save directory always exists.
 
 namespace fs = std::filesystem;
 
@@ -41,9 +44,15 @@ char *const                g_image = g_image_storage->bytes.data();
 
 constexpr char kVersion[] = "darkcloudVer1.9";
 
-// Retail's ((int)p >> 6) + 1) << 6 on the whole pointer: the next 64-byte boundary strictly after p.
+// The next 64-byte boundary strictly after pointer.
 char *PastNext64(char *pointer) {
     return pointer + (64 - reinterpret_cast<std::uintptr_t>(pointer) % 64);
+}
+
+// Copies text into a zeroed field without its terminator, which the field already holds.
+template <typename Field>
+void CopyText(Field &field, std::string_view text) {
+    std::ranges::copy(text, std::begin(field));
 }
 
 // Config words of the save data that state.json keeps: the last save's file and the game clear
@@ -64,23 +73,21 @@ SaveState CurrentState() {
 }
 
 void BuildImage(char *image, const char *version) {
-    CSaveData *save = reinterpret_cast<CSaveData *>(image);
-    memcpy(save, SaveData, sizeof(CSaveData));
+    auto *save = reinterpret_cast<CSaveData *>(image);
+    std::memcpy(save, SaveData, sizeof(CSaveData));
     GameOptionsClear(*save);
     save->ConvertConfig(&sys_config);
-    char *version_field = image + sizeof(CSaveData);
-    memset(version_field, 0, kVersionSize);
-    strcpy(version_field, version);
-    char *sum = version_field + kVersionSize;
-    memset(sum, 0, kImageSize - sizeof(CSaveData) - kVersionSize);
-    const char *data = image;
-    char        total = 0;
+    std::span<char, kImageSize> bytes(image, kImageSize);
+    std::ranges::fill(bytes.subspan(sizeof(CSaveData)), '\0');
+    std::ranges::copy(std::string_view(version), bytes.begin() + sizeof(CSaveData));
+    std::span<char> sums = bytes.subspan(sizeof(CSaveData) + kVersionSize);
+    char            total = 0;
 
     for (u32 i = 0; i < sizeof(CSaveData); i++) {
-        total += *data++;
+        total += bytes[i];
 
         if (i % 64 == 63) {
-            *sum++ = total;
+            sums[i / 64] = total;
             total = 0;
         }
     }
@@ -93,15 +100,15 @@ bool ReadImage(int file_no, const char *version) {
         return false;
     }
 
-    const char *data = g_image;
-    const char *sum = g_image + sizeof(CSaveData) + kVersionSize;
-    char        total = 0;
+    std::span<const char, kImageSize> bytes(g_image, kImageSize);
+    std::span<const char>             sums = bytes.subspan(sizeof(CSaveData) + kVersionSize);
+    char                              total = 0;
 
     for (u32 i = 0; i < sizeof(CSaveData); i++) {
-        total += *data++;
+        total += bytes[i];
 
         if (i % 64 == 63) {
-            if (total != *sum++) {
+            if (total != sums[i / 64]) {
                 return false;
             }
 
@@ -133,24 +140,22 @@ void CMemoryCardAccess::MakeMcIconSysInfo() {
     };
     float ambient[4] = {0.5f, 0.5f, 0.5f, 0.0f};
 
-    memset(&this->icon_sys, 0, sizeof(sceMcIconSys));
-#if defined(__ANDROID__)
-    // The PS2 header is a four-byte identifier, not a null-terminated string.
-    memcpy(this->icon_sys.head, "PS2D", sizeof(this->icon_sys.head));
-#else
-    strcpy(this->icon_sys.head, "PS2D");
-#endif
-    strcpy(reinterpret_cast<char *>(this->icon_sys.title_name), "\x82\x63\x82\x81\x82\x92\x82\x8B\x81\x40\x82\x62\x82\x8C\x82\x8F"
-                                                                "\x82\x95\x82\x84\x81\x40\x82\x63\x82\x81\x82\x94\x82\x81");
+    this->icon_sys = {};
+    // The header is a four-byte identifier, not a null-terminated string.
+    CopyText(this->icon_sys.head, "PS2D");
+    // "Dark Cloud Data" in Shift-JIS full-width characters.
+    CopyText(this->icon_sys.title_name, "\x82\x63\x82\x81\x82\x92\x82\x8B\x81\x40\x82\x62\x82\x8C\x82\x8F"
+                                        "\x82\x95\x82\x84\x81\x40\x82\x63\x82\x81\x82\x94\x82\x81");
     this->icon_sys.nl_offset = 20;
     this->icon_sys.trans_rate = 0x60;
-    memcpy(this->icon_sys.bg_color, bg_color, 16);
-    memcpy(this->icon_sys.light_dir, light_dir, 16);
-    memcpy(this->icon_sys.light_color, light_color, 16);
-    memcpy(this->icon_sys.ambient, ambient, 16);
-    strcpy(this->icon_sys.fname_view, this->icon.view.name);
-    strcpy(this->icon_sys.fname_copy, this->icon.copy.name);
-    strcpy(this->icon_sys.fname_del, this->icon.del.name);
+    // Only the first entry of each lighting table reaches the icon.
+    std::memcpy(this->icon_sys.bg_color, bg_color, 16);
+    std::memcpy(this->icon_sys.light_dir, light_dir, 16);
+    std::memcpy(this->icon_sys.light_color, light_color, 16);
+    std::memcpy(this->icon_sys.ambient, ambient, 16);
+    CopyText(this->icon_sys.fname_view, this->icon.view.name);
+    CopyText(this->icon_sys.fname_copy, this->icon.copy.name);
+    CopyText(this->icon_sys.fname_del, this->icon.del.name);
 }
 
 int CMemoryCardAccess::InitForMC() {
@@ -198,9 +203,8 @@ int CMemoryCardAccess::GetDir() {
     return 1;
 }
 
-// Retail took the card's whole configuration; state.json gives the last save and the game clear
-// flag, the options being config.json's. Without the file the game keeps its own, as it did
-// without a save directory.
+// state.json gives the last save and the game clear flag; the options are config.json's. Without
+// the file the game keeps its own.
 int CMemoryCardAccess::LoadSysConfig() {
     SaveState state = CurrentState();
 
@@ -231,13 +235,13 @@ int CMemoryCardAccess::MakeDir() {
 }
 
 // Adds the file to SaveSlots when it is a whole save of this version. Any other file is left as
-// it is, unlisted: retail deleted a save of another version once its message was dismissed.
+// it is, unlisted.
 int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
     if (!ReadImage(file_no, this->GetVersion())) {
         return 1;
     }
 
-    CSaveData    *save = reinterpret_cast<CSaveData *>(g_image);
+    auto         *save = reinterpret_cast<CSaveData *>(g_image);
     SAVEDATA_INFO info = {};
     info.state = 1;
     info.file_no = file_no + 1;
@@ -255,9 +259,7 @@ int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
         info.quest_total += std::clamp(save->QuestDungeon(dungeon, 0), 0, 9999);
     }
 
-    if (info.quest_total > 9999) {
-        info.quest_total = 9999;
-    }
+    info.quest_total = std::min(info.quest_total, 9999);
 
     SaveSlots.saves.push_back(info);
     return 1;
@@ -265,7 +267,7 @@ int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
 
 // The load screen lists the autosave first; the save screen cannot write it.
 int CMemoryCardAccess::GetAllSaveFileInfo() {
-    memset(this->file_info, 0, sizeof(this->file_info));
+    std::memset(this->file_info, 0, sizeof(this->file_info));
     SaveSlots.files = SaveSlotFiles();
     SaveSlots.saves.clear();
 
@@ -304,8 +306,8 @@ int CMemoryCardAccess::SaveToMc(int file_no) {
 
         for (int attempt = 0; result == FilesResult::kExists && attempt < 100; attempt++) {
             std::vector<int> files = SaveSlotFiles();
-            if (!std::binary_search(files.begin(), files.end(), file_no)) {
-                files.insert(std::upper_bound(files.begin(), files.end(), file_no), file_no);
+            if (!std::ranges::binary_search(files, file_no)) {
+                files.insert(std::ranges::upper_bound(files, file_no), file_no);
             }
             file_no = SaveSlotFirstFree(files);
             result = FilesCreateDirectory(SaveSlotDirectory(file_no));
@@ -338,7 +340,7 @@ int CMemoryCardAccess::LoadFromMc(int file_no) {
     // Missing or malformed state falls back to the current session's values.
     SaveState state = CurrentState();
     SaveStateRead(SaveStatePath(), state);
-    memcpy(SaveData, g_image, sizeof(CSaveData));
+    std::memcpy(SaveData, g_image, sizeof(CSaveData));
     QuestHostLoad(SaveSlotDirectory(file_no));
 
     // The save screen keeps starting at the last numbered save.
@@ -351,7 +353,7 @@ int CMemoryCardAccess::LoadFromMc(int file_no) {
     state.last_save = file_no + 1;
     // Cursor memory is useful across restarts, but its failure must not reject a valid save.
     if (!SaveStateWrite(SaveStatePath(), state)) {
-        std::fprintf(stderr, "save state: could not remember loaded save %d\n", file_no + 1);
+        std::println(stderr, "save state: could not remember loaded save {}", file_no + 1);
     }
     return 1;
 }
