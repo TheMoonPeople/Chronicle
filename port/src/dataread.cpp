@@ -1,8 +1,8 @@
 #include "dataread.hpp"
-#include "dataalloc.hpp"
 #include "language.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <charconv>
 #include <cstdint>
@@ -10,23 +10,27 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iterator>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <print>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "../../tools/dcdata/dcdata.hpp"
+#include "dataalloc.hpp"
 #include "dataread_port.hpp"
-#include "platform/data_archive.hpp"
 #include "localize.hpp"
+#include "platform/data_archive.hpp"
 #include "platform/paths.hpp"
 
 namespace fs = std::filesystem;
@@ -34,12 +38,12 @@ namespace fs = std::filesystem;
 namespace {
 
 struct IndexedFile {
-    fs::path path;
-    std::string logical_path;
-    std::string source_path;
-    std::size_t archive_index = 0;
+    fs::path       path;
+    std::string    logical_path;
+    std::string    source_path;
+    std::size_t    archive_index = 0;
     std::uintmax_t size = 0;
-    bool archived = false;
+    bool           archived = false;
 };
 
 std::unordered_map<std::string, IndexedFile> data_index;
@@ -47,25 +51,25 @@ std::unordered_map<std::string, IndexedFile> data_base_index;
 std::unique_ptr<DataArchive>                 data_archive;
 
 struct PackCapacity {
-    std::size_t capacity = 0;
-    const void *owner = nullptr;
-    std::string logical_path;
-    std::string member;
+    std::size_t                capacity = 0;
+    const void                *owner = nullptr;
+    std::string                logical_path;
+    std::string                member;
     std::vector<std::uint64_t> member_offsets;
     std::vector<std::uint64_t> member_source_offsets;
     std::vector<std::uint64_t> member_sizes;
-    std::size_t source_offset = 0;
-    std::size_t source_size = 0;
-    bool copied = false;
-    const void *arena_base = nullptr;
-    std::size_t arena_end = 0;
+    std::size_t                source_offset = 0;
+    std::size_t                source_size = 0;
+    bool                       copied = false;
+    const void                *arena_base = nullptr;
+    std::size_t                arena_end = 0;
 };
 
 std::unordered_map<const void *, PackCapacity>                     loaded_capacities;
 std::unordered_map<const void *, std::unordered_set<const void *>> copied_capacities_by_owner;
 constinit std::atomic<std::size_t>                                 copied_capacity_count = 0;
 bool                                                               data_indexed;
-BG_READ_INFO                                                       bg_read_info[32];
+std::array<BG_READ_INFO, 32>                                       bg_read_info;
 std::mutex                                                         texture_read_stats_mutex;
 DataTextureReadStats                                               texture_read_stats;
 std::atomic<bool>                                                  texture_read_stats_enabled = false;
@@ -97,15 +101,16 @@ void TrackTextureRead(const IndexedFile &file) {
     if (!is_json && !is_png) {
         return;
     }
-    std::lock_guard lock(texture_read_stats_mutex);
-    std::uint64_t  &count = file.archived
-                                ? (is_json ? texture_read_stats.archived_json : texture_read_stats.archived_png)
-                                : (is_json ? texture_read_stats.loose_json : texture_read_stats.loose_png);
-    ++count;
+    std::scoped_lock lock(texture_read_stats_mutex);
+    if (file.archived) {
+        ++(is_json ? texture_read_stats.archived_json : texture_read_stats.archived_png);
+    } else {
+        ++(is_json ? texture_read_stats.loose_json : texture_read_stats.loose_png);
+    }
     std::vector<std::string> &sources = file.archived ? texture_read_stats.archived_sources
                                                       : texture_read_stats.loose_sources;
     if (sources.size() < 8 &&
-        std::find(sources.begin(), sources.end(), file.source_path) == sources.end()) {
+        std::ranges::find(sources, file.source_path) == sources.end()) {
         sources.push_back(file.source_path);
     }
 }
@@ -132,9 +137,18 @@ void TrackPackCapacity(const void *pack, std::size_t capacity, const void *owner
         if (previous != loaded_capacities.end()) {
             ForgetCopiedCapacity(pack, previous->second);
         }
-        loaded_capacities[pack] = {capacity, owner, std::string(logical_path), std::string(member),
-                                   std::move(member_offsets), std::move(member_source_offsets),
-                                   std::move(member_sizes), source_offset, source_size, false, nullptr, 0};
+        loaded_capacities[pack] = {.capacity = capacity,
+                                   .owner = owner,
+                                   .logical_path = std::string(logical_path),
+                                   .member = std::string(member),
+                                   .member_offsets = std::move(member_offsets),
+                                   .member_source_offsets = std::move(member_source_offsets),
+                                   .member_sizes = std::move(member_sizes),
+                                   .source_offset = source_offset,
+                                   .source_size = source_size,
+                                   .copied = false,
+                                   .arena_base = nullptr,
+                                   .arena_end = 0};
     }
 }
 
@@ -147,14 +161,14 @@ std::string_view StripDevice(std::string_view path) {
 
 // Use the same ZIP lookup keys for raw and host-escaped non-ASCII names.
 std::string FoldArchivePath(std::string_view path) {
-    constexpr char kHex[] = "0123456789abcdef";
-    std::string    out;
+    constexpr std::string_view hex_digits = "0123456789abcdef";
+    std::string                out;
     out.reserve(path.size());
     for (unsigned char c : path) {
         if (c > 0x7F) {
             out += '%';
-            out += kHex[c >> 4];
-            out += kHex[c & 0xF];
+            out += hex_digits[c >> 4];
+            out += hex_digits[c & 0xF];
         } else {
             out += c == '\\' ? '/' : dcdata::FoldChar(static_cast<char>(c));
         }
@@ -164,10 +178,10 @@ std::string FoldArchivePath(std::string_view path) {
 }
 
 [[noreturn]] void NoData(const fs::path &root, const char *why) {
-    std::fprintf(stderr,
-                 "no game data: %s %s; extract the disc with `dcdata extract <disc image> %s` "
-                 "or pass --data <dir>\n",
-                 PathsDisplay(root).c_str(), why, PathsDisplay(root).c_str());
+    std::println(stderr,
+                 "no game data: {} {}; extract the disc with `dcdata extract <disc image> {}` "
+                 "or pass --data <dir>",
+                 PathsDisplay(root), why, PathsDisplay(root));
     std::abort();
 }
 
@@ -197,13 +211,13 @@ void CheckAgainstIndex(const fs::path &root) {
             bad += asset == data_base_index.end() || asset->second.size != record.size;
         }
         if (bad != 0) {
-            std::fprintf(stderr,
-                         "%s: %zu of the %zu files data.hd2 lists are missing or the wrong size; "
-                         "extract the disc again\n",
-                         PathsDisplay(root).c_str(), bad, records.size());
+            std::println(stderr,
+                         "{}: {} of the {} files data.hd2 lists are missing or the wrong size; "
+                         "extract the disc again",
+                         PathsDisplay(root), bad, records.size());
         }
     } catch (const std::exception &error) {
-        std::fprintf(stderr, "%s: %s\n", PathsDisplay(root).c_str(), error.what());
+        std::println(stderr, "{}: {}", PathsDisplay(root), error.what());
     }
 }
 
@@ -213,7 +227,7 @@ const IndexedFile *Lookup(std::string_view path) {
     }
     const std::string key = data_archive ? FoldArchivePath(StripDevice(path))
                                          : dcdata::FoldPath(StripDevice(path));
-    auto found = data_index.find(key);
+    auto              found = data_index.find(key);
     return found == data_index.end() ? nullptr : &found->second;
 }
 
@@ -221,8 +235,8 @@ const IndexedFile *Lookup(std::string_view path) {
 // sized their buffers for that; the tail is zeroed rather than left as whatever was there.
 int ReadWhole(const IndexedFile &file, void *buffer, std::size_t *out_capacity = nullptr) {
     const std::uintmax_t size = file.size;
-    if (size > INT32_MAX || buffer == nullptr) {
-        std::fprintf(stderr, "cannot read %s\n", PathsDisplay(file.path).c_str());
+    if (size > std::numeric_limits<std::int32_t>::max() || buffer == nullptr) {
+        std::println(stderr, "cannot read {}", PathsDisplay(file.path));
         std::abort();
     }
     bool read = false;
@@ -232,26 +246,25 @@ int ReadWhole(const IndexedFile &file, void *buffer, std::size_t *out_capacity =
     } else {
         std::ifstream stream(file.path, std::ios::binary);
         stream.read(static_cast<char *>(buffer), static_cast<std::streamsize>(size));
-        read = static_cast<std::uintmax_t>(stream.gcount()) == size;
+        read = std::cmp_equal(stream.gcount(), size);
     }
     if (!read) {
         if (file.archived) {
-            std::fprintf(stderr, "data.zip: cannot read or verify %s\n", file.path.generic_string().c_str());
+            std::println(stderr, "data.zip: cannot read or verify {}", file.path.generic_string());
         } else {
-            std::fprintf(stderr, "short read on %s\n", PathsDisplay(file.path).c_str());
+            std::println(stderr, "short read on {}", PathsDisplay(file.path));
         }
         std::abort();
     }
     std::size_t padded = dcdata::SectorsFor(size) * dcdata::kSector;
-    std::memset(static_cast<char *>(buffer) + size, 0, padded - size);
+    std::ranges::fill(std::span(static_cast<std::uint8_t *>(buffer), padded).subspan(size), std::uint8_t{0});
     if (out_capacity != nullptr) {
         *out_capacity = padded;
     }
     return static_cast<int>(size);
 }
 
-// One file inside a pack, as ps2/src/dataread.cpp has it: offsets are bytes from the entry, and a
-// first byte of zero ends the table.
+// One file inside a pack: offsets are bytes from the entry, and a first byte of zero ends the table.
 struct PackEntry {
     char name[64];
     int  offset;
@@ -273,7 +286,7 @@ PackEntry *PackEntryAt(u_int *pack, std::size_t capacity, int wanted) {
     for (int index = 0; offset <= capacity && capacity - offset >= sizeof(PackEntry); index++) {
         auto *entry = reinterpret_cast<PackEntry *>(bytes + offset);
         if (entry->name[0] == 0 || std::memchr(entry->name, '\0', sizeof(entry->name)) == nullptr ||
-            entry->next < static_cast<int>(sizeof(PackEntry)) || static_cast<std::size_t>(entry->next) > capacity - offset) {
+            std::cmp_less(entry->next, sizeof(PackEntry)) || static_cast<std::size_t>(entry->next) > capacity - offset) {
             return nullptr;
         }
         if (index == wanted) {
@@ -297,9 +310,9 @@ bool PackNameDuplicated(u_int *pack, std::size_t capacity, const PackEntry *entr
 }
 
 u_int *PackEntryData(u_int *pack, std::size_t capacity, PackEntry *entry) {
-    auto             *bytes = reinterpret_cast<unsigned char *>(pack);
-    const std::size_t offset = static_cast<std::size_t>(reinterpret_cast<unsigned char *>(entry) - bytes);
-    if (entry->offset < static_cast<int>(sizeof(PackEntry)) || entry->size < 0 ||
+    auto      *bytes = reinterpret_cast<unsigned char *>(pack);
+    const auto offset = static_cast<std::size_t>(reinterpret_cast<unsigned char *>(entry) - bytes);
+    if (std::cmp_less(entry->offset, sizeof(PackEntry)) || entry->size < 0 ||
         static_cast<std::size_t>(entry->offset) > capacity - offset ||
         static_cast<std::size_t>(entry->size) > capacity - offset - static_cast<std::size_t>(entry->offset)) {
         return nullptr;
@@ -308,21 +321,21 @@ u_int *PackEntryData(u_int *pack, std::size_t capacity, PackEntry *entry) {
 }
 
 void TrackPackMember(const void *pack, const void *data, std::size_t size, const PackCapacity &parent,
-                    const PackEntry *entry, int index, bool duplicate_name) {
-    const auto *pack_bytes = static_cast<const std::uint8_t *>(pack);
-    const auto *entry_bytes = reinterpret_cast<const std::uint8_t *>(entry);
+                     const PackEntry *entry, int index, bool duplicate_name) {
+    const auto       *pack_bytes = static_cast<const std::uint8_t *>(pack);
+    const auto       *entry_bytes = reinterpret_cast<const std::uint8_t *>(entry);
     const std::size_t entry_offset = static_cast<std::size_t>(entry_bytes - pack_bytes) +
                                      static_cast<std::size_t>(entry->offset);
-    std::string member = parent.member;
+    std::string       member = parent.member;
     if (!member.empty()) {
         member.push_back('/');
     }
-    constexpr char hex[] = "0123456789ABCDEF";
+    constexpr std::string_view hex_digits = "0123456789ABCDEF";
     for (unsigned char byte : std::string_view(entry->name)) {
         if (byte >= 128 || byte == '%') {
             member.push_back('%');
-            member.push_back(hex[byte >> 4]);
-            member.push_back(hex[byte & 0xF]);
+            member.push_back(hex_digits[byte >> 4]);
+            member.push_back(hex_digits[byte & 0xF]);
         } else {
             member.push_back(byte == '\\' ? '/' : static_cast<char>(byte));
         }
@@ -344,7 +357,7 @@ void TrackPackMember(const void *pack, const void *data, std::size_t size, const
 
 std::string IndexedPath(const IndexedFile &file) {
     std::string path = file.source_path;
-    std::replace(path.begin(), path.end(), '\\', '/');
+    std::ranges::replace(path, '\\', '/');
     return path;
 }
 
@@ -372,7 +385,7 @@ void InitCDFile() {
         try {
             data_archive = std::make_unique<DataArchive>(root.parent_path() / "data.zip");
         } catch (const std::exception &exception) {
-            std::fprintf(stderr, "%s: %s\n", PathsDisplay(root.parent_path() / "data.zip").c_str(), exception.what());
+            std::println(stderr, "{}: {}", PathsDisplay(root.parent_path() / "data.zip"), exception.what());
             NoData(root, "has an invalid data.zip archive");
         }
         bool has_data_prefix = true;
@@ -387,7 +400,7 @@ void InitCDFile() {
             std::unordered_set<std::string> layer_names;
             for (std::size_t index = 0; index < data_archive->Count(); ++index) {
                 const DataArchive::Entry &entry = data_archive->GetEntry(index);
-                std::string relative = entry.name;
+                std::string               relative = entry.name;
                 if (relative.ends_with('/')) {
                     continue;
                 }
@@ -433,9 +446,7 @@ void InitCDFile() {
             if (it->is_regular_file(entry_error)) {
                 std::string relative = it->path().lexically_relative(root).generic_string();
                 std::string key = dcdata::FoldPath(relative);
-                IndexedFile indexed{.path = it->path(), .logical_path = relative,
-                                    .source_path = relative,
-                                    .size = it->file_size(entry_error)};
+                IndexedFile indexed{.path = it->path(), .logical_path = relative, .source_path = relative, .size = it->file_size(entry_error)};
                 if (!relative.starts_with("normalized/")) {
                     data_base_index.emplace(key, indexed);
                 }
@@ -458,7 +469,7 @@ void InitCDFile() {
         }
     }
     if (error) {
-        std::fprintf(stderr, "%s: %s\n", PathsDisplay(root).c_str(), error.message().c_str());
+        std::println(stderr, "{}: {}", PathsDisplay(root), error.message());
     }
     if (data_index.empty()) {
         NoData(root, "is empty");
@@ -469,14 +480,14 @@ void InitCDFile() {
 
 int LoadFile(char *path, void *buffer, int *out_size) {
     if (!LoadFile2(path, buffer, out_size, 0)) {
-        printf("File open error \"%s\"\n \n \n", path);
+        std::print("File open error \"{}\"\n \n \n", path);
         __assert("etc.cpp", 753, "FALSE");
     }
 
     return 1;
 }
 
-int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
+int LoadFile2(char *path, void *buffer, int *out_size, int /*mode*/) {
     if (out_size) {
         *out_size = 0;
     }
@@ -495,8 +506,6 @@ int LoadFile2(char *path, void *buffer, int *out_size, int mode) {
     return 1;
 }
 
-// languages.json is {"release": "...", "languages": [n, ...]}; the numbers in the brackets after
-// "languages" are the languages.
 std::uintmax_t DataFileSize(std::string_view path) {
     const IndexedFile *file = Lookup(path);
     return file != nullptr ? file->size : 0;
@@ -540,12 +549,12 @@ bool DataReadReadFile(std::string_view path, std::vector<std::uint8_t> &bytes) {
 }
 
 DataTextureReadStats DataReadTextureReadStats() {
-    std::lock_guard lock(texture_read_stats_mutex);
+    std::scoped_lock lock(texture_read_stats_mutex);
     return texture_read_stats;
 }
 
 void DataReadSetTextureReadStatsEnabled(bool enabled) {
-    std::lock_guard lock(texture_read_stats_mutex);
+    std::scoped_lock lock(texture_read_stats_mutex);
     texture_read_stats = {};
     texture_read_stats_enabled.store(enabled, std::memory_order_relaxed);
 }
@@ -554,7 +563,7 @@ bool DataReadReadResolvedFile(std::string_view source_path, std::vector<std::uin
     if (!data_indexed) {
         InitCDFile();
     }
-    const std::string key = FoldArchivePath(source_path);
+    const std::string  key = FoldArchivePath(source_path);
     const IndexedFile *resolved = nullptr;
     for (const auto &entry : data_index) {
         const IndexedFile &file = entry.second;
@@ -611,7 +620,7 @@ bool DataReadSourceRange(const void *bytes, std::size_t size, DataReadSource &so
         if (address < base || address - base >= range.source_size) {
             continue;
         }
-        const std::size_t offset = static_cast<std::size_t>(address - base);
+        const auto offset = static_cast<std::size_t>(address - base);
         if (best == nullptr || range.source_size < best->source_size) {
             best = &range;
             best_offset = offset;
@@ -671,9 +680,18 @@ bool DataReadRegisterCopiedSource(const void *destination, std::size_t size, con
         ForgetCopiedCapacity(destination, previous->second);
         loaded_capacities.erase(previous);
     }
-    loaded_capacities[destination] = {size, owner, source.path, source.member, source.member_offsets,
-                                      source.member_source_offsets, source.member_sizes,
-                                      static_cast<std::size_t>(source.offset), size, true, arena->base, arena_end};
+    loaded_capacities[destination] = {.capacity = size,
+                                      .owner = owner,
+                                      .logical_path = source.path,
+                                      .member = source.member,
+                                      .member_offsets = source.member_offsets,
+                                      .member_source_offsets = source.member_source_offsets,
+                                      .member_sizes = source.member_sizes,
+                                      .source_offset = static_cast<std::size_t>(source.offset),
+                                      .source_size = size,
+                                      .copied = true,
+                                      .arena_base = arena->base,
+                                      .arena_end = arena_end};
     copied_capacities_by_owner[owner].insert(destination);
     copied_capacity_count.fetch_add(1, std::memory_order_relaxed);
     return true;
@@ -688,7 +706,7 @@ void DataReadInvalidateCopiedSources(const void *owner, std::size_t allocation_q
     if (arena == nullptr || arena->base == nullptr || owner_at == copied_capacities_by_owner.end()) {
         return;
     }
-    if (arena->used < 0 || allocation_quads > static_cast<std::size_t>(std::numeric_limits<int>::max() - arena->used)) {
+    if (arena->used < 0 || std::cmp_greater(allocation_quads, std::numeric_limits<int>::max() - arena->used)) {
         ForgetPackCapacities(owner);
         return;
     }
@@ -709,7 +727,7 @@ void DataReadInvalidateCopiedSources(const void *owner, std::size_t allocation_q
             copied_capacity_count.fetch_sub(1, std::memory_order_relaxed);
             continue;
         }
-        const std::size_t start = static_cast<std::size_t>(address - arena_start);
+        const auto        start = static_cast<std::size_t>(address - arena_start);
         const std::size_t end = range->second.arena_end;
         if (range->second.arena_base != arena->base || end > used_bytes ||
             (allocation_quads != 0 && start < allocation_end && allocation_start < end)) {
@@ -745,10 +763,12 @@ void DataReadReset() {
     data_indexed = false;
     copied_capacities_by_owner.clear();
     copied_capacity_count.store(0, std::memory_order_relaxed);
-    std::lock_guard lock(texture_read_stats_mutex);
+    std::scoped_lock lock(texture_read_stats_mutex);
     texture_read_stats = {};
 }
 
+// languages.json is {"release": "...", "languages": [n, ...]}; the numbers in the brackets after
+// "languages" are the languages.
 std::vector<s32> DataLanguages() {
     std::vector<s32>   languages;
     const IndexedFile *file = Lookup(dcdata::kLanguagesFile);
@@ -756,20 +776,20 @@ std::vector<s32> DataLanguages() {
         return languages;
     }
     std::vector<std::uint8_t> bytes(static_cast<std::size_t>(file->size));
-    const bool loaded = file->archived
-                            ? data_archive->Read(file->archive_index, bytes)
-                            : [&] {
+    const bool                loaded = file->archived
+                                           ? data_archive->Read(file->archive_index, bytes)
+                                           : [&] {
                                   std::ifstream stream(file->path, std::ios::binary);
                                   stream.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
                                   return static_cast<std::size_t>(stream.gcount()) == bytes.size();
-                              }();
+                                             }();
     if (!loaded) {
         return languages;
     }
     std::string text(bytes.begin(), bytes.end());
-    std::size_t   key = text.find("\"languages\"");
-    std::size_t   open = key == std::string::npos ? key : text.find('[', key);
-    std::size_t   close = open == std::string::npos ? open : text.find(']', open);
+    std::size_t key = text.find("\"languages\"");
+    std::size_t open = key == std::string::npos ? key : text.find('[', key);
+    std::size_t close = open == std::string::npos ? open : text.find(']', open);
     if (close == std::string::npos) {
         return languages;
     }
@@ -823,7 +843,7 @@ int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
     if (!info) {
         return 0;
     }
-    if (reinterpret_cast<std::uintptr_t>(buffer) % 64) {
+    if (reinterpret_cast<std::uintptr_t>(buffer) % 64 != 0) {
         printf("/*/*/*/*/not 64byte align at %p %s\n", static_cast<void *>(buffer), name);
     }
     const IndexedFile *file = Lookup(name);
@@ -835,7 +855,7 @@ int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
     int         size = ReadWhole(*file, buffer, &capacity);
     TrackPackCapacity(buffer, capacity, buffer, IndexedPath(*file), {}, 0, static_cast<std::size_t>(size));
     Localized(name, buffer, &size);
-    std::snprintf(info->name, sizeof info->name, "%s", name);
+    *std::format_to_n(info->name, sizeof(info->name) - 1, "{}", name).out = '\0';
     info->busy = true;
     info->id = 1;
     info->done = 1;
@@ -850,7 +870,7 @@ int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
 }
 
 BG_READ_INFO *GetReadBGFile(int index) {
-    if (index < 0 || index >= 32) {
+    if (index < 0 || std::cmp_greater_equal(index, bg_read_info.size())) {
         return nullptr;
     }
     return bg_read_info[index].busy ? &bg_read_info[index] : nullptr;
@@ -876,7 +896,7 @@ int WriteFile(char *path, void *buffer, int size) {
         name = name.substr(colon + 1);
     }
     std::string relative(name);
-    std::replace(relative.begin(), relative.end(), '\\', '/');
+    std::ranges::replace(relative, '\\', '/');
     relative.erase(0, relative.find_first_not_of('/'));
     if (!dcdata::IsSafeRelative(relative) || size < 0 || (buffer == nullptr && size != 0)) {
         return 0;

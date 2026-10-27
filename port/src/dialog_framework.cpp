@@ -1,6 +1,7 @@
 #include "dialog_framework.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <limits>
@@ -23,7 +24,7 @@ namespace {
 constexpr float kGlyphCellWidthPx = 14.0f;
 
 // English for the framework's own keys; lang/<language>.json translates them under the same keys.
-constexpr std::string_view kEnglish[][2] = {
+constexpr auto kEnglish = std::to_array<std::pair<std::string_view, std::string_view>>({
     {"dialog.common.talk",        "Talk"                        },
     {"dialog.common.leave",       "Never mind"                  },
     {"dialog.common.back",        "Back"                        },
@@ -34,7 +35,7 @@ constexpr std::string_view kEnglish[][2] = {
     {"dialog.common.next_page",   "{cross} Next"                },
     {"dialog.hub.default_prompt", "Is there something you need?"},
     {"dialog.hub.anything_else",  "Was there anything else?"    },
-};
+});
 
 struct FrameNode {
     std::vector<PageSlice>   slices;
@@ -140,29 +141,26 @@ bool StartsWithIgnoreCase(std::string_view text, std::string_view prefix) noexce
     if (text.size() < prefix.size()) {
         return false;
     }
-    return EqualsIgnoreCase(text.substr(0, prefix.size()), prefix);
+    return EqualsIgnoreCase(std::string_view(text.begin(), text.begin() + static_cast<std::ptrdiff_t>(prefix.size())), prefix);
 }
 
 bool IsZeroWidthControlTag(std::string_view tag_content) noexcept {
     if (tag_content.empty()) {
         return true;
     }
-    static constexpr std::string_view kZeroWidthNames[] = {
+    static constexpr std::array<std::string_view, 10> kZeroWidthNames = {
         "page", "white", "yellow", "cyan", "green", "dark",
         "gold", "grey", "highlight", "/color"};
-    for (std::string_view name : kZeroWidthNames) {
-        if (EqualsIgnoreCase(tag_content, name)) {
-            return true;
-        }
+    if (std::ranges::any_of(kZeroWidthNames, [tag_content](std::string_view name) {
+            return EqualsIgnoreCase(tag_content, name);
+        })) {
+        return true;
     }
-    static constexpr std::string_view kZeroWidthPrefixes[] = {
+    static constexpr std::array<std::string_view, 6> kZeroWidthPrefixes = {
         "wait ", "color ", "gap ", "spacing ", "justify ", "bubble "};
-    for (std::string_view prefix : kZeroWidthPrefixes) {
-        if (StartsWithIgnoreCase(tag_content, prefix)) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(kZeroWidthPrefixes, [tag_content](std::string_view prefix) {
+        return StartsWithIgnoreCase(tag_content, prefix);
+    });
 }
 
 u32 MapChoiceColor(ChoiceColor color, bool enabled) noexcept {
@@ -198,7 +196,7 @@ int32_t FindFirstEnabledChoice(std::span<const ChoiceItem> choices) noexcept {
 }
 
 void ClampChoiceScroll(FrameNode &node, int32_t max_visible) noexcept {
-    const int32_t total = static_cast<int32_t>(node.choices.size());
+    const auto total = static_cast<int32_t>(node.choices.size());
     if (total <= max_visible || max_visible <= 0) {
         node.choice_scroll_offset = 0;
         return;
@@ -426,8 +424,8 @@ void DefaultRenderSession(const ActiveView &view) {
             const int      sel_y = choices_y + sel_slot * row_stride;
             const UI::Rect sel_rect(choices_x - 4, sel_y - 1, std::max(40, row_w + 8), row_stride);
             widgets.brackets.Draw(sel_rect, alpha);
-            const float hand_x = static_cast<float>(choices_x - 28);
-            const float hand_y = static_cast<float>(sel_y - 2);
+            const auto hand_x = static_cast<float>(choices_x - 28);
+            const auto hand_y = static_cast<float>(sel_y - 2);
             if (g_state.snap_cursor) {
                 widgets.cursor.SnapTo(hand_x, hand_y);
                 g_state.snap_cursor = false;
@@ -436,24 +434,22 @@ void DefaultRenderSession(const ActiveView &view) {
             }
             widgets.cursor.Draw(alpha);
         }
-    } else if (view.slice_index + 1 < view.slice_count) {
+    } else if (view.slice_index + 1 < view.slice_count && ((g_state.blink_counter >> 4) & 1u) != 0u) {
         // Flashing next-page arrow matching ClsMes::DrawMesWin's syst04 indicator.
-        if (((g_state.blink_counter >> 4) & 1u) != 0u) {
-            CTexture *arrow_tex = draw2d::Get().find_texture("syst04");
-            if (arrow_tex != nullptr) {
-                const int arrow_x = box_rect.CenterX() - 8;
-                const int arrow_y = box_rect.Bottom() - 14;
-                set2DSprite(GetVif1Packet(), arrow_tex,
-                            CRect_i_(arrow_x, arrow_y, 16, 16),
-                            CRect_i_(0, 0, 16, 16), alpha);
-            }
+        CTexture *arrow_tex = draw2d::Get().find_texture("syst04");
+        if (arrow_tex != nullptr) {
+            const int arrow_x = box_rect.CenterX() - 8;
+            const int arrow_y = box_rect.Bottom() - 14;
+            set2DSprite(GetVif1Packet(), arrow_tex,
+                        CRect_i_(arrow_x, arrow_y, 16, 16),
+                        CRect_i_(0, 0, 16, 16), alpha);
         }
     }
 }
 
 class SessionControllerImpl final : public ISessionController {
 public:
-    const NpcContext &GetContext() const noexcept override {
+    [[nodiscard]] const NpcContext &GetContext() const noexcept override {
         return g_state.active_ctx;
     }
 
@@ -501,7 +497,7 @@ public:
 
         // The cursor stays on the choice it was on, where that choice is still there.
         const FrameNode &old = g_state.stack.front();
-        if (old.selected_choice >= 0 && old.selected_choice < static_cast<int32_t>(old.choices.size())) {
+        if (old.selected_choice >= 0 && std::cmp_less(old.selected_choice, old.choices.size())) {
             const std::string &id = old.choices[static_cast<size_t>(old.selected_choice)].id;
             for (size_t i = 0; i < hub.choices.size(); ++i) {
                 if (hub.choices[i].id == id && hub.choices[i].enabled) {
@@ -591,6 +587,7 @@ std::string ResolveKey(std::string_view key_or_raw) {
 
 std::vector<std::pair<std::string, std::string>> Strings() {
     std::vector<std::pair<std::string, std::string>> out;
+    out.reserve(kEnglish.size());
     for (const auto &[key, text] : kEnglish) {
         out.emplace_back(key, text);
     }
@@ -600,14 +597,14 @@ std::vector<std::pair<std::string, std::string>> Strings() {
 std::string SubstituteTokens(std::string_view             text,
                              std::span<const std::string> positional_args,
                              const TokenContext          *token_ctx) {
-    const TokenContext &ctx = token_ctx ? *token_ctx : g_state.tokens;
+    const TokenContext &ctx = token_ctx != nullptr ? *token_ctx : g_state.tokens;
     std::string         out;
     out.reserve(text.size() + 32);
 
     for (size_t i = 0; i < text.size();) {
         if (text[i] == '%' && i + 1 < text.size() &&
             text[i + 1] >= '1' && text[i + 1] <= '9') {
-            const size_t arg_idx = static_cast<size_t>(text[i + 1] - '1');
+            const auto arg_idx = static_cast<size_t>(text[i + 1] - '1');
             if (arg_idx < positional_args.size()) {
                 out.append(positional_args[arg_idx]);
             } else {
@@ -630,7 +627,7 @@ std::string SubstituteTokens(std::string_view             text,
 
                 if (StartsWithIgnoreCase(tag, "name") && tag.size() == 5 &&
                     tag[4] >= '1' && tag[4] <= '6') {
-                    const size_t idx = static_cast<size_t>(tag[4] - '1');
+                    const auto idx = static_cast<size_t>(tag[4] - '1');
                     if (!ctx.party_names[idx].empty()) {
                         out.append(ctx.party_names[idx]);
                         i = close_pos + 1;
@@ -661,7 +658,7 @@ std::string SubstituteTokens(std::string_view             text,
                     }
                 } else if (StartsWithIgnoreCase(tag, "value") && tag.size() == 6 &&
                            tag[5] >= '1' && tag[5] <= '8') {
-                    const size_t idx = static_cast<size_t>(tag[5] - '1');
+                    const auto idx = static_cast<size_t>(tag[5] - '1');
                     if (!ctx.values[idx].empty()) {
                         out.append(ctx.values[idx]);
                         i = close_pos + 1;
@@ -760,7 +757,7 @@ float MeasureMarkupLineWidth(std::string_view markup_line) {
     float       total_width = 0.0f;
     std::string visible_run;
 
-    auto flush_run = [&]() {
+    auto flush_run = [&] {
         if (!visible_run.empty()) {
             total_width += g_state.text_measurer(visible_run);
             visible_run.clear();
@@ -885,7 +882,7 @@ ComputedLayout ComputeExpandedLayout(const PageSlice             &slice,
         widest_choice = std::max(widest_choice, MeasureMarkupLineWidth(choice_label));
     }
 
-    const int32_t total_choices = static_cast<int32_t>(formatted_choice_labels.size());
+    const auto    total_choices = static_cast<int32_t>(formatted_choice_labels.size());
     const int32_t visible_choices = std::min(total_choices, std::max(1, cfg.max_visible_choices));
     const bool    needs_scroll = total_choices > cfg.max_visible_choices;
 
@@ -1075,7 +1072,7 @@ bool InputMoveUp() {
         return false;
     }
 
-    const int32_t count = static_cast<int32_t>(top.choices.size());
+    const auto count = static_cast<int32_t>(top.choices.size());
     for (int32_t step = 1; step <= count; ++step) {
         const int32_t idx = (top.selected_choice - step + count) % count;
         if (top.choices[static_cast<size_t>(idx)].enabled) {
@@ -1100,7 +1097,7 @@ bool InputMoveDown() {
         return false;
     }
 
-    const int32_t count = static_cast<int32_t>(top.choices.size());
+    const auto count = static_cast<int32_t>(top.choices.size());
     for (int32_t step = 1; step <= count; ++step) {
         const int32_t idx = (top.selected_choice + step) % count;
         if (top.choices[static_cast<size_t>(idx)].enabled) {
@@ -1122,7 +1119,7 @@ bool InputHoverChoice(int32_t visible_row_index) {
     }
     FrameNode    &top = g_state.stack.back();
     const int32_t target = top.choice_scroll_offset + visible_row_index;
-    if (target < 0 || target >= static_cast<int32_t>(top.choices.size())) {
+    if (target < 0 || std::cmp_greater_equal(target, top.choices.size())) {
         return false;
     }
     if (!top.choices[static_cast<size_t>(target)].enabled || target == top.selected_choice) {
@@ -1143,7 +1140,7 @@ int32_t HitTestChoiceRow(float px, float py) noexcept {
         py < lay.choices_y || py >= lay.choices_y + lay.choices_h) {
         return -1;
     }
-    const int32_t slot = static_cast<int32_t>((py - lay.choices_y) / g_state.layout_cfg.choice_row_stride);
+    const auto slot = static_cast<int32_t>((py - lay.choices_y) / g_state.layout_cfg.choice_row_stride);
     if (slot < 0 || slot >= lay.visible_choice_count) {
         return -1;
     }
@@ -1161,8 +1158,8 @@ bool InputScrollWheel(int32_t wheel_notches) {
     if (enabled_count <= 1) {
         return false;
     }
-    const size_t remainder = static_cast<size_t>(notch_count % static_cast<int64_t>(enabled_count));
-    const size_t steps = (notch_count >= static_cast<int64_t>(enabled_count) ? enabled_count : 0) + remainder;
+    const auto   remainder = static_cast<size_t>(notch_count % static_cast<int64_t>(enabled_count));
+    const size_t steps = (std::cmp_greater_equal(notch_count, enabled_count) ? enabled_count : 0) + remainder;
     bool         moved = false;
     for (size_t i = 0; i < steps; ++i) {
         if (wheel_notches > 0) {
@@ -1189,9 +1186,7 @@ bool InputConfirm() {
     }
 
     if (top.choices.empty()) {
-        if (top.close_when_read) {
-            ForceCloseSession();
-        } else if (g_state.stack.size() > 1) {
+        if (!top.close_when_read && g_state.stack.size() > 1) {
             g_state.stack.pop_back();
             RebuildActiveView(true);
         } else {
@@ -1200,8 +1195,7 @@ bool InputConfirm() {
         return true;
     }
 
-    if (top.selected_choice < 0 ||
-        top.selected_choice >= static_cast<int32_t>(top.choices.size())) {
+    if (top.selected_choice < 0 || std::cmp_greater_equal(top.selected_choice, top.choices.size())) {
         return false;
     }
 

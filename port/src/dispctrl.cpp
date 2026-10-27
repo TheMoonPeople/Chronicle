@@ -1,7 +1,7 @@
 #include "dispctrl.hpp"
 
 #include <algorithm>
-#include <cstring>
+#include <string_view>
 #include <vector>
 
 #include "debugfont.hpp"
@@ -23,7 +23,7 @@ constexpr int kCellHeight = 16;
 // so it reads as a menu instead of blue debug text on a blue field. Every other CDebugFont user
 // (the town editor's "font_buff", a dungeon's "dbgwork", the item preview) keeps retail's look.
 bool IsDeveloperMenu(const char *texture_name) {
-    return texture_name != nullptr && std::strcmp(texture_name, "frame_buff") == 0;
+    return texture_name != nullptr && std::string_view(texture_name) == "frame_buff";
 }
 
 } // namespace
@@ -33,8 +33,8 @@ bool IsDeveloperMenu(const char *texture_name) {
 // alpha), the near-black backdrop keeps TA0 while the font's black texels vanish, so the glyph
 // cells are holes in the backdrop wherever the glyph is black. Here the backdrop is drawn around
 // the cells and each cell straight from ankfnt24 with the same TEXA, through the same mapping of
-// width x height texels onto (width - 1) x (height - 1) pixels. Glyphs sample nearest: retail
-// filtered the composed texture by setbilinear's flag, which only blurred cell edges.
+// width x height texels onto (width - 1) x (height - 1) pixels. Glyphs sample nearest; bilinear
+// filtering of the composed texture would only blur cell edges.
 void CDebugFont::Draw() {
     const draw2d::Services &services = draw2d::Get();
     CTexture               *font = services.find_texture("ankfnt24");
@@ -65,12 +65,13 @@ void CDebugFont::Draw() {
     auto        screen_x = [&](int texel_x) { return static_cast<float>(this->x) + texel_x * scale_x; };
     auto        screen_y = [&](int texel_y) { return (static_cast<float>(this->y) + texel_y * scale_y) * rows; };
 
-    const bool menu = IsDeveloperMenu(this->texture_name);
+    const std::string_view text(this->text);
+    const bool             menu = IsDeveloperMenu(this->texture_name);
     // The panel, its border, the divider under the version line and the bar behind the cursor row,
     // all as untextured quads drawn before the glyphs.
     std::vector<gfx::Vertex2D> skin;
-    auto skin_rect = [&](int left, int top, int right, int bottom, std::uint8_t r, std::uint8_t g, std::uint8_t b,
-                         std::uint8_t a) {
+    auto                       skin_rect = [&](int left, int top, int right, int bottom, std::uint8_t r, std::uint8_t g, std::uint8_t b,
+                                               std::uint8_t a) {
         const float x0 = screen_x(left);
         const float x1 = screen_x(right);
         const float y0 = screen_y(top);
@@ -83,14 +84,11 @@ void CDebugFont::Draw() {
     if (menu) {
         skin_rect(0, 0, width, height, 0x10, 0x12, 0x1c, 0xd0);
         int line = 0;
-        for (const char *text = this->text;; text++) {
-            if ((text == this->text || text[-1] == '\n') && *text == '>') {
+        for (size_t i = 0; i < text.size(); i++) {
+            if ((i == 0 || text[i - 1] == '\n') && text[i] == '>') {
                 skin_rect(0, line * kCellHeight, width, (line + 1) * kCellHeight, 0xe8, 0xb0, 0x4a, 0x28);
             }
-            if (*text == '\0') {
-                break;
-            }
-            if (*text == '\n') {
+            if (text[i] == '\n') {
                 line++;
             }
         }
@@ -108,13 +106,13 @@ void CDebugFont::Draw() {
     std::vector<gfx::Vertex2D> glyph_quads;
     int                        pen_x = 0;
     int                        pen_y = 0;
-    for (const char *text = this->text; *text != 0; text++) {
-        if (*text == 0x20) {
+    for (const char ch : text) {
+        if (ch == ' ') {
             pen_x += kCellWidth;
             continue;
         }
 
-        if (*text == 0x0A) {
+        if (ch == '\n') {
             pen_y += kCellHeight;
             pen_x = 0;
             continue;
@@ -129,17 +127,17 @@ void CDebugFont::Draw() {
 
         covered[static_cast<size_t>(y0 / kCellHeight) * columns + x0 / kCellWidth] = true;
 
-        const int   index = static_cast<u_char>(*reinterpret_cast<const u_char *>(text) - 0x21);
-        const int   cell_width = std::min(kCellWidth, width - x0);
-        const int   cell_height = std::min(kCellHeight, height - y0);
-        const float u0 = static_cast<float>((index % 16) * kCellWidth);
-        const float v0 = static_cast<float>((index >> 4) * kCellHeight) * glyphs.v_scale;
-        const float u1 = u0 + cell_width;
-        const float v1 = v0 + cell_height * glyphs.v_scale;
-        const float left = screen_x(x0);
-        const float right = screen_x(x0 + cell_width);
-        const float top = screen_y(y0);
-        const float bottom = screen_y(y0 + cell_height);
+        const auto         index = static_cast<int>(static_cast<u_char>(ch - 0x21));
+        const int          cell_width = std::min(kCellWidth, width - x0);
+        const int          cell_height = std::min(kCellHeight, height - y0);
+        const auto         u0 = static_cast<float>((index % 16) * kCellWidth);
+        const float        v0 = static_cast<float>((index >> 4) * kCellHeight) * glyphs.v_scale;
+        const float        u1 = u0 + cell_width;
+        const float        v1 = v0 + cell_height * glyphs.v_scale;
+        const float        left = screen_x(x0);
+        const float        right = screen_x(x0 + cell_width);
+        const float        top = screen_y(y0);
+        const float        bottom = screen_y(y0 + cell_height);
         const std::uint8_t grey = menu ? 0xff : 0x80;
         const std::uint8_t glyph_alpha = menu ? 0x80 : 0x40;
         glyph_quads.push_back(draw2d::Vertex(left, top, 0.0f, u0, v0, grey, grey, grey, glyph_alpha));
@@ -149,7 +147,7 @@ void CDebugFont::Draw() {
     }
 
     // MODULATE of the backdrop's TA0 by the sprite's 0x40. The menu's dark panel replaces it.
-    const u_char               alpha = static_cast<u_char>((state.texa_ta0 * 0x40) >> 7);
+    const auto                 alpha = static_cast<u_char>((state.texa_ta0 * 0x40) >> 7);
     std::vector<gfx::Vertex2D> backdrop;
     for (int line = 0; !menu && line < lines; line++) {
         const float top = screen_y(line * kCellHeight);

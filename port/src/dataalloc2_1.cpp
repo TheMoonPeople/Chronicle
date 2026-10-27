@@ -5,21 +5,23 @@
 #include "dataread_port.hpp"
 #include "platform/arena.hpp"
 
-// Retail's arena methods with its arithmetic and its off-by-one checks kept;
-// only the endless loop on overflow becomes an abort that names the arena.
+// Arena methods keep retail's arithmetic and off-by-one checks; overflow aborts naming the arena.
 
 namespace {
 
 constexpr int kGlobalQuads = 1690000;
 
-// GlobalDataBuffer's own block stays where the PS2 build put it; what it hands
-// out comes from a host block with the same headroom as every other arena.
+// GlobalDataBuffer hands out a host block with the same headroom as every other arena.
 unsigned char *GlobalBlock() {
     return ArenaBlock(&GlobalDataBuffer, static_cast<std::size_t>(kGlobalQuads) * 16 * kArenaHeadroom);
 }
 
+constexpr std::ptrdiff_t QuadBytes(int quads) {
+    return static_cast<std::ptrdiff_t>(quads) * 16;
+}
+
 int AlignedUsed(const unsigned char *start, int used) {
-    std::uintptr_t slack = reinterpret_cast<std::uintptr_t>(start + used * 16) & 63;
+    std::uintptr_t slack = reinterpret_cast<std::uintptr_t>(start + QuadBytes(used)) & 63;
     if (slack != 0) {
         used += static_cast<int>((64 - slack) >> 4);
     }
@@ -41,18 +43,17 @@ struct Run {
 
 Run g_last_run;
 
-// Retail sizes the run it places an object in by hand, in the PS2's quadwords, and the host's
-// object is larger wherever it holds a pointer. The run is still the arena's last when the object
-// is placed, so it is grown to the host's size and nothing allocated after it lies under the
-// object's tail.
+// Callers size a placement run in target quadwords, but the host object is larger wherever it
+// holds a pointer. While the run is still the arena's last it is grown to the host size so nothing
+// allocated afterwards lies under the object's tail.
 void *Place(std::size_t size, u_long128 *block) {
     Run   run = g_last_run;
     auto *bytes = reinterpret_cast<u_char *>(block);
     int   quads = static_cast<int>((size + 15) / 16);
     if (run.arena != nullptr && run.block == bytes && quads > run.quads &&
-        run.arena->base + run.arena->used * 16 == bytes + run.quads * 16) {
+        run.arena->base + QuadBytes(run.arena->used) == bytes + QuadBytes(run.quads)) {
         run.arena->Alloc(quads - run.quads);
-        g_last_run = {run.arena, bytes, quads};
+        g_last_run = {.arena = run.arena, .block = bytes, .quads = quads};
     }
     return block;
 }
@@ -66,9 +67,9 @@ void *PlaceDataAllocObject(std::size_t size, u_long128 *block) {
 u_char *CDataAlloc2<1>::Alloc(int quads) {
     CheckAllocation(this, used, quads, limit);
     DataReadInvalidateCopiedSources(this, static_cast<std::size_t>(quads));
-    u_char *block = base + used * 16;
+    u_char *block = base + QuadBytes(used);
     used += quads;
-    g_last_run = {this, block, quads};
+    g_last_run = {.arena = this, .block = block, .quads = quads};
     return block;
 }
 
@@ -81,9 +82,9 @@ u_char *CDataAlloc2<1>::Alloc64(int quads) {
         ArenaOverflow(this, -1, limit);
     }
     DataReadInvalidateCopiedSources(this, static_cast<std::size_t>(quads));
-    u_char *block = base + used * 16;
+    u_char *block = base + QuadBytes(used);
     used += quads;
-    g_last_run = {this, block, quads};
+    g_last_run = {.arena = this, .block = block, .quads = quads};
     return block;
 }
 
@@ -100,7 +101,7 @@ void CDataAlloc2<1>::Align64() {
 u_char *CDataAlloc<1, 1690000>::Alloc(int quads) {
     constexpr int limit = kGlobalQuads * kArenaHeadroom;
     CheckAllocation(this, used, quads, limit);
-    u_char *allocation = GlobalBlock() + used * 16;
+    u_char *allocation = GlobalBlock() + QuadBytes(used);
     used += quads;
     return allocation;
 }
@@ -114,7 +115,7 @@ u_char *CDataAlloc<1, 1690000>::Alloc64(int quads) {
     if (quads >= limit - used) {
         ArenaOverflow(this, -1, limit);
     }
-    u_char *allocation = GlobalBlock() + used * 16;
+    u_char *allocation = GlobalBlock() + QuadBytes(used);
     used += quads;
     return allocation;
 }

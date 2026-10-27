@@ -1,5 +1,6 @@
 #include "dataset.hpp"
 
+#include <array>
 #include <limits>
 
 #include "dataalloc.hpp"
@@ -14,9 +15,11 @@ namespace {
 // before read_buffer, in what retail's carving leaves of the preceding arena.
 constexpr std::size_t kReadBufferLead = 0x180000;
 
+constexpr int kMaxQuads = std::numeric_limits<int>::max() / kArenaHeadroom;
+
 void Carve(CDataAlloc2<1> *arena, int quads) {
-    if (arena == nullptr || quads <= 0 || quads > std::numeric_limits<int>::max() / kArenaHeadroom) {
-        ArenaOverflow(arena, quads, std::numeric_limits<int>::max() / kArenaHeadroom);
+    if (arena == nullptr || quads <= 0 || quads > kMaxQuads) {
+        ArenaOverflow(arena, quads, kMaxQuads);
     }
     DataReadForgetPackCapacities(arena);
     arena->base = ArenaBlock(arena, static_cast<std::size_t>(quads) * 16 * kArenaHeadroom);
@@ -30,19 +33,19 @@ void CarveWorkBuffer(int quads) {
 }
 
 u_long128 *CarvePackets(int quads, int which) {
-    static const char keys[2] = {};
-    if (which < 0 || which >= 2 || quads <= 0 || quads > std::numeric_limits<int>::max() / kArenaHeadroom) {
-        ArenaOverflow("VIF packet buffer", quads, std::numeric_limits<int>::max() / kArenaHeadroom);
+    static constexpr std::array<char, 2> kPacketOwners{};
+    if (which < 0 || which >= 2 || quads <= 0 || quads > kMaxQuads) {
+        ArenaOverflow("VIF packet buffer", quads, kMaxQuads);
     }
-    return reinterpret_cast<u_long128 *>(ArenaBlock(&keys[which], static_cast<std::size_t>(quads) * 16 * kArenaHeadroom));
+    return reinterpret_cast<u_long128 *>(ArenaBlock(&kPacketOwners[which], static_cast<std::size_t>(quads) * 16 * kArenaHeadroom));
 }
 
 void CarveReadBuffer(int quads) {
-    if (quads <= 0 || quads > std::numeric_limits<int>::max() / kArenaHeadroom) {
-        ArenaOverflow("file read buffer", quads, std::numeric_limits<int>::max() / kArenaHeadroom);
+    if (quads <= 0 || quads > kMaxQuads) {
+        ArenaOverflow("file read buffer", quads, kMaxQuads);
     }
     DataReadForgetPackCapacities(read_buffer);
-    read_buffer = reinterpret_cast<u_int *>(ArenaBlock(&read_buffer, static_cast<std::size_t>(quads) * 16 * kArenaHeadroom, kReadBufferLead));
+    read_buffer = reinterpret_cast<u_int *>(ArenaBlock(static_cast<const void *>(&read_buffer), static_cast<std::size_t>(quads) * 16 * kArenaHeadroom, kReadBufferLead));
 }
 
 } // namespace

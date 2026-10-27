@@ -20,16 +20,18 @@
 
 namespace {
 
-// The framework's pages are drawn by the conversation's own window, EditMes1, as retail draws a
-// villager's choice prompt: the speech bubble, the hand, and the rows the hand is not on dimmed.
-// The page's text sits above its choices and keeps its colour (ClsMesSetChoiceRows).
+/**
+ * The framework's pages are drawn by the conversation's own window, EditMes1, as retail draws a
+ * villager's choice prompt: the speech bubble, the hand, and the rows the hand is not on dimmed.
+ * The page's text sits above its choices and keeps its colour (ClsMesSetChoiceRows).
+ */
 struct Window {
-    short       *retail_buff = nullptr; // EditMes1's talk messages, put back when the session ends.
-    std::string  shown;                 // The text EditMes1 was last made with.
+    short       *retail_buff = nullptr; /**< EditMes1's talk messages, put back when the session ends. */
+    std::string  shown;                 /**< The text EditMes1 was last made with. */
     GameTextFile file;
-    int          first_row = 0;   // The row the choices start on.
-    int          choice_rows = 0; // How many choices are in view; 0 on a page of text.
-    MenuPointer  pointer;         // The mouse, while the window is up.
+    int          first_row = 0;   /**< The row the choices start on. */
+    int          choice_rows = 0; /**< How many choices are in view; 0 on a page of text. */
+    MenuPointer  pointer;         /**< The mouse, while the window is up. */
 };
 
 Window g_window;
@@ -108,10 +110,7 @@ std::string WindowText(const Dialog::ActiveView &view, int &first_row, int &curs
     };
 
     const std::vector<std::string> &lines = view.current_slice.wrapped_markup_lines;
-    bool                            blank = true;
-    for (const std::string &line : lines) {
-        blank = blank && line.empty();
-    }
+    const bool                      blank = std::ranges::all_of(lines, [](const std::string &line) { return line.empty(); });
     // A page of only choices is drawn as retail's are, with no row above them.
     if (!blank || !view.show_choices_on_current_slice) {
         for (const std::string &line : lines) {
@@ -162,9 +161,8 @@ void ShowWindow() {
                                ? std::min(choice_count - visible_start, std::max(0, view->layout.visible_choice_count))
                                : 0;
     ClsMesSetChoiceRows(cursor_row >= 0 ? &EditMes1 : nullptr, first_row);
-    const int total = static_cast<int>(view->choices.size());
     ClsMesSetChoiceScroll(cursor_row >= 0 && view->choice_scroll_offset > 0,
-                          cursor_row >= 0 && view->choice_scroll_offset + g_window.choice_rows < total);
+                          cursor_row >= 0 && view->choice_scroll_offset + g_window.choice_rows < choice_count);
 }
 
 // Gives EditMes1 back the villager's messages, for retail's conversation or the next one.
@@ -194,9 +192,9 @@ int ChoiceAt(float x, float y) {
         return -1;
     }
     // From the hand's column to a character past the widest line; a row's characters sit 3 above it.
-    const float left = static_cast<float>(TextLeft() - 0xC - EditMes1.char_width * 2);
-    const float right = static_cast<float>(TextLeft() + EditMes1.text_width + EditMes1.char_width);
-    const float top = static_cast<float>(EditMes1.text_y - 3);
+    const auto left = static_cast<float>(TextLeft() - 0xC - EditMes1.char_width * 2);
+    const auto right = static_cast<float>(TextLeft() + EditMes1.text_width + EditMes1.char_width);
+    const auto top = static_cast<float>(EditMes1.text_y - 3);
     if (x < left || x >= right || y < top) {
         return -1;
     }
@@ -261,12 +259,7 @@ bool DialogNpcSpeaking() {
     if (view == nullptr) {
         return false;
     }
-    for (const std::string &line : view->current_slice.wrapped_markup_lines) {
-        if (!line.empty()) {
-            return true;
-        }
-    }
-    return false;
+    return !std::ranges::all_of(view->current_slice.wrapped_markup_lines, [](const std::string &line) { return line.empty(); });
 }
 
 void DialogNpcShowWindow() {
@@ -284,7 +277,7 @@ std::string DialogNpcTalkLine(int message) {
     const short *body = &file[1];
     for (int i = 0; i < count; i++) {
         if (body[i * 2 + 1] == message) {
-            return GameTextDecode(&body[count] + body[i * 2 + 2]);
+            return GameTextDecode(&body[count + body[i * 2 + 2]]);
         }
     }
     return {};
@@ -307,8 +300,8 @@ void DialogNpcMouseUpdate() {
     MenuPointerShow(&pointer);
 
     // The pointer takes over from the pad where the window's hand is.
-    const float           hand_x = static_cast<float>(TextLeft() - 0xC - EditMes1.char_width * 2);
-    const float           hand_y = static_cast<float>(EditMes1.text_y + EditMes1.cursor_y - 4);
+    const auto            hand_x = static_cast<float>(TextLeft() - 0xC - EditMes1.char_width * 2);
+    const auto            hand_y = static_cast<float>(EditMes1.text_y + EditMes1.cursor_y - 4);
     const MenuPointerTake take = pointer.Take(hand_x, hand_y);
     if (!take.pointing) {
         return;
