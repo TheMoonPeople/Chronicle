@@ -1,5 +1,6 @@
 #include "presence.hpp"
 
+#include <array>
 #include <format>
 #include <string>
 #include <utility>
@@ -20,16 +21,16 @@ struct Character {
     const char *image;
 };
 
-constexpr Character kCharacters[] = {
-    {"Toan",   "toan"  },
-    {"Xiao",   "xiao"  },
-    {"Goro",   "goro"  },
-    {"Ruby",   "ruby"  },
-    {"Ungaga", "ungaga"},
-    {"Osmond", "osmond"},
+constexpr std::array kCharacters = {
+    Character{.name = "Toan",   .image = "toan"  },
+    Character{.name = "Xiao",   .image = "xiao"  },
+    Character{.name = "Goro",   .image = "goro"  },
+    Character{.name = "Ruby",   .image = "ruby"  },
+    Character{.name = "Ungaga", .image = "ungaga"},
+    Character{.name = "Osmond", .image = "osmond"},
 };
 
-constexpr const char *kDungeons[DUNGEON_COUNT] = {
+constexpr std::array<const char *, DUNGEON_COUNT> kDungeons = {
     "Divine Beast Cave",
     "Wise Owl Forest",
     "Shipwreck",
@@ -39,7 +40,7 @@ constexpr const char *kDungeons[DUNGEON_COUNT] = {
     "Demon Shaft",
 };
 
-constexpr const char *kTowns[TOWN_COUNT] = {
+constexpr std::array<const char *, TOWN_COUNT> kTowns = {
     "Norune Village",
     "Matataki Village",
     "Queens",
@@ -49,11 +50,14 @@ constexpr const char *kTowns[TOWN_COUNT] = {
 
 DiscordActivity Playing(int chara, std::string state) {
     const Character &character = kCharacters[chara >= CHARA_TOAN && chara <= CHARA_OSMOND ? chara : CHARA_TOAN];
-    return {std::format("Playing as {}", character.name), std::move(state), character.image, character.name};
+    return {.details = std::format("Playing as {}", character.name),
+            .state = std::move(state),
+            .large_image = character.image,
+            .large_text = character.name};
 }
 
 DiscordActivity Away(std::string details) {
-    return {std::move(details), {}, "dark_cloud", "Dark Cloud"};
+    return {.details = std::move(details), .state = {}, .large_image = "dark_cloud", .large_text = "Dark Cloud"};
 }
 
 bool Georama(int edit_mode) {
@@ -68,6 +72,7 @@ bool Georama(int edit_mode) {
     }
 }
 
+// PresenceTick calls an activity must stay unchanged before it is sent, so brief transitions are not published.
 constexpr int kSettleTicks = 25;
 
 DiscordActivity g_shown;
@@ -124,6 +129,8 @@ void PresenceTick() {
         case GAME_MODE_UNUSED_8:
         case GAME_MODE_UNUSED_12:
             return;
+        default:
+            break;
     }
     PresenceState state;
     state.mode = mode;

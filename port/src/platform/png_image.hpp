@@ -5,9 +5,14 @@
 #include <span>
 #include <vector>
 
-// Kazarov's imagefile::LoadPng takes only the RGBA8 files of its own texture catalog. Translations,
-// the UI framework's plates and the renderer's own screenshots (RGB) are any standard PNG, so these
-// are decoded here, to RGBA.
+/**
+ * Reads and decodes any standard PNG file (RGB, RGBA, paletted, ...) into tightly packed RGBA8.
+ * Returns false, leaving the outputs untouched, if the file cannot be read or decoded.
+ */
 bool PngLoadRgba(const std::filesystem::path &file, int &width, int &height, std::vector<std::uint8_t> &rgba);
-bool PngDecodeRgba(std::span<const std::uint8_t> bytes, int &width, int &height,
-                   std::vector<std::uint8_t> &rgba);
+
+/**
+ * Decodes an in-memory PNG into tightly packed RGBA8.
+ * Returns false, leaving the outputs untouched, if the data is empty, too large or not a valid PNG.
+ */
+bool PngDecodeRgba(std::span<const std::uint8_t> bytes, int &width, int &height, std::vector<std::uint8_t> &rgba);

@@ -2,16 +2,23 @@
 
 #include <filesystem>
 
-// What the title needs to know before a save is loaded, kept as JSON beside the saves: the card's
-// configuration file held it on the PS2.
+/**
+ * What the title needs to know before a save is loaded, kept as JSON beside the saves.
+ * On the PS2 the memory card's configuration file held it.
+ */
 struct SaveState {
-    int  last_save = 0;      // The folder of the last save loaded or written; 0 for none.
-    bool game_clear = false; // The game clear flag of the last save written.
+    int  last_save = 0;      /**< Folder of the last save loaded or written; 0 for none. */
+    bool game_clear = false; /**< Game clear flag of the last save written. */
 };
 
-// False when there is no such file or it is not JSON; a key missing or of another type keeps
-// state's value.
+/**
+ * Reads the state file at path into state. Returns false when there is no such file or it is not
+ * JSON; a key that is missing or of another type keeps state's existing value.
+ */
 bool SaveStateRead(const std::filesystem::path &path, SaveState &state);
 
-// Written durably (files.hpp), its directory created first if need be.
+/**
+ * Writes state durably to path (see FilesWrite), creating its directory first if need be.
+ * Returns false when the directory or the file cannot be written.
+ */
 bool SaveStateWrite(const std::filesystem::path &path, const SaveState &state);

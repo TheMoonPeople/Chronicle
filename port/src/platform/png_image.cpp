@@ -28,15 +28,19 @@ bool PngDecodeRgba(std::span<const std::uint8_t> bytes, int &width, int &height,
     if (bytes.empty() || bytes.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         return false;
     }
-    int                                                        decoded_width = 0, decoded_height = 0, channels = 0;
-    std::unique_ptr<unsigned char, decltype(&stbi_image_free)> pixels(
+    int                                                              decoded_width = 0;
+    int                                                              decoded_height = 0;
+    int                                                              channels = 0;
+    const std::unique_ptr<unsigned char, decltype(&stbi_image_free)> pixels(
         stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &decoded_width, &decoded_height, &channels,
                               4),
         stbi_image_free);
     if (!pixels) {
         return false;
     }
-    rgba.assign(pixels.get(), pixels.get() + static_cast<std::size_t>(decoded_width) * decoded_height * 4);
+    const std::span<const unsigned char> decoded(pixels.get(),
+                                                 static_cast<std::size_t>(decoded_width) * decoded_height * 4);
+    rgba.assign(decoded.begin(), decoded.end());
     width = decoded_width;
     height = decoded_height;
     return true;

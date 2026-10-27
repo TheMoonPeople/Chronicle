@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iterator>
 #include <optional>
+#include <print>
 #include <string>
 #include <utility>
 #include <vector>
@@ -52,33 +53,33 @@ bool IsWeapon(int item) {
     return item >= ITEM_WEAPON_START && item < ITEM_WEAPON_END;
 }
 
-// As CDngStatusData::GetItem counts a weapon's owner's: fewer than ten weapons in their first ten slots
+// Counted as CDngStatusData::GetItem counts: fewer than ten weapons in the owner's first ten slots
 // (an eleventh is the overflow the game makes them throw one away from).
 bool WeaponHasRoom(const CDngStatusData &status, int owner) {
     int count = 0;
-    for (int i = 0; i < 10; ++i) {
-        count += status.chara_weapons[owner][i].item_no >= ITEM_WEAPON_START ? 1 : 0;
+    for (int slot = 0; slot < 10; ++slot) {
+        count += status.chara_weapons[owner][slot].item_no >= ITEM_WEAPON_START ? 1 : 0;
     }
     return count < 10;
 }
 
-// As CDngStatusData::GetItem counts: the items in the pack's slots and in its quick-use slots.
+// Counted as CDngStatusData::GetItem counts: the items in the pack's slots and in its quick-use slots.
 bool PackHasRoom(const CDngStatusData &status) {
     int count = 0;
     for (s16 item : status.item_pack.item) {
         count += item >= ITEM_DUNGEON_START ? 1 : 0;
     }
-    for (int i = 0; i < 3; ++i) {
-        if (status.item_pack.quick_item_slot[i] != -1) {
-            count += status.item_pack.quick_item_qty[i];
+    for (int slot = 0; slot < 3; ++slot) {
+        if (status.item_pack.quick_item_slot[slot] != -1) {
+            count += status.item_pack.quick_item_qty[slot];
         }
     }
     return count + 1 <= status.item_pack.num;
 }
 
-// A town's georama parts as they stand: the live ones for the town the player is in (EditPartsInfo),
-// any other's read from its save into a copy kept for the question. Null for no such town.
-const CEditPartsInfo *TownParts(int town) {
+// The live parts for the town the player is in; any other town's are read from its save into a copy
+// kept for the question.
+CEditPartsInfo *TownParts(int town) {
     if (SaveData == nullptr || town < 0 || town >= TOWN_COUNT) {
         return nullptr;
     }
@@ -92,10 +93,11 @@ const CEditPartsInfo *TownParts(int town) {
 
 const EDITPARTS_INFO *TownPart(int town, int part) {
     const CEditPartsInfo *parts = TownParts(town);
-    return parts != nullptr && part >= 0 && part < 24 ? &parts->parts[part] : nullptr;
+    return parts != nullptr && part >= 0 && std::cmp_less(part, std::size(parts->parts)) ? &parts->parts[part]
+                                                                                         : nullptr;
 }
 
-// Retail's PlayerAllItemCheck: whether the player has the item in the pack or stored.
+// Retail's PlayerAllItemCheck.
 bool HasAnywhere(int item) {
     if (SaveData == nullptr) {
         return false;
@@ -103,21 +105,20 @@ bool HasAnywhere(int item) {
     return SaveData->GetDngStatus()->SearchItemIndexNo(item) >= 0 || SaveData->GetStockItem()->SearchItem(item) != 0;
 }
 
-// The Mayor's talk script hands out his supplies while this holds: from the conversation starting,
-// as the script runs, until the conversation is up (QuestHostTalkStarting, QuestHostTalkOpened).
+// Holds back the Mayor's supplies from his talk script, from QuestHostTalkStarting until QuestHostTalkOpened.
 bool g_hold_mayor_supplies = false;
 
 // The save data in play, as the quests see it.
 class SaveGame final : public Quest::IGame {
 public:
-    int ItemCount(int item) const override {
+    [[nodiscard]] int ItemCount(int item) const override {
         const CDngStatusData *status = Status();
         if (status == nullptr) {
             return 0;
         }
         // What the pack carries, which TakeItem takes from; the game counts other kinds its own way.
         if (InPack(item)) {
-            return static_cast<int>(std::count(std::begin(status->item_pack.item), std::end(status->item_pack.item), item));
+            return static_cast<int>(std::ranges::count(status->item_pack.item, item));
         }
         return GetNumHowManyItemsHave(item);
     }
@@ -151,14 +152,14 @@ public:
         return status != nullptr && InPack(item) && status->LostItem(item) >= 0;
     }
 
-    int Money() const override {
+    [[nodiscard]] int Money() const override {
         const CDngStatusData *status = Status();
         return status != nullptr ? status->money : 0;
     }
 
     bool SpendMoney(int amount) override {
         CDngStatusData *status = Status();
-        if (status == nullptr || amount < 0 || status->money < amount) {
+        if (status == nullptr || amount < 0 || std::cmp_less(status->money, amount)) {
             return false;
         }
         status->money = static_cast<u16>(status->money - amount);
@@ -172,23 +173,23 @@ public:
         }
     }
 
-    int DeepestFloor(int dungeon) const override {
+    [[nodiscard]] int DeepestFloor(int dungeon) const override {
         const CDngStatusData *status = Status();
-        if (status == nullptr || dungeon < 0 || dungeon >= static_cast<int>(std::size(status->floor_reached))) {
+        if (status == nullptr || dungeon < 0 || std::cmp_greater_equal(dungeon, std::size(status->floor_reached))) {
             return -1;
         }
         return status->floor_reached[dungeon];
     }
 
-    bool HasItemAnywhere(int item) const override {
+    [[nodiscard]] bool HasItemAnywhere(int item) const override {
         return HasAnywhere(item);
     }
 
-    int DungeonCount(int dungeon) const override {
+    [[nodiscard]] int DungeonCount(int dungeon) const override {
         return SaveData != nullptr ? SaveData->QuestDungeon(dungeon, 0) : 0;
     }
 
-    bool GameFlag(int flag) const override {
+    [[nodiscard]] bool GameFlag(int flag) const override {
         return SaveData != nullptr && SaveData->GetGameFlag(flag) != 0;
     }
 
@@ -198,7 +199,7 @@ public:
         }
     }
 
-    int GameNumber(int slot) const override {
+    [[nodiscard]] int GameNumber(int slot) const override {
         return SaveData != nullptr && slot >= 0 ? SaveData->GetGameIntFlag(slot) : 0;
     }
 
@@ -210,7 +211,7 @@ public:
 
     // The scripts' map flags are the save's turned over (_SGET_MAP_FLAG, _SSET_MAP_FLAG); the map the
     // player is on goes through EdGetMapFlag, which shares Treant's chest flags between its two maps.
-    bool MapFlag(int map, int flag) const override {
+    [[nodiscard]] bool MapFlag(int map, int flag) const override {
         if (SaveData == nullptr || flag <= 0) {
             return false;
         }
@@ -229,33 +230,35 @@ public:
         }
     }
 
-    bool PartObtained(int town, int part) const override {
+    [[nodiscard]] bool PartObtained(int town, int part) const override {
         const EDITPARTS_INFO *info = TownPart(town, part);
         return info != nullptr && info->obtained != 0;
     }
 
-    int PartPlaced(int town, int part) const override {
+    [[nodiscard]] int PartPlaced(int town, int part) const override {
         const EDITPARTS_INFO *info = TownPart(town, part);
         return info != nullptr ? info->placed : 0;
     }
 
-    bool PartComplete(int town, int part) const override {
-        const CEditPartsInfo *parts = TownParts(town);
-        return parts != nullptr && part >= 0 && part < 24 && const_cast<CEditPartsInfo *>(parts)->CheckComplete(part) != 0;
+    [[nodiscard]] bool PartComplete(int town, int part) const override {
+        CEditPartsInfo *parts = TownParts(town);
+        return parts != nullptr && part >= 0 && std::cmp_less(part, std::size(parts->parts)) &&
+               parts->CheckComplete(part) != 0;
     }
 
-    bool PartEventDone(int town, int part) const override {
+    [[nodiscard]] bool PartEventDone(int town, int part) const override {
         const EDITPARTS_INFO *info = TownPart(town, part);
         return info != nullptr && (info->completion_flags & 1) != 0;
     }
 
-    bool RequestMet(int town, int request) const override {
+    [[nodiscard]] bool RequestMet(int town, int request) const override {
         const CEditPartsInfo *parts = TownParts(town);
-        return parts != nullptr && request >= 0 && request < 24 && parts->request[request] != 0;
+        return parts != nullptr && request >= 0 && std::cmp_less(request, std::size(parts->request)) &&
+               parts->request[request] != 0;
     }
 
-    bool VillagerHome(int town, int villager) const override {
-        // As _CHECK_VILLAGER asks it, of the sixteen villagers a town's script knows (GetVillagerInfo).
+    [[nodiscard]] bool VillagerHome(int town, int villager) const override {
+        // Asked as _CHECK_VILLAGER asks it, of the sixteen villagers a town's script knows (GetVillagerInfo).
         if (town != NowEditMap || EdEventInfo.edit_ground == nullptr || EdEventInfo.villagers == nullptr ||
             villager < 0 || villager >= 16) {
             return false;
@@ -263,12 +266,12 @@ public:
         return EdCheckVillager(villager, &EdEventInfo.villagers[villager], EdEventInfo.edit_ground) != 0;
     }
 
-    int PartySize() const override {
+    [[nodiscard]] int PartySize() const override {
         const CDngStatusData *status = Status();
         return status != nullptr ? status->party_size : 0;
     }
 
-    std::string TalkLine(int message) const override {
+    [[nodiscard]] std::string TalkLine(int message) const override {
         return DialogNpcTalkLine(message);
     }
 
@@ -344,11 +347,9 @@ void QuestHostTalkOpened() {
     g_hold_mayor_supplies = false;
 }
 
-// The talk script asks this whether the player has an item anywhere (_SITEM_CHECK_ALL) before the Mayor
-// hands it over. While a quest has his supplies, his own count as had, so the script hands nothing out.
 int QuestHostPlayerAllItemCheck(int item) {
-    if (g_hold_mayor_supplies && std::find(std::begin(kNoruneMayorSupplies), std::end(kNoruneMayorSupplies), item) !=
-                                     std::end(kNoruneMayorSupplies)) {
+    // The script hands out nothing it believes the player already has.
+    if (g_hold_mayor_supplies && std::ranges::contains(kNoruneMayorSupplies, item)) {
         return 1;
     }
     return HasAnywhere(item) ? 1 : 0;
@@ -366,7 +367,7 @@ bool QuestHostSave(const fs::path &save_directory) {
     QuestHostSetup();
     const std::string text = Quest::SaveJson();
     if (FilesWrite(save_directory / kFileName, text.data(), text.size(), true) != FilesResult::kWritten) {
-        std::fprintf(stderr, "quests: could not write %s\n", (save_directory / kFileName).string().c_str());
+        std::println(stderr, "quests: could not write {}", (save_directory / kFileName).string());
         return false;
     }
     return true;
@@ -384,8 +385,8 @@ void QuestHostLoad(const fs::path &save_directory) {
     }
     const std::string text{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
     if (!Quest::LoadJson(text)) {
-        std::fprintf(stderr, "quests: %s is not a quest file; every quest starts again\n",
-                     (save_directory / kFileName).string().c_str());
+        std::println(stderr, "quests: {} is not a quest file; every quest starts again",
+                     (save_directory / kFileName).string());
     }
 }
 
@@ -421,7 +422,7 @@ bool QuestHostTakeShop(const char *speaker_model, int *shop_no) {
     }
     // DC_DIALOG_TEST=1 traces who stands behind the counter, beside the dialog framework's test choice.
     if (std::getenv("DC_DIALOG_TEST") != nullptr) {
-        std::fprintf(stderr, "quests: shop %d, speaker model %s\n", spec.look_of_shop,
+        std::println(stderr, "quests: shop {}, speaker model {}", spec.look_of_shop,
                      speaker_model != nullptr ? speaker_model : "(none)");
     }
     for (const auto &[line, text] : spec.lines) {

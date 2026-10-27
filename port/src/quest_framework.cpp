@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <print>
+#include <ranges>
 #include <stdexcept>
 #include <utility>
 
@@ -12,7 +14,7 @@
 namespace Quest {
 namespace {
 
-using json = nlohmann::json;
+using nlohmann::json;
 
 constexpr int kSaveVersion = 1;
 // Rules that keep moving each other on stop after this many passes rather than hang the game.
@@ -102,8 +104,7 @@ Progress ProgressFrom(const Definition &quest, const json &saved) {
         if (quest.HasStage(name)) {
             progress.stage = name;
         } else {
-            std::fprintf(stderr, "quests: %s has no stage \"%s\"; starting it again\n", quest.Id().c_str(),
-                         name.c_str());
+            std::print(stderr, "quests: {} has no stage \"{}\"; starting it again\n", quest.Id(), name);
         }
     }
     if (auto vars = saved.find("vars"); vars != saved.end() && vars->is_object()) {
@@ -118,8 +119,6 @@ Progress ProgressFrom(const Definition &quest, const json &saved) {
 
 } // namespace
 
-// ---- Context and Scene ----
-
 Context::Context(const Definition &quest, Progress &progress, IGame &game)
     : quest(&quest), progress(&progress), game(&game) {}
 
@@ -133,8 +132,7 @@ bool Context::AtStage(std::string_view stage) const { return progress->stage == 
 
 void Context::SetStage(std::string_view stage) {
     if (!quest->HasStage(stage)) {
-        std::fprintf(stderr, "quests: %s has no stage \"%.*s\"\n", quest->Id().c_str(),
-                     static_cast<int>(stage.size()), stage.data());
+        std::print(stderr, "quests: {} has no stage \"{}\"\n", quest->Id(), stage);
         return;
     }
     progress->stage = std::string(stage);
@@ -180,8 +178,6 @@ void Scene::OpenShop(ShopSpec shop) {
     session->Close();
 }
 
-// ---- Conditions ----
-
 bool NpcMatch::Matches(const Dialog::NpcContext &npc) const {
     return (map_no == kAny || map_no == npc.map_no) && (npc_id == kAny || npc_id == npc.npc_id) &&
            (mes_file_key.empty() || mes_file_key == npc.mes_file_key);
@@ -194,7 +190,7 @@ Condition AtStage(std::string_view stage) {
 Condition AtStages(std::initializer_list<std::string_view> stages) {
     std::vector<std::string> names(stages.begin(), stages.end());
     return [names = std::move(names)](const Context &ctx) {
-        return std::find(names.begin(), names.end(), ctx.Stage()) != names.end();
+        return std::ranges::contains(names, ctx.Stage());
     };
 }
 
@@ -256,13 +252,13 @@ Condition VarAtLeast(std::string_view name, int value) {
 
 Condition All(std::vector<Condition> conditions) {
     return [conditions = std::move(conditions)](const Context &ctx) {
-        return std::all_of(conditions.begin(), conditions.end(), [&](const Condition &c) { return !c || c(ctx); });
+        return std::ranges::all_of(conditions, [&](const Condition &condition) { return !condition || condition(ctx); });
     };
 }
 
 Condition Any(std::vector<Condition> conditions) {
     return [conditions = std::move(conditions)](const Context &ctx) {
-        return std::any_of(conditions.begin(), conditions.end(), [&](const Condition &c) { return c && c(ctx); });
+        return std::ranges::any_of(conditions, [&](const Condition &condition) { return condition && condition(ctx); });
     };
 }
 
@@ -270,10 +266,8 @@ Condition Not(Condition condition) {
     return [condition = std::move(condition)](const Context &ctx) { return !condition || !condition(ctx); };
 }
 
-// ---- Definition and Builder ----
-
 bool Definition::HasStage(std::string_view stage) const {
-    return std::find(stages.begin(), stages.end(), stage) != stages.end();
+    return std::ranges::contains(stages, stage);
 }
 
 Builder::Builder(std::string id) { quest.id = std::move(id); }
@@ -284,17 +278,21 @@ Builder &Builder::Stages(std::initializer_list<std::string_view> stages) {
 }
 
 Builder &Builder::Advance(std::string_view from, Condition when, std::string_view to) {
-    quest.rules.push_back({std::string(from), std::move(when), std::string(to)});
+    quest.rules.push_back({.from = std::string(from), .when = std::move(when), .to = std::string(to)});
     return *this;
 }
 
 Builder &Builder::Option(NpcMatch npc, Condition when, Text label, SceneFn on_select, Dialog::ChoiceColor color) {
-    quest.options.push_back({std::move(npc), std::move(when), label, color, std::move(on_select)});
+    quest.options.push_back({.npc = std::move(npc),
+                             .when = std::move(when),
+                             .label = label,
+                             .color = color,
+                             .on_select = std::move(on_select)});
     return *this;
 }
 
 Builder &Builder::TakesOver(NpcMatch npc, Retail behaviour) {
-    quest.takeovers.push_back({std::move(npc), behaviour});
+    quest.takeovers.push_back({.npc = std::move(npc), .behaviour = behaviour});
     return *this;
 }
 
@@ -303,9 +301,9 @@ Definition Builder::Build() {
     if (id.empty() || quest.stages.empty()) {
         throw std::logic_error("quest \"" + id + "\" needs an id and at least one stage");
     }
-    for (size_t i = 0; i < quest.stages.size(); ++i) {
-        if (std::find(quest.stages.begin() + i + 1, quest.stages.end(), quest.stages[i]) != quest.stages.end()) {
-            throw std::logic_error("quest \"" + id + "\" names stage \"" + quest.stages[i] + "\" twice");
+    for (size_t index = 0; index < quest.stages.size(); ++index) {
+        if (std::ranges::contains(quest.stages | std::views::drop(index + 1), quest.stages[index])) {
+            throw std::logic_error("quest \"" + id + "\" names stage \"" + quest.stages[index] + "\" twice");
         }
     }
     for (const Definition::Rule &rule : quest.rules) {
@@ -321,8 +319,6 @@ Definition Builder::Build() {
     }
     return std::move(quest);
 }
-
-// ---- Registry ----
 
 void Register(Definition quest) {
     State &state = Get();
@@ -381,7 +377,7 @@ void Evaluate() {
             return;
         }
     }
-    std::fprintf(stderr, "quests: rules still moving after %d passes; stopped\n", kMaxEvaluatePasses);
+    std::print(stderr, "quests: rules still moving after {} passes; stopped\n", kMaxEvaluatePasses);
 }
 
 void CollectOptions(const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceItem> &out) {
@@ -393,10 +389,10 @@ void CollectOptions(const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceIte
     for (const std::unique_ptr<Entry> &entry : state.quests) {
         Context                                ctx(entry->quest, entry->progress, *state.game);
         const std::vector<Definition::Option> &options = entry->quest.Options();
-        for (size_t i = 0; i < options.size(); ++i) {
-            const Definition::Option &option = options[i];
+        for (size_t index = 0; index < options.size(); ++index) {
+            const Definition::Option &option = options[index];
             if (option.npc.Matches(npc) && (!option.when || option.when(ctx))) {
-                out.push_back(MakeChoice(entry->quest.Id(), entry->quest.Id() + ".option" + std::to_string(i),
+                out.push_back(MakeChoice(entry->quest.Id(), entry->quest.Id() + ".option" + std::to_string(index),
                                          option.label, option.on_select, option.color));
             }
         }
@@ -413,8 +409,6 @@ bool TakesOver(const Dialog::NpcContext &npc, Retail behaviour) {
     }
     return false;
 }
-
-// ---- Saving ----
 
 void ResetProgress() {
     State &state = Get();

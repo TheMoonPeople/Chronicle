@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -11,8 +12,9 @@ namespace {
 
 using Json = nlohmann::ordered_json;
 
-// Far more than the file ever holds.
-constexpr std::size_t kMaxSize = 0x10000;
+// Far more than the file ever holds; larger files are rejected.
+constexpr std::size_t  kMaxSize = 0x10000;
+constexpr std::int64_t kMaxSaveFolder = 999999999;
 
 } // namespace
 
@@ -29,12 +31,12 @@ bool SaveStateRead(const std::filesystem::path &path, SaveState &state) {
     if (auto last = json.find("last_save"); last != json.end()) {
         if (last->is_number_unsigned()) {
             auto value = last->get<std::uint64_t>();
-            if (value <= 999999999) {
+            if (value <= static_cast<std::uint64_t>(kMaxSaveFolder)) {
                 state.last_save = static_cast<int>(value);
             }
         } else if (last->is_number_integer()) {
             auto value = last->get<std::int64_t>();
-            if (value >= 0 && value <= 999999999) {
+            if (value >= 0 && value <= kMaxSaveFolder) {
                 state.last_save = static_cast<int>(value);
             }
         }
