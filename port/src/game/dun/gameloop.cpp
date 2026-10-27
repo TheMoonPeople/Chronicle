@@ -37,6 +37,7 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dungeonparts.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -205,31 +206,6 @@ void ClearWeaponTrail() {
 void LoadData();
 
 } // namespace
-
-/**
- * Reads the models of the items the player can run out of a pack file.
- */
-void BtSetActiveItemModel(unsigned int *pack);
-
-/**
- * Forgets every gate key the player carried into the dungeon.
- */
-void ClearGateKeyStack();
-
-/**
- * Sets the volume of the dungeon's ambient sound.
- */
-void SndAmbientSetVol(int volume);
-
-/**
- * Builds the list of Atlamillia the dungeon lays out.
- */
-void BtAtraListMake(int dungeon);
-
-/**
- * Puts the debug information overlay back to the start.
- */
-void DebugInfomationInit();
 
 /* The battle status of every character in the party. */
 BT_ACT_STATUS BtActStatus;

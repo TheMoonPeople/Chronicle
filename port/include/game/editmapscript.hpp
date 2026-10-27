@@ -111,3 +111,13 @@ void StopAllSound();
  * Loads one file of the active script directory into the editor's read buffer.
  */
 void *EdLoadFile(char *name);
+
+/**
+ * Reads one editor map's description through the script interpreter.
+ */
+int LoadEditMapData(EDIT_MAP_INFO *info, char *name, int map_no);
+
+/**
+ * Starts ambient playback unless the current map disables ambient sound.
+ */
+void PlayAmbient(float volume);

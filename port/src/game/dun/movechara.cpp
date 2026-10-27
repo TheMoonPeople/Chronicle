@@ -17,6 +17,7 @@
 #include "btsysscript.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
+#include "charakey.hpp"
 #include "character.hpp"
 #include "clothread.hpp"
 #include "clsmes.hpp"
@@ -84,24 +85,6 @@
 #include "weaponeffect.hpp"
 #include "weaponelement.hpp"
 #include "wind.hpp"
-
-void BtAtraGetShort_Init();
-int  BtAtraGetShort_Loop(int dungeon, int floor);
-int  BtEscape_Loop();
-int  BtGetGateKey_Loop();
-void BtGetTreasureboxBig_Init();
-int  BtGetTreasureboxBig_Loop();
-void BtGetTreasureboxSmall_Init(int dungeon);
-int  BtGetTreasureboxSmall_Loop();
-int  BtMiniChrSelect_Loop();
-void ClearGateKeyStack();
-int  DebugInfomationIF();
-void GoroKey_On();
-void GoroKey_Play();
-void ToanKey_On();
-void ToanKey_Play();
-void UngagaKey_On();
-void UngagaKey_Play();
 
 #pragma clang diagnostic ignored "-Wwritable-strings"
 #pragma clang diagnostic ignored "-Wchar-subscripts"

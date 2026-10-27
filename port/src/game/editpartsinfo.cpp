@@ -1,13 +1,11 @@
 #include "editpartsinfo.hpp"
 
 #include "editatra.hpp"
+#include "editloop3.hpp"
 #include "savedata.hpp"
 
 #include <cstring>
 #include <iterator>
-
-// Defined in editloop3.cpp; its header is not self-contained.
-int CheckPartsInfo(EDITPARTS_INFO *info);
 
 EDITPARTS_INFO *CEditPartsInfo::GetPartsInfo(int index) {
     if (index < 0 || index >= 24) {

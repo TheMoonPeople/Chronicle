@@ -275,6 +275,11 @@ void MGMoveFrameBuffImage(sceGsTex0 *dst, int x, int y, int direction);
 void MGSetViewMatrix(float (*view)[4], float *position);
 
 /**
+ * Sets the matrix that puts the world in front of the eye, leaving where the eye stands.
+ */
+void MGSetViewMatrix(sceVu0FMATRIX view);
+
+/**
  * Initializes the renderer, its GS state, and its shared vectors and matrices.
  */
 void MGInit();

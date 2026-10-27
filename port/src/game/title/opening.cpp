@@ -71,7 +71,6 @@ public:
     CRect(T left, T top, T width, T height) : x(left), y(top), w(width), h(height) {}
 };
 
-void MGSetViewMatrix(sceVu0FMATRIX view);
 void MGFillBox(const CRect<int> &rect, u_char r, u_char g, u_char b, u_char a);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char alpha);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char r, u_char g, u_char b, u_char a);

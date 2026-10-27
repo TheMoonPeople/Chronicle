@@ -54,15 +54,8 @@
 #include "shop.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
+#include "sysmes.hpp"
 #include "texture.hpp"
-
-// The town's system-message entry points; sysmes.hpp is not included because its globals share
-// names with this file's own message state.
-void ClearSystemMes();
-int  SystemMesCheck();
-void SystemMesStep();
-void SystemMesDraw();
-void ItemGetMes(int item_no, int value, int frames, int input_key);
 
 int EdDebugEventEnable = 1;
 int EdDebugCameraFlag;

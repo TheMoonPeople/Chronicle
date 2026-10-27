@@ -17,6 +17,7 @@
 #include "dataread.hpp"
 #include "effect.hpp"
 #include "effectgroup.hpp"
+#include "effectmacro.hpp"
 #include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -26,6 +27,7 @@
 #include "mathutil.hpp"
 #include "mds.hpp"
 #include "mglib.hpp"
+#include "nowload.hpp"
 #include "objanime.hpp"
 #include "rect.hpp"
 #include "renderinfo.hpp"
@@ -58,10 +60,8 @@ public:
     CRect(T new_x, T new_y, T new_width, T new_height) : x(new_x), y(new_y), w(new_width), h(new_height) {}
 } __attribute__((aligned(16)));
 
-void wait_now_loading_vsync();
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
-void DepthOfField(float *dist, int level, int alpha, int blur);
 
 // The title units' CRect<int> has rect.hpp's CRect_i_ layout (x, y, width, height), and MWCC mangled
 // both the same; clang does not, so the title's spelling forwards to the shared definition.

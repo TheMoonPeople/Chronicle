@@ -2913,9 +2913,6 @@ struct ED_EVENT_EXTERNAL_FUNCTION {
     int operation;                        /**< Bytecode operation number assigned to the function. */
 };
 
-void EdDrawOffAll();
-void EdDrawOnAll();
-
 namespace {
 
 int SetWorkFlag(int index, int value) {

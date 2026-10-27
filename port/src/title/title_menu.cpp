@@ -12,9 +12,8 @@
 #include "snd.hpp"
 #include "sound.hpp"
 #include "text/captionfont.hpp"
+#include "title/tisound.hpp"
 #include "ui/framework.hpp"
-
-void TiPlayVolSE(int group, int no, int voice, float volume);
 
 namespace TitleMenu {
 

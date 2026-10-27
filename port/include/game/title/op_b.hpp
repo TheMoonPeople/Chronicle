@@ -63,9 +63,9 @@ void OpB_DrawProcess();
 /**
  * Map objects of Norune village.
  */
-extern CMapObject OP_NornMapObj[];
+extern CMapObject OP_NornMapObj[76];
 
 /**
  * Second set of map objects of Norune village.
  */
-extern CMapObject OP_NornMapObj2[];
+extern CMapObject OP_NornMapObj2[87];

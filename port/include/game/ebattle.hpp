@@ -73,6 +73,11 @@ void EBExit();
 void EBDebug(int mode);
 
 /**
+ * Draws the event battle's own overlay.
+ */
+void EBDraw();
+
+/**
  * Advances the enemy-battle introduction and returns its state.
  */
 int EBIntroLoop();

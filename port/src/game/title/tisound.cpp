@@ -4,6 +4,7 @@
 
 #include "snd.hpp"
 #include "sound.hpp"
+#include "title/tisound.hpp"
 
 void TiPlayVolSE(int group, int no, int voice, float volume) {
     const int    se_index = CSnd.GetSeNo(no, voice);

@@ -34,6 +34,7 @@
 #include "title/op_b.hpp"
 #include "title/op_d.hpp"
 #include "title/opening.hpp"
+#include "title/rushmovi.hpp"
 #include "title/script.hpp"
 #include "title/seireiking.hpp"
 #include "visual.hpp"
@@ -54,7 +55,6 @@ public:
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw,
                    int dpsm, int dsax, int dsay, int dir);
-void FaceChangeMovie(int actor);
 
 namespace {
 

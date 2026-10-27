@@ -6,6 +6,7 @@
 #include <iterator>
 #include <print>
 
+#include "btitem.hpp"
 #include "character.hpp"
 #include "collisiondata.hpp"
 #include "data/data_read.hpp"
@@ -19,8 +20,6 @@
 #include "shot_effect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
-
-int ItemThrowStep(float *position, float *velocity);
 
 namespace {
 

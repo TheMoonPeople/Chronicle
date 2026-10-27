@@ -11,9 +11,8 @@
 
 #include "collision.hpp"
 #include "dataread.hpp"
+#include "gameutil.hpp"
 #include "mathutil.hpp"
-
-int PickUpNearPoly(CCPoly *out, CBoxVu0 box, CCPoly *polys, int count);
 
 namespace {
 

@@ -24,8 +24,6 @@
 #include "visualvu1.hpp"
 #include "vu0_ops.hpp"
 
-void *PlaceDataAllocObject(std::size_t size, u_long128 *block);
-
 void *operator new(size_t size, u_long128 *block) {
     return PlaceDataAllocObject(size, block);
 }

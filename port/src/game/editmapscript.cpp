@@ -19,6 +19,7 @@
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
+#include "chararead.hpp"
 #include "clsmes.hpp"
 #include "collision.hpp"
 #include "dataalloc.hpp"
@@ -60,11 +61,6 @@
 #include "snd.hpp"
 #include "texture.hpp"
 #include "weaponlevelup.hpp"
-
-/**
- * Assigns an image whose script-provided slot is also its image number.
- */
-void CommandIMG(void **arguments);
 
 namespace {
 

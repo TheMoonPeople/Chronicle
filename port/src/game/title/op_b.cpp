@@ -22,6 +22,7 @@
 #include "data/data_read.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "effectmacro.hpp"
 #include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -38,6 +39,7 @@
 #include "texture.hpp"
 #include "title/op_a.hpp"
 #include "title/op_b.hpp"
+#include "title/op_c.hpp"
 #include "title/opening.hpp"
 #include "title/script.hpp"
 #include "vector3.hpp"
@@ -108,7 +110,6 @@ void SetFrameName(OBJ_ANIME_SEQ &sequence, std::string_view name) {
 } // namespace
 
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
-void DepthOfField(float *dist, int level, int alpha, int blur);
 
 namespace {
 CFrameVu1 *ToansHouse;
@@ -117,8 +118,6 @@ int        VolFade;
 
 void setTexAnime();
 } // namespace
-
-void FaceChangeC(int no);
 
 CMapObject OP_NornMapObj[76];
 CMapObject OP_NornMapObj2[87];

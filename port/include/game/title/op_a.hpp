@@ -43,7 +43,7 @@ extern int DanceStart;
 /**
  * Object animation sequences of the opening.
  */
-extern OBJ_ANIME_SEQ OP_AnimeSeq[];
+extern OBJ_ANIME_SEQ OP_AnimeSeq[32];
 
 /**
  * Rotation step of the object animations.

@@ -816,6 +816,16 @@ void EdInitDrawDay();
  */
 void EdDeleteE05RoboParts();
 
+/**
+ * Suppresses every editor scene draw pass.
+ */
+void EdDrawOffAll();
+
+/**
+ * Restores normal editor scene drawing.
+ */
+void EdDrawOnAll();
+
 /** Texture animation records of the player character. */
 extern CTexAnimeData CharaTexAnimeData[];
 

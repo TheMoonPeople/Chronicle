@@ -26,3 +26,8 @@ void StretchBind2(float *point_a, float *point_b, float *spring);
  * Gives the length of a three-component vector, on the vector unit.
  */
 float vuabs(float *vector);
+
+/**
+ * Assigns an image whose script-provided slot is also its image number.
+ */
+void CommandIMG(void **argv);

@@ -124,6 +124,36 @@ void selectChrUnit(int chara_no, int reload);
 void LoadActiveItemIcon();
 
 /**
+ * Starts the large treasure box presentation.
+ */
+void BtGetTreasureboxBig_Init();
+
+/**
+ * Runs the large treasure box presentation and reports when it ends.
+ */
+int BtGetTreasureboxBig_Loop();
+
+/**
+ * Starts the small treasure box presentation for the given dungeon.
+ */
+void BtGetTreasureboxSmall_Init(int dungeon);
+
+/**
+ * Runs the small treasure box presentation and reports when it ends.
+ */
+int BtGetTreasureboxSmall_Loop();
+
+/**
+ * Starts the short presentation for picking up an Atla.
+ */
+void BtAtraGetShort_Init();
+
+/**
+ * Runs the Atla pickup presentation and reports when it ends.
+ */
+int BtAtraGetShort_Loop(int map_no, int floor);
+
+/**
  * Opens the small character-select window in the given selection mode.
  *
  * @mangled BtMiniChrSelect_Init__Fi
@@ -131,6 +161,11 @@ void LoadActiveItemIcon();
  * @size 0x40
  */
 void BtMiniChrSelect_Init(int type);
+
+/**
+ * Runs the small character-select window and reports the choice.
+ */
+int BtMiniChrSelect_Loop();
 
 /**
  * Opens the small item-select window.
@@ -160,6 +195,11 @@ int BtMiniItemSelect_Loop();
 void BtGetGateKey_Init(int item_no);
 
 /**
+ * Runs the gate-key pickup presentation and reports when it ends.
+ */
+int BtGetGateKey_Loop();
+
+/**
  * Gives the player an attachment and opens its acquisition message.
  *
  * @mangled BtGetAttach_Init__Fii
@@ -187,6 +227,16 @@ int BtGetAttach_Loop();
 void BtEscape_Init();
 
 /**
+ * Runs the escape presentation and reports when it ends.
+ */
+int BtEscape_Loop();
+
+/**
+ * Builds the models of the items in the active slots.
+ */
+void BtSetActiveItemModel(u_int *buffer);
+
+/**
  * Builds the velocity of a shot fired at the given speed and angles.
  *
  * @mangled setShotVector__FPffff
@@ -203,6 +253,11 @@ void setShotVector(float *velocity, float speed, float angle_y, float angle_x);
  * @size 0xC0
  */
 void getCharacterVector(float *vector, float pitch);
+
+/**
+ * Advances a thrown item along its arc.
+ */
+int ItemThrowStep(float *position, float *velocity);
 
 // Port additions.
 

@@ -33,6 +33,7 @@
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "debugfont.hpp"
+#include "dispctrl.hpp"
 #include "dialog/npc.hpp"
 #include "dngstatusdata.hpp"
 #include "ebattle.hpp"
@@ -265,8 +266,6 @@ int     PartsNameNum = -1;
 void                CopyCMapParts(CMapParts *to, CMapParts *from, CDataAlloc2<1> *arena);
 EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points, CMapParts *shared);
 void                LoadPTS(CMapParts *parts, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime, EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points);
-u_int              *SearchPTS(u_int *archive, char *name);
-int                 LoadEditMapData(EDIT_MAP_INFO *info, char *name, int kind);
 void                LoadObjectParts();
 void                LoadGroundData();
 int                 LoadTexture();
@@ -282,10 +281,6 @@ void                EventMode();
 void                EditPartsObjectOnOff();
 void                MainMode();
 void                EditMode();
-void                PlayAmbient(float volume);
-
-// Defined in ebattle.cpp; declared by dun/gameloop.hpp.
-void EBDraw();
 
 namespace {
 void EditMainDraw();

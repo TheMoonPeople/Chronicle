@@ -13,6 +13,7 @@
 
 #include "character.hpp"
 #include "cloth.hpp"
+#include "clothread.hpp"
 #include "data/data_read.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
@@ -24,9 +25,6 @@
 #include "sysmes.hpp"
 #include "texture.hpp"
 #include "vu0_ops.hpp"
-
-CCloth *InitCloth(CFrameVu1 *frame, input_str &input, CDataAlloc2<1> *alloc);
-void    CommandIMG(void **argv);
 
 namespace {
 

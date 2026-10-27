@@ -48,6 +48,7 @@
 #include "title/sprite.hpp"
 #include "title/title.hpp"
 #include "title/title_draw.hpp"
+#include "title/tisound.hpp"
 #include "title/title_menu.hpp"
 #include "title/titleloop.hpp"
 #include "ui/menu_pointer.hpp"
@@ -56,8 +57,6 @@
 
 // TexManager.GetTexture takes the texture name as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
-
-void TiPlayVolSE(int group, int no, int voice, float volume);
 
 int    Fade1;
 int    Fade2;

@@ -283,6 +283,11 @@ int SearchiDoPutArea(MAPPARTS *cells, int x, int y, int width, int height, float
 int BtAtraFloorCyoice(int map_no, int floor_no, int *atra_no);
 
 /**
+ * Builds the list of Atla one dungeon may hand out.
+ */
+void BtAtraListMake(int dungeon);
+
+/**
  * Gathers the floor's polygons within reach of a position, and returns how many.
  */
 int setCollisionData(CDungeonMap *map, CCPoly *poly, float *position, float radius, float height);

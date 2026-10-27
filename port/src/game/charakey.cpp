@@ -8,6 +8,7 @@
 
 #include "btactstatus.hpp"
 #include "btmisc.hpp"
+#include "charakey.hpp"
 #include "character.hpp"
 #include "clothread.hpp"
 #include "collisiondata.hpp"

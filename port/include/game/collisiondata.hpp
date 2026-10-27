@@ -173,6 +173,21 @@ STATIC_ASSERT(sizeof(CCollisionData) == 0x3D90);
 int SetGateKeyStack(int item);
 
 /**
+ * Empties the list of key items waiting to be dropped.
+ */
+void ClearGateKeyStack();
+
+/**
+ * Clears the debug overlay's state.
+ */
+void DebugInfomationInit();
+
+/**
+ * Moves through the debug overlay's pages with the pad.
+ */
+int DebugInfomationIF();
+
+/**
  * Draws the caption naming the dungeon and floor the party has just entered.
  */
 void StartMessageDraw(CTexture *texture, int dungeon, int floor, int ura, int alpha);

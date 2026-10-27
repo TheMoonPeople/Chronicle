@@ -2101,10 +2101,9 @@ void Construct(T &object) {
 
 } // namespace
 
-extern CFireOmni     CFire;
-extern OBJ_ANIME_SEQ OP_AnimeSeq[32];
-extern CMapObject    OP_NornMapObj[76];
-extern CMapObject    OP_NornMapObj2[87];
+// op_a.cpp's fire; op_a.hpp cannot declare it, since op_b.cpp and op_c.cpp include that header
+// and keep file-local fires of the same name.
+extern CFireOmni CFire;
 
 void TitleOverlayConstruct() {
     for (CMap *map : {&OP_GroundMap, &OP_BuildingMap, &OP_BuildingMap2}) {
