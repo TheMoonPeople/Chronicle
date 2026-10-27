@@ -16,6 +16,9 @@
 
 namespace dc::text::credits {
 
+using namespace dc::game;
+using namespace dc::render;
+
 namespace {
 
 struct CreditLine {

@@ -36,6 +36,10 @@
 
 namespace dc::quest {
 
+using namespace dc::game;
+using namespace dc::dialog;
+using namespace dc::localize;
+
 namespace {
 
 namespace fs = std::filesystem;

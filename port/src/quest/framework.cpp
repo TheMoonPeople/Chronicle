@@ -12,6 +12,9 @@
 #include "localize/localize.hpp"
 
 namespace dc::quest {
+
+using namespace dc::localize;
+
 namespace {
 
 using nlohmann::json;

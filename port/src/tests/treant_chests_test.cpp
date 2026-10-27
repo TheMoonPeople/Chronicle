@@ -5,6 +5,10 @@
 #include "mainselect.hpp"
 #include "savedata.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 namespace {
 
 alignas(64) CSaveData g_treant_save;
@@ -43,3 +47,5 @@ TEST(TreantChests, ChestsOpenedBeforeTheFloodStayOpenAfter) {
     MapNo = saved_map;
     SaveData = nullptr;
 }
+
+} // namespace dc::test

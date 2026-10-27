@@ -15,6 +15,9 @@
 
 namespace dc::text {
 
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace {
 
 // gaiji.img's letter grid in code order: nine 14x20 cells a row from u 128 (GaijiDataTbl).

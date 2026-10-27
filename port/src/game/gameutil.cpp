@@ -42,6 +42,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 // Shared helpers: the IOP midi RPC, motion interpolation, collision and ground queries, and 2D
 // sprites.
 

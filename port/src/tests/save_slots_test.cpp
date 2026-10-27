@@ -29,14 +29,20 @@
 #include <sys/stat.h>
 #endif
 
+namespace dc::game {
+extern int (*SaveMenuFunc[26])();
+} // namespace dc::game
+
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::app;
+using namespace dc::save;
+
 // The save screens' list and CMemoryCardAccess on the save folders, driven as the save menu does:
 // SetFuncNo, then Step until the operation finishes, on a save root in a temporary directory.
 
 namespace fs = std::filesystem;
-
-namespace dc::game {
-extern int (*SaveMenuFunc[26])();
-} // namespace dc::game
 
 namespace {
 
@@ -576,3 +582,5 @@ TEST(SaveSlots, EndingSaveFailureCanBeLeft) {
 
     fs::remove_all(root);
 }
+
+} // namespace dc::test

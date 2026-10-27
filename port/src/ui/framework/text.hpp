@@ -187,45 +187,45 @@ public:
     void DrawWrapped(int x, int y, int max_width, int line_height = 24, int alpha = 0x80);
 
 private:
-    std::string m_raw_text;                   /**< Raw UTF-8 text string. */
-    GameText    m_text;                       /**< Underlying message decoder and glyph layout instance. */
-    u32         m_color{ColorWhite};          /**< Active palette color constant. */
-    Alignment   m_align{Alignment::Left};     /**< Horizontal alignment mode. */
-    bool        m_drop_shadow{true};          /**< Whether drop shadows are enabled. */
-    float       m_scale{1.0f};                /**< Uniform scale factor. */
-    float       m_xscale{1.0f};               /**< Horizontal stretch multiplier. */
-    float       m_yscale{1.0f};               /**< Vertical stretch multiplier. */
-    FontWeight  m_weight{FontWeight::Normal}; /**< Active font weight variant. */
-    int         m_dx{0};                      /**< Horizontal draw offset in pixels. */
-    int         m_dy{0};                      /**< Vertical draw offset in pixels. */
-    bool        m_use_custom_rgb{false};      /**< Whether custom RGB fill is active. */
-    u8          m_fill_r{240};                /**< Custom fill red channel. */
-    u8          m_fill_g{238};                /**< Custom fill green channel. */
-    u8          m_fill_b{232};                /**< Custom fill blue channel. */
-    float       m_outline_width{0.0f};        /**< Outer stroke width in pixels. */
-    u8          m_outline_r{16};              /**< Outer stroke red channel. */
-    u8          m_outline_g{28};              /**< Outer stroke green channel. */
-    u8          m_outline_b{68};              /**< Outer stroke blue channel. */
-    bool        m_raised_bevel{false};        /**< Whether 3D bevel extrusion is enabled. */
-    u8          m_bevel_r{108};               /**< Raised bevel red channel. */
-    u8          m_bevel_g{134};               /**< Raised bevel green channel. */
-    u8          m_bevel_b{192};               /**< Raised bevel blue channel. */
-    bool        m_recessed{false};            /**< Whether recessed button engraving is enabled. */
-    u8          m_recess_dark_r{72};          /**< Engraved top-left shadow red channel. */
-    u8          m_recess_dark_g{34};          /**< Engraved top-left shadow green channel. */
-    u8          m_recess_dark_b{18};          /**< Engraved top-left shadow blue channel. */
-    u8          m_recess_light_r{250};        /**< Engraved bottom-right catch-light red channel. */
-    u8          m_recess_light_g{195};        /**< Engraved bottom-right catch-light green channel. */
-    u8          m_recess_light_b{155};        /**< Engraved bottom-right catch-light blue channel. */
-    bool        m_painted{false};             /**< Whether the painted buttons' lettering is used. */
-    float       m_letter{0.0f};               /**< Added to the gap between letters. */
-    bool        m_see_through{false};         /**< Whether alpha makes the text see-through. */
-    float       m_halo{0.0f};                 /**< Reach of the soft dark halo. */
-    float       m_halo_strength{0.5f};        /**< Darkness of the halo next to the letters. */
-    float       m_kern{0.0f};                 /**< Strength of the font's kerning. */
-    bool        m_ink_spacing{false};         /**< Whether letters are spaced by their outlines. */
-    bool        m_dirty{true};                /**< Whether the cached width needs recomputation. */
-    int         m_cached_width{0};            /**< Cached horizontal width in logical pixels. */
+    std::string    m_raw_text;                   /**< Raw UTF-8 text string. */
+    text::GameText m_text;                       /**< Underlying message decoder and glyph layout instance. */
+    u32            m_color{ColorWhite};          /**< Active palette color constant. */
+    Alignment      m_align{Alignment::Left};     /**< Horizontal alignment mode. */
+    bool           m_drop_shadow{true};          /**< Whether drop shadows are enabled. */
+    float          m_scale{1.0f};                /**< Uniform scale factor. */
+    float          m_xscale{1.0f};               /**< Horizontal stretch multiplier. */
+    float          m_yscale{1.0f};               /**< Vertical stretch multiplier. */
+    FontWeight     m_weight{FontWeight::Normal}; /**< Active font weight variant. */
+    int            m_dx{0};                      /**< Horizontal draw offset in pixels. */
+    int            m_dy{0};                      /**< Vertical draw offset in pixels. */
+    bool           m_use_custom_rgb{false};      /**< Whether custom RGB fill is active. */
+    u8             m_fill_r{240};                /**< Custom fill red channel. */
+    u8             m_fill_g{238};                /**< Custom fill green channel. */
+    u8             m_fill_b{232};                /**< Custom fill blue channel. */
+    float          m_outline_width{0.0f};        /**< Outer stroke width in pixels. */
+    u8             m_outline_r{16};              /**< Outer stroke red channel. */
+    u8             m_outline_g{28};              /**< Outer stroke green channel. */
+    u8             m_outline_b{68};              /**< Outer stroke blue channel. */
+    bool           m_raised_bevel{false};        /**< Whether 3D bevel extrusion is enabled. */
+    u8             m_bevel_r{108};               /**< Raised bevel red channel. */
+    u8             m_bevel_g{134};               /**< Raised bevel green channel. */
+    u8             m_bevel_b{192};               /**< Raised bevel blue channel. */
+    bool           m_recessed{false};            /**< Whether recessed button engraving is enabled. */
+    u8             m_recess_dark_r{72};          /**< Engraved top-left shadow red channel. */
+    u8             m_recess_dark_g{34};          /**< Engraved top-left shadow green channel. */
+    u8             m_recess_dark_b{18};          /**< Engraved top-left shadow blue channel. */
+    u8             m_recess_light_r{250};        /**< Engraved bottom-right catch-light red channel. */
+    u8             m_recess_light_g{195};        /**< Engraved bottom-right catch-light green channel. */
+    u8             m_recess_light_b{155};        /**< Engraved bottom-right catch-light blue channel. */
+    bool           m_painted{false};             /**< Whether the painted buttons' lettering is used. */
+    float          m_letter{0.0f};               /**< Added to the gap between letters. */
+    bool           m_see_through{false};         /**< Whether alpha makes the text see-through. */
+    float          m_halo{0.0f};                 /**< Reach of the soft dark halo. */
+    float          m_halo_strength{0.5f};        /**< Darkness of the halo next to the letters. */
+    float          m_kern{0.0f};                 /**< Strength of the font's kerning. */
+    bool           m_ink_spacing{false};         /**< Whether letters are spaced by their outlines. */
+    bool           m_dirty{true};                /**< Whether the cached width needs recomputation. */
+    int            m_cached_width{0};            /**< Cached horizontal width in logical pixels. */
 };
 
 /**

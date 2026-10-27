@@ -70,15 +70,15 @@ public:
     void DeferDraw(int alpha = 0x80);
 
 private:
-    float     m_cur_x{0.0f};      /**< Current interpolated X coordinate. */
-    float     m_cur_y{0.0f};      /**< Current interpolated Y coordinate. */
-    float     m_target_x{0.0f};   /**< Target X coordinate. */
-    float     m_target_y{0.0f};   /**< Target Y coordinate. */
-    bool      m_pointing{false};  /**< Whether explicit pointer override is enabled. */
-    float     m_pointer_x{0.0f};  /**< Explicit pointer X coordinate. */
-    float     m_pointer_y{0.0f};  /**< Explicit pointer Y coordinate. */
-    int       m_anim_count{0};    /**< Oscillation animation frame counter. */
-    CTexture *m_texture{nullptr}; /**< Cached pointer to the gaiji sprite sheet. */
+    float           m_cur_x{0.0f};      /**< Current interpolated X coordinate. */
+    float           m_cur_y{0.0f};      /**< Current interpolated Y coordinate. */
+    float           m_target_x{0.0f};   /**< Target X coordinate. */
+    float           m_target_y{0.0f};   /**< Target Y coordinate. */
+    bool            m_pointing{false};  /**< Whether explicit pointer override is enabled. */
+    float           m_pointer_x{0.0f};  /**< Explicit pointer X coordinate. */
+    float           m_pointer_y{0.0f};  /**< Explicit pointer Y coordinate. */
+    int             m_anim_count{0};    /**< Oscillation animation frame counter. */
+    game::CTexture *m_texture{nullptr}; /**< Cached pointer to the gaiji sprite sheet. */
 };
 
 /**
@@ -109,8 +109,8 @@ public:
     void DeferDraw(const Rect &box, int alpha = 0x80);
 
 private:
-    int       m_beat{0};          /**< Pulse animation frame counter. */
-    CTexture *m_texture{nullptr}; /**< Cached pointer to the option2 texture. */
+    int             m_beat{0};          /**< Pulse animation frame counter. */
+    game::CTexture *m_texture{nullptr}; /**< Cached pointer to the option2 texture. */
 };
 
 /**
@@ -134,9 +134,9 @@ public:
     void Draw(int x, int top_y, int height, int total_rows, int visible_rows, int first_row, int alpha = 0x80);
 
 private:
-    int       m_bar_frames{0};      /**< Remaining active highlight frames after movement. */
-    CTexture *m_track_tex{nullptr}; /**< Cached pointer to the track texture. */
-    CTexture *m_thumb_tex{nullptr}; /**< Cached pointer to the thumb and arrow texture. */
+    int             m_bar_frames{0};      /**< Remaining active highlight frames after movement. */
+    game::CTexture *m_track_tex{nullptr}; /**< Cached pointer to the track texture. */
+    game::CTexture *m_thumb_tex{nullptr}; /**< Cached pointer to the thumb and arrow texture. */
 };
 
 /**

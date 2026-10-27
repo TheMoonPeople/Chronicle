@@ -122,8 +122,8 @@ void CStockItem::Initialize() {
 }
 
 int CStockItem::SearchSpace(int slot_index, int search_space) {
-    switch (static_cast<::SearchSpace>(search_space)) {
-        case ::SearchSpace::DungeonItems: {
+    switch (static_cast<game::SearchSpace>(search_space)) {
+        case game::SearchSpace::DungeonItems: {
             const int item_no = this->dungeon_items[slot_index];
 
             if (item_no >= ITEM_DUNGEON_START && item_no <= ITEM_DUNGEON_END) {
@@ -132,13 +132,13 @@ int CStockItem::SearchSpace(int slot_index, int search_space) {
 
             return 0;
         }
-        case ::SearchSpace::Weapons:
+        case game::SearchSpace::Weapons:
             if (this->weapons[slot_index].item_no >= ITEM_WEAPON_START) {
                 return this->weapons[slot_index].item_no;
             }
 
             return 0;
-        case ::SearchSpace::Attach: {
+        case game::SearchSpace::Attach: {
             const int item_no = this->attachments[slot_index].item_no;
 
             if (item_no < ITEM_ATTACH_START) {

@@ -48,6 +48,8 @@
 
 namespace dc::game {
 
+using namespace dc::battlemenu;
+
 namespace {
 
 int  GetVisitInfo(int place, int menu_mode);

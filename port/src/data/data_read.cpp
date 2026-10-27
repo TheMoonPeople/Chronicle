@@ -30,6 +30,9 @@
 
 namespace dc::data {
 
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace fs = std::filesystem;
 
 namespace {

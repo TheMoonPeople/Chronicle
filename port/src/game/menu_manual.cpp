@@ -37,6 +37,9 @@
 
 namespace dc::game {
 
+using namespace dc::localize;
+using namespace dc::text;
+
 namespace {
 
 constexpr int ENTRIES_PER_CATEGORY = 6;
@@ -127,7 +130,7 @@ namespace {
 // Port-only mode for the Miracle Chests tracker, outside the retail ManualMenuMode range.
 constexpr s16 kManualModeTracker = 100;
 
-UI::Cursor s_menu_cursor;
+ui::Cursor s_menu_cursor;
 
 s16 Port_ManualImgLoad() {
     int size = 0;
@@ -377,7 +380,7 @@ void DrawCategoryMenu() {
     const int     alpha = (ManualMenu.selection_level == -1) ? 0x40 : 0x80;
     constexpr int spacing = 28;
 
-    UI::TrackerWindow::Draw(135, 85, 220, 170, alpha, UI::BLUE_STONE_MENU);
+    ui::TrackerWindow::Draw(135, 85, 220, 170, alpha, ui::BLUE_STONE_MENU);
     MenuTextureReload(0x1A);
 
     const std::array<std::string, 5> categories = {
@@ -389,9 +392,9 @@ void DrawCategoryMenu() {
 
     for (int i = 0; i < 5; i++) {
         const u32 color = (i == ManualMenu.category && ManualMenu.selection_level == -2)
-                              ? UI::ColorYellow
-                              : UI::ColorWhite;
-        UI::Label(categories[i], color).Draw(160, 100 + (i * spacing), alpha);
+                              ? ui::ColorYellow
+                              : ui::ColorWhite;
+        ui::Label(categories[i], color).Draw(160, 100 + (i * spacing), alpha);
     }
 
     if (ManualMenu.selection_level == -2) {
@@ -486,7 +489,7 @@ int MenuManualKey() {
                 } else if (ManualMenu.selection_level == -2) {
                     if (ManualMenu.category == 4) {
                         ManualMenu.mode = kManualModeTracker;
-                        JournalChest::Open();
+                        ui::journal_chest::Open();
                     } else {
                         ManualMenu.selection_level++;
                         CommonMenuMes3.cursor_row = 0;
@@ -513,7 +516,7 @@ int MenuManualKey() {
         }
 
         case kManualModeTracker:
-            if (JournalChest::HandleKey()) {
+            if (ui::journal_chest::HandleKey()) {
                 ManualMenu.mode = MANUAL_MODE_SELECT;
             }
             break;
@@ -586,7 +589,7 @@ void MenuManualDraw() {
     }
 
     if (ManualMenu.mode == kManualModeTracker) {
-        JournalChest::Draw();
+        ui::journal_chest::Draw();
         return;
     }
 
@@ -647,7 +650,7 @@ std::vector<std::pair<std::string, std::string>> JournalStrings() {
         {"manual.category.savings",        "Savings/Other" },
         {"manual.category.miracle_chests", "Miracle Chests"},
     };
-    JournalChest::AppendStrings(out);
+    ui::journal_chest::AppendStrings(out);
     return out;
 }
 

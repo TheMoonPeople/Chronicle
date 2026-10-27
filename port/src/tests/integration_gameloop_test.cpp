@@ -23,6 +23,11 @@ extern s32 mc_mode;
 extern s32 NextMapNo;
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::app;
+
 namespace {
 
 void Reset(int current_mode) {
@@ -158,3 +163,5 @@ TEST(IntegrationGameloop, GiveListParses) {
     ASSERT_TRUE(!GameSetGive("0"));
     ASSERT_TRUE(!GameSetGive("9999"));
 }
+
+} // namespace dc::test

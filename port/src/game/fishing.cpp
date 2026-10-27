@@ -29,6 +29,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 namespace {
 
 /**

@@ -13,9 +13,9 @@
 #include "objanime.hpp"
 #include "sysmes.hpp"
 
-using dc::test::Arena;
-using dc::test::End;
-using dc::test::RetailRun;
+namespace dc::test {
+
+using namespace dc::game;
 
 namespace {
 
@@ -144,3 +144,5 @@ TEST(Bits64Placement, FramesFitTheirRuns) {
     EXPECT_EQ(reinterpret_cast<u_char *>(frames), reinterpret_cast<u_char *>(drawn + 1));
     EXPECT_GE(arena.Next(), End(frames, 3));
 }
+
+} // namespace dc::test

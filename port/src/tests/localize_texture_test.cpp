@@ -11,6 +11,12 @@
 #include "platform_fixture.hpp"
 #include "render/texture_registry.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::render;
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -154,3 +160,5 @@ TEST(LocalizeTexture, LeavesAWrongShapedPictureAndOtherTexturesAlone) {
 }
 
 } // namespace
+
+} // namespace dc::test

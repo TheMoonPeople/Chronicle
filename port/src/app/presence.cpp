@@ -18,6 +18,9 @@ extern s32 mode;
 
 namespace dc::app {
 
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace {
 
 struct Character {

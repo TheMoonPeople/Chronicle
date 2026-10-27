@@ -19,7 +19,7 @@
  * Synthetic TIM2 pictures and IMG archives for the texture tests, and a renderer with a fresh
  * texture manager over a staging buffer of its own.
  */
-namespace texfix {
+namespace dc::test::texfix {
 
 using Bytes = std::vector<uint8_t>;
 
@@ -50,7 +50,7 @@ inline void Append(Bytes &to, const Bytes &from) {
  * One TIM2 picture to encode with Tim2.
  */
 struct Picture {
-    int                type = TIM2_RGB32; /**< TIM2 image type. */
+    int                type = game::TIM2_RGB32; /**< TIM2 image type. */
     int                width = 0;
     int                height = 0;
     std::vector<Bytes> levels;          /**< Pixel data per mip level, base first. */
@@ -163,16 +163,16 @@ struct TexEnv {
     dc::test::GfxFixture gfx;
 
     TexEnv() {
-        TexManager.Initialize(16352);
-        TexManager.SetBuffer(staging, static_cast<int>(std::size(staging)));
+        game::TexManager.Initialize(16352);
+        game::TexManager.SetBuffer(staging, static_cast<int>(std::size(staging)));
     }
 
-    ~TexEnv() { TexManager.Initialize(16352); }
+    ~TexEnv() { game::TexManager.Initialize(16352); }
 
     /**
      * Draws the texture over a logical rect, texel rect (u0, v0)-(u1, v1), nearest.
      */
-    void Draw(const PortTextureRef &ref, float x, float y, float w, float h, float u0, float v0, float u1, float v1,
+    void Draw(const render::PortTextureRef &ref, float x, float y, float w, float h, float u0, float v0, float u1, float v1,
               const gfx::DrawState &state = {}) {
         gfx::TextureBinding binding = ref.binding;
         binding.filter = gfx::Filter::Nearest;
@@ -191,4 +191,4 @@ inline gfx::DrawState AlphaBlend() {
     return state;
 }
 
-} // namespace texfix
+} // namespace dc::test::texfix

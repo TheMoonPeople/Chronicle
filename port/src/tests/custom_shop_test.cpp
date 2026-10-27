@@ -26,6 +26,13 @@ struct ITEM_MONEY_ENTRY {
 extern ITEM_MONEY_ENTRY PriceList[296];
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::data;
+using namespace dc::quest;
+using namespace dc::text;
+
 namespace {
 
 std::array<s16, 20> Goods(int shop_no) {
@@ -138,3 +145,5 @@ TEST_F(CustomShopTest, ItsLinesAreTheShopkeepersWhileOpen) {
 }
 
 } // namespace
+
+} // namespace dc::test

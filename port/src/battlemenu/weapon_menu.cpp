@@ -4,6 +4,9 @@
 
 namespace dc::battlemenu {
 
+using namespace dc::game;
+using namespace dc::localize;
+
 namespace {
 
 using detail::DecodeItemNamePort;
@@ -210,34 +213,34 @@ void DrawWeaponLeftConfirmDialog(int box_x, int box_y, int yes_x, int yes_y,
         prompt = std::string(fallback_prompt);
     }
 
-    std::vector<std::string> lines = UI::WrapText(prompt, 220, 0.92f);
+    std::vector<std::string> lines = ui::WrapText(prompt, 220, 0.92f);
     if (lines.empty()) {
         lines.emplace_back(prompt);
     }
 
     int max_w = 0;
     for (const auto &line : lines) {
-        max_w = std::max(max_w, UI::Label(line, UI::ColorWhite, UI::Alignment::Left, true, 0.92f).GetWidth());
+        max_w = std::max(max_w, ui::Label(line, ui::ColorWhite, ui::Alignment::Left, true, 0.92f).GetWidth());
     }
 
     constexpr int line_h = 20;
     const int     box_w = std::clamp(max_w + 44, 212, 260);
     const int     box_h = 34 + static_cast<int>(lines.size() - 1) * line_h;
 
-    UI::HelpBox::Draw(box_x, box_y, box_w, box_h, alpha);
+    ui::HelpBox::Draw(box_x, box_y, box_w, box_h, alpha);
 
     for (size_t i = 0; i < lines.size(); ++i) {
-        UI::Label(lines[i], UI::ColorWhite, UI::Alignment::Center, true, 0.92f)
+        ui::Label(lines[i], ui::ColorWhite, ui::Alignment::Center, true, 0.92f)
             .Draw(box_x + box_w / 2, box_y + 10 + static_cast<int>(i) * line_h, alpha);
     }
 
-    const UI::ButtonStyle btn_style = UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta);
+    const ui::ButtonStyle btn_style = ui::ButtonStyle::Thin(ui::ButtonPreset::Terracotta);
 
     const std::string yes_txt = LocalizeText("battlemenu.quit.yes", "YES");
     const std::string no_txt = LocalizeText("battlemenu.quit.no", "NO");
 
-    UI::BevelButton::Draw(UI::Rect(yes_x, yes_y, 0x60, 23), yes_txt, btn_style, alpha);
-    UI::BevelButton::Draw(UI::Rect(yes_x, yes_y + 0x1C, 0x60, 23), no_txt, btn_style, alpha);
+    ui::BevelButton::Draw(ui::Rect(yes_x, yes_y, 0x60, 23), yes_txt, btn_style, alpha);
+    ui::BevelButton::Draw(ui::Rect(yes_x, yes_y + 0x1C, 0x60, 23), no_txt, btn_style, alpha);
 }
 
 /**
@@ -253,10 +256,10 @@ void DrawWeaponCenteredWarningModal(int alpha) {
         return;
     }
 
-    std::vector<std::string> lines = UI::WrapText(msg, 320, 0.92f);
+    std::vector<std::string> lines = ui::WrapText(msg, 320, 0.92f);
     int                      max_w = 0;
     for (const auto &line : lines) {
-        max_w = std::max(max_w, UI::Label(line, UI::ColorWhite, UI::Alignment::Left, true, 0.92f).GetWidth());
+        max_w = std::max(max_w, ui::Label(line, ui::ColorWhite, ui::Alignment::Left, true, 0.92f).GetWidth());
     }
 
     constexpr int line_h = 22;
@@ -265,10 +268,10 @@ void DrawWeaponCenteredWarningModal(int alpha) {
     const int     box_x = (640 - box_w) / 2;
     const int     box_y = (480 - box_h) / 2 - 16;
 
-    UI::HelpBox::Draw(box_x, box_y, box_w, box_h, alpha);
+    ui::HelpBox::Draw(box_x, box_y, box_w, box_h, alpha);
 
     for (size_t i = 0; i < lines.size(); ++i) {
-        UI::Label(lines[i], UI::ColorWhite, UI::Alignment::Center, true, 0.92f)
+        ui::Label(lines[i], ui::ColorWhite, ui::Alignment::Center, true, 0.92f)
             .Draw(320, box_y + 12 + static_cast<int>(i) * line_h, alpha);
     }
 }
@@ -292,21 +295,21 @@ void PortDrawWeaponSelectDialog(int x, int y, int alpha) {
     constexpr int row_stride = 0x1A;
 
     // While a weapon is being chosen to equip, its button shows pressed, as the game's lit EQUIP does.
-    UI::ButtonStyle equip_style = UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80);
+    ui::ButtonStyle equip_style = ui::ButtonStyle::Thin(ui::ButtonPreset::Terracotta, 0x80);
     equip_style.pressed = WepMenu.state == WEP_STATE_EQUIP;
-    UI::BevelButton::Draw(UI::Rect(left, top + 1, btn_w, btn_h), LocalizeText("weaponmenu.action.equip", "EQUIP"), equip_style, alpha);
+    ui::BevelButton::Draw(ui::Rect(left, top + 1, btn_w, btn_h), LocalizeText("weaponmenu.action.equip", "EQUIP"), equip_style, alpha);
 
-    UI::BevelButton::Draw(
-        UI::Rect(left, top + 1 + row_stride, btn_w, btn_h),
+    ui::BevelButton::Draw(
+        ui::Rect(left, top + 1 + row_stride, btn_w, btn_h),
         LocalizeText("weaponmenu.action.customize", "CUSTOMIZE"),
-        UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80),
+        ui::ButtonStyle::Thin(ui::ButtonPreset::Terracotta, 0x80),
         alpha);
 
     const int attr_x = (WepMenu.mode == WEP_MENU_ELEMENT) ? (left + 0x28) : left;
-    UI::BevelButton::Draw(
-        UI::Rect(attr_x, top + 1 + row_stride * 2, btn_w, btn_h),
+    ui::BevelButton::Draw(
+        ui::Rect(attr_x, top + 1 + row_stride * 2, btn_w, btn_h),
         LocalizeText("weaponmenu.action.attribute", "ATTRIBUTE"),
-        UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80),
+        ui::ButtonStyle::Thin(ui::ButtonPreset::Terracotta, 0x80),
         alpha);
 
     int repair_bright = 0x80;
@@ -320,10 +323,10 @@ void PortDrawWeaponSelectDialog(int x, int y, int alpha) {
         warm_cnt = (warm_cnt + 1) % 1000000;
     }
 
-    UI::BevelButton::Draw(
-        UI::Rect(left, top + 1 + row_stride * 3, btn_w, btn_h),
+    ui::BevelButton::Draw(
+        ui::Rect(left, top + 1 + row_stride * 3, btn_w, btn_h),
         LocalizeText("weaponmenu.action.repair", "REPAIR"),
-        UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, repair_bright),
+        ui::ButtonStyle::Thin(ui::ButtonPreset::Terracotta, repair_bright),
         alpha);
 
     static int level_blink_cnt = 0;
@@ -343,32 +346,32 @@ void PortDrawWeaponSelectDialog(int x, int y, int alpha) {
 
         if (options & (1 << i)) {
             std::string      btn_label;
-            UI::ButtonPreset btn_preset = UI::ButtonPreset::AmberGold;
+            ui::ButtonPreset btn_preset = ui::ButtonPreset::AmberGold;
             if (i == 1) {
                 btn_label = LocalizeText("weaponmenu.action.upgrade", "UPGRADE");
-                btn_preset = UI::ButtonPreset::AmberGold;
+                btn_preset = ui::ButtonPreset::AmberGold;
             } else if (i == 2) {
                 btn_label = LocalizeText("weaponmenu.action.statusbreak", "STATUS BREAK");
-                btn_preset = UI::ButtonPreset::SlateBlue;
+                btn_preset = ui::ButtonPreset::SlateBlue;
             } else {
                 btn_label = LocalizeText("weaponmenu.action.buildup", "BUILD-UP");
-                btn_preset = UI::ButtonPreset::StoneGreen;
+                btn_preset = ui::ButtonPreset::StoneGreen;
             }
 
-            UI::BevelButton::Draw(
-                UI::Rect(left, dest_y, btn_w, btn_h),
+            ui::BevelButton::Draw(
+                ui::Rect(left, dest_y, btn_w, btn_h),
                 btn_label,
-                UI::ButtonStyle::Thin(btn_preset, row_bright),
+                ui::ButtonStyle::Thin(btn_preset, row_bright),
                 alpha);
             dest_y += row_stride;
         }
     }
 
     if (WepMenu.state == WEP_STATE_SCRAP_PROMPT || WepMenu.state == WEP_STATE_SCRAP_CONFIRM) {
-        UI::BevelButton::Draw(
-            UI::Rect(x + 0x64, y + 0x33, btn_w, btn_h),
+        ui::BevelButton::Draw(
+            ui::Rect(x + 0x64, y + 0x33, btn_w, btn_h),
             LocalizeText("weaponmenu.action.discard", "DUMP"),
-            UI::ButtonStyle::Thin(UI::ButtonPreset::Terracotta, 0x80),
+            ui::ButtonStyle::Thin(ui::ButtonPreset::Terracotta, 0x80),
             0x80);
     }
 }
@@ -390,15 +393,15 @@ void PortDrawBuildUpWeaponSelect(int x, int y, int cursor) {
         header = LocalizeText("weaponmenu.buildup.prompt", "Select weapon to build up to:");
     }
 
-    std::vector<std::string> h_lines = UI::WrapText(header, 220, 0.86f);
+    std::vector<std::string> h_lines = ui::WrapText(header, 220, 0.86f);
     const int                header_h = std::max(1, static_cast<int>(h_lines.size())) * 20 + 14;
     constexpr int            box_w = 252;
     const int                box_h = header_h + count * 0x26 + 22;
 
-    UI::HelpBox::Draw(x - 14, y - 12, box_w, box_h, 0x80);
+    ui::HelpBox::Draw(x - 14, y - 12, box_w, box_h, 0x80);
 
     for (size_t i = 0; i < h_lines.size(); ++i) {
-        UI::Label(h_lines[i], UI::ColorWhite, UI::Alignment::Left, true, 0.86f)
+        ui::Label(h_lines[i], ui::ColorWhite, ui::Alignment::Left, true, 0.86f)
             .Draw(x + 4, y + static_cast<int>(i) * 20, 0x80);
     }
 
@@ -408,21 +411,21 @@ void PortDrawBuildUpWeaponSelect(int x, int y, int cursor) {
         const int  brightness = selected ? 0x88 : 0x68;
 
         std::string target_name = "???";
-        u32         text_col = UI::ColorWhite;
+        u32         text_col = ui::ColorWhite;
         if (builds[i].enabled != 0 && builds[i].weapon_no > 0) {
             target_name = DecodeItemNamePort(builds[i].weapon_no, "???");
-            text_col = selected ? UI::ColorYellow : UI::ColorWhite;
+            text_col = selected ? ui::ColorYellow : ui::ColorWhite;
         }
 
-        const UI::TextStyle banner_txt{
+        const ui::TextStyle banner_txt{
             .color = text_col,
             .drop_shadow = true,
-            .align = UI::Alignment::Center,
+            .align = ui::Alignment::Center,
             .scale = 0.90f,
         };
 
-        UI::TrackerWindow::DrawStoneBanner(
-            UI::Rect(x + 0x10, row_y, 0xCC, 0x1F),
+        ui::TrackerWindow::DrawStoneBanner(
+            ui::Rect(x + 0x10, row_y, 0xCC, 0x1F),
             0x80,
             brightness,
             target_name,
@@ -499,7 +502,7 @@ void PortDrawAallWeapon(int x, int y, float depth, CCharacter *model,
     }
 
     // The plate; the weapon's name goes on it in the game's letters (WeaponNameDrawPort, once the weapons are drawn).
-    UI::TrackerWindow::DrawStoneBanner(UI::Rect(x - 0x11, y - 0x31, 0xCC, 0x1F), alpha, 0x80, std::string{}, UI::TextStyle{});
+    ui::TrackerWindow::DrawStoneBanner(ui::Rect(x - 0x11, y - 0x31, 0xCC, 0x1F), alpha, 0x80, std::string{}, ui::TextStyle{});
 
     setbilinear(0);
 

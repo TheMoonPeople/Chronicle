@@ -14,6 +14,9 @@
 
 namespace dc::options {
 
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace {
 
 // Indices into the save's configuration words (CSaveData::config).

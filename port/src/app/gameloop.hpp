@@ -34,7 +34,7 @@ std::int64_t GameFrameCount();
  * Clears save for a new game as retail's main() does, keeping its configuration, and keeping the
  * last file's number whole where retail's round trip keeps one byte of it.
  */
-void ResetSaveKeepingConfig(CSaveData &save);
+void ResetSaveKeepingConfig(game::CSaveData &save);
 
 /**
  * Test hook: takes "edit[:<map no>]" (the game's MapNo: 0-4 the towns, 11 and up the sub maps, 99

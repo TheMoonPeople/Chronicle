@@ -103,7 +103,7 @@ public:
  * Redraws a painted texture plate (btstatus2's YES, NO and DUMP, fishbrd's YES and NO) as a procedural
  * bevel button with a font-drawn word. Returns false for any other sprite.
  */
-bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int bright, int alpha);
+bool DrawPaintedPlate(const char *texture, const game::CRect_i_ &screen, const game::CRect_i_ &texel, int bright, int alpha);
 
 /**
  * Sprite-backed button renderer with optional TrueType text overlay.
@@ -113,7 +113,7 @@ public:
     /**
      * Draws a textured button inside box sampling from uv with an optional text label.
      */
-    static void Draw(const Rect &box, CTexture *texture, const Rect &uv,
+    static void Draw(const Rect &box, game::CTexture *texture, const Rect &uv,
                      int alpha = 0x80, std::string_view text = {},
                      const TextStyle &text_style = {});
 
@@ -121,7 +121,7 @@ public:
      * Draws a textured button at (x, y) with explicit UV coordinates and an optional text label.
      */
     static void Draw(int x, int y, int width, int height,
-                     CTexture *texture, int u, int v, int uv_w, int uv_h,
+                     game::CTexture *texture, int u, int v, int uv_w, int uv_h,
                      int alpha = 0x80, std::string_view text = {},
                      const TextStyle &text_style = {});
 };

@@ -37,6 +37,12 @@
 
 namespace dc::game {
 
+using namespace dc::localize;
+using namespace dc::quest;
+using namespace dc::save;
+using namespace dc::text;
+using namespace dc::ui;
+
 SAVE_MENU_STATE SaveMenu;
 CTexture       *SaveMenuMojiTextbl[4];
 

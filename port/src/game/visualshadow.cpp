@@ -23,6 +23,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 // Retail's three shadow microprograms all build volumes: each caster triangle becomes a prism from
 // the triangle down along light 0 to its drop onto the shadow plane, and the prism's faces are
 // counted into the stencil, incremented for faces turned towards the eye and decremented for faces

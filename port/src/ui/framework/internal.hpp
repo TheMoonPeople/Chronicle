@@ -38,7 +38,7 @@ struct ScopedShadow {
      */
     explicit ScopedShadow(bool enable_shadow) {
         if (!enable_shadow) {
-            Config &cfg = const_cast<Config &>(ConfigGet());
+            platform::Config &cfg = const_cast<platform::Config &>(platform::ConfigGet());
             saved_shadow = cfg.text_shadow;
             cfg.text_shadow = 0;
             active = true;
@@ -50,7 +50,7 @@ struct ScopedShadow {
      */
     ~ScopedShadow() {
         if (active) {
-            Config &cfg = const_cast<Config &>(ConfigGet());
+            platform::Config &cfg = const_cast<platform::Config &>(platform::ConfigGet());
             cfg.text_shadow = saved_shadow;
         }
     }
@@ -59,19 +59,19 @@ struct ScopedShadow {
 /**
  * Finds a loaded menu texture by name and ensures its texture block is resident.
  */
-inline CTexture *FindMenuTexture(const char *name, CTexture *cached = nullptr) {
+inline game::CTexture *FindMenuTexture(const char *name, game::CTexture *cached = nullptr) {
     if (cached != nullptr) {
         if (cached->block >= 0) {
-            MenuTextureReload(cached->block);
+            game::MenuTextureReload(cached->block);
         }
         return cached;
     }
-    CTexture *tex = draw2d::Get().find_texture(name);
+    game::CTexture *tex = render::draw2d::Get().find_texture(name);
     if (tex == nullptr) {
-        tex = TexManager.GetTexture(const_cast<char *>(name), -1);
+        tex = game::TexManager.GetTexture(const_cast<char *>(name), -1);
     }
     if (tex != nullptr && tex->block >= 0) {
-        MenuTextureReload(tex->block);
+        game::MenuTextureReload(tex->block);
     }
     return tex;
 }
@@ -79,44 +79,44 @@ inline CTexture *FindMenuTexture(const char *name, CTexture *cached = nullptr) {
 /**
  * Returns the gaiji font texture containing a solid white texel for untextured fills.
  */
-inline CTexture *GetWhitePixelTex() {
+inline game::CTexture *GetWhitePixelTex() {
     return FindMenuTexture("gaiji");
 }
 
 /**
  * Returns the personal board texture and ensures its block is resident.
  */
-inline CTexture *GetPerBoardTex() {
-    return FindMenuTexture("perbrd", PerBoardTex);
+inline game::CTexture *GetPerBoardTex() {
+    return FindMenuTexture("perbrd", game::PerBoardTex);
 }
 
 /**
  * Returns the weapon status texture and ensures its block is resident.
  */
-inline CTexture *GetWepStatusTex() {
-    return FindMenuTexture("wepstatus", WepStatus);
+inline game::CTexture *GetWepStatusTex() {
+    return FindMenuTexture("wepstatus", game::WepStatus);
 }
 
 /**
  * Draws a filled rectangle with optional 2-pixel stepped corner rounding.
  */
-inline void DrawRoundedRect(CTexture *tex, int x, int y, int w, int h,
+inline void DrawRoundedRect(game::CTexture *tex, int x, int y, int w, int h,
                             unsigned char r, unsigned char g, unsigned char b, int alpha, bool rounded) {
     if (tex == nullptr || w <= 0 || h <= 0 || alpha <= 0) {
         return;
     }
-    const CRect_i_ uv_white(0x6A, 0x6E, 1, 1);
+    const game::CRect_i_ uv_white(0x6A, 0x6E, 1, 1);
 
     if (!rounded || w < 6 || h < 6) {
-        DrawMenu2DSprite(tex, CRect_i_(x, y, w, h), uv_white, r, g, b, alpha);
+        DrawMenu2DSprite(tex, game::CRect_i_(x, y, w, h), uv_white, r, g, b, alpha);
         return;
     }
 
-    DrawMenu2DSprite(tex, CRect_i_(x + 2, y, w - 4, 1), uv_white, r, g, b, alpha);
-    DrawMenu2DSprite(tex, CRect_i_(x + 1, y + 1, w - 2, 1), uv_white, r, g, b, alpha);
-    DrawMenu2DSprite(tex, CRect_i_(x, y + 2, w, h - 4), uv_white, r, g, b, alpha);
-    DrawMenu2DSprite(tex, CRect_i_(x + 1, y + h - 2, w - 2, 1), uv_white, r, g, b, alpha);
-    DrawMenu2DSprite(tex, CRect_i_(x + 2, y + h - 1, w - 4, 1), uv_white, r, g, b, alpha);
+    DrawMenu2DSprite(tex, game::CRect_i_(x + 2, y, w - 4, 1), uv_white, r, g, b, alpha);
+    DrawMenu2DSprite(tex, game::CRect_i_(x + 1, y + 1, w - 2, 1), uv_white, r, g, b, alpha);
+    DrawMenu2DSprite(tex, game::CRect_i_(x, y + 2, w, h - 4), uv_white, r, g, b, alpha);
+    DrawMenu2DSprite(tex, game::CRect_i_(x + 1, y + h - 2, w - 2, 1), uv_white, r, g, b, alpha);
+    DrawMenu2DSprite(tex, game::CRect_i_(x + 2, y + h - 1, w - 4, 1), uv_white, r, g, b, alpha);
 }
 
 /**

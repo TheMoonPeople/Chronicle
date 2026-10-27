@@ -4,6 +4,10 @@
 
 #include "fish.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 TEST(FishSize, KeepsTheEndsAndOnlyLifts) {
     constexpr std::array<std::array<float, 2>, 4> ranges{
         {{10.0f, 30.0f},
@@ -34,3 +38,5 @@ TEST(FishSize, LiftGrowsWithTheRange) {
     ASSERT_NEAR(FishSizeLift(4.0f), 0.21f, 0.01f);
     ASSERT_EQ(FishSizeLift(0.3f), 0.0f);
 }
+
+} // namespace dc::test

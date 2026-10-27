@@ -14,6 +14,9 @@
 
 namespace dc::game {
 
+using namespace dc::input;
+using namespace dc::ui;
+
 CGamePad GamePad;
 
 namespace {

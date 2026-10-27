@@ -65,6 +65,13 @@ void TouchOverlayPoll();
 namespace fs = std::filesystem;
 
 namespace dc::app {
+
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::options;
+using namespace dc::platform;
+using namespace dc::render;
+
 namespace {
 
 struct Options {
@@ -651,7 +658,7 @@ int Run(int argc, const char **argv) {
 
 int main(int argc, const char **argv) {
 #ifdef __SWITCH__
-    return SwitchMain(argc, argv, dc::app::Run);
+    return dc::platform::SwitchMain(argc, argv, dc::app::Run);
 #else
     return dc::app::Run(argc, argv);
 #endif

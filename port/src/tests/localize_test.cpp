@@ -23,6 +23,14 @@
 #include "platform/paths.hpp"
 #include "text/gametext.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::options;
+using namespace dc::platform;
+using namespace dc::text;
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -730,3 +738,5 @@ TEST(LocalizeOptions, TheExportListsTheOptionStringsWithTheShippedText) {
     std::error_code removed;
     fs::remove_all(root, removed);
 }
+
+} // namespace dc::test

@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-// The quest framework in the game (docs/QUEST_FRAMEWORK.md): the save data as the Quest::IGame the
+// The quest framework in the game (docs/QUEST_FRAMEWORK.md): the save data as the quest::IGame the
 // quests act on, their choices in villagers' conversations, their progress kept beside each save,
 // and the shops they open.
 
@@ -22,7 +22,7 @@ void QuestHostNewGame();
 
 /**
  * A conversation with villager npc_id of map map_no starts (EdTalkModeInit), before the talk script
- * runs: retail behaviour a quest takes over is held back for it (Quest::Retail) until the
+ * runs: retail behaviour a quest takes over is held back for it (quest::Retail) until the
  * conversation is up (QuestHostTalkOpened).
  */
 void QuestHostTalkStarting(int map_no, int npc_id);

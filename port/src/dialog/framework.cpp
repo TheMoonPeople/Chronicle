@@ -18,6 +18,11 @@
 #include "ui/framework/internal.hpp"
 
 namespace dc::dialog {
+
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::render;
+
 namespace {
 
 // What a custom text measurer's caller counts an icon or name tag as.
@@ -51,9 +56,9 @@ struct FrameNode {
 // The widgets look their textures up when made, so the default renderer makes them when it first
 // draws rather than with g_state, before the texture manager exists.
 struct Widgets {
-    UI::Cursor    cursor;
-    UI::Brackets  brackets;
-    UI::ScrollBar scrollbar;
+    ui::Cursor    cursor;
+    ui::Brackets  brackets;
+    ui::ScrollBar scrollbar;
 };
 
 struct FrameworkState {
@@ -80,9 +85,9 @@ struct FrameworkState {
     // a Label lays its text out when it is set, and that is too slow to do every frame.
     uint32_t                                view_generation = 0;
     uint32_t                                drawn_generation = 0;
-    std::vector<std::unique_ptr<UI::Label>> body_labels;
-    std::vector<std::unique_ptr<UI::Label>> choice_labels;
-    std::unique_ptr<UI::Label>              measure_label;
+    std::vector<std::unique_ptr<ui::Label>> body_labels;
+    std::vector<std::unique_ptr<ui::Label>> choice_labels;
+    std::unique_ptr<ui::Label>              measure_label;
 };
 
 FrameworkState g_state;
@@ -103,8 +108,8 @@ void NoteSelectionMoved() {
 
 // A Label that leaves the game's random numbers alone: laying text out otherwise draws on rand(), and
 // the dialog lays its text out at times the retail game does not.
-std::unique_ptr<UI::Label> MakeLabel(std::string_view text) {
-    auto label = std::make_unique<UI::Label>();
+std::unique_ptr<ui::Label> MakeLabel(std::string_view text) {
+    auto label = std::make_unique<ui::Label>();
     label->KeepGameRandom(true);
     label->SetText(text);
     return label;
@@ -169,21 +174,21 @@ u32 MapChoiceColor(ChoiceColor color, bool enabled) noexcept {
     }
     switch (color) {
         case ChoiceColor::White:
-            return UI::ColorWhite;
+            return ui::ColorWhite;
         case ChoiceColor::Yellow:
-            return UI::ColorYellow;
+            return ui::ColorYellow;
         case ChoiceColor::Cyan:
             return FONT_COLOR_CYAN;
         case ChoiceColor::Green:
             return FONT_COLOR_GREEN;
         case ChoiceColor::Gold:
-            return UI::ColorGold;
+            return ui::ColorGold;
         case ChoiceColor::Grey:
             return FONT_COLOR_GREY;
         case ChoiceColor::Highlight:
-            return UI::ColorYellow;
+            return ui::ColorYellow;
     }
-    return UI::ColorWhite;
+    return ui::ColorWhite;
 }
 
 int32_t FindFirstEnabledChoice(std::span<const ChoiceItem> choices) noexcept {
@@ -357,28 +362,28 @@ void DefaultRenderSession(const ActiveView &view) {
     RefreshLabels(view);
 
     const ComputedLayout &lay = view.layout;
-    const UI::Rect        box_rect(
+    const ui::Rect        box_rect(
         static_cast<int>(std::lround(lay.box_x)),
         static_cast<int>(std::lround(lay.box_y)),
         static_cast<int>(std::lround(lay.box_w)),
         static_cast<int>(std::lround(lay.box_h)));
 
-    MenuTextureReload(UI::detail::kMessageTextureBlock);
-    UI::TrackerWindow::Draw(box_rect, alpha, UI::WindowPreset::BlueStone);
+    MenuTextureReload(ui::detail::kMessageTextureBlock);
+    ui::TrackerWindow::Draw(box_rect, alpha, ui::WindowPreset::BlueStone);
 
-    MenuTextureReload(UI::detail::kMessageTextureBlock);
+    MenuTextureReload(ui::detail::kMessageTextureBlock);
     const int text_x = static_cast<int>(std::lround(lay.text_x));
     const int text_y = static_cast<int>(std::lround(lay.text_y));
     const int stride = static_cast<int>(std::lround(g_state.layout_cfg.body_line_stride));
 
     for (size_t i = 0; i < g_state.body_labels.size(); ++i) {
-        g_state.body_labels[i]->SetColor(UI::ColorWhite);
+        g_state.body_labels[i]->SetColor(ui::ColorWhite);
         g_state.body_labels[i]->Draw(text_x, text_y + static_cast<int>(i) * stride, alpha);
     }
 
     if (view.show_choices_on_current_slice && !view.choices.empty()) {
         if (lay.has_divider) {
-            UI::Divider::DrawHorizontal(
+            ui::Divider::DrawHorizontal(
                 text_x,
                 text_x + static_cast<int>(std::lround(lay.text_w)),
                 static_cast<int>(std::lround(lay.divider_y)),
@@ -395,13 +400,13 @@ void DefaultRenderSession(const ActiveView &view) {
         const int total_choices = static_cast<int>(view.choices.size());
         const int vis_count = std::min(lay.visible_choice_count, total_choices - view.choice_scroll_offset);
 
-        MenuTextureReload(UI::detail::kMessageTextureBlock);
+        MenuTextureReload(ui::detail::kMessageTextureBlock);
         for (int s = 0; s < vis_count; ++s) {
             const int         idx = view.choice_scroll_offset + s;
             const ChoiceItem &item = view.choices[static_cast<size_t>(idx)];
-            UI::Label        &label = *g_state.choice_labels[static_cast<size_t>(idx)];
+            ui::Label        &label = *g_state.choice_labels[static_cast<size_t>(idx)];
             const u32         color = (idx == view.selected_choice && item.enabled)
-                                          ? UI::ColorYellow
+                                          ? ui::ColorYellow
                                           : MapChoiceColor(item.color, item.enabled);
             const int         row_y = choices_y + s * row_stride;
             label.SetColor(color);
@@ -422,7 +427,7 @@ void DefaultRenderSession(const ActiveView &view) {
         const int sel_slot = view.selected_choice - view.choice_scroll_offset;
         if (sel_slot >= 0 && sel_slot < vis_count) {
             const int      sel_y = choices_y + sel_slot * row_stride;
-            const UI::Rect sel_rect(choices_x - 4, sel_y - 1, std::max(40, row_w + 8), row_stride);
+            const ui::Rect sel_rect(choices_x - 4, sel_y - 1, std::max(40, row_w + 8), row_stride);
             widgets.brackets.Draw(sel_rect, alpha);
             const auto hand_x = static_cast<float>(choices_x - 28);
             const auto hand_y = static_cast<float>(sel_y - 2);

@@ -92,6 +92,9 @@
 
 namespace dc::game {
 
+using namespace dc::input;
+using namespace dc::platform;
+
 namespace {
 
 // The lock-on taken into the quick change (game.swap_keeps_lock_on), or -1.

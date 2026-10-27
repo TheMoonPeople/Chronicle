@@ -34,6 +34,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 CCloth *pCloth;
 
 namespace {

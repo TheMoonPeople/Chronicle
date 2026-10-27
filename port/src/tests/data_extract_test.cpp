@@ -6,6 +6,8 @@
 
 #include "data_fixture.hpp"
 
+namespace dc::test {
+
 using namespace datafix;
 
 namespace {
@@ -458,3 +460,5 @@ TEST(DataExtract, FillsBlankFloorPlates) {
     EXPECT_FALSE(fs::exists(dir / "normalized/commenu/a_usa/itempack.img"));
     fs::remove_all(dir);
 }
+
+} // namespace dc::test

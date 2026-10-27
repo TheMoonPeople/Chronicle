@@ -9,6 +9,10 @@
 
 #include "app/icon_retail.hpp"
 
+namespace dc::test {
+
+using namespace dc::app;
+
 namespace {
 std::vector<std::uint8_t> Triangle() {
     std::vector<std::uint8_t> data;
@@ -76,3 +80,5 @@ TEST(RetailIcon, DiscIconStillLoadsFromExistingPackWithoutReextracting) {
     }
     EXPECT_GT(opaque, 100);
 }
+
+} // namespace dc::test

@@ -23,6 +23,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 namespace {
 
 // Rounds a texture dimension up to the next power of two and gives its exponent.

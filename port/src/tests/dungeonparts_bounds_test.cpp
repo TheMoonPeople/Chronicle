@@ -2,6 +2,10 @@
 
 #include "dungeonparts.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 TEST(DungeonParts, RejectsInvalidTreasureTableSelectors) {
     EXPECT_EQ(PresetSmallItemNo_Get(-1, 0, 0, 0), -1);
     EXPECT_EQ(PresetSmallItemNo_Get(7, 0, 0, 0), -1);
@@ -15,3 +19,5 @@ TEST(DungeonParts, RejectsMissingTreasureTable) {
     EXPECT_EQ(PresetSmallItemNo_Get(0, 0, 0, 0), -1);
     ItemPutListPtr[0] = saved;
 }
+
+} // namespace dc::test

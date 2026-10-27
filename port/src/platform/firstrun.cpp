@@ -38,6 +38,9 @@
 
 namespace dc::platform {
 
+using namespace dc::app;
+using namespace dc::render;
+
 namespace fs = std::filesystem;
 
 namespace {

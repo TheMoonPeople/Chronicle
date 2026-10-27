@@ -5,6 +5,10 @@
 
 #include "monstorunit.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 namespace {
 
 const MONSTOR_MODEL *Species(std::string_view model) {
@@ -44,3 +48,5 @@ TEST(MonsterDrops, RegularMonstersDropButNotTheUnlockable) {
     }
     EXPECT_EQ(regular_without, 2);
 }
+
+} // namespace dc::test

@@ -31,6 +31,9 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+using namespace dc::text;
+
 int            DBuffID;
 int            mgWaitVSync;
 sceVif1Packet *Vif1Packet;

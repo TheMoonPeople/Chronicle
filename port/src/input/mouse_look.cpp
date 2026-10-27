@@ -17,6 +17,9 @@
 
 namespace dc::input {
 
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace {
 
 // About 86 degrees: the tangent stays finite.

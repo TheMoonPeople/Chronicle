@@ -66,6 +66,15 @@ bool TakeBattleMenuTitleRequest();
 
 namespace dc::app {
 
+using namespace dc::data;
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::options;
+using namespace dc::platform;
+using namespace dc::quest;
+using namespace dc::render;
+using namespace dc::save;
+
 namespace {
 
 // Words of CSaveData::config that main() reads and writes directly.

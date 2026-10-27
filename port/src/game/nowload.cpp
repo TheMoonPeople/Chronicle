@@ -31,6 +31,13 @@
 
 namespace dc::game {
 
+using namespace dc::app;
+using namespace dc::data;
+using namespace dc::localize;
+using namespace dc::render;
+using namespace dc::text;
+using namespace dc::ui;
+
 int end_flag = 1;
 
 CTexture nl_tex;
@@ -148,7 +155,7 @@ void Upload(CTexture *texture) {
     if (texture == &nl_tex && !card_name.empty()) {
         painted_tbp = painted_cbp = 0;
         PortDecodedTexture painted = decoded;
-        if (!areacard::Prepare(card_name, decoded)) {
+        if (!area_card::Prepare(card_name, decoded)) {
             LocalizeTexture(card_name.c_str(), decoded);
             painted.levels.clear();
         } else {
@@ -193,7 +200,7 @@ void DrawCardSprite(PortTextureRef ref, bool with_lettering) {
     textwipe::Draw2D(gfx::Primitive::Quads, quad, ref.binding, state);
     if (with_lettering && sprite.texture == &nl_tex && texel.x == 0 && texel.y == 0 &&
         texel.width == static_cast<int>(sprite.texture->width) && texel.height == static_cast<int>(sprite.texture->height)) {
-        areacard::Draw(x0, y0, x1, y1, static_cast<float>(sprite.alpha) / 128.0f);
+        area_card::Draw(x0, y0, x1, y1, static_cast<float>(sprite.alpha) / 128.0f);
     }
 }
 
@@ -205,7 +212,7 @@ void DrawSprite() {
     const bool full_card = sprite.texture == &nl_tex && sprite.texel.x == 0 && sprite.texel.y == 0 &&
                            sprite.texel.width == static_cast<int>(sprite.texture->width) &&
                            sprite.texel.height == static_cast<int>(sprite.texture->height);
-    if (textwipe::Active() && full_card && areacard::Prepared() && painted_tbp != 0 && PortKeyLive(painted_tbp)) {
+    if (textwipe::Active() && full_card && area_card::Prepared() && painted_tbp != 0 && PortKeyLive(painted_tbp)) {
         const PortTextureRef painted = PortTextureFromTex0(static_cast<u_long>(painted_tbp) | (static_cast<u_long>(painted_cbp) << 37), 0x20);
         textwipe::Both([&](bool runtime) { DrawCardSprite(runtime || !painted.valid ? ref : painted, runtime); });
         return;
@@ -272,7 +279,7 @@ void init_now_loading(int title_number) {
 
     PortReleaseOwner(PortTextureOwner::Loading);
     painted_tbp = painted_cbp = 0;
-    areacard::Clear();
+    area_card::Clear();
     nl_tex.Initialize();
     nl_tex2.Initialize();
     sprite = LoadingSprite{};

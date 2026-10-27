@@ -23,7 +23,7 @@ struct PresenceState {
  * Builds the Discord activity that describes the given game state.
  * Out-of-range dungeon, town and character indices fall back to generic text.
  */
-DiscordActivity PresenceDescribe(const PresenceState &state);
+platform::DiscordActivity PresenceDescribe(const PresenceState &state);
 
 /**
  * Samples the live game state once per call and publishes the resulting activity

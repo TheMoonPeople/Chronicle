@@ -122,7 +122,7 @@ struct FpsOverlay {
 FpsOverlay g_fps;
 
 void PollFpsToggle() {
-    textwipe::Update();
+    dc::text::textwipe::Update();
     if (InputHostPressed(InputHostAction::FpsToggle)) {
         g_fps.on = !g_fps.on;
     }
@@ -142,7 +142,7 @@ const gfx::DisplayList *FpsOverlayList() {
     }
     std::string         text = GameFpsText();
     gfx::LogicalMapping mapping = gfx::GetLogicalMapping(gfx::kMainTarget);
-    const bool          font = caption::Ready();
+    const bool          font = dc::text::caption::Ready();
     if (!g_fps.list || text != g_fps.text || !SameMapping(mapping, g_fps.mapping) || font != g_fps.font) {
         g_fps.font = font;
         g_fps.list = OverlayRecord(text);

@@ -7,6 +7,8 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+
 // Arena methods keep retail's arithmetic and off-by-one checks; overflow aborts naming the arena.
 
 namespace {

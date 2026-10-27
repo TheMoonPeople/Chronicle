@@ -4,6 +4,11 @@
 #include "platform/config.hpp"
 #include "platform/touchpad.hpp"
 
+namespace dc::test {
+
+using namespace dc::input;
+using namespace dc::platform;
+
 namespace {
 
 TouchpadFrame One(float x, float y) {
@@ -135,3 +140,5 @@ TEST(DualSenseConfig, BadValuesKeepTheDefault) {
     EXPECT_EQ(config.touchpad_sensitivity, 1.0f);
     EXPECT_EQ(config.rumble_strength, 1.0f);
 }
+
+} // namespace dc::test

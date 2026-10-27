@@ -34,6 +34,12 @@ namespace fs = std::filesystem;
 
 namespace dc::localize {
 
+using namespace dc::game;
+using namespace dc::data;
+using namespace dc::options;
+using namespace dc::platform;
+using namespace dc::text;
+
 namespace {
 
 using Json = nlohmann::ordered_json;

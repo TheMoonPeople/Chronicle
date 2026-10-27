@@ -12,6 +12,9 @@
 
 namespace dc::battlemenu {
 
+using namespace dc::game;
+using namespace dc::localize;
+
 namespace {
 
 /**

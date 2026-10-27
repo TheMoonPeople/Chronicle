@@ -8,6 +8,11 @@
 
 namespace dc::battlemenu {
 
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::text;
+using namespace dc::ui;
+
 namespace {
 
 /**
@@ -59,7 +64,7 @@ int quit_confirm_choice = static_cast<int>(QuitChoice::No);
 /**
  * Animated hand cursor for the Quit Game confirmation modal.
  */
-UI::Cursor quit_cursor;
+ui::Cursor quit_cursor;
 
 /**
  * Whether Quit was confirmed and the main loop has yet to go back to the title screen.
@@ -79,7 +84,7 @@ int saveload_modal_choice = static_cast<int>(SaveLoadChoice::Save);
 /**
  * Animated hand cursor for the Save/Load selection modal.
  */
-UI::Cursor saveload_cursor;
+ui::Cursor saveload_cursor;
 
 /**
  * Whether the save screen was opened in load mode from the town ring.
@@ -258,8 +263,8 @@ void DrawBattleMainOverlay() {
     const int       sel_icon = icons[MenuSelect[1]];
     MENU_ICON_INFO *info = GetMenuIconInfo(sel_icon);
 
-    UI::Label cap_lbl(GetBattleMenuCaption(MenuSelect[1], BtlMenuMode, ingame_load_active),
-                      UI::ColorWhite, UI::Alignment::Left, true, kCaptionToMessageRatio);
+    ui::Label cap_lbl(GetBattleMenuCaption(MenuSelect[1], BtlMenuMode, ingame_load_active),
+                      ui::ColorWhite, ui::Alignment::Left, true, kCaptionToMessageRatio);
     int       width = cap_lbl.GetWidth() + 0x52;
     if (info != nullptr && width < (info->label_width + 0x4A)) {
         width = info->label_width + 0x4A;
@@ -307,7 +312,7 @@ std::string QuitConfirmDescription() {
  * Draws the Quit Game confirmation modal.
  */
 void DrawQuitConfirmModal(int alpha) {
-    UI::ConfirmModal::Draw(
+    ui::ConfirmModal::Draw(
         QuitConfirmTitle(),
         QuitConfirmDescription(),
         LocalizeText("battlemenu.quit.yes", "YES"),
@@ -328,7 +333,7 @@ void DrawSaveLoadChoiceModal(int alpha) {
     std::string modal_prompt;
     GetLocalizedSaveLoadStrings(title, desc, save_btn, load_btn, modal_prompt);
 
-    UI::ConfirmModal::Draw(
+    ui::ConfirmModal::Draw(
         title,
         modal_prompt,
         save_btn,
@@ -548,7 +553,7 @@ void PortDrawBattleMenu() {
         GetBattleMenuHelpData(MenuSelect[1], BtlMenuMode, title, desc);
 
         const int box_x = (HelpWinHead[0] > 0) ? static_cast<int>(HelpWinHead[0]) : (640 - kHelpBoxWidth - 20);
-        UI::HelpBox::DrawTitled(box_x, 452, kHelpBoxWidth, text_x, title, desc, BtlHelpWinAlpha);
+        ui::HelpBox::DrawTitled(box_x, 452, kHelpBoxWidth, text_x, title, desc, BtlHelpWinAlpha);
     }
 
     setbilinear(0);
@@ -729,7 +734,7 @@ int PortBattleMenuSelect() {
             case BTLMENU_PAGE_QUIT: {
                 quit_confirm_active = true;
                 quit_confirm_choice = static_cast<int>(QuitChoice::No);
-                const UI::Rect no_button = UI::ConfirmModal::ButtonRect(QuitConfirmTitle(), QuitConfirmDescription(),
+                const ui::Rect no_button = ui::ConfirmModal::ButtonRect(QuitConfirmTitle(), QuitConfirmDescription(),
                                                                         static_cast<int>(QuitChoice::No));
                 quit_cursor.SnapTo(static_cast<float>(no_button.x - 34), static_cast<float>(no_button.y + 3));
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
@@ -767,9 +772,9 @@ int BattleMenuQuitConfirmHit(float x, float y) {
         std::string load_btn;
         std::string prompt;
         GetLocalizedSaveLoadStrings(title, desc, save_btn, load_btn, prompt);
-        return UI::ConfirmModal::Hit(title, prompt, x, y);
+        return ui::ConfirmModal::Hit(title, prompt, x, y);
     }
-    return UI::ConfirmModal::Hit(QuitConfirmTitle(), QuitConfirmDescription(), x, y);
+    return ui::ConfirmModal::Hit(QuitConfirmTitle(), QuitConfirmDescription(), x, y);
 }
 
 bool TakeBattleMenuLoadRequest() {

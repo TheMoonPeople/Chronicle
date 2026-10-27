@@ -129,12 +129,12 @@ public:
     /**
      * The window itself, for settings the presets above do not cover.
      */
-    ClsMes &Mes() { return mes; }
+    game::ClsMes &Mes() { return mes; }
 
 private:
     bool Layout();
 
-    ClsMes       mes;
+    game::ClsMes mes;
     GameTextFile file;
     std::string  text;
     u32          colour;

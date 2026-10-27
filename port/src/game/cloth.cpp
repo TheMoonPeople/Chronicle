@@ -20,6 +20,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 void CCloth::Draw() {
     CFrameVu1 draw_frame;
 

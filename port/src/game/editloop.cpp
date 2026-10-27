@@ -88,6 +88,10 @@
 
 namespace dc::game {
 
+using namespace dc::dialog;
+using namespace dc::input;
+using namespace dc::render;
+
 // The bodies are retail's, which pass string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 

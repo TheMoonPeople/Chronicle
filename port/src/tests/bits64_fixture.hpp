@@ -14,7 +14,7 @@ namespace dc::test {
  */
 struct Arena {
     std::vector<u_long128> storage; /**< The quadwords the arena hands out. */
-    CDataAlloc2<1>         alloc;   /**< The game's allocator over storage. */
+    game::CDataAlloc2<1>   alloc;   /**< The game's allocator over storage. */
 
     explicit Arena(int quads) : storage(static_cast<std::size_t>(quads)) {
         alloc.base = reinterpret_cast<u_char *>(storage.data());

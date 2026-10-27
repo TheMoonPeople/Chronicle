@@ -46,6 +46,12 @@
 
 namespace dc::game {
 
+using namespace dc::localize;
+using namespace dc::platform;
+using namespace dc::render;
+using namespace dc::text;
+using namespace dc::ui;
+
 void MakeRandTbl(float lo, float hi);
 void MakeRandTbl2(float lo, float hi);
 

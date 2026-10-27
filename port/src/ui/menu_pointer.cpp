@@ -10,6 +10,8 @@
 
 namespace dc::ui {
 
+using namespace dc::game;
+
 namespace {
 
 // Where the game's hand rests against the control it is on: the fingertip, as the Options screen's

@@ -36,6 +36,13 @@
 
 namespace dc::ui {
 
+using namespace dc::game;
+using namespace dc::battlemenu;
+using namespace dc::dialog;
+using namespace dc::options;
+using namespace dc::save;
+using namespace dc::text;
+
 namespace {
 
 struct Rect {
@@ -1038,7 +1045,7 @@ void JournalMouse(const MenuPointerTake &take) {
     const float x = g_battle.x;
     const float y = g_battle.y;
     if (ManualMenu.mode == 100) {
-        JournalChest::HandlePointer(x, y);
+        journal_chest::HandlePointer(x, y);
     } else if (ManualMenu.mode == MANUAL_MODE_SELECT && ManualMenu.selection_level == -2) {
         if (x >= 135 && x < 355 && y >= 96 && y < 236) {
             ManualMenu.category = static_cast<int>((y - 96) / 28);

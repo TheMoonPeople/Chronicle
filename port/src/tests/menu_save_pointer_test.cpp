@@ -6,6 +6,11 @@
 #include "platform/input.hpp"
 #include "ui/menu_pointer.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::ui;
+
 namespace {
 void Open(int state) {
     InputSetScriptedDevices({});
@@ -82,3 +87,5 @@ TEST(MenuSavePointer, EndingCompletionBackAcknowledgesWithCross) {
     Open(SAVE_KEY_END_SAVE_ENDING);
     EXPECT_EQ(Click(2), kInputCross);
 }
+
+} // namespace dc::test

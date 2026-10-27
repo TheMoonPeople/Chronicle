@@ -26,6 +26,13 @@
 #include "render/texture_registry.hpp"
 #include "sound.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::app;
+using namespace dc::data;
+using namespace dc::platform;
+using namespace dc::render;
 using namespace datafix;
 
 namespace {
@@ -668,3 +675,5 @@ TEST(DataRead, PathsDefaultToWorkingDirectory) {
     fs::current_path(fs::temp_directory_path());
     fs::remove_all(dir);
 }
+
+} // namespace dc::test

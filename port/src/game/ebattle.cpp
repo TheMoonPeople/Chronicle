@@ -45,6 +45,9 @@
 
 namespace dc::game {
 
+using namespace dc::input;
+using namespace dc::platform;
+
 /**
  * Stores one event-battle key and its timing state.
  */

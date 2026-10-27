@@ -34,6 +34,11 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+using namespace dc::localize;
+using namespace dc::render;
+using namespace dc::text;
+
 namespace {
 
 constexpr int kBlockCount = 72;

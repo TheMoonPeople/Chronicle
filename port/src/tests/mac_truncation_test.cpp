@@ -6,6 +6,10 @@
 #include "platform/memory.hpp"
 #include "texture.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 TEST(MacTruncation, MenuAlignmentKeepsHighAddresses) {
     auto *high = reinterpret_cast<u_long128 *>(std::uintptr_t{0x7f1234567810});
     ASSERT_TRUE(reinterpret_cast<std::uintptr_t>(MenuCalcBufAlignment(high)) == 0x7f1234567840);
@@ -22,3 +26,5 @@ TEST(MacTruncation, TextureBufferInHighMemory) {
     ASSERT_TRUE(TexManager.buffer_size == 993);
     ArenaMemoryUnmap(memory);
 }
+
+} // namespace dc::test

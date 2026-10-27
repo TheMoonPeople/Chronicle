@@ -8,9 +8,13 @@ extern signed char menu_kigoutbl[40];
 extern signed char euro_code_linelimmit[5];
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+
 namespace {
 
-using namespace namemouse;
+using namespace ui::name_mouse;
 
 constexpr int kEnglish = 1;
 constexpr int kGerman = 4;
@@ -207,3 +211,5 @@ TEST(NameMouse, PointerScale) {
     EXPECT_EQ(PointerUnitsPerCount(2.0f, 0.0f, 1280.0f), 0.0f);
     EXPECT_EQ(PointerUnitsPerCount(2.0f, 1280.0f, 0.0f), 0.0f);
 }
+
+} // namespace dc::test

@@ -17,6 +17,8 @@
 
 namespace dc::input {
 
+using namespace dc::game;
+
 namespace {
 
 constexpr int   kPolyBudget = 32768;

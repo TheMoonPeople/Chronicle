@@ -10,6 +10,8 @@
 
 namespace dc::render {
 
+using namespace dc::game;
+
 namespace {
 
 // The GS screen centre MGSetRenderInfo puts at offset[0] and offset[1], and the depth range of

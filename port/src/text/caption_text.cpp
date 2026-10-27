@@ -26,6 +26,10 @@
 
 namespace dc::text::caption {
 
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::render;
+
 namespace {
 
 #ifdef __has_embed

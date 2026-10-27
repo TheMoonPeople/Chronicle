@@ -19,6 +19,12 @@
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::input;
+using namespace dc::platform;
+
 namespace {
 
 struct SaveRoot {
@@ -228,3 +234,5 @@ TEST(CameraZoom, StationaryContractedEyeCanZoomInAndTurnWithoutCrossingWall) {
     ASSERT_FLOAT_EQ(MouseCameraClamp(camera, -0.2f, &mesh.poly, 1), 0.0f);
     ASSERT_FLOAT_EQ(MouseCameraClampDistance(camera, 30.0f, &mesh.poly, 1), 60.0f);
 }
+
+} // namespace dc::test

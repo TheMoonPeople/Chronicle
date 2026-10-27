@@ -9,6 +9,10 @@
 
 #include "text/captionfont.hpp"
 
+namespace dc::test {
+
+using namespace dc::text;
+
 namespace {
 
 struct Rendered {
@@ -137,3 +141,5 @@ TEST(CaptionFont, InkExtentIsTheOutlineAtAnySize) {
     EXPECT_NEAR(left80 / left40, 2.0f, 1e-4f);
     EXPECT_FALSE(capfont::GetInkExtent(U' ', 40, left40, right40));
 }
+
+} // namespace dc::test

@@ -18,6 +18,9 @@
 
 namespace dc::title {
 
+using namespace dc::game;
+using namespace dc::render;
+
 namespace {
 
 // TEX1 0x61: LCM 1, linear both ways, as setbilinear(1) leaves the title's sprites.

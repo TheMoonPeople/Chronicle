@@ -32,6 +32,8 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+
 namespace {
 
 /** Parsed string argument for each item-definition command. */

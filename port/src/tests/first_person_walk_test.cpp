@@ -31,6 +31,12 @@ extern float viewAngleH, viewAngleV;
 void         EyeCamera(CCamera *, CCharacter *, int);
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::input;
+using namespace dc::platform;
+
 namespace {
 void Keyboard(const std::vector<int> &keys, float dx = 0) {
     InputKeyboardMouse held;
@@ -257,3 +263,5 @@ TEST(FirstPersonWalk, ReservedZoomResetCannotAlsoWalkAndDungeonScriptLocksKeepTh
     EXPECT_FALSE(FirstPersonDungeonKeyboardVelocity(velocity, 0, status, true, true, false));
     EXPECT_FALSE(FirstPersonDungeonKeyboardVelocity(velocity, 0, status, false, false, false));
 }
+
+} // namespace dc::test

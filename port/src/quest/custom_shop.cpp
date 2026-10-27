@@ -34,6 +34,10 @@ extern ITEM_MONEY_ENTRY PriceList[296];
 
 namespace dc::quest {
 
+using namespace dc::game;
+using namespace dc::data;
+using namespace dc::text;
+
 namespace {
 
 constexpr int kRetailShops = 18;

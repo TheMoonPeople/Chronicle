@@ -5,9 +5,11 @@
 // the player one of each of these they have none of, in the pack or stored, each time they talk to
 // him, once they have been into the Divine Beast Cave and until Gaffer's Buggy is built; after that
 // he talks about the buggy. Here it is a choice of his menu instead, "Do you have any supplies?",
-// and the script's own handing out is held back (Quest::Retail::MayorSupplies, quest_host.cpp).
+// and the script's own handing out is held back (quest::Retail::MayorSupplies, quest_host.cpp).
 
 namespace dc::quest {
+
+using namespace dc::game;
 
 namespace {
 

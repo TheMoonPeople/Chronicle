@@ -90,6 +90,8 @@ struct MAP_INFO {
 
 namespace dc::game {
 
+using namespace dc::title;
+
 // String literals are passed to the game APIs as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 

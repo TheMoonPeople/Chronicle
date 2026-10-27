@@ -20,6 +20,12 @@
 #include "main.hpp"
 #include "platform/discord.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::app;
+using namespace dc::platform;
+
 using Json = nlohmann::json;
 
 #ifndef _WIN32
@@ -163,3 +169,5 @@ TEST(PlatformDiscord, Presence) {
 
     ASSERT_EQ(PresenceDescribe({.mode = GAME_MODE_TITLE}).details, "At the title screen");
 }
+
+} // namespace dc::test

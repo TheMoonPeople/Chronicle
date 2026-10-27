@@ -28,6 +28,8 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+
 void CCollisionMDT::Initialize() {
     model = nullptr;
     mesh = nullptr;

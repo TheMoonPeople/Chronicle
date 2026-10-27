@@ -16,6 +16,10 @@ namespace dc::game {
 extern CDataAlloc<1, 6000> SystemMesBuffer;
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+
 namespace {
 
 bool Aligned64(const void *pointer) {
@@ -114,3 +118,5 @@ TEST(PlatformArena, ModeBuffers) {
     SystemMesBuffer.Align64();
     ASSERT_TRUE(Aligned64(&SystemMesBuffer.block[SystemMesBuffer.used]));
 }
+
+} // namespace dc::test

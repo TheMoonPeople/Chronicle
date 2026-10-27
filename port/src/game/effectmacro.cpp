@@ -22,6 +22,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 namespace {
 
 sceVu0FVECTOR wind_dir = {0.0f, 0.0f, 0.0f, 0.0f};

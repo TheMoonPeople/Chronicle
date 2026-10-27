@@ -15,6 +15,10 @@
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
+namespace dc::test {
+
+using namespace dc::platform;
+
 TEST(PlatformConfig, Defaults) {
     Config config = ConfigParse("");
     ASSERT_TRUE(config.tick_rate == 60.0);
@@ -694,3 +698,5 @@ TEST(PlatformConfig, TextFontIsNoLongerWritten) {
     const Config config = ConfigParse(R"({"video": {"text_font": "original"}})");
     ASSERT_EQ(ConfigSerialize(config).find("text_font"), std::string::npos);
 }
+
+} // namespace dc::test

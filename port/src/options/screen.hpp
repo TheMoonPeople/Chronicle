@@ -59,7 +59,7 @@ struct Screen {
     int                 step = 0;
     int                 step_count = 0;
     bool                texture_ready = false;
-    CTexture           *texture = nullptr;
+    game::CTexture     *texture = nullptr;
     int                 page = 0;
     int                 row = 0;
     int                 first_tab = 0;
@@ -69,7 +69,7 @@ struct Screen {
     float               cursor_x = 0.0f;
     float               cursor_y = 0.0f;
     int                 bar_frames = 0;
-    Config              opened;
+    platform::Config    opened;
     bool                save_failed = false;
     std::string         display_now;
     short              *game_messages = nullptr;
@@ -90,15 +90,15 @@ extern Screen g_screen;
  * Localised labels and help messages the screen draws, built for the current language.
  */
 struct Texts {
-    std::deque<UI::Label>             tabs;
-    std::deque<std::deque<UI::Label>> labels;
-    std::deque<std::deque<UI::Label>> values;
-    UI::Label                         left;
-    UI::Label                         right;
-    UI::Label                         l1;
-    UI::Label                         r1;
-    UI::Label                         shortcuts;
-    GameTextFile                      help;
+    std::deque<ui::Label>             tabs;
+    std::deque<std::deque<ui::Label>> labels;
+    std::deque<std::deque<ui::Label>> values;
+    ui::Label                         left;
+    ui::Label                         right;
+    ui::Label                         l1;
+    ui::Label                         r1;
+    ui::Label                         shortcuts;
+    text::GameTextFile                help;
 
     Texts();
 };

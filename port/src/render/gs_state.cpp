@@ -10,6 +10,8 @@
 
 namespace dc::render {
 
+using namespace dc::game;
+
 namespace {
 
 // TEXA as vudata.cpp's My_DrawEnv leaves it before the game sends its own.

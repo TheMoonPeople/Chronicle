@@ -71,6 +71,10 @@
 
 namespace dc::game {
 
+using namespace dc::dialog;
+using namespace dc::platform;
+using namespace dc::quest;
+
 namespace {
 
 /**

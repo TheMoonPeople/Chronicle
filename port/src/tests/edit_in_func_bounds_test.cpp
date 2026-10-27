@@ -14,6 +14,10 @@ namespace dc::game {
 int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+
 TEST(EditInterior, RejectsFunctionTablePastFixedCapacity) {
     alignas(16) std::array<std::byte, 0x100> archive{};
     auto                                    *words = reinterpret_cast<u_int *>(archive.data());
@@ -25,3 +29,5 @@ TEST(EditInterior, RejectsFunctionTablePastFixedCapacity) {
 
     EXPECT_EQ(GetFuncPoint(0, words, points.data()), 0);
 }
+
+} // namespace dc::test

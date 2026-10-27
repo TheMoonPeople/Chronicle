@@ -23,6 +23,8 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+
 namespace {
 
 /** Frames a thrown model flies before it lands. */

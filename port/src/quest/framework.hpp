@@ -15,7 +15,7 @@
 /**
  * Quests (docs/QUEST_FRAMEWORK.md). A quest is a state machine: named stages, its own numbers, rules
  * that move it on when a condition holds, and choices it adds to NPCs' conversations. A quest reaches
- * the game only through Quest::IGame, so it runs the same against the save data in play and against a
+ * the game only through quest::IGame, so it runs the same against the save data in play and against a
  * fake in a test. Like dialog_framework.hpp, this header includes no PS2 headers.
  */
 namespace dc::quest {
@@ -378,10 +378,10 @@ private:
 /**
  * Puts a quest together:
  *
- *   Quest::Builder("lost_ring")
+ *   quest::Builder("lost_ring")
  *       .Stages({"hidden", "offered", "asked", "done"})
- *       .Advance("hidden", Quest::FloorReached(0), "offered")
- *       .Option(villager, Quest::AtStage("offered"), {"quest.lost_ring.ask", "Lost ring"}, Tell)
+ *       .Advance("hidden", quest::FloorReached(0), "offered")
+ *       .Option(villager, quest::AtStage("offered"), {"quest.lost_ring.ask", "Lost ring"}, Tell)
  *       .Build();
  */
 class Builder {

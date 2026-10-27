@@ -25,6 +25,11 @@
 
 namespace dc::game {
 
+using namespace dc::options;
+using namespace dc::platform;
+using namespace dc::quest;
+using namespace dc::save;
+
 MC_DIR_ENTRY  SaveFileInfo[MC_DIR_ENTRY_MAX];
 SV_CONFIG_SYS sys_config;
 

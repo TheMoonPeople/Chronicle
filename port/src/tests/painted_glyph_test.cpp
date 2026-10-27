@@ -5,6 +5,10 @@
 #include "gfx_fixture.hpp"
 #include "text/captionfont.hpp"
 
+namespace dc::test {
+
+using namespace dc::text;
+
 namespace {
 
 std::filesystem::path FontFile() {
@@ -77,3 +81,5 @@ TEST(PaintedGlyph, AGlyphTheFontHasNotIsRefused) {
     EXPECT_FALSE(capfont::GetPaintedGlyph(U'一', -1, 30.0f, 36.0f, Look(), glyph));
     EXPECT_FALSE(capfont::GetPaintedGlyph(U'一', -1, 30.0f, 36.0f, Look(), glyph));
 }
+
+} // namespace dc::test

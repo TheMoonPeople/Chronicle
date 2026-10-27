@@ -51,6 +51,10 @@
 
 namespace dc::game {
 
+using namespace dc::localize;
+using namespace dc::text;
+using namespace dc::ui;
+
 CTexture *PerBoardTex;
 
 /**

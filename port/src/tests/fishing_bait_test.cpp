@@ -6,6 +6,10 @@
 #include "itemdata.hpp"
 #include "runscript.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 namespace {
 
 // The variables of PAL retail's bait-changing event (program 134 of gedit/e01): the picker's choice, then
@@ -57,3 +61,5 @@ TEST(FishingBait, AScriptLaidOutOtherwiseIsLeftAlone) {
     variables[2].type = RS_FLOAT;
     EXPECT_FALSE(ListBaitForScript(variables.data(), ITEM_CARROT));
 }
+
+} // namespace dc::test

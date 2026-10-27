@@ -96,6 +96,9 @@
 
 namespace dc::game {
 
+using namespace dc::input;
+using namespace dc::platform;
+
 namespace {
 
 /* The weapon each character starts with. */

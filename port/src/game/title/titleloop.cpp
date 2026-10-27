@@ -57,6 +57,9 @@
 
 namespace dc::game {
 
+using namespace dc::title;
+using namespace dc::ui;
+
 // TexManager.GetTexture takes the texture name as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
@@ -271,13 +274,13 @@ TitlePointerAction TakeTitlePointer() {
     const float y = title_pointer.y - static_cast<float>(MenuY(0));
     if (CProcess.no == TITLE_STEP_LOGO) {
         action.start = (take.clicked & 1) && x >= 64 && x < 576 && y >= 296 && y < 360;
-    } else if (TitleMenu::ConfirmOpen()) {
-        action.confirm_hover = TitleMenu::ConfirmHit(title_pointer.x, title_pointer.y);
+    } else if (title::menu::ConfirmOpen()) {
+        action.confirm_hover = title::menu::ConfirmHit(title_pointer.x, title_pointer.y);
         action.confirm = (take.clicked & 1) != 0 && action.confirm_hover >= 0;
         action.back = (take.clicked & 2) != 0;
     } else {
         action.back = (take.clicked & 2) != 0;
-        const int row = TitleMenu::RowAt(x, title_pointer.y);
+        const int row = title::menu::RowAt(x, title_pointer.y);
         if (row >= 0) {
             if (CCursol.select != row) {
                 CCursol.select = row;
@@ -394,8 +397,8 @@ int TitleLoop() {
         case TITLE_STEP_MENU:
             CLogo.Move();
 
-            if (TitleMenu::ConfirmOpen()) {
-                TitleMenu::StepConfirm(pointer.confirm_hover, pointer.confirm, pointer.back);
+            if (title::menu::ConfirmOpen()) {
+                title::menu::StepConfirm(pointer.confirm_hover, pointer.confirm, pointer.back);
                 break;
             }
 
@@ -413,18 +416,18 @@ int TitleLoop() {
                 }
 
                 if (CCursol.select < 0) {
-                    CCursol.select = TitleMenu::kExitRow;
+                    CCursol.select = title::menu::kExitRow;
                 }
 
-                if (CCursol.select > TitleMenu::kExitRow) {
+                if (CCursol.select > title::menu::kExitRow) {
                     CCursol.select = TITLE_MENU_NEW_GAME;
                 }
 
-                CCursol.Set(TitleMenu::HandY(CCursol.select));
+                CCursol.Set(title::menu::HandY(CCursol.select));
 
                 if (GamePad.Down(PAD_START) || GamePad.Down(PAD_CROSS) || pointer.confirm) {
-                    if (CCursol.select == TitleMenu::kExitRow) {
-                        TitleMenu::OpenConfirm();
+                    if (CCursol.select == title::menu::kExitRow) {
+                        title::menu::OpenConfirm();
                     } else {
                         TiPlayVolSE(MIDI_PORT_SE_DEFAULT, 38, 20, 1.0f);
                         CProcess.no = TITLE_STEP_MENU_BLINK;
@@ -432,7 +435,7 @@ int TitleLoop() {
                     opcnt = 0;
                 }
 
-                if (!TitleMenu::ConfirmOpen() && (GamePad.Down(PAD_CIRCLE) || pointer.back)) {
+                if (!title::menu::ConfirmOpen() && (GamePad.Down(PAD_CIRCLE) || pointer.back)) {
                     Fade1 = Fade2 = Fade3 = Fade4 = 0;
                     CSprite.Init();
                     CLogo.Init();
@@ -711,10 +714,10 @@ void TitleDraw() {
                 // The painted rows (start3) have no Exit, so all four come from the font. None are
                 // drawn on the way to the attract movie, whose number Exit's row shares.
                 if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT) {
-                    TitleMenu::Draw(CCursol.GetSelect(), CFade.Get(brightness), CFade.Get(32));
+                    title::menu::Draw(CCursol.GetSelect(), CFade.Get(brightness), CFade.Get(32));
                 }
 
-                if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT && !TitleMenu::ConfirmOpen()) {
+                if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT && !title::menu::ConfirmOpen()) {
                     setbilinear(0);
                     CursorVibeCnt++;
 
@@ -727,7 +730,7 @@ void TitleDraw() {
                     setbilinear(1);
                 }
 
-                TitleMenu::DrawConfirm(CFade.Get(128));
+                title::menu::DrawConfirm(CFade.Get(128));
                 setbilinear(1);
             }
 

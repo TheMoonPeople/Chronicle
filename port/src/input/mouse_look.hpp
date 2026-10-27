@@ -30,7 +30,7 @@ namespace dc::input {
  * The stick's reading plus the mouse's turn this tick, for a camera that turns by
  * AddAngle(radians * -reading): right turns right.
  */
-float MouseLookTurn(CCameraFollow *camera, float radians, float stick);
+float MouseLookTurn(game::CCameraFollow *camera, float radians, float stick);
 
 /**
  * The stick's reading plus the mouse's tilt this tick, for a follow camera that lowers its eye by
@@ -39,20 +39,20 @@ float MouseLookTurn(CCameraFollow *camera, float radians, float stick);
  * ceiling, and never requests a height below floor. The eye continues looking at the follow
  * target; height changes keep the retail easing and collision correction.
  */
-float MouseLookRise(CCameraFollow *camera, float stick, float ceiling, float floor = 1.6f);
+float MouseLookRise(game::CCameraFollow *camera, float stick, float ceiling, float floor = 1.6f);
 
 /**
  * Preserves manual input and floor clearance, but holds baseline descent while either mouse axis
  * moves and applies the configured return rate afterward. Only an active gameplay height read owns it.
  */
-float MouseLookHeightDelta(CCameraFollow *camera, float delta);
+float MouseLookHeightDelta(game::CCameraFollow *camera, float delta);
 
 /**
  * The mouse's share of an AddAngle delta on camera: nonzero only for the delta of the reading
  * MouseLookTurn last gave for it in the current pad read. Any AddAngle on that camera ends the
  * reading.
  */
-float MouseLookTakeTurn(CCameraFollow *camera, float delta);
+float MouseLookTakeTurn(game::CCameraFollow *camera, float delta);
 
 /**
  * The eye's height over the point it circles from `distance` away once the view tilts up by `pitch`
@@ -80,7 +80,7 @@ float MouseLookEyeAngleH(float angle);
 /**
  * The camera polygons in box (CEditGround::PickUpCameraPoly), as a count written to *polys.
  */
-using MouseLookPolys = std::function<int(CBoxVu0 &box, CCPoly **polys)>;
+using MouseLookPolys = std::function<int(game::CBoxVu0 &box, game::CCPoly **polys)>;
 
 /**
  * The signed safe prefix of a continuous turn. Conservative bounds cover the swept look ray,
@@ -94,23 +94,23 @@ float MouseLookClampOrbit(const float *eye, const float *look, float turn, const
  * Turns a follow camera's angle, the angle it is turning to, its eye and the eye it is easing to by
  * turn radians at once.
  */
-void MouseLookTurnOrbit(CCameraFollow *camera, float turn);
+void MouseLookTurnOrbit(game::CCameraFollow *camera, float turn);
 
 /**
  * Opens the request for this pad read's walk, replacing any other.
  */
-void TownMouseBegin(CCameraFollow *camera, CEditGround *ground, int map, int mode);
+void TownMouseBegin(game::CCameraFollow *camera, game::CEditGround *ground, int map, int mode);
 
 /**
  * From EdGetRXf: the mouse's turn this read for camera, if a request for it is open.
  */
-void TownMouseRecord(CCameraFollow *camera, bool fishing);
+void TownMouseRecord(game::CCameraFollow *camera, bool fishing);
 
 /**
  * Applies and closes the request, if the camera shown, the ground, the map and the mode are still
  * the ones it was opened for, in the same pad read.
  */
-void TownMouseApply(CCamera *shown, CEditGround *ground, int map, int mode);
+void TownMouseApply(game::CCamera *shown, game::CEditGround *ground, int map, int mode);
 
 } // namespace dc::input
 

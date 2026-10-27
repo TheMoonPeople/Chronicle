@@ -20,6 +20,11 @@
 #include "renderinfo.hpp"
 #include "texture.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::render;
+
 TEST(ChroniclePresentation, FullSizePictureFillsWidescreenWithoutSamplingPastArtwork) {
     dc::test::GfxFixture fixture(1280, 720, 1.0f, dc::test::GfxOptions{.offscreen = true});
     PortDecodedTexture   image;
@@ -228,3 +233,5 @@ TEST(ChroniclePresentation, CachedAdjacentStripsRetainOrderAfterMaterialChanges)
     }
     gfx::DestroyMesh(visual.mesh);
 }
+
+} // namespace dc::test

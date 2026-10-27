@@ -16,6 +16,9 @@
 
 namespace dc::options {
 
+using namespace dc::localize;
+using namespace dc::platform;
+
 namespace {
 
 constexpr int kMapOff = 3;

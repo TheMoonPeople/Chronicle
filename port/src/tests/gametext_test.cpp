@@ -9,6 +9,11 @@
 #include "gameutil.hpp"
 #include "text/gametext.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::text;
+
 namespace {
 
 std::vector<s16> Encode(std::string_view text, int *missing = nullptr) {
@@ -179,3 +184,5 @@ TEST(GameText, TheCodesThePalTextUsesAreAllNamed) {
         EXPECT_FALSE(text.size() > 2 && (text[1] == '-' || (text[1] >= '0' && text[1] <= '9'))) << code << " is " << text;
     }
 }
+
+} // namespace dc::test

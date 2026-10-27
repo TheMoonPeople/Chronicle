@@ -21,7 +21,11 @@
 #include "platform/paths.hpp"
 #include "tex_fixture.hpp"
 
-using namespace dc::test;
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::data;
+using namespace dc::render;
 using namespace texfix;
 
 namespace {
@@ -645,3 +649,5 @@ TEST(TexDecode, ColourImagesTakeIndexPsmCopies) {
     const sceGsTex0 &dst_tex0 = *reinterpret_cast<const sceGsTex0 *>(&Find("dst")->tex0);
     EXPECT_TRUE(PortMoveImage(src_tex0.TBP0, SCE_GS_PSMT8, 0, 0, 2, 2, dst_tex0.TBP0, SCE_GS_PSMT8, 0, 0));
 }
+
+} // namespace dc::test

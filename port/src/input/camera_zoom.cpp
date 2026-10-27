@@ -20,6 +20,9 @@ extern float camera_far_dist;
 
 namespace dc::input {
 
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace {
 constexpr float kMinDistance = 30.0f;
 constexpr float kMaxDistance = 2000.0f;

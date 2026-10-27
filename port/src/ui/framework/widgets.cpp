@@ -7,6 +7,8 @@
 
 namespace dc::ui {
 
+using namespace dc::game;
+
 namespace {
 
 /**
@@ -49,8 +51,8 @@ bool ItemIcon::Draw(int item_no, int x, int y, int size, int alpha, bool drop_sh
     if (game::ItemIcon == nullptr) {
         game::ItemIcon = detail::FindMenuTexture("itemicon");
     }
-    if (::WepIcon == nullptr) {
-        ::WepIcon = detail::FindMenuTexture("wepicon");
+    if (game::WepIcon == nullptr) {
+        game::WepIcon = detail::FindMenuTexture("wepicon");
     }
 
     int       u = 0;

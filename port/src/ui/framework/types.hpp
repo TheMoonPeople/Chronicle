@@ -12,17 +12,17 @@ namespace dc::ui {
 /**
  * Standard white font palette index.
  */
-constexpr u32 ColorWhite = FONT_COLOR_WHITE;
+constexpr u32 ColorWhite = game::FONT_COLOR_WHITE;
 
 /**
  * Standard gold font palette index.
  */
-constexpr u32 ColorGold = FONT_COLOR_GOLD;
+constexpr u32 ColorGold = game::FONT_COLOR_GOLD;
 
 /**
  * Standard yellow font palette index.
  */
-constexpr u32 ColorYellow = FONT_COLOR_YELLOW;
+constexpr u32 ColorYellow = game::FONT_COLOR_YELLOW;
 
 /**
  * Standard blue font palette index.

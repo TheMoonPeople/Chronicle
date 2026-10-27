@@ -2,12 +2,15 @@
 
 namespace dc::battlemenu {
 
+using namespace dc::game;
+using namespace dc::localize;
+
 namespace {
 
 using detail::DecodeMesFromBuffer;
 using detail::RefreshBtlMenuTextures;
 
-UI::Cursor move_cursor;
+ui::Cursor move_cursor;
 int        last_move_state = -1;
 
 // Frames since the answer was chosen; it stays lit as long as the weapon menu's EQUIP does once a weapon is equipped
@@ -90,7 +93,7 @@ void PortDrawMenuMove() {
         std::string prompt_desc;
         ExtractMovePromptText(prompt_title, prompt_desc);
 
-        UI::ConfirmModal::Draw(
+        ui::ConfirmModal::Draw(
             prompt_title,
             prompt_desc,
             LocalizeText("battlemenu.quit.yes", "YES"),
@@ -98,7 +101,7 @@ void PortDrawMenuMove() {
             MenuMove.cursor,
             move_cursor,
             alpha,
-            UI::WindowPreset::DarkTranslucent,
+            ui::WindowPreset::DarkTranslucent,
             chosen ? MenuMove.cursor : -1,
             chosen_frames <= kChosenLitFrames);
 

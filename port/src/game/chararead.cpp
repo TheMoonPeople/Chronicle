@@ -28,6 +28,8 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+
 namespace {
 
 using tagMOTION_KEY = MOTION_INFO;

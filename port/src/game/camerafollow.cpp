@@ -11,6 +11,8 @@
 
 namespace dc::game {
 
+using namespace dc::input;
+
 void CCameraFollow::Step(int steps) {
     if (CCamera::StopCamera) {
         return;

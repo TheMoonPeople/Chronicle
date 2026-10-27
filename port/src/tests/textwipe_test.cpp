@@ -5,6 +5,11 @@
 #include "platform/config.hpp"
 #include "text/textwipe.hpp"
 
+namespace dc::test {
+
+using namespace dc::platform;
+using namespace dc::text;
+
 TEST(TextWipe, SweepStartsAtTheRightAndReachesTheLeft) {
     EXPECT_FLOAT_EQ(textwipe::SweepPosition(0.0), 640.0f);
     EXPECT_FLOAT_EQ(textwipe::SweepPosition(0.5), 640.0f);
@@ -60,3 +65,5 @@ TEST(TextWipe, OffByDefaultAndTextKeepsTheLockedFits) {
         EXPECT_FLOAT_EQ(now.lock, locked.lock);
     }
 }
+
+} // namespace dc::test

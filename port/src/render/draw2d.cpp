@@ -15,6 +15,9 @@
 
 namespace dc::render::draw2d {
 
+using namespace dc::game;
+using namespace dc::text;
+
 namespace {
 
 gfx::DrawState RealDrawState() { return MGPortDrawState(); }

@@ -19,6 +19,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 namespace {
 
 // pretest parks the cell matrix and step in VU0 registers for the Trans_AddCell calls that follow.

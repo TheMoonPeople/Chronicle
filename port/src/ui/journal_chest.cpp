@@ -18,6 +18,9 @@
 
 namespace dc::ui::journal_chest {
 
+using namespace dc::game;
+using namespace dc::localize;
+
 namespace {
 
 constexpr int kLeftStartY = 156;

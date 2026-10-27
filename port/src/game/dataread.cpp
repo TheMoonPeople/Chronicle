@@ -21,6 +21,9 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+using namespace dc::localize;
+
 namespace fs = std::filesystem;
 
 namespace {

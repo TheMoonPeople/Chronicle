@@ -37,6 +37,12 @@ extern float viewAngleH;
 void         EyeCamera(CCamera *camera, CCharacter *character, int right_stick);
 } // namespace dc::game
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::input;
+using namespace dc::platform;
+
 namespace {
 
 constexpr float kDegree = std::numbers::pi_v<float> / 180.0f;
@@ -690,3 +696,5 @@ TEST(PlatformMouseLook, MenuMotionAndFocusLossCannotReachTheCamera) {
     InputHandleEvent(event);
     ASSERT_EQ(InputGetMouseLook().yaw, 0);
 }
+
+} // namespace dc::test

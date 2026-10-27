@@ -8,6 +8,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 s32 CTextureAnime::stop_anime;
 
 namespace {

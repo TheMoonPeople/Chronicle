@@ -25,14 +25,16 @@
 #include "vu0_ops.hpp"
 
 void *operator new(size_t size, u_long128 *block) {
-    return PlaceDataAllocObject(size, block);
+    return dc::game::PlaceDataAllocObject(size, block);
 }
 
 void *operator new[](size_t size, u_long128 *block) {
-    return PlaceDataAllocObject(size, block);
+    return dc::game::PlaceDataAllocObject(size, block);
 }
 
 namespace dc::game {
+
+using namespace dc::render;
 
 void DevInit() {
     sceDmaEnv env;

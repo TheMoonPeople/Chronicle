@@ -18,6 +18,8 @@
 
 namespace dc::app {
 
+using namespace dc::platform;
+
 namespace {
 
 #ifdef __ANDROID__

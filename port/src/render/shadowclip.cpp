@@ -13,6 +13,8 @@
 
 namespace dc::render {
 
+using namespace dc::game;
+
 int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_data, RenderInfo *info,
                     float (*matrix)[4], int pass) {
     if (model_data == nullptr) {

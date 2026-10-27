@@ -15,6 +15,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 CFireOmni::CFireOmni()
     : unk_00(0), raster_phase(0.0f), flame_phase(0.0f), cell_phase(15.0f), flicker_width(0.0f), flicker_height(0.0f), flicker_seed(0),
       // Starting the count somewhere in the cycle keeps two fires out of step.

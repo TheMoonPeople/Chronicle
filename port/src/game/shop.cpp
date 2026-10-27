@@ -40,6 +40,8 @@
 
 namespace dc::game {
 
+using namespace dc::quest;
+
 /** Shared UI state for the charge shop and item shop screens. */
 ShopMenuWork ShopMenu;
 

@@ -15,6 +15,8 @@ extern s32 mode;
 
 namespace dc::input {
 
+using namespace dc::game;
+
 LightbarColour LightbarForLife(int life, int max_life) {
     if (max_life <= 0) {
         return LightbarIdle();

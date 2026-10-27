@@ -13,6 +13,12 @@
 #include "savedata.hpp"
 #include "userstatus.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::options;
+using namespace dc::platform;
+
 namespace {
 
 alignas(64) CSaveData g_options_save;
@@ -290,3 +296,5 @@ TEST(MenuOption, CustomCameraReturnIsShownAndKeptUntilPresetSelection) {
     ASSERT_FLOAT_EQ(restored.mouse_camera_return, 0.37f);
     ASSERT_EQ(OptionCameraReturnText(restored), "37%");
 }
+
+} // namespace dc::test

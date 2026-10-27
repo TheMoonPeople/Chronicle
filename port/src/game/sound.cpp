@@ -20,6 +20,8 @@
 
 namespace dc::game {
 
+using namespace dc::platform;
+
 // Banks and sequences live in audio::Mixer rather than in sound memory; the SPU address bookkeeping
 // below only keeps GetMidiState() reporting the addresses the game expects.
 

@@ -12,6 +12,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 // Layers draw from the last to the first, so layer 0 ends up on top. The table blends with mglib's
 // ALPHA shadow whatever the register held, and leaves ALPHA, TEST and ZBUF at the shadows.
 void CSpriteTable::DrawTable() {

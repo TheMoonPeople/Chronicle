@@ -17,6 +17,10 @@
 
 namespace dc::title::menu {
 
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::text;
+
 namespace {
 
 struct Row {
@@ -49,7 +53,7 @@ constexpr float kStretch = 1.0f;
 constexpr float kLetterGap = 0.05f;
 constexpr float kKernStrength = 1.0f;
 
-// capfont's slot for the title font (UI::FontWeight::Title).
+// capfont's slot for the title font (ui::FontWeight::Title).
 constexpr int kTitleFontSlot = 3;
 
 // Retail's hand stands about 2 above its row's capitals.
@@ -86,8 +90,8 @@ bool g_confirm_open = false;
 int  g_confirm_choice = static_cast<int>(Choice::No);
 bool g_confirm_chosen = false;
 
-UI::Cursor &ConfirmCursor() {
-    static UI::Cursor cursor;
+ui::Cursor &ConfirmCursor() {
+    static ui::Cursor cursor;
     return cursor;
 }
 
@@ -148,9 +152,9 @@ float BearingFromS(const std::string &text) {
 } // namespace
 
 void Draw(int selected, int selected_alpha, int other_alpha) {
-    UI::TextStyle style;
-    style.align = UI::Alignment::Left;
-    style.weight = UI::FontWeight::Title;
+    ui::TextStyle style;
+    style.align = ui::Alignment::Left;
+    style.weight = ui::FontWeight::Title;
     style.scale = kCapHeight / 14.5f;
     style.xscale = kStretch;
     style.letter = kLetterGap;
@@ -170,7 +174,7 @@ void Draw(int selected, int selected_alpha, int other_alpha) {
         style.halo = kHaloReach;
         style.halo_strength = kHaloStrength;
         const std::string text = LocalizeText(kRows[row].key, kRows[row].english);
-        UI::Label         label(text, style);
+        ui::Label         label(text, style);
         label.Draw(kTextLeft + static_cast<int>(std::lround(BearingFromS(text))), kFirstTextTop + row * kRowStride - cap_offset,
                    // Retail's alphas on the painting's doubled texels (above).
                    chosen ? selected_alpha : std::min(other_alpha * 2 * kOtherRowsShare / kOtherRowsOf, 0x80));
@@ -185,7 +189,7 @@ void OpenConfirm() {
     g_confirm_open = true;
     g_confirm_chosen = false;
     g_confirm_choice = static_cast<int>(Choice::No);
-    const UI::Rect no = UI::ConfirmModal::ButtonRect(ConfirmTitle(), ConfirmDescription(), static_cast<int>(Choice::No));
+    const ui::Rect no = ui::ConfirmModal::ButtonRect(ConfirmTitle(), ConfirmDescription(), static_cast<int>(Choice::No));
     ConfirmCursor().SnapTo(static_cast<float>(no.x - 34), static_cast<float>(no.y + 3));
     PlayConfirmSound();
 }
@@ -217,16 +221,16 @@ void StepConfirm(int pointer_hover, bool pointer_click, bool pointer_back) {
 }
 
 int ConfirmHit(float x, float y) {
-    return UI::ConfirmModal::Hit(ConfirmTitle(), ConfirmDescription(), x, y);
+    return ui::ConfirmModal::Hit(ConfirmTitle(), ConfirmDescription(), x, y);
 }
 
 void DrawConfirm(int alpha) {
     if (!g_confirm_open) {
         return;
     }
-    UI::ConfirmModal::Draw(ConfirmTitle(), ConfirmDescription(), LocalizeText("battlemenu.quit.yes", "YES"),
+    ui::ConfirmModal::Draw(ConfirmTitle(), ConfirmDescription(), LocalizeText("battlemenu.quit.yes", "YES"),
                            LocalizeText("battlemenu.quit.no", "NO"), g_confirm_choice, ConfirmCursor(), alpha,
-                           UI::WindowPreset::DarkTranslucent, g_confirm_chosen ? static_cast<int>(Choice::Yes) : -1, g_confirm_chosen);
+                           ui::WindowPreset::DarkTranslucent, g_confirm_chosen ? static_cast<int>(Choice::Yes) : -1, g_confirm_chosen);
 }
 
 std::vector<std::pair<std::string, std::string>> Strings() {

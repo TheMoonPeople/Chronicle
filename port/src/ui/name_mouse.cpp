@@ -50,6 +50,8 @@ extern signed char    euro_code_linelimmit[5];
 
 namespace dc::ui {
 
+using namespace dc::game;
+
 namespace {
 
 using namespace name_mouse;

@@ -20,6 +20,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 float waveAnimeCnt[32];
 int   sw;
 

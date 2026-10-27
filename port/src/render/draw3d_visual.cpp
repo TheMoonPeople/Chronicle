@@ -13,6 +13,8 @@
 
 namespace dc::render {
 
+using namespace dc::game;
+
 namespace {
 
 constexpr uint32_t kBlockTag = 0x44334443; // "CD3D"

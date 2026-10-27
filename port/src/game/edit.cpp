@@ -59,6 +59,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 int EdDebugEventEnable = 1;
 int EdDebugCameraFlag;
 int EdDebugParamDrawOff;

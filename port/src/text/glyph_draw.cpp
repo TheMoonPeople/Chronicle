@@ -11,6 +11,10 @@
 
 namespace dc::text {
 
+using namespace dc::game;
+using namespace dc::platform;
+using namespace dc::render;
+
 namespace {
 
 /**

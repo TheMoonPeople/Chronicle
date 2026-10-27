@@ -18,6 +18,11 @@
 
 namespace dc::ui {
 
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::platform;
+using namespace dc::render;
+
 namespace {
 
 /**

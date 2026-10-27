@@ -15,6 +15,14 @@
 #include "text/captionfont.hpp"
 #include "ui/area_card.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::localize;
+using namespace dc::render;
+using namespace dc::text;
+using namespace dc::ui;
+
 namespace {
 
 struct CardFiles {
@@ -22,7 +30,7 @@ struct CardFiles {
                                 ("dc_area_card_test_" + std::to_string(dc::test::ProcessId()));
 
     ~CardFiles() {
-        areacard::Clear();
+        area_card::Clear();
         LocalizeReset();
         LocalizeSetDirectories({});
         std::error_code error;
@@ -66,8 +74,8 @@ void CheckTranslatedCard(const char *text) {
             }
         }
     }
-    ASSERT_TRUE(areacard::Prepare("mt01", source));
-    fixture.Frame({0, 0, 0, 0x80}, [] { areacard::Draw(100, 200, 356, 264, 1); });
+    ASSERT_TRUE(area_card::Prepare("mt01", source));
+    fixture.Frame({0, 0, 0, 0x80}, [] { area_card::Draw(100, 200, 356, 264, 1); });
     const auto actual = fixture.pixels;
 
     caption::LineStyle style;
@@ -148,3 +156,5 @@ TEST(CaptionLine, PaintedSlotsKeepTheirWidthsAndFractionalHeight) {
         EXPECT_NEAR(bottom + 1, 123.75f, 1);
     }
 }
+
+} // namespace dc::test

@@ -32,6 +32,8 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+
 /**
  * What a grid cell holds while a floor is being built, as bit flags.
  */

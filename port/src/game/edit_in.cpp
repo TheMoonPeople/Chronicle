@@ -60,6 +60,8 @@
 
 namespace dc::game {
 
+using namespace dc::input;
+
 // Retail passes string literals as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 

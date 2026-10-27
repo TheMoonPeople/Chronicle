@@ -4,6 +4,8 @@
 #include "audio/sq.hpp"
 #include "audio/vag.hpp"
 
+namespace dc::test {
+
 TEST(RetailAudio, SequenceConversionPreservesRunningDeltasAndNoteOff) {
     std::vector<uint8_t> bytes(0x1a);
     const auto           put = [&](size_t at, uint32_t value, size_t size) {
@@ -44,3 +46,5 @@ TEST(RetailAudio, RawSamplesKeepTheSpuLoopBoundary) {
     EXPECT_EQ(sample.loop_start, 0);
     EXPECT_EQ(sample.pcm[0], 28672);
 }
+
+} // namespace dc::test

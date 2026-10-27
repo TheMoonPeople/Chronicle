@@ -8,6 +8,12 @@
 #include "render/texture_registry.hpp"
 #include "text/caption_text.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::render;
+using namespace dc::text;
+
 TEST(Caption, ColoursAreThePaintedEnglishOnes) {
     EXPECT_EQ(caption::kFill[0], 232);
     EXPECT_EQ(caption::kFill[1], 226);
@@ -90,3 +96,5 @@ TEST(Caption, MissingPaintedWordsClearThePreviousBounds) {
     EXPECT_FALSE(caption::PaintedBounds(-1));
     EXPECT_FALSE(caption::PaintedBounds(caption::kIcons));
 }
+
+} // namespace dc::test

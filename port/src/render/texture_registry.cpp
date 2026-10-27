@@ -33,6 +33,10 @@
 
 namespace dc::render {
 
+using namespace dc::data;
+using namespace dc::game;
+using namespace dc::platform;
+
 namespace {
 
 constexpr unsigned kKeyCount = 1u << 14;

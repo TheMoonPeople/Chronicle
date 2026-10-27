@@ -33,7 +33,7 @@ void NameMouseRelease();
  * is in use this moves both to the pointer, as the Options screen's hand is. Returns false when
  * the draw is not the hand's, true when screen was changed.
  */
-bool NameMouseHand(CTexture *texture, CRect_i_ &screen, const CRect_i_ &texel, bool shadow);
+bool NameMouseHand(game::CTexture *texture, game::CRect_i_ &screen, const game::CRect_i_ &texel, bool shadow);
 
 } // namespace dc::ui
 

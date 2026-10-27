@@ -32,19 +32,19 @@ std::vector<std::pair<std::string, std::string>> OptionStrings();
  * configuration words, the dungeon map's status and the menu cursors' reset flag), and sets the
  * sound's stereo mode. Runs before every mode starts and whenever config.json's options change.
  */
-void GameOptionsApply(const ConfigGameOptions &options);
+void GameOptionsApply(const platform::ConfigGameOptions &options);
 
 /**
  * Config change hook that calls GameOptionsApply
  * when the game options differ between the two configs.
  */
-void GameOptionsChanged(const Config &before, const Config &after);
+void GameOptionsChanged(const platform::Config &before, const platform::Config &after);
 
 /**
  * Zeros the option fields reserved in a serialized save's fixed layout. Only the copy about to be
  * written is cleared; the running game keeps config.json's options.
  */
-void GameOptionsClear(CSaveData &save);
+void GameOptionsClear(game::CSaveData &save);
 
 /**
  * A window size the Resolution row can choose;
@@ -68,21 +68,21 @@ std::vector<OptionResolution> OptionResolutionList(std::span<const DisplayModeSi
  * The Controls row's zoom reset presets: Middle Mouse, Mouse4, Mouse5, Home and Disabled, followed
  * by the configured custom binding when present. Selecting a preset changes only zoom_reset.
  */
-int         OptionZoomResetChoice(const Config &config);
-int         OptionZoomResetCount(const Config &config);
-std::string OptionZoomResetText(const Config &config);
-void        OptionSetZoomReset(Config &config, int choice);
-void        OptionRestoreZoomReset(Config &config, const Config &defaults);
+int         OptionZoomResetChoice(const platform::Config &config);
+int         OptionZoomResetCount(const platform::Config &config);
+std::string OptionZoomResetText(const platform::Config &config);
+void        OptionSetZoomReset(platform::Config &config, int choice);
+void        OptionRestoreZoomReset(platform::Config &config, const platform::Config &defaults);
 
 /**
  * The Controls row's presets for the camera's vertical return rate:
  * current choice, choice count, display text, selection and restore.
  */
-int         OptionCameraReturnChoice(const Config &config);
-int         OptionCameraReturnCount(const Config &config);
-std::string OptionCameraReturnText(const Config &config);
-void        OptionSetCameraReturn(Config &config, int choice);
-void        OptionRestoreCameraReturn(Config &config, const Config &defaults);
+int         OptionCameraReturnChoice(const platform::Config &config);
+int         OptionCameraReturnCount(const platform::Config &config);
+std::string OptionCameraReturnText(const platform::Config &config);
+void        OptionSetCameraReturn(platform::Config &config, int choice);
+void        OptionRestoreCameraReturn(platform::Config &config, const platform::Config &defaults);
 
 } // namespace dc::options
 

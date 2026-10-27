@@ -17,6 +17,8 @@
 
 namespace dc::quest {
 
+using namespace dc::game;
+
 namespace {
 
 // Carl and Gina, as the dialog framework numbers Norune's villagers (their lines in the town's

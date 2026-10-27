@@ -26,6 +26,8 @@
 
 namespace dc::text::textwipe {
 
+using namespace dc::platform;
+
 namespace {
 
 constexpr double kSweepSeconds = 4.0; // one way

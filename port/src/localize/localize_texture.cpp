@@ -18,6 +18,9 @@ namespace fs = std::filesystem;
 
 namespace dc::localize {
 
+using namespace dc::platform;
+using namespace dc::render;
+
 namespace {
 
 // Pictures already complained about, so a wrong-shaped one says so once.

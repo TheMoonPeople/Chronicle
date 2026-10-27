@@ -15,7 +15,7 @@ extern "C" [[noreturn]] void __assert(const char *file, int line, const char *ex
     std::fflush(stdout);
     std::println(stderr, "{}:{}: assertion failed: {}", file, line, expression);
     std::fflush(nullptr);
-    std::_Exit(kExitGameAssert);
+    std::_Exit(dc::app::kExitGameAssert);
 }
 
 // Retail's libc generator, in place of the host's. The game leans on its exact sequence: a fire

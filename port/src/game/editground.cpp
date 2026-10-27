@@ -26,6 +26,8 @@
 
 namespace dc::game {
 
+using namespace dc::platform;
+
 namespace {
 
 int CheckDelete(CEditArea *area, CMapParts *parts, float x, float y, float z);

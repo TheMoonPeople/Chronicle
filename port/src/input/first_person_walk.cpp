@@ -18,6 +18,8 @@
 
 namespace dc::input {
 
+using namespace dc::game;
+
 namespace {
 constexpr int kPolys = 32768;
 constexpr int kFrames = 4096;

@@ -36,6 +36,9 @@
 
 namespace dc::game {
 
+using namespace dc::render;
+using namespace dc::text;
+
 namespace {
 
 // clang-format off
@@ -2619,7 +2622,7 @@ void SndSeSeqStep() {
     for (SND_SE_SEQ &seq : se_seq) {
         if (seq.se_no >= 0) {
             if (seq.step == 0) {
-                ::SndSePlay(seq.se_no, -1, seq.voice);
+                game::SndSePlay(seq.se_no, -1, seq.voice);
             }
 
             if (seq.step >= seq.length) {
@@ -2926,7 +2929,7 @@ void RectSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel
     }
 
     if (GlyphReplaceSprite(texture->name, screen, texel, colour.a) || credits::DrawBand(texture->name, screen, texel, colour.a) ||
-        UI::DrawPaintedPlate(texture->name, screen, texel, colour.r, colour.a)) {
+        ui::DrawPaintedPlate(texture->name, screen, texel, colour.r, colour.a)) {
         return;
     }
     std::array<gfx::Vertex2D, 4> quad = RectQuad(screen, texel, colour);

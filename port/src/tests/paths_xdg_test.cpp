@@ -15,6 +15,10 @@
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
+namespace dc::test {
+
+using namespace dc::app;
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -80,3 +84,5 @@ TEST_F(PathsXdgDarkcloud, DarkcloudNamesTheDirectoryToExtractTo) {
     ASSERT_TRUE(text.str().contains("`dcdata extract <disc image> " + data + "`"));
     Leave(dir);
 }
+
+} // namespace dc::test

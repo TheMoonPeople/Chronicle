@@ -17,7 +17,7 @@
  * Synthetic disc fixtures for the data tests: a DATA.DAT/DATA.HD2 pair laid out as the disc's,
  * packs in the game's 76-byte entry format, and a minimal ISO 9660 image holding the pair.
  */
-namespace datafix {
+namespace dc::test::datafix {
 
 namespace fs = std::filesystem;
 
@@ -246,4 +246,4 @@ inline Disc StandardDisc() {
  */
 inline constexpr std::size_t kStandardReachable = 6;
 
-} // namespace datafix
+} // namespace dc::test::datafix

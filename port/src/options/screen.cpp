@@ -32,6 +32,12 @@
 
 namespace dc::options {
 
+using namespace dc::game;
+using namespace dc::battlemenu;
+using namespace dc::localize;
+using namespace dc::platform;
+using namespace dc::quest;
+
 Screen g_screen;
 
 namespace {
@@ -479,16 +485,16 @@ void RunKeys() {
 
 Texts::Texts() {
     left.SetText("<");
-    left.SetColor(UI::ColorWhite);
+    left.SetColor(ui::ColorWhite);
     right.SetText(">");
-    right.SetColor(UI::ColorWhite);
+    right.SetColor(ui::ColorWhite);
     l1.SetText(kGlyphL1);
-    l1.SetColor(UI::ColorWhite);
+    l1.SetColor(ui::ColorWhite);
     r1.SetText(kGlyphR1);
-    r1.SetColor(UI::ColorWhite);
+    r1.SetColor(ui::ColorWhite);
 
     shortcuts.SetText(LocalizeText("options.shortcuts", kShortcutsText));
-    shortcuts.SetColor(UI::ColorWhite);
+    shortcuts.SetColor(ui::ColorWhite);
 
     help.Set(kSaveHelp, LocalizeText("options.help.save_failed", kSaveHelpText));
     help.Set(kDisplayHelp, LocalizeText("options.help.display_kept", kDisplayHelpText));
@@ -497,14 +503,14 @@ Texts::Texts() {
     int index = 0;
     int page_index = 0;
     for (const Page &page : Pages()) {
-        tabs.emplace_back(LocalizeText(PageKey(page.name), page.name), UI::ColorWhite);
+        tabs.emplace_back(LocalizeText(PageKey(page.name), page.name), ui::ColorWhite);
         help.Set(kPageHelp + page_index++, LocalizeText(PageKey(page.name) + ".help", page.help) + "\n" +
                                                LocalizeText("options.help.turn_page", kTurnPageText));
         labels.emplace_back();
         values.emplace_back();
         for (const Row &row : page.rows) {
-            labels.back().emplace_back(LocalizeText("options." + std::string(row.key) + ".label", row.label), UI::ColorWhite);
-            values.back().emplace_back("", UI::ColorWhite, UI::Alignment::Center);
+            labels.back().emplace_back(LocalizeText("options." + std::string(row.key) + ".label", row.label), ui::ColorWhite);
+            values.back().emplace_back("", ui::ColorWhite, ui::Alignment::Center);
             if (row.help != nullptr) {
                 help.Set(kRowHelp + index, LocalizeText("options." + std::string(row.key) + ".help", row.help));
             }
@@ -701,7 +707,7 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
     for (auto &entry : RowStrings()) {
         out.push_back(std::move(entry));
     }
-    for (auto &entry : areacard::Strings()) {
+    for (auto &entry : ui::area_card::Strings()) {
         out.push_back(std::move(entry));
     }
     for (auto &entry : BattleMenuStrings()) {
@@ -710,10 +716,10 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
     for (auto &entry : JournalStrings()) {
         out.push_back(std::move(entry));
     }
-    for (auto &entry : TitleMenu::Strings()) {
+    for (auto &entry : title::menu::Strings()) {
         out.push_back(std::move(entry));
     }
-    for (auto &entry : Dialog::Strings()) {
+    for (auto &entry : dialog::Strings()) {
         out.push_back(std::move(entry));
     }
     for (auto &entry : QuestStrings()) {

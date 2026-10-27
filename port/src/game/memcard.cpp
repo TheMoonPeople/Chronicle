@@ -41,6 +41,12 @@
 
 namespace dc::game {
 
+using namespace dc::battlemenu;
+using namespace dc::options;
+using namespace dc::save;
+using namespace dc::text;
+using namespace dc::ui;
+
 CEditPartsInfo    BtEditPartsInfo;
 MENU_ATORA_SEL    MenuAtoraSel;
 CMemoryCardAccess McAccess;

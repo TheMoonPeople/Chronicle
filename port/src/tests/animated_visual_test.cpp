@@ -14,6 +14,11 @@
 #include "renderinfo.hpp"
 #include "visual.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::render;
+
 TEST(ChroniclePresentation, AnimatedBodyMatchesAcrossDisplayBuffersAndStationaryPoses) {
     dc::test::GfxFixture fixture(64, 48, 1.0f, dc::test::GfxOptions{.offscreen = true});
     CVisualMDTVu1        visual;
@@ -234,3 +239,5 @@ TEST(ChroniclePresentation, MdtRemakeTracksMaterialChangesAndAlwaysUpdatesVertic
     block[8] = 0;
     Draw3DSweepVisuals();
 }
+
+} // namespace dc::test

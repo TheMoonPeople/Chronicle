@@ -22,9 +22,9 @@ void TitlePortFeedback(u_char alpha);
  * One band of the title's fog: frame_image's texel rect drawn back over the screen rect at alpha.
  */
 struct TitleFogBand {
-    CRect_i_ screen;     /**< Destination rect on the logical frame. */
-    CRect_i_ texel;      /**< Source rect in frame_image. */
-    u_char   alpha = {}; /**< Blend alpha, 0x80 opaque. */
+    game::CRect_i_ screen;     /**< Destination rect on the logical frame. */
+    game::CRect_i_ texel;      /**< Source rect in frame_image. */
+    u_char         alpha = {}; /**< Blend alpha, 0x80 opaque. */
 };
 
 /**
@@ -52,7 +52,7 @@ float TitlePortBackdropScale();
  * Draws the attract movie's title card: the 768-texel sprite turned by angle about the frame's
  * centre, at TitlePortBackdropScale.
  */
-void TitlePortCard(CTexture *texture, float angle);
+void TitlePortCard(game::CTexture *texture, float angle);
 
 } // namespace dc::title
 

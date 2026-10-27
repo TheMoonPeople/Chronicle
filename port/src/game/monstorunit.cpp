@@ -45,6 +45,8 @@
 
 namespace dc::game {
 
+using namespace dc::platform;
+
 int           hitCnt;
 BEE_STATE     BeeTbl[800];
 CTexAnimeData MonsterTexAnim[320];

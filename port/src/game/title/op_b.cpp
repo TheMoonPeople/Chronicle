@@ -47,6 +47,8 @@
 
 namespace dc::game {
 
+using namespace dc::data;
+
 // The game APIs this file calls take names as char *, and string literals are passed to them.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 

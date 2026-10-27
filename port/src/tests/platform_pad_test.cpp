@@ -16,6 +16,12 @@
 #include "platform/input.hpp"
 #include "platform/input_script.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+using namespace dc::app;
+using namespace dc::platform;
+
 // CGamePad::Init waits on sceGsSyncV, which lives in the libgraph stub, so
 // these tests do what Init does to the library themselves (scePadInit and
 // both scePadPortOpen calls) and rely on GamePad's zero-initialised storage
@@ -616,3 +622,5 @@ TEST(PlatformPad, BindCaptureReportsTheFirstNewSource) {
     InputSetScriptedDevices({});
     ASSERT_FALSE(InputBindSourceHeld("P"));
 }
+
+} // namespace dc::test

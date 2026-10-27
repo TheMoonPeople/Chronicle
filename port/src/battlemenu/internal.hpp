@@ -81,7 +81,7 @@ void PortDrawBuildUpWeaponSelect(int x, int y, int cursor);
 /**
  * Draws one weapon of a character's weapon list, its model at depth and its row at (x, y).
  */
-void PortDrawAallWeapon(int x, int y, float depth, CCharacter *model, WEAPON_HAVE *weapon,
+void PortDrawAallWeapon(int x, int y, float depth, game::CCharacter *model, game::WEAPON_HAVE *weapon,
                         int equipped, int selected, int alpha);
 
 /**
@@ -135,14 +135,14 @@ namespace detail {
  * Refreshes cached pointers to the resident Battle Menu textures.
  */
 inline void RefreshBtlMenuTextures() {
-    MenuCharaFace = TexManager.GetTexture(const_cast<char *>("charaface"), BtlMenuReadBlock);
-    BtStatus = TexManager.GetTexture(const_cast<char *>("btstatus2"), BtlMenuReadBlock);
-    WepIcon = TexManager.GetTexture(const_cast<char *>("wepicon"), -1);
-    game::ItemIcon = TexManager.GetTexture(const_cast<char *>("itemicon"), BtlMenuReadBlock);
-    PerBoardTex = TexManager.GetTexture(const_cast<char *>("perbrd"), BtlMenuReadBlock);
-    WepStatus = TexManager.GetTexture(const_cast<char *>("wepstatus"), BtlMenuExtBlock);
-    VillageName = TexManager.GetTexture(const_cast<char *>("vilname"), -1);
-    VillageBar = TexManager.GetTexture(const_cast<char *>("viltag"), -1);
+    game::MenuCharaFace = game::TexManager.GetTexture(const_cast<char *>("charaface"), game::BtlMenuReadBlock);
+    game::BtStatus = game::TexManager.GetTexture(const_cast<char *>("btstatus2"), game::BtlMenuReadBlock);
+    game::WepIcon = game::TexManager.GetTexture(const_cast<char *>("wepicon"), -1);
+    game::ItemIcon = game::TexManager.GetTexture(const_cast<char *>("itemicon"), game::BtlMenuReadBlock);
+    game::PerBoardTex = game::TexManager.GetTexture(const_cast<char *>("perbrd"), game::BtlMenuReadBlock);
+    game::WepStatus = game::TexManager.GetTexture(const_cast<char *>("wepstatus"), game::BtlMenuExtBlock);
+    game::VillageName = game::TexManager.GetTexture(const_cast<char *>("vilname"), -1);
+    game::VillageBar = game::TexManager.GetTexture(const_cast<char *>("viltag"), -1);
 }
 
 /**
@@ -170,24 +170,24 @@ inline std::string DecodeMesFromBuffer(short *mes_buffer, int mes_no) {
     if (mes_buffer == nullptr || mes_no < 0) {
         return {};
     }
-    short *saved_buff = CommonMenuMes3.buff;
-    CommonMenuMes3.buff = mes_buffer;
-    const short *codes = CommonMenuMes3.GetTextLineDataTop(mes_no);
-    CommonMenuMes3.buff = saved_buff;
+    short *saved_buff = game::CommonMenuMes3.buff;
+    game::CommonMenuMes3.buff = mes_buffer;
+    const short *codes = game::CommonMenuMes3.GetTextLineDataTop(mes_no);
+    game::CommonMenuMes3.buff = saved_buff;
     if (codes == nullptr) {
         return {};
     }
-    return CleanDecodedText(GameTextDecode(codes));
+    return CleanDecodedText(text::GameTextDecode(codes));
 }
 
 /**
  * Decodes the localized display name of an item or weapon from the system message table.
  */
 inline std::string DecodeItemNamePort(int item_no, std::string_view fallback = {}) {
-    if (item_no > 0 && SystemMes != nullptr) {
-        if (COM_ITEM_INFO *info = GetCommonItemInfo(item_no)) {
+    if (item_no > 0 && game::SystemMes != nullptr) {
+        if (game::COM_ITEM_INFO *info = game::GetCommonItemInfo(item_no)) {
             if (info->msg > 0) {
-                std::string       name = DecodeMesFromBuffer(SystemMes, info->msg + 0x64);
+                std::string       name = DecodeMesFromBuffer(game::SystemMes, info->msg + 0x64);
                 const std::size_t newline = name.find('\n');
                 if (newline != std::string::npos) {
                     name.resize(newline);

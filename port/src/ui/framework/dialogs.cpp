@@ -9,6 +9,8 @@
 
 namespace dc::ui {
 
+using namespace dc::game;
+
 namespace {
 
 /**

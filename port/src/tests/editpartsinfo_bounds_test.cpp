@@ -6,6 +6,10 @@
 #include "edit.hpp"
 #include "editpartsinfo.hpp"
 
+namespace dc::test {
+
+using namespace dc::game;
+
 TEST(EditPartsInfo, RejectsCellGridLargerThanRetailRecord) {
     INIT_PARTSINFO     init{};
     EPARTS_INFO_HEADER header{};
@@ -23,3 +27,5 @@ TEST(EditPartsInfo, RejectsMissingSourceOrDestination) {
     EXPECT_EQ(EdInitToEPInfo(nullptr, &header), 0);
     EXPECT_EQ(EdInitToEPInfo(&init, nullptr), 0);
 }
+
+} // namespace dc::test
