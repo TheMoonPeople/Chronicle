@@ -1,5 +1,6 @@
 #include "fish.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 #include "fish_port.hpp"
@@ -52,13 +53,8 @@ void CFish::SetScale() {
         size += deviation * (info.max_size - info.min_size) / 8.0f;
     }
 
-    if (size < 0.5f * info.min_size) {
-        size = 0.5f * info.min_size;
-    }
-
-    if (size > info.max_size) {
-        size = info.max_size;
-    }
+    size = std::max(size, 0.5f * info.min_size);
+    size = std::min(size, info.max_size);
 
     size = SmoothFishSize(size, info.min_size, info.max_size);
 

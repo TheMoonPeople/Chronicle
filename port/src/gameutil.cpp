@@ -1,13 +1,34 @@
 #include "gameutil.hpp"
 
+#include <libvu0.h>
+
+#include <bit>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <print>
+#include <set>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <vector>
 
 #include "audio/mixer.hpp"
 #include "audio/trace.hpp"
+#include "draw2d_port.hpp"
+#include "framevu1.hpp"
+#include "mathutil.hpp"
+#include "mdt.hpp"
+#include "rect.hpp"
+#include "snd.hpp"
+#include "texture.hpp"
+#include "texture_port.hpp"
+#include "visualvu1.hpp"
+#include "vu0_ops.hpp"
 
-// The EZMIDI RPC as the port's mixer answers it. CSound (port/src/sound.cpp) talks to the mixer
-// directly and never comes here; this keeps the command table answerable for anything else.
+// The EZMIDI RPC as the port's mixer answers it. CSound talks to the mixer directly and never
+// comes here; this keeps the command table answerable for anything else.
 //
 // Command words: the low nibble is the MIDI port.
 //   0x00+p play            0x20+p stop            0x30+p rewind to song n
@@ -49,7 +70,7 @@ int ezMidi(int command, int argument) {
             return mixer.Volume(port);
         default:
             // The rest carry IOP addresses, which the port has no equivalent of.
-            std::fprintf(stderr, "ezMidi: command 0x%X takes an IOP address; ignored\n", command);
+            std::println(stderr, "ezMidi: command 0x{:X} takes an IOP address; ignored", static_cast<unsigned>(command));
             return 0;
     }
 }
@@ -59,24 +80,15 @@ int ezTransToIOP(void *iop_address, void *ee_address, int size) {
     return 0;
 }
 
-#include <libvu0.h>
-
-#include <cstdio>
-#include <cstring>
-#include <memory>
-
-#include "framevu1.hpp"
-#include "gameutil.hpp"
-#include "mathutil.hpp"
-#include "mdt.hpp"
-#include "visualvu1.hpp"
-#include "vu0_ops.hpp"
-
 namespace {
 
-// Retail's def_vrtx is file-static in gameutil.cpp, which only MotionProc2 touches.
 std::unique_ptr<sceVu0FVECTOR[]> g_deformed;
 int                              g_deformed_count = 0;
+
+sceVu0FMATRIX  g_bone_matrix;
+sceVu0FMATRIX  g_bone_matrix_inverse;
+sceVu0FMATRIX  g_bone_matrix_base;
+sceVu0FVECTOR *g_skinned_vertices = nullptr;
 
 // base carries the inverted bind rotation with the uninverted bind translation in row 3, which is
 // why the translation is subtracted before the transform and again after it.
@@ -112,23 +124,19 @@ void SkinVertex(float *out, float *deformed, const float *source, const float ba
 } // namespace
 
 Mot_List *MotionProc2(CFrame *frame, tagMOTION_TYPE *motion, tagFRAME_INF *frame_info, Mot_List *list) {
-    static sceVu0FMATRIX  Bone_Matrix;
-    static sceVu0FMATRIX  Bone_Matrix_inv;
-    static sceVu0FMATRIX  Bone_Matrix_Base;
-    static sceVu0FVECTOR *vert;
-    CFrameVu1            *target;
-
     if (list->type == MOTION_KEY_SKIP) {
         return list->next;
     }
 
-    target = &(static_cast<CFrameVu1 *>(frame))[list->target];
+    auto      *frames = static_cast<CFrameVu1 *>(frame);
+    CFrameVu1 *target = &frames[list->target];
 
     if (list->target == static_cast<u32>(frame_info[list->frame].parent_frame)) {
-        CFrameVu1  *owner = &(static_cast<CFrameVu1 *>(frame))[list->frame];
-        MDT_HEADER *model = reinterpret_cast<MDT_HEADER *>(owner->GetVisual()->GetMDTDataAddress());
+        CFrameVu1 *owner = &frames[list->frame];
+        auto      *model = reinterpret_cast<MDT_HEADER *>(owner->GetVisual()->GetMDTDataAddress());
 
-        vert = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<u_char *>(model) + model->vertex_ofs);
+        g_skinned_vertices =
+            reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<u_char *>(model) + model->vertex_ofs);
 
         const int vertex_count = frame_info[list->frame].vertex_count;
         if (vertex_count < 0) {
@@ -146,9 +154,9 @@ Mot_List *MotionProc2(CFrame *frame, tagMOTION_TYPE *motion, tagFRAME_INF *frame
             std::memcpy(g_deformed.get(), frame_info[list->frame].base_vertices,
                         static_cast<size_t>(vertex_count) * sizeof(sceVu0FVECTOR));
         }
-        sceVu0UnitMatrix(Bone_Matrix);
-        sceVu0UnitMatrix(Bone_Matrix_Base);
-        sceVu0InversMatrix(Bone_Matrix_inv, frame_info[list->frame].matrix);
+        sceVu0UnitMatrix(g_bone_matrix);
+        sceVu0UnitMatrix(g_bone_matrix_base);
+        sceVu0InversMatrix(g_bone_matrix_inverse, frame_info[list->frame].matrix);
         owner->attr.remake_pending = 1;
         sceVu0UnitMatrix(frame_info[list->target].bone_base_matrix);
         sceVu0UnitMatrix(frame_info[list->target].bone_matrix);
@@ -157,46 +165,31 @@ Mot_List *MotionProc2(CFrame *frame, tagMOTION_TYPE *motion, tagFRAME_INF *frame
         sceVu0FVECTOR translation;
 
         sceVu0CopyMatrix(local, target->local);
-        MulMatrix(Bone_Matrix, frame_info[frame_info[list->target].parent_frame].bone_matrix, local);
-        MulMatrix(Bone_Matrix_Base, frame_info[frame_info[list->target].parent_frame].bone_base_matrix,
+        MulMatrix(g_bone_matrix, frame_info[frame_info[list->target].parent_frame].bone_matrix, local);
+        MulMatrix(g_bone_matrix_base, frame_info[frame_info[list->target].parent_frame].bone_base_matrix,
                   motion->base_matrices[list->target]);
-        sceVu0CopyMatrix(frame_info[list->target].bone_base_matrix, Bone_Matrix_Base);
-        sceVu0CopyMatrix(frame_info[list->target].bone_matrix, Bone_Matrix);
-        sceVu0CopyVector(translation, Bone_Matrix_Base[3]);
-        sceVu0InversMatrix(Bone_Matrix_Base, Bone_Matrix_Base);
-        sceVu0CopyVector(Bone_Matrix_Base[3], translation);
+        sceVu0CopyMatrix(frame_info[list->target].bone_base_matrix, g_bone_matrix_base);
+        sceVu0CopyMatrix(frame_info[list->target].bone_matrix, g_bone_matrix);
+        sceVu0CopyVector(translation, g_bone_matrix_base[3]);
+        sceVu0InversMatrix(g_bone_matrix_base, g_bone_matrix_base);
+        sceVu0CopyVector(g_bone_matrix_base[3], translation);
     }
 
     for (u_int i = 0; i < list->key_count; i++) {
-        u32 vertex = list->keys[i].frame;
-        if (vertex >= static_cast<u32>(g_deformed_count) || vert == nullptr) {
+        const u32 vertex = list->keys[i].frame;
+        if (vertex >= static_cast<u32>(g_deformed_count) || g_skinned_vertices == nullptr) {
             continue;
         }
-        SkinVertex(vert[vertex], g_deformed[vertex], frame_info[list->frame].base_vertices[vertex], Bone_Matrix_Base,
-                   Bone_Matrix, Bone_Matrix_inv, 0.01f * list->keys[i].value[0]);
+        SkinVertex(g_skinned_vertices[vertex], g_deformed[vertex], frame_info[list->frame].base_vertices[vertex],
+                   g_bone_matrix_base, g_bone_matrix, g_bone_matrix_inverse, 0.01f * list->keys[i].value[0]);
     }
 
     return list->next;
 }
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <set>
-#include <string>
-#include <tuple>
-#include <vector>
-
-#include "draw2d_port.hpp"
-#include "gameutil.hpp"
-#include "rect.hpp"
-#include "snd.hpp"
-#include "texture.hpp"
-#include "texture_port.hpp"
-
 namespace {
 
-// Retail's sprite batches filter with a file-static flag nothing ever sets.
+// TEX1 for every batch: fixed LOD, nearest magnification.
 constexpr u_long kBatchTex1 = 0x41;
 
 bool                       g_batch_open = false;
@@ -207,7 +200,7 @@ std::vector<gfx::Vertex2D> g_batch;
 
 // The batch draws when it closes, which is where retail's packet reaches the GS: nothing else may
 // write to the packet between Start and End.
-void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
+void set2DSprite_Start(sceVif1Packet * /*packet*/, CTexture *texture) {
     g_batch.clear();
     g_batch_open = texture != nullptr;
     if (texture != nullptr) {
@@ -215,8 +208,8 @@ void set2DSprite_Start(sceVif1Packet *packet, CTexture *texture) {
     }
 }
 
-void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
-                                    u8 red, u8 green, u8 blue, u8 alpha) {
+void set2DSprite_Core(sceVif1Packet * /*packet*/, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel,
+                      u8 red, u8 green, u8 blue, u8 alpha) {
     if (texture == nullptr || !g_batch_open) {
         return;
     }
@@ -226,18 +219,18 @@ void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &
     static const bool                                            trace = std::getenv("DC_SPRITE_TRACE") != nullptr;
     static std::set<std::tuple<std::string, int, int, int, int>> seen;
     if (trace && seen.emplace(texture->name, texel.x, texel.y, texel.width, texel.height).second) {
-        std::fprintf(stderr, "sprite %s texel %d %d %d %d screen %d %d %d %d\n", texture->name, texel.x, texel.y,
+        std::println(stderr, "sprite {} texel {} {} {} {} screen {} {} {} {}", std::string_view(texture->name), texel.x, texel.y,
                      texel.width, texel.height, screen.x, screen.y, screen.width, screen.height);
     }
 
-    const float x0 = static_cast<float>(screen.x);
-    const float y0 = static_cast<float>(screen.y);
-    const float x1 = static_cast<float>(screen.x + screen.width);
-    const float y1 = static_cast<float>(screen.y + screen.height);
-    const float u0 = static_cast<float>(texel.x);
-    const float v0 = static_cast<float>(texel.y);
-    const float u1 = static_cast<float>(texel.x + texel.width);
-    const float v1 = static_cast<float>(texel.y + texel.height);
+    const auto x0 = static_cast<float>(screen.x);
+    const auto y0 = static_cast<float>(screen.y);
+    const auto x1 = static_cast<float>(screen.x + screen.width);
+    const auto y1 = static_cast<float>(screen.y + screen.height);
+    const auto u0 = static_cast<float>(texel.x);
+    const auto v0 = static_cast<float>(texel.y);
+    const auto u1 = static_cast<float>(texel.x + texel.width);
+    const auto v1 = static_cast<float>(texel.y + texel.height);
 
     g_batch.push_back(draw2d::Vertex(x0, y0, 0.0f, u0, v0, red, green, blue, alpha));
     g_batch.push_back(draw2d::Vertex(x1, y0, 0.0f, u1, v0, red, green, blue, alpha));
@@ -245,7 +238,7 @@ void set2DSprite_Core(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &
     g_batch.push_back(draw2d::Vertex(x0, y1, 0.0f, u0, v1, red, green, blue, alpha));
 }
 
-void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
+void set2DSprite_End(sceVif1Packet * /*packet*/, CTexture * /*texture*/) {
     if (!g_batch_open) {
         return;
     }
@@ -256,11 +249,11 @@ void set2DSprite_End(sceVif1Packet *packet, CTexture *texture) {
     g_batch.clear();
 }
 
-void SetClut(sceVif1Packet *packet, CTexture *texture, i *clut) {
+void SetClut(sceVif1Packet * /*packet*/, CTexture *texture, i *clut) {
     if (texture == nullptr || clut == nullptr) {
         return;
     }
 
-    const sceGsTex0 tex0 = *reinterpret_cast<const sceGsTex0 *>(&texture->tex0);
+    const auto tex0 = std::bit_cast<sceGsTex0>(texture->tex0);
     PortLoadClut(static_cast<unsigned>(tex0.CBP), reinterpret_cast<const u_int *>(clut));
 }

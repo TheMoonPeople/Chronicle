@@ -17,7 +17,8 @@
 #include "platform/input.hpp"
 
 namespace {
-constexpr int kPolys = 32768, kFrames = 4096;
+constexpr int kPolys = 32768;
+constexpr int kFrames = 4096;
 
 int FrameBound(CFrame *frame, int &visits, int depth = 0) {
     if (!frame) {
@@ -41,11 +42,11 @@ int FrameBound(CFrame *frame, int &visits, int depth = 0) {
     }
     if (!(frame->flags & 2) && !(frame->flags & 4)) {
         for (CFrame *child = frame->child; child; child = child->brother) {
-            int n = FrameBound(child, visits, depth + 1);
-            if (n < 0 || n > kPolys - count) {
+            int child_count = FrameBound(child, visits, depth + 1);
+            if (child_count < 0 || child_count > kPolys - count) {
                 return -1;
             }
-            count += n;
+            count += child_count;
         }
     }
     return count;
@@ -100,11 +101,11 @@ bool FirstPersonDungeonStep(CDungeonMap &map, DRAN_MAP_FIELD_SET *fields, float 
         return append(frame);
     };
     if (map.map_type != 1) {
-        for (auto &p : map.parts) {
-            if (!p.frame[0]) {
+        for (auto &parts_entry : map.parts) {
+            if (!parts_entry.frame[0]) {
                 break;
             }
-            if (!part(p.collision, p.frame_offset[0][0], p.frame_offset[0][1], p.frame_offset[0][2], static_cast<int>(p.frame_turn[0]) + p.collision_turn)) {
+            if (!part(parts_entry.collision, parts_entry.frame_offset[0][0], parts_entry.frame_offset[0][1], parts_entry.frame_offset[0][2], static_cast<int>(parts_entry.frame_turn[0]) + parts_entry.collision_turn)) {
                 return false;
             }
         }
@@ -118,16 +119,16 @@ bool FirstPersonDungeonStep(CDungeonMap &map, DRAN_MAP_FIELD_SET *fields, float 
                 if (cell.parts_no < 0 || cell.parts_no >= 72 || cell.direction < 0 || cell.direction > 3) {
                     return false;
                 }
-                auto &p = map.parts[cell.parts_no];
-                if (!part(p.collision, 160.0f * x, 0, 160.0f * z, cell.direction + p.collision_turn)) {
+                auto &parts_entry = map.parts[cell.parts_no];
+                if (!part(parts_entry.collision, 160.0f * x, 0, 160.0f * z, cell.direction + parts_entry.collision_turn)) {
                     return false;
                 }
             }
         }
     }
-    for (auto &b : map.boxes) {
-        if (b.used && map.box_collision_model) {
-            map.box_collision_model->SetPosition(b.pos);
+    for (auto &treasure_box : map.boxes) {
+        if (treasure_box.used && map.box_collision_model) {
+            map.box_collision_model->SetPosition(treasure_box.pos);
             if (!append(map.box_collision_model)) {
                 return false;
             }

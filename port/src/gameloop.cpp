@@ -11,6 +11,7 @@
 #include <format>
 #include <memory>
 #include <mutex>
+#include <print>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -57,7 +58,6 @@
 
 int  EditInit(void *param);
 int  EditLoop();
-void SndInit();
 bool TakeBattleMenuLoadRequest();
 bool TakeBattleMenuTitleRequest();
 
@@ -82,7 +82,12 @@ constexpr int kSaveMapNoOffset = 0x1C8;
 constexpr int kWarmUpTicks = 60;
 
 // The TEXA vudata.cpp's My_DrawEnv loads at the start of every mode, through My_dma_start0.
-constexpr sceGsTexa kDrawEnvTexa = {0x80, 0, 1, 0, 0x80, 0};
+constexpr sceGsTexa kDrawEnvTexa = {.TA0 = 0x80, .pad8 = 0, .AEM = 1, .pad16 = 0, .TA1 = 0x80, .pad40 = 0};
+
+void SetMainSelectParam(std::string_view text) {
+    std::ranges::copy(text, std::begin(main_select_param));
+    main_select_param[text.size()] = '\0';
+}
 
 GamePresentSettings g_present;
 gfx::DisplayListRef g_list;
@@ -99,7 +104,7 @@ struct PublishedFrame {
     gfx::DisplayListRef      overlay;
     GamePresentSettings      settings;
     PresentClock::time_point start;
-    PresentClock::duration   length;
+    PresentClock::duration   length{};
     std::uint64_t            serial = 0;
 };
 
@@ -118,10 +123,10 @@ bool PresentAsync() {
 }
 
 // Runs only on the worker, using immutable lists and settings published by the game thread.
-PresentClock::duration PresentRenderIdle(void *) {
+PresentClock::duration PresentRenderIdle(void * /*user*/) {
     PublishedFrame frame;
     {
-        std::lock_guard lock(g_publish_mutex);
+        std::scoped_lock lock(g_publish_mutex);
         frame = g_published;
     }
     if (!frame.list) {
@@ -145,7 +150,7 @@ PresentClock::duration PresentRenderIdle(void *) {
     if (frame.settings.interpolation && now >= frame.start + frame.length && g_render_tick_shown) {
         return std::chrono::milliseconds(1);
     }
-    bool shown;
+    bool shown = false;
     if (frame.settings.interpolation) {
         const float        alpha = std::clamp(std::chrono::duration<float>(now - frame.start).count() /
                                                   std::chrono::duration<float>(frame.length).count(),
@@ -305,8 +310,7 @@ std::int64_t g_frame_budget = -1;
 std::int64_t g_frames;
 bool         g_stop;
 
-// Retail's save_data and config_data are static in main.cpp, so the port
-// keeps its own; everything else reaches the save through SaveData.
+// Everything else reaches the save through SaveData.
 alignas(64) CSaveData g_save_data;
 
 s32 *ConfigWords() {
@@ -416,8 +420,6 @@ int ModeLoop(bool &skip_title) {
         case GAME_MODE_SAVE:
             return LoopSave();
         case GAME_MODE_UNUSED_12:
-            // Retail reads a register nothing set; the port's zero keeps the mode running, as an
-            // idle mode should.
             return 0;
         case GAME_MODE_MEMORY_CHECK:
             return MemCheckLoop();
@@ -504,7 +506,7 @@ bool FrameBoundaryStop() {
 } // namespace
 
 void ResetSaveKeepingConfig(CSaveData &save) {
-    SV_CONFIG_SYS config;
+    SV_CONFIG_SYS config{};
     // The configuration's copy holds one byte per word; the last file's number may not fit one.
     const s32 last_file = static_cast<s32 *>(save.GetConfigData())[kConfigLastFile];
     save.ConvertConfig(&config);
@@ -534,7 +536,7 @@ void GameFollowMapJump() {
         main_select_menu_no = 0;
     } else if (NextMapNo >= 800) {
         main_select_menu_no = 0;
-        std::strcpy(main_select_param, "title");
+        SetMainSelectParam("title");
         if (NextMapNo == 800) {
             mode = GAME_MODE_TITLE;
         }
@@ -555,8 +557,7 @@ void GameFollowMapJump() {
 void GameApplyLoopResult(int loop_mode, int result) {
     switch (loop_mode) {
         case GAME_MODE_LANGUAGE:
-            // Retail's memory card check came next and went on to the attract movie; the port has
-            // no card to check.
+            // There is no memory card check to run, so the attract movie comes next.
             if (result != 0) {
                 MapNo = 801;
                 mode = GAME_MODE_RUSH_MOVIE;
@@ -565,7 +566,7 @@ void GameApplyLoopResult(int loop_mode, int result) {
         case GAME_MODE_TITLE:
             if (result == 1 || result == 2) {
                 main_select_menu_no = result == 1 ? 0 : 1;
-                std::strcpy(main_select_param, "e01");
+                SetMainSelectParam("e01");
                 mode = GAME_MODE_EDIT;
             }
             if (result == 3) {
@@ -723,7 +724,7 @@ void GameCheckDebugToggle() {
         return;
     }
     DebugMode = !DebugMode;
-    std::fprintf(stderr, "debug mode %s\n", DebugMode ? "on" : "off");
+    std::println(stderr, "debug mode {}", DebugMode ? "on" : "off");
 }
 
 // The pad as the host latched it, so a mode that has locked the game's pad (an event, a fade) still
@@ -757,7 +758,7 @@ void GameEnterDeveloperMenu() {
     mode = GAME_MODE_MENU;
     InputSetMenuNavigation(true);
     InputSetDeveloperMenu(true);
-    std::fprintf(stderr, "debug mode: start + select, the developer menu\n");
+    std::println(stderr, "debug mode: start + select, the developer menu");
 }
 
 void GameSetAutosave(bool on) {
@@ -788,9 +789,6 @@ bool GameStopRequested() {
     return g_stop;
 }
 
-// Retail's SetEnv sends TEX1, TEST, ZBUF, ALPHA and CLAMP at the top of every frame. TEX1 is
-// read where a texture is bound and CLAMP is the sampler's; the window rectangle is what
-// sceGsSwapDBuff's draw environment restored every frame.
 void GameSetPresentSettings(const GamePresentSettings &settings) {
     g_present = settings;
     g_fps.on = settings.show_fps;
@@ -822,7 +820,7 @@ void GameRenderTick(gfx::DisplayListRef list) {
         const auto elapsed = std::chrono::duration_cast<PresentClock::duration>(
             std::chrono::duration<double>(ClockTickFraction() / ClockTickRate()));
         {
-            std::lock_guard lock(g_publish_mutex);
+            std::scoped_lock lock(g_publish_mutex);
             g_published.list = g_list;
             g_published.previous = g_previous_list;
             g_published.overlay = g_fps.on ? g_fps.list : nullptr;
@@ -900,7 +898,7 @@ GamePresentStats GamePresentStatistics() {
 void GameStopPresentation() {
     gfx::SetRenderIdleHook(nullptr, nullptr);
     gfx::RenderLease lease;
-    std::lock_guard  lock(g_publish_mutex);
+    std::scoped_lock lock(g_publish_mutex);
     g_published = {};
 }
 
@@ -931,16 +929,13 @@ bool GameScreenshotWithFps(std::vector<std::uint8_t> &rgba, std::uint32_t &width
            gfx::ReadbackFrame(rgba, width, height);
 }
 
-int RunGame(int argc, char **argv) {
-    // mwInit is not called: the host has run every static constructor. init_all's IOP boot, CD
-    // and file-system resets, DevInit's DMA reset and the DMA channel handles have no host
-    // counterpart and are not called.
+int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     DebugMode = ConfigGet().debug_mode ? 1 : 0;
     g_developer_return_pending = false;
     g_developer_return_mode = GAME_MODE_TITLE;
     mode = GAME_MODE_MENU;
     main_select_menu_no = 0;
-    std::strcpy(main_select_param, "e01");
+    SetMainSelectParam("e01");
     InitCDFile();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
@@ -948,7 +943,7 @@ int RunGame(int argc, char **argv) {
     if (languages.size() == 1) {
         LanguageCode = languages[0];
     } else if (languages.empty()) {
-        std::fprintf(stderr, "the data has no languages.json; run dcdata extract again\n");
+        std::println(stderr, "the data has no languages.json; run dcdata extract again");
     }
     MGInit();
     InitMemoryFile();
@@ -976,7 +971,7 @@ int RunGame(int argc, char **argv) {
         GamePad.UpDate();
     }
     if (DebugMode && !g_jump.set) {
-        std::fprintf(stderr, "debug mode on\n");
+        std::println(stderr, "debug mode on");
     }
     if (!g_jump.set) {
         MapNo = -1;
@@ -1029,6 +1024,8 @@ int RunGame(int argc, char **argv) {
                 MapNo = -1;
                 OldMapNo = -1;
                 break;
+            default:
+                break;
         }
         LoadDrawEnv();
 
@@ -1056,10 +1053,10 @@ int RunGame(int argc, char **argv) {
         MGPortCutInterpolation();
         *reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset) = MapNo;
         if (g_autosave && mode == GAME_MODE_EDIT && !event_start && !SaveSlotWriteAutosave()) {
-            std::fprintf(stderr, "autosave: could not write %s\n", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)).c_str());
+            std::println(stderr, "autosave: could not write {}", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)));
         }
 
-        int result;
+        int result = 0;
         do {
             if (FrameBoundaryStop()) {
                 return kExitOk;
@@ -1128,7 +1125,7 @@ int RunGame(int argc, char **argv) {
             LocalMapNo = -1;
         }
 
-        // The port's reads complete as they are issued; the pump keeps a stray busy slot from
+        // Reads complete as they are issued; pumping the clock keeps a stray busy slot from
         // hanging here.
         while (ReadBGSync() != 0) {
             ClockSyncV();

@@ -4,7 +4,7 @@
 #include <libvu0.h>
 
 #include <algorithm>
-#include <iterator>
+#include <array>
 #include <vector>
 
 #include "draw2d_port.hpp"
@@ -43,13 +43,9 @@ void FishLineDraw(int above_water) {
     sceVu0FVECTOR uki_top;
     sceVu0FVECTOR hook_top;
     sceVu0FVECTOR esa_position;
-    int           draw;
-    int           visible;
-    int           prev_visible;
-    int           i;
 
     TexManager.ReloadTexture(GetVif1Packet(), fishing_texb);
-    prev_visible = 0;
+    int prev_visible = 0;
 
     const draw2d::Services &services = draw2d::Get();
     sceGsTest               test = mgPixelTest;
@@ -59,10 +55,10 @@ void FishLineDraw(int above_water) {
     std::vector<gfx::Vertex2D> segments;
     gfx::Vertex2D              pen = {};
 
-    for (i = 0; i < 24; i++) {
-        visible = MGRotTransPers(screen, point[i], 0);
-        u_char above = point[i][1] > WaterLevel;
-        bool   kick = true;
+    for (sceVu0FVECTOR &line_point : point) {
+        const int  visible = MGRotTransPers(screen, line_point, 0);
+        const bool above = line_point[1] > WaterLevel;
+        bool       kick = true;
 
         if (visible == 0 || prev_visible == 0) {
             kick = false;
@@ -95,7 +91,7 @@ void FishLineDraw(int above_water) {
 
     services.set_test(nullptr);
 
-    draw = true;
+    bool draw = true;
     VectorMax(uki_top, ukip[0], ukip[1], ukip[2], ukip[3]);
 
     if (above_water) {
@@ -171,15 +167,16 @@ void FishLineDraw(int above_water) {
 namespace {
 
 // The baits the picker offers (_GOTO_CHANGE_ESA) and esa_info knows.
-constexpr int kBaits[] = {ITEM_EVY, ITEM_MIMI, ITEM_PRICKLY, ITEM_THROBBING_CHERRY, ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS,
-                          ITEM_POISONOUS_APPLE, ITEM_MELLOW_BANANA, ITEM_CARROT, ITEM_POTATO_CAKE, ITEM_MINON,
-                          ITEM_BATTAN, ITEM_PETITE_FISH};
+constexpr std::array<int, 13> kBaits = {ITEM_EVY, ITEM_MIMI, ITEM_PRICKLY, ITEM_THROBBING_CHERRY,
+                                        ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS, ITEM_POISONOUS_APPLE, ITEM_MELLOW_BANANA,
+                                        ITEM_CARROT, ITEM_POTATO_CAKE, ITEM_MINON, ITEM_BATTAN,
+                                        ITEM_PETITE_FISH};
 
 // How many baits the towns' scripts list after the variable the picker writes to.
 constexpr int kScriptBaitList = 8;
 
 bool IsBait(int item) {
-    return std::find(std::begin(kBaits), std::end(kBaits), item) != std::end(kBaits);
+    return std::ranges::find(kBaits, item) != kBaits.end();
 }
 
 } // namespace

@@ -1,8 +1,10 @@
 #include "gametext.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <string_view>
 
 #include "gameutil.hpp"
@@ -47,9 +49,9 @@ constexpr s16 kUnknown = kGridFirst + static_cast<s16>(kGrid.find(U'?'));
 // well-formed sequence, advancing one byte.
 char32_t NextChar(std::string_view utf8, size_t &at) {
     const auto lead = static_cast<unsigned char>(utf8[at]);
-    int        length;
-    char32_t   ch;
-    char32_t   least;
+    int        length = 0;
+    char32_t   ch = 0;
+    char32_t   least = 0;
 
     if (lead < 0x80) {
         at++;
@@ -112,8 +114,8 @@ void AppendUtf8(std::string &out, char32_t ch) {
 // The control codes that are not characters, by the names the text is written with. Codes in a family
 // (a colour, a value, a name) are written with their number: "{value3}", "{wait 12}".
 struct Named {
-    s16         code;
-    const char *name;
+    s16              code;
+    std::string_view name;
 };
 
 constexpr Named kNamed[] = {
@@ -166,11 +168,11 @@ constexpr Named kNamed[] = {
 // the name and the number (code - first + origin), joined by a space where the name ends in a letter
 // that a digit would be read as part of ("wait 12") or directly ("value3").
 struct Family {
-    const char *name;
-    int         first;
-    int         last;
-    int         origin;
-    bool        spaced;
+    std::string_view name;
+    int              first;
+    int              last;
+    int              origin;
+    bool             spaced;
 };
 
 constexpr Family kFamilies[] = {
@@ -186,8 +188,8 @@ constexpr Family kFamilies[] = {
 };
 
 // "insert" runs over two stretches of codes.
-constexpr int kInsertFirst[] = {-0x402, -0x40E};
-constexpr int kInsertCount[] = {4, 6};
+constexpr std::array kInsertFirst = {-0x402, -0x40E};
+constexpr std::array kInsertCount = {4, 6};
 
 std::string Lower(std::string_view text) {
     std::string out(text);
@@ -218,18 +220,18 @@ int ParseNumber(std::string_view text) {
 std::string ControlName(s16 code) {
     for (const Named &named : kNamed) {
         if (named.code == code) {
-            return named.name;
+            return std::string(named.name);
         }
     }
     for (const Family &family : kFamilies) {
         if (code >= family.first && code <= family.last) {
             // values count upwards in number while their codes run downwards.
-            const bool downwards = std::string_view(family.name) == "value";
+            const bool downwards = family.name == "value";
             const int  number = downwards ? family.last - code + family.origin : code - family.first + family.origin;
             return std::string(family.name) + (family.spaced ? " " : "") + std::to_string(number);
         }
     }
-    for (int stretch = 0; stretch < 2; stretch++) {
+    for (size_t stretch = 0; stretch < kInsertFirst.size(); stretch++) {
         const int first = kInsertFirst[stretch];
         if (code <= first && code > first - kInsertCount[stretch]) {
             return "insert" + std::to_string((stretch == 0 ? 0 : kInsertCount[0]) + (first - code) + 1);
@@ -249,10 +251,10 @@ bool ControlFromName(std::string_view token, s16 &code) {
     }
     for (const Family &family : kFamilies) {
         const std::string_view prefix = family.name;
-        if (name.size() <= prefix.size() || name.compare(0, prefix.size(), prefix) != 0) {
+        if (name.size() <= prefix.size() || !name.starts_with(prefix)) {
             continue;
         }
-        std::string_view rest = std::string_view(name).substr(prefix.size());
+        const std::string_view rest = std::string_view(name).substr(prefix.size());
         if (family.spaced != (rest.front() == ' ')) {
             continue;
         }
@@ -264,7 +266,7 @@ bool ControlFromName(std::string_view token, s16 &code) {
             return true;
         }
     }
-    if (name.size() > 6 && name.compare(0, 6, "insert") == 0) {
+    if (name.size() > 6 && name.starts_with("insert")) {
         const int number = ParseNumber(std::string_view(name).substr(6));
         if (number >= 1 && number <= kInsertCount[0] + kInsertCount[1]) {
             const int index = number - 1;
@@ -301,7 +303,7 @@ bool ReadEscape(std::string_view utf8, size_t &at, s16 &code) {
         return false;
     }
     value = negative ? -value : value;
-    if (value < INT16_MIN || value > INT16_MAX) {
+    if (value < std::numeric_limits<s16>::min() || value > std::numeric_limits<s16>::max()) {
         return false;
     }
     code = static_cast<s16>(value);
@@ -334,6 +336,8 @@ s16 GameTextCode(char32_t ch) {
         case U'—':
             ch = U'-';
             break;
+        default:
+            break;
     }
 
     const size_t at = kGrid.find(ch);
@@ -354,6 +358,8 @@ char32_t GameTextChar(s16 code) {
             return U' ';
         case MES_CODE_NEWLINE:
             return U'\n';
+        default:
+            break;
     }
 
     if (code >= kGridFirst && code < kGridFirst + static_cast<int>(kGrid.size())) {
@@ -379,7 +385,7 @@ int GameTextEncode(std::string_view utf8, std::vector<s16> &out) {
                 continue;
             }
 
-            s16 code;
+            s16 code = 0;
             if (ReadEscape(utf8, at, code)) {
                 out.push_back(code);
                 continue;
@@ -401,12 +407,13 @@ int GameTextEncode(std::string_view utf8, std::vector<s16> &out) {
 std::string GameTextDecode(const s16 *codes) {
     std::string text;
 
-    for (; *codes != MES_CODE_END; codes++) {
-        const char32_t ch = GameTextChar(*codes);
+    for (size_t i = 0; codes[i] != MES_CODE_END; i++) {
+        const s16      code = codes[i];
+        const char32_t ch = GameTextChar(code);
 
         if (ch == 0) {
-            const std::string name = ControlName(*codes);
-            text += '{' + (name.empty() ? std::to_string(*codes) : name) + '}';
+            const std::string name = ControlName(code);
+            text += '{' + (name.empty() ? std::to_string(code) : name) + '}';
         } else if (ch == U'{') {
             text += "{{";
         } else {
@@ -418,7 +425,7 @@ std::string GameTextDecode(const s16 *codes) {
 }
 
 int GameTextFile::Set(int id, std::string_view utf8) {
-    if (id < INT16_MIN || id > INT16_MAX) {
+    if (id < std::numeric_limits<s16>::min() || id > std::numeric_limits<s16>::max()) {
         return -1;
     }
 
@@ -434,7 +441,7 @@ int GameTextFile::Set(int id, std::string_view utf8) {
     if (!messages.empty() && messages.rbegin()->first > id) {
         last = messages.rbegin()->second.size();
     }
-    if (1 + count + total - last > INT16_MAX) {
+    if (1 + count + total - last > static_cast<size_t>(std::numeric_limits<s16>::max())) {
         return -1;
     }
 
@@ -506,9 +513,7 @@ void GameText::SetColour(u32 new_colour) {
 
 void GameText::FitWidth(int width) {
     cell_width = width;
-    if (mes.mes_made >= 0 && width > 0 && mes.text_width > width) {
-        Layout();
-    } else if (mes.mes_made >= 0 && width > 0 && mes.char_width != base_char_width) {
+    if (mes.mes_made >= 0 && width > 0 && (mes.text_width > width || mes.char_width != base_char_width)) {
         Layout();
     }
 }

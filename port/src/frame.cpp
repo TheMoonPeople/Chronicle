@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <span>
 
 #include "boxvu0.hpp"
 #include "dataalloc.hpp"
@@ -22,9 +23,8 @@ void *PlaceDataAllocObject(std::size_t size, u_long128 *block);
 
 namespace {
 
-// frame.cpp's static ShadowMatrix: the planar projection along light 0 onto the plane through
-// point with the given normal. A plane through the origin is pushed a tenth of a unit back along
-// the normal, matching the game's chosen plane while avoiding a division by its offset.
+// Planar projection along light 0 onto the plane through point with the given normal. A plane
+// through the origin is pushed a tenth of a unit back along the normal so its offset is non-zero.
 void ShadowMatrix(sceVu0FMATRIX matrix, sceVu0FMATRIX light, float *point, float *normal) {
     sceVu0FVECTOR direction = {light[0][0], light[1][0], light[2][0], 0.0f};
     sceVu0FVECTOR plane;
@@ -70,8 +70,8 @@ void ShadowMatrix(sceVu0FMATRIX matrix, sceVu0FMATRIX light, float *point, float
     matrix[3][3] = 1.0f;
 }
 
-// frame.cpp's static ShadowClipBox: the bound of the frame's corners and of the same corners
-// flattened onto the shadow plane, in eye space.
+// Bound of the frame's corners and of the same corners flattened onto the shadow plane, in eye
+// space.
 void ShadowClipBox(sceVu0FVECTOR *screen, sceVu0FVECTOR *corner, sceVu0FMATRIX matrix, RenderInfo *info) {
     sceVu0FMATRIX shadow;
     sceVu0FVECTOR flat[8];
@@ -109,10 +109,10 @@ Draw3DIdentityScope::~Draw3DIdentityScope() {
     gfx::SetInterpKey(key, no_interpolation);
 }
 
-// Retail's culling, attributes and hierarchy walk, with the GS registers SetGsReg3 sent becoming
-// the current register shadows the visual's draw reads. The screen-bound test runs on an
-// unsqueezed view, so its vertical limits are the frame's full half-height (retail's quarter on
-// the squeezed field), and its limits are what the target shows: past a 4:3 window, the sides.
+// Culls the frame, applies its attributes to the current GS register shadows the visual's draw
+// reads, then walks the hierarchy. The screen-bound test runs on an unsqueezed view, so its
+// vertical limit is the frame's full half-height, and its limits are what the target shows (past
+// a 4:3 window, the sides).
 int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     sceVu0FMATRIX matrix;
     sceVu0FMATRIX screen_matrix;
@@ -129,7 +129,7 @@ int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     sceVu0FVECTOR color;
     int           near_clip = 0;
     int           far_clip = 0;
-    int           visible = true;
+    bool          visible = true;
     sceGsTest     test = mgPixelTest;
     sceGsZbuf     zbuf = mgZBuffer;
     sceGsAlpha    alpha;
@@ -329,7 +329,7 @@ int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
     return 0;
 }
 
-int CFrameVu1::DrawVu1(sceVif1Packet *, RenderInfo *info) {
+int CFrameVu1::DrawVu1(sceVif1Packet * /*packet*/, RenderInfo *info) {
     return DrawVu1(static_cast<unsigned int *>(nullptr), info);
 }
 
@@ -341,26 +341,26 @@ float g_pick_matrix[4][4];
 } // namespace
 
 void MulFrameMatrix(sceVu0FMATRIX m0, sceVu0FMATRIX m1, sceVu0FMATRIX m2) {
-    float r[4][4];
+    float product[4][4];
     for (int i = 0; i < 4; i++) {
-        vu0::Apply(r[i], m1, m2[i]);
+        vu0::Apply(product[i], m1, m2[i]);
     }
     for (int i = 0; i < 4; i++) {
-        vu0::Copy(m0[i], r[i]);
+        vu0::Copy(m0[i], product[i]);
     }
 }
 
 void ScaleMatrix(sceVu0FMATRIX m0, sceVu0FMATRIX m1, sceVu0FVECTOR scale) {
-    float s[3] = {scale[0], scale[1], scale[2]};
-    float r[4][4];
+    const float factor[3] = {scale[0], scale[1], scale[2]};
+    float       scaled[4][4];
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 4; j++) {
-            r[i][j] = m1[i][j] * s[i];
+            scaled[i][j] = m1[i][j] * factor[i];
         }
     }
-    vu0::Copy(r[3], m1[3]);
+    vu0::Copy(scaled[3], m1[3]);
     for (int i = 0; i < 4; i++) {
-        vu0::Copy(m0[i], r[i]);
+        vu0::Copy(m0[i], scaled[i]);
     }
 }
 
@@ -376,9 +376,9 @@ void ScreenBound(sceVu0FVECTOR *screen, sceVu0FVECTOR max, sceVu0FVECTOR min) {
     float corner[8][4];
     for (int i = 0; i < 8; i++) {
         vu0::Copy(corner[i], screen[i]);
-        float q = vu0::Div(1.0f, std::fabs(corner[i][2]));
-        corner[i][0] = vu0::Mul(corner[i][0], q);
-        corner[i][1] = vu0::Mul(corner[i][1], q);
+        float inverse_depth = vu0::Div(1.0f, std::fabs(corner[i][2]));
+        corner[i][0] = vu0::Mul(corner[i][0], inverse_depth);
+        corner[i][1] = vu0::Mul(corner[i][1], inverse_depth);
     }
 
     float hi[4];
@@ -397,25 +397,26 @@ void pre_trance_normal(sceVu0FMATRIX matrix) {
     std::memcpy(g_pick_matrix, matrix, sizeof(g_pick_matrix));
 }
 
-// Retail loads all three corners from p0 onwards (the caller's corners are contiguous) but stores
-// them through p0, p1 and p2. The plane's w is a lane vopmsub never writes; it is zeroed.
+// All three corners are loaded from p0 onwards (the caller's corners are contiguous) but stored
+// through p0, p1 and p2. The plane's w is a lane the cross product never writes; it is zeroed.
 void trance_normal(float *p0, float *p1, float *p2, float *plane) {
-    float a[4];
-    float b[4];
-    float c[4];
-    vu0::Apply(a, g_pick_matrix, p0);
-    vu0::Apply(b, g_pick_matrix, p0 + 4);
-    vu0::Apply(c, g_pick_matrix, p0 + 8);
+    const std::span<float, 12> corners(p0, 12);
+    float                      a[4];
+    float                      b[4];
+    float                      c[4];
+    vu0::Apply(a, g_pick_matrix, corners.subspan<0, 4>().data());
+    vu0::Apply(b, g_pick_matrix, corners.subspan<4, 4>().data());
+    vu0::Apply(c, g_pick_matrix, corners.subspan<8, 4>().data());
 
-    float e0[4] = {b[0] - a[0], b[1] - a[1], b[2] - a[2], b[3] - a[3]};
-    float e1[4] = {c[0] - a[0], c[1] - a[1], c[2] - a[2], c[3] - a[3]};
-    float n[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    vu0::Cross(n, e0, e1);
+    float edge0[4] = {b[0] - a[0], b[1] - a[1], b[2] - a[2], b[3] - a[3]};
+    float edge1[4] = {c[0] - a[0], c[1] - a[1], c[2] - a[2], c[3] - a[3]};
+    float normal[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    vu0::Cross(normal, edge0, edge1);
 
     vu0::Copy(p0, a);
     vu0::Copy(p1, b);
     vu0::Copy(p2, c);
-    vu0::Copy(plane, n);
+    vu0::Copy(plane, normal);
 }
 
 void *operator new(size_t size, u_long128 *block) {
