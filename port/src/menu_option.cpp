@@ -1,7 +1,9 @@
 #include "menu_option.hpp"
 
 #include <algorithm>
-#include <iterator>
+#include <array>
+#include <cstddef>
+#include <span>
 #include <utility>
 
 #include "memcard.hpp"
@@ -12,17 +14,20 @@
 
 namespace {
 
-// The save's configuration words (CSaveData::config) that hold the game's options.
-constexpr int kWordClockOff = 2;
-constexpr int kWordFastTime = 3;
-constexpr int kWordFastMessages = 4;
-constexpr int kWordMono = 5;
-constexpr int kWordSoftFocusOff = 6;
-constexpr int kWordVibrationOff = 7;
-constexpr int kWordNamesOff = 8;
-constexpr int kWordPlayerDamageOff = 9;
-constexpr int kWordEnemyDamageOff = 10;
-constexpr int kWordEnemyHpOff = 11;
+// Indices into the save's configuration words (CSaveData::config).
+constexpr std::size_t kConfigWordCount = 18;
+constexpr std::size_t kWordClockOff = 2;
+constexpr std::size_t kWordFastTime = 3;
+constexpr std::size_t kWordFastMessages = 4;
+constexpr std::size_t kWordMono = 5;
+constexpr std::size_t kWordSoftFocusOff = 6;
+constexpr std::size_t kWordVibrationOff = 7;
+constexpr std::size_t kWordNamesOff = 8;
+constexpr std::size_t kWordPlayerDamageOff = 9;
+constexpr std::size_t kWordEnemyDamageOff = 10;
+constexpr std::size_t kWordEnemyHpOff = 11;
+constexpr std::size_t kWordReserved15 = 15;
+constexpr std::size_t kWordReserved16 = 16;
 
 // minimap_status that hides the dungeon map.
 constexpr int kMapOff = 3;
@@ -32,21 +37,25 @@ constexpr int kMinWidth = 800;
 constexpr int kMinHeight = 600;
 
 // 0x0 is the monitor's resolution.
-constexpr OptionResolution kResolutions[] = {
-    {0,    0   },
-    {1024, 768 },
-    {1280, 720 },
-    {1280, 960 },
-    {1366, 768 },
-    {1440, 1080},
-    {1600, 900 },
-    {1920, 1080},
-    {2560, 1440},
-    {3840, 2160},
+constexpr std::array kResolutions = {
+    OptionResolution{.width = 0,    .height = 0   },
+    OptionResolution{.width = 1024, .height = 768 },
+    OptionResolution{.width = 1280, .height = 720 },
+    OptionResolution{.width = 1280, .height = 960 },
+    OptionResolution{.width = 1366, .height = 768 },
+    OptionResolution{.width = 1440, .height = 1080},
+    OptionResolution{.width = 1600, .height = 900 },
+    OptionResolution{.width = 1920, .height = 1080},
+    OptionResolution{.width = 2560, .height = 1440},
+    OptionResolution{.width = 3840, .height = 2160},
 };
 
+std::span<s32, kConfigWordCount> ConfigWords(CSaveData &save) {
+    return std::span<s32, kConfigWordCount>(static_cast<s32 *>(save.GetConfigData()), kConfigWordCount);
+}
+
 void WriteOptions(CSaveData &save, const ConfigGameOptions &options) {
-    s32 *words = static_cast<s32 *>(save.GetConfigData());
+    std::span<s32, kConfigWordCount> words = ConfigWords(save);
     words[kWordClockOff] = !options.clock;
     words[kWordFastTime] = options.fast_time;
     words[kWordFastMessages] = options.fast_messages;
@@ -66,19 +75,19 @@ void WriteOptions(CSaveData &save, const ConfigGameOptions &options) {
 std::vector<OptionResolution> OptionResolutionList(std::span<const DisplayModeSize> modes, int configured_width,
                                                    int configured_height, bool display_known, int display_width,
                                                    int display_height) {
-    std::vector<OptionResolution> sizes(std::begin(kResolutions), std::end(kResolutions));
+    std::vector<OptionResolution> sizes(std::from_range, kResolutions);
     for (const DisplayModeSize &mode : modes) {
         if (mode.width >= kMinWidth && mode.height >= kMinHeight) {
-            sizes.push_back({mode.width, mode.height});
+            sizes.push_back({.width = mode.width, .height = mode.height});
         }
     }
     bool configured = configured_width > 0 && configured_height > 0;
     if (configured) {
-        sizes.push_back({configured_width, configured_height});
+        sizes.push_back({.width = configured_width, .height = configured_height});
     }
     // Desktop stays first; the rest run from the smallest area, narrower first.
-    std::sort(sizes.begin() + 1, sizes.end(), [](const OptionResolution &a, const OptionResolution &b) {
-        return std::pair(a.width * a.height, a.width) < std::pair(b.width * b.height, b.width);
+    std::ranges::sort(sizes.begin() + 1, sizes.end(), [](const OptionResolution &lhs, const OptionResolution &rhs) {
+        return std::pair(lhs.width * lhs.height, lhs.width) < std::pair(rhs.width * rhs.height, rhs.width);
     });
     std::vector<OptionResolution> listed;
     for (const OptionResolution &size : sizes) {
@@ -116,11 +125,10 @@ void GameOptionsChanged(const Config &before, const Config &after) {
 }
 
 void GameOptionsClear(CSaveData &save) {
-    // These bytes remain reserved in the fixed save layout, but carry no player preference.
-    s32 *words = static_cast<s32 *>(save.GetConfigData());
-    std::fill(words + kWordClockOff, words + kWordEnemyHpOff + 1, 0);
-    words[15] = 0;
-    words[16] = 0;
+    std::span<s32, kConfigWordCount> words = ConfigWords(save);
+    std::ranges::fill(words.subspan(kWordClockOff, kWordEnemyHpOff - kWordClockOff + 1), 0);
+    words[kWordReserved15] = 0;
+    words[kWordReserved16] = 0;
     reinterpret_cast<CUserStatus *>(save.GetDngStatus())->minimap_status = 0;
     save.GetMenuCursor()->reset_pos = 0;
 }

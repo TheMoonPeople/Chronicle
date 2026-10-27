@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
@@ -25,18 +27,15 @@
 #include "userstatus.hpp"
 #include "weaponelement.hpp"
 
-/* The debug item preview (EnterItemPolygonView) copies a whole vector into each of these, one float
-   more than retail declares. MWCC gave every one of them a 16-byte slot, so on the PS2 the fourth
-   float lands in padding; the port gives them the fourth float, as zero, the padding's value. */
+// The debug item preview (EnterItemPolygonView) copies a whole four-float vector into each of
+// these; the fourth float stays zero.
 float menudebugrot[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
 float menudebugrscale[4] = {3.0f, 3.0f, 3.0f, 0.0f};
 
-/* A save/menu slot is caller supplied. Reject bad attachment IDs and slot
-   indices before looking up data or forming a pointer into the inventory. */
-int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST *unused) {
-    (void) unused;
-
+// The slot is caller supplied: bad attachment IDs and slot indices are rejected before looking up
+// data or forming a pointer into the inventory.
+int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST * /*unused*/) {
     if (slot < 0 || slot >= 43 || GetAttachData(item_no) == nullptr) {
         return -1;
     }
@@ -51,7 +50,7 @@ int SetAttachMentValue(int item_no, int slot, short level, ATTACH_LIST *unused) 
     }
 
     DNG_CONSUMABLE *items = status->consumable_items;
-    ATTACH_LIST    *attach = reinterpret_cast<ATTACH_LIST *>(&items[slot]);
+    auto           *attach = reinterpret_cast<ATTACH_LIST *>(&items[slot]);
     s16             held_no = attach->item_no;
     if (GetAttachData(held_no) == nullptr) {
         return -1;
@@ -115,37 +114,37 @@ extern float           changeMenu_long;
 
 namespace {
 
-const int kIconSize = 32;
-const int kCellSize = 48;
-const int kStoneCell = 120;
-const int kNoneCell = 125;
-const int kSphereCell = 129;
-const int kSheetWidth = 256;
-const int kSheetHeight = 640;
-const int kTurnFrames = 20;
+constexpr int kIconSize = 32;
+constexpr int kCellSize = 48;
+constexpr int kStoneCell = 120;
+constexpr int kNoneCell = 125;
+constexpr int kSphereCell = 129;
+constexpr int kSheetWidth = 256;
+constexpr int kSheetHeight = 640;
+constexpr int kTurnFrames = 20;
 // The character menu's exit after a change: its LOADING and LOADED steps count to 0x11 each frame.
-const int kCloseFrames = 0x11;
+constexpr int kCloseFrames = 0x11;
 
-enum PickerStep {
-    PICKER_SELECT,
-    PICKER_TURNING,
-    PICKER_CLOSING,
+enum class PickerStep : int {
+    Select,
+    Turning,
+    Closing,
 };
 
 struct ElementPicker {
-    bool      requested;
-    bool      loaded;
-    bool      changed;
-    int       count;
-    s8        elements[6];
-    int       selected;
-    int       step;
-    float     turn_frame;
-    float     turn_direction;
-    int       close_frame;
-    int       ring_slot[6];
-    float     ring_pos[6][2];
-    CTexture *icons;
+    bool       requested;
+    bool       loaded;
+    bool       changed;
+    int        count;
+    s8         elements[6];
+    int        selected;
+    PickerStep step;
+    float      turn_frame;
+    float      turn_direction;
+    int        close_frame;
+    int        ring_slot[6];
+    float      ring_pos[6][2];
+    CTexture  *icons;
 };
 
 ElementPicker g_picker;
@@ -182,9 +181,10 @@ bool FindIconSheet(u8 *bank, u8 **pixels, u8 **clut) {
     u32 count = Read32(bank + 4);
 
     for (u32 i = 0; i < count; i++) {
-        u8 *entry = bank + 0x10 + i * 0x30;
+        u8         *entry = bank + 0x10 + static_cast<std::size_t>(i) * 0x30;
+        const char *name = reinterpret_cast<const char *>(entry);
 
-        if (std::strncmp(reinterpret_cast<char *>(entry), "wepicon", 32) != 0) {
+        if (std::string_view(name, strnlen(name, 32)) != "wepicon") {
             continue;
         }
 
@@ -196,7 +196,7 @@ bool FindIconSheet(u8 *bank, u8 **pixels, u8 **clut) {
         }
 
         *pixels = picture + Read16(picture + 0x0C);
-        *clut = *pixels + kSheetWidth * kSheetHeight;
+        *clut = *pixels + static_cast<std::ptrdiff_t>(kSheetWidth) * kSheetHeight;
         return true;
     }
 
@@ -206,11 +206,11 @@ bool FindIconSheet(u8 *bank, u8 **pixels, u8 **clut) {
 // Copies the synth sphere's cell to the empty one with each pixel the nearest grey the CLUT has,
 // alpha kept.
 void MakeNoneIcon(u8 *bank) {
-    u8 *pixels;
-    u8 *clut;
+    u8 *pixels = nullptr;
+    u8 *clut = nullptr;
 
     if (!FindIconSheet(bank, &pixels, &clut)) {
-        printf("quickchr.img: no wepicon sheet; the element picker's none cell stays empty\n");
+        std::puts("quickchr.img: no wepicon sheet; the element picker's none cell stays empty");
         return;
     }
 
@@ -221,14 +221,14 @@ void MakeNoneIcon(u8 *bank) {
 
     for (int y = 0; y < kIconSize; y++) {
         for (int x = 0; x < kIconSize; x++) {
-            const u8 *colour = clut + Csm1Index(pixels[Psmt8Offset(from_x + x, from_y + y, kSheetWidth)]) * 4;
+            const u8 *colour = clut + static_cast<std::size_t>(Csm1Index(pixels[Psmt8Offset(from_x + x, from_y + y, kSheetWidth)])) * 4;
             int       grey = (colour[0] * 299 + colour[1] * 587 + colour[2] * 114) / 1000;
             int       alpha = colour[3];
             int       best = 0;
             int       best_distance = 0x7FFFFFFF;
 
             for (int i = 0; i < 256; i++) {
-                const u8 *entry = clut + Csm1Index(i) * 4;
+                const u8 *entry = clut + static_cast<std::size_t>(Csm1Index(i)) * 4;
                 int       r = entry[0] - grey;
                 int       g = entry[1] - grey;
                 int       b = entry[2] - grey;
@@ -271,9 +271,9 @@ void PlaceRing() {
     float step = TWO_PI / g_picker.count;
     float turn = 0.0f;
 
-    if (g_picker.step == PICKER_CLOSING) {
+    if (g_picker.step == PickerStep::Closing) {
         turn = step / kTurnFrames * g_picker.close_frame;
-    } else if (g_picker.step == PICKER_TURNING) {
+    } else if (g_picker.step == PickerStep::Turning) {
         turn = step / kTurnFrames * g_picker.turn_frame;
 
         if (g_picker.turn_direction < 0.0f) {
@@ -329,7 +329,7 @@ void SetUpRing() {
         }
     }
 
-    g_picker.step = PICKER_SELECT;
+    g_picker.step = PickerStep::Select;
     g_picker.turn_frame = 0.0f;
     g_picker.turn_direction = 0.0f;
     g_picker.close_frame = 0;
@@ -351,9 +351,9 @@ bool LoadTextures() {
     }
 
     LOADTEXTURE_INFO2 table[] = {
-        {chara_change_frame_image, CharaChangeTexBlock, 0},
-        {nullptr,                  CharaChangeTexBlock, 0},
-        {nullptr,                  0,                   0},
+        {.name = chara_change_frame_image, .block_no = CharaChangeTexBlock, .mipmap = 0},
+        {.name = nullptr,                  .block_no = CharaChangeTexBlock, .mipmap = 0},
+        {.name = nullptr,                  .block_no = 0,                   .mipmap = 0},
     };
     table[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), const_cast<char *>("quickchr.img"), nullptr));
     MakeNoneIcon(reinterpret_cast<u8 *>(table[1].name));
@@ -378,18 +378,18 @@ void Turn(int direction) {
 
     g_picker.turn_direction = static_cast<float>(direction);
     g_picker.turn_frame = 0.0f;
-    g_picker.step = PICKER_TURNING;
+    g_picker.step = PickerStep::Turning;
     ComMenuSePlay(MENU_SOUND_CURSOR);
 }
 
 // 1 when the picker closes.
 int PickerKey() {
-    if (g_picker.step == PICKER_CLOSING) {
+    if (g_picker.step == PickerStep::Closing) {
         g_picker.close_frame++;
-        return g_picker.close_frame > kCloseFrames;
+        return g_picker.close_frame > kCloseFrames ? 1 : 0;
     }
 
-    if (g_picker.step == PICKER_TURNING) {
+    if (g_picker.step == PickerStep::Turning) {
         g_picker.turn_frame += 1.0f;
 
         if (g_picker.turn_frame > kTurnFrames) {
@@ -405,7 +405,7 @@ int PickerKey() {
                 }
             }
 
-            g_picker.step = PICKER_SELECT;
+            g_picker.step = PickerStep::Select;
             g_picker.turn_frame = 0.0f;
             g_picker.turn_direction = 0.0f;
         }
@@ -426,7 +426,7 @@ int PickerKey() {
         // The ring leaves as the character menu's does after a change: spreading, turning and
         // fading out.
         ComMenuSePlay(MENU_SOUND_CONFIRM);
-        g_picker.step = PICKER_CLOSING;
+        g_picker.step = PickerStep::Closing;
         g_picker.close_frame = 0;
         return 0;
     }
@@ -452,7 +452,7 @@ void PickerDraw() {
     FrameImageDraw(100, 0x80);
 
     if (CharaChangeReadFlag != 0 && g_picker.icons != nullptr) {
-        bool closing = g_picker.step == PICKER_CLOSING;
+        bool closing = g_picker.step == PickerStep::Closing;
         int  alpha = closing ? std::max(0x80 - g_picker.close_frame * 4, 0) : 0x80;
 
         if (closing) {
@@ -466,8 +466,8 @@ void PickerDraw() {
             int element = g_picker.elements[i];
             int cell = element == WEAPON_ELEMENT_NONE ? kNoneCell : kStoneCell + element;
             int inset = (kCellSize - kIconSize) / 2;
-            int x = QuickCharaPos[0] + g_picker.ring_pos[i][0] + inset;
-            int y = QuickCharaPos[1] + g_picker.ring_pos[i][1] + inset;
+            int x = static_cast<int>(QuickCharaPos[0] + g_picker.ring_pos[i][0] + inset);
+            int y = static_cast<int>(QuickCharaPos[1] + g_picker.ring_pos[i][1] + inset);
 
             DrawMenu2DSprite(g_picker.icons, CRect_i_(x, y, kIconSize, kIconSize), CRect_i_(cell % 8 * kIconSize, cell / 8 * kIconSize, kIconSize, kIconSize), 0x80, 0x80, 0x80, alpha);
         }
@@ -501,8 +501,8 @@ void ClosePicker() {
     TexManager.DeleteTextureBlock(CharaChangeTexBlock);
     TexManager.CleanUpTextureList();
     LOADTEXTURE_INFO2 restore[] = {
-        {chara_change_frame_image, CharaChangeTexBlock, 0},
-        {nullptr,                  0,                   0},
+        {.name = chara_change_frame_image, .block_no = CharaChangeTexBlock, .mipmap = 0},
+        {.name = nullptr,                  .block_no = 0,                   .mipmap = 0},
     };
     TexManager.LoadTextureBlockEX(-1, restore);
     g_picker.requested = false;
@@ -517,10 +517,8 @@ void ClosePicker() {
     int chara = UserStatus->cur_chara;
 
     if (chara == CHARA_RUBY) {
-        std::string     path;
         BT_SHOT_EFFECT *effect = Get_Main_EffectPtr(chara, NowWeaponHave->best_elem);
-
-        path = std::string("dun/mainchara/wep_eff/") + reinterpret_cast<const char *>(effect) + ".chr";
+        std::string     path = std::string("dun/mainchara/wep_eff/") + reinterpret_cast<const char *>(effect) + ".chr";
         LoadFile(path.data(), read_buffer, nullptr);
         wait_now_loading_vsync();
         MainChara_Effect(effect, read_buffer, 0);

@@ -5,11 +5,11 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <iterator>
+#include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -35,17 +35,10 @@
 #include "ui_framework.hpp"
 #include "userstatus.hpp"
 
-#define MANUAL_MODE_TRACKER 100
-
-extern int       SetManualMsgBuffer();
-extern void      ExitManualMenu();
-extern void      DrawPrevNextCursor();
-extern int       GetNowManualPartTgaNum();
-extern s16       ManualImgEnter();
-extern CTexture *ManualMenuTex[6];
-extern ClsMes   *ManualMsg;
-
 namespace {
+
+// Port-only mode for the Miracle Chests tracker, outside the retail ManualMenuMode range.
+constexpr s16 kManualModeTracker = 100;
 
 UI::Cursor s_menu_cursor;
 
@@ -64,7 +57,7 @@ s16 Port_ManualImgLoad() {
     LoadFileBG(path.data(), buffer, &size);
     buffer = MenuCalcBufAlignment(buffer + size / 16 + 1);
 
-    if (static_cast<u32>(image_no - 11) <= 1 || static_cast<u32>(image_no - 21) <= 1 || image_no == 31 || image_no == 42) {
+    if ((image_no >= 11 && image_no <= 12) || (image_no >= 21 && image_no <= 22) || image_no == 31 || image_no == 42) {
         path = prefix + std::to_string(image_no) + "b.pac";
         LoadFileBG(path.data(), buffer, &size);
     }
@@ -155,9 +148,10 @@ int MenuManualKey() {
     switch (ManualMenu.mode) {
         case MANUAL_MODE_LOADING:
             if (SetManualMsgBuffer() != 0) {
-                const char *new_list = "Georama\nDungeon\nWeapon\nSavings/Other\nMiracle Chests";
-                char       *target_buffer = reinterpret_cast<char *>(ManualMenu.common_message_buffer) + 0x48;
-                std::strcpy(target_buffer, new_list);
+                constexpr std::string_view k_category_list = "Georama\nDungeon\nWeapon\nSavings/Other\nMiracle Chests";
+                const std::span            target_buffer(reinterpret_cast<char *>(ManualMenu.common_message_buffer) + 0x48, k_category_list.size() + 1);
+                std::ranges::copy(k_category_list, target_buffer.begin());
+                target_buffer.back() = '\0';
                 ManualMenu.mode = MANUAL_MODE_SELECT;
             }
             break;
@@ -179,7 +173,7 @@ int MenuManualKey() {
                 selection = &ManualMenu.category;
             } else if (ManualMenu.selection_level == -1) {
                 constexpr std::array k_entry_max = {4, 4, 3, 2};
-                if (ManualMenu.category < 0 || ManualMenu.category >= static_cast<int>(k_entry_max.size())) {
+                if (ManualMenu.category < 0 || std::cmp_greater_equal(ManualMenu.category, k_entry_max.size())) {
                     ManualMenu.category = 0;
                     ManualMenu.entry = 0;
                 }
@@ -224,7 +218,7 @@ int MenuManualKey() {
                     }
                 } else if (ManualMenu.selection_level == -2) {
                     if (ManualMenu.category == 4) {
-                        ManualMenu.mode = MANUAL_MODE_TRACKER;
+                        ManualMenu.mode = kManualModeTracker;
                         JournalChest::Open();
                     } else {
                         ManualMenu.selection_level++;
@@ -237,9 +231,7 @@ int MenuManualKey() {
                     ManualMenu.mode = MANUAL_MODE_CLOSING;
                     ManualMsg->Preset(MES_PRESET_SYSTEM);
                     CommonMenuMes3.SetBuff(ManualMenu.common_message_buffer);
-                    for (int slot = 0; slot < 10; slot++) {
-                        CommonMenuMes3.mes_no[slot] = -1;
-                    }
+                    std::ranges::fill(CommonMenuMes3.mes_no, -1);
                     CommonMenuMes3.Preset(MES_PRESET_NAME);
                     CommonMenuMes3.char_width = ManualMenu.char_width;
                     ManualMsg->SetBuff(ManualMenu.menu_message_buffer);
@@ -253,7 +245,7 @@ int MenuManualKey() {
             break;
         }
 
-        case MANUAL_MODE_TRACKER:
+        case kManualModeTracker:
             if (JournalChest::HandleKey()) {
                 ManualMenu.mode = MANUAL_MODE_SELECT;
             }
@@ -311,6 +303,9 @@ int MenuManualKey() {
                 ManualMenu.mode = MANUAL_MODE_READING;
             }
             break;
+
+        default:
+            break;
     }
     return closed;
 }
@@ -323,16 +318,16 @@ void MenuManualDraw() {
         }
     }
 
-    if (ManualMenu.mode == MANUAL_MODE_TRACKER) {
+    if (ManualMenu.mode == kManualModeTracker) {
         JournalChest::Draw();
         return;
     }
 
     if (ManualMenu.mode >= MANUAL_MODE_OPENING && ManualMenu.mode < MANUAL_MODE_COUNT && ManualMenu.images_ready != 0) {
         MenuTextureReload(ManualMenu.image_texture_block);
-        const int   image_count = std::clamp(GetNowManualPartTgaNum(), 0, static_cast<int>(std::size(ManualMenuTex)));
-        const int   target = -(ManualMenu.image_page * 0x280);
-        const float distance = static_cast<float>(target - ManualMenu.image_offset);
+        const int  image_count = std::clamp(GetNowManualPartTgaNum(), 0, static_cast<int>(std::size(ManualMenuTex)));
+        const int  target = -(ManualMenu.image_page * 0x280);
+        const auto distance = static_cast<float>(target - ManualMenu.image_offset);
         ManualMenu.image_offset += static_cast<int>(distance / 4.0f);
         if (std::abs(static_cast<int>(distance)) <= 3) {
             ManualMenu.image_offset = target;

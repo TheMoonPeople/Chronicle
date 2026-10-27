@@ -37,8 +37,10 @@ int ItemHit(float x, float y) {
         return -1;
     }
     for (int index = 0; index < MiniMenu.event_item_num; ++index) {
-        const float cell_left = left + (index % 5) * 42.0f;
-        const float cell_top = static_cast<float>(EventItemMoveY + (index / 5) * 40);
+        const int   column = index % 5;
+        const int   row = index / 5;
+        const float cell_left = left + column * 42.0f;
+        const auto  cell_top = static_cast<float>(EventItemMoveY + row * 40);
         if (x >= cell_left && x < cell_left + 42.0f && y >= cell_top && y < cell_top + 40.0f) {
             return index;
         }

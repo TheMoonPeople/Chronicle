@@ -1,10 +1,13 @@
 #include "menu_mouse.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
-#include <memory>
+#include <numbers>
+#include <span>
 
 #include "battlemenu.hpp"
+#include "battlemenu/internal.hpp"
 #include "clsmes.hpp"
 #include "dialog_npc.hpp"
 #include "dngstatusdata.hpp"
@@ -30,11 +33,7 @@
 // The mouse in the game's menus. Each tick, ahead of the game's read of the pad, the screen that is
 // open (the Register Name screen, or a page of the pause menu) takes the mouse as a pointer: what
 // the pointer is over becomes the game's own cursor, a click a pad press the game reads, so the
-// game's code does the rest. A screen with no handler leaves the mouse to the pad as before.
-
-extern bool BattleMenuQuitConfirmActive();
-extern int *BattleMenuQuitConfirmChoicePtr();
-extern int  BattleMenuQuitConfirmHit(float x, float y);
+// game's code does the rest. A screen with no handler leaves the mouse to the pad.
 
 namespace {
 
@@ -44,7 +43,7 @@ struct Rect {
     int right;
     int bottom;
 
-    bool Contains(float x, float y) const { return x >= left && x < right && y >= top && y < bottom; }
+    [[nodiscard]] bool Contains(float x, float y) const { return x >= left && x < right && y >= top && y < bottom; }
 };
 
 // Which pause-menu screen is on, drawn since the last tick.
@@ -54,24 +53,25 @@ bool        g_save_open = false;
 
 MenuPointer g_battle;
 
-// Matches port/src/battlemenu.cpp GetMenuModeMax(): 8 in Dungeon, 9 in Town (includes Journal & Quit).
+// As GetMenuModeMax: the Town ring adds Journal and Quit.
 int RingIconCount() {
     return BtlMenuMode == BATTLE_MENU_MODE_DUNGEON ? 8 : 9;
 }
 
 // The row of one ring icon: its icon and the label beside it, where the brackets stand.
 Rect RingRow(int icon) {
-    float ix = 0.0f, iy = 0.0f;
-    BattleMenuIconPosition(icon, ix, iy);
-    int left = static_cast<int>(ix) - 18;
-    int top = static_cast<int>(iy) - 8;
+    float icon_x = 0.0f;
+    float icon_y = 0.0f;
+    BattleMenuIconPosition(icon, icon_x, icon_y);
+    int left = static_cast<int>(icon_x) - 18;
+    int top = static_cast<int>(icon_y) - 8;
     return Rect{left, top, left + 250, top + 34};
 }
 
-// Hit-test for UI::ConfirmModal's centered YES / NO BevelButtons (btn_x = 270, w = 100, h = 26).
+// Hit-test for UI::ConfirmModal's centred Yes (0) and No (1) buttons.
 int ConfirmModalHit(float px, float py, int btn_y0 = 232) {
-    constexpr int k_btn_x = (640 - 100) / 2; // 270
     constexpr int k_btn_w = 100;
+    constexpr int k_btn_x = (640 - k_btn_w) / 2;
     constexpr int k_btn_h = 26;
     const int     btn_y1 = btn_y0 + k_btn_h + 6;
 
@@ -79,10 +79,10 @@ int ConfirmModalHit(float px, float py, int btn_y0 = 232) {
         return -1;
     }
     if (py >= btn_y0 - 4 && py < btn_y0 + k_btn_h + 2) {
-        return 0; // YES
+        return 0;
     }
     if (py >= btn_y1 - 2 && py < btn_y1 + k_btn_h + 4) {
-        return 1; // NO
+        return 1;
     }
     return -1;
 }
@@ -404,9 +404,9 @@ Rect AlliesFront() {
 }
 
 Rect AlliesFace(int place) {
-    float angle = 3.14159265f + (PosAngle * static_cast<float>(place));
-    int   x = static_cast<int>(394.0f + chara_r_long * cosf(angle));
-    int   y = static_cast<int>(120.0f + chara_r_long * sinf(angle));
+    float angle = std::numbers::pi_v<float> + (PosAngle * static_cast<float>(place));
+    int   x = static_cast<int>(394.0f + chara_r_long * std::cos(angle));
+    int   y = static_cast<int>(120.0f + chara_r_long * std::sin(angle));
     return Rect{x, y, x + 90, y + 90};
 }
 
@@ -435,8 +435,8 @@ void AlliesMouse(const MenuPointerTake &take) {
             MenuPointerPress(kInputCross);
             return;
         }
-        for (int i = 0; i < 6; ++i) {
-            int place = SysChara[i].place;
+        for (const SYS_CHARA_INFO &member : SysChara) {
+            int place = member.place;
             if (place != 0 && AlliesFace(place).Contains(g_battle.x, g_battle.y)) {
                 // Up and Right move every place up one, so a member at place p needs 6 - p of them, or p Downs.
                 g_allies_turns = place > 3 ? 6 - place : -place;
@@ -612,8 +612,11 @@ void ItemMouse(const MenuPointerTake &take) {
                 board.cursor_area = PERSONAL_BOARD_AREA_CELLS;
                 board.cursor = board.top_row * 5;
             }
-            int steps = arrow != 0 ? arrow : (tab - board.page + 3) % 3 == 2 ? -1
-                                                                             : (tab - board.page + 3) % 3;
+            int steps = arrow;
+            if (steps == 0) {
+                int forward = (tab - board.page + 3) % 3;
+                steps = forward == 2 ? -1 : forward;
+            }
             if (steps > 0) {
                 MenuPointerPress(kInputR1);
             } else if (steps < 0) {
@@ -706,13 +709,11 @@ void AtlaMouse(const MenuPointerTake &take) {
         return;
     }
 
-    if (mode >= 0 && (take.moved || clicked)) {
-        if (sel.mode != mode || sel.board.cursor != cursor) {
-            sel.mode = mode;
-            sel.board.cursor = cursor;
-            sel.board.cursor_area = PERSONAL_BOARD_AREA_CELLS;
-            ComMenuSePlay(MENU_SOUND_CURSOR);
-        }
+    if (mode >= 0 && (take.moved || clicked) && (sel.mode != mode || sel.board.cursor != cursor)) {
+        sel.mode = mode;
+        sel.board.cursor = cursor;
+        sel.board.cursor_area = PERSONAL_BOARD_AREA_CELLS;
+        ComMenuSePlay(MENU_SOUND_CURSOR);
     }
     if (clicked) {
         if (mode >= 0) {
@@ -755,6 +756,8 @@ Rect WepTagRow(int page, int row) {
                 return Rect{left, 268 + 24 * (row % 5), left + 102, 292 + 24 * (row % 5)};
             }
             break;
+        default:
+            break;
     }
     return Rect{0, 0, 0, 0};
 }
@@ -765,7 +768,7 @@ int g_weapon_chara_target = -1;
 
 // The rows of the action dialog the cursor can be on, top to bottom: Equip, Attach, Element and Repair,
 // then Level up, Break down and Build up where the weapon allows them. Gives how many.
-int WeaponActionRows(int *cursors) {
+int WeaponActionRows(std::span<int, 7> cursors) {
     int count = 0;
     for (int i = 0; i < 4; ++i) {
         cursors[count++] = i;
@@ -848,10 +851,10 @@ bool WeaponMouse(const MenuPointerTake &take) {
             if (clicked) {
                 if (y < 120.0f && BtlMenuStatusPt->party_size > 1) {
                     // The row of faces: the one clicked comes to the front.
-                    for (int i = 0; i < 6; ++i) {
-                        int left = static_cast<int>(SysChara[i].x);
-                        if (SysChara[i].chara != WepMenu.chara && x >= left && x < left + 100 && y >= 14.0f) {
-                            g_weapon_chara_target = SysChara[i].chara;
+                    for (const SYS_CHARA_INFO &member : SysChara) {
+                        int left = static_cast<int>(member.x);
+                        if (member.chara != WepMenu.chara && x >= left && x < left + 100 && y >= 14.0f) {
+                            g_weapon_chara_target = member.chara;
                         }
                     }
                 } else if (y >= 130.0f && y < 280.0f) {
@@ -872,9 +875,9 @@ bool WeaponMouse(const MenuPointerTake &take) {
             if (!take.pointing) {
                 return true;
             }
-            static auto cursors = std::make_unique<int[]>(7);
-            int         count = WeaponActionRows(cursors.get());
-            int         hit = -1;
+            std::array<int, 7> cursors{};
+            int                count = WeaponActionRows(cursors);
+            int                hit = -1;
             for (int k = 0; k < count; ++k) {
                 Rect row = {114, 115 + 26 * k, 210, 115 + 26 * k + 26};
                 if (row.Contains(x, y)) {
@@ -983,12 +986,11 @@ bool WeaponMouse(const MenuPointerTake &take) {
                     tag_row = r;
                 }
             }
-            if (tag_row >= 0 && (take.moved || clicked)) {
-                if (WepMenu.mode != WEP_MENU_ATTACH_TAGS || WepMenu.tag_row != tag_row) {
-                    WepMenu.mode = WEP_MENU_ATTACH_TAGS;
-                    WepMenu.tag_row = static_cast<char>(tag_row);
-                    ComMenuSePlay(MENU_SOUND_CURSOR);
-                }
+            if (tag_row >= 0 && (take.moved || clicked) &&
+                (WepMenu.mode != WEP_MENU_ATTACH_TAGS || WepMenu.tag_row != tag_row)) {
+                WepMenu.mode = WEP_MENU_ATTACH_TAGS;
+                WepMenu.tag_row = static_cast<char>(tag_row);
+                ComMenuSePlay(MENU_SOUND_CURSOR);
             }
             if (clicked && tag_tab >= 0) {
                 int steps = (tag_tab - WepMenu.tag_page + 3) % 3;
@@ -1032,7 +1034,8 @@ void JournalMouse(const MenuPointerTake &take) {
     if (!take.pointing || (take.clicked & 1) == 0) {
         return;
     }
-    const float x = g_battle.x, y = g_battle.y;
+    const float x = g_battle.x;
+    const float y = g_battle.y;
     if (ManualMenu.mode == 100) {
         JournalChest::HandlePointer(x, y);
     } else if (ManualMenu.mode == MANUAL_MODE_SELECT && ManualMenu.selection_level == -2) {

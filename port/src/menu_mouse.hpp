@@ -1,6 +1,8 @@
 #pragma once
 
-// The pause menu was drawn this tick, so its screen takes the mouse next tick.
+/**
+ * Notes that the pause menu was drawn this tick, so its screen takes the mouse next tick.
+ */
 void MenuMouseNoteBattleMenu();
 
 /**
@@ -8,5 +10,7 @@ void MenuMouseNoteBattleMenu();
  */
 void MenuMouseDrawOverlay();
 
-// The same animated icon coordinates used by the renderer and pointer hit testing.
+/**
+ * Gives the animated ring icon position shared by the renderer and pointer hit testing.
+ */
 void BattleMenuIconPosition(int index, float &x, float &y);

@@ -21,7 +21,7 @@ constexpr std::uint16_t kPadButtons = kInputUp | kInputDown | kInputLeft | kInpu
                                       kInputStart;
 constexpr int           kStickThreshold = 120;
 
-int                synthetic = 0;
+int                synthetic_down = 0;
 const MenuPointer *shown = nullptr;
 
 bool PadHeld() {
@@ -29,16 +29,17 @@ bool PadHeld() {
     if ((pad.buttons & kPadButtons) != 0) {
         return true;
     }
-    int x = AxisCalibration(pad.left_x);
-    int y = AxisCalibration(pad.left_y);
-    return x > kStickThreshold || x < -kStickThreshold || y > kStickThreshold || y < -kStickThreshold;
+    const int stick_x = AxisCalibration(pad.left_x);
+    const int stick_y = AxisCalibration(pad.left_y);
+    return stick_x > kStickThreshold || stick_x < -kStickThreshold || stick_y > kStickThreshold ||
+           stick_y < -kStickThreshold;
 }
 
 // 640x480 units per count of mouse motion along each axis, through the mapping the 2D is drawn with.
 void UnitsPerCount(float &across, float &down) {
-    gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::kMainTarget);
-    int                 width = 0;
-    int                 height = 0;
+    const gfx::LogicalMapping mapping = gfx::GetUiMapping(gfx::kMainTarget);
+    int                       width = 0;
+    int                       height = 0;
     // With no window the counts are target pixels, as a script gives them.
     if (!WindowSize(width, height)) {
         width = static_cast<int>(mapping.pixel_width);
@@ -81,7 +82,7 @@ MenuPointerTake MenuPointer::Take(float start_x, float start_y) {
         return take;
     }
     InputMenuMouse mouse = InputTakeMenuMouse();
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     if (InputTouchOverlayVisible()) {
         // Ignore synthetic touch motion while the virtual pad is visible.
         mouse.dx = mouse.dy = mouse.wheel = 0.0f;
@@ -92,7 +93,7 @@ MenuPointerTake MenuPointer::Take(float start_x, float start_y) {
     take.held = mouse.buttons;
     take.wheel = mouse.wheel;
     buttons = mouse.buttons;
-    bool motion = mouse.dx != 0.0f || mouse.dy != 0.0f;
+    const bool motion = mouse.dx != 0.0f || mouse.dy != 0.0f;
     take.moved = motion || take.clicked != 0 || mouse.wheel != 0.0f;
 
     if (PadHeld()) {
@@ -114,11 +115,11 @@ MenuPointerTake MenuPointer::Take(float start_x, float start_y) {
     return take;
 }
 
-void MenuPointerPress(int mask) { synthetic |= mask; }
+void MenuPointerPress(int mask) { synthetic_down |= mask; }
 
-void MenuPointerClearPresses() { synthetic = 0; }
+void MenuPointerClearPresses() { synthetic_down = 0; }
 
-int MenuPointerSyntheticDown() { return synthetic; }
+int MenuPointerSyntheticDown() { return synthetic_down; }
 
 void MenuPointerShow(const MenuPointer *pointer) { shown = pointer; }
 

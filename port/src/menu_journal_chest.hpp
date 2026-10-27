@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <string>
@@ -7,19 +6,30 @@
 
 namespace JournalChest {
 
-/// Resets selection and snaps the cursor when opening the Chest Tracker from the Journal menu.
+/**
+ * Resets the selection and snaps the cursor when the Chest Tracker opens from the Journal menu.
+ */
 void Open();
 
-/// Handles gamepad input while the Chest Tracker is active. Returns true if the user exited back to the Journal menu.
+/**
+ * Handles gamepad input while the Chest Tracker is active. Returns true when the player backs out
+ * to the Journal menu.
+ */
 bool HandleKey();
 
-// Select a settlement or toggle the filter at the displayed pointer position.
+/**
+ * Selects a settlement or toggles the filter at the given pointer position in display coordinates.
+ */
 void HandlePointer(float x, float y);
 
-/// Renders the Chest Tracker dashboard using the UI framework.
+/**
+ * Draws the Chest Tracker page with the UI framework.
+ */
 void Draw();
 
-/// Appends the Chest Tracker's localization keys and default English strings to `out`.
+/**
+ * Appends the Chest Tracker's localization keys and their default English strings to out.
+ */
 void AppendStrings(std::vector<std::pair<std::string, std::string>> &out);
 
 } // namespace JournalChest
