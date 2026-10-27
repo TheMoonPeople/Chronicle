@@ -15,7 +15,7 @@
 #include "app/presence.hpp"
 #include "battle_globals.hpp"
 #include "battlemenu.hpp"
-#include "battlemenu/battlemenu.hpp"
+#include "battlemenu/main_ring.hpp"
 #include "btsysscript.hpp"
 #include "data/data_read.hpp"
 #include "dataread.hpp"

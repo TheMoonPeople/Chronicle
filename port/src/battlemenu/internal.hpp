@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-#include "battlemenu/battlemenu.hpp"
+#include "battlemenu/main_ring.hpp"
 #include "battlemenu/strings.hpp"
 #include "btactstatus.hpp"
 #include "camera.hpp"
@@ -20,7 +20,7 @@
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
 #include "eastking.hpp"
-#include "game/battlemenu.hpp"
+#include "battlemenu.hpp"
 #include "gamepad.hpp"
 #include "itemdata.hpp"
 #include "localize/localize.hpp"
