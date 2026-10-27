@@ -80,7 +80,7 @@ void WriteOptions(CSaveData &save, const ConfigGameOptions &options) {
 std::vector<OptionResolution> OptionResolutionList(std::span<const DisplayModeSize> modes, int configured_width,
                                                    int configured_height, bool display_known, int display_width,
                                                    int display_height) {
-    std::vector<OptionResolution> sizes(std::from_range, kResolutions);
+    std::vector<OptionResolution> sizes(kResolutions.begin(), kResolutions.end());
     for (const DisplayModeSize &mode : modes) {
         if (mode.width >= kMinWidth && mode.height >= kMinHeight) {
             sizes.push_back({.width = mode.width, .height = mode.height});
