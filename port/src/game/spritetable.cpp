@@ -2,24 +2,22 @@
 
 #include <libpkt.h>
 
+#include <algorithm>
+
 #include "mglib.hpp"
 #include "rect.hpp"
 
 void CSpriteTable::AddTable(int x, int y, MG_SPRITE *sprite, int layer, int align_flags) {
-    if (layer < 0) {
-        layer = 0;
-    }
+    layer = std::max(layer, 0);
 
     if (layer >= list_count) {
         layer = list_count - 1;
     }
 
-    SPRITE_TABLE *node;
-    SPRITE_TABLE *(&tail_entries)[16] = tails;
-    SPRITE_TABLE **tail = &tail_entries[layer];
-    node = *tail;
+    SPRITE_TABLE *&tail = tails[layer];
+    SPRITE_TABLE  *node = tail;
 
-    if (node == NULL) {
+    if (node == nullptr) {
         return;
     }
 
@@ -43,48 +41,38 @@ void CSpriteTable::AddTable(int x, int y, MG_SPRITE *sprite, int layer, int alig
     node->alpha = sprite->alpha;
 
     if (align_flags & 1) {
-        s16 width = node->width;
-        node->x -= width;
+        node->x -= node->width;
     }
 
     if (align_flags & 2) {
-        s16 height = node->height;
-        node->y -= height;
+        node->y -= node->height;
     }
 
     if (align_flags & 4) {
-        node->x -= (s16) (node->width >> 1);
+        node->x -= static_cast<s16>(node->width >> 1);
     }
 
     if (align_flags & 8) {
-        node->y -= (s16) (node->height >> 1);
+        node->y -= static_cast<s16>(node->height >> 1);
     }
 
     node->next = GetNext();
-    *tail = node->next;
+    tail = node->next;
 }
 
 void CSpriteTable::AddTable(int x, int y, sceGsTex0 *tex0, RECT *source, int layer, int align_flags) {
-    union {
-        MG_SPRITE sprite;     /**< Sprite handed to the other AddTable. */
-        u_long128 padding[3]; /**< Pads the sprite's stack slot to 48 bytes. */
-    } sprite_buffer;
-
-    *(sceGsTex0 *) &sprite_buffer.sprite.tex0 = *tex0;
-    sprite_buffer.sprite.source = *source;
-    sprite_buffer.sprite.red = 128;
-    sprite_buffer.sprite.green = 128;
-    sprite_buffer.sprite.blue = 128;
-    sprite_buffer.sprite.alpha = 128;
-    AddTable(x, y, &sprite_buffer.sprite, layer, align_flags);
+    MG_SPRITE sprite{};
+    *reinterpret_cast<sceGsTex0 *>(&sprite.tex0) = *tex0;
+    sprite.source = *source;
+    sprite.red = 128;
+    sprite.green = 128;
+    sprite.blue = 128;
+    sprite.alpha = 128;
+    AddTable(x, y, &sprite, layer, align_flags);
 }
 
 void CSpriteTable::Initialize(SPRITE_TABLE *new_pool, int entry_count, int layer_count) {
-    list_count = layer_count;
-
-    if (list_count > 16) {
-        list_count = 16;
-    }
+    list_count = std::min(layer_count, 16);
 
     pool = new_pool;
     pool_count = entry_count;
@@ -97,7 +85,7 @@ void CSpriteTable::ClearPointer() {
 
     for (int layer = 0; layer < list_count; layer++) {
         heads[layer] = GetNext();
-        heads[layer]->next = NULL;
+        heads[layer]->next = nullptr;
         tails[layer] = heads[layer];
     }
 }

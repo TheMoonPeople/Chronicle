@@ -19,11 +19,10 @@
 
 SHOT_COLLISION_RESULT checkCollision(float *hit_position, float *position, float *movement, s32 target_mode, float radius) {
     sceVu0FVECTOR destination;
-    int           active;
 
     WorkBuffer__2->used = 0;
-    CCPoly *polygons = (CCPoly *) WorkBuffer__2->Alloc(0x500);
-    int     polygon_count = setCollisionData(NowDngMap, polygons, position, 20.0f, 1.5f);
+    auto *polygons = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x500));
+    int   polygon_count = setCollisionData(NowDngMap, polygons, position, 20.0f, 1.5f);
 
     if (polygon_count >= 256) {
         printf(fishing_err_format, polygon_count);
@@ -51,17 +50,15 @@ SHOT_COLLISION_RESULT checkCollision(float *hit_position, float *position, float
                 continue;
             }
 
-            if (monster_no >= 0 && monster_no < 17) {
-                active = NowMonstorUnit->monster[monster_no].revealed;
-            }
-
-            if (active == 0) {
+            if (NowMonstorUnit->monster[monster_no].revealed == 0) {
                 continue;
             }
 
+            auto &effect = NowMonstorUnit->effect[monster_no];
+
             for (int sphere_no = 0; sphere_no < 16; sphere_no++) {
-                if (NowMonstorUnit->effect[monster_no].timer[sphere_no] != 0 && DistVector(NowMonstorUnit->effect[monster_no].position[sphere_no], position) <= radius + NowMonstorUnit->effect[monster_no].radius[sphere_no]) {
-                    sceVu0CopyVector(hit_position, NowMonstorUnit->effect[monster_no].position[sphere_no]);
+                if (effect.timer[sphere_no] != 0 && DistVector(effect.position[sphere_no], position) <= radius + effect.radius[sphere_no]) {
+                    sceVu0CopyVector(hit_position, effect.position[sphere_no]);
                     return SHOT_COLLISION_MONSTER;
                 }
             }
@@ -71,14 +68,13 @@ SHOT_COLLISION_RESULT checkCollision(float *hit_position, float *position, float
     int hit = CheckHit(polygons, polygon_count, position, destination, hit_position, 1, 4);
 
     if (hit >= 0) {
-        CCPoly *poly = &polygons[hit];
-        int     field_no = poly->attr.ground_kind;
+        int field_no = polygons[hit].attr.ground_kind;
 
         if (field_no > 0 && field_no < 13) {
-            DRAN_MAP_FIELD_SET *field_set = (DRAN_MAP_FIELD_SET *) NowDranMapField;
+            auto *field_set = reinterpret_cast<DRAN_MAP_FIELD_SET *>(NowDranMapField);
 
             if (field_set->state[field_no - 1] >= 2) {
-                ((DRAN_MAP_FIELD_SET *) NowDranMapField)->state[field_no - 1]--;
+                field_set->state[field_no - 1]--;
             }
         }
 

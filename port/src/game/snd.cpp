@@ -3,9 +3,15 @@
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
-#include <cstdio>
-#include <cstring>
+#include <cstddef>
+#include <format>
+#include <iterator>
+#include <print>
+#include <string>
+#include <string_view>
 
 #include "boxvu0.hpp"
 #include "camera.hpp"
@@ -18,1612 +24,7 @@
 #include "sound.hpp"
 #include "texture.hpp"
 
-/* The sound manager: BGM loading, playback and fading, and the SE table.
- * CSound itself is in ps2/src/sound.cpp. */
-
-/**
- * Reads one sound configuration file through the script interpreter.
- *
- * @mangled LoadSoundInfo__FP8SND_INFOPci
- * @address 0x15BAB0
- * @size 0xF4
- */
-static void LoadSoundInfo(SND_INFO *info, char *script, int script_size);
-
-/**
- * Sets the reverberation the sound configuration asks for.
- *
- * @mangled CommandREVERBE__FPPv
- * @address 0x15BBB0
- * @size 0x28
- */
-static void CommandREVERBE(void **arguments);
-
-/**
- * Names the sound-effect table the configuration draws from.
- *
- * @mangled CommandTABLE__FPPv
- * @address 0x15BBE0
- * @size 0x28
- */
-static void CommandTABLE(void **arguments);
-
-/** The two basic sound-effect sets, one of which is loaded at a time. */
-static SND_SE_INFO *basic_se_info[2] = {geo, dun};
-
-/** The handler LoadSoundInfo calls for each of Command__3's tags. */
-static void (*CommandExe__3[2])(void **arguments) = {CommandREVERBE, CommandTABLE};
-
-/** Whether the sprites that follow draw with the bilinear filter. */
-static int linear__2 = 1;
-
-/** The buffer the sound loader is pointed at. */
-unsigned int *snd_read_buf;
-
-/** Nonzero keeps the background music from starting. */
-int bgm_off;
-
-/** The reverberation core's revision, read back after SetReverb. */
-int snd_id;
-
-/** The sound-effect set that is loaded, or -1 for none. */
-int now_sound_set;
-
-/** The voice set that is loaded, or -1 for none. */
-int now_voice_set;
-
-/** The background-music set that is loaded, or -1 for none. */
-int now_bgm_no;
-
-/** The background music's play state: 0 while it is stopped, 1 while it plays. */
-int now_bgm_play;
-
-/** The background-music volume that is set now. */
-int now_bgm_vol;
-
-/** The background-music fade that runs: 1 while it fades in, -1 while it fades out, 0 for none. */
-int bgm_fade;
-
-/** The background-music fade's current volume. */
-float now_bgm_fade_vol;
-
-/** How far the background-music fade moves each frame. */
-float bgm_fade_step;
-
-/** The volume the background-music fade ends at. */
-int bgm_fade_vol;
-
-/** The ambient loop that is playing, or -1 for none. */
-int now_amb_no;
-
-/** The ambient loop's volume that is set now. */
-int now_amb_vol;
-
-/** Whether the ambient loop plays: zero while it is stopped, one while it plays. */
-int now_amb_play;
-
-/** The menu sound effect that is playing, or -1 for none. */
-int now_sp_no;
-
-/** The chapter sound-effect set that is loaded, or -1 for none. */
-int se_table_no;
-
-/** The basic sound-effect set that is loaded, or -1 for none. */
-int basic_se_table_no;
-
-/** The background-music set that is loading in the background, or -1 for none. */
-int load_bgm_no;
-
-/** The buffer the loading background-music set reads into. */
-unsigned int *load_bgm_adr;
-
-/** The sound-effect set that is loading in the background, or -1 for none. */
-int load_snd_set;
-
-/** The buffer the loading sound-effect set reads into. */
-unsigned int *load_snd_adr;
-
-/** The voice set that is loading in the background, or -1 for none. */
-int load_voice_set;
-
-/** The buffer the loading voice set reads into. */
-unsigned int *load_voice_adr;
-
-/** The special-effect set that is loading in the background, or -1 for none. */
-int load_sp_no;
-
-/** The buffer the loading special-effect set reads into. */
-unsigned int *load_sp_adr;
-
-/** Whether the sound manager has been started once already. */
-int init_snd;
-
-/** The background-music set's configuration file name. */
-char bgm_cfg_file[32];
-
-/** The sound-effect set's configuration file name. */
-char snd_cfg_file[32];
-
-/** The voice set's configuration file name. */
-char voice_cfg_file[32];
-
-/** The special-effect set's configuration file name. */
-char sp_cfg_file[32];
-
-/** Where the camera the sound pans against stands. */
-sceVu0FVECTOR camera_pos;
-
-/** Which way the camera the sound pans against looks. */
-sceVu0FVECTOR camera_dir;
-
-/** The sound-effect sequence slots. */
-SND_SE_SEQ se_seq[32];
-
-/**
- * Advances every sound-effect sequence that is running.
- *
- * @mangled SndSeSeqStep__Fv
- * @address 0x15AFA0
- * @size 0xB8
- */
-static void SndSeSeqStep();
-
-EDIT_ELEMENT_ATRA *GetEditAtraData(int ground, int number) {
-    if (ground < 0 || ground >= 6) {
-        return 0;
-    }
-
-    if (number < 0 || number >= 100) {
-        return 0;
-    }
-
-    return &EditElementData[ground][number];
-}
-
-EDIT_PARTS_ATRA *GetEditAtraPartsData(int ground, int number) {
-    if (ground < 0 || ground >= 6) {
-        return 0;
-    }
-
-    if (number < 0 || number >= 24) {
-        return 0;
-    }
-
-    return &EditPartsData[ground].parts[number];
-}
-
-EDIT_ELEMENT_ATRA *GetEditAtraChipData(int ground, int number) {
-    return GetEditAtraData(ground, number + 40);
-}
-
-void LensFlare(CTexture *texture, float *position, unsigned char red, unsigned char green, unsigned char blue) {
-    sceVu0IVECTOR screen;
-
-    if (texture == 0) {
-        return;
-    }
-
-    int   visible = MGRotTransPers2D(screen, position, 0);
-    int   screen_x = screen[0];
-    int   screen_y = screen[1];
-    float flare_offset[8] = {0.1f, 0.2f, 0.4f, 0.5f, 0.8f, 0.9f, 1.0f, 1.3f};
-    float flare_size[8] = {0.1f, 0.2f, 1.0f, 0.3f, 2.0f, 0.5f, 3.8f, 0.5f};
-
-    int size;
-    int x;
-    int y;
-    int i;
-
-    for (i = 0; i < 8; i++) {
-        float offset = flare_offset[i];
-        size = (int) (64.0f * flare_size[i]);
-        float dx = (float) (320 - screen_x);
-        dx *= offset;
-        x = (int) dx;
-        x += screen_x;
-        x -= size >> 1;
-        float dy = (float) (SCREEN_HALF_HEIGHT - screen_y);
-        dy *= offset;
-        y = (int) dy;
-        y += screen_y;
-        y -= size >> 1;
-
-        if (visible && 0 <= screen_x && screen_x < 640 && 0 <= screen_y && screen_y < 448) {
-            setbilinear(1);
-            set2DSprite(Vif1Packet, texture, CRect_i_(x, y, size, size), CRect_i_(0, 0, 0x40, 0x40));
-        }
-    }
-
-    if (visible && 0 <= screen_x && screen_x < 640 && 0 <= screen_y && screen_y < 448) {
-        int center_x = 0;
-        int center_y = 0;
-
-        if (!(screen_x < 320)) {
-            center_x = 320 - (screen_x - 320);
-        }
-
-        if (screen_x < 320) {
-            center_x = screen_x;
-        }
-
-        if (!(screen_y < SCREEN_HALF_HEIGHT)) {
-            center_y = SCREEN_HALF_HEIGHT - (screen_y - SCREEN_HALF_HEIGHT);
-        }
-
-        if (screen_y < SCREEN_HALF_HEIGHT) {
-            center_y = screen_y;
-        }
-
-        float level = (float) ((center_x + center_y) >> 1) / 2.7f;
-        int   alpha = (int) level;
-        MGFillBox(CRect_i_(0, 0, 0x2800, (SCREEN_HALF_HEIGHT << 4)), red, green, blue, (unsigned char) (int) level);
-    }
-}
-
-/**
- * Starts the sound manager once, and loads its effect table.
- *
- * @mangled SndInit__Fv
- * @address 0x1591A0
- * @size 0x60
- */
-void SndInit() {
-    if (init_snd == 0) {
-        CSnd.Init(0, 0, 0, 0);
-        init_snd = 1;
-        SndInitialize(4, 0x1E, 4, 5);
-    }
-}
-
-void SndInitialize(int unused0, int unused1, int unused2, int unused3) {
-    snd_read_buf = read_buffer;
-    SndBgmInit();
-    SndAmbientInit();
-    SndSeSeqInit();
-    now_sound_set = -1;
-    now_voice_set = -1;
-    snd_id = 0;
-    now_amb_no = -1;
-    now_amb_vol = -1;
-    now_sp_no = -1;
-    se_table_no = -1;
-    basic_se_table_no = -1;
-    load_bgm_no = -1;
-    load_bgm_adr = 0;
-    bgm_cfg_file[0] = 0;
-    load_snd_set = -1;
-    load_snd_adr = 0;
-    snd_cfg_file[0] = 0;
-    load_voice_set = -1;
-    load_voice_adr = 0;
-    voice_cfg_file[0] = 0;
-}
-
-void SndExit() {
-    CSnd.Stop(MIDI_PORT_BGM);
-    CSnd.Stop(MIDI_PORT_SE_TITLE);
-    CSnd.Stop(MIDI_PORT_AMBIENT);
-    CSnd.Stop(MIDI_PORT_SE_DEFAULT);
-    CSnd.Stop(MIDI_PORT_UNK_A);
-    CSnd.Stop(MIDI_PORT_UNK_D);
-    CSnd.Stop(MIDI_PORT_SE_SPECIAL);
-    CSnd.StopVoice(0);
-    CSnd.StopVoice(1);
-    SndSeSeqInit();
-    SndBgmInit();
-    SndAmbientInit();
-}
-
-void SndStep() {
-    SndBgmFadeInOut();
-    SndSeSeqStep();
-    CSnd.Step();
-}
-
-void SndInitSeTable() {
-    int i;
-    int j;
-
-    for (i = 0; i < 2800; i++) {
-        SND_SE_INFO *info = &se_info[i];
-
-        if (info->bank >= 0) {
-            info->vol_no = CSnd.GetSeNo(info->bank, info->prog);
-        }
-    }
-
-    for (j = 0; j < 100; j++) {
-        SND_SE_INFO *table = cap_se_info[j];
-
-        if (table == 0) {
-            continue;
-        }
-
-        for (i = 0; i < 100; i++) {
-            SND_SE_INFO *info = &table[i];
-
-            if (info->bank == -128) {
-                break;
-            }
-
-            if (info->bank >= 0) {
-                info->vol_no = CSnd.GetSeNo(info->bank, info->prog);
-            }
-        }
-    }
-
-    for (j = 0; j < 2; j++) {
-        SND_SE_INFO *table = basic_se_info[j];
-
-        if (table == 0) {
-            continue;
-        }
-
-        for (i = 0; i < 200; i++) {
-            SND_SE_INFO *info = &table[i];
-
-            if (info->bank == -128) {
-                break;
-            }
-
-            if (info->bank >= 0) {
-                info->vol_no = CSnd.GetSeNo(info->bank, info->prog);
-            }
-        }
-    }
-
-    for (j = 0; j < 10; j++) {
-        SND_SE_INFO *table = voice_info[j];
-
-        if (table == 0) {
-            continue;
-        }
-
-        for (i = 0; i < 100; i++) {
-            SND_SE_INFO *info = &table[i];
-
-            if (info->bank == -128) {
-                break;
-            }
-
-            if (info->bank >= 0) {
-                info->vol_no = CSnd.GetSeNo(info->bank, info->prog);
-            }
-        }
-    }
-
-    for (i = 0; i < 64; i++) {
-        SND_SE_INFO *info = &special_se_info[i];
-
-        if (info->bank == -128) {
-            break;
-        }
-
-        if (info->bank >= 0) {
-            info->vol_no = CSnd.GetSeNo(info->bank, info->prog);
-        }
-    }
-}
-
-void SndSetReadBuffer(unsigned int *buffer);
-
-/**
- * Reports whether any of the background sound loads is still running.
- *
- * @mangled SndSyncBG__Fv
- * @address 0x159670
- * @size 0x80
- */
-int SndSyncBG() {
-    if (SndBgmSyncBG()) {
-        return 1;
-    }
-
-    if (SndSoundSyncBG()) {
-        return 1;
-    }
-
-    if (SndSPSeSyncBG()) {
-        return 1;
-    }
-
-    return SndVoiceSyncBG() ? 1 : 0;
-}
-
-void SndSetCamera(CCamera *camera) {
-    camera->GetPos(camera_pos);
-    camera->GetDir(camera_dir);
-}
-
-/**
- * Tells the sound where the camera stands and which way it looks.
- *
- * @mangled SndSetCamera__FPfPf
- * @address 0x159740
- * @size 0x50
- */
-void SndSetCamera(float *position, float *rotation) {
-    sceVu0CopyVector(camera_pos, position);
-    sceVu0CopyVector(camera_dir, rotation);
-}
-
-/**
- * Builds the archive and configuration file names of one music set.
- *
- * @mangled GetBGMFile__FiPcPc
- * @address 0x159790
- * @size 0x7C
- */
-static void GetBGMFile(int set_no, char *archive_name, char *config_name) {
-    char name[16];
-
-    sprintf(name, "bgm%d", set_no);
-    sprintf(archive_name, "sound/bgm/%s.snd", name);
-    sprintf(config_name, "%s.txt", name);
-}
-
-/**
- * Hands a loaded music set to the driver and reads its configuration.
- *
- * @mangled SetBGMFile__FiPUiPc
- * @address 0x159810
- * @size 0x114
- */
-static void SetBGMFile(int set_no, unsigned int *buffer, char *config_name) {
-    char          base_name[64];
-    char         *dst;
-    char          c;
-    unsigned int *cfg_script;
-    int           size;
-    SND_INFO      info;
-
-    SndBgmStop();
-    CSnd.LoadSoundFileFromPack(config_name, buffer);
-    now_bgm_no = set_no;
-    now_bgm_play = 0;
-
-    dst = base_name;
-
-    while ((c = *config_name) != 0) {
-        if (c == '.') {
-            break;
-        }
-
-        *dst = c;
-        config_name++;
-        dst++;
-    }
-
-    *dst = 0;
-
-    strcat(base_name, ".cfg");
-    cfg_script = GetPackFile(buffer, base_name, &size);
-
-    if (cfg_script != 0) {
-        LoadSoundInfo(&info, (char *) cfg_script, size);
-        CSnd.SetReverb(0, info.reverb_mode, info.reverb_depth);
-        printf("core 0 rev = %d %d\n", info.reverb_mode, info.reverb_depth);
-    }
-}
-
-int SndBgmInit() {
-    now_bgm_no = -1;
-    now_bgm_play = 0;
-    now_bgm_vol = 0;
-    bgm_fade = 0;
-    bgm_fade_vol = 0;
-    bgm_fade_step = 0.0f;
-    now_bgm_fade_vol = 0.0f;
-    return 1;
-}
-
-void SndBgmDisable(int disable) {
-    bgm_off = disable;
-
-    if (disable != 0) {
-        SndBgmStop();
-    }
-}
-
-int SndGetBgmDisableFlag() {
-    return bgm_off;
-}
-
-int SndBgmLoad(int set_no) {
-    char archive_name[128];
-    char config_name[16];
-
-    if (now_bgm_no == set_no) {
-        return 0;
-    }
-
-    GetBGMFile(set_no, archive_name, config_name);
-
-    if (LoadFile2(archive_name, snd_read_buf, 0, 0)) {
-        SetBGMFile(set_no, snd_read_buf, config_name);
-        return 1;
-    }
-
-    return 0;
-}
-
-/**
- * Starts loading one music set in the background.
- *
- * @mangled SndBgmLoadBG__FiPUiPi
- * @address 0x1599F0
- * @size 0xC0
- */
-int SndBgmLoadBG(int set_no, u_int *buffer, int *size) {
-    char archive_name[128];
-
-    if (size != 0) {
-        *size = 0;
-    }
-
-    if (now_bgm_no == set_no) {
-        return 0;
-    }
-
-    GetBGMFile(set_no, archive_name, bgm_cfg_file);
-    printf("%d\n", set_no);
-
-    if (LoadFileBG(archive_name, (u_long128 *) buffer, size)) {
-        load_bgm_no = set_no;
-        load_bgm_adr = buffer;
-        return 1;
-    }
-
-    return 0;
-}
-
-int SndBgmSyncBG() {
-    if (load_bgm_no < 0 || load_bgm_adr == 0) {
-        return 0;
-    }
-
-    if (ReadBGSync()) {
-        return 1;
-    }
-
-    SetBGMFile(load_bgm_no, load_bgm_adr, bgm_cfg_file);
-    load_bgm_no = -1;
-    load_bgm_adr = 0;
-    return 0;
-}
-
-void SndBgmPlay(int track_no) {
-    if (bgm_off == 0 && now_bgm_no >= 0 && now_bgm_play != 1) {
-        CSnd.SQ_Play(MIDI_PORT_BGM, track_no);
-        now_bgm_vol = SndGetDefaultBgmVol();
-        now_bgm_play = 1;
-    }
-}
-
-void SndBgmStop() {
-    if (now_bgm_no >= 0 && now_bgm_play != 0) {
-        CSnd.Stop(MIDI_PORT_BGM);
-        CSnd.StopVoice(0);
-        now_bgm_vol = 0;
-        now_bgm_play = 0;
-    }
-}
-
-void SndBgmPause() {
-    if (now_bgm_no >= 0 && now_bgm_play != 0) {
-        CSnd.Stop(MIDI_PORT_BGM);
-        now_bgm_play = 2;
-    }
-}
-
-void SndBgmRePlay() {
-    if (now_bgm_no >= 0 && now_bgm_play == 2) {
-        CSnd.SQ_RePlay(MIDI_PORT_BGM);
-        now_bgm_play = 1;
-    }
-}
-
-void SndBgmFadeOutStop() {
-    float volume = SndGetBgmVol();
-    float step = volume / 10.0f;
-    int   i;
-
-    for (i = 0; i < 10; i++) {
-        sceGsSyncV(0);
-        volume -= step;
-        SndSetBgmVol((int) volume);
-        SndStep();
-    }
-
-    SndBgmStop();
-}
-
-int SndBgmCheck() {
-    return now_bgm_play;
-}
-
-int SndGetBgmNo() {
-    return now_bgm_no;
-}
-
-/**
- * Sets the background music's volume.
- *
- * @mangled SndSetBgmVol__Fi
- * @address 0x159D20
- * @size 0x70
- */
-void SndSetBgmVol(int volume) {
-    if (now_bgm_no >= 0 && now_bgm_vol != volume) {
-        if (volume < 0 || volume > 127) {
-            return;
-        }
-
-        if (now_bgm_play != 0) {
-            now_bgm_vol = volume;
-            CSnd.SetVol(MIDI_PORT_BGM, volume);
-        }
-    }
-}
-
-/**
- * Sets the background music's volume as a share of its default.
- *
- * @mangled SndSetBgmVolf__Ff
- * @address 0x159D90
- * @size 0x50
- */
-void SndSetBgmVolf(float volume) {
-    SndSetBgmVol((int) (volume * (float) SndGetDefaultBgmVol()));
-}
-
-int SndGetBgmVol() {
-    return now_bgm_vol;
-}
-
-int SndGetDefaultBgmVol() {
-    if (now_bgm_no < 0) {
-        return 0;
-    }
-
-    return CSnd.GetMidiState()->port[0].sequence[0]->volume;
-}
-
-/**
- * Fades the background music up to a volume over a number of steps.
- *
- * @mangled SndBgmFadeIn__Fiii
- * @address 0x159E40
- * @size 0xC8
- */
-void SndBgmFadeIn(int frames, int volume, int start_volume) {
-    if (frames > 0) {
-        if (volume < 0) {
-            volume = SndGetDefaultBgmVol();
-        }
-
-        bgm_fade_vol = volume;
-
-        if (start_volume < 0) {
-            start_volume = SndGetBgmVol();
-        }
-
-        if (start_volume != SndGetDefaultBgmVol()) {
-            now_bgm_fade_vol = (float) start_volume / (float) SndGetDefaultBgmVol();
-            bgm_fade = 1;
-            bgm_fade_step = ((float) bgm_fade_vol - now_bgm_fade_vol) / (float) frames;
-        }
-    }
-}
-
-/**
- * Fades the background music down to a volume over a number of steps.
- *
- * @mangled SndBgmFadeOut__Fii
- * @address 0x159F10
- * @size 0x74
- */
-void SndBgmFadeOut(int frames, int volume) {
-    if (frames > 0) {
-        bgm_fade_vol = volume;
-        now_bgm_fade_vol = (float) SndGetBgmVol();
-        bgm_fade = -1;
-        bgm_fade_step = ((float) bgm_fade_vol - now_bgm_fade_vol) / (float) frames;
-    }
-}
-
-void SndBgmFadeInOut() {
-    float step;
-
-    if (bgm_fade != 0) {
-        now_bgm_fade_vol += bgm_fade_step;
-        step = bgm_fade_step;
-
-        if ((step < 0.0f ? -step : step) < 0.0001f) {
-            bgm_fade = 0;
-        }
-
-        if (bgm_fade > 0) {
-            if (now_bgm_fade_vol >= (float) bgm_fade_vol) {
-                now_bgm_fade_vol = (float) bgm_fade_vol;
-                bgm_fade = 0;
-            }
-        } else if (now_bgm_fade_vol <= (float) bgm_fade_vol) {
-            now_bgm_fade_vol = (float) bgm_fade_vol;
-            bgm_fade = 0;
-        }
-
-        SndSetBgmVol((int) now_bgm_fade_vol);
-    }
-}
-
-int SndCheckFade() {
-    return bgm_fade == 0;
-}
-
-/**
- * Returns the table row for a sound effect, or zero when the number names no
- * row. The number selects between the fixed table, the current basic set, the
- * current chapter set and the current voice set.
- *
- * @mangled GetSeInfo__Fi
- * @address 0x15A0B0
- * @size 0x148
- */
-static SND_SE_INFO *GetSeInfo(int se_no) {
-    SND_SE_INFO *table;
-
-    if (se_no < 0 || se_no >= 2800) {
-        return 0;
-    }
-
-    if (basic_se_table_no >= 0 && se_no >= 100 && se_no < 300) {
-        return basic_se_info[basic_se_table_no] + (se_no - 100);
-    }
-
-    if (se_no >= 300 && se_no < 400 && se_table_no >= 0) {
-        table = cap_se_info[se_table_no];
-
-        if (table != 0) {
-            return table + (se_no - 300);
-        }
-    }
-
-    if (se_no >= 400 && se_no < 500 && now_voice_set >= 0) {
-        table = voice_info[now_voice_set];
-
-        if (table != 0) {
-            return table + (se_no - 400);
-        }
-    }
-
-    return &se_info[se_no];
-}
-
-/**
- * Returns the port a sound effect plays on, or the default port when its row
- * does not name one.
- *
- * @mangled GetPortNo__Fi
- * @address 0x15A200
- * @size 0x38
- */
-static int GetPortNo(int se_no) {
-    SND_SE_INFO *info = GetSeInfo(se_no);
-
-    if (info->port >= 0) {
-        return info->port;
-    }
-
-    return MIDI_PORT_SE_DEFAULT;
-}
-
-/**
- * Builds the archive and configuration file names of one sound-effect set.
- *
- * @mangled GetSoundFile__FiPcPc
- * @address 0x15A240
- * @size 0x7C
- */
-static void GetSoundFile(int set_no, char *archive_name, char *config_name) {
-    char name[16];
-
-    sprintf(name, "snd%d", set_no);
-    sprintf(archive_name, "sound/set/%s.snd", name);
-    sprintf(config_name, "%s.txt", name);
-}
-
-/**
- * Hands a loaded sound-effect set to the driver and sets its channel volumes.
- *
- * @mangled SetSoundFile__FiPUiPc
- * @address 0x15A2C0
- * @size 0x174
- */
-static void SetSoundFile(int set_no, unsigned int *buffer, char *config_name) {
-    char          base_name[64];
-    char         *dst;
-    char          c;
-    SND_INFO      info;
-    unsigned int *cfg_script;
-    int           size;
-
-    CSnd.LoadSoundFileFromPack(config_name, buffer);
-    CSnd.SetVol(MIDI_PORT_SE_TITLE, 0x100);
-    CSnd.SetVol(MIDI_PORT_SE_DEFAULT, 0x100);
-    CSnd.SetVol(MIDI_PORT_UNK_A, 0x100);
-    CSnd.SetVol(MIDI_PORT_UNK_D, 0x100);
-    CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 0x100);
-    now_sound_set = set_no;
-    snd_id = 0;
-    now_amb_no = -1;
-    SndStopAllSe();
-
-    dst = base_name;
-
-    while ((c = *config_name) != 0) {
-        if (c == '.') {
-            break;
-        }
-
-        *dst = c;
-        config_name++;
-        dst++;
-    }
-
-    *dst = 0;
-
-    strcat(base_name, ".cfg");
-    cfg_script = GetPackFile(buffer, base_name, &size);
-
-    if (cfg_script != 0) {
-        LoadSoundInfo(&info, (char *) cfg_script, size);
-        CSnd.SetReverb(1, info.reverb_mode, info.reverb_depth);
-        basic_se_table_no = info.se_table;
-        se_table_no = info.se_table_type;
-    }
-}
-
-int SndGetNowSetNo() {
-    return now_sound_set;
-}
-
-void SndStopAllSe() {
-    CSnd.Stop(MIDI_PORT_SE_TITLE);
-    CSnd.Stop(MIDI_PORT_AMBIENT);
-    CSnd.Stop(MIDI_PORT_SE_DEFAULT);
-    CSnd.Stop(MIDI_PORT_UNK_A);
-    CSnd.Stop(MIDI_PORT_UNK_D);
-    CSnd.Stop(MIDI_PORT_SE_SPECIAL);
-    CSnd.Stop(MIDI_PORT_UNK_B);
-    SndAmbientInit();
-    CSnd.StopVoice(1);
-}
-
-int SndSoundLoad(int set_no) {
-    char archive_name[128];
-    char config_name[32];
-
-    if (now_sound_set == set_no) {
-        return 0;
-    }
-
-    GetSoundFile(set_no, archive_name, config_name);
-
-    if (LoadFile2(archive_name, snd_read_buf, 0, 0)) {
-        SetSoundFile(set_no, snd_read_buf, config_name);
-        return 1;
-    }
-
-    return 0;
-}
-
-/**
- * Starts loading one sound-effect set in the background.
- *
- * @mangled SndSoundLoadBG__FiPUiPi
- * @address 0x15A580
- * @size 0xAC
- */
-int SndSoundLoadBG(int set_no, u_int *buffer, int *size) {
-    char archive_name[128];
-
-    if (size != 0) {
-        *size = 0;
-    }
-
-    if (now_sound_set == set_no) {
-        return 0;
-    }
-
-    GetSoundFile(set_no, archive_name, snd_cfg_file);
-
-    if (LoadFileBG(archive_name, (u_long128 *) buffer, size)) {
-        load_snd_set = set_no;
-        load_snd_adr = buffer;
-        return 1;
-    }
-
-    return 0;
-}
-
-int SndSoundSyncBG() {
-    if (load_snd_set < 0 || load_snd_adr == 0) {
-        return 0;
-    }
-
-    if (ReadBGSync()) {
-        return 1;
-    }
-
-    SetSoundFile(load_snd_set, load_snd_adr, snd_cfg_file);
-    load_snd_set = -1;
-    load_snd_adr = 0;
-    return 0;
-}
-
-void SndSePlay(int se_no, int vol, int voice) {
-    SND_SE_INFO *info = GetSeInfo(se_no);
-
-    if (info != 0) {
-        if (info->vol_no < 0) {
-            vol = 127;
-        }
-
-        int        port = GetPortNo(se_no);
-
-        if (vol < 0) {
-            CSnd.SE_Play(port, info->vol_no, voice);
-        } else {
-            CSnd.SE_Play(port, info->bank, info->prog, vol, voice);
-        }
-    }
-}
-
-/**
- * Plays a sound effect at an explicit volume and pan.
- *
- * @mangled SndSePlay__Fiffi
- * @address 0x15A760
- * @size 0xBC
- */
-void SndSePlay(int se_no, float volume, float pan, int voice) {
-    SND_SE_INFO *info = GetSeInfo(se_no);
-
-    if (info != 0) {
-        int vol = SndGetVolf(se_no, volume);
-        int hw_pan = SndGetPanf(pan);
-
-        if (info->vol_no < 0) {
-            vol = 127;
-        }
-
-        CSnd.SE_Play(GetPortNo(se_no), info->bank, info->prog, hw_pan, 127, vol, voice);
-    }
-}
-
-void SndSePlay(int se_no, float *position, float near, float far) {
-    float volume;
-    float pan;
-
-    if (near < 0.0f) {
-        near = 20.0f;
-    }
-
-    if (far < 0.0f) {
-        far = 500.0f;
-    }
-
-    SndGetVolPan(&volume, &pan, position, near, far);
-    SndSePlay(se_no, volume, pan, 0);
-}
-
-/**
- * Stops a sounding effect.
- *
- * @mangled SndSeStop__Fii
- * @address 0x15A8B0
- * @size 0x50
- */
-void SndSeStop(int se_no, int voice) {
-    SND_SE_INFO *info = GetSeInfo(se_no);
-
-    if (info != 0) {
-        CSnd.SE_Stop(GetPortNo(se_no), info->bank, info->prog, voice);
-    }
-}
-
-void SndSetSeVol(int se_no, int vol, int voice) {
-    SND_SE_INFO *info;
-
-    if (vol < 0 || vol > 127) {
-        return;
-    }
-
-    info = GetSeInfo(se_no);
-
-    if (info != 0) {
-        CSnd.SE_SetVol(GetPortNo(se_no), info->bank, info->prog, vol, voice);
-    }
-}
-
-int SndGetVolf(int se_no, float vol) {
-    SND_SE_INFO *info = GetSeInfo(se_no);
-    short       *table;
-    int          level;
-
-    if (info == 0) {
-        return 0;
-    }
-
-    table = CSnd.GetSeInfTbl();
-    level = 64;
-
-    if (info->vol_no >= 0) {
-        level = table[info->vol_no * 2 + 1];
-    }
-
-    level = (int) ((float) level * vol);
-
-    if (level < 0) {
-        level = 0;
-    }
-
-    if (level > 127) {
-        level = 127;
-    }
-
-    return level;
-}
-
-int SndGetPanf(float pan) {
-    if (pan < -1.0f) {
-        pan = -1.0f;
-    }
-
-    if (pan > 1.0f) {
-        pan = 1.0f;
-    }
-
-    return (int) (63.0f * pan) + 64;
-}
-
-void SndSetSeVolf(int se_no, float vol, int voice) {
-    if (GetSeInfo(se_no) != 0) {
-        SndSetSeVol(se_no, SndGetVolf(se_no, vol), voice);
-    }
-}
-
-void SndSetSePanf(int se_no, float pan, int voice) {
-    SND_SE_INFO *info = GetSeInfo(se_no);
-
-    if (info != 0) {
-        int hw_pan = SndGetPanf(pan);
-
-        CSnd.SE_SetPan(GetPortNo(se_no), info->bank, info->prog, hw_pan, voice);
-    }
-}
-
-void SndPlayFootSound(int kind, int foot, float *position) {
-    float volume;
-    float pan;
-    int   se_no = kind * 4 + 500 + (foot > 0);
-
-    float near = 50.0f;
-    float far = 300.0f;
-    SndGetVolPan(&volume, &pan, position, near, far);
-    SndSePlay(se_no, volume, pan, 0);
-}
-
-/**
- * Calculates the volume and stereo balance of a sound at a world position.
- *
- * @mangled SndGetVolPan__FPfPfPfff
- * @address 0x15AC00
- * @size 0x1F8
- */
-void SndGetVolPan(float *vol, float *pan, float *pos, float near, float far) {
-    sceVu0FVECTOR to_source;
-    sceVu0FVECTOR right;
-    float         distance = DistVector(pos, camera_pos);
-    float         level = 1.0f - (distance - near) / (far - near);
-    float         side;
-    float         weight;
-    int           sign;
-
-    if (distance > far) {
-        level = 0.0f;
-    }
-
-    if (distance < near) {
-        level = 1.0f;
-    }
-
-    *vol = level;
-    *pan = 0.0f;
-
-    sceVu0CopyVector(to_source, camera_dir);
-    to_source[1] = 0.0f;
-    sceVu0Normalize(to_source, to_source);
-    right[0] = to_source[2];
-    right[1] = 0.0f;
-    right[2] = -to_source[0];
-
-    sceVu0SubVector(to_source, pos, camera_pos);
-    to_source[1] = 0.0f;
-    sceVu0Normalize(to_source, to_source);
-    side = -sceVu0InnerProduct(to_source, right);
-
-    sign = 1;
-
-    if (side < 0.0f) {
-        sign = -1;
-    }
-
-    weight = side < 0.0f ? -side : side;
-    weight *= weight;
-    weight *= weight;
-    *pan = 0.7f * ((float) sign * weight);
-    level = *vol * (0.7f + 0.3f * (*pan < 0.0f ? -*pan : *pan));
-    *vol = level;
-    *vol *= 1.4f;
-}
-
-/**
- * Frees one sound-effect sequence slot.
- *
- * @mangled InitSeSeq__FP10SND_SE_SEQ
- * @address 0x15AE00
- * @size 0x10
- */
-static void InitSeSeq(SND_SE_SEQ *seq) {
-    seq->se_no = -1;
-}
-
-/**
- * Finds the sequence slot already playing a sound on a voice, and reports
- * through found that it did. Returns the first free slot instead when there is
- * no such slot, or zero when every slot is taken.
- *
- * @mangled GetSeSeq__FPiii
- * @address 0x15AE10
- * @size 0xC0
- */
-static SND_SE_SEQ *GetSeSeq(int *found, int se_no, int voice) {
-    int         i;
-    SND_SE_SEQ *slot = 0;
-
-    *found = 0;
-
-    for (i = 0; i < 32; i++) {
-        if (se_seq[i].se_no < 0) {
-            slot = &se_seq[i];
-            break;
-        }
-    }
-
-    if (se_no >= 0) {
-        for (i = 0; i < 32; i++) {
-            if (se_seq[i].se_no == se_no && se_seq[i].voice == voice) {
-                *found = 1;
-                return &se_seq[i];
-            }
-        }
-    }
-
-    return slot;
-}
-
-void SndSeSeqInit() {
-    int i;
-
-    for (i = 0; i < 32; i++) {
-        InitSeSeq(&se_seq[i]);
-    }
-}
-
-int SndSeSeqPlayStop(int se_no, int length, int voice) {
-    int         found;
-    SND_SE_SEQ *slot = GetSeSeq(&found, se_no, voice);
-
-    if (slot == 0) {
-        return 0;
-    }
-
-    slot->se_no = se_no;
-    slot->length = length;
-
-    if (found) {
-        slot->step = 1;
-    } else {
-        slot->step = 0;
-    }
-
-    slot->voice = voice;
-    return 1;
-}
-
-static void SndSeSeqStep() {
-    int i;
-
-    for (i = 0; i < 32; i++) {
-        SND_SE_SEQ *seq = &se_seq[i];
-
-        if (seq->se_no >= 0) {
-            if (seq->step == 0) {
-                SndSePlay(seq->se_no, -1, seq->voice);
-            }
-
-            if (seq->step >= seq->length) {
-                SndSeStop(seq->se_no, seq->voice);
-                InitSeSeq(seq);
-            }
-
-            seq->step++;
-        }
-    }
-}
-
-/**
- * Stops every sound-effect sequence.
- *
- * @mangled SndSeSeqAllStop__Fv
- * @address 0x15B060
- * @size 0x84
- */
-void SndSeSeqAllStop() {
-    SND_SE_SEQ *seq;
-    int         i;
-
-    for (i = 0; i < 32; i++) {
-        seq = &se_seq[i];
-
-        if (seq->se_no >= 0) {
-            SndSeStop(seq->se_no, seq->voice);
-            InitSeSeq(seq);
-            seq->step++;
-        }
-    }
-}
-
-int SndAmbientInit() {
-    now_amb_no = -1;
-    now_amb_play = 0;
-    now_amb_vol = 0;
-    return 1;
-}
-
-void SndAmbientPlay(int ambient_no) {
-    if (now_amb_no != ambient_no || now_amb_play != 1) {
-        SndAmbientStop();
-        CSnd.SQ_Play(MIDI_PORT_AMBIENT, ambient_no);
-        now_amb_no = ambient_no;
-        now_amb_vol = SndGetAmbientDefaultVol();
-        now_amb_play = 1;
-    }
-}
-
-void SndAmbientStop() {
-    if (now_amb_no >= 0 && now_amb_play != 0) {
-        CSnd.Stop(MIDI_PORT_AMBIENT);
-        now_amb_play = 0;
-    }
-}
-
-/**
- * Sets the ambient loop's volume.
- *
- * @mangled SndAmbientSetVol__Fi
- * @address 0x15B1E0
- * @size 0x60
- */
-void SndAmbientSetVol(int volume) {
-    if (now_amb_no >= 0 && now_amb_vol != volume && volume >= 0) {
-        if (volume > 127) {
-            volume = 127;
-        }
-
-        now_amb_vol = volume;
-        CSnd.SetVol(MIDI_PORT_AMBIENT, volume);
-    }
-}
-
-/**
- * Sets the ambient loop's volume as a share of its default.
- *
- * @mangled SndAmbientSetVolf__Ff
- * @address 0x15B240
- * @size 0x5C
- */
-void SndAmbientSetVolf(float volume) {
-    if (now_amb_no >= 0) {
-        int level = SndGetAmbientDefaultVol();
-
-        SndAmbientSetVol((int) ((float) level * volume));
-    }
-}
-
-int SndGetAmbientDefaultVol() {
-    if (CSnd.GetMidiState()->port[2].sequence[now_amb_no] != 0) {
-        return CSnd.GetMidiState()->port[2].sequence[now_amb_no]->volume;
-    }
-
-    return 64;
-}
-
-/**
- * Builds the archive and configuration file names of one voice set.
- *
- * @mangled GetVoiceFile__FiPcPc
- * @address 0x15B310
- * @size 0x7C
- */
-static void GetVoiceFile(int set_no, char *archive_name, char *config_name) {
-    char name[16];
-
-    sprintf(name, "voice%d", set_no);
-    sprintf(archive_name, "sound/voice/%s.snd", name);
-    sprintf(config_name, "%s.txt", name);
-}
-
-/**
- * Hands a loaded voice set to the driver and reads its configuration.
- *
- * @mangled SetVoiceFile__FiPUiPc
- * @address 0x15B390
- * @size 0x54
- */
-static void SetVoiceFile(int set_no, u_int *buffer, char *config_name) {
-    CSnd.LoadSoundFileFromPack(config_name, buffer);
-    CSnd.SetVol(MIDI_PORT_UNK_B, 0x100);
-    now_voice_set = set_no;
-}
-
-int SndVoiceLoad(int set_no) {
-    char archive_name[128];
-    char config_name[32];
-
-    if (now_voice_set == set_no) {
-        return 0;
-    }
-
-    GetVoiceFile(set_no, archive_name, config_name);
-
-    if (LoadFile2(archive_name, snd_read_buf, 0, 0)) {
-        SetVoiceFile(set_no, snd_read_buf, config_name);
-        return 1;
-    }
-
-    return 0;
-}
-
-/**
- * Starts loading one voice set in the background.
- *
- * @mangled SndVoiceLoadBG__FiPUiPi
- * @address 0x15B480
- * @size 0xAC
- */
-int SndVoiceLoadBG(int set_no, u_int *buffer, int *size) {
-    char archive_name[128];
-
-    if (size != 0) {
-        *size = 0;
-    }
-
-    if (now_voice_set == set_no) {
-        return 0;
-    }
-
-    GetVoiceFile(set_no, archive_name, voice_cfg_file);
-
-    if (LoadFileBG(archive_name, (u_long128 *) buffer, size)) {
-        load_voice_set = set_no;
-        load_voice_adr = buffer;
-        return 1;
-    }
-
-    return 0;
-}
-
-int SndVoiceSyncBG() {
-    if (load_voice_set < 0 || load_voice_adr == 0) {
-        return 0;
-    }
-
-    if (ReadBGSync()) {
-        return 1;
-    }
-
-    SetVoiceFile(load_voice_set, load_voice_adr, voice_cfg_file);
-    load_voice_set = -1;
-    load_voice_adr = 0;
-    return 0;
-}
-
-/**
- * Returns the table row for a menu sound effect, or zero when the number names
- * no row.
- *
- * @mangled GetSPInfo__Fi
- * @address 0x15B5B0
- * @size 0x40
- */
-static SND_SE_INFO *GetSPInfo(int se_no) {
-    if (se_no < 0 || se_no >= 64) {
-        return 0;
-    }
-
-    return &special_se_info[se_no];
-}
-
-/**
- * Builds the archive and configuration file names of one special-effect set.
- *
- * @mangled GetSPSeFile__FiPcPc
- * @address 0x15B5F0
- * @size 0x7C
- */
-static void GetSPSeFile(int set_no, char *archive_name, char *config_name) {
-    char name[16];
-
-    sprintf(name, "sp%d", set_no);
-    sprintf(archive_name, "sound/special/%s.snd", name);
-    sprintf(config_name, "%s.txt", name);
-}
-
-/**
- * Hands a loaded special-effect set to the driver and reads its configuration.
- *
- * @mangled SetSPSeFile__FiPUiPc
- * @address 0x15B670
- * @size 0x54
- */
-static void SetSPSeFile(int set_no, u_int *buffer, char *config_name) {
-    CSnd.LoadSoundFileFromPack(config_name, buffer);
-    CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 0x100);
-    now_sp_no = set_no;
-}
-
-int SndSPSeLoad(int set_no) {
-    char archive_name[128];
-    char config_name[32];
-
-    if (now_sp_no == set_no) {
-        return 0;
-    }
-
-    GetSPSeFile(set_no, archive_name, config_name);
-
-    if (LoadFile2(archive_name, snd_read_buf, 0, 0)) {
-        SetSPSeFile(set_no, snd_read_buf, config_name);
-        return 1;
-    }
-
-    return 0;
-}
-
-int SndSPSeLoadBG(int set_no, u_int *buffer, int *size) {
-    char archive_name[128];
-
-    if (size != 0) {
-        *size = 0;
-    }
-
-    GetSPSeFile(set_no, archive_name, sp_cfg_file);
-
-    if (LoadFileBG(archive_name, (u_long128 *) buffer, size)) {
-        load_sp_no = set_no;
-        load_sp_adr = buffer;
-        return 1;
-    }
-
-    return 0;
-}
-
-/**
- * Polls the special-effect set load and hands the file to the driver once it lands.
- *
- * @mangled SndSPSeSyncBG__Fv
- * @address 0x15B800
- * @size 0x80
- */
-int SndSPSeSyncBG() {
-    if (load_sp_no < 0 || load_sp_adr == 0) {
-        return 0;
-    }
-
-    if (ReadBGSync()) {
-        return 1;
-    }
-
-    SetSPSeFile(load_sp_no, load_sp_adr, sp_cfg_file);
-    load_sp_no = -1;
-    load_sp_adr = 0;
-    return 0;
-}
-
-/**
- * Plays one special sound effect.
- *
- * @mangled SndSPSePlay__Fii
- * @address 0x15B880
- * @size 0x7C
- */
-void SndSPSePlay(int se_no, int vol) {
-    SND_SE_INFO *info = GetSPInfo(se_no);
-
-    if (info != 0) {
-        if (info->vol_no < 0) {
-            vol = 64;
-        }
-
-        if (vol < 0) {
-            CSnd.SE_Play(MIDI_PORT_SE_SPECIAL, info->vol_no, 0);
-        } else {
-            CSnd.SE_Play(MIDI_PORT_SE_SPECIAL, info->bank, info->prog, vol, 0);
-        }
-    }
-}
-
-void SndSPSeStop(int se_no) {
-    SND_SE_INFO *info = GetSPInfo(se_no);
-
-    if (info != 0) {
-        CSnd.SE_Stop(MIDI_PORT_SE_SPECIAL, info->bank, info->prog, 0);
-    }
-}
-
-/**
- * Sets a special sound effect's volume as a share of its table value.
- *
- * @mangled SndSetSPSeVolf__Fif
- * @address 0x15B950
- * @size 0xB0
- */
-void SndSetSPSeVolf(int se_no, float volume) {
-    SND_SE_INFO *info = GetSPInfo(se_no);
-
-    if (info != 0) {
-        short *table = CSnd.GetSeInfTbl();
-        int    level = table[info->vol_no * 2 + 1];
-
-        level = (int) ((float) level * volume);
-
-        if (level < 0) {
-            level = 0;
-        }
-
-        if (level > 127) {
-            level = 127;
-        }
-
-        CSnd.SE_SetVol(MIDI_PORT_SE_SPECIAL, info->bank, info->prog, level, 0);
-    }
-}
-
-/**
- * Sets a special sound effect's pan as a share of the widest pan.
- *
- * @mangled SndSetSPSePanf__Fif
- * @address 0x15BA00
- * @size 0xA8
- */
-void SndSetSPSePanf(int se_no, float pan) {
-    if (pan < -1.0f) {
-        pan = -1.0f;
-    }
-
-    if (pan > 1.0f) {
-        pan = 1.0f;
-    }
-
-    SND_SE_INFO *info = GetSPInfo(se_no);
-
-    if (info != 0) {
-        CSnd.SE_SetPan(MIDI_PORT_SE_SPECIAL, info->vol_no, (int) (63.0f * pan) + 64, 0);
-    }
-}
+namespace {
 
 // clang-format off
 SND_SE_INFO se_info[2801] = {
@@ -2329,9 +730,7 @@ SND_SE_INFO se_info[2801] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0},
 };
-// clang-format on
 
-// clang-format off
 SND_SE_INFO geo[199] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2384,9 +783,7 @@ SND_SE_INFO geo[199] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {38, 66, 0, 14, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
 SND_SE_INFO dun[199] = {
     {-1, -1, 0, -1, 0}, {30, 21, 0, 14, 0}, {30, 22, 0, 14, 0}, {30, 23, 0, 14, 0},
     {30, 24, 0, 14, 0}, {30, 25, 0, 14, 0}, {-1, -1, 0, -1, 0}, {30, 27, 0, 14, 0},
@@ -2439,10 +836,7 @@ SND_SE_INFO dun[199] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {38, 66, 0, 14, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 0. */
 SND_SE_INFO cap0[92] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2468,10 +862,7 @@ SND_SE_INFO cap0[92] = {
     {44, 84, 1, 10, 0}, {44, 85, 0, 10, 0}, {-1, -1, 0, -1, 0}, {44, 87, 0, 10, 0},
     {44, 88, 0, 10, 0}, {44, 89, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 1. */
 SND_SE_INFO cap1[73] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2493,10 +884,7 @@ SND_SE_INFO cap1[73] = {
     {45, 68, 0, 10, 0}, {45, 69, 0, 10, 0}, {45, 70, 0, 10, 0}, {-1, -1, 0, -1, 0},
     {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 2. */
 SND_SE_INFO cap2[101] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2525,10 +913,7 @@ SND_SE_INFO cap2[101] = {
     {45, 96, 0, 10, 0}, {45, 97, 0, 10, 0}, {45, 98, 0, 10, 0}, {45, 99, 0, 10, 0},
     {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 3. */
 SND_SE_INFO cap3[44] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2542,10 +927,7 @@ SND_SE_INFO cap3[44] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {45, 39, 0, 10, 0},
     {-1, -1, 0, -1, 0}, {45, 41, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 4. */
 SND_SE_INFO cap4[36] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2557,10 +939,7 @@ SND_SE_INFO cap4[36] = {
     {-1, -1, 0, -1, 0}, {45, 29, 0, 10, 0}, {45, 30, 1, 10, 0}, {45, 31, 0, 10, 0},
     {45, 32, 0, 10, 0}, {46, 29, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 10. */
 SND_SE_INFO cap10[85] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2585,10 +964,7 @@ SND_SE_INFO cap10[85] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 82, 0, 10, 0}, {-1, -1, 0, -1, 0},
     {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 11. */
 SND_SE_INFO cap11[101] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2617,10 +993,7 @@ SND_SE_INFO cap11[101] = {
     {45, 96, 0, 10, 0}, {45, 97, 0, 10, 0}, {45, 98, 0, 10, 0}, {45, 99, 0, 10, 0},
     {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 12. */
 SND_SE_INFO cap12[31] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2631,10 +1004,7 @@ SND_SE_INFO cap12[31] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {45, 26, 0, 10, 0}, {-1, -1, 0, -1, 0},
     {45, 28, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 13. */
 SND_SE_INFO cap13[28] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 110, 1, 10, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2644,10 +1014,7 @@ SND_SE_INFO cap13[28] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {45, 23, 0, 10, 0},
     {45, 24, 0, 10, 0}, {45, 25, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 14. */
 SND_SE_INFO cap14[36] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2659,20 +1026,14 @@ SND_SE_INFO cap14[36] = {
     {-1, -1, 0, -1, 0}, {45, 29, 0, 10, 0}, {45, 30, 1, 10, 0}, {45, 31, 0, 10, 0},
     {45, 32, 0, 10, 0}, {46, 29, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 15. */
 SND_SE_INFO cap15[14] = {
     {44, 108, 1, 10, 0}, {44, 109, 0, 10, 0}, {44, 110, 1, 10, 0}, {44, 111, 0, 10, 0},
     {44, 112, 0, 10, 0}, {44, 113, 0, 10, 0}, {44, 114, 0, 10, 0}, {44, 115, 0, 10, 0},
     {44, 116, 0, 10, 0}, {44, 117, 0, 10, 0}, {44, 118, 0, 10, 0}, {44, 119, 0, 10, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 16. */
 SND_SE_INFO cap16[92] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2698,19 +1059,13 @@ SND_SE_INFO cap16[92] = {
     {44, 84, 1, 10, 0}, {44, 85, 0, 10, 0}, {-1, -1, 0, -1, 0}, {44, 87, 0, 10, 0},
     {44, 88, 0, 10, 0}, {44, 89, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 17. */
 SND_SE_INFO cap17[11] = {
     {44, 100, 1, 10, 0}, {44, 101, 0, 10, 0}, {44, 102, 0, 10, 0}, {44, 103, 0, 10, 0},
     {44, 104, 0, 10, 0}, {44, 105, 0, 10, 0}, {44, 106, 0, 10, 0}, {44, 107, 0, 10, 0},
     {44, 108, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 20. */
 SND_SE_INFO cap20[76] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2732,17 +1087,11 @@ SND_SE_INFO cap20[76] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {44, 73, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 21. */
 SND_SE_INFO cap21[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 22. */
 SND_SE_INFO cap22[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2769,10 +1118,7 @@ SND_SE_INFO cap22[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 90, 0, 10, 0}, {44, 91, 0, 10, 0},
     {44, 92, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 25. */
 SND_SE_INFO cap25[29] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2783,17 +1129,11 @@ SND_SE_INFO cap25[29] = {
     {-1, -1, 0, -1, 0}, {44, 25, 0, 10, 0}, {44, 26, 0, 10, 0}, {-1, -1, 0, -1, 0},
     {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 26. */
 SND_SE_INFO cap26[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 27. */
 SND_SE_INFO cap27[101] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2822,27 +1162,18 @@ SND_SE_INFO cap27[101] = {
     {44, 96, 0, 10, 0}, {44, 97, 1, 10, 0}, {44, 98, 0, 10, 0}, {44, 99, 0, 10, 0},
     {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 30. */
 SND_SE_INFO cap30[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 31. */
 SND_SE_INFO cap31[15] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {45, 112, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 32. */
 SND_SE_INFO cap32[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2869,24 +1200,15 @@ SND_SE_INFO cap32[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 90, 0, 10, 0}, {44, 91, 0, 10, 0},
     {44, 92, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 35. */
 SND_SE_INFO cap35[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 36. */
 SND_SE_INFO cap36[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 37. */
 SND_SE_INFO cap37[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2913,10 +1235,7 @@ SND_SE_INFO cap37[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 90, 0, 10, 0}, {44, 91, 0, 10, 0},
     {44, 92, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 40. */
 SND_SE_INFO cap40[32] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {46, 23, 0, 10, 0}, {46, 24, 1, 10, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2927,17 +1246,11 @@ SND_SE_INFO cap40[32] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {46, 29, 1, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 41. */
 SND_SE_INFO cap41[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 42. */
 SND_SE_INFO cap42[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -2964,24 +1277,15 @@ SND_SE_INFO cap42[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 90, 0, 10, 0}, {44, 91, 0, 10, 0},
     {44, 92, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 45. */
 SND_SE_INFO cap45[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 46. */
 SND_SE_INFO cap46[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 47. */
 SND_SE_INFO cap47[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3008,10 +1312,7 @@ SND_SE_INFO cap47[95] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 90, 0, 10, 0}, {44, 91, 0, 10, 0},
     {44, 92, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 50. */
 SND_SE_INFO cap50[43] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3025,10 +1326,7 @@ SND_SE_INFO cap50[43] = {
     {47, 96, 0, 10, 0}, {47, 97, 0, 10, 0}, {-1, -1, 0, -1, 0}, {47, 99, 0, 10, 0},
     {47, 100, 1, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 51. */
 SND_SE_INFO cap51[75] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3050,10 +1348,7 @@ SND_SE_INFO cap51[75] = {
     {47, 68, 0, 10, 0}, {47, 69, 0, 10, 0}, {47, 70, 1, 10, 0}, {47, 71, 0, 10, 0},
     {47, 72, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 52. */
 SND_SE_INFO cap52[79] = {
     {47, 23, 0, 10, 0}, {47, 24, 1, 10, 0}, {47, 25, 0, 10, 0}, {47, 26, 0, 10, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3076,10 +1371,7 @@ SND_SE_INFO cap52[79] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 74, 0, 10, 0}, {44, 75, 0, 10, 0},
     {44, 76, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 53. */
 SND_SE_INFO cap53[22] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3088,10 +1380,7 @@ SND_SE_INFO cap53[22] = {
     {47, 106, 0, 10, 0}, {47, 107, 0, 10, 0}, {47, 108, 0, 10, 0}, {47, 109, 0, 10, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 54. */
 SND_SE_INFO cap54[35] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3103,10 +1392,7 @@ SND_SE_INFO cap54[35] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {47, 32, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 55. */
 SND_SE_INFO cap55[47] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3121,10 +1407,7 @@ SND_SE_INFO cap55[47] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {47, 42, 0, 10, 0}, {47, 43, 0, 10, 0},
     {47, 44, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 56. */
 SND_SE_INFO cap56[55] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3141,10 +1424,7 @@ SND_SE_INFO cap56[55] = {
     {47, 48, 0, 10, 0}, {47, 49, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {47, 52, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 57. */
 SND_SE_INFO cap57[79] = {
     {44, 108, 1, 10, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3167,10 +1447,7 @@ SND_SE_INFO cap57[79] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 74, 0, 10, 0}, {44, 75, 0, 10, 0},
     {44, 76, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 58. */
 SND_SE_INFO cap58[99] = {
     {44, 108, 1, 10, 0}, {-1, -1, 0, -1, 0}, {44, 110, 1, 10, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {44, 113, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3198,77 +1475,51 @@ SND_SE_INFO cap58[99] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {44, 95, 0, 10, 0},
     {44, 96, 0, 10, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 59. */
 SND_SE_INFO cap59[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 60. */
 SND_SE_INFO cap60[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 61. */
 SND_SE_INFO cap61[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 62. */
 SND_SE_INFO cap62[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 63. */
 SND_SE_INFO cap63[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 64. */
 SND_SE_INFO cap64[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set cap_se_info names as chapter set 65. */
 SND_SE_INFO cap65[2] = {
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-SND_SE_INFO *cap_se_info[101] = {
-    cap0, cap1, cap2, cap3, cap4, 0, 0, 0,
-    0, 0, cap10, cap11, cap12, cap13, cap14, cap15,
-    cap16, cap17, 0, 0, cap20, cap21, cap22, 0,
-    0, cap25, cap26, cap27, 0, 0, cap30, cap31,
-    cap32, 0, 0, cap35, cap36, cap37, 0, 0,
-    cap40, cap41, cap42, 0, 0, cap45, cap46, cap47,
-    0, 0, cap50, cap51, cap52, cap53, cap54, cap55,
+std::array<SND_SE_INFO *, 101> cap_se_info = {
+    cap0, cap1, cap2, cap3, cap4, nullptr, nullptr, nullptr,
+    nullptr, nullptr, cap10, cap11, cap12, cap13, cap14, cap15,
+    cap16, cap17, nullptr, nullptr, cap20, cap21, cap22, nullptr,
+    nullptr, cap25, cap26, cap27, nullptr, nullptr, cap30, cap31,
+    cap32, nullptr, nullptr, cap35, cap36, cap37, nullptr, nullptr,
+    cap40, cap41, cap42, nullptr, nullptr, cap45, cap46, cap47,
+    nullptr, nullptr, cap50, cap51, cap52, cap53, cap54, cap55,
     cap56, cap57, cap58, cap59, cap60, cap61, cap62, cap63,
-    cap64, cap65, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0,
+    cap64, cap65, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, nullptr, nullptr,
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 0. */
 SND_SE_INFO voice0[54] = {
     {23, 20, 0, 11, 0}, {23, 21, 0, 11, 0}, {23, 22, 0, 11, 0}, {23, 23, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3285,10 +1536,7 @@ SND_SE_INFO voice0[54] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {23, 70, 0, 11, 0}, {23, 71, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 1. */
 SND_SE_INFO voice1[54] = {
     {24, 20, 0, 11, 0}, {24, 21, 0, 11, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3305,10 +1553,7 @@ SND_SE_INFO voice1[54] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {24, 70, 0, 11, 0}, {24, 71, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 2. */
 SND_SE_INFO voice2[54] = {
     {25, 20, 0, 11, 0}, {-1, -1, 0, -1, 0}, {25, 22, 0, 11, 0}, {25, 23, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3325,10 +1570,7 @@ SND_SE_INFO voice2[54] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {25, 70, 0, 11, 0}, {25, 71, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 3. */
 SND_SE_INFO voice3[54] = {
     {26, 20, 0, 11, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {26, 23, 1, 11, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3345,10 +1587,7 @@ SND_SE_INFO voice3[54] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {26, 70, 0, 11, 0}, {26, 71, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 4. */
 SND_SE_INFO voice4[54] = {
     {27, 20, 0, 11, 0}, {27, 21, 0, 11, 0}, {27, 22, 1, 11, 0}, {-1, -1, 0, -1, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3365,10 +1604,7 @@ SND_SE_INFO voice4[54] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {27, 70, 0, 11, 0}, {27, 71, 0, 11, 0},
     {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 5. */
 SND_SE_INFO voice5[64] = {
     {28, 20, 1, 11, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {28, 24, 1, 11, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
@@ -3387,24 +1623,17 @@ SND_SE_INFO voice5[64] = {
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0},
     {28, 80, 1, 11, 0}, {28, 81, 0, 11, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-/** The sound-effect set voice_info names as voice set 6. */
 SND_SE_INFO voice6[7] = {
     {29, 20, 0, 11, 0}, {29, 21, 0, 11, 0}, {29, 22, 0, 11, 0}, {29, 23, 0, 11, 0},
     {29, 24, 0, 11, 0}, {-1, -1, 0, -1, 0}, {-128, -128, -128, -128, 0},
 };
-// clang-format on
 
-// clang-format off
-SND_SE_INFO *voice_info[11] = {
-    voice0, voice1, voice2, voice3, voice4, voice5, voice6, 0,
-    0, 0, 0,
+std::array<SND_SE_INFO *, 11> voice_info = {
+    voice0, voice1, voice2, voice3, voice4, voice5, voice6, nullptr,
+    nullptr, nullptr, nullptr,
 };
-// clang-format on
 
-// clang-format off
 SND_SE_INFO special_se_info[65] = {
     {-1, -1, 0, -1, 0}, {124, 20, 0, 12, 0}, {124, 21, 0, 12, 0}, {124, 22, 0, 12, 0},
     {-1, -1, 0, -1, 0}, {-1, -1, 0, -1, 0}, {124, 25, 0, 12, 0}, {-1, -1, 0, -1, 0},
@@ -3426,127 +1655,1202 @@ SND_SE_INFO special_se_info[65] = {
 };
 // clang-format on
 
+/** The two basic sound-effect sets, indexed by the TABLE tag's table number. */
+std::array<SND_SE_INFO *, 2> basic_se_info = {geo, dun};
+
 TAG_PARAM Command__3[2] = {
     {"REVERBE", {1, 1, -1}},
     {"TABLE",   {1, 1, -1}},
 };
 
-int se_list;
-
+/** The configuration the tag handlers of a LoadSoundInfo call fill in. */
 SND_INFO *SoundInfo;
+
+void CommandREVERBE(void **arguments) {
+    SoundInfo->reverb_mode = *static_cast<s32 *>(arguments[0]);
+    SoundInfo->reverb_depth = *static_cast<s32 *>(arguments[1]);
+}
+
+void CommandTABLE(void **arguments) {
+    SoundInfo->se_table = *static_cast<s32 *>(arguments[0]);
+    SoundInfo->se_table_type = *static_cast<s32 *>(arguments[1]);
+}
+
+/** The handler LoadSoundInfo calls for each of Command__3's tags. */
+constexpr std::array<void (*)(void **), 2> CommandExe__3 = {CommandREVERBE, CommandTABLE};
 
 /**
  * Reads one sound configuration file through the script interpreter.
- *
- * @mangled LoadSoundInfo__FP8SND_INFOPci
- * @address 0x15BAB0
- * @size 0xF4
  */
 void LoadSoundInfo(SND_INFO *info, char *script, int script_size) {
-    u8 *clear;
-    u8 *data = (u8 *) script;
-    clear = (u8 *) info;
-    memset(info, 0, sizeof(SND_INFO));
-
-    for (u_int i = 0; i < sizeof(SND_INFO); i++) {
-        *clear++ = 0;
-    }
-
-    se_list = 0;
+    *info = {};
     SoundInfo = info;
     CScriptInterpreter interpreter;
-    interpreter.SetScript((char *) data, script_size);
-    interpreter.SetTAG((TAG_PARAM *) Command__3, 2);
+    interpreter.SetScript(script, script_size);
+    interpreter.SetTAG(Command__3, static_cast<int>(std::size(Command__3)));
 
-    for (;;) {
-        int tag = interpreter.GetNextTAG();
-
-        if (tag < 0) {
-            break;
-        }
-
+    for (int tag = interpreter.GetNextTAG(); tag >= 0; tag = interpreter.GetNextTAG()) {
         CommandExe__3[tag](interpreter.arguments);
     }
 }
 
-static void CommandREVERBE(void **arguments) {
-    SoundInfo->reverb_mode = *(s32 *) arguments[0];
-    SoundInfo->reverb_depth = *(s32 *) arguments[1];
+/** The background music's play state, as SndBgmCheck reports it. */
+enum class BgmPlayState : int {
+    Stopped = 0,
+    Playing = 1,
+    Paused = 2,
+};
+
+/** The direction of the background-music fade that runs. */
+enum class BgmFade : int {
+    Out = -1,
+    None = 0,
+    In = 1,
+};
+
+/** The archive and configuration file names of one sound set. */
+struct SoundFileNames {
+    std::string archive; /**< The set's archive path on the disc. */
+    std::string config;  /**< The driver configuration member inside that archive. */
+};
+
+int  bgm_off;
+int  snd_id;
+int  now_sound_set;
+int  now_voice_set;
+int  now_bgm_no;
+auto now_bgm_play = BgmPlayState::Stopped;
+int  now_bgm_vol;
+
+auto  bgm_fade = BgmFade::None;
+float now_bgm_fade_vol;
+float bgm_fade_step;
+int   bgm_fade_vol;
+
+int  now_amb_no;
+int  now_amb_vol;
+bool now_amb_play;
+int  now_sp_no;
+
+/** The chapter sound-effect set the loaded configuration names, or -1 for none. */
+int se_table_no;
+
+/** The basic sound-effect set the loaded configuration names, or -1 for none. */
+int basic_se_table_no;
+
+int         load_bgm_no;
+u_int      *load_bgm_adr;
+int         load_snd_set;
+u_int      *load_snd_adr;
+int         load_voice_set;
+u_int      *load_voice_adr;
+int         load_sp_no;
+u_int      *load_sp_adr;
+bool        init_snd;
+std::string bgm_cfg_file;
+std::string snd_cfg_file;
+std::string voice_cfg_file;
+std::string sp_cfg_file;
+
+/** The position and view direction of the camera that sounds pan against. */
+sceVu0FVECTOR camera_pos;
+sceVu0FVECTOR camera_dir;
+
+std::array<SND_SE_SEQ, 32> se_seq;
+
+void SndSeSeqStep();
+
+/**
+ * Builds the archive and configuration file names of a set from its file stem
+ * and its folder under sound/.
+ */
+SoundFileNames GetSetFileNames(std::string_view stem, std::string_view folder, int set_no) {
+    const std::string name = std::format("{}{}", stem, set_no);
+    return {.archive = std::format("sound/{}/{}.snd", folder, name), .config = name + ".txt"};
 }
 
-static void CommandTABLE(void **arguments) {
-    SoundInfo->se_table = *(s32 *) arguments[0];
-    SoundInfo->se_table_type = *(s32 *) arguments[1];
+/**
+ * Returns the name of the configuration script that sits beside a driver
+ * configuration member: its name up to the first dot, with a .cfg extension.
+ */
+std::string GetConfigScriptName(std::string_view config_name) {
+    std::string script_name(config_name.substr(0, config_name.find('.')));
+    script_name += ".cfg";
+    return script_name;
 }
 
-void setbilinear(int on);
+/**
+ * Hands every row of one sound-effect table to the driver to resolve its sound
+ * number, stopping at the table's end row or after a number of rows.
+ */
+void ResolveSeTable(SND_SE_INFO *table, int max_rows) {
+    for (int row = 0; row < max_rows; row++) {
+        SND_SE_INFO &info = table[row];
 
-void setAlphaFlag(sceVif1Packet *packet, sceGsAlpha *alpha);
+        if (info.bank == -128) {
+            break;
+        }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, int u, int v);
+        if (info.bank >= 0) {
+            info.vol_no = CSnd.GetSeNo(info.bank, info.prog);
+        }
+    }
+}
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel);
+} // namespace
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, unsigned char alpha);
+/** The buffer the sound loader is pointed at. */
+unsigned int *snd_read_buf;
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
+EDIT_ELEMENT_ATRA *GetEditAtraData(int ground, int number) {
+    if (ground < 0 || ground >= 6) {
+        return nullptr;
+    }
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right, int mode);
+    if (number < 0 || number >= 100) {
+        return nullptr;
+    }
 
-void set3DColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right, spRGBA *top_left_colour, spRGBA *top_right_colour, spRGBA *bottom_left_colour, spRGBA *bottom_right_colour);
+    return &EditElementData[ground][number];
+}
 
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left, int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha);
+EDIT_PARTS_ATRA *GetEditAtraPartsData(int ground, int number) {
+    if (ground < 0 || ground >= 6) {
+        return nullptr;
+    }
+
+    if (number < 0 || number >= 24) {
+        return nullptr;
+    }
+
+    return &EditPartsData[ground].parts[number];
+}
+
+EDIT_ELEMENT_ATRA *GetEditAtraChipData(int ground, int number) {
+    return GetEditAtraData(ground, number + 40);
+}
+
+void LensFlare(CTexture *texture, float *position, unsigned char red, unsigned char green, unsigned char blue) {
+    if (texture == nullptr) {
+        return;
+    }
+
+    sceVu0IVECTOR screen;
+    const int     visible = MGRotTransPers2D(screen, position, 0);
+    const int     screen_x = screen[0];
+    const int     screen_y = screen[1];
+    const bool    on_screen = visible && 0 <= screen_x && screen_x < 640 && 0 <= screen_y && screen_y < 448;
+
+    constexpr std::array<float, 8> flare_offset = {0.1f, 0.2f, 0.4f, 0.5f, 0.8f, 0.9f, 1.0f, 1.3f};
+    constexpr std::array<float, 8> flare_size = {0.1f, 0.2f, 1.0f, 0.3f, 2.0f, 0.5f, 3.8f, 0.5f};
+
+    for (std::size_t flare = 0; flare < flare_offset.size(); flare++) {
+        const float offset = flare_offset[flare];
+        const int   size = static_cast<int>(64.0f * flare_size[flare]);
+        const float dx = static_cast<float>(320 - screen_x) * offset;
+        const int   x = static_cast<int>(dx) + screen_x - (size >> 1);
+        const float dy = static_cast<float>(SCREEN_HALF_HEIGHT - screen_y) * offset;
+        const int   y = static_cast<int>(dy) + screen_y - (size >> 1);
+
+        if (on_screen) {
+            setbilinear(1);
+            set2DSprite(Vif1Packet, texture, CRect_i_(x, y, size, size), CRect_i_(0, 0, 0x40, 0x40));
+        }
+    }
+
+    if (on_screen) {
+        const int   center_x = screen_x < 320 ? screen_x : 320 - (screen_x - 320);
+        const int   center_y = screen_y < SCREEN_HALF_HEIGHT ? screen_y : SCREEN_HALF_HEIGHT - (screen_y - SCREEN_HALF_HEIGHT);
+        const float level = static_cast<float>((center_x + center_y) >> 1) / 2.7f;
+        MGFillBox(CRect_i_(0, 0, 0x2800, (SCREEN_HALF_HEIGHT << 4)), red, green, blue, static_cast<unsigned char>(static_cast<int>(level)));
+    }
+}
+
+void SndInit() {
+    if (!init_snd) {
+        CSnd.Init(0, 0, 0, 0);
+        init_snd = true;
+        SndInitialize(4, 0x1E, 4, 5);
+    }
+}
+
+void SndInitialize(int /*unused0*/, int /*unused1*/, int /*unused2*/, int /*unused3*/) {
+    snd_read_buf = read_buffer;
+    SndBgmInit();
+    SndAmbientInit();
+    SndSeSeqInit();
+    now_sound_set = -1;
+    now_voice_set = -1;
+    snd_id = 0;
+    now_amb_no = -1;
+    now_amb_vol = -1;
+    now_sp_no = -1;
+    se_table_no = -1;
+    basic_se_table_no = -1;
+    load_bgm_no = -1;
+    load_bgm_adr = nullptr;
+    bgm_cfg_file.clear();
+    load_snd_set = -1;
+    load_snd_adr = nullptr;
+    snd_cfg_file.clear();
+    load_voice_set = -1;
+    load_voice_adr = nullptr;
+    voice_cfg_file.clear();
+}
+
+void SndExit() {
+    CSnd.Stop(MIDI_PORT_BGM);
+    CSnd.Stop(MIDI_PORT_SE_TITLE);
+    CSnd.Stop(MIDI_PORT_AMBIENT);
+    CSnd.Stop(MIDI_PORT_SE_DEFAULT);
+    CSnd.Stop(MIDI_PORT_UNK_A);
+    CSnd.Stop(MIDI_PORT_UNK_D);
+    CSnd.Stop(MIDI_PORT_SE_SPECIAL);
+    CSnd.StopVoice(0);
+    CSnd.StopVoice(1);
+    SndSeSeqInit();
+    SndBgmInit();
+    SndAmbientInit();
+}
+
+void SndStep() {
+    SndBgmFadeInOut();
+    SndSeSeqStep();
+    CSnd.Step();
+}
+
+void SndInitSeTable() {
+    for (int se_no = 0; se_no < 2800; se_no++) {
+        SND_SE_INFO &info = se_info[se_no];
+
+        if (info.bank >= 0) {
+            info.vol_no = CSnd.GetSeNo(info.bank, info.prog);
+        }
+    }
+
+    for (int set_no = 0; set_no < 100; set_no++) {
+        if (cap_se_info[set_no] != nullptr) {
+            ResolveSeTable(cap_se_info[set_no], 100);
+        }
+    }
+
+    for (SND_SE_INFO *table : basic_se_info) {
+        if (table != nullptr) {
+            ResolveSeTable(table, 200);
+        }
+    }
+
+    for (int set_no = 0; set_no < 10; set_no++) {
+        if (voice_info[set_no] != nullptr) {
+            ResolveSeTable(voice_info[set_no], 100);
+        }
+    }
+
+    ResolveSeTable(special_se_info, 64);
+}
+
+int SndSyncBG() {
+    if (SndBgmSyncBG()) {
+        return 1;
+    }
+
+    if (SndSoundSyncBG()) {
+        return 1;
+    }
+
+    if (SndSPSeSyncBG()) {
+        return 1;
+    }
+
+    return SndVoiceSyncBG() ? 1 : 0;
+}
+
+void SndSetCamera(CCamera *camera) {
+    camera->GetPos(camera_pos);
+    camera->GetDir(camera_dir);
+}
+
+void SndSetCamera(float *position, float *rotation) {
+    sceVu0CopyVector(camera_pos, position);
+    sceVu0CopyVector(camera_dir, rotation);
+}
+
+namespace {
+
+SoundFileNames GetBGMFile(int set_no) {
+    return GetSetFileNames("bgm", "bgm", set_no);
+}
 
 /**
- * Draws a textured sprite in world space, with four corner positions and colours.
- *
- * @mangled set3DSprite__FP13sceVif1PacketP8CTextureRC8CRect_i_PiPiPiPiP6spRGBA
- * @address 0x15D4B0
- * @size 0x2E0
+ * Hands a loaded music set to the driver and applies its reverberation.
  */
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left, int *top_right, int *bottom_left, int *bottom_right, spRGBA *colour);
+void SetBGMFile(int set_no, unsigned int *buffer, std::string config_name) {
+    SndBgmStop();
+    CSnd.LoadSoundFileFromPack(config_name.data(), buffer);
+    now_bgm_no = set_no;
+    now_bgm_play = BgmPlayState::Stopped;
+
+    std::string script_name = GetConfigScriptName(config_name);
+    int         size = 0;
+    u_int      *cfg_script = GetPackFile(buffer, script_name.data(), &size);
+
+    if (cfg_script != nullptr) {
+        SND_INFO info{};
+        LoadSoundInfo(&info, reinterpret_cast<char *>(cfg_script), size);
+        CSnd.SetReverb(0, info.reverb_mode, info.reverb_depth);
+        std::println("core 0 rev = {} {}", info.reverb_mode, info.reverb_depth);
+    }
+}
+
+} // namespace
+
+int SndBgmInit() {
+    now_bgm_no = -1;
+    now_bgm_play = BgmPlayState::Stopped;
+    now_bgm_vol = 0;
+    bgm_fade = BgmFade::None;
+    bgm_fade_vol = 0;
+    bgm_fade_step = 0.0f;
+    now_bgm_fade_vol = 0.0f;
+    return 1;
+}
+
+void SndBgmDisable(int disable) {
+    bgm_off = disable;
+
+    if (disable != 0) {
+        SndBgmStop();
+    }
+}
+
+int SndGetBgmDisableFlag() {
+    return bgm_off;
+}
+
+int SndBgmLoad(int set_no) {
+    if (now_bgm_no == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetBGMFile(set_no);
+
+    if (LoadFile2(names.archive.data(), snd_read_buf, nullptr, 0)) {
+        SetBGMFile(set_no, snd_read_buf, names.config);
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndBgmLoadBG(int set_no, u_int *buffer, int *size) {
+    if (size != nullptr) {
+        *size = 0;
+    }
+
+    if (now_bgm_no == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetBGMFile(set_no);
+    bgm_cfg_file = names.config;
+    std::println("{}", set_no);
+
+    if (LoadFileBG(names.archive.data(), reinterpret_cast<u_long128 *>(buffer), size)) {
+        load_bgm_no = set_no;
+        load_bgm_adr = buffer;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndBgmSyncBG() {
+    if (load_bgm_no < 0 || load_bgm_adr == nullptr) {
+        return 0;
+    }
+
+    if (ReadBGSync()) {
+        return 1;
+    }
+
+    SetBGMFile(load_bgm_no, load_bgm_adr, bgm_cfg_file);
+    load_bgm_no = -1;
+    load_bgm_adr = nullptr;
+    return 0;
+}
+
+void SndBgmPlay(int track_no) {
+    if (bgm_off == 0 && now_bgm_no >= 0 && now_bgm_play != BgmPlayState::Playing) {
+        CSnd.SQ_Play(MIDI_PORT_BGM, track_no);
+        now_bgm_vol = SndGetDefaultBgmVol();
+        now_bgm_play = BgmPlayState::Playing;
+    }
+}
+
+void SndBgmStop() {
+    if (now_bgm_no >= 0 && now_bgm_play != BgmPlayState::Stopped) {
+        CSnd.Stop(MIDI_PORT_BGM);
+        CSnd.StopVoice(0);
+        now_bgm_vol = 0;
+        now_bgm_play = BgmPlayState::Stopped;
+    }
+}
+
+void SndBgmPause() {
+    if (now_bgm_no >= 0 && now_bgm_play != BgmPlayState::Stopped) {
+        CSnd.Stop(MIDI_PORT_BGM);
+        now_bgm_play = BgmPlayState::Paused;
+    }
+}
+
+void SndBgmRePlay() {
+    if (now_bgm_no >= 0 && now_bgm_play == BgmPlayState::Paused) {
+        CSnd.SQ_RePlay(MIDI_PORT_BGM);
+        now_bgm_play = BgmPlayState::Playing;
+    }
+}
+
+void SndBgmFadeOutStop() {
+    auto        volume = static_cast<float>(SndGetBgmVol());
+    const float step = volume / 10.0f;
+
+    for (int frame = 0; frame < 10; frame++) {
+        sceGsSyncV(0);
+        volume -= step;
+        SndSetBgmVol(static_cast<int>(volume));
+        SndStep();
+    }
+
+    SndBgmStop();
+}
+
+int SndBgmCheck() {
+    return static_cast<int>(now_bgm_play);
+}
+
+int SndGetBgmNo() {
+    return now_bgm_no;
+}
+
+void SndSetBgmVol(int volume) {
+    if (now_bgm_no >= 0 && now_bgm_vol != volume) {
+        if (volume < 0 || volume > 127) {
+            return;
+        }
+
+        if (now_bgm_play != BgmPlayState::Stopped) {
+            now_bgm_vol = volume;
+            CSnd.SetVol(MIDI_PORT_BGM, volume);
+        }
+    }
+}
+
+void SndSetBgmVolf(float volume) {
+    SndSetBgmVol(static_cast<int>(volume * static_cast<float>(SndGetDefaultBgmVol())));
+}
+
+int SndGetBgmVol() {
+    return now_bgm_vol;
+}
+
+int SndGetDefaultBgmVol() {
+    if (now_bgm_no < 0) {
+        return 0;
+    }
+
+    return CSnd.GetMidiState()->port[0].sequence[0]->volume;
+}
+
+void SndBgmFadeIn(int frames, int volume, int start_volume) {
+    if (frames > 0) {
+        if (volume < 0) {
+            volume = SndGetDefaultBgmVol();
+        }
+
+        bgm_fade_vol = volume;
+
+        if (start_volume < 0) {
+            start_volume = SndGetBgmVol();
+        }
+
+        if (start_volume != SndGetDefaultBgmVol()) {
+            now_bgm_fade_vol = static_cast<float>(start_volume) / static_cast<float>(SndGetDefaultBgmVol());
+            bgm_fade = BgmFade::In;
+            bgm_fade_step = (static_cast<float>(bgm_fade_vol) - now_bgm_fade_vol) / static_cast<float>(frames);
+        }
+    }
+}
+
+void SndBgmFadeOut(int frames, int volume) {
+    if (frames > 0) {
+        bgm_fade_vol = volume;
+        now_bgm_fade_vol = static_cast<float>(SndGetBgmVol());
+        bgm_fade = BgmFade::Out;
+        bgm_fade_step = (static_cast<float>(bgm_fade_vol) - now_bgm_fade_vol) / static_cast<float>(frames);
+    }
+}
+
+void SndBgmFadeInOut() {
+    if (bgm_fade != BgmFade::None) {
+        now_bgm_fade_vol += bgm_fade_step;
+
+        if (std::abs(bgm_fade_step) < 0.0001f) {
+            bgm_fade = BgmFade::None;
+        }
+
+        if (bgm_fade == BgmFade::In) {
+            if (now_bgm_fade_vol >= static_cast<float>(bgm_fade_vol)) {
+                now_bgm_fade_vol = static_cast<float>(bgm_fade_vol);
+                bgm_fade = BgmFade::None;
+            }
+        } else if (now_bgm_fade_vol <= static_cast<float>(bgm_fade_vol)) {
+            now_bgm_fade_vol = static_cast<float>(bgm_fade_vol);
+            bgm_fade = BgmFade::None;
+        }
+
+        SndSetBgmVol(static_cast<int>(now_bgm_fade_vol));
+    }
+}
+
+int SndCheckFade() {
+    return bgm_fade == BgmFade::None ? 1 : 0;
+}
+
+namespace {
 
 /**
- * Draws a textured sprite in world space between two projected corners.
- *
- * @mangled set3DSprite__FP13sceVif1PacketP8CTextureRC8CRect_i_PiPiP6spRGBA
- * @address 0x15D790
- * @size 0x210
+ * Returns the table row for a sound effect, or null when the number names no
+ * row. The number selects between the fixed table, the current basic set, the
+ * current chapter set and the current voice set.
  */
-void set3DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left, int *bottom_right, spRGBA *colour);
+SND_SE_INFO *GetSeInfo(int se_no) {
+    if (se_no < 0 || se_no >= 2800) {
+        return nullptr;
+    }
+
+    if (basic_se_table_no >= 0 && se_no >= 100 && se_no < 300) {
+        return &basic_se_info[basic_se_table_no][se_no - 100];
+    }
+
+    if (se_no >= 300 && se_no < 400 && se_table_no >= 0) {
+        SND_SE_INFO *table = cap_se_info[se_table_no];
+
+        if (table != nullptr) {
+            return &table[se_no - 300];
+        }
+    }
+
+    if (se_no >= 400 && se_no < 500 && now_voice_set >= 0) {
+        SND_SE_INFO *table = voice_info[now_voice_set];
+
+        if (table != nullptr) {
+            return &table[se_no - 400];
+        }
+    }
+
+    return &se_info[se_no];
+}
 
 /**
- * Draws a fogged sprite in world space, with four corner positions.
- *
- * @mangled set3DSpriteFog__FP13sceVif1PacketP8CTextureRC8CRect_i_PiPiPiPiUc
- * @address 0x15D9A0
- * @size 0x2FC
+ * Returns the port a sound effect plays on, or the default port when its row
+ * does not name one.
  */
-void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left, int *top_right, int *bottom_left, int *bottom_right, unsigned char alpha);
+int GetPortNo(int se_no) {
+    const SND_SE_INFO *info = GetSeInfo(se_no);
+
+    if (info->port >= 0) {
+        return info->port;
+    }
+
+    return MIDI_PORT_SE_DEFAULT;
+}
+
+SoundFileNames GetSoundFile(int set_no) {
+    return GetSetFileNames("snd", "set", set_no);
+}
 
 /**
- * Draws a fogged sprite in world space between two projected corners.
- *
- * @mangled set3DSpriteFog__FP13sceVif1PacketP8CTextureRC8CRect_i_PiPiP6spRGBA
- * @address 0x15DCA0
- * @size 0x228
+ * Hands a loaded sound-effect set to the driver, resets its port volumes and
+ * applies its reverberation and table choices.
  */
-void set3DSpriteFog(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &source, int *top_left, int *bottom_right, spRGBA *colour);
+void SetSoundFile(int set_no, unsigned int *buffer, std::string config_name) {
+    CSnd.LoadSoundFileFromPack(config_name.data(), buffer);
+    CSnd.SetVol(MIDI_PORT_SE_TITLE, 0x100);
+    CSnd.SetVol(MIDI_PORT_SE_DEFAULT, 0x100);
+    CSnd.SetVol(MIDI_PORT_UNK_A, 0x100);
+    CSnd.SetVol(MIDI_PORT_UNK_D, 0x100);
+    CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 0x100);
+    now_sound_set = set_no;
+    snd_id = 0;
+    now_amb_no = -1;
+    SndStopAllSe();
 
-void setColSprite(sceVif1Packet *packet, int *top_left, int *top_right, int *bottom_left, int *bottom_right, unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
+    std::string script_name = GetConfigScriptName(config_name);
+    int         size = 0;
+    u_int      *cfg_script = GetPackFile(buffer, script_name.data(), &size);
 
-void set2DSpriteC4(sceVif1Packet *packet, const CRect_i_ &screen, spRGBA *top_left, spRGBA *top_right, spRGBA *bottom_left, spRGBA *bottom_right);
+    if (cfg_script != nullptr) {
+        SND_INFO info{};
+        LoadSoundInfo(&info, reinterpret_cast<char *>(cfg_script), size);
+        CSnd.SetReverb(1, info.reverb_mode, info.reverb_depth);
+        basic_se_table_no = info.se_table;
+        se_table_no = info.se_table_type;
+    }
+}
 
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y, float angle);
+} // namespace
 
-void set2DSpriteRot(sceVif1Packet *packet, CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y, float angle, unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
+int SndGetNowSetNo() {
+    return now_sound_set;
+}
+
+void SndStopAllSe() {
+    CSnd.Stop(MIDI_PORT_SE_TITLE);
+    CSnd.Stop(MIDI_PORT_AMBIENT);
+    CSnd.Stop(MIDI_PORT_SE_DEFAULT);
+    CSnd.Stop(MIDI_PORT_UNK_A);
+    CSnd.Stop(MIDI_PORT_UNK_D);
+    CSnd.Stop(MIDI_PORT_SE_SPECIAL);
+    CSnd.Stop(MIDI_PORT_UNK_B);
+    SndAmbientInit();
+    CSnd.StopVoice(1);
+}
+
+int SndSoundLoad(int set_no) {
+    if (now_sound_set == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetSoundFile(set_no);
+
+    if (LoadFile2(names.archive.data(), snd_read_buf, nullptr, 0)) {
+        SetSoundFile(set_no, snd_read_buf, names.config);
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndSoundLoadBG(int set_no, u_int *buffer, int *size) {
+    if (size != nullptr) {
+        *size = 0;
+    }
+
+    if (now_sound_set == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetSoundFile(set_no);
+    snd_cfg_file = names.config;
+
+    if (LoadFileBG(names.archive.data(), reinterpret_cast<u_long128 *>(buffer), size)) {
+        load_snd_set = set_no;
+        load_snd_adr = buffer;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndSoundSyncBG() {
+    if (load_snd_set < 0 || load_snd_adr == nullptr) {
+        return 0;
+    }
+
+    if (ReadBGSync()) {
+        return 1;
+    }
+
+    SetSoundFile(load_snd_set, load_snd_adr, snd_cfg_file);
+    load_snd_set = -1;
+    load_snd_adr = nullptr;
+    return 0;
+}
+
+void SndSePlay(int se_no, int vol, int voice) {
+    const SND_SE_INFO *info = GetSeInfo(se_no);
+
+    if (info != nullptr) {
+        if (info->vol_no < 0) {
+            vol = 127;
+        }
+
+        const int port = GetPortNo(se_no);
+
+        if (vol < 0) {
+            CSnd.SE_Play(port, info->vol_no, voice);
+        } else {
+            CSnd.SE_Play(port, info->bank, info->prog, vol, voice);
+        }
+    }
+}
+
+namespace {
 
 /**
- * Draws a textured sprite in screen space.
- *
- * @mangled set2DSprite__FP13sceVif1PacketP8CTextureP4RECTP4RECTUc
- * @address 0x15F090
- * @size 0x68
+ * Plays a sound effect at a normalized volume and pan.
  */
-void set2DSprite(sceVif1Packet *packet, CTexture *texture, RECT *screen, RECT *texel, unsigned char alpha);
+void SndSePlay(int se_no, float volume, float pan, int voice) {
+    const SND_SE_INFO *info = GetSeInfo(se_no);
 
+    if (info != nullptr) {
+        int       vol = SndGetVolf(se_no, volume);
+        const int hw_pan = SndGetPanf(pan);
+
+        if (info->vol_no < 0) {
+            vol = 127;
+        }
+
+        CSnd.SE_Play(GetPortNo(se_no), info->bank, info->prog, hw_pan, 127, vol, voice);
+    }
+}
+
+} // namespace
+
+void SndSePlay(int se_no, float *position, float near, float far) {
+    float volume = 0.0f;
+    float pan = 0.0f;
+
+    if (near < 0.0f) {
+        near = 20.0f;
+    }
+
+    if (far < 0.0f) {
+        far = 500.0f;
+    }
+
+    SndGetVolPan(&volume, &pan, position, near, far);
+    SndSePlay(se_no, volume, pan, 0);
+}
+
+void SndSeStop(int se_no, int voice) {
+    const SND_SE_INFO *info = GetSeInfo(se_no);
+
+    if (info != nullptr) {
+        CSnd.SE_Stop(GetPortNo(se_no), info->bank, info->prog, voice);
+    }
+}
+
+void SndSetSeVol(int se_no, int vol, int voice) {
+    if (vol < 0 || vol > 127) {
+        return;
+    }
+
+    const SND_SE_INFO *info = GetSeInfo(se_no);
+
+    if (info != nullptr) {
+        CSnd.SE_SetVol(GetPortNo(se_no), info->bank, info->prog, vol, voice);
+    }
+}
+
+int SndGetVolf(int se_no, float vol) {
+    const SND_SE_INFO *info = GetSeInfo(se_no);
+
+    if (info == nullptr) {
+        return 0;
+    }
+
+    const short *table = CSnd.GetSeInfTbl();
+    int          level = 64;
+
+    if (info->vol_no >= 0) {
+        level = table[(info->vol_no * 2) + 1];
+    }
+
+    level = static_cast<int>(static_cast<float>(level) * vol);
+    return std::clamp(level, 0, 127);
+}
+
+int SndGetPanf(float pan) {
+    pan = std::clamp(pan, -1.0f, 1.0f);
+    return static_cast<int>(63.0f * pan) + 64;
+}
+
+void SndSetSeVolf(int se_no, float vol, int voice) {
+    if (GetSeInfo(se_no) != nullptr) {
+        SndSetSeVol(se_no, SndGetVolf(se_no, vol), voice);
+    }
+}
+
+void SndSetSePanf(int se_no, float pan, int voice) {
+    const SND_SE_INFO *info = GetSeInfo(se_no);
+
+    if (info != nullptr) {
+        const int hw_pan = SndGetPanf(pan);
+
+        CSnd.SE_SetPan(GetPortNo(se_no), info->bank, info->prog, hw_pan, voice);
+    }
+}
+
+void SndPlayFootSound(int kind, int foot, float *position) {
+    constexpr float near = 50.0f;
+    constexpr float far = 300.0f;
+    float           volume = 0.0f;
+    float           pan = 0.0f;
+    const int       se_no = (kind * 4) + 500 + (foot > 0 ? 1 : 0);
+
+    SndGetVolPan(&volume, &pan, position, near, far);
+    SndSePlay(se_no, volume, pan, 0);
+}
+
+void SndGetVolPan(float *vol, float *pan, float *pos, float near, float far) {
+    sceVu0FVECTOR to_source;
+    sceVu0FVECTOR right;
+    const float   distance = DistVector(pos, camera_pos);
+    float         level = 1.0f - ((distance - near) / (far - near));
+
+    if (distance > far) {
+        level = 0.0f;
+    }
+
+    if (distance < near) {
+        level = 1.0f;
+    }
+
+    *vol = level;
+    *pan = 0.0f;
+
+    sceVu0CopyVector(to_source, camera_dir);
+    to_source[1] = 0.0f;
+    sceVu0Normalize(to_source, to_source);
+    right[0] = to_source[2];
+    right[1] = 0.0f;
+    right[2] = -to_source[0];
+
+    sceVu0SubVector(to_source, pos, camera_pos);
+    to_source[1] = 0.0f;
+    sceVu0Normalize(to_source, to_source);
+    const float side = -sceVu0InnerProduct(to_source, right);
+    const int   sign = side < 0.0f ? -1 : 1;
+
+    float weight = std::abs(side);
+    weight *= weight;
+    weight *= weight;
+    *pan = 0.7f * (static_cast<float>(sign) * weight);
+    level = *vol * (0.7f + (0.3f * std::abs(*pan)));
+    *vol = level;
+    *vol *= 1.4f;
+}
+
+namespace {
+
+void InitSeSeq(SND_SE_SEQ &seq) {
+    seq.se_no = -1;
+}
+
+/**
+ * Finds the sequence slot already playing a sound on a voice, and reports
+ * through found that it did. Returns the first free slot instead when there is
+ * no such slot, or null when every slot is taken.
+ */
+SND_SE_SEQ *GetSeSeq(bool &found, int se_no, int voice) {
+    SND_SE_SEQ *free_slot = nullptr;
+
+    found = false;
+
+    for (SND_SE_SEQ &seq : se_seq) {
+        if (seq.se_no < 0) {
+            free_slot = &seq;
+            break;
+        }
+    }
+
+    if (se_no >= 0) {
+        for (SND_SE_SEQ &seq : se_seq) {
+            if (seq.se_no == se_no && seq.voice == voice) {
+                found = true;
+                return &seq;
+            }
+        }
+    }
+
+    return free_slot;
+}
+
+} // namespace
+
+void SndSeSeqInit() {
+    for (SND_SE_SEQ &seq : se_seq) {
+        InitSeSeq(seq);
+    }
+}
+
+int SndSeSeqPlayStop(int se_no, int length, int voice) {
+    bool        found = false;
+    SND_SE_SEQ *slot = GetSeSeq(found, se_no, voice);
+
+    if (slot == nullptr) {
+        return 0;
+    }
+
+    slot->se_no = static_cast<s16>(se_no);
+    slot->length = static_cast<s16>(length);
+    slot->step = found ? 1 : 0;
+    slot->voice = static_cast<s16>(voice);
+    return 1;
+}
+
+namespace {
+
+/**
+ * Starts each running sound-effect sequence on its first step, and stops and
+ * frees it once it has run its length.
+ */
+void SndSeSeqStep() {
+    for (SND_SE_SEQ &seq : se_seq) {
+        if (seq.se_no >= 0) {
+            if (seq.step == 0) {
+                ::SndSePlay(seq.se_no, -1, seq.voice);
+            }
+
+            if (seq.step >= seq.length) {
+                SndSeStop(seq.se_no, seq.voice);
+                InitSeSeq(seq);
+            }
+
+            seq.step++;
+        }
+    }
+}
+
+} // namespace
+
+void SndSeSeqAllStop() {
+    for (SND_SE_SEQ &seq : se_seq) {
+        if (seq.se_no >= 0) {
+            SndSeStop(seq.se_no, seq.voice);
+            InitSeSeq(seq);
+            seq.step++;
+        }
+    }
+}
+
+int SndAmbientInit() {
+    now_amb_no = -1;
+    now_amb_play = false;
+    now_amb_vol = 0;
+    return 1;
+}
+
+void SndAmbientPlay(int ambient_no) {
+    if (now_amb_no != ambient_no || !now_amb_play) {
+        SndAmbientStop();
+        CSnd.SQ_Play(MIDI_PORT_AMBIENT, ambient_no);
+        now_amb_no = ambient_no;
+        now_amb_vol = SndGetAmbientDefaultVol();
+        now_amb_play = true;
+    }
+}
+
+void SndAmbientStop() {
+    if (now_amb_no >= 0 && now_amb_play) {
+        CSnd.Stop(MIDI_PORT_AMBIENT);
+        now_amb_play = false;
+    }
+}
+
+void SndAmbientSetVol(int volume) {
+    if (now_amb_no >= 0 && now_amb_vol != volume && volume >= 0) {
+        volume = std::min(volume, 127);
+        now_amb_vol = volume;
+        CSnd.SetVol(MIDI_PORT_AMBIENT, volume);
+    }
+}
+
+void SndAmbientSetVolf(float volume) {
+    if (now_amb_no >= 0) {
+        const int level = SndGetAmbientDefaultVol();
+
+        SndAmbientSetVol(static_cast<int>(static_cast<float>(level) * volume));
+    }
+}
+
+int SndGetAmbientDefaultVol() {
+    if (CSnd.GetMidiState()->port[2].sequence[now_amb_no] != nullptr) {
+        return CSnd.GetMidiState()->port[2].sequence[now_amb_no]->volume;
+    }
+
+    return 64;
+}
+
+namespace {
+
+SoundFileNames GetVoiceFile(int set_no) {
+    return GetSetFileNames("voice", "voice", set_no);
+}
+
+void SetVoiceFile(int set_no, u_int *buffer, std::string config_name) {
+    CSnd.LoadSoundFileFromPack(config_name.data(), buffer);
+    CSnd.SetVol(MIDI_PORT_UNK_B, 0x100);
+    now_voice_set = set_no;
+}
+
+} // namespace
+
+int SndVoiceLoad(int set_no) {
+    if (now_voice_set == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetVoiceFile(set_no);
+
+    if (LoadFile2(names.archive.data(), snd_read_buf, nullptr, 0)) {
+        SetVoiceFile(set_no, snd_read_buf, names.config);
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndVoiceLoadBG(int set_no, u_int *buffer, int *size) {
+    if (size != nullptr) {
+        *size = 0;
+    }
+
+    if (now_voice_set == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetVoiceFile(set_no);
+    voice_cfg_file = names.config;
+
+    if (LoadFileBG(names.archive.data(), reinterpret_cast<u_long128 *>(buffer), size)) {
+        load_voice_set = set_no;
+        load_voice_adr = buffer;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndVoiceSyncBG() {
+    if (load_voice_set < 0 || load_voice_adr == nullptr) {
+        return 0;
+    }
+
+    if (ReadBGSync()) {
+        return 1;
+    }
+
+    SetVoiceFile(load_voice_set, load_voice_adr, voice_cfg_file);
+    load_voice_set = -1;
+    load_voice_adr = nullptr;
+    return 0;
+}
+
+namespace {
+
+/**
+ * Returns the table row for a menu sound effect, or null when the number names
+ * no row.
+ */
+SND_SE_INFO *GetSPInfo(int se_no) {
+    if (se_no < 0 || se_no >= 64) {
+        return nullptr;
+    }
+
+    return &special_se_info[se_no];
+}
+
+SoundFileNames GetSPSeFile(int set_no) {
+    return GetSetFileNames("sp", "special", set_no);
+}
+
+void SetSPSeFile(int set_no, u_int *buffer, std::string config_name) {
+    CSnd.LoadSoundFileFromPack(config_name.data(), buffer);
+    CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 0x100);
+    now_sp_no = set_no;
+}
+
+} // namespace
+
+int SndSPSeLoad(int set_no) {
+    if (now_sp_no == set_no) {
+        return 0;
+    }
+
+    SoundFileNames names = GetSPSeFile(set_no);
+
+    if (LoadFile2(names.archive.data(), snd_read_buf, nullptr, 0)) {
+        SetSPSeFile(set_no, snd_read_buf, names.config);
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndSPSeLoadBG(int set_no, u_int *buffer, int *size) {
+    if (size != nullptr) {
+        *size = 0;
+    }
+
+    SoundFileNames names = GetSPSeFile(set_no);
+    sp_cfg_file = names.config;
+
+    if (LoadFileBG(names.archive.data(), reinterpret_cast<u_long128 *>(buffer), size)) {
+        load_sp_no = set_no;
+        load_sp_adr = buffer;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SndSPSeSyncBG() {
+    if (load_sp_no < 0 || load_sp_adr == nullptr) {
+        return 0;
+    }
+
+    if (ReadBGSync()) {
+        return 1;
+    }
+
+    SetSPSeFile(load_sp_no, load_sp_adr, sp_cfg_file);
+    load_sp_no = -1;
+    load_sp_adr = nullptr;
+    return 0;
+}
+
+void SndSPSePlay(int se_no, int vol) {
+    const SND_SE_INFO *info = GetSPInfo(se_no);
+
+    if (info != nullptr) {
+        if (info->vol_no < 0) {
+            vol = 64;
+        }
+
+        if (vol < 0) {
+            CSnd.SE_Play(MIDI_PORT_SE_SPECIAL, info->vol_no, 0);
+        } else {
+            CSnd.SE_Play(MIDI_PORT_SE_SPECIAL, info->bank, info->prog, vol, 0);
+        }
+    }
+}
+
+void SndSPSeStop(int se_no) {
+    const SND_SE_INFO *info = GetSPInfo(se_no);
+
+    if (info != nullptr) {
+        CSnd.SE_Stop(MIDI_PORT_SE_SPECIAL, info->bank, info->prog, 0);
+    }
+}
+
+void SndSetSPSeVolf(int se_no, float volume) {
+    const SND_SE_INFO *info = GetSPInfo(se_no);
+
+    if (info != nullptr) {
+        const short *table = CSnd.GetSeInfTbl();
+        int          level = table[(info->vol_no * 2) + 1];
+
+        level = static_cast<int>(static_cast<float>(level) * volume);
+        CSnd.SE_SetVol(MIDI_PORT_SE_SPECIAL, info->bank, info->prog, std::clamp(level, 0, 127), 0);
+    }
+}
+
+void SndSetSPSePanf(int se_no, float pan) {
+    const SND_SE_INFO *info = GetSPInfo(se_no);
+
+    if (info != nullptr) {
+        CSnd.SE_SetPan(MIDI_PORT_SE_SPECIAL, info->vol_no, SndGetPanf(pan), 0);
+    }
+}

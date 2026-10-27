@@ -1,26 +1,16 @@
 #include "shot_freefuncs.hpp"
 
-#include "itemdata.hpp"
-
-// These tables precede the template of CharaHeight's inline table in .data, so they stand
-// above the header that defines it.
-
-/**
- * Number of floors in each dungeon.
- */
-static int maxFloorTbl[7] = {15, 17, 18, 18, 15, 25, 100};
-
-/**
- * Each character's default weapon.
- */
-static int defWeapon[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
-
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <numbers>
+#include <print>
+#include <string>
 
 #include "btactstatus.hpp"
 #include "btmisc.hpp"
@@ -37,6 +27,7 @@ static int defWeapon[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHO
 #include "frame.hpp"
 #include "healeffect.hpp"
 #include "hitvalue.hpp"
+#include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "mathutil.hpp"
 #include "menu_inventory.hpp"
@@ -51,6 +42,19 @@ static int defWeapon[6] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHO
 
 s32   DebugStatus[21];
 float StatusColor[3];
+int   statusAlarmRate;
+
+namespace {
+
+/**
+ * Number of floors in each dungeon.
+ */
+constexpr std::array<int, 7> maxFloorTbl = {15, 17, 18, 18, 15, 25, 100};
+
+/**
+ * Number of ripple slots on the water.
+ */
+constexpr int WATER_WAVE_LING_COUNT = 6;
 
 /**
  * The water the party is standing in and the nearest water surface.
@@ -58,17 +62,17 @@ float StatusColor[3];
 CHECK_WATER_INFO CheckWaterInfo;
 
 /**
- * The rings spreading across the water.
+ * Rings spreading across the water.
  */
-WATER_WAVE_LING WaterWaveLing[6];
+std::array<WATER_WAVE_LING, WATER_WAVE_LING_COUNT> WaterWaveLing;
 
 /**
- * The name of the map held in the jump cache.
+ * Name of the map held in the jump cache.
  */
-char BtCfgCash[64];
+std::string BtCfgCash;
 
 /**
- * The frames remaining before the next ring appears.
+ * Frames remaining before the next ring appears.
  */
 int WaterWaveLingWait;
 
@@ -83,111 +87,65 @@ int healingSpeed;
 int healingSpeed_flg;
 
 /**
- * The period of the low-life warning pulse.
- */
-int statusAlarmRate;
-
-/**
- * The phase of the low-life warning pulse.
+ * Phase of the low-life warning pulse.
  */
 float statusAlarmCounter;
 
-/**
- * The colour of a full life bar.
- */
-u8 statusRGBColor_life[4];
+using StatusColorRgba = std::array<u8, 4>;
+
+StatusColorRgba statusRGBColor_life;     /**< Life bar above a fifth full. */
+StatusColorRgba statusRGBColor_weapon;   /**< Weapon bar above a fifth full. */
+StatusColorRgba statusRGBColor_30;       /**< Bar above 15% and at most a fifth full. */
+StatusColorRgba statusRGBColor_15;       /**< Bar at most 15% full; its alpha pulses. */
+StatusColorRgba statusRGBColor_life_2;   /**< Second colour of a life bar above a fifth full. */
+StatusColorRgba statusRGBColor_weapon_2; /**< Second colour of a weapon bar above a fifth full. */
+StatusColorRgba statusRGBColor_30_2;     /**< Second colour of a bar above 15% and at most a fifth full. */
+StatusColorRgba statusRGBColor_15_2;     /**< Second colour of a bar at most 15% full. */
 
 /**
- * The colour of a full weapon bar.
+ * Steps since poison last took its toll.
  */
-u8 statusRGBColor_weapon[4];
+int poison_counter;
 
 /**
- * The colour of a bar below three tenths.
+ * Whether the jump cache holds a map.
  */
-u8 statusRGBColor_30[4];
+int BtCfgFlag;
 
 /**
- * The warning colour of a bar below a seventh.
+ * Message file number loaded for the cached map jump.
  */
-u8 statusRGBColor_15[4];
-
-/**
- * The second colour of a full life bar.
- */
-u8 statusRGBColor_life_2[4];
-
-/**
- * The second colour of a full weapon bar.
- */
-u8 statusRGBColor_weapon_2[4];
-
-/**
- * The second colour of a bar below three tenths.
- */
-u8 statusRGBColor_30_2[4];
-
-/**
- * The second warning colour of a bar below a seventh.
- */
-u8 statusRGBColor_15_2[4];
-
-/**
- * Clears the water-splash effects.
- *
- * @mangled WaterSplash_Init__Fv
- * @address 0x1AF360
- * @size 0x48
- */
-void WaterSplash_Init() {
-    int i;
-
-    Water_Splash_actFlag = 0;
-    CheckWaterInfo.in_water = false;
-
-    for (i = 0; i < 6; i++) {
-        WaterWaveLing[i].life = 0;
-    }
-
-    WaterWaveLingWait = 0;
-}
+int BtSteebMsgNo;
 
 /**
  * Reports whether the party stands in the water of the nearest map part, records the surface
  * point in CheckWaterInfo and starts the splash as they enter it.
- *
- * @mangled CheckHealingWater__Fv
- * @address 0x1AF3B0
- * @size 0x328
  */
 int CheckHealingWater() {
     float        position[4];
     float        water_position[4];
-    PARTS_WATER *nearest_water;
-    float        nearest_distance;
-    float        water_x;
-    float        water_y;
-    float        water_z;
-    int          row;
-    int          column;
+    PARTS_WATER *nearest_water = nullptr;
+    float        nearest_distance = 160.0f;
+    float        water_x = 0.0f;
+    float        water_y = 0.0f;
+    float        water_z = 0.0f;
 
-    nearest_distance = 160.0f;
     sceVu0CopyVector(position, CharaMain.pos);
 
-    for (row = 0; row < 16; row++) {
-        for (column = 0; column < 16; column++) {
-            int parts_no = NowDngMap->cells[row * 20 + column].parts_no;
+    for (int row = 0; row < 16; row++) {
+        for (int column = 0; column < 16; column++) {
+            const int parts_no = NowDngMap->cells[(row * 20) + column].parts_no;
 
             if (parts_no != -1) {
                 CDungeonParts *part = &NowDngMap->parts[parts_no];
                 PARTS_WATER   *water = &part->water;
 
                 if (part->water.used != 0) {
-                    water_position[0] = 160.0f * column;
+                    water_position[0] = 160.0f * static_cast<float>(column);
                     water_position[1] = water->vertex[0][1];
-                    water_position[2] = 160.0f * row;
+                    water_position[2] = 160.0f * static_cast<float>(row);
 
-                    float distance = DistVector(position, water_position);
+                    const float distance = DistVector(position, water_position);
 
                     if (distance < nearest_distance) {
                         nearest_water = water;
@@ -223,91 +181,66 @@ int CheckHealingWater() {
 }
 
 /**
- * Holds the position and extent of a dungeon part's healing zone.
- */
-struct HEAL_ZONE {
-    float pos[4]; /**< Centre of the healing zone. */
-    float width;  /**< Width of the healing zone. */
-    float depth;  /**< Depth of the healing zone. */
-    s32   on;     /**< Whether the healing zone is active. */
-};
-
-/**
- * Reports whether the party stands in a healing zone.
- *
- * @mangled CheckHealZone__Fv
- * @address 0x1AF6E0
- * @size 0x29C
+ * Reports whether the party stands in the healing zone of the map part under them.
  */
 int CheckHealZone() {
-    float          position[4];
-    float          center[4];
-    float          low[4];
-    float          high[4];
-    int            column;
-    int            row;
-    int            parts_no;
-    int            hit;
-    CDungeonParts *part;
-    HEAL_ZONE     *zone;
+    float position[4];
+    float center[4];
+    float low[4];
+    float high[4];
 
     sceVu0CopyVector(position, CharaMain.pos);
     BtActStatus.in_water = false;
 
-    column = (80.0f + position[0]) / 160.0f;
-    row = (80.0f + position[2]) / 160.0f;
-    parts_no = NowDngMap->cells[row * 20 + column].parts_no;
+    const int column = static_cast<int>((80.0f + position[0]) / 160.0f);
+    const int row = static_cast<int>((80.0f + position[2]) / 160.0f);
+    const int parts_no = NowDngMap->cells[(row * 20) + column].parts_no;
 
     if (parts_no == MAP_PARTS_NONE) {
         return 0;
     }
 
-    part = &NowDngMap->parts[parts_no];
-    zone = (HEAL_ZONE *) part->heal_pos;
-    hit = 0;
+    CDungeonParts *part = &NowDngMap->parts[parts_no];
 
     if (part->heal_on == 0) {
         return 0;
     }
 
-    sceVu0CopyVector(center, zone->pos);
-    center[0] += 160.0f * column;
-    center[2] += 160.0f * row;
+    sceVu0CopyVector(center, part->heal_pos);
+    center[0] += 160.0f * static_cast<float>(column);
+    center[2] += 160.0f * static_cast<float>(row);
     sceVu0CopyVector(low, center);
     sceVu0CopyVector(high, center);
-    low[0] -= zone->width / 2.0f;
-    low[2] -= zone->depth / 2.0f;
-    high[0] += zone->width / 2.0f;
-    high[2] += zone->depth / 2.0f;
+    low[0] -= part->heal_width / 2.0f;
+    low[2] -= part->heal_depth / 2.0f;
+    high[0] += part->heal_width / 2.0f;
+    high[2] += part->heal_depth / 2.0f;
 
     if (position[0] >= low[0] && position[0] <= high[0] && position[2] >= low[2] && position[2] < high[2] && position[1] < center[1]) {
         BtActStatus.in_water = true;
         return 1;
     }
 
-    if (zone == NULL) {
-        return 0;
-    }
-
-    return zone->on ? hit : 0;
+    return 0;
 }
 
-/**
- * Restores the party while they stand in healing water.
- *
- * @mangled HealingWater__Fv
- * @address 0x1AF980
- * @size 0x158
- */
-void HealingWater() {
-    float position[4];
-    int   chara;
-    int   max_hp;
-    int   now_hp;
+} // namespace
 
+void WaterSplash_Init() {
+    Water_Splash_actFlag = 0;
+    CheckWaterInfo.in_water = false;
+
+    for (WATER_WAVE_LING &ling : WaterWaveLing) {
+        ling.life = 0;
+    }
+
+    WaterWaveLingWait = 0;
+}
+
+void HealingWater() {
     if (CheckHealZone() || CheckHealingWater()) {
         if (healingSpeed <= 0) {
-            chara = UserStatus->cur_chara;
+            const int chara = UserStatus->cur_chara;
             UserStatus->AddDrink(chara, 0xFF, 255.0f);
             UserStatus->AddNowLife(chara, 0xFF, 255.0f);
             healingSpeed = 10;
@@ -316,10 +249,11 @@ void HealingWater() {
         }
 
         if (HealEffect.active == 0) {
-            max_hp = UserStatus->max_hp[UserStatus->cur_chara];
-            now_hp = UserStatus->hp[UserStatus->cur_chara];
+            const int max_hp = UserStatus->max_hp[UserStatus->cur_chara];
+            const int now_hp = UserStatus->hp[UserStatus->cur_chara];
 
-            if (!(now_hp == max_hp)) {
+            if (now_hp != max_hp) {
+                float position[4];
                 sceVu0CopyVector(position, CharaMain.pos);
                 HealEffect.Set(position);
                 SndSePlay(SE_CHARA_RECOVER, -1, 0);
@@ -332,32 +266,13 @@ void HealingWater() {
     }
 }
 
-/**
- * Draws the rings spreading on the water.
- *
- * @mangled DrawWaterLing__Fv
- * @address 0x1AFAE0
- * @size 0x27C
- */
 void DrawWaterLing() {
     float      corner[4][4];
     int        screen[4][4];
     sceGsAlpha alpha;
     sceGsZbuf  zbuf;
-    CTexture  *ripple;
-    int        i;
-    int        visible;
-    int        j;
-    float      radius;
-    float      x;
-    float      y;
-    float      near;
-    float      left;
-    float      z;
-    float      right;
-    float      far;
 
-    ripple = TexManager.GetTexture("d00e01", -1);
+    CTexture *ripple = TexManager.GetTexture("d00e01", -1);
 
     alpha = mgAlpha;
     alpha.bits.a = 0;
@@ -370,138 +285,102 @@ void DrawWaterLing() {
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
 
-    for (i = 0; i < 6; i++) {
-        if (WaterWaveLing[i].life > 0) {
-            radius = WaterWaveLing[i].radius;
-            x = WaterWaveLing[i].center[0];
-            left = x - radius;
+    for (const WATER_WAVE_LING &ling : WaterWaveLing) {
+        if (ling.life > 0) {
+            const float radius = ling.radius;
+            const float x = ling.center[0];
+            const float left = x - radius;
             corner[0][0] = left;
-            y = WaterWaveLing[i].center[1];
+            const float y = ling.center[1];
             corner[0][1] = y;
-            z = WaterWaveLing[i].center[2];
-            near = z - radius;
+            const float z = ling.center[2];
+            const float near = z - radius;
             corner[0][2] = near;
-            right = radius + x;
+            const float right = radius + x;
             corner[1][0] = right;
             corner[1][1] = y;
             corner[1][2] = near;
             corner[2][0] = left;
             corner[2][1] = y;
-            far = radius + z;
+            const float far = radius + z;
             corner[2][2] = far;
             corner[3][0] = right;
             corner[3][1] = y;
             corner[3][2] = far;
 
-            visible = true;
+            bool visible = true;
 
-            for (j = 0; j < 4; j++) {
-                corner[j][3] = 1.0f;
+            for (int corner_no = 0; corner_no < 4; corner_no++) {
+                corner[corner_no][3] = 1.0f;
 
-                if (MGRotTransPers(screen[j], corner[j], 0) == 0) {
+                if (MGRotTransPers(screen[corner_no], corner[corner_no], 0) == 0) {
                     visible = false;
                 }
             }
 
             if (visible) {
-                float fade = 2.8444445f * WaterWaveLing[i].life;
-                set3DSprite(Vif1Packet, ripple, CRect_i_(0, 64, 64, 64), screen[0], screen[1], screen[2], screen[3], fade);
+                const float fade = 2.8444445f * static_cast<float>(ling.life);
+                set3DSprite(Vif1Packet, ripple, CRect_i_(0, 64, 64, 64), screen[0], screen[1], screen[2], screen[3], static_cast<unsigned char>(fade));
             }
         }
     }
 
-    MGSetGsALPHA(NULL);
-    MGSetGsZBUF(NULL);
+    MGSetGsALPHA(nullptr);
+    MGSetGsZBUF(nullptr);
 }
 
-/**
- * Advances the rings spreading on the water.
- *
- * @mangled StepWaterLing__Fv
- * @address 0x1AFD60
- * @size 0x130
- */
 void StepWaterLing() {
-    int i;
-
     if (CheckWaterInfo.in_water != 0) {
         WaterWaveLingWait++;
 
         if (WaterWaveLingWait >= 20) {
             WaterWaveLingWait = 0;
 
-            for (i = 0; i < 6; i++) {
-                if (WaterWaveLing[i].life == 0) {
-                    sceVu0CopyVector(WaterWaveLing[i].center, CheckWaterInfo.surface_position);
-                    WaterWaveLing[i].radius = 2.0f;
-                    WaterWaveLing[i].life = 45;
+            for (WATER_WAVE_LING &ling : WaterWaveLing) {
+                if (ling.life == 0) {
+                    sceVu0CopyVector(ling.center, CheckWaterInfo.surface_position);
+                    ling.radius = 2.0f;
+                    ling.life = 45;
                     break;
                 }
             }
         }
     }
 
-    for (i = 0; i < 6; i++) {
-        if (WaterWaveLing[i].life > 0) {
-            WaterWaveLing[i].radius += 0.2f;
-            WaterWaveLing[i].life--;
+    for (WATER_WAVE_LING &ling : WaterWaveLing) {
+        if (ling.life > 0) {
+            ling.radius += 0.2f;
+            ling.life--;
         }
     }
-}
-
-/**
- * Mixes the battle music against the ambience by the distance to the nearest active monster
- * and returns that distance.
- *
- * @mangled SetBattleStyle__Fii
- * @address 0x1AFE90
- * @size 0x1D0
- */
-void BtBattleMusic_Excg(float distance, float *field_volume, float *battle_volume);
-
-static inline int MonstorAliveCheck(int no, int alive) {
-    if (no >= 0 && no < 17) {
-        alive = NowMonstorUnit->monster[no].revealed;
-    }
-
-    return alive;
 }
 
 float SetBattleStyle(int map_no, int preserve_bgm) {
-    float         nearest = 10000;
+    float         nearest = 10000.0f;
     sceVu0FVECTOR position;
     sceVu0FVECTOR player;
-    float         bgm_volume;
-    float         ambient_volume;
-    int           alive;
+    float         bgm_volume = 0.0f;
+    float         ambient_volume = 0.0f;
 
     sceVu0CopyVector(player, CharaMain.pos);
 
-    for (int i = 0; i < 16; i++) {
-        if (NowMonstorUnit->monster[i].state == -1) {
+    for (int monster_no = 0; monster_no < 16; monster_no++) {
+        if (NowMonstorUnit->monster[monster_no].state == -1) {
             continue;
         }
 
-        alive = MonstorAliveCheck(i, alive);
-
-        if (alive == 0) {
+        if (NowMonstorUnit->monster[monster_no].revealed == 0) {
             continue;
         }
 
-        NowMonstorUnit->chara[i][0].GetPosition(position);
-        float distance = DistVector(player, position);
-
-        if (distance < nearest) {
-            nearest = distance;
-        }
+        NowMonstorUnit->chara[monster_no][0].GetPosition(position);
+        nearest = std::min(nearest, DistVector(player, position));
     }
 
     if (map_no != 5) {
-        CUserStatus *status;
-        int          floors = maxFloorTbl[map_no];
-        status = UserStatus;
+        const int floors = maxFloorTbl[map_no];
 
-        if (status->cur_floor < floors - 1) {
+        if (UserStatus->cur_floor < floors - 1) {
             BtBattleMusic_Excg(nearest, &bgm_volume, &ambient_volume);
 
             if (ambient_volume > 0.0f) {
@@ -519,16 +398,9 @@ float SetBattleStyle(int map_no, int preserve_bgm) {
     return nearest;
 }
 
-/**
- * Draws a three-digit value out of the number sheet.
- *
- * @mangled ValuePrint__FiiiiUc
- * @address 0x1B0060
- * @size 0x1F8
- */
 int ValuePrint(int x, int y, int value, int palette, unsigned char alpha) {
     CTexture *texture = TexManager.GetTexture("stayframe", -1);
-    int       source_y = palette * 12 + 0xB0;
+    const int source_y = (palette * 12) + 0xB0;
     int       hundreds_shown = 0;
     int       digit = value / 100;
 
@@ -546,163 +418,62 @@ int ValuePrint(int x, int y, int value, int palette, unsigned char alpha) {
     return hundreds_shown + 2;
 }
 
-/**
- * Clears the pulse that warns of low life.
- *
- * @mangled BtStatusAlarmInit__Fv
- * @address 0x1B0260
- * @size 0xB8
- */
 void BtStatusAlarmInit() {
     statusAlarmRate = 128;
     statusAlarmCounter = 0.0f;
 
-    statusRGBColor_life[0] = 0x40;
-    statusRGBColor_life[1] = 0xC1;
-    statusRGBColor_life[2] = 0x82;
-    statusRGBColor_life[3] = 0x80;
-
-    statusRGBColor_weapon[0] = 0xFF;
-    statusRGBColor_weapon[1] = 0x80;
-    statusRGBColor_weapon[2] = 0x00;
-    statusRGBColor_weapon[3] = 0x80;
-
-    statusRGBColor_30[0] = 0xFF;
-    statusRGBColor_30[1] = 0x00;
-    statusRGBColor_30[2] = 0xC6;
-    statusRGBColor_30[3] = 0x80;
-
-    statusRGBColor_15[0] = 0xFF;
-    statusRGBColor_15[1] = 0x00;
-    statusRGBColor_15[2] = 0x00;
-    statusRGBColor_15[3] = 0x80;
-
-    statusRGBColor_life_2[0] = 0x00;
-    statusRGBColor_life_2[1] = 0x81;
-    statusRGBColor_life_2[2] = 0xFF;
-    statusRGBColor_life_2[3] = 0x80;
-
-    statusRGBColor_weapon_2[0] = 0xFF;
-    statusRGBColor_weapon_2[1] = 0x20;
-    statusRGBColor_weapon_2[2] = 0x00;
-    statusRGBColor_weapon_2[3] = 0x80;
-
-    statusRGBColor_30_2[0] = 0x3F;
-    statusRGBColor_30_2[1] = 0x00;
-    statusRGBColor_30_2[2] = 0x31;
-    statusRGBColor_30_2[3] = 0x80;
-
-    statusRGBColor_15_2[0] = 0x3F;
-    statusRGBColor_15_2[1] = 0x00;
-    statusRGBColor_15_2[2] = 0x00;
-    statusRGBColor_15_2[3] = 0x80;
+    statusRGBColor_life = {0x40, 0xC1, 0x82, 0x80};
+    statusRGBColor_weapon = {0xFF, 0x80, 0x00, 0x80};
+    statusRGBColor_30 = {0xFF, 0x00, 0xC6, 0x80};
+    statusRGBColor_15 = {0xFF, 0x00, 0x00, 0x80};
+    statusRGBColor_life_2 = {0x00, 0x81, 0xFF, 0x80};
+    statusRGBColor_weapon_2 = {0xFF, 0x20, 0x00, 0x80};
+    statusRGBColor_30_2 = {0x3F, 0x00, 0x31, 0x80};
+    statusRGBColor_15_2 = {0x3F, 0x00, 0x00, 0x80};
 }
 
-/**
- * Advances the pulse that warns of low life.
- *
- * @mangled BtStatusAlarmAnime__Fv
- * @address 0x1B0320
- * @size 0xC8
- */
 void BtStatusAlarmAnime() {
     statusAlarmCounter += 0.10471976f;
 
-    if (!(statusAlarmCounter < PI)) {
-        statusAlarmCounter -= PI;
+    if (!(statusAlarmCounter < std::numbers::pi_v<float>) ) {
+        statusAlarmCounter -= std::numbers::pi_v<float>;
     }
 
-    statusAlarmRate = 192 - (int) (2.0f * (64.0f * sinf(statusAlarmCounter)));
-    statusRGBColor_15[3] = 192 - (int) (2.0f * (64.0f * sinf(statusAlarmCounter)));
+    statusAlarmRate = 192 - static_cast<int>(2.0f * (64.0f * std::sin(statusAlarmCounter)));
+    statusRGBColor_15[3] = static_cast<u8>(192 - static_cast<int>(2.0f * (64.0f * std::sin(statusAlarmCounter))));
 }
 
-/**
- * Chooses the colour a status bar draws in from how full it is.
- *
- * @mangled BtGetStatusPal__Fiff
- * @address 0x1B03F0
- * @size 0x80
- */
 u8 *BtGetStatusPal(int bar, float max, float value) {
-    u8 *color;
-
     if (!(value <= 0.2f * max)) {
-        if (bar == 0) {
-            color = statusRGBColor_life;
-        } else {
-            color = statusRGBColor_weapon;
-        }
-
-        return color;
+        return bar == 0 ? statusRGBColor_life.data() : statusRGBColor_weapon.data();
     }
 
     if (value <= 0.3f * max && !(value <= 0.15f * max)) {
-        return statusRGBColor_30;
+        return statusRGBColor_30.data();
     }
 
-    return statusRGBColor_15;
+    return statusRGBColor_15.data();
 }
 
-/**
- * Chooses the second colour a status bar draws in from how full it is.
- *
- * @mangled BtGetStatusPal2__Fiff
- * @address 0x1B0470
- * @size 0x80
- */
 u8 *BtGetStatusPal2(int bar, float max, float value) {
-    u8 *color;
-
     if (!(value <= 0.2f * max)) {
-        if (bar == 0) {
-            color = statusRGBColor_life_2;
-        } else {
-            color = statusRGBColor_weapon_2;
-        }
-
-        return color;
+        return bar == 0 ? statusRGBColor_life_2.data() : statusRGBColor_weapon_2.data();
     }
 
     if (value <= 0.3f * max && !(value <= 0.15f * max)) {
-        return statusRGBColor_30_2;
+        return statusRGBColor_30_2.data();
     }
 
-    return statusRGBColor_15_2;
+    return statusRGBColor_15_2.data();
 }
 
-/**
- * Draws the dungeon HUD with life, weapon, water, quick-item and floor indicators.
- *
- * @mangled topStatusInfo__Fiii
- * @address 0x1B04F0
- * @size 0x1438
- */
-void topStatusInfo(int y, int selected_item, int floor);
-
-/**
- * Reports whether the party is suffering one status ailment.
- *
- * @mangled StatusErrCheck__Fi
- * @address 0x1B1930
- * @size 0x28
- */
 int StatusErrCheck(int status) {
     return (UserStatus->ailments[UserStatus->cur_chara] & status) ? 1 : 0;
 }
 
-/**
- * Chooses the tint the party's status ailment gives them.
- *
- * @mangled BtStatusErrColorSet__Fv
- * @address 0x1B1960
- * @size 0xE8
- */
 int BtStatusErrColorSet() {
-    int status;
-    int ailing;
-
-    ailing = 0;
-    status = UserStatus->ailments[UserStatus->cur_chara];
+    int       ailing = 0;
+    const int status = UserStatus->ailments[UserStatus->cur_chara];
 
     if (status & AILMENT_FREEZE) {
         StatusColor[0] = 127.5f;
@@ -735,32 +506,18 @@ int BtStatusErrColorSet() {
     return ailing;
 }
 
-/**
- * Steps since poison last took its toll.
- */
-int poison_counter;
-
-/**
- * Advances the party's status ailments and applies what they cost.
- *
- * @mangled BtStatusErrStep__Fv
- * @address 0x1B1A50
- * @size 0x154
- */
 void BtStatusErrStep() {
-    int          flags;
     CUserStatus *status = UserStatus;
-    s8          *cur_chara = &status->cur_chara;
+    const int    flags = status->ailments[status->cur_chara];
 
-    flags = status->ailments[*cur_chara];
     poison_counter++;
 
     // Poison takes 4% of the character's max HP every 180 steps and shows the loss over them.
     if ((flags & AILMENT_POISON) && poison_counter >= 180) {
-        int chara = *cur_chara;
-        int max_hp = status->max_hp[chara];
-        int damage = 0.04 * max_hp;
-        status->AddNowLife((s8) *cur_chara, -damage, 10.0f);
+        const int chara = status->cur_chara;
+        const int max_hp = status->max_hp[chara];
+        const int damage = static_cast<int>(0.04 * max_hp);
+        status->AddNowLife(chara, static_cast<s16>(-damage), 10.0f);
 
         float position[4] = {0.0f, 0.0f, 0.0f, 1.0f};
         position[1] = CharaHeight(UserStatus);
@@ -774,17 +531,8 @@ void BtStatusErrStep() {
     BtStatusErrColorSet();
 }
 
-/**
- * Inflicts one status ailment on the party.
- *
- * @mangled BtSetStatusErr__Fi
- * @address 0x1B1BB0
- * @size 0x1CC
- */
 void BtSetStatusErr(int status) {
-    int chara;
-
-    chara = UserStatus->cur_chara;
+    const int chara = UserStatus->cur_chara;
 
     switch (status) {
         case AILMENT_FREEZE:
@@ -823,93 +571,45 @@ void BtSetStatusErr(int status) {
             }
 
             break;
+
+        default:
+            break;
     }
 }
 
-/**
- * Draws the icons of the party's status ailments.
- *
- * @mangled BtStatusErrDraw__Fi
- * @address 0x1B1D80
- * @size 0x16C
- */
 void BtStatusErrDraw(int y) {
-    CTexture *texture = TexManager.GetTexture("itempack", -1);
-    int       status_flags[5] = {AILMENT_FREEZE, AILMENT_STAMINA, AILMENT_POISON, AILMENT_CURSE, AILMENT_GOO};
-    int       icon_cells[5][2] = {
-        {1, 0},
-        {0, 1},
-        {1, 1},
-        {1, 2},
-        {0, 2}
+    CTexture                                   *texture = TexManager.GetTexture("itempack", -1);
+    constexpr std::array<int, 5>                status_flags = {AILMENT_FREEZE, AILMENT_STAMINA, AILMENT_POISON, AILMENT_CURSE, AILMENT_GOO};
+    constexpr std::array<std::array<int, 2>, 5> icon_cells = {
+        {
+         {1, 0},
+         {0, 1},
+         {1, 1},
+         {1, 2},
+         {0, 2},
+         }
     };
-    int status = UserStatus->ailments[UserStatus->cur_chara];
+    const int status = UserStatus->ailments[UserStatus->cur_chara];
 
     for (int icon = 4; icon >= 0; icon--) {
         if (status & status_flags[icon]) {
-            set2DSprite(Vif1Packet, texture, CRect_i_(430, y - 10, 62, 35), CRect_i_(icon_cells[icon][0] * 62 + 132, icon_cells[icon][1] * 36 + 84, 62, 36));
+            set2DSprite(Vif1Packet, texture, CRect_i_(430, y - 10, 62, 35), CRect_i_((icon_cells[icon][0] * 62) + 132, (icon_cells[icon][1] * 36) + 84, 62, 36));
         }
     }
 }
 
-/**
- * Draws one item into the reserved slot area.
- *
- * @mangled setItemToReserved__FPciiPcii
- * @address 0x1B1EF0
- * @size 0x1CC
- */
-void setItemToReserved(char *page_name, int x, int y, char *item_name, int dsax, int dsay);
-
-/**
- * Whether the jump cache holds a map.
- */
-int BtCfgFlag;
-
-/**
- * The message shown for the cached map jump.
- */
-int BtSteebMsgNo;
-
-/**
- * Clears the cached map-jump data.
- *
- * @mangled BtMapJumpCashClear__Fv
- * @address 0x1B20C0
- * @size 0x1C
- */
 void BtMapJumpCashClear() {
-    BtCfgCash[0] = '\0';
+    BtCfgCash.clear();
     BtCfgFlag = 0;
     BtSteebMsgNo = -1;
 }
 
-/**
- * Size, in quadwords, of the arena an allocator was given.
- */
-static inline int ArenaLimit(CDataAlloc2<1> &arena) {
-    return arena.limit;
-}
-
-/**
- * Loads the steeb message file for the current floor if it changed, then reads the map a jump
- * leads to, its treasure-box models and item-get motions; returns 0 when that map is already
- * loaded, 1 otherwise.
- *
- * @mangled BtMapJumpLoad__FPc
- * @address 0x1B20E0
- * @size 0x70C
- */
 int BtMapJumpLoad(char *map_name) {
-    char mpd_path[64];
-    char cfg_path[64];
-    char mes_path[64];
-    int  mes_size;
-    int  size;
+    int mes_size = 0;
 
     CUserStatus *status = UserStatus;
     int          msg_no = status->cur_georama;
-    int          floor = status->cur_floor;
+    const int    floor = status->cur_floor;
 
     // From dungeon 6 on, the message file also changes every twenty floors.
     if (msg_no >= 6) {
@@ -932,17 +632,14 @@ int BtMapJumpLoad(char *map_name) {
 
     if (msg_no != BtSteebMsgNo) {
         BtSteebMesBuffer.used = 0;
-        u_char *mes = BtSteebMesBuffer.base + BtSteebMesBuffer.used * 16;
+        u_char *mes = &BtSteebMesBuffer.base[static_cast<std::ptrdiff_t>(BtSteebMesBuffer.used) * 16];
 
-        if (status->cur_georama == 6) {
-            sprintf(mes_path, "dun/message/ww_mes/steve07_%d_%d.mes", msg_no - 5, LanguageCode);
-        } else {
-            sprintf(mes_path, "dun/message/ww_mes/steve0%d_%d.mes", msg_no + 1, LanguageCode);
-        }
+        std::string mes_path = status->cur_georama == 6 ? std::format("dun/message/ww_mes/steve07_{}_{}.mes", msg_no - 5, LanguageCode)
+                                                        : std::format("dun/message/ww_mes/steve0{}_{}.mes", msg_no + 1, LanguageCode);
 
-        LoadFile(mes_path, mes, &mes_size);
+        LoadFile(mes_path.data(), mes, &mes_size);
         wait_now_loading_vsync();
-        DngMesStb.SetBuff((short *) mes);
+        DngMesStb.SetBuff(reinterpret_cast<short *>(mes));
         BtSteebMesBuffer.Alloc((((mes_size >> 6) + 1) << 6) >> 4);
         BtSteebMesBuffer.Align64();
         BtSteebMsgNo = msg_no;
@@ -953,23 +650,23 @@ int BtMapJumpLoad(char *map_name) {
     NowDngMap = &MainDungeonMap;
     NowEventMan = &DngEventMan;
 
-    if (strcmp(BtCfgCash, map_name) == 0 && BtCfgFlag != 0) {
+    if (BtCfgCash == map_name && BtCfgFlag != 0) {
         return 0;
     }
 
-    strcpy(BtCfgCash, map_name);
+    BtCfgCash = map_name;
 
     MapModelBuffer.used = 0;
     u_int *pack = read_buffer;
     read_buffer = old_read_buffer;
 
-    int                 i;
-    DRAN_MAP_FIELD_SET *field_set = (DRAN_MAP_FIELD_SET *) NowDranMapField;
+    // NowDranMapField points at DranMapField.field, the start of the whole set.
+    auto *field_set = reinterpret_cast<DRAN_MAP_FIELD_SET *>(NowDranMapField);
 
-    for (i = 0; i < 12; i++) {
-        field_set->field[i].Initialize();
-        field_set->collision[i] = NULL;
-        field_set->state[i] = 3;
+    for (int field_no = 0; field_no < 12; field_no++) {
+        field_set->field[field_no].Initialize();
+        field_set->collision[field_no] = nullptr;
+        field_set->state[field_no] = 3;
     }
 
     field_set->field_count = 0;
@@ -977,38 +674,32 @@ int BtMapJumpLoad(char *map_name) {
 
     MainDungeonMap.initSubmap(&MapModelBuffer);
 
-    for (int slot = 0; slot < 64; slot++) {
-        CDungeonEvent *event = &DngEventMan.slot[slot];
-        event->name[0] = '\0';
-        event->script_no = -1;
-        event->parts_id = -1;
-        event->switch_on = false;
-        event->enabled = false;
+    for (CDungeonEvent &event : DngEventMan.slot) {
+        event.name[0] = '\0';
+        event.script_no = -1;
+        event.parts_id = -1;
+        event.switch_on = false;
+        event.enabled = false;
     }
 
-    for (int record = 0; record < 96; record++) {
-        CDungeonEventData *data = &DngEventMan.event[record];
-        data->event = NULL;
-        data->switch_on = false;
-        data->enabled = false;
-        data->hold = 0;
-        data->chara_done = -1;
+    for (CDungeonEventData &data : DngEventMan.event) {
+        data.event = nullptr;
+        data.switch_on = false;
+        data.enabled = false;
+        data.hold = 0;
+        data.chara_done = -1;
     }
 
-    strcpy(mpd_path, "dun/mpd_pack/");
-    strcat(mpd_path, map_name);
-    strcat(mpd_path, ".mpd");
-    strcpy(cfg_path, "dun/");
-    strcat(cfg_path, map_name);
-    strcat(cfg_path, ".cfg");
-    TEIGIAnalyz(cfg_path);
+    std::string mpd_path = std::format("dun/mpd_pack/{}.mpd", map_name);
+    std::string cfg_path = std::format("dun/{}.cfg", map_name);
+    TEIGIAnalyz(cfg_path.data());
 
-    size = 0;
-    LoadFile(mpd_path, (void *) read_buffer, &size);
+    int size = 0;
+    LoadFile(mpd_path.data(), read_buffer, &size);
     wait_now_loading_vsync();
 
     if (size >= 6400000) {
-        printf("MAPDATA BUFFER OVER!! %d\n", size);
+        std::println("MAPDATA BUFFER OVER!! {}", size);
         exit__2(1);
     }
 
@@ -1035,34 +726,26 @@ int BtMapJumpLoad(char *map_name) {
     itemOpenBig.LoadPack(read_buffer, "dun/etc/itemget_b/d01i01m", &MapModelBuffer, &MapModelBuffer, &itemOpenBig_info, 0);
 
     // The monsters get whatever the map left of its buffer.
-    int     map_used = MapModelBuffer.used;
-    u_char *monster_base = MapModelBuffer.base + map_used * 16;
-    long    monster_size = 0xA7F80 - map_used;
-    MonstorModelBuffer.base = monster_base;
-    MonstorModelBuffer.limit = monster_size;
+    const int map_used = MapModelBuffer.used;
+    MonstorModelBuffer.base = &MapModelBuffer.base[static_cast<std::ptrdiff_t>(map_used) * 16];
+    MonstorModelBuffer.limit = 0xA7F80 - map_used;
     MonstorModelBuffer.used = 0;
     read_buffer = pack;
 
-    printf("TotalMem = %d\n", 0xA7F80);
-    printf("MapVisualData   [%x]  %d/%d\n", MapModelBuffer.base + MapModelBuffer.used * 16, MapModelBuffer.used, ArenaLimit(MapModelBuffer));
-    printf("MonstorData     [%x]  %d/%d\n", MonstorModelBuffer.base + MonstorModelBuffer.used * 16, MonstorModelBuffer.used, ArenaLimit(MonstorModelBuffer));
+    // Only the low 32 bits of each arena address are shown.
+    const auto low_address = [](CDataAlloc2<1> &arena) { return static_cast<u32>(reinterpret_cast<std::uintptr_t>(&arena.base[static_cast<std::ptrdiff_t>(arena.used) * 16])); };
+    std::println("TotalMem = {}", 0xA7F80);
+    std::println("MapVisualData   [{:x}]  {}/{}", low_address(MapModelBuffer), MapModelBuffer.used, MapModelBuffer.limit);
+    std::println("MonstorData     [{:x}]  {}/{}", low_address(MonstorModelBuffer), MonstorModelBuffer.used, MonstorModelBuffer.limit);
     BtCfgFlag = 1;
     return 1;
 }
 
-/**
- * Draws a textured cell in world space.
- *
- * @mangled BtSet3DCellModel__FPfP8CTexturefiiiii
- * @address 0x1B27F0
- * @size 0x108
- */
 void BtSet3DCellModel(float *world, CTexture *texture, float size, int x, int y, int width, int height, int alpha) {
-    int      top_left[4];
-    int      top_right[4];
-    int      bottom_left[4];
-    int      bottom_right[4];
-    CRect_i_ source;
+    int top_left[4];
+    int top_right[4];
+    int bottom_left[4];
+    int bottom_right[4];
 
     world[3] = 1.0f;
 
@@ -1074,11 +757,6 @@ void BtSet3DCellModel(float *world, CTexture *texture, float size, int x, int y,
         bottom_left[1] = bottom_right[1];
         bottom_left[2] = bottom_right[2];
 
-        source.x = x;
-        source.y = y;
-        source.width = width;
-        source.height = height;
-
-        set3DSprite(Vif1Packet, texture, source, top_left, top_right, bottom_left, bottom_right, alpha);
+        set3DSprite(Vif1Packet, texture, CRect_i_(x, y, width, height), top_left, top_right, bottom_left, bottom_right, static_cast<unsigned char>(alpha));
     }
 }

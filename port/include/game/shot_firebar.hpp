@@ -17,7 +17,7 @@ public:
     s32   damage[63];           /**< Collision damage values for the fire particles. */
     s32   init_element;         /**< Element given when the stream was initialized. */
     s32   particle_element[64]; /**< Weapon element of each fire particle, which picks its texture cell. */
-    s32   state[64];            /**< Activity states for the fire particles. */
+    s32   state[64];            /**< Activity states for the fire particles; -1 is inactive. */
     s32   start_index;          /**< First particle slot that initialization lays the stream out from. */
     u8    unk_D04[0xC];
 
@@ -25,9 +25,6 @@ public:
      *
      * Initializes a 24-particle fire stream from a position and direction.
      *
-     * @mangled Init__13CSHOT_FIREBARFPfPfii
-     * @address 0x1AEB20
-     * @size 0x21C
      */
     int Init(float *origin, float *direction, int collision_damage, int element);
 
@@ -35,9 +32,6 @@ public:
      *
      * Emits a 24-particle fire stream from a position and direction.
      *
-     * @mangled Set__13CSHOT_FIREBARFPfPfii
-     * @address 0x1AED40
-     * @size 0x21C
      */
     int Set(float *origin, float *direction, int collision_damage, int element);
 
@@ -45,9 +39,6 @@ public:
      *
      * Marks the first 24 fire-particle slots as inactive.
      *
-     * @mangled Rset__13CSHOT_FIREBARFv
-     * @address 0x1AEF60
-     * @size 0x34
      */
     void Rset();
 
@@ -55,9 +46,6 @@ public:
      *
      * Advances active fire particles and applies their periodic collision damage.
      *
-     * @mangled Step__13CSHOT_FIREBARFv
-     * @address 0x1AEFA0
-     * @size 0x238
      */
     void Step();
 
@@ -65,9 +53,6 @@ public:
      *
      * Draws the active fire particles with their selected texture cells.
      *
-     * @mangled Draw__13CSHOT_FIREBARFv
-     * @address 0x1AF1E0
-     * @size 0x180
      */
     void Draw();
 };
