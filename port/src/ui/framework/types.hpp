@@ -462,11 +462,3 @@ public:
 };
 
 } // namespace dc::ui
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::ui;
-namespace UI = dc::ui;
-namespace Metrics = dc::ui::metrics;
-#endif
-// DC_TRANSITIONAL_END

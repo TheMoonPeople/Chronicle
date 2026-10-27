@@ -46,9 +46,3 @@ void DiscordStop();
 std::string DiscordActivityCommand(const DiscordActivity &activity, long long start_time, int pid, int nonce);
 
 } // namespace dc::platform
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::platform;
-#endif
-// DC_TRANSITIONAL_END

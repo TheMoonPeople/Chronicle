@@ -26,7 +26,7 @@ namespace dc::render {
  * What the renderer needs to sample one of the game's textures. The game passes textures
  * around as TEX0/TEX1 register values and as registry handles; the texture manager keeps the
  * TBP0 of every live texture unique (and CBP of every palette), so a TEX0 resolves to exactly
- * one image. TBP0 kMGPortFrameTbp0 and kMGPortPreviousFrameTbp0 (mglib_port.hpp) resolve to
+ * one image. TBP0 kMGPortFrameTbp0 and kMGPortPreviousFrameTbp0 (render/gs_state.hpp) resolve to
  * gfx::kMainTarget and gfx::kPreviousFrame.
  */
 struct PortTextureRef {
@@ -51,7 +51,7 @@ PortTextureRef PortTextureFromCTexture(const game::CTexture *texture);
  * TBP0 and CBP values are keys into one 14-bit space shared by images and palettes, because the
  * game moves CLUTs around as 16x16 PSMCT32 images addressed by their CBP. A key is unique among
  * live entries and is handed out round-robin, so a released key is not reused until the rest of
- * the space has been. 0 and 0xFFF are the frame keys of mglib_port.hpp and are never handed out.
+ * the space has been. 0 and 0xFFF are the frame keys of render/gs_state.hpp and are never handed out.
  */
 
 /**
@@ -183,9 +183,3 @@ bool PortLoadClut(unsigned cbp, const u_int *clut);
 bool PortPaletteEntries(unsigned cbp, uint32_t *rgba);
 
 } // namespace dc::render
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::render;
-#endif
-// DC_TRANSITIONAL_END

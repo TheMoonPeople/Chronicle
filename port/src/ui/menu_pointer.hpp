@@ -98,9 +98,3 @@ bool MenuPointerHand(float &x, float &y);
 void MenuMouseUpdate();
 
 } // namespace dc::ui
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::ui;
-#endif
-// DC_TRANSITIONAL_END

@@ -461,10 +461,3 @@ std::string SaveJson();
 bool LoadJson(std::string_view json);
 
 } // namespace dc::quest
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::quest;
-namespace Quest = dc::quest;
-#endif
-// DC_TRANSITIONAL_END

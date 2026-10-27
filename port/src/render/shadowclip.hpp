@@ -33,9 +33,3 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
                     float (*matrix)[4], int pass);
 
 } // namespace dc::render
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::render;
-#endif
-// DC_TRANSITIONAL_END

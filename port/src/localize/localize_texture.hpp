@@ -45,9 +45,3 @@ void LocalizeCastShadow(std::vector<uint8_t> &rgba, int width, int height, const
 bool LocalizeTexture(const char *name, render::PortDecodedTexture &texture);
 
 } // namespace dc::localize
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::localize;
-#endif
-// DC_TRANSITIONAL_END

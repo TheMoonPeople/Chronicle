@@ -76,9 +76,3 @@ void TextShadowEach(int percent, Draw &&draw) {
 }
 
 } // namespace dc::text
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::text;
-#endif
-// DC_TRANSITIONAL_END

@@ -4,7 +4,9 @@ This ledger tracks the coordinated C++26 and storage review. It does not claim
 that every line in the native port was manually reviewed. PS2 sources and
 generated output were excluded. Concurrent changes under `port/src/audio/`,
 `port/include/audio/`, build/run scripts, and `tools/kazarov` were not reviewed
-or edited here.
+or edited here. Files that still exist are named at their current paths
+(`docs/PC.md`, "Layout"); the source inventories keep the names the files had
+when they were reviewed.
 
 ## UI, menu, framework, quest, and shared headers
 
@@ -12,7 +14,7 @@ The UI reviewer completed line-by-line reads of 85 assigned production and
 header files from `area_card*`, `battlemenu/**`, `btitem*`, `caption*`,
 `clsmes*`, `custom_shop*`, `dialog*`, `dualsense*`, `item_icon3d*`, `menu*`,
 `memcard.cpp`, `mouse*`, `name_mouse*`, `options/**`, `presence*`, `quest*`,
-`quests/**`, `save_slots*`, `screen.hpp`, and `ui_framework/**`, plus the
+`quest/**`, `save_slots*`, `screen.hpp`, and `ui/framework/**`, plus the
 shared `port/include/**` headers except `port.h`, `stubs/**`, and concurrent
 audio headers. `exitcodes.hpp`, `normal_smoothing.hpp`, and `text_shadow.hpp`
 were included. Six additional paths received consolidation-block diff review
@@ -150,11 +152,11 @@ sizes, malformed and stale pack entries, sound loading from a host pointer
 above 4 GiB, and texture block compaction/range rejection.
 
 The runtime reviewer read all 25 assigned files line by line: `dataalloc2_1.cpp`,
-`dataread.cpp`, `dataread_port.hpp`, `dataset.cpp`, `draw2d_port.cpp`,
-`draw3d.hpp`, `frame.cpp`, `gamepad.cpp`, `gametext.cpp`, `gametext.hpp`,
+`dataread.cpp`, `data/data_read.hpp`, `dataset.cpp`, `render/draw2d.cpp`,
+`render/draw3d.hpp`, `frame.cpp`, `gamepad.cpp`, `gametext.cpp`, `gametext.hpp`,
 `localize.cpp`, `localize.hpp`, `memorycardaccess.cpp`, `mglib.cpp`,
 `nowload.cpp`, `snd.cpp`, `sound.cpp`, `textwipe.cpp`, `textwipe.hpp`,
-`texture.cpp`, `texture_port.cpp`, `textureanime.cpp`, `visualvu1.cpp`,
+`texture.cpp`, `render/texture_registry.cpp`, `textureanime.cpp`, `visualvu1.cpp`,
 `vu0_ops.hpp`, and `water.cpp`. The 42 non-external test sources were also
 read line by line: `area_card_test.cpp`, `bits64_fixture.hpp`,
 `bits64_placement_test.cpp`, `camera_zoom_test.cpp`, `capfont_test.cpp`,

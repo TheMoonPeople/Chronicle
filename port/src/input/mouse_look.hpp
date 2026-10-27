@@ -113,9 +113,3 @@ void TownMouseRecord(game::CCameraFollow *camera, bool fishing);
 void TownMouseApply(game::CCamera *shown, game::CEditGround *ground, int map, int mode);
 
 } // namespace dc::input
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::input;
-#endif
-// DC_TRANSITIONAL_END

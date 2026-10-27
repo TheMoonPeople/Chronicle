@@ -33,10 +33,3 @@ void Draw();
 void AppendStrings(std::vector<std::pair<std::string, std::string>> &out);
 
 } // namespace dc::ui::journal_chest
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::ui;
-namespace JournalChest = dc::ui::journal_chest;
-#endif
-// DC_TRANSITIONAL_END

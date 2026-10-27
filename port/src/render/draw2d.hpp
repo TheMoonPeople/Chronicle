@@ -102,9 +102,3 @@ void TurnedSprite(game::CTexture *texture, const game::CRect_i_ &screen, const g
                   int pivot_x, int pivot_y, float angle, float scale);
 
 } // namespace dc::render::draw2d
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::render;
-#endif
-// DC_TRANSITIONAL_END

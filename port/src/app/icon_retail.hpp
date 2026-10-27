@@ -19,9 +19,3 @@ std::vector<std::uint8_t> RetailIconToGlb(std::span<const std::uint8_t> bytes);
 GameIconSource RetailIconSource(const std::filesystem::path &root);
 
 } // namespace dc::app
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::app;
-#endif
-// DC_TRANSITIONAL_END

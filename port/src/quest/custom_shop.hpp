@@ -71,10 +71,3 @@ void PortItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name);
 void PortItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name);
 
 } // namespace dc::quest
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::quest;
-namespace Quest = dc::quest;
-#endif
-// DC_TRANSITIONAL_END

@@ -1,4 +1,4 @@
-# Dialog Framework (`Dialog::` Namespace)
+# Dialog Framework (`dc::dialog` Namespace)
 
 The dialog framework lets port code add choices to a villager's conversation. A villager that
 something adds a choice to opens on a menu instead of on their own words:
@@ -17,22 +17,22 @@ Villagers nothing adds a choice to are left alone: their conversation never touc
 
 Dependencies flow downward only.
 
-1. **`UI::` presentation** (`port/src/ui/framework/`). Window plates, labels, cursor, brackets,
+1. **`ui::` presentation** (`port/src/ui/framework/`). Window plates, labels, cursor, brackets,
    scrollbar. No conversation state.
-2. **`Dialog::` runtime** (`port/src/dialog/framework.hpp`, `port/src/dialog/framework.cpp`). The
+2. **`dialog::` runtime** (`port/src/dialog/framework.hpp`, `port/src/dialog/framework.cpp`). The
    page stack, word wrap and layout, token substitution, option providers, input and the default
    renderer. Its public header includes no PS2 headers, and it knows nothing of the systems that
    register providers.
 3. **Host glue** (`port/src/dialog/npc.cpp`, `port/src/game/editloop3.cpp`). Offers each villager
    conversation to the framework, reads the pad for it, and hands "Talk" back to retail.
 4. **Providers** (quests, special shops, mods). Register an `OptionProviderFn` and look at the
-   `Dialog::NpcContext` to decide what to add.
+   `dialog::NpcContext` to decide what to add.
 
 ---
 
 ## 2. How a conversation reaches it
 
-The port overrides retail's `EdTalkMode` group in `port/src/game/editloop3.cpp` (`EdTalkModeInit`,
+The port replaces retail's `EdTalkMode` group in `port/src/game/editloop3.cpp` (`EdTalkModeInit`,
 `EdTalkMode`, `EdNowTalkChara`, `EdNowTalkCharaInfoID`: every function that reads the conversation's
 file statics). The copies are retail's, with one addition in `EdTalkMode`:
 
@@ -40,7 +40,7 @@ file statics). The copies are retail's, with one addition in `EdTalkMode`:
    `DialogNpcOpen` builds an `NpcContext` (`map_no` = `MapNo`, `npc_id` = the villager's character
    info id, `mes_id` = the message retail is about to show, `mes_file_key` = `LocalizeMessageKey`
    of the town's villager message file, as the language files name it) and calls
-   `Dialog::TryInterceptOpen`.
+   `dialog::TryInterceptOpen`.
 2. If no provider adds a choice, the framework declines and the conversation runs as retail.
 3. Otherwise the framework has the conversation. Each tick `DialogNpcStep` reads the pad (Up and
    Down move, Cross takes, or shows typing text whole; Circle backs out a page or leaves) and the
@@ -54,7 +54,7 @@ file statics). The copies are retail's, with one addition in `EdTalkMode`:
    their colour, and a coloured choice the hand is not on fades (half opacity) where retail's dimming,
    which doubles the colour, would brighten it. A page with no text is choices only, as retail's
    prompts are. The villager's own message file
-   goes back into `EditMes1` when the session ends. `Dialog::DrawSession`'s own renderer is not
+   goes back into `EditMes1` when the session ends. `dialog::DrawSession`'s own renderer is not
    used here; it remains for sessions opened elsewhere (`OpenCustomSession`).
 5. "Talk" ends the session with `SessionEnd::PlayOriginal` (the context has `host_plays_original`).
    The next tick, retail's conversation starts from the beginning in its own window, with its own
@@ -82,15 +82,15 @@ but not exactly the talk window's.
 ```cpp
 #include "dialog/framework.hpp"
 
-Dialog::RegisterOptionProvider([](const Dialog::NpcContext &ctx, std::vector<Dialog::ChoiceItem> &out) {
+dialog::RegisterOptionProvider([](const dialog::NpcContext &ctx, std::vector<dialog::ChoiceItem> &out) {
     if (ctx.map_no != 0 || ctx.npc_id != 3) {
         return;
     }
-    Dialog::ChoiceItem item;
+    dialog::ChoiceItem item;
     item.id = "quest.lost_cat";
     item.label_key = "quest.lost_cat.ask";         // LocalizeText key
     item.fallback_label = "About the lost cat...";  // the English
-    item.on_select = [](Dialog::ISessionController &session) {
+    item.on_select = [](dialog::ISessionController &session) {
         session.PushChoicePage("quest.lost_cat.offer", {/* Accept, Decline... */});
     };
     out.push_back(std::move(item));
@@ -104,7 +104,7 @@ providers for the NPC's menu again after changing what they offer (`RefreshHub`)
 conversation (`Close`). A page with no choices goes back to the page under it when its last slice is
 confirmed.
 
-Quests (`docs/QUEST_FRAMEWORK.md`) are a provider: their choices come through `Quest::CollectOptions`.
+Quests (`docs/QUEST_FRAMEWORK.md`) are a provider: their choices come through `quest::CollectOptions`.
 
 ---
 
@@ -112,7 +112,7 @@ Quests (`docs/QUEST_FRAMEWORK.md`) are a provider: their choices come through `Q
 
 Text is the game's markup, as `GameTextDecode` writes it and `docs/LOCALIZATION.md` lists it:
 `{page}` splits slices, `{cyan}...{/color}` colours, `{cross}` is a pad icon. Layout measures each
-line in the message font through `UI::Label`, so icons and names take the room they draw in.
+line in the message font through `ui::Label`, so icons and names take the room they draw in.
 
 - `{name1}`...`{name6}`, `{insert1}`...`{insert10}` and `{value}`/`{value1}`...`{value8}` are left
   for the game's renderer to fill in, as it does for retail text (the player can rename Toan). A
@@ -124,7 +124,7 @@ line in the message font through `UI::Label`, so icons and names take the room t
 ### Localization
 
 The framework's strings follow the port's convention for its own text: English in the code
-(`kEnglish` in `dialog_framework.cpp`, `fallback_label` for a provider's), translations in
+(`kEnglish` in `dialog/framework.cpp`, `fallback_label` for a provider's), translations in
 `port/lang/<language>.json` under `dialog.`:
 
 | Key | English |
@@ -136,10 +136,10 @@ The framework's strings follow the port's convention for its own text: English i
 | `dialog.hub.default_prompt` | Is there something you need? (not shown by default: an NPC's menu is its choices alone, unless `NpcContext::hub_greeting_key` names a greeting such as this one) |
 | `dialog.hub.anything_else` | Was there anything else? |
 
-`Dialog::Strings()` lists these for `OptionStrings()`, so the text export carries them and the
+`dialog::Strings()` lists these for `OptionStrings()`, so the text export carries them and the
 language-file test checks each language has them.
 
-`Dialog::SetExternalLocalizeLookup` lets a mod answer keys first.
+`dialog::SetExternalLocalizeLookup` lets a mod answer keys first.
 
 ---
 

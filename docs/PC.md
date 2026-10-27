@@ -785,7 +785,7 @@ rate, with motion interpolated between ticks (`tools/kazarov/src/cpp/gfx/README.
    lists at alpha = the elapsed fraction of the tick and presents them, as fast
    as `present_mode` and `max_fps` allow. A display frame replays the newest
    list's drawing only, into its own image, with each `CFrame`'s model matrix
-   (`frame_draw.cpp` tags its draws with the frame's address; a visual drawn
+   (`frame.cpp` tags its draws with the frame's address; a visual drawn
    outside one with its record) and the camera interpolated between the two
    ticks. A frame drawn at several places in a tick (a town's tiles and parts
    share theirs) is matched place by place, not in draw order. A tick that did not wait, or presented nothing, presents its
@@ -873,8 +873,9 @@ that mode's `case`: the developer menu sets `mode` itself and returns 1.
 
 The host side is Kazarov's `tools/kazarov/src/cpp` (`gfx`, `audio`, `platform`, `sce`); `port/src/platform` keeps the game's config, firstrun, discord and save_state.
 They build as `dc_host` without `port.h` or the game's include paths, so no
-game header or SDK type reaches them. Game types meet them only in the
-replacement units.
+game header or SDK type reaches them. Game types meet them only in
+`port/src`: the game units in `port/src/game` and the platform layer beside
+them.
 
 - **Window** (`platform/window`): SDL3 window, resizable, high pixel density,
   optionally fullscreen; `WindowSetMode` changes its size and fullscreen
@@ -887,7 +888,7 @@ replacement units.
   reports a close, and forwards pixel-size changes to the renderer.
   `WindowAddEventHook` lets input see every event.
 - **Input** (`platform/input`, `platform/mouse`, `sce/libpad.cpp`,
-  `gamepad.cpp`): two DualShock 2-shaped pads from SDL gamepads, the
+  `port/src/game/gamepad.cpp`): two DualShock 2-shaped pads from SDL gamepads, the
   keyboard and the mouse, with rumble. libpad's nine
   functions read them: buttons active-low in bytes 2-3, sticks in 4-7,
   `scePadGetState` stable, `scePadInfoMode` DualShock. `InputSetOverride`
@@ -933,7 +934,7 @@ The logical 640x480 frame is centred in the window at `min(W / 640, H / 480)`
 pixels per unit, so the HUD keeps its place relative to the frame at any window
 shape. With `video.aspect` `auto` the rest of the window is not bars:
 
-- **3D.** `Draw3DEyeToClip` (`mglib.cpp`) maps the game's projection, logical
+- **3D.** `Draw3DEyeToClip` (`port/src/render/draw3d.cpp`) maps the game's projection, logical
   `(320 + 800 x / z, 240 + 800 y / z)` (`MGSetRenderInfo`'s scale over the
   frame's 240 half-rows), through the target's logical mapping. The frame's rows
   fill the window's height, so the vertical field of view is retail's
@@ -941,7 +942,7 @@ shape. With `video.aspect` `auto` the rest of the window is not bars:
   2 atan(240 W / H / 800): 16:9 shows 107 logical units more on each side. A
   window narrower than 4:3 keeps the frame's width (retail's horizontal field of
   view) and shows more above and below, so the HUD always fits.
-- **Culls.** `frame_draw.cpp`'s screen-bound test and `MGClipVertex` (so
+- **Culls.** `frame.cpp`'s screen-bound test and `MGClipVertex` (so
   `MGClipBox`) take their half extents from what the current target shows
   (`Draw3DVisibleExtent`, from `gfx::VisibleLogicalRect`) instead of 320 by 240:
   a model past the 4:3 edge is drawn at 16:9 and dropped at 4:3. The GS guard
@@ -997,7 +998,7 @@ shape. With `video.aspect` `auto` the rest of the window is not bars:
   gives instead of the effect starting at a line partway up the view. The near
   pass keeps its narrower range around the near focus plane. `frame_image` is no
   longer written.
-- **Water** (`port/src/water_draw.cpp`) refracts the frame at its own
+- **Water** (`port/src/game/water.cpp`) refracts the frame at its own
   resolution instead of the game's field copy, and only from where water
   shows: a ripple's sample that lands on a bank or a character in front of the
   water gives way to the pixel's own colour. `MGMoveImage` takes a whole
@@ -1026,10 +1027,11 @@ drops 2D it projects outside 0..640 (effects, name tags) still does; at a
 `ui_scale` other than 1 the 2D the game places from 3D projections moves with
 the HUD.
 
-The game's drawing reaches it through replacement units, in four groups that
-share small internal headers:
+The game's drawing reaches it through the game units in `port/src/game` and
+the renderer glue in `port/src/render` (`dc::render`), in four groups, each
+around one `render/` header:
 
-- **`mglib_port.hpp`** (`mglib.cpp`, `mglib_port.cpp`, `mglib_math.cpp`):
+- **`render/gs_state.hpp`** (`game/mglib.cpp`, `render/gs_state.cpp`):
   every `MG*` function. The GS register shadows the game sets
   (`MGSetGsTEST/ZBUF/ALPHA/TEXA`, `MGSetWindowRect`, and the clears, fills
   and stretches that leave them set) become the current `gfx::DrawState`
@@ -1042,8 +1044,8 @@ share small internal headers:
   "do not wait twice" rule. Pick-Z reads the canonical render's depth buffer.
   `MGSetRenderInfo` keeps retail's matrices; the field squeeze is undone
   where the game's rects reach the renderer.
-- **`texture_port.hpp`** (`texture.cpp`, `texture_port.cpp`,
-  `textureanime.cpp`, `nowload.cpp`): TIM2 (IDTEX4, IDTEX8, RGB16/24/32,
+- **`render/texture_registry.hpp`** (`game/texture.cpp`,
+  `render/texture_registry.cpp`, `game/textureanime.cpp`, `game/nowload.cpp`): TIM2 (IDTEX4, IDTEX8, RGB16/24/32,
   mip levels, the IM2 swizzle undone) decoded into renderer textures with
   index textures and 256-entry palettes; a registry keyed by unique TBP0/CBP
   values so any TEX0 the game hands around resolves to one image;
@@ -1056,13 +1058,16 @@ share small internal headers:
   appended after compaction. A name lookup across all blocks, which prefers
   the highest entry, can therefore pick differently from retail when two
   live blocks share a texture name.
-- **`draw2d_port.hpp`** (`snd.cpp`, `gameutil_sprite.cpp`, `clsmes.cpp`,
-  `spritetable.cpp`, `dispctrl.cpp`, `editloop_sprite.cpp`): the sprite
+- **`render/draw2d.hpp`** (`render/draw2d.cpp`, `game/snd.cpp`,
+  `game/gameutil.cpp`, `game/clsmes.cpp`, `game/spritetable.cpp`,
+  `game/dispctrl.cpp`, `game/editloop.cpp`): the sprite
   primitives, `SetClut`, message windows, sprite tables and the debug font
   as glyph quads, mapped into the current target (render targets hold field
   rows).
-- **`draw3d.hpp`** (`frame_draw.cpp`, `visualvu1.cpp`, `visualshadow.cpp`,
-  `cloth_draw.cpp`, `water_draw.cpp`, the `*_math.cpp` units): MDT data built
+- **`render/draw3d.hpp`** (`render/draw3d.cpp`, `render/draw3d_visual.cpp`,
+  `render/shadowclip.cpp`, `game/frame.cpp`, `game/visualvu1.cpp`,
+  `game/visualshadow.cpp`, `game/cloth.cpp`, `game/water.cpp`,
+  `game/mathutil.cpp`): MDT data built
   into meshes keyed by the game's vu_data block (the record dies with the
   block), `DrawVu1` submitting meshes with the constants the VU1 header
   carried (matrices, four lights, ambient, material, fog), shadow volumes
@@ -1077,7 +1082,7 @@ share small internal headers:
 - The long tail on top of those: `dun/gameloop.cpp` (`DunMainDraw`,
   `LoaderLoop`), `effectmacro.cpp`, `runeffect.cpp`, `fireomni.cpp`,
   `fishing.cpp`, `shot_freefuncs.cpp`, `battlemenu.cpp`, `clothread.cpp`,
-  `langset.cpp`, and `editloop_init.cpp` (`EditInit`, its town objects
+  `langset.cpp`, and `editloop.cpp` (`EditInit`, its town objects
   carved out of `EtcDataBuffer` at host sizes where retail's quadword counts
   are the PS2's).
 
@@ -1088,7 +1093,7 @@ parses HD banks and SQ sequences, and runs a sixteen-port MIDI player into a
 48-voice synth with envelopes and an approximated reverb (`audio::Mixer`).
 `port/src/game/sound.cpp` replaces `CSound` (bank and sequence transfers, play,
 stop, fades, volumes, effect messages) on that mixer, and
-`gameutil_midi.cpp` answers the EZMIDI RPC commands for anything that still
+`gameutil.cpp` answers the EZMIDI RPC commands for anything that still
 sends them. `main` starts the output; `CSound::Init` starts it too if it is
 not running.
 
@@ -1552,7 +1557,7 @@ allocated afterwards lies under the object's tail. At retail's four quadwords
 the collision's `mesh_count` landed on the x of the first triangle built
 behind it, which opened holes in dungeon floors. An allocation that is cast
 rather than placed has no size to go by and is sized in `port/src` instead
-(`Quadwords<T>` in `editloop_init.cpp`).
+(`Quadwords<T>` in `editloop.cpp`).
 
 ## Pointers and 32-bit integers
 
@@ -1580,7 +1585,7 @@ else changed:
 | `_ITEM_USE_WINDOW`, `BtMiniItemSelect_Loop` | `btsysscript.cpp`, `btitem.cpp` | the script slot the choice goes to kept as a pointer (`btitem.hpp`) and written through the host's `RS_STACKDATA`, whose value is at byte 8 |
 | `BtSystemScriptLoad`, `BtSystemScriptRun` | `btsysscript.cpp` | the event script kept as a pointer, where retail keeps it in `BtEventData` |
 | `PortWorldMapCommand`, `PortEdEventMenuMode` | `editloop3.cpp` | the world-map result destination stays a native-width script pointer until the town menu finishes |
-| `EditInit`, `InitWorkBuffer` | `editloop_init.cpp` | arena starts rounded on the whole pointer |
+| `EditInit`, `InitWorkBuffer` | `editloop.cpp` | arena starts rounded on the whole pointer |
 | `CommandWATER_SHAKE` | `editmapscript.cpp` | the wave slot on a `uintptr_t` |
 | `CEditGround::DrawPartsCursor` | `editground.cpp` | the preview frame `LoadObjectParts` keeps in an `s32` matched against the part's own frames |
 | `FishingExchangeKey` | `shop.cpp` | the attachment slots on a `uintptr_t` |
@@ -1588,8 +1593,8 @@ else changed:
 
 Records read from the disc with pointer-sized fields are decoded into host
 records rather than used in place: `.pts` part definitions
-(`eparts_port.cpp`, for `LoadPTS` in `editloop_parts.cpp` and `GetFuncPoint`
-in `edit_in_parts.cpp`; `EdInitToEPInfo`, `editloop3.cpp`, lays its own out
+(`EPartsLoad` in `editpartsinfo.cpp`, for `LoadPTS` in `editloop.cpp` and
+`GetFuncPoint` in `edit_in.cpp`; `EdInitToEPInfo`, `editloop3.cpp`, lays its own out
 past the host header) and the event scripts' function records and stacks
 (`runscript.cpp`). The wind a title scene stores in `CCharacter::wind`, an
 `int`, is recovered by `CCharacter::ClothStep` with `PortImagePointer`, which
@@ -1602,21 +1607,22 @@ widens it against the image's own address.
 `PS2_UNIMPLEMENTED()` (`port/include/port.h`), which prints the function,
 file and line and aborts. They stay stubs by design: the port does not
 emulate DMA chains, VIF/GIF packets or the GS, so a call that reaches one
-is a drawing path no replacement unit covers yet.
+is a drawing path the port has not replaced yet.
 
 Everything else from the SDK is implemented in `tools/kazarov/src/cpp/sce/`: libvu0 in
 C++ (static constructors call it before `main`), libpad, libmc, sifdev,
 eekernel (`FlushCache` and friends do nothing, `Exit` exits), libcdvd's
 `sceCdInit`/`sceCdMmode` and sifrpc's IOP boot and module loads (no-ops).
-The Metrowerks runtime calls are in `port/src/app/runtime.cpp`: `mwInit` does
-nothing; `LoadOverlay` reconstructs selected title objects when switching to
-the title overlay; `mwLoadOverlay` succeeds, `__assert` prints and exits with
-status 4, `exit__2` exits. The same file replaces the stand-ins in `port/src/game`
-for what the PS2 runtime generated that use names only the PS2 link defines:
-four constructors and `__unexpected` become functions that call
-`PS2_UNIMPLEMENTED()`, and `std::exception`'s virtual table and the overlay
-address table become empty tables. Nothing in the port reaches them, but a
-COFF link wants every name an object uses defined.
+The Metrowerks runtime calls are in the game unit that declares them:
+`mwInit` (`port/src/game/mathutil.cpp`) does nothing; `LoadOverlay`
+(`port/src/game/main.cpp`) reconstructs selected title objects when switching
+to the title overlay; `mwLoadOverlay` succeeds. `__assert` prints and exits
+with status 4 and `exit__2` exits (`port/src/app/runtime.cpp`, global). What
+the PS2 runtime generated under names only the PS2 link defines is defined
+beside its declaration: `__unexpected` calls `PS2_UNIMPLEMENTED()`, and
+`std::exception`'s virtual table (`mathutil.cpp`) and the overlay address
+table (`literals.cpp`) are empty tables. Nothing in the port reaches them,
+but a COFF link wants every name an object uses defined.
 
 None of the 44 aborting stub functions is linked into `darkcloud`, and neither is
 `Ps2Unimplemented` itself: `--gc-sections` keeps only what `main` reaches,
@@ -1708,15 +1714,28 @@ The root `CMakeLists.txt` only picks the platform:
 - `port/src/game` and `port/include/game` are the port's own copy of the
   game's code and headers, forked from `ps2/src` and `ps2/include`. Changes
   the port needs are made there directly; nothing is shared with the PS2
-  build and nothing in them has to stay byte-identical to retail.
-  `port/include/game/sce` holds the SDK headers Kazarov's `sce` sources
-  implement.
-- The rest of `port/src` is the platform layer, in subsystem directories
-  (`app/`, `data/`, `render/`, `audio/`, `ui/`, `save/` and the others).
-  `port/CMakeLists.txt` is the port's build. `main.cpp` and
-  `app/gameloop.cpp` start the game, and `app/presentation.cpp` puts its
-  frames on screen; `tests/` is `darkcloud_tests`, GoogleTest cases that ctest
-  runs one process each.
+  build and nothing in them has to stay byte-identical to retail. All of it
+  is in namespace `dc::game`, except `types.h`, `common.h` and
+  `port/include/game/sce`, the SDK headers Kazarov's `sce` sources
+  implement, which stay global.
+- The rest of `port/src` is the platform layer, one directory per subsystem,
+  each its own namespace: `app/` (`dc::app`), `platform/`, `data/`,
+  `render/`, `input/`, `ui/`, `options/`, `title/`, `battlemenu/`, `dialog/`,
+  `quest/`, `text/`, `localize/` and `save/` (`dc::platform`, `dc::data`,
+  `dc::render` and so on). A platform file includes another by its path under
+  `port/src` (`"render/draw2d.hpp"`) and a game header by its bare name
+  (`"btitem.hpp"`). `port/CMakeLists.txt` is the port's build. `main.cpp`,
+  the only file at the root, and `app/gameloop.cpp` start the game, and
+  `app/presentation.cpp` puts its frames on screen; `tests/` is
+  `darkcloud_tests` (`dc::test`), GoogleTest cases that ctest runs one
+  process each.
+- A few names stay global because something outside the port finds them by
+  name: `main`, `wmain` and `SDL_main`; `SettingsGet` and `SettingsChange`
+  (`platform/config.cpp`), which Kazarov's `dc_host` calls; the C and
+  Metrowerks runtime names in `app/runtime.cpp` (`__assert`, `rand`,
+  `srand`, `exit__2`); and the placement `operator new` for `u_long128`
+  arenas. `extern "C"` game names may sit inside `dc::game`, since C linkage
+  ignores the namespace.
 - `tools/dcdata` is the data extraction tool.
 - `port/include` holds `port.h`, included ahead of every unit the port
   compiles.
@@ -1736,7 +1755,11 @@ port's takes the retail name. The game units are compiled as `dc_ps2` and the
 platform layer as `dc_port`, and the two are linked together.
 
 The game units reach the platform layer through its headers (`render/draw3d.hpp`,
-`data/data_read.hpp` and the others). A few call sites keep MWCC's habits
+`data/data_read.hpp` and the others). A unit that uses a subsystem puts
+`using namespace dc::render;` (and the like) inside its own `dc::game` block;
+headers never carry a using-directive and qualify instead
+(`render::PortTextureRef`, `game::CTexture`). A function is declared in the
+header of the unit or subsystem that defines it. A few call sites keep MWCC's habits
 spelled out: battlemenu passes each temporary `CRect_i_` to
 `DrawMenuColorGradation`'s non-const reference through `Ps2Lvalue`
 (`port/include/port.h`), and main's `InitSave` casts the string literal it
@@ -1803,6 +1826,13 @@ linker script rather than through the source. The port reproduces each:
   so `clsmes.cpp` defines it on every platform: storage for the 0x300
   entries below it, filled from `GaijiDataTbl` before `main`, with
   `EditGaijiTbl` a pointer to the storage's end.
+- **No names bound by their spelling.** No `asm` label or MWCC-named
+  forwarder binds anything. What a neighbouring unit reaches under a name
+  only the PS2 link gives is an ordinary external entity declared in its
+  unit's header (`SaveMenuKey*` and `ExitSaveSelect` in `memcard.hpp` and
+  `menu_save.hpp`, `EdEventScript` and `p_use_item` in `editloop3.hpp`).
+  Names with C linkage (`DrawVu1__6CWater…`, `mwLoadOverlay`) are declared
+  `extern "C"` inside `dc::game`, which leaves them unmangled.
 
 Data the title overlay's units type themselves with PS2 layouts: see "The
 title overlay's own class declarations".

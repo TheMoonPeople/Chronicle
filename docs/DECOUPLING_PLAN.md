@@ -11,7 +11,7 @@ the last two places where the port still bends to the PlayStation 2's shape:
    interpolated between ticks.
 
 Both keep the port's rules (`docs/PC_PORT_PLAN.md`, section 1): no edits
-under `ps2/src`, replacement only through `PORT_OVERRIDE` definitions in `port/src`, no
+under `ps2/src`, changes only in the port's own copy of the game (`port/src/game`), no
 PS2 emulation. `docs/MACOS_PLAN.md` section 3 explains why item 1 is required
 on arm64 macOS; it is the right shape on every platform.
 
@@ -53,7 +53,7 @@ on arm64 macOS; it is the right shape on every platform.
    already replaces is widened in place (`uintptr_t` for alignment,
    real pointers for stored addresses). A round trip inside a retail function
    is fixed by replacing that function: the retail body is copied into the
-   unit's `port/src/<unit>.cpp`, the cast widened, and nothing else changed;
+   unit's `port/src/game/<unit>.cpp`, the cast widened, and nothing else changed;
    static helpers it needs are copied too, as the long-tail phases did.
    File-format records with pointer fields get a port-side host struct
    filled from the on-disc layout by the replacement loader, and every reader
@@ -96,7 +96,7 @@ on arm64 macOS; it is the right shape on every platform.
   fixed, and the game code cannot be made variable-step without editing it.
 - **Resolution.** 2D is laid out in the 640x480 logical space mapped
   aspect-correct with letterboxing; 3D is scissored to the same 4:3 area; the
-  screen-bound cull in `frame_draw.cpp` uses a fixed +-320 guard band; field
+  screen-bound cull in `frame.cpp` uses a fixed +-320 guard band; field
   height render targets (640x256) are scaled by the render scale; previous
   frame effects sample at logical size.
 
@@ -170,9 +170,9 @@ present
 
 ### B.3 Work packages (Opus agents, after the macOS portability branch lands)
 
-**B.3.1 Display lists and interpolation (`port/src/gfx`, `mglib.cpp`,
-`frame_draw.cpp`, `visualvu1.cpp`, `platform/clock.cpp`, `main.cpp`,
-`gameloop.cpp`).** The recording layer, identity on mesh records, the
+**B.3.1 Display lists and interpolation (`tools/kazarov/src/cpp/gfx`, `mglib.cpp`,
+`frame.cpp`, `visualvu1.cpp`, `platform/clock.cpp`, `main.cpp`,
+`app/gameloop.cpp`).** The recording layer, identity on mesh records, the
 canonical render, replay with interpolation, the main loop restructure,
 config keys, tests: a moving mesh rendered at alpha 0.5 lands halfway
 between its two tick positions; stateful ops execute once per tick (a
@@ -181,7 +181,7 @@ the previous-frame feedback is tick-exact across display rates; headless
 output is byte-identical to today's for the existing tests.
 
 **B.3.2 Aspect and resolution (`mglib.cpp` projection and cull,
-`frame_draw.cpp`, `mglib_math.cpp` guard band, `gfx` mapping, config).**
+`frame.cpp`, `mglib.cpp` guard band, `gfx` mapping, config).**
 Window-aspect projection, cull extents, anchored UI, `ui_scale`, `aspect`
 setting, tests at 16:9, 21:9 and portrait sizes checking that a mesh at the
 frame's edge is visible at 16:9 and culled at 4:3, and that HUD pixels stay
@@ -189,7 +189,7 @@ put.
 
 Status: done. `video.aspect` (`auto` or `4:3`) and `ui_scale`; the projection,
 the screen-bound cull and `MGClipVertex` follow the window; full-frame 2D and
-frame grabs cover it (`docs/PC.md`, "Window aspect"; `port/src/gfx/README.md`,
+frame grabs cover it (`docs/PC.md`, "Window aspect"; `tools/kazarov/src/cpp/gfx/README.md`,
 "Aspect"); `aspect_*_test.cpp`. A window narrower than 4:3 keeps retail's
 horizontal field of view instead of the vertical, so the logical frame always
 fits.
@@ -205,7 +205,7 @@ configuration; documentation.
   the canonical render is the one that pays for copies and readbacks.
 - Interpolation of objects the game teleports (map changes, cutscene cuts)
   would smear; a record carries a "no interpolation" flag that
-  `frame_draw.cpp` sets when the `CFrame` was created or moved by more than
+  `frame.cpp` sets when the `CFrame` was created or moved by more than
   a threshold since the previous tick, and the first tick of a mode never
   interpolates.
 - Replacing retail functions for 64-bit cleanliness copies retail bodies

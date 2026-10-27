@@ -20,10 +20,6 @@
 #define section(name)
 #endif
 
-#define PORT_STRINGIFY2(x) #x
-#define PORT_STRINGIFY(x) PORT_STRINGIFY2(x)
-#define PORT_ASM_NAME(name) PORT_STRINGIFY(__USER_LABEL_PREFIX__) #name
-
 #include "kazarov/port.h"
 
 /**
@@ -72,11 +68,3 @@ T &Ps2Lvalue(T &&value) {
 #include "common.h"
 #undef STATIC_ASSERT
 #define STATIC_ASSERT(expr)
-
-namespace dc::game {}
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::game;
-#endif
-// DC_TRANSITIONAL_END

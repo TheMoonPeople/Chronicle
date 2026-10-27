@@ -34,9 +34,3 @@ void DungeonZoomApply(game::CCameraFollow *camera, game::CDungeonMap *map, bool 
 float DungeonZoomNearDistance(game::CCameraFollow *camera, float normal, bool lock_on);
 
 } // namespace dc::input
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::input;
-#endif
-// DC_TRANSITIONAL_END

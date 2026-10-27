@@ -26,9 +26,3 @@ bool SaveStateRead(const std::filesystem::path &path, SaveState &state);
 bool SaveStateWrite(const std::filesystem::path &path, const SaveState &state);
 
 } // namespace dc::save
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::save;
-#endif
-// DC_TRANSITIONAL_END

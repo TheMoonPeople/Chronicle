@@ -142,9 +142,3 @@ void DataReadTrackPackMember(const void *pack, const void *data, std::size_t siz
                              std::string_view entry_name, std::size_t entry_size, int index, bool duplicate_name);
 
 } // namespace dc::data
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::data;
-#endif
-// DC_TRANSITIONAL_END

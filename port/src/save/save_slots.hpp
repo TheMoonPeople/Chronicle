@@ -86,9 +86,3 @@ int SaveSlotRow(const SaveSlotList &list, int file_no, bool new_save);
 int SaveSlotFileAt(const SaveSlotList &list, int row);
 
 } // namespace dc::save
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::save;
-#endif
-// DC_TRANSITIONAL_END

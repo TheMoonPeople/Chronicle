@@ -36,10 +36,3 @@ bool Prepared();
 void Draw(float x0, float y0, float x1, float y1, float fade);
 
 } // namespace dc::ui::area_card
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::ui;
-namespace areacard = dc::ui::area_card;
-#endif
-// DC_TRANSITIONAL_END

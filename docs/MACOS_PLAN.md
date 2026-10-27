@@ -2,8 +2,8 @@
 
 This plan brings the PC port (`docs/PC.md`, `docs/PC_PORT_PLAN.md`) to macOS on
 arm64, rendering through KosmicKrisp, Mesa's Vulkan driver on top of Metal.
-Nothing here changes the port's rules: C++26, SDL3, native Vulkan, `PORT_OVERRIDE`
-replacement, no PS2 emulation, no edits under `ps2/src`.
+Nothing here changes the port's rules: C++26, SDL3, native Vulkan, replacement in the
+port's own copy of the game (`port/src/game`), no PS2 emulation, no edits under `ps2/src`.
 
 ## 1. What KosmicKrisp is, and what must be checked
 
@@ -87,9 +87,9 @@ alternative that may happen to work through the same loader.
 | Area | File | Linux assumption | macOS answer |
 |---|---|---|---|
 | Arenas | `port/src/game/dataset.cpp` | `mmap(MAP_32BIT)` keeps arenas below 2 GiB so the game's `(int)` pointer casts survive; `madvise(MADV_DONTNEED)` zeroes | No `MAP_32BIT`. ~~Shrink `__PAGEZERO` (`-Wl,-pagezero_size,0x1000`) and map with a hint address~~: **not possible on arm64**. XNU refuses to exec a 64-bit arm64 image whose page zero is under 4 GiB (`mach_loader.c`, macOS 13 to 26), so nothing maps below 4 GiB. Only an x86_64 build under Rosetta can (`DC_MACOS_PAGEZERO_SIZE`, default `0x1000` there) |
-| Executable path | `port/src/platform/paths.cpp` | `/proc/self/exe` | `_NSGetExecutablePath` + `realpath` |
+| Executable path | `tools/kazarov/src/cpp/platform/paths.cpp` | `/proc/self/exe` | `_NSGetExecutablePath` + `realpath` |
 | Executable layout | `port/CMakeLists.txt` | `-no-pie` keeps `.data`/`.bss` below 4 GiB | arm64 macOS is PIE-only, loads images above 4 GiB and forbids low mappings; nothing may depend on a 32-bit round trip (section 3) |
-| Link flags | `-fuse-ld=lld -Wl,--gc-sections -Wl,--defsym=…` | GNU-style | `-Wl,-dead_strip`; `--defsym` aliases become `-Wl,-alias,_from,_to`; `EditGaijiTbl` (an offset, which `-alias` cannot express) is a port-side table in `port/src/game/clsmes.cpp` on both platforms; `--error-limit` dropped |
+| Link flags | `-fuse-ld=lld -Wl,--gc-sections` | GNU-style | `-Wl,-dead_strip`; the link has no aliases (`draw_rect` and `WorkBuffer` are ordinary definitions, `docs/PC.md`, "Names the PS2 build renames"); `EditGaijiTbl` (an offset, which `-alias` cannot express) is a port-side table in `port/src/game/clsmes.cpp` on both platforms; `--error-limit` dropped |
 | Toolchain | clang 20 from apt | | Homebrew `llvm` (20+) and `lld`; Apple clang is not current enough for C++26 |
 | Shader build | `glslangValidator` from apt | | Homebrew `glslang` |
 | Dependencies | SDL3 and Vulkan from `/usr/local` | | Homebrew `sdl3`, `vulkan-headers`, `vulkan-loader`, `vulkan-validationlayers`; Mesa built from source for KosmicKrisp and lavapipe |
@@ -125,8 +125,8 @@ So the port stops relying on 32-bit round trips altogether:
 2. **Proof on Linux.** The arenas can be forced above 4 GiB on Linux
    (`platform/memory`'s high path), which reproduces the arm64 macOS
    condition exactly; the test suite and the real-data boot run that way.
-3. **Per-site fixes**, all in `port/src`: every round-trip site in a port
-   replacement unit or on the boot path is widened to keep a real pointer;
+3. **Per-site fixes**, all in `port/src`: every round-trip site in a function
+   the port replaces or on the boot path is widened to keep a real pointer;
    round-trip sites that remain in retail functions are listed with the
    replacement each needs, and replaced one by one like any hardware
    dependence. Known cases: `BtEventData = (s32) arena` (since replaced), the `EPARTS_*`

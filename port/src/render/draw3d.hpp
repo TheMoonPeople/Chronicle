@@ -294,9 +294,3 @@ void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const
 void Draw3DStripToList(std::vector<uint32_t> &indices, uint32_t first_vertex, uint32_t count);
 
 } // namespace dc::render
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::render;
-#endif
-// DC_TRANSITIONAL_END

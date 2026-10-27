@@ -20,9 +20,3 @@ bool PngLoadRgba(const std::filesystem::path &file, int &width, int &height, std
 bool PngDecodeRgba(std::span<const std::uint8_t> bytes, int &width, int &height, std::vector<std::uint8_t> &rgba);
 
 } // namespace dc::platform
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::platform;
-#endif
-// DC_TRANSITIONAL_END

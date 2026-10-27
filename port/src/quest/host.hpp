@@ -73,10 +73,3 @@ bool QuestHostTakeItemShown(int *event_no);
 bool QuestHostTakeShop(const char *speaker_model, int *shop_no);
 
 } // namespace dc::quest
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::quest;
-namespace Quest = dc::quest;
-#endif
-// DC_TRANSITIONAL_END

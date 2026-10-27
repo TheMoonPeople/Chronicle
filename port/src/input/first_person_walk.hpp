@@ -22,9 +22,3 @@ bool FirstPersonDungeonStep(game::CDungeonMap &map, game::DRAN_MAP_FIELD_SET *fi
 bool FirstPersonDungeonKeyboardVelocity(float *velocity, float heading, const game::BT_ACT_STATUS &status, bool held, bool alive, bool slow);
 
 } // namespace dc::input
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::input;
-#endif
-// DC_TRANSITIONAL_END

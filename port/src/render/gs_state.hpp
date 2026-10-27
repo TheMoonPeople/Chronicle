@@ -100,9 +100,3 @@ void MGPortCutInterpolation();
 bool MGPortTakeInterpolationCut();
 
 } // namespace dc::render
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::render;
-#endif
-// DC_TRANSITIONAL_END

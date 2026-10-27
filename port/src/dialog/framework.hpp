@@ -438,10 +438,3 @@ bool InputConfirm();
 bool InputCancel();
 
 } // namespace dc::dialog
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::dialog;
-namespace Dialog = dc::dialog;
-#endif
-// DC_TRANSITIONAL_END

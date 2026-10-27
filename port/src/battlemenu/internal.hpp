@@ -204,10 +204,3 @@ inline std::string DecodeItemNamePort(int item_no, std::string_view fallback = {
 } // namespace detail
 
 } // namespace dc::battlemenu
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::battlemenu;
-namespace btlmenu_detail = dc::battlemenu::detail;
-#endif
-// DC_TRANSITIONAL_END

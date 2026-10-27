@@ -17,9 +17,3 @@ void GameSetIdentity();
 void GameSetDataIcon();
 
 } // namespace dc::app
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::app;
-#endif
-// DC_TRANSITIONAL_END

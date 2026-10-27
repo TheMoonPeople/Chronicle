@@ -22,9 +22,3 @@ namespace dc::battlemenu {
 void BattleMenuIconPosition(int index, float &x, float &y);
 
 } // namespace dc::battlemenu
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::ui;
-#endif
-// DC_TRANSITIONAL_END

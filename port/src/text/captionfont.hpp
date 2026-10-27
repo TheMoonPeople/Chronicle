@@ -201,9 +201,3 @@ struct Metrics {
 Metrics GetMetrics();
 
 } // namespace dc::text::capfont
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::text;
-#endif
-// DC_TRANSITIONAL_END

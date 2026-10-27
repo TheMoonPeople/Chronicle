@@ -71,10 +71,3 @@ void DrawConfirm(int alpha);
 std::vector<std::pair<std::string, std::string>> Strings();
 
 } // namespace dc::title::menu
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::title;
-namespace TitleMenu = dc::title::menu;
-#endif
-// DC_TRANSITIONAL_END

@@ -32,9 +32,3 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
 std::string GetBattleMenuCaption(int index, int menu_mode, bool ingame_load_active);
 
 } // namespace dc::battlemenu
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::battlemenu;
-#endif
-// DC_TRANSITIONAL_END

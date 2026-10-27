@@ -1,4 +1,4 @@
-# UI Framework (`UI::` Namespace)
+# UI Framework (`dc::ui` Namespace)
 
 **Status: in use, with a proposal.** The framework exists and draws a number of the port's screens
 (section 3). This document describes it as it is and proposes where it goes next: what it is for,
@@ -76,13 +76,13 @@ select and the dungeon HUD.
 ```text
 port/src/ui/framework.hpp       umbrella header
 port/src/ui/framework/
-    types.hpp      palette constants, Metrics, Alignment, FontWeight, Anchor, Rect, ZLayer, LayerQueue
+    types.hpp      palette constants, metrics, Alignment, FontWeight, Anchor, Rect, ZLayer, LayerQueue
     text.hpp       TextStyle, Label, WrapText, DrawTextBox, DrawCounter, DrawStatus*
     surfaces.hpp   WindowPreset, TrackerWindow, PaperWindow, HelpBox, Window, TabPlate, Divider, SubWindow
     buttons.hpp    ButtonPreset, ButtonStyle (Thick, Thin), BevelButton, DrawPaintedPlate, TextureButton
     widgets.hpp    ItemIcon, Cursor, Brackets, ScrollBar, ProgressBar, MenuHeader
     dialogs.hpp    DialogBox, ConfirmModal, ListView
-    *.cpp          their implementations, and internal.hpp (UI::detail)
+    *.cpp          their implementations, and internal.hpp (ui::detail)
 ```
 
 About a third of the public API has no caller: `DialogBox`, `ListView`, `LayerQueue` and `ZLayer`,
@@ -104,8 +104,8 @@ Each move is its own pull request and follows the same steps.
 3. **Build it on the framework,** drawing retail's pictures where they exist (section 2).
 4. **Compare.** Side by side with the captures, state by state and language by language, and every
    item of the list from step 2.
-5. **Switch and retire.** The retail function is replaced with `PORT_OVERRIDE` (or its callers, for a
-   `static` one) only once the comparison holds.
+5. **Switch and retire.** The retail function is replaced in its game unit (`port/src/game`), or its
+   callers are for a `static` one, only once the comparison holds.
 
 ---
 
@@ -120,10 +120,10 @@ Each move is its own pull request and follows the same steps.
 - **Other frameworks use its public headers only.** Everything is in one codebase, so this isn't
   about a boundary between projects: `port/src/ui/framework/internal.hpp` is the framework's working
   detail (game headers, texture blocks, helpers) that it changes freely, and a unit reaching into it
-  breaks without warning when it does. **Proposal:** `dialog_framework.cpp` reads
-  `UI::detail::kMessageTextureBlock` there today; the framework gains one public call that readies the
+  breaks without warning when it does. **Proposal:** `dialog/framework.cpp` reads
+  `ui::detail::kMessageTextureBlock` there today; the framework gains one public call that readies the
   message texture, and the dialog framework uses that.
-- `UI::DrawPaintedPlate` recognises retail's painted plates by texture name inside the framework,
+- `ui::DrawPaintedPlate` recognises retail's painted plates by texture name inside the framework,
   which this rule would put in a module above it. It is left where it is by decision (it is
   Tororoi's, works, and moving it changes nothing anyone sees).
 
@@ -136,7 +136,7 @@ Each move is its own pull request and follows the same steps.
 `port/src/text/captionfont.{hpp,cpp}` and `port/src/text/caption_text.{hpp,cpp}` keep four TrueType font
 slots, switched with `capfont::UseFontSlot`:
 
-| Slot | Font | `UI::FontWeight` | Draws |
+| Slot | Font | `ui::FontWeight` | Draws |
 |---|---|---|---|
 | 0 | `ChronicleSharp-Bold.ttf` (`lang/font.ttf`) | `Normal`, `Bold` | the text the port draws from a font, menu captions, the name alphabet |
 | 1 | `ChronicleSharp-Regular.ttf` (`lang/font_thin.ttf`) | `Thin` | the weapon menu's buttons, area cards, the floor select's boss names |
@@ -250,10 +250,10 @@ was matched to. The title rows were first guessed for that reason.
 A **look** is a named, documented style: what it draws, the renderer and font, its colours, size and
 effects, and the retail picture it matches (texture, texel rectangle, the alpha the game draws it at,
 the measured values and how they were found). The looks live in one unit
-(`port/src/ui_framework/looks.cpp`), and a screen asks for one by name:
+(`port/src/ui/framework/looks.cpp`), and a screen asks for one by name:
 
 ```cpp
-UI::Label(LocalizeText("title.menu.start", "START"), UI::Look::TitleRowSelected).Draw(x, y, alpha);
+ui::Label(LocalizeText("title.menu.start", "START"), ui::Look::TitleRowSelected).Draw(x, y, alpha);
 ```
 
 The first looks are the ones the port already draws: menu caption, title row (selected and not),
@@ -329,7 +329,7 @@ widgets, each with retail's look:
 
 The data comes from the framework that owns it (the bestiary's from an enemy framework, the fish
 tracker's from fishing) through callbacks registered with the screen, as dialog providers register
-with `Dialog::`, so the UI framework never knows what a fish or an enemy is.
+with `dialog::`, so the UI framework never knows what a fish or an enemy is.
 
 ## 12. PS2 texture state
 
@@ -373,8 +373,8 @@ finished; what nothing needs goes.
 | `SubWindow`, `PaperWindow`, `Window` | remove | wrappers of `TrackerWindow` and `Rect` no screen uses |
 | `DrawTextBox`, `Label::DrawInRect`, `DrawCenteredInRect`, `DrawAnchored`, `DrawWithStroke`, `DrawWrapped` | remove | unused; `Rect` anchoring and `WrapText` cover them |
 | `NATIVE_COLOR_*`, `BLUE_STONE_MENU`, `PAPER_MENU`, `DARK_TRANSLUCENT_MENU` | remove | aliases; the one use of `BLUE_STONE_MENU` takes `WindowPreset::BlueStone` |
-| `Metrics` | keep what is used, the rest goes | constants nothing reads |
-| `UI::detail` reached from `dialog_framework.cpp` | public replacement (section 5) | the private header stays private |
+| `metrics` | keep what is used, the rest goes | constants nothing reads |
+| `ui::detail` reached from `dialog/framework.cpp` | public replacement (section 5) | the private header stays private |
 | Implicit renderer choice | explicit (section 6) | |
 | Screens' own `TextStyle` numbers | looks (section 8) | |
 

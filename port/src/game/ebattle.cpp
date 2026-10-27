@@ -1010,9 +1010,9 @@ int EdSetKeyMode(int mode) {
 
 // The right stick of the town's walk: EdMoveChara turns its camera by RX (0.03 a tick, unless a
 // wall is on that side) and raises it by RY while it is under 30. RX stays the stick's: the mouse's
-// turn goes to EditLoop's request (camera_port.hpp), which checks it against the walls itself; so
+// turn goes to EditLoop's request (input/mouse_look.hpp), which checks it against the walls itself; so
 // the drift behind a walking character and R1 and L1, which wait for RX to rest, see only the stick.
-// RY takes the mouse as camera_port.hpp describes. In an interior's first-person view EdMoveChara
+// RY takes the mouse as input/mouse_look.hpp describes. In an interior's first-person view EdMoveChara
 // turns the character by RX only while the left stick rests, so the mouse turns it in EyeCamera.
 
 float EdGetRXf(int mode) {

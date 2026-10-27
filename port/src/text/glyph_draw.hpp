@@ -30,9 +30,3 @@ bool GlyphReplaceSprite(const char *texture, const game::CRect_i_ &screen, const
 void GlyphOverlaySprite(const char *texture, const game::CRect_i_ &screen, const game::CRect_i_ &texel, int alpha);
 
 } // namespace dc::text
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::text;
-#endif
-// DC_TRANSITIONAL_END

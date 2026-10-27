@@ -169,10 +169,3 @@ int Run();
 void Draw();
 
 } // namespace dc::options
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::options;
-namespace options = dc::options;
-#endif
-// DC_TRANSITIONAL_END

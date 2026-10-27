@@ -118,9 +118,3 @@ void Draw2D(gfx::Primitive primitive, std::span<const gfx::Vertex2D> vertices, c
             const gfx::DrawState &state);
 
 } // namespace dc::text::textwipe
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::text;
-#endif
-// DC_TRANSITIONAL_END

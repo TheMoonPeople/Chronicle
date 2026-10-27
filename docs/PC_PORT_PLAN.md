@@ -12,11 +12,11 @@ update its status here and move the architectural facts into `docs/PC.md`.
   `port/src` and `port/include`. `ps2/src` and `ps2/include` are the PAL
   game as the PS2 build compiles it and are never edited for the port beyond
   the rules in `docs/PC.md`.
-- **`PORT_OVERRIDE` replacement is the only mechanism.** Any function in
-  `ps2/src` that depends on PS2 hardware (GS, VU0, VU1, VIF, GIF, DMA, SPU2,
-  IOP, scratchpad, timers, memory card, CD) is replaced by a definition in
-  `port/src`, tagged `PORT_OVERRIDE` and written from scratch. A `static`
-  function cannot be replaced, so its non-static callers are replaced instead.
+- **The port's own copy of the game is the only mechanism.** Any function
+  that depends on PS2 hardware (GS, VU0, VU1, VIF, GIF, DMA, SPU2, IOP,
+  scratchpad, timers, memory card, CD) is replaced in its unit in
+  `port/src/game` (namespace `dc::game`), at the retail function's place,
+  on top of the platform layer in the rest of `port/src`.
 - **No emulation of the PS2.** No GS register interpreter, no VU1
   interpreter, no VIF or GIF packet decoder, no DMA chain walker, no SPU2
   register model, no memory mapping of PS2 address ranges. The libpkt,
@@ -122,6 +122,9 @@ hang on buffers above 32 MB.
 
 ### 4.1 Layout
 
+The layout as built is in `docs/PC.md`, "Layout"; the renderer, audio and
+host platform are Kazarov's (`tools/kazarov/src/cpp`).
+
 ```
 port/src/
   CMakeLists.txt          port build (+ tools, tests, shaders)
@@ -154,8 +157,8 @@ tools/dcdata/             data extraction tool (C++26, std::filesystem)
 ```
 
 Rules: `platform/`, `gfx/` and `audio/` never include a game header. The
-replacement units (`port/src/<unit>.cpp`) are the only place game types and
-port services meet.
+game units (`port/src/game/<unit>.cpp`) and the platform layer beside them in
+`port/src` are the only place game types and port services meet.
 
 ### 4.2 Renderer (`port/src/gfx`)
 
@@ -238,7 +241,7 @@ record to `<data-dir>/<lowercased path>` with `std::filesystem`. It also
 accepts a directory already holding `DATA.DAT` and `DATA.HD2`. It verifies
 sizes, prints a manifest and is idempotent.
 
-`port/src/dataread.cpp` replaces `InitCDFile`, `LoadFile`, `LoadFile2`,
+`port/src/game/dataread.cpp` replaces `InitCDFile`, `LoadFile`, `LoadFile2`,
 `LoadFileBG`, `ReadBG`, `ReadBGSync`, `BreakReadBG`, `StartReadBG`,
 `InitReadBG`, `GetReadBGFile`, `WriteFile`: a case-folded index of `data/`
 built once with `recursive_directory_iterator`; `LoadFile2` strips any
@@ -342,7 +345,7 @@ Acceptance: `darkcloud --headless --frames 3 --screenshot out.png` works on
 lavapipe; tests pass; `gfx/` has no game headers.
 **Status: landed.** gfx Vulkan 1.4 renderer, shader build, pipeline cache, headless tests.
 
-**P1 Data** (`tools/dcdata`, `port/src/dataread.cpp`, `platform/paths.*`,
+**P1 Data** (`tools/dcdata`, `port/src/game/dataread.cpp`, `platform/paths.*`,
 tests). Deliver the extractor (ISO 9660 + HD2/DAT), the `dataread`
 replacement, pack-file tests with synthetic data, and a documented
 `data/` layout. No disc image is available in this environment: build the
@@ -359,14 +362,14 @@ runtime no-ops, with tests for libmc (round-trip a save image through the
 state machine), the clock and the arenas.
 **Status: landed.** Input, clock, config, libpad/libmc/eekernel/sifrpc, arenas, runtime no-ops.
 
-**P8 Audio** (`port/src/audio/*`, `platform/audio.*`, `port/src/sound.cpp`,
-`port/src/gameutil.cpp` EZMIDI seam). Deliver VAG decoding, HD/BD/SQ
+**P8 Audio** (`port/src/audio/*`, `platform/audio.*`, `port/src/game/sound.cpp`,
+`port/src/game/gameutil.cpp` EZMIDI seam). Deliver VAG decoding, HD/BD/SQ
 parsing, sequencer, synth, SDL3 output, and `CSound` on top. Tests with
 synthetic banks and sequences (generate a VAG from a sine, an HD with one
 program, an SQ with a few notes; check the mix).
 **Status: landed.** VAG, HD/BD/SQ, sequencer, synth and mixer, SDL3 output, `CSound` on top.
 
-**P5a CPU math replacements** (`port/src/mathutil.cpp`, `frame.cpp`
+**P5a CPU math replacements** (`port/src/game/mathutil.cpp`, `frame.cpp`
 helpers, `collisionmdt.cpp`, `gameutil.cpp` `MotionProc2`,
 `chararead.cpp`, `cloth.cpp` `CCloth::Step`, `water.cpp`
 `pretest`/`Trans_AddCell`, `visualvu1.cpp` `InverseLength`,
@@ -383,7 +386,7 @@ consume, as plain arrays.
 
 ### Wave 2 (after P0+P3 merges)
 
-**P4+P5b 3D path** (`port/src/mglib.cpp` draw/state/matrices,
+**P4+P5b 3D path** (`port/src/game/mglib.cpp` draw/state/matrices,
 `visualvu1.cpp`, `visualshadow.cpp`, `cloth.cpp`, `water.cpp`,
 `frame.cpp` `CFrameVu1::DrawVu1`). Meshes from MDT, draw submission with
 the VU1 program semantics as shader constants, shadows (planar projection,
@@ -392,14 +395,14 @@ rebuild per frame, pick-Z. Tests: build a mesh from a synthetic MDT and
 render it headless; shadow composite.
 **Status: landed.** MG library, meshes from MDT, `DrawVu1`, shadows, cloth, water, pick-Z.
 
-**P6 Textures** (`port/src/texture.cpp`, `textureanime.cpp`,
+**P6 Textures** (`port/src/game/texture.cpp`, `textureanime.cpp`,
 `nowload.cpp` drawing side). TIM2 decode (RGB16/24/32, IDTEX8, IDTEX4),
 IMG packs, placeholder render targets, `ReloadTexture` no-op, fixed
 textures, Z-buffer background, texture animation on `CopyTexture`. Tests:
 decode synthetic TIM2 of each type and compare pixels.
 **Status: landed.** TIM2 decode, texture registry, placeholders, texture animation, loading screen.
 
-**P7a 2D core** (`port/src/snd.cpp` sprites and `LensFlare`,
+**P7a 2D core** (`port/src/game/snd.cpp` sprites and `LensFlare`,
 `gameutil.cpp` sprite batch and `SetClut`, `clsmes.cpp`,
 `spritetable.cpp`, `dispctrl.cpp`, `menu_draw.cpp` packet sites,
 `title/dispfade.cpp`, `title/scfader.cpp`, `editloop3.cpp` fades). Tests:
@@ -418,7 +421,7 @@ render a sprite table headless and check pixels.
 `edit.cpp`, `edit_in.cpp`, `editloop.cpp` draw functions).
 **Status: landed.** Title scenes, opening, rush movie, title loop and the editor's draw functions; no stub is reachable from `main`.
 
-**P10 Integration** (`port/src/main.cpp`, `gameloop.cpp`, `docs/PC.md`,
+**P10 Integration** (`port/src/main.cpp`, `app/gameloop.cpp`, `docs/PC.md`,
 CI). The game's main loop runs through the title path headless with the
 extracted data when present; without data the run reaches the first
 `LoadFile` and reports the missing `data/` clearly. Every remaining

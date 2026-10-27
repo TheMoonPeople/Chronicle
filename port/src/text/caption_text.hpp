@@ -233,9 +233,3 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
               const LineStyle &style, float fade, float rows, LineBounds *bounds);
 
 } // namespace dc::text::caption
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::text;
-#endif
-// DC_TRANSITIONAL_END

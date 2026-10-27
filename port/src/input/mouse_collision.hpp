@@ -50,9 +50,3 @@ float MouseCameraClampDistance(game::CCameraFollow &camera, float distance, game
                                float floor_clearance = 18.0f);
 
 } // namespace dc::input
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::input;
-#endif
-// DC_TRANSITIONAL_END

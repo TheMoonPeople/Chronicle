@@ -262,10 +262,3 @@ void DrawStatusSlashPair(int current_val, int max_val, int slash_x, int y,
                          float scale = 0.76f, int alpha = 0x80);
 
 } // namespace dc::ui
-
-// DC_TRANSITIONAL_BEGIN
-#ifndef DC_NO_TRANSITIONAL_USING
-using namespace dc::ui;
-namespace UI = dc::ui;
-#endif
-// DC_TRANSITIONAL_END
