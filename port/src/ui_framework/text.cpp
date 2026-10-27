@@ -61,18 +61,35 @@ struct ScaledDrawParams {
     bool       ink_spacing = false;         /**< Whether letters are spaced by their outlines. */
 };
 
+constexpr int kHaloLayers = 4;
+
+/**
+ * Returns how many continuation bytes follow a UTF-8 lead byte, or -1 if it is not a lead byte.
+ */
+int Utf8ExtraBytes(unsigned char lead) {
+    if (lead < 0x80) {
+        return 0;
+    }
+    if ((lead >> 5) == 6) {
+        return 1;
+    }
+    if ((lead >> 4) == 14) {
+        return 2;
+    }
+    if ((lead >> 3) == 30) {
+        return 3;
+    }
+    return -1;
+}
+
 /**
  * Decodes a UTF-8 string into UTF-32 code points.
  */
 std::u32string DecodeUtf8(std::string_view in) {
     std::u32string out;
     for (size_t i = 0; i < in.size();) {
-        const unsigned char c = static_cast<unsigned char>(in[i]);
-        const int           extra = c < 0x80         ? 0
-                                    : (c >> 5) == 6  ? 1
-                                    : (c >> 4) == 14 ? 2
-                                    : (c >> 3) == 30 ? 3
-                                                     : -1;
+        const auto c = static_cast<unsigned char>(in[i]);
+        const int  extra = Utf8ExtraBytes(c);
         if (extra < 0 || i + static_cast<size_t>(extra) >= in.size()) {
             out.push_back(U'?');
             i++;
@@ -93,7 +110,7 @@ std::u32string DecodeUtf8(std::string_view in) {
  */
 bool UseScaledRenderer(std::string_view text, float scale, float xscale, float yscale,
                        FontWeight weight, bool use_custom_rgb, float outline_width) {
-    if (text.find('{') != std::string::npos) {
+    if (text.contains('{')) {
         return false;
     }
     if (std::abs(scale - 1.0f) <= 0.001f &&
@@ -108,6 +125,22 @@ bool UseScaledRenderer(std::string_view text, float scale, float xscale, float y
 }
 
 /**
+ * Returns the capfont slot for a weight, falling back to the main slot when its font is not loaded.
+ */
+FontSlot SelectFontSlot(FontWeight weight) {
+    if (weight == FontWeight::Title && caption::TitleReady()) {
+        return FontSlot::Title;
+    }
+    if (weight == FontWeight::Status && caption::StatusReady()) {
+        return FontSlot::Status;
+    }
+    if (weight == FontWeight::Thin && caption::ThinReady()) {
+        return FontSlot::Thin;
+    }
+    return FontSlot::Main;
+}
+
+/**
  * Measures the horizontal advance width of a string in logical pixels.
  */
 int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeight weight, float letter = 0.0f,
@@ -116,10 +149,7 @@ int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeig
         return 0;
     }
 
-    const FontSlot slot = (weight == FontWeight::Title && caption::TitleReady())     ? FontSlot::Title
-                          : (weight == FontWeight::Status && caption::StatusReady()) ? FontSlot::Status
-                          : (weight == FontWeight::Thin && caption::ThinReady())     ? FontSlot::Thin
-                                                                                     : FontSlot::Main;
+    const FontSlot slot = SelectFontSlot(weight);
 
     /**
      * Scoped guard that activates a capfont slot and restores the main slot on exit.
@@ -162,7 +192,8 @@ int MeasureScaledText(std::string_view text, float scale, float xscale, FontWeig
                 natural += capfont::KernPixels(previous, ch, em_px) / mapping.scale_x * xscale * kern;
             }
             // Spaced as caption::DrawLine spaces them.
-            float ink0, ink1;
+            float      ink0 = 0.0f;
+            float      ink1 = 0.0f;
             const bool by_ink = ink_spacing && capfont::GetInkExtent(ch, em_px, ink0, ink1);
             natural += (by_ink ? ink1 - ink0 : glyph.width) / mapping.scale_x * xscale + gap;
             drawn++;
@@ -197,27 +228,27 @@ const caption::FillField *GetVerticalGradField(u8 base_r, u8 base_g, u8 base_b) 
     field.width = 2;
     field.height = 16;
     field.id = ++next_id;
-    field.rgb.resize(static_cast<size_t>(field.width * field.height * 3));
+    field.rgb.resize(static_cast<size_t>(field.width) * static_cast<size_t>(field.height) * 3);
 
     for (int y = 0; y < field.height; ++y) {
-        const float v = static_cast<float>(y) / static_cast<float>(field.height - 1);
-        const float raw = std::clamp((v - 0.25f) / 0.65f, 0.0f, 1.0f);
-        const float t = raw * raw * (3.0f - 2.0f * raw);
+        const float row_frac = static_cast<float>(y) / static_cast<float>(field.height - 1);
+        const float ramp = std::clamp((row_frac - 0.25f) / 0.65f, 0.0f, 1.0f);
+        const float t = ramp * ramp * (3.0f - 2.0f * ramp);
 
         const u8 r = static_cast<u8>(std::lround(top_r + (static_cast<float>(base_r) - top_r) * t));
         const u8 g = static_cast<u8>(std::lround(top_g + (static_cast<float>(base_g) - top_g) * t));
         const u8 b = static_cast<u8>(std::lround(top_b + (static_cast<float>(base_b) - top_b) * t));
 
         for (int x = 0; x < field.width; ++x) {
-            const size_t idx = static_cast<size_t>((y * field.width + x) * 3);
+            const auto idx = static_cast<size_t>(y * field.width + x) * 3;
             field.rgb[idx + 0] = r;
             field.rgb[idx + 1] = g;
             field.rgb[idx + 2] = b;
         }
     }
 
-    auto [ins_it, _] = fields.emplace(key, std::move(field));
-    return &ins_it->second;
+    const auto inserted = fields.emplace(key, std::move(field)).first;
+    return &inserted->second;
 }
 
 /**
@@ -294,7 +325,6 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
     if (params.halo > 0.0f) {
         // Retail's painted lettering sits in a soft dark halo that fades as it reaches out: a few dark outlines, each
         // wider and fainter than the last, laid down before the letters.
-        constexpr int kHaloLayers = 4;
         for (int layer = kHaloLayers; layer >= 1; --layer) {
             caption::LineStyle halo_style = style;
             halo_style.field = nullptr;
@@ -319,7 +349,13 @@ void DrawScaledText(std::string_view text, float center_x, float cap_top, float 
         shadow_style.edge_width = (is_thin || is_status || is_title) ? 0.0f : (0.5f * scale);
 
         const float base_op = std::clamp(static_cast<float>(ConfigGet().text_shadow) / 100.0f, 0.0f, 1.0f);
-        shadow_style.opacity = is_thin ? (base_op * 0.55f) : ((is_status || is_title) ? (base_op * 0.65f) : base_op);
+        if (is_thin) {
+            shadow_style.opacity = base_op * 0.55f;
+        } else if (is_status || is_title) {
+            shadow_style.opacity = base_op * 0.65f;
+        } else {
+            shadow_style.opacity = base_op;
+        }
 
         const float s_mult = (is_thin || is_status || is_title) ? 1.25f : 1.85f;
         const float s_dx = std::round(s_mult * scale);
@@ -429,10 +465,14 @@ std::vector<std::string> WrapText(std::string_view text, int max_width, float sc
             i++;
         }
 
-        std::string candidate = current_line.empty() ? word : (current_line + " " + word);
+        std::string candidate = current_line;
+        if (!candidate.empty()) {
+            candidate += ' ';
+        }
+        candidate += word;
 
-        Label test_lbl(candidate, ColorWhite, Alignment::Left, true, scale);
-        if (test_lbl.GetWidth() > max_width && !current_line.empty()) {
+        Label measure_label(candidate, ColorWhite, Alignment::Left, true, scale);
+        if (measure_label.GetWidth() > max_width && !current_line.empty()) {
             lines.push_back(current_line);
             current_line = word;
         } else {
@@ -614,7 +654,7 @@ void Label::Draw(int x, int y, int alpha) {
     const int width = GetWidth();
 
     if (UseScaledRenderer(m_raw_text, m_scale, m_xscale, m_yscale, m_weight, m_use_custom_rgb, m_outline_width)) {
-        float center_x = static_cast<float>(draw_x);
+        auto center_x = static_cast<float>(draw_x);
         if (m_align == Alignment::Left) {
             center_x = static_cast<float>(draw_x) + static_cast<float>(width) * 0.5f;
         } else if (m_align == Alignment::Right) {
@@ -747,8 +787,8 @@ void Label::DrawCenteredInRect(int x, int y, int width, int height, int alpha) {
 
 void Label::DrawAnchored(const Rect &parent, Anchor anchor, int offset_x, int offset_y, int alpha) {
     const Alignment prev_align = m_align;
-    int             px = parent.x;
-    int             py = parent.y;
+    int             anchor_x = parent.x;
+    int             anchor_y = parent.y;
 
     switch (anchor) {
         case Anchor::TopLeft:
@@ -756,54 +796,54 @@ void Label::DrawAnchored(const Rect &parent, Anchor anchor, int offset_x, int of
         case Anchor::LeftWide:
         case Anchor::FullRect:
             m_align = Alignment::Left;
-            px = parent.Left();
-            py = parent.Top();
+            anchor_x = parent.Left();
+            anchor_y = parent.Top();
             break;
         case Anchor::TopCenter:
             m_align = Alignment::Center;
-            px = parent.CenterX();
-            py = parent.Top();
+            anchor_x = parent.CenterX();
+            anchor_y = parent.Top();
             break;
         case Anchor::TopRight:
         case Anchor::RightWide:
             m_align = Alignment::Right;
-            px = parent.Right();
-            py = parent.Top();
+            anchor_x = parent.Right();
+            anchor_y = parent.Top();
             break;
         case Anchor::CenterLeft:
             m_align = Alignment::Left;
-            px = parent.Left();
-            py = parent.CenterY() - 10;
+            anchor_x = parent.Left();
+            anchor_y = parent.CenterY() - 10;
             break;
         case Anchor::Center:
             m_align = Alignment::Center;
-            px = parent.CenterX();
-            py = parent.CenterY() - 10;
+            anchor_x = parent.CenterX();
+            anchor_y = parent.CenterY() - 10;
             break;
         case Anchor::CenterRight:
             m_align = Alignment::Right;
-            px = parent.Right();
-            py = parent.CenterY() - 10;
+            anchor_x = parent.Right();
+            anchor_y = parent.CenterY() - 10;
             break;
         case Anchor::BottomLeft:
         case Anchor::BottomWide:
             m_align = Alignment::Left;
-            px = parent.Left();
-            py = parent.Bottom() - 20;
+            anchor_x = parent.Left();
+            anchor_y = parent.Bottom() - 20;
             break;
         case Anchor::BottomCenter:
             m_align = Alignment::Center;
-            px = parent.CenterX();
-            py = parent.Bottom() - 20;
+            anchor_x = parent.CenterX();
+            anchor_y = parent.Bottom() - 20;
             break;
         case Anchor::BottomRight:
             m_align = Alignment::Right;
-            px = parent.Right();
-            py = parent.Bottom() - 20;
+            anchor_x = parent.Right();
+            anchor_y = parent.Bottom() - 20;
             break;
     }
 
-    Draw(px + offset_x, py + offset_y, alpha);
+    Draw(anchor_x + offset_x, anchor_y + offset_y, alpha);
     m_align = prev_align;
 }
 
@@ -838,25 +878,25 @@ void Label::DrawWithStroke(int x, int y, u32 fill_color, u32 stroke_color, int s
 void Label::DrawWrapped(int x, int y, int max_width, int line_height, int alpha) {
     std::vector<std::string> lines = WrapText(m_raw_text, max_width, m_scale);
     for (size_t i = 0; i < lines.size(); ++i) {
-        Label line_lbl(lines[i], m_color, m_align, m_drop_shadow, m_scale, m_weight, m_xscale);
-        line_lbl.SetOffset(m_dx, m_dy);
-        line_lbl.Draw(x, y + static_cast<int>(i) * line_height, alpha);
+        Label line_label(lines[i], m_color, m_align, m_drop_shadow, m_scale, m_weight, m_xscale);
+        line_label.SetOffset(m_dx, m_dy);
+        line_label.Draw(x, y + static_cast<int>(i) * line_height, alpha);
     }
 }
 
 void DrawTextBox(std::string_view text, const Rect &box, const TextStyle &style, int alpha) {
-    Label lbl(text, style);
-    lbl.DrawInRect(box, alpha);
+    Label label(text, style);
+    label.DrawInRect(box, alpha);
 }
 
 void DrawCounter(int x, int y, int current_val, int max_val,
                  float scale, int alpha, u32 normal_color, u32 complete_color) {
-    const u32 col = (current_val == max_val && max_val > 0) ? complete_color : normal_color;
-    Label("[", col, Alignment::Left, true, scale).Draw(x, y, alpha);
-    Label(std::to_string(current_val), col, Alignment::Right, true, scale).Draw(x + 28, y, alpha);
-    Label("/", col, Alignment::Center, true, scale).Draw(x + 38, y, alpha);
-    Label(std::to_string(max_val), col, Alignment::Right, true, scale).Draw(x + 73, y, alpha);
-    Label("]", col, Alignment::Right, true, scale).Draw(x + 82, y, alpha);
+    const u32 color = (current_val == max_val && max_val > 0) ? complete_color : normal_color;
+    Label("[", color, Alignment::Left, true, scale).Draw(x, y, alpha);
+    Label(std::to_string(current_val), color, Alignment::Right, true, scale).Draw(x + 28, y, alpha);
+    Label("/", color, Alignment::Center, true, scale).Draw(x + 38, y, alpha);
+    Label(std::to_string(max_val), color, Alignment::Right, true, scale).Draw(x + 73, y, alpha);
+    Label("]", color, Alignment::Right, true, scale).Draw(x + 82, y, alpha);
 }
 
 void DrawStatusText(std::string_view text, int x, int y, Alignment align,

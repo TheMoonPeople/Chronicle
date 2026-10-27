@@ -1,9 +1,11 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <map>
+#include <numbers>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -327,12 +329,23 @@ float BtnRoundedSdf(float px, float py, float cx, float cy, float half_w, float 
  * Builds or returns the cached 256x256 base surface for the given button preset.
  */
 const ButtonBaseSurface &GetButtonBaseSurface(ButtonPreset preset) {
-    static ButtonBaseSurface surfaces[4];
-    const int                idx = (preset == ButtonPreset::AmberGold)    ? 1
-                                   : (preset == ButtonPreset::StoneGreen) ? 2
-                                 : (preset == ButtonPreset::SlateBlue)  ? 3
-                                                                          : 0;
-    ButtonBaseSurface       &out = surfaces[idx];
+    static std::array<ButtonBaseSurface, 4> surfaces;
+    size_t                                  idx = 0;
+    switch (preset) {
+        case ButtonPreset::AmberGold:
+            idx = 1;
+            break;
+        case ButtonPreset::StoneGreen:
+            idx = 2;
+            break;
+        case ButtonPreset::SlateBlue:
+            idx = 3;
+            break;
+        case ButtonPreset::Terracotta:
+        default:
+            break;
+    }
+    ButtonBaseSurface &out = surfaces[idx];
 
     if (!out.rgba.empty()) {
         return out;
@@ -361,8 +374,8 @@ const ButtonBaseSurface &GetButtonBaseSurface(ButtonPreset preset) {
 
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
-            const float fx = static_cast<float>(x);
-            const float fy = static_cast<float>(y);
+            const auto fx = static_cast<float>(x);
+            const auto fy = static_cast<float>(y);
 
             const float wx = (BtnFbmPeriodic256(fx, fy, 32, 3, s + 501) - 0.5f) * 9.0f;
             const float wy = (BtnFbmPeriodic256(fx, fy, 32, 3, s + 601) - 0.5f) * 9.0f;
@@ -389,19 +402,21 @@ const ButtonBaseSurface &GetButtonBaseSurface(ButtonPreset preset) {
 
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
-            const float fx = static_cast<float>(x);
-            const float fy = static_cast<float>(y);
+            const auto  fx = static_cast<float>(x);
+            const auto  fy = static_cast<float>(y);
             const float tooth = BtnSmoothNoisePow2(fx * 0.65f, fy * 0.65f, 127, 127, s + 808) * 0.55f +
                                 BtnHash2D(x, y, s + 909) * 0.45f;
             height_map[static_cast<size_t>(y) * size + x] += (tooth - 0.5f) * spec.tooth_weight;
         }
     }
 
-    static constexpr float kBayer4x4[4][4] = {
-        {-0.46875f, 0.03125f,  -0.34375f, 0.15625f },
-        {0.28125f,  -0.21875f, 0.40625f,  -0.09375f},
-        {-0.28125f, 0.21875f,  -0.40625f, 0.09375f },
-        {0.46875f,  -0.03125f, 0.34375f,  -0.15625f}
+    static constexpr std::array<std::array<float, 4>, 4> kBayer4x4{
+        {
+         {-0.46875f, 0.03125f, -0.34375f, 0.15625f},
+         {0.28125f, -0.21875f, 0.40625f, -0.09375f},
+         {-0.28125f, 0.21875f, -0.40625f, 0.09375f},
+         {0.46875f, -0.03125f, 0.34375f, -0.15625f},
+         }
     };
 
     out.rgba.assign(static_cast<size_t>(size) * size * 4, 255);
@@ -499,7 +514,7 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
             const float edge_alpha = std::clamp(0.5f - dist, 0.0f, 1.0f);
             const float inward = -dist;
             const float u_norm = static_cast<float>(x) * inv_w;
-            const float dome = std::sin(v_norm * 3.14159265f) * 6.0f +
+            const float dome = std::sin(v_norm * std::numbers::pi_v<float>) * 6.0f +
                                (0.45f - (u_norm * 0.35f + v_norm * 0.65f)) * 16.0f;
 
             float r = static_cast<float>(surface.rgba[src_idx + 0]) + dome * spec.scale_r;
@@ -520,7 +535,7 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
                 const float light_dot = -(nx * 0.58f + ny * 0.81f) + (h_val - 0.5f) * 0.35f;
 
                 const float profile = (inward < bevel_w)
-                                          ? std::sin(std::clamp(inward / bevel_w, 0.0f, 1.0f) * 3.14159265f)
+                                          ? std::sin(std::clamp(inward / bevel_w, 0.0f, 1.0f) * std::numbers::pi_v<float>)
                                           : 0.0f;
                 const float inner_groove = std::exp(-((inward - 2.2f) * (inward - 2.2f)) / 0.65f) * 11.0f;
                 const float bevel = light_dot * profile * spec.bevel_strength - inner_groove;
@@ -545,11 +560,12 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
     }
 
     if (pressed) {
-        // Pressed: the plate turned round, so its light falls from below and right.
+        // Rotating the plate 180 degrees moves its light to below and right.
         const size_t count = rgba.size() / 4;
         for (size_t i = 0; i < count / 2; i++) {
-            std::swap_ranges(rgba.begin() + static_cast<long>(i * 4), rgba.begin() + static_cast<long>(i * 4 + 4),
-                             rgba.begin() + static_cast<long>((count - 1 - i) * 4));
+            std::swap_ranges(rgba.begin() + static_cast<std::ptrdiff_t>(i * 4),
+                             rgba.begin() + static_cast<std::ptrdiff_t>((i * 4) + 4),
+                             rgba.begin() + static_cast<std::ptrdiff_t>((count - 1 - i) * 4));
         }
     }
     decoded.levels.push_back(std::move(rgba));
@@ -561,7 +577,9 @@ CTexture *GetProceduralButtonTex(int width_px, int height_px, ButtonPreset prese
     CachedButtonTex &entry = cache[key];
     entry.tbp = tbp;
     entry.tex.Initialize();
-    std::strcpy(entry.tex.name, spec.tex_name);
+    const std::string_view tex_name = spec.tex_name;
+    std::ranges::copy(tex_name, entry.tex.name);
+    entry.tex.name[tex_name.size()] = '\0';
     entry.tex.width = width_px;
     entry.tex.height = height_px;
     entry.tex.bpp = 4;
@@ -588,7 +606,7 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
 
     const int seed_variant = (box.y / 13) + (box.x / 17) * 3;
     CTexture *btn_tex = (box.w >= 16 && box.h >= 12)
-                                 ? GetProceduralButtonTex(box.w, box.h, style.preset, style.rounded, seed_variant, style.pressed)
+                            ? GetProceduralButtonTex(box.w, box.h, style.preset, style.rounded, seed_variant, style.pressed)
                             : nullptr;
 
     if (btn_tex != nullptr) {
@@ -614,7 +632,7 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
     }
 
     if (!text.empty()) {
-        float     fitted_xscale = style.text_xscale;
+        float fitted_xscale = style.text_xscale;
         // The painted buttons' words run to a few pixels from their ends.
         const int max_text_w = std::max(16, box.w - (style.painted_text ? 12 : 16));
         Label     measure_lbl(text, style.text_color, style.align, style.drop_shadow,
@@ -623,14 +641,14 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
         float     letter = 0.0f;
         if (natural_w > max_text_w && style.painted_text) {
             // The painted buttons fit a long word by closing its letters up first, until they nearly touch.
-            constexpr float kTightest = -1.5f;
+            constexpr float tightest_spacing = -1.5f;
             int             gaps = -1;
             for (char ch : text) {
                 // A letter's first byte (UTF-8's continuation bytes are 10xxxxxx), spaces not counted.
                 gaps += ch != ' ' && (static_cast<unsigned char>(ch) & 0xC0) != 0x80 ? 1 : 0;
             }
             if (gaps > 0) {
-                letter = std::max(kTightest, -static_cast<float>(natural_w - max_text_w) / static_cast<float>(gaps));
+                letter = std::max(tightest_spacing, -static_cast<float>(natural_w - max_text_w) / static_cast<float>(gaps));
                 natural_w = static_cast<int>(std::round(static_cast<float>(natural_w) + letter * static_cast<float>(gaps)));
             }
         }
@@ -700,14 +718,17 @@ void BevelButton::Draw(const Rect &box, std::string_view text,
 
 namespace {
 
-// A plate in a texture: its cell, how far down the cell the plate starts, the word painted on it, and whether it is the
-// lit (pressed) one.
+/**
+ * A painted button plate within a game texture and the word painted on it.
+ */
 struct PaintedPlate {
-    const char *texture;
-    int         u, v, top;
-    const char *key;
-    const char *english;
-    bool        pressed;
+    std::string_view texture; /**< Texture name holding the plate. */
+    int              u;       /**< Texel x of the plate's cell. */
+    int              v;       /**< Texel y of the plate's cell. */
+    int              top;     /**< Texel rows from the cell top to the plate. */
+    const char      *key;     /**< Localization key of the painted word. */
+    const char      *english; /**< English painted word. */
+    bool             pressed; /**< Whether this is the lit (pressed) plate. */
 };
 
 constexpr PaintedPlate kPaintedPlates[] = {
@@ -717,14 +738,13 @@ constexpr PaintedPlate kPaintedPlates[] = {
     {"btstatus2", 0,     0x60, 0, "battlemenu.quit.no",        "NO",   true },
     {"btstatus2", 0,     0x80, 0, "weaponmenu.action.discard", "DUMP", false},
     {"btstatus2", 0,     0xA0, 0, "weaponmenu.action.discard", "DUMP", true },
-    // the fishing points exchange's
     {"fishbrd",   0x1A0, 0x00, 6, "battlemenu.quit.yes",       "YES",  false},
     {"fishbrd",   0x1A0, 0x20, 2, "battlemenu.quit.no",        "NO",   false},
     {"fishbrd",   0x1A0, 0x40, 6, "battlemenu.quit.yes",       "YES",  true },
     {"fishbrd",   0x1A0, 0x60, 2, "battlemenu.quit.no",        "NO",   true },
 };
 
-// A plate's cell is 0x60 x 0x20 texels; the plate fills its top 23 rows, as the weapon menu's do.
+// A plate's cell is 0x60 x 0x20 texels; the plate fills its top 23 rows.
 constexpr int kPlateWidth = 0x60;
 constexpr int kPlateCell = 0x20;
 constexpr int kPlateHeight = 23;
@@ -736,7 +756,7 @@ bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i
         return false;
     }
     for (const PaintedPlate &plate : kPaintedPlates) {
-        if (texel.x != plate.u || texel.y != plate.v || std::strcmp(texture, plate.texture) != 0) {
+        if (texel.x != plate.u || texel.y != plate.v || std::string_view(texture) != plate.texture) {
             continue;
         }
         ButtonStyle style = ButtonStyle::Thin(ButtonPreset::Terracotta, bright);

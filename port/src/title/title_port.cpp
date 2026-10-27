@@ -61,9 +61,6 @@ void TitlePortFeedback(u_char alpha) {
                 128, 128, alpha);
 }
 
-/**
- * Captures the title background for feedback beyond the logical frame's vertical edges.
- */
 void TitlePortCaptureFog() {
     const gfx::LogicalRect visible = gfx::VisibleLogicalRect(gfx::kMainTarget);
     fog_frame = gfx::kNullTexture;
@@ -111,11 +108,11 @@ void TitlePortFog(std::span<const TitleFogBand> bands) {
     const float               last_texel = (full_height ? (visible.y + visible.h) * 0.5f : SCREEN_HALF_HEIGHT_F) - 0.5f;
     const gfx::TextureBinding binding{.texture = full_frame, .ignore_alpha = true};
 
-    constexpr int   taps = 8;
-    constexpr float across[2] = {-0.5f, 0.5f};
-    constexpr float field_offset[2] = {1.125f, -1.375f};
-    constexpr float field_step[2] = {-0.5f, 0.0f};
-    constexpr float down[2] = {-0.5f, 0.5f};
+    constexpr int                  taps = 8;
+    constexpr std::array<float, 2> across = {-0.5f, 0.5f};
+    constexpr std::array<float, 2> field_offset = {1.125f, -1.375f};
+    constexpr std::array<float, 2> field_step = {-0.5f, 0.0f};
+    constexpr std::array<float, 2> down = {-0.5f, 0.5f};
 
     for (int tap = 0; tap < taps; tap++) {
         for (const TitleFogBand &band : bands) {
@@ -128,10 +125,10 @@ void TitlePortFog(std::span<const TitleFogBand> bands) {
             const float  blend = share / (1.0f - static_cast<float>(taps - 1 - tap) * share);
             const u_char a = static_cast<u_char>(std::lround(std::clamp(blend, 0.0f, 1.0f) * 128.0f));
 
-            const float top = static_cast<float>(band.screen.y);
-            const float bottom = static_cast<float>(band.screen.y + band.screen.height);
-            const float x0 = static_cast<float>(band.screen.x);
-            const float x1 = static_cast<float>(band.screen.x + band.screen.width);
+            const auto  top = static_cast<float>(band.screen.y);
+            const auto  bottom = static_cast<float>(band.screen.y + band.screen.height);
+            const auto  x0 = static_cast<float>(band.screen.x);
+            const auto  x1 = static_cast<float>(band.screen.x + band.screen.width);
             const float first_row = full_height ? visible.y : top;
             const float last_row = full_height ? visible.y + visible.h : bottom;
             const float y0 = band.screen.y <= 0 ? first_row : top + shift;

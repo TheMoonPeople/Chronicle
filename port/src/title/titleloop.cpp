@@ -3,8 +3,11 @@
 #include <libgraph.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <bit>
 
+#include "battle_globals.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataread.hpp"
@@ -31,20 +34,20 @@
 #include "title/titleloop.hpp"
 #include "title_port.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
+// TexManager.GetTexture takes the texture name as char *.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 
-// Retail's TitleLoop and TitleDraw. The VU1 program upload that opened TitleLoop is gone (the
-// renderer has no microprogram to load) and the previous-frame feedback covers the whole logical
-// frame: PAL retail kept NTSC's 640x448 rect here, leaving the bottom 32 rows without the trail
-// every other title scene draws over the full frame.
-
-void InitOpeningBook(u_long128 *pack, int *param);
-int  OpeningBookKey();
-void OpeningBookDraw();
 void TiPlayVolSE(int group, int no, int voice, float volume);
 
 namespace {
+// CSaveData::map_no is private; this is its offset, as gameloop.cpp reads it.
+constexpr int kSaveMapNoOffset = 0x1C8;
+
+// A title menu row's screen y: laid out for NTSC's 448-line picture, lowered to stay centred in PAL.
+constexpr int MenuY(int y) {
+    return y + (SCREEN_HEIGHT - 448) / 2;
+}
+
 MenuPointer title_pointer;
 
 struct TitlePointerAction {
@@ -76,7 +79,7 @@ TitlePointerAction TakeTitlePointer() {
         return action;
     }
     const float x = title_pointer.x;
-    const float y = title_pointer.y - (SCREEN_HEIGHT - 448) / 2;
+    const float y = title_pointer.y - static_cast<float>(MenuY(0));
     if (CProcess.no == TITLE_STEP_LOGO) {
         action.start = (take.clicked & 1) && x >= 64 && x < 576 && y >= 296 && y < 360;
     } else if (TitleMenu::ConfirmOpen()) {
@@ -103,7 +106,6 @@ TitlePointerAction TakeTitlePointer() {
 int TitleLoop() {
     sceVu0FVECTOR pos;
     sceVu0FMATRIX matrix;
-    int           i;
 
     FCamera.GetPos(pos);
     FCamera.Step(1);
@@ -164,7 +166,7 @@ int TitleLoop() {
 
             if (CSprite.x[0] > 100.0f) {
                 if (Logo.motion_type.state.time < 116.0f) {
-                    for (i = 0; i < 9; i++) {
+                    for (int i = 0; i < 9; i++) {
                         Spark[i].Step();
                     }
 
@@ -176,10 +178,7 @@ int TitleLoop() {
                     } else {
                         Fade2 = (Fade2 + 2) & 0x7f;
                         keywait++;
-
-                        if (keywait >= 500) {
-                            keywait = 500;
-                        }
+                        keywait = std::min(keywait, 500);
                     }
 
                     CLogo.Move();
@@ -288,6 +287,8 @@ int TitleLoop() {
                     case TITLE_MENU_OPTION:
                         CProcess.no = TITLE_STEP_OPTION_INIT;
                         break;
+                    default:
+                        break;
                 }
             }
 
@@ -340,16 +341,15 @@ int TitleLoop() {
                     CFade.In();
                     break;
                 case MENU_SAVE_LOADED:
-                    /* CSaveData::map_no is private and retail reaches it from another
-                       translation unit, so this is the offset main.cpp uses rather than
-                       a getter the class does not have. */
-                    MapJump(*reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + 0x1C8), -1);
+                    MapJump(*reinterpret_cast<s32 *>(reinterpret_cast<char *>(SaveData) + kSaveMapNoOffset), -1);
                     CProcess.no = TITLE_STEP_EXIT;
                     break;
                 case MENU_SAVE_CLOSED:
                     brink = 0;
                     CFade.value = 0;
                     CProcess.no = TITLE_STEP_RETURN_FADE_IN;
+                    break;
+                default:
                     break;
             }
 
@@ -376,16 +376,15 @@ int TitleLoop() {
             CSnd.Stop(MIDI_PORT_BGM);
             CSnd.StopVoice(0);
             return CCursol.GetSelect() + 1;
+
+        default:
+            break;
     }
 
     TitleDraw();
     CSnd.Step();
     return 0;
 }
-
-/* A title menu row's height on screen, laid out for NTSC's picture and lowered to stay centred in
-   the taller PAL one. */
-#define MENU_Y(y) ((y) + (SCREEN_HEIGHT - 448) / 2)
 
 void TitleDraw() {
     sceVu0FVECTOR light0 = {2.4578f, 9.9294f, -2.8074f, 0.0f};
@@ -425,7 +424,7 @@ void TitleDraw() {
     MGSetPLight(light, color);
 
     if (CProcess.no != TITLE_STEP_OPENING_BOOK && CProcess.no != TITLE_STEP_EXIT) {
-        static float rot[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        static std::array<float, 4> rot = {0.0f, 0.0f, 0.0f, 0.0f};
 
         TexManager.ReloadTexture(GetVif1Packet(), 0);
         rot[1] += 0.001f;
@@ -513,36 +512,26 @@ void TitleDraw() {
                 CSprite.Draw();
             }
 
-            set2DSprite(GetVif1Packet(), TexManager.GetTexture("start", -1), CRect_i_(64, MENU_Y(362), 512, 64), CRect_i_(0, 64, 512, 64), static_cast<u_char>(CFade.Get(Fade1)));
+            set2DSprite(GetVif1Packet(), TexManager.GetTexture("start", -1), CRect_i_(64, MenuY(362), 512, 64), CRect_i_(0, 64, 512, 64), static_cast<u_char>(CFade.Get(Fade1)));
 
             if (CProcess.no == TITLE_STEP_LOGO) {
-                set2DSprite(GetVif1Packet(), TexManager.GetTexture("start", -1), CRect_i_(64, MENU_Y(296), 512, 64), CRect_i_(0, 0, 512, 64), static_cast<u_char>(CFade.Get(Fade2)));
+                set2DSprite(GetVif1Packet(), TexManager.GetTexture("start", -1), CRect_i_(64, MenuY(296), 512, 64), CRect_i_(0, 0, 512, 64), static_cast<u_char>(CFade.Get(Fade2)));
             } else {
-                static int br = 128;
+                const int brightness = (brink != 0 && brinkcnt % 3 == 0) ? 32 : 128;
 
-                if (brink) {
-                    if (brinkcnt % 3 == 0) {
-                        br = 32;
-                    } else {
-                        br = 128;
-                    }
-                } else {
-                    br = 128;
-                }
-
-                // Retail's painted rows (start3) have no Exit, so all four come from the font. Retail
-                // draws none on the way to the attract movie, whose number Exit's row shares.
+                // The painted rows (start3) have no Exit, so all four come from the font. None are
+                // drawn on the way to the attract movie, whose number Exit's row shares.
                 if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT) {
-                    TitleMenu::Draw(CCursol.GetSelect(), CFade.Get(br), CFade.Get(32));
+                    TitleMenu::Draw(CCursol.GetSelect(), CFade.Get(brightness), CFade.Get(32));
                 }
 
                 if (CProcess.no != TITLE_STEP_ATTRACT_FADE_OUT && !TitleMenu::ConfirmOpen()) {
                     setbilinear(0);
                     CursorVibeCnt++;
 
-                    RECT rect = {0, 0, 32, 32};
+                    RECT rect = {.x = 0, .y = 0, .width = 32, .height = 32};
 
-                    float hand_x = 225;
+                    float hand_x = 225.0f;
                     float hand_y = CCursol.GetPos();
                     MenuPointerHand(hand_x, hand_y);
                     DrawObjectVibe(hand_x, hand_y, TexManager.GetTexture("icon01", -1), rect, 128, CFade.Get(128));
@@ -569,12 +558,16 @@ void TitleDraw() {
             TexManager.ReloadTexture(GetVif1Packet(), 2);
             DrawMenuOption();
             break;
+
+        default:
+            break;
     }
 
     if (CProcess.no == TITLE_STEP_LOGO && title_pointer.pointing) {
-        float hand_x = 0, hand_y = 0;
+        float hand_x = 0.0f;
+        float hand_y = 0.0f;
         if (MenuPointerHand(hand_x, hand_y)) {
-            RECT rect = {0, 0, 32, 32};
+            RECT rect = {.x = 0, .y = 0, .width = 32, .height = 32};
             setbilinear(0);
             DrawObjectVibe(hand_x, hand_y, TexManager.GetTexture("icon01", -1), rect, 128, 128);
             setbilinear(1);

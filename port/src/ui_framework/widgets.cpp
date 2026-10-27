@@ -75,9 +75,7 @@ bool ItemIcon::Draw(int item_no, int x, int y, int size, int alpha, bool drop_sh
     return true;
 }
 
-Cursor::Cursor() {
-    m_texture = detail::GetWhitePixelTex();
-}
+Cursor::Cursor() : m_texture(detail::GetWhitePixelTex()) {}
 
 void Cursor::SetTarget(float x, float y) {
     m_target_x = x;
@@ -134,14 +132,12 @@ void Cursor::Draw(int alpha) {
 }
 
 void Cursor::DeferDraw(int alpha) {
-    LayerQueue::Submit(ZLayer::Cursor, [this, alpha]() {
+    LayerQueue::Submit(ZLayer::Cursor, [this, alpha] {
         this->Draw(alpha);
     });
 }
 
-Brackets::Brackets() {
-    m_texture = TexManager.GetTexture(const_cast<char *>("option2"), -1);
-}
+Brackets::Brackets() : m_texture(TexManager.GetTexture(const_cast<char *>("option2"), -1)) {}
 
 void Brackets::Draw(int left, int right, int top, int bottom, int alpha) {
     setbilinear(0);
@@ -177,15 +173,14 @@ void Brackets::Draw(int left, int right, int top, int bottom, int alpha) {
 }
 
 void Brackets::DeferDraw(const Rect &box, int alpha) {
-    LayerQueue::Submit(ZLayer::Brackets, [this, box, alpha]() {
+    LayerQueue::Submit(ZLayer::Brackets, [this, box, alpha] {
         this->Draw(box, alpha);
     });
 }
 
-ScrollBar::ScrollBar() {
-    m_track_tex = TexManager.GetTexture(AtoraVibeTextureName, -1);
-    m_thumb_tex = TexManager.GetTexture(const_cast<char *>("option2"), -1);
-}
+ScrollBar::ScrollBar()
+    : m_track_tex(TexManager.GetTexture(AtoraVibeTextureName, -1)),
+      m_thumb_tex(TexManager.GetTexture(const_cast<char *>("option2"), -1)) {}
 
 void ScrollBar::Update(bool moved) {
     constexpr int bar_frames = 75;
@@ -242,11 +237,11 @@ void ProgressBar::Draw(const Rect &box, float progress, std::string_view text,
         const int grad_idx = static_cast<int>(complete ? ProgressGradation::Complete : ProgressGradation::Active);
         if (GRADATION_COLOR_INFO2 *grad_src = GetGradationColorInfo2(grad_idx)) {
             GRADATION_COLOR_INFO2 grad = *grad_src;
-            for (int c = 0; c < 4; ++c) {
-                grad.colors[c].r = static_cast<u8>((grad.colors[c].r * 3) / 4);
-                grad.colors[c].g = static_cast<u8>((grad.colors[c].g * 3) / 4);
-                grad.colors[c].b = static_cast<u8>((grad.colors[c].b * 3) / 4);
-                grad.colors[c].a = static_cast<u8>((alpha * 96) >> 7);
+            for (auto &color : grad.colors) {
+                color.r = static_cast<u8>((color.r * 3) / 4);
+                color.g = static_cast<u8>((color.g * 3) / 4);
+                color.b = static_cast<u8>((color.b * 3) / 4);
+                color.a = static_cast<u8>((alpha * 96) >> 7);
             }
             CRect_i_ fill_rect(box.x + 3, box.y + 3, fill_w, box.h - 6);
             DrawMenuColorGradation(fill_rect, &grad.colors[0], &grad.colors[1], &grad.colors[2], &grad.colors[3]);

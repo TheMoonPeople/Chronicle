@@ -27,7 +27,7 @@ struct ButtonStyle {
     bool         drop_shadow = false;               /**< Whether to draw a standard text drop shadow. */
     bool         recessed_text = true;              /**< Whether to engrave the label into the button surface. */
     bool         painted_text = false;              /**< Whether to letter the label as the painted buttons are. */
-    bool         pressed = false;                   /**< Lit from below (the plate turned round), its painted lettering glowing light. */
+    bool         pressed = false;                   /**< Whether the plate is lit from below with glowing painted lettering. */
     Alignment    align = Alignment::Center;         /**< Horizontal label alignment inside the button. */
     float        text_scale = 1.01f;                /**< Uniform label font scale factor. */
     float        text_xscale = 1.20f;               /**< Horizontal glyph stretch factor. */
@@ -100,9 +100,8 @@ public:
 };
 
 /**
- * Draws a painted plate the game takes whole from a texture (btstatus2's YES, NO and DUMP, the fishing points exchange's
- * YES and NO) as the weapon menu's buttons
- * are drawn instead, the plate procedural and its word from the font. False for any other sprite.
+ * Redraws a painted texture plate (btstatus2's YES, NO and DUMP, fishbrd's YES and NO) as a procedural
+ * bevel button with a font-drawn word. Returns false for any other sprite.
  */
 bool DrawPaintedPlate(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int bright, int alpha);
 

@@ -1,9 +1,11 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <map>
+#include <numbers>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -22,29 +24,29 @@ namespace {
  * Material and noise synthesis parameters for a procedural window surface preset.
  */
 struct SurfaceSpec {
-    const char *plate_path;      /**< Optional PNG override path relative to lang/. */
-    const char *tex_name;        /**< Internal texture identifier. */
-    int         seed_offset;     /**< Base seed offset for procedural noise generation. */
-    float       base_r;          /**< Base red channel value. */
-    float       base_g;          /**< Base green channel value. */
-    float       base_b;          /**< Base blue channel value. */
-    float       scale_r;         /**< Red channel modulation scale. */
-    float       scale_g;         /**< Green channel modulation scale. */
-    float       scale_b;         /**< Blue channel modulation scale. */
-    float       bevel_r;         /**< Red channel bevel highlight scale. */
-    float       bevel_g;         /**< Green channel bevel highlight scale. */
-    float       bevel_b;         /**< Blue channel bevel highlight scale. */
-    float       rim_r;           /**< Outer rim red channel value. */
-    float       rim_g;           /**< Outer rim green channel value. */
-    float       rim_b;           /**< Outer rim blue channel value. */
-    float       macro_weight;    /**< Low-frequency FBM noise weight. */
-    float       med_weight;      /**< Medium-frequency FBM noise weight. */
-    float       detail_weight;   /**< High-frequency FBM noise weight. */
-    float       ridge_weight;    /**< Soft-ridged noise weight. */
-    float       tooth_weight;    /**< Fine surface grain heightmap weight. */
-    float       bump_strength;   /**< Directional bump shading multiplier. */
-    float       dither_strength; /**< Ordered Bayer dither amplitude. */
-    float       bevel_strength;  /**< Edge bevel lighting multiplier. */
+    std::string_view plate_path;      /**< Optional PNG override path relative to lang/. */
+    std::string_view tex_name;        /**< Internal texture identifier. */
+    int              seed_offset;     /**< Base seed offset for procedural noise generation. */
+    float            base_r;          /**< Base red channel value. */
+    float            base_g;          /**< Base green channel value. */
+    float            base_b;          /**< Base blue channel value. */
+    float            scale_r;         /**< Red channel modulation scale. */
+    float            scale_g;         /**< Green channel modulation scale. */
+    float            scale_b;         /**< Blue channel modulation scale. */
+    float            bevel_r;         /**< Red channel bevel highlight scale. */
+    float            bevel_g;         /**< Green channel bevel highlight scale. */
+    float            bevel_b;         /**< Blue channel bevel highlight scale. */
+    float            rim_r;           /**< Outer rim red channel value. */
+    float            rim_g;           /**< Outer rim green channel value. */
+    float            rim_b;           /**< Outer rim blue channel value. */
+    float            macro_weight;    /**< Low-frequency FBM noise weight. */
+    float            med_weight;      /**< Medium-frequency FBM noise weight. */
+    float            detail_weight;   /**< High-frequency FBM noise weight. */
+    float            ridge_weight;    /**< Soft-ridged noise weight. */
+    float            tooth_weight;    /**< Fine surface grain heightmap weight. */
+    float            bump_strength;   /**< Directional bump shading multiplier. */
+    float            dither_strength; /**< Ordered Bayer dither amplitude. */
+    float            bevel_strength;  /**< Edge bevel lighting multiplier. */
 };
 
 /**
@@ -132,12 +134,12 @@ const SurfaceSpec &GetSurfaceSpec(WindowPreset preset) {
  * Computes a deterministic 2D hash in [0, 1] for integer lattice coordinates.
  */
 float Hash2D(int ix, int iy, int seed) {
-    uint32_t n = static_cast<uint32_t>(ix) * 374761393u +
-                 static_cast<uint32_t>(iy) * 668265263u +
-                 static_cast<uint32_t>(seed) * 1442695041u;
-    n = (n ^ (n >> 13)) * 1274126177u;
-    n = n ^ (n >> 16);
-    return static_cast<float>(n) / 4294967295.0f;
+    uint32_t hash = static_cast<uint32_t>(ix) * 374761393u +
+                    static_cast<uint32_t>(iy) * 668265263u +
+                    static_cast<uint32_t>(seed) * 1442695041u;
+    hash = (hash ^ (hash >> 13)) * 1274126177u;
+    hash = hash ^ (hash >> 16);
+    return static_cast<float>(hash) / 4294967295.0f;
 }
 
 /**
@@ -213,7 +215,7 @@ void BlurPeriodic512(std::vector<float> &field, int size, int passes) {
     const int          mask = size - 1;
     std::vector<float> tmp(field.size(), 0.0f);
 
-    for (int p = 0; p < passes; ++p) {
+    for (int pass = 0; pass < passes; ++pass) {
         for (int y = 0; y < size; ++y) {
             const size_t row = static_cast<size_t>(y) * size;
             for (int x = 0; x < size; ++x) {
@@ -258,9 +260,9 @@ float RoundedBoxSdf(float px, float py, float cx, float cy, float half_w, float 
  * Builds or returns the cached 512x512 tileable base surface for a window preset.
  */
 const BaseSurfaceData &GetBaseSurface(WindowPreset preset) {
-    static BaseSurfaceData surfaces[2];
-    const int              idx = (preset == WindowPreset::Paper) ? 1 : 0;
-    BaseSurfaceData       &out = surfaces[idx];
+    static std::array<BaseSurfaceData, 2> surfaces;
+    const int                             idx = (preset == WindowPreset::Paper) ? 1 : 0;
+    BaseSurfaceData                      &out = surfaces[idx];
 
     if (!out.rgba.empty()) {
         return out;
@@ -282,22 +284,22 @@ const BaseSurfaceData &GetBaseSurface(WindowPreset preset) {
     constexpr int mask = size - 1;
     out.size_mask = mask;
 
-    const int          s = spec.seed_offset;
+    const int          seed = spec.seed_offset;
     std::vector<float> height_map(static_cast<size_t>(size) * size, 0.0f);
     std::vector<float> tone_map(static_cast<size_t>(size) * size, 0.0f);
 
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
-            const float fx = static_cast<float>(x);
-            const float fy = static_cast<float>(y);
+            const auto fx = static_cast<float>(x);
+            const auto fy = static_cast<float>(y);
 
-            const float wx = (FbmPeriodic512(fx, fy, 64, 3, s + 501) - 0.5f) * 14.0f;
-            const float wy = (FbmPeriodic512(fx, fy, 64, 3, s + 601) - 0.5f) * 14.0f;
+            const float wx = (FbmPeriodic512(fx, fy, 64, 3, seed + 501) - 0.5f) * 14.0f;
+            const float wy = (FbmPeriodic512(fx, fy, 64, 3, seed + 601) - 0.5f) * 14.0f;
 
-            const float macro = FbmPeriodic512(fx + wx, fy + wy, 128, 4, s + 101);
-            const float med = FbmPeriodic512(fx - wy * 0.5f, fy + wx * 0.5f, 64, 4, s + 303);
-            const float detail = FbmPeriodic512(fx, fy, 32, 3, s + 202);
-            const float soft_r = SoftRidgedPeriodic512(fx + wx * 0.4f, fy - wy * 0.4f, 64, 2, s + 404);
+            const float macro = FbmPeriodic512(fx + wx, fy + wy, 128, 4, seed + 101);
+            const float med = FbmPeriodic512(fx - wy * 0.5f, fy + wx * 0.5f, 64, 4, seed + 303);
+            const float detail = FbmPeriodic512(fx, fy, 32, 3, seed + 202);
+            const float soft_r = SoftRidgedPeriodic512(fx + wx * 0.4f, fy - wy * 0.4f, 64, 2, seed + 404);
 
             const size_t i = static_cast<size_t>(y) * size + x;
             height_map[i] = macro * 0.35f + med * 0.38f + detail * 0.15f + soft_r * 0.12f;
@@ -313,19 +315,21 @@ const BaseSurfaceData &GetBaseSurface(WindowPreset preset) {
 
     for (int y = 0; y < size; ++y) {
         for (int x = 0; x < size; ++x) {
-            const float fx = static_cast<float>(x);
-            const float fy = static_cast<float>(y);
-            const float tooth = SmoothNoisePow2(fx * 0.5f, fy * 0.5f, 255, 255, s + 808) * 0.65f +
-                                Hash2D(x, y, s + 909) * 0.35f;
+            const auto  fx = static_cast<float>(x);
+            const auto  fy = static_cast<float>(y);
+            const float tooth = SmoothNoisePow2(fx * 0.5f, fy * 0.5f, 255, 255, seed + 808) * 0.65f +
+                                Hash2D(x, y, seed + 909) * 0.35f;
             height_map[static_cast<size_t>(y) * size + x] += tooth * spec.tooth_weight;
         }
     }
 
-    static constexpr float kBayer4x4[4][4] = {
-        {-0.46875f, 0.03125f,  -0.34375f, 0.15625f },
-        {0.28125f,  -0.21875f, 0.40625f,  -0.09375f},
-        {-0.28125f, 0.21875f,  -0.40625f, 0.09375f },
-        {0.46875f,  -0.03125f, 0.34375f,  -0.15625f}
+    static constexpr std::array<std::array<float, 4>, 4> kBayer4x4{
+        {
+         {-0.46875f, 0.03125f, -0.34375f, 0.15625f},
+         {0.28125f, -0.21875f, 0.40625f, -0.09375f},
+         {-0.28125f, 0.21875f, -0.40625f, 0.09375f},
+         {0.46875f, -0.03125f, 0.34375f, -0.15625f},
+         }
     };
 
     out.rgba.assign(static_cast<size_t>(size) * size * 4, 255);
@@ -443,7 +447,7 @@ CTexture *GetProceduralWindowTex(int width_px, int height_px, WindowPreset prese
                 const float     ny = gy / glen;
 
                 const float light_dot = -(nx * 0.65f + ny * 0.76f);
-                const float profile = std::sin(std::min(1.0f, inward / bevel_width) * 3.14159265f);
+                const float profile = std::sin(std::min(1.0f, inward / bevel_width) * std::numbers::pi_v<float>);
                 const float inner_groove = std::exp(-((inward - 9.5f) * (inward - 9.5f)) / 3.5f) * 6.0f;
                 const float bevel = light_dot * profile * spec.bevel_strength - inner_groove;
 
@@ -475,7 +479,8 @@ CTexture *GetProceduralWindowTex(int width_px, int height_px, WindowPreset prese
     CachedWindowTex &entry = cache[key];
     entry.tbp = tbp;
     entry.tex.Initialize();
-    std::strcpy(entry.tex.name, spec.tex_name);
+    std::ranges::copy(spec.tex_name, entry.tex.name);
+    entry.tex.name[spec.tex_name.size()] = '\0';
     entry.tex.width = width_px;
     entry.tex.height = height_px;
     entry.tex.bpp = 4;
@@ -573,8 +578,8 @@ void TrackerWindow::DrawStoneBanner(const Rect &box, int alpha, int brightness,
 
     if (!title.empty()) {
         MenuTextureReload(detail::kMessageTextureBlock);
-        Label lbl(title, title_style);
-        lbl.Draw(box.CenterX(), box.y + 1, alpha);
+        Label label(title, title_style);
+        label.Draw(box.CenterX(), box.y + 1, alpha);
     }
 }
 
@@ -666,8 +671,8 @@ void SubWindow::DrawBanner(std::string_view title, int banner_w, int banner_h,
 
 void SubWindow::DrawAnchoredLabel(std::string_view text, Anchor anchor, const TextStyle &style,
                                   int dx, int dy, int alpha) const {
-    Label lbl(text, style);
-    lbl.DrawAnchored(m_content, anchor, dx, dy, alpha);
+    Label label(text, style);
+    label.DrawAnchored(m_content, anchor, dx, dy, alpha);
 }
 
 std::pair<SubWindow, SubWindow> SubWindow::SplitVertical(int left_w, int gap,

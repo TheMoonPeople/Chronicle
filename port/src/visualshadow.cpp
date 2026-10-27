@@ -4,11 +4,11 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstring>
-#include <tuple>
-#include <utility>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "dataalloc.hpp"
@@ -58,23 +58,25 @@ bool FiniteMatrix(const float *matrix) {
     return true;
 }
 
-Vec3 operator-(Vec3 a, Vec3 b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
+Vec3 operator-(Vec3 a, Vec3 b) { return {.x = a.x - b.x, .y = a.y - b.y, .z = a.z - b.z}; }
 
-Vec3 operator+(Vec3 a, Vec3 b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+Vec3 operator+(Vec3 a, Vec3 b) { return {.x = a.x + b.x, .y = a.y + b.y, .z = a.z + b.z}; }
 
-Vec3 operator*(Vec3 a, float s) { return {a.x * s, a.y * s, a.z * s}; }
+Vec3 operator*(Vec3 a, float s) { return {.x = a.x * s, .y = a.y * s, .z = a.z * s}; }
 
 float Dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
-Vec3 Cross(Vec3 a, Vec3 b) { return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x}; }
+Vec3 Cross(Vec3 a, Vec3 b) {
+    return {.x = a.y * b.z - a.z * b.y, .y = a.z * b.x - a.x * b.z, .z = a.x * b.y - a.y * b.x};
+}
 
 float Length(Vec3 a) { return std::sqrt(Dot(a, a)); }
 
 // A column-major [column][row] matrix applied to a point.
 Vec3 Apply(const float m[4][4], Vec3 p) {
-    return {m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0],
-            m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1],
-            m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]};
+    return {.x = m[0][0] * p.x + m[1][0] * p.y + m[2][0] * p.z + m[3][0],
+            .y = m[0][1] * p.x + m[1][1] * p.y + m[2][1] * p.z + m[3][1],
+            .z = m[0][2] * p.x + m[1][2] * p.y + m[2][2] * p.z + m[3][2]};
 }
 
 enum class Count {
@@ -112,9 +114,9 @@ void Emit(std::vector<uint32_t> &out, std::span<const uint32_t> polygon) {
 // A face of a prism, wound outwards when as_given (else reversed).
 void AddFace(Volume &volume, std::initializer_list<uint32_t> points, bool as_given, Count count) {
     std::array<uint32_t, 4> polygon{};
-    std::copy(points.begin(), points.end(), polygon.begin());
+    std::ranges::copy(points, polygon.begin());
     if (!as_given) {
-        std::reverse(polygon.begin(), polygon.begin() + points.size());
+        std::ranges::reverse(polygon.begin(), polygon.begin() + points.size());
     }
     Emit(count == Count::Both ? volume.both : volume.away,
          std::span<const uint32_t>(polygon.data(), points.size()));
@@ -144,18 +146,18 @@ bool PrismThickness(const Vec3 top[3], const Vec3 drop[3], bool &down) {
     // extruded against its normal keeps its own winding on top, and each side runs down its edge.
     // A test per face, of the side the prism's centre lies on, is not used: for a prism the light
     // nearly grazes the centre lies almost on the long sides, float error turns one inwards, and it
-    // counts with the wrong sign, a streak from the triangle to the ground (#87).
+    // counts with the wrong sign, a streak from the triangle to the ground.
     down = thickness < 0.0f;
     return true;
 }
 
 // The triangle's prism down to its drop on the plane.
 void AddPrism(Volume &volume, const Vec3 top[3], const Vec3 drop[3], const bool sides[3], Count far_cap) {
-    bool down;
+    bool down = false;
     if (!PrismThickness(top, drop, down)) {
         return;
     }
-    uint32_t first = static_cast<uint32_t>(volume.vertices.size());
+    const auto first = static_cast<uint32_t>(volume.vertices.size());
     for (int i = 0; i < 3; i++) {
         AddVertex(volume, top[i]);
     }
@@ -164,12 +166,10 @@ void AddPrism(Volume &volume, const Vec3 top[3], const Vec3 drop[3], const bool 
     }
     AddFace(volume, {first, first + 1, first + 2}, down, Count::Both);
     AddFace(volume, {first + 3, first + 4, first + 5}, !down, far_cap);
-    for (int edge = 0; edge < 3; edge++) {
-        int next = (edge + 1) % 3;
+    for (uint32_t edge = 0; edge < 3; edge++) {
+        uint32_t next = (edge + 1) % 3;
         if (sides[edge]) {
-            AddFace(volume, {first + static_cast<uint32_t>(edge), first + 3 + static_cast<uint32_t>(edge),
-                             first + 3 + static_cast<uint32_t>(next), first + static_cast<uint32_t>(next)},
-                    down, Count::Both);
+            AddFace(volume, {first + edge, first + 3 + edge, first + 3 + next, first + next}, down, Count::Both);
         }
     }
 }
@@ -185,8 +185,8 @@ void AddNearCap(Volume &volume, const Vec3 top[3], const Vec3 drop[3], float dep
             return;
         }
     }
-    const Vec3          *corners[6] = {&top[0], &top[1], &top[2], &drop[0], &drop[1], &drop[2]};
-    static constexpr int kEdges[9][2] = {
+    const std::array<const Vec3 *, 6> corners = {&top[0], &top[1], &top[2], &drop[0], &drop[1], &drop[2]};
+    static constexpr int              kEdges[9][2] = {
         {0, 1},
         {1, 2},
         {2, 0},
@@ -216,7 +216,7 @@ void AddNearCap(Volume &volume, const Vec3 top[3], const Vec3 drop[3], float dep
     if (section_count < 3) {
         return;
     }
-    Vec3 mean = {0.0f, 0.0f, 0.0f};
+    Vec3 mean = {.x = 0.0f, .y = 0.0f, .z = 0.0f};
     for (size_t i = 0; i < section_count; ++i) {
         mean = mean + section[i];
     }
@@ -248,10 +248,11 @@ struct Projection {
 
 Projection Project(const RenderInfo &info, float (*matrix)[4]) {
     Projection projection = {};
-    Vec3       normal = {info.shadow_normal[0], info.shadow_normal[1], info.shadow_normal[2]};
-    Vec3       light = {info.light_direction[0][0], info.light_direction[1][0], info.light_direction[2][0]};
-    float      normal_length = Length(normal);
-    float      light_length = Length(light);
+    Vec3       normal = {.x = info.shadow_normal[0], .y = info.shadow_normal[1], .z = info.shadow_normal[2]};
+    Vec3       light = {
+        .x = info.light_direction[0][0], .y = info.light_direction[1][0], .z = info.light_direction[2][0]};
+    float normal_length = Length(normal);
+    float light_length = Length(light);
     if (!std::isfinite(normal_length) || !std::isfinite(light_length) || normal_length == 0.0f ||
         light_length == 0.0f || std::fabs(Dot(normal, light)) <= 1e-3f * normal_length * light_length) {
         return projection;
@@ -267,9 +268,10 @@ Projection Project(const RenderInfo &info, float (*matrix)[4]) {
     std::memcpy(transform.view, info.view_scaled, sizeof(transform.view));
     std::memcpy(transform.model, matrix, sizeof(transform.model));
     projection.has_transform = gfx::InvertAffineTransform(&projection.model_to_eye[0][0], transform.local);
-    projection.local_light = {Dot({matrix[0][0], matrix[0][1], matrix[0][2]}, light),
-                              Dot({matrix[1][0], matrix[1][1], matrix[1][2]}, light),
-                              Dot({matrix[2][0], matrix[2][1], matrix[2][2]}, light)};
+    auto row_dot = [&](int row) {
+        return Dot({.x = matrix[row][0], .y = matrix[row][1], .z = matrix[row][2]}, light);
+    };
+    projection.local_light = {.x = row_dot(0), .y = row_dot(1), .z = row_dot(2)};
     projection.valid = FiniteMatrix(&projection.model_to_eye[0][0]) &&
                        FiniteMatrix(&projection.drop_to_eye[0][0]) &&
                        FiniteMatrix(&projection.eye_to_clip[0][0]) && Finite(projection.local_light);
@@ -303,10 +305,8 @@ void ClearVolume(Volume &volume) {
 }
 
 uint32_t PositionBits(float value) {
-    value += 0.0f;
-    uint32_t bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    return bits;
+    // Adding zero folds -0 into +0 so both signs share a key.
+    return std::bit_cast<uint32_t>(value + 0.0f);
 }
 
 // For each triangle of a position list and each of its edges, the one other triangle that has the
@@ -318,10 +318,10 @@ void FindEdgeNeighbours(const std::vector<gfx::Vertex3D> &vertices, std::vector<
     positions.reserve(corners);
     for (size_t i = 0; i < corners; i++) {
         const float *p = vertices[i].position;
-        positions.push_back({Key{PositionBits(p[0]), PositionBits(p[1]), PositionBits(p[2])},
-                             static_cast<uint32_t>(i)});
+        positions.emplace_back(Key{PositionBits(p[0]), PositionBits(p[1]), PositionBits(p[2])},
+                               static_cast<uint32_t>(i));
     }
-    std::sort(positions.begin(), positions.end());
+    std::ranges::sort(positions);
     std::vector<uint32_t> id(corners);
     uint32_t              next_id = 0;
     for (size_t i = 0; i < corners; i++) {
@@ -335,10 +335,10 @@ void FindEdgeNeighbours(const std::vector<gfx::Vertex3D> &vertices, std::vector<
         uint64_t key;
         uint32_t triangle;
         uint32_t edge;
-        bool     operator<(const EdgeRef &other) const {
-            return std::tie(key, triangle, edge) < std::tie(other.key, other.triangle, other.edge);
-        }
+
+        auto operator<=>(const EdgeRef &other) const = default;
     };
+
     std::vector<EdgeRef> edges;
     edges.reserve(corners);
     out.assign(corners / 3, std::array<int32_t, 3>{-1, -1, -1});
@@ -347,12 +347,13 @@ void FindEdgeNeighbours(const std::vector<gfx::Vertex3D> &vertices, std::vector<
             uint32_t a = id[triangle * 3 + edge];
             uint32_t b = id[triangle * 3 + (edge + 1) % 3];
             if (a != b) {
-                edges.push_back({(static_cast<uint64_t>(std::min(a, b)) << 32) | std::max(a, b),
-                                 static_cast<uint32_t>(triangle), edge});
+                edges.push_back({.key = (static_cast<uint64_t>(std::min(a, b)) << 32) | std::max(a, b),
+                                 .triangle = static_cast<uint32_t>(triangle),
+                                 .edge = edge});
             }
         }
     }
-    std::sort(edges.begin(), edges.end());
+    std::ranges::sort(edges);
     for (size_t first = 0; first < edges.size();) {
         size_t last = first + 1;
         while (last < edges.size() && edges[last].key == edges[first].key) {
@@ -414,7 +415,7 @@ bool SideCancelled(const Prism &a, const Prism &b, int edge) {
 void DrawCount(const Volume &volume, const Projection &projection, const RenderInfo &info, bool add) {
     // DrawMeshImmediate copies recorded vertices and indices, so the pass list can be reused.
     static thread_local std::vector<uint32_t> indices;
-    const std::vector<uint32_t> &own = add ? volume.cap : volume.away;
+    const std::vector<uint32_t>              &own = add ? volume.cap : volume.away;
     indices.clear();
     indices.reserve(volume.both.size() + own.size());
     indices.insert(indices.end(), volume.both.begin(), volume.both.end());
@@ -459,10 +460,10 @@ int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_data) {
     vu_size = kDraw3DBlockQuads;
     Draw3DVisual &visual = Draw3DRegisterVisual(block, false);
 
-    MDT_HEADER    *model = reinterpret_cast<MDT_HEADER *>(model_data);
-    MDT_SHADOW    *shadow = reinterpret_cast<MDT_SHADOW *>(reinterpret_cast<u_char *>(model) + model->mesh_ofs);
-    sceVu0FVECTOR *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<u_char *>(model) + model->vertex_ofs);
-    MDT_SVERTEX   *corner = reinterpret_cast<MDT_SVERTEX *>(shadow->shape);
+    auto *model = reinterpret_cast<MDT_HEADER *>(model_data);
+    auto *shadow = reinterpret_cast<MDT_SHADOW *>(reinterpret_cast<u_char *>(model) + model->mesh_ofs);
+    auto *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<u_char *>(model) + model->vertex_ofs);
+    auto *corner = reinterpret_cast<MDT_SVERTEX *>(shadow->shape);
     for (int shape = 0; shape < shadow->shape_num; shape++) {
         int index_num = reinterpret_cast<MDT_SSHAPE *>(corner)->index_num;
         corner = reinterpret_cast<MDT_SSHAPE *>(corner)->vertex;
@@ -475,17 +476,17 @@ int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_data) {
                     valid = false;
                     break;
                 }
-                positions[i] = {vertices[index][0], vertices[index][1], vertices[index][2]};
+                positions[i] = {.x = vertices[index][0], .y = vertices[index][1], .z = vertices[index][2]};
                 valid = valid && Finite(positions[i]);
             }
             if (!valid) {
                 continue;
             }
-            for (int i = 0; i < 3; i++) {
+            for (const Vec3 &position : positions) {
                 gfx::Vertex3D vertex = {};
-                vertex.position[0] = positions[i].x;
-                vertex.position[1] = positions[i].y;
-                vertex.position[2] = positions[i].z;
+                vertex.position[0] = position.x;
+                vertex.position[1] = position.y;
+                vertex.position[2] = position.z;
                 visual.vertices.push_back(vertex);
             }
         }
@@ -494,7 +495,7 @@ int CVisualShadow::CreateVUdataShadow(u_int *block, u_int *model_data) {
     return vu_size;
 }
 
-int CVisualShadow::RemakeData(u_int *block) {
+int CVisualShadow::RemakeData(u_int * /*block*/) {
     if (data == nullptr) {
         return 0;
     }
@@ -515,7 +516,7 @@ int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, Rende
     if (!projection.valid) {
         return 0;
     }
-    int                             count = ShadowClipBuild(nullptr, 0, model_data, info, matrix, 0);
+    int count = ShadowClipBuild(nullptr, 0, model_data, info, matrix, 0);
     if (count <= 0) {
         return vu_size;
     }
@@ -527,7 +528,7 @@ int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, Rende
     for (const ShadowClipTriangle &triangle : triangles) {
         Vec3 local[3];
         for (int i = 0; i < 3; i++) {
-            local[i] = {triangle.local[i][0], triangle.local[i][1], triangle.local[i][2]};
+            local[i] = {.x = triangle.local[i][0], .y = triangle.local[i][1], .z = triangle.local[i][2]};
         }
         Vec3 top[3];
         Vec3 drop[3];
@@ -554,7 +555,7 @@ int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, Rende
 }
 
 int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                         u_long128 *draw_state, int unknown1, int unknown2) {
+                           u_long128 *draw_state, int unknown1, int unknown2) {
     if (info->shadow_pass != 1 && info->shadow_pass != 2) {
         return CVisualMDTVu1::DrawVu1(packet, matrix, info, program, draw_state, unknown1, unknown2);
     }
@@ -571,7 +572,7 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
         u_int *saved_secondary = vu_data_buffer[1];
         u_int  saved_size = vu_size;
         ActiveData->Align64();
-        ActiveData->Alloc(CreateVUdataShadowCLIP(reinterpret_cast<u_int *>(ActiveData->base + ActiveData->used * 16), data,
+        ActiveData->Alloc(CreateVUdataShadowCLIP(reinterpret_cast<u_int *>(ActiveData->base + static_cast<ptrdiff_t>(ActiveData->used) * 16), data,
                                                  info, matrix));
         if (const Draw3DVisual *visual = Draw3DFindVisual(vu_data);
             visual && visual->strips.size() == 3 && !visual->indices.empty()) {
@@ -607,13 +608,13 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
         Vec3   local[3];
         for (int i = 0; i < 3; i++) {
             const float *p = visual->vertices[triangle * 3 + i].position;
-            local[i] = {p[0], p[1], p[2]};
+            local[i] = {.x = p[0], .y = p[1], .z = p[2]};
         }
         prism.selected = !away_only || FacesAwayFromLight(projection, local);
         prism.solid = false;
         if (prism.selected) {
             Corners(projection, local, prism.top, prism.drop);
-            bool down;
+            bool down = false;
             prism.solid = PrismThickness(prism.top, prism.drop, down);
         }
     }
@@ -630,7 +631,7 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
             if (link < 0) {
                 continue;
             }
-            size_t other = static_cast<size_t>(link / 4);
+            const auto other = static_cast<size_t>(link / 4);
             if (!prisms[other].solid) {
                 continue;
             }
@@ -645,7 +646,7 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
     return 0;
 }
 
-int CVisualShadow::DrawVu1(sceVif1Packet *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
-                                         u_long128 *draw_state, int unknown1, int unknown2) {
+int CVisualShadow::DrawVu1(sceVif1Packet * /*packet*/, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
+                           u_long128 *draw_state, int unknown1, int unknown2) {
     return CVisualShadow::DrawVu1(static_cast<u_int *>(nullptr), matrix, info, program, draw_state, unknown1, unknown2);
 }

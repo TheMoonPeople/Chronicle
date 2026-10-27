@@ -39,10 +39,11 @@ struct ConfirmLayout {
     int                      btn_y1 = 0; /**< Second (no) plate's top. */
 };
 
-// The game's yes/no plates: their size and spacing, lettered as the weapon menu's buttons are.
+// Size and spacing of the game's yes/no plates.
 constexpr int kConfirmButtonWidth = 0x60;
 constexpr int kConfirmButtonHeight = 23;
 constexpr int kConfirmButtonStride = 0x1C;
+constexpr int kConfirmButtonMargin = (kConfirmButtonStride - kConfirmButtonHeight) / 2;
 
 ConfirmLayout LayOutConfirm(std::string_view title, std::string_view description) {
     ConfirmLayout layout;
@@ -93,7 +94,7 @@ void LayerQueue::Submit(ZLayer layer, std::function<void()> draw_fn) {
         return;
     }
     auto &queue = GetLayerQueueStorage();
-    queue.push_back(QueuedDrawCmd{layer, queue.size(), std::move(draw_fn)});
+    queue.push_back(QueuedDrawCmd{.layer = layer, .order = queue.size(), .fn = std::move(draw_fn)});
 }
 
 void LayerQueue::Flush() {
@@ -102,7 +103,7 @@ void LayerQueue::Flush() {
         return;
     }
 
-    std::stable_sort(queue.begin(), queue.end(), [](const QueuedDrawCmd &a, const QueuedDrawCmd &b) {
+    std::ranges::stable_sort(queue, [](const QueuedDrawCmd &a, const QueuedDrawCmd &b) {
         if (a.layer != b.layer) {
             return static_cast<int>(a.layer) < static_cast<int>(b.layer);
         }
@@ -332,7 +333,7 @@ int ConfirmModal::Hit(std::string_view title, std::string_view description, floa
     if (x < layout.btn_x - 14 || x >= layout.btn_x + kConfirmButtonWidth + 2) {
         return -1;
     }
-    const float top = static_cast<float>(layout.btn_y0 - (kConfirmButtonStride - kConfirmButtonHeight) / 2);
+    const auto top = static_cast<float>(layout.btn_y0 - kConfirmButtonMargin);
     if (y >= top && y < top + kConfirmButtonStride) {
         return 0;
     }
