@@ -35,7 +35,6 @@
 #include "editpartsinfo.hpp"
 #include "effectgroup.hpp"
 #include "effectmacro.hpp"
-#include "eparts_port.hpp"
 #include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -1414,8 +1413,8 @@ void VillagerCollision() {
             foot_sound = EdEventInfo.player_foot_sound;
         }
 
-        WorkBuffer__2->used = 0;
-        auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+        WorkBuffer->used = 0;
+        auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(2000));
         box.max[0] = 1.0f + position[0];
         box.min[0] = position[0] - 1.0f;
         box.max[2] = 1.0f + position[2];

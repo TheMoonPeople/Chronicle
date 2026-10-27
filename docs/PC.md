@@ -1577,7 +1577,7 @@ else changed:
 | `DunMoveChara`, `BtCheckDamageProc` | `dun/movechara.cpp` | addresses of `NowDngMap`'s parts and of the active item counters on a `uintptr_t` |
 | `CDungeonMap::BuildCharaSpecialParts`, `SetCharaDoor` | `dungeonmap.cpp` | the key door's cell on a `uintptr_t` |
 | `BtGetTreasureboxBig_Init`/`_Loop`, `BtGetTreasureboxSmall_Init`/`_Loop`, `BtGetGateKey_Init`/`_Loop`, `BtEscape_Init`/`_Loop` | `btitem.cpp` | the files read between the two halves kept as pointers, where retail keeps them in `itemOpenItemMds`, `itemOpenItemImg` and `escape_chr` |
-| `_ITEM_USE_WINDOW`, `BtMiniItemSelect_Loop` | `btsysscript.cpp`, `btitem.cpp` | the script slot the choice goes to kept as a pointer (`btitem_port.hpp`) and written through the host's `RS_STACKDATA`, whose value is at byte 8 |
+| `_ITEM_USE_WINDOW`, `BtMiniItemSelect_Loop` | `btsysscript.cpp`, `btitem.cpp` | the script slot the choice goes to kept as a pointer (`btitem.hpp`) and written through the host's `RS_STACKDATA`, whose value is at byte 8 |
 | `BtSystemScriptLoad`, `BtSystemScriptRun` | `btsysscript.cpp` | the event script kept as a pointer, where retail keeps it in `BtEventData` |
 | `PortWorldMapCommand`, `PortEdEventMenuMode` | `editloop3.cpp` | the world-map result destination stays a native-width script pointer until the town menu finishes |
 | `EditInit`, `InitWorkBuffer` | `editloop_init.cpp` | arena starts rounded on the whole pointer |
@@ -1762,7 +1762,7 @@ renames what the unit takes from MWCC or from the PS2 link alone:
   Muska Racka use its fixed ground model's collision, so their feet follow
   the sculpted terrain instead of the editable grid's flat polygons. It also
   declares its static `p_use_item` `extern`, for the port's bait fix
-  (`ListBaitForScript`, `port/src/fish_port.hpp`): the towns' bait-changing
+  (`ListBaitForScript`, `port/include/game/fishing.hpp`): the towns' bait-changing
   events in PAL retail attach only the eight baits they list, so Carrot,
   Potato Cake, Minon, Battan and Petite Fish were taken from the bag and never
   put on the hook. When the bait picker closes, a bait the list lacks is put on
@@ -1825,9 +1825,9 @@ linker script rather than through the source. The port reproduces each:
   `set2DSprite` overloads, plus op_c's `CWater::DrawVu1` and main's
   `MAP_NPC_MODEL::operator=`: weak definitions and forwarders in
   `port/src/linknames.cpp`.
-- **Aliases**, by `--defsym` (ld64's `-alias` on macOS) in
-  `port/CMakeLists.txt`: `draw_rect` = `draw_rect_store` and
-  `WorkBuffer__2` = `WorkBuffer`. `ItemPutListTbl12_bytes` is not an alias:
+- **No linker aliases.** `draw_rect` is a real `CRect_i_` in
+  `port/src/game/ebattle.cpp`, and every user of `WorkBuffer` names it
+  through `dataset.hpp`. `ItemPutListTbl12_bytes` is not an alias:
   `port/include/stubs/dngstatusdata.hpp` turns `GetItem`'s folded PS2 byte
   index into a typed `WeaponList` owner lookup.
   `EditGaijiTbl` is `GaijiDataTbl + 0x601C` on the PS2 link. The linker

@@ -26,7 +26,6 @@
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
 #include "dun/gameloop.hpp"
-#include "dun/gameloop_port.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -52,7 +51,6 @@
 #include "mds.hpp"
 #include "menu_draw.hpp"
 #include "menu_dungeon.hpp"
-#include "menu_dungeon_port.hpp"
 #include "menu_misc.hpp"
 #include "menu_save.hpp"
 #include "menuitemstep.hpp"
@@ -1252,8 +1250,8 @@ void DunMoveChara() {
                                                                     CBoxVu0       bound;
                                                                     CCPoly        foot;
 
-                                                                    WorkBuffer__2->used = 0;
-                                                                    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
+                                                                    WorkBuffer->used = 0;
+                                                                    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(0x7D0));
                                                                     bound.max[0] = 20.0f + pos[0];
                                                                     bound.max[1] = 20.0f + pos[1];
                                                                     bound.max[2] = 20.0f + pos[2];
@@ -1347,8 +1345,8 @@ void DunMoveChara() {
                                                                     CCPoly        foot;
                                                                     CFrame       *collision = nullptr;
 
-                                                                    WorkBuffer__2->used = 0;
-                                                                    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
+                                                                    WorkBuffer->used = 0;
+                                                                    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(0x7D0));
                                                                     bound.max[0] = 20.0f + pos[0];
                                                                     bound.max[1] = 20.0f + pos[1];
                                                                     bound.max[2] = 20.0f + pos[2];

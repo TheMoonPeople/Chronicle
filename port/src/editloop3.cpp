@@ -18,13 +18,14 @@
 #include "collision.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataset.hpp"
 #include "dialog/npc.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editpartsinfo.hpp"
-#include "fish_port.hpp"
+#include "fishing.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
@@ -211,8 +212,8 @@ void EdMoveVillager(VILLAGER_INFO *villagers) {
 
             if (EdVillager[i].CheckDraw()) {
                 EdVillager[i].FootSoundEnable(g_villager_retail_near[i]);
-                WorkBuffer__2->used = 0;
-                auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+                WorkBuffer->used = 0;
+                auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(2000));
                 int   count = 0;
                 if (!use_terrain) {
                     count = ground->PickUpEditAreaPoly(polys, position[0], position[1], position[2]);
@@ -844,7 +845,7 @@ int PortEdEventMenuMode() {
         world_map_result = nullptr;
     }
     if (done && PortEventMenuMode == ED_MENU_CHANGE_ESA && EditLoop3UseItem != nullptr) {
-        // Before the script reads the choice: a bait its list lacks is put on it (fish_port.hpp).
+        // Before the script reads the choice: a bait its list lacks is put on it (fishing.hpp).
         ListBaitForScript(reinterpret_cast<RS_STACKDATA *>(EditLoop3UseItem), EdGetUseItem());
     }
     return done;

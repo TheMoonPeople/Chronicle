@@ -2,7 +2,7 @@
 
 #include <array>
 
-#include "../fish_port.hpp"
+#include "fish.hpp"
 
 TEST(FishSize, KeepsTheEndsAndOnlyLifts) {
     constexpr std::array<std::array<float, 2>, 4> ranges{

@@ -12,7 +12,6 @@
 
 #include "battle_globals.hpp"
 #include "dataalloc.hpp"
-#include "runscript_port.hpp"
 
 // The script VM on the host. A compiled script (.stb) is read where it was loaded, as retail
 // does: the header, the program table and the instructions are 32-bit integers on disc and on
@@ -211,7 +210,7 @@ int CRunScript::run(int no) {
 
     char *base = reinterpret_cast<char *>(prog);
 
-    // The port's item-get event: the town's own routine, given the item (runscript_port.hpp).
+    // The port's item-get event: the town's own routine, given the item (runscript.hpp).
     if (no == kEventItemGet && this == &EdEventScript) {
         const char *record = ItemGetRecord(*this);
         const int   item = g_item_get_item;

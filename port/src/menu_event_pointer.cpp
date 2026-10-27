@@ -1,6 +1,5 @@
-#include "menu_event_pointer.hpp"
-
 #include "menu_save.hpp"
+
 #include "platform/input.hpp"
 #include "ui/menu_pointer.hpp"
 

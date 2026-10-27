@@ -14,6 +14,7 @@
 #include "clsmes.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataset.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
@@ -53,19 +54,7 @@ struct EB_KEY {
 
 static_assert(sizeof(EB_KEY) == 0x1C);
 
-/**
- * Stores the opening wipe's rectangle, laid out as CRect_i_ so draw_rect can alias it.
- */
-class alignas(16) CEbRect {
-public:
-    s32 x = 0;      /**< Distance of the left edge from the left of the screen. */
-    s32 y = 0;      /**< Distance of the top edge from the top of the screen. */
-    s32 width = 0;  /**< Distance from the left edge to the right edge. */
-    s32 height = 0; /**< Distance from the top edge to the bottom edge. */
-};
-
-/** Storage of draw_rect, the part of the screen the opening wipe has reached. */
-CEbRect draw_rect_store;
+CRect_i_ draw_rect;
 
 CRect_i_ Caution(256, 0, 56, 56);
 
@@ -1211,8 +1200,8 @@ void EdMoveChara() {
 
     sceVu0FVECTOR next;
     float         time_before = chara->GetNowTime();
-    WorkBuffer__2->used = 0;
-    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
+    WorkBuffer->used = 0;
+    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(0x7D0));
     int   poly_count = 0;
 
     if (interior == 0) {
@@ -1380,8 +1369,8 @@ void EdMoveChara() {
         sceVu0SubVector(forward, look, eye_pos);
         sceVu0SubVector(behind, eye_pos, forward);
         sceVu0Normalize(direction, forward);
-        WorkBuffer__2->used = 0;
-        auto *walls = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
+        WorkBuffer->used = 0;
+        auto *walls = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(0x7D0));
         float span = DistVector(behind, look);
         box.max[0] = eye_pos[0] + span;
         box.min[0] = eye_pos[0] - span;

@@ -49,9 +49,3 @@ float TitlePortBackdropScale();
  * centre, at TitlePortBackdropScale.
  */
 void TitlePortCard(CTexture *texture, float angle);
-
-/**
- * Constructs the title overlay's objects the port defines with host classes, as the overlay's
- * static constructors did each time retail loaded TITLE.BIN.
- */
-void TitleOverlayConstruct();

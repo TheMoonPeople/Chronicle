@@ -123,14 +123,16 @@ camerafollow.cpp,camera_port.cpp,camera_port.hpp,camera_zoom.cpp,
 camera_zoom.hpp,character.cpp,chararead.cpp,cloth_draw.cpp,clothread.cpp,
 cloth_step.cpp,collisionmdt.cpp,dungeon_aerial.cpp,dungeon_aerial.hpp,
 dungeonmap.cpp,dungeonparts.cpp,ebattle.cpp,edit.cpp,editground.cpp,
-editground_port.hpp,edit_in.cpp,edit_in_parts.cpp,editloop.cpp,editloop3.cpp,
+edit_in.cpp,edit_in_parts.cpp,editloop.cpp,editloop3.cpp,
 editloop_init.cpp,editloop_parts.cpp,editloop_sprite.cpp,editmapscript.cpp,
 effectmacro.cpp,fireomni.cpp,first_person_walk.cpp,first_person_walk.hpp,
-fish.cpp,fishing.cpp,fish_port.hpp,gameloop.cpp,gameloop.hpp,
+fish.cpp,fishing.cpp,gameloop.cpp,gameloop.hpp,
 gameutil_midi.cpp,gameutil_motion.cpp,gameutil_sprite.cpp,itemdata.cpp,
-mapparts.cpp,monstorunit.cpp,runeffect.cpp,runscript.cpp,runscript_port.hpp,
+mapparts.cpp,monstorunit.cpp,runeffect.cpp,runscript.cpp,
 shadowclip.cpp,shadowclip.hpp,shot_freefuncs.cpp,shop.cpp}`, plus all tracked
-files in `port/src/dun/` and `port/src/title/`. Shared ownership files were
+files in `port/src/dun/` and `port/src/title/`, and the three port headers since
+folded into `port/include/game/editground.hpp`, `fish.hpp`, `fishing.hpp` and
+`runscript.hpp`. Shared ownership files were
 not edited during recovery. The source list above is the assigned inventory;
 it is not a claim that every one received the final namespace tidy check.
 

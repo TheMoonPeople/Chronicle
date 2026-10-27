@@ -143,14 +143,6 @@ TEST(IntegrationGameloop, LinkAliases) {
     for (int code = -0x300; code < -0x251; code++) {
         ASSERT_TRUE(*reinterpret_cast<s32 *>(&EditGaijiTbl[code]) == GaijiDataTbl[code + 0x300][7]);
     }
-    // ebattle.cpp's own type for the storage is local to it; only the address matters.
-    extern char draw_rect_store;
-    // Through volatile: two distinct declarations compare unequal to the compiler.
-    volatile std::uintptr_t addresses[4] = {
-        reinterpret_cast<std::uintptr_t>(&draw_rect), reinterpret_cast<std::uintptr_t>(&draw_rect_store),
-        reinterpret_cast<std::uintptr_t>(&WorkBuffer__2), reinterpret_cast<std::uintptr_t>(&WorkBuffer)};
-    ASSERT_TRUE(addresses[0] == addresses[1]);
-    ASSERT_TRUE(addresses[2] == addresses[3]);
 }
 
 TEST(IntegrationGameloop, GiveListParses) {

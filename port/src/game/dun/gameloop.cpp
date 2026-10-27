@@ -4085,9 +4085,9 @@ void autoCamTrial() {
 
     // Every polygon the floor puts near the camera goes into one list, which
     // the line from the eye to what it looks at is then tested against.
-    WorkBuffer__2->used = 0;
+    WorkBuffer->used = 0;
 
-    auto *poly = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x280));
+    auto *poly = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(0x280));
     int   count = 0;
 
     box.max[0] = look[0] > eye[0] ? look[0] : eye[0];

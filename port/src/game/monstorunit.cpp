@@ -12,6 +12,7 @@
 #include "collisiondata.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataset.hpp"
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
@@ -1582,8 +1583,8 @@ void CMonstorUnit::Step(int pause) {
                     monster[current_monster].anger_timer = 180;
                 }
 
-                WorkBuffer__2->Reset();
-                monster[current_monster].collision_poly = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+                WorkBuffer->Reset();
+                monster[current_monster].collision_poly = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(2000));
                 chara[current_monster][0].GetPosition(position);
                 monster[current_monster].collision_poly_count = setCollisionData(NowDngMap, monster[current_monster].collision_poly, position, 30.0f, 5.0f);
                 int original_count = monster[current_monster].collision_poly_count;

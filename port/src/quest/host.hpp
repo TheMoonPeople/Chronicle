@@ -57,7 +57,7 @@ void QuestHostDelete(const std::filesystem::path &save_directory);
 
 /**
  * An item a quest showed the player receiving in the conversation that just ended: gives the event
- * that shows it (runscript_port.hpp), for EdTalkMode to run as a talk's own event is run. False when
+ * that shows it (runscript.hpp), for EdTalkMode to run as a talk's own event is run. False when
  * none was.
  */
 bool QuestHostTakeItemShown(int *event_no);

@@ -166,3 +166,11 @@ extern CLogo CLogo;
  * Cursor of the title menu.
  */
 extern CCursol CCursol;
+
+// Port additions.
+
+/**
+ * Constructs the title overlay's objects the port defines with host classes, as the overlay's
+ * static constructors did each time retail loaded TITLE.BIN.
+ */
+void TitleOverlayConstruct();

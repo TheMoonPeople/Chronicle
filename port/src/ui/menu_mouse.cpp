@@ -16,7 +16,6 @@
 #include "itemdata.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
-#include "menu_event_pointer.hpp"
 #include "menu_inventory.hpp"
 #include "menu_manual.hpp"
 #include "menu_misc.hpp"

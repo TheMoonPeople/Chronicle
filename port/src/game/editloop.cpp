@@ -1779,8 +1779,8 @@ void VillagerCollision() {
             foot_sound = EdEventInfo.player_foot_sound;
         }
 
-        WorkBuffer__2->used = 0;
-        auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+        WorkBuffer->used = 0;
+        auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(2000));
         box.max[0] = 1.0f + pos[0];
         box.min[0] = pos[0] - 1.0f;
         box.max[2] = 1.0f + pos[2];
@@ -1861,8 +1861,8 @@ int CheckEditToWalk(float *position) {
 
     sceVu0CopyVector(pos, ECursorFrame->position);
     pos[3] = 1.0f;
-    WorkBuffer__2->used = 0;
-    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(1024));
+    WorkBuffer->used = 0;
+    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(1024));
     box.max[0] = 100.0f + pos[0];
     box.min[0] = pos[0] - 100.0f;
     float z = pos[2];

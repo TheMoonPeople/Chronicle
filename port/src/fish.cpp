@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "fish_port.hpp"
 #include "mathutil.hpp"
 
 namespace {
@@ -42,7 +41,7 @@ float SmoothFishSize(float size, float base_size, float max_size) {
 }
 
 // Retail's roll (info.min_size is the kind's usual size, the roll's centre), with the sizes above it
-// ramped into the largest (fish_port.hpp) before the model scales are taken.
+// ramped into the largest (fish.hpp) before the model scales are taken.
 void CFish::SetScale() {
     float deviation = nrnd();
     size = info.min_size;

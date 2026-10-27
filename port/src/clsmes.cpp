@@ -14,7 +14,6 @@
 #include <utility>
 #include <vector>
 
-#include "clsmes_port.hpp"
 #include "gameutil.hpp"
 #include "localize/localize.hpp"
 #include "mglib.hpp"

@@ -38,7 +38,6 @@
 #include "edit_in.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
-#include "editground_port.hpp"
 #include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
@@ -47,7 +46,6 @@
 #include "effect.hpp"
 #include "effectgroup.hpp"
 #include "effectmacro.hpp"
-#include "eparts_port.hpp"
 #include "fishing.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
@@ -2447,7 +2445,7 @@ int AddTreantChests(CMapParts *parts, EPARTS_FUNC_DATA *functions, int function_
 
 } // namespace
 
-// The .pts definition is decoded into host records (eparts_port.hpp) rather than relocated in place.
+// The .pts definition is decoded into host records (editpartsinfo.hpp) rather than relocated in place.
 EPARTS_INFO_HEADER *LoadPTS(CMapParts *parts, unsigned int *archive, MAP_PARTS_INFO *info, OBJ_ANIME_SEQ *anime,
                             EDIT_EFFECT_INFO *effects, EDIT_OBJECT_TIMER *timers, ED_EVENT_POINT *points,
                             CMapParts *shared) {

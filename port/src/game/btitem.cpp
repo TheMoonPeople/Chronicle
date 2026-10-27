@@ -17,6 +17,7 @@
 #include "collision.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataset.hpp"
 #include "dispctrl.hpp"
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
@@ -689,8 +690,8 @@ int ItemThrowStep(float *position, float *velocity) {
         }
     }
 
-    WorkBuffer__2->used = 0;
-    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(2000));
+    WorkBuffer->used = 0;
+    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(2000));
     int   hit_poly = CheckHit(polys, setCollisionData(NowDngMap, polys, position, 20.0f, 1.5f), position, next_position, hit_point, 1, 4);
 
     if (hit_poly >= 0) {

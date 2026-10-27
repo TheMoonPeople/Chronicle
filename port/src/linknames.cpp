@@ -2,8 +2,7 @@
 // and the linker script). MWCC pools string literals and the PS2 build binds a unit's extern name
 // to another unit's pooled literal or to a differently typed copy of a function; clang has no such
 // pool, so each name gets its own definition here. Weak, so a replacement unit that takes one of
-// these over needs no change here. Pure aliases of existing storage (draw_rect, WorkBuffer__2)
-// are linker aliases in port/CMakeLists.txt instead.
+// these over needs no change here.
 
 #include <algorithm>
 #include <cstring>
@@ -27,12 +26,6 @@
 #include "water.hpp"
 
 #define PORT_LINK_NAME __attribute__((weak))
-
-#ifdef _WIN32
-// COFF has no --defsym; these unresolved names must share storage, never a copied table.
-#pragma comment(linker, "/alternatename:draw_rect=draw_rect_store")
-#pragma comment(linker, "/alternatename:WorkBuffer__2=WorkBuffer")
-#endif
 
 // The literals, as the PAL executable has them.
 PORT_LINK_NAME char              BtAtraShortCharaFile[] = "dun/mainchara/c01d_ex00.chr";

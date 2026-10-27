@@ -189,8 +189,3 @@ void SetPacketReadBuffer(int packet_quads, int read_quads);
  * Reports whether a background read is still running.
  */
 int check_now_loading();
-
-/**
- * Allocator that dungeon monsters take their collision polygons from.
- */
-extern "C" CDataAlloc2<1> *WorkBuffer__2;

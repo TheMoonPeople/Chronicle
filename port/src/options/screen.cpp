@@ -17,7 +17,7 @@
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
-#include "menu_manual_port.hpp"
+#include "menu_manual.hpp"
 #include "menuetc.hpp"
 #include "platform/display.hpp"
 #include "platform/input.hpp"

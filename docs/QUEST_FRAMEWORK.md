@@ -216,7 +216,7 @@ at a different offset in each script, so the port finds it by what it does (`run
 functions the programs reach, the one of four arguments that pushes `"/chara/iget.chr"`.
 
 When the conversation ends, `EdTalkMode` returns the port's event number `kEventItemGet`
-(`runscript_port.hpp`) as a talk's own event, and `CRunScript::run` starts the routine with the item,
+(`runscript.hpp`) as a talk's own event, and `CRunScript::run` starts the routine with the item,
 no fade and its own camera. Norune, Matataki and Queens have the routine, as do some interiors;
 Muska Lacka and Yellow Drops do not, and there `ShowItemReceived` is false.
 

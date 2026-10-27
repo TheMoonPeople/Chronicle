@@ -193,22 +193,18 @@ target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-la
 # name is defined twice. The executable is position-independent on every
 # platform: the game's casts of pointers to 32-bit integers are all widened in
 # port/src (docs/port/truncations.md), so nothing has to sit below 4 GiB.
-# draw_rect and WorkBuffer__2 are second names for existing storage, as the PS2
-# build gives them through object_fixups.json. port/src/linknames.cpp defines
-# the names that are not aliases, EditGaijiTbl among them. ItemPutListTbl12_bytes
-# is not one: port/include/stubs/dngstatusdata.hpp turns GetItem's read through
-# it into a WeaponList lookup.
+# port/src/linknames.cpp defines names the PS2 build gives through
+# object_fixups.json, EditGaijiTbl among them. ItemPutListTbl12_bytes is not
+# one: port/include/stubs/dngstatusdata.hpp turns GetItem's read through it
+# into a WeaponList lookup.
 if(NINTENDO_SWITCH)
-    set(DC_LINK_OPTIONS -Wl,--gc-sections -Wl,--defsym=draw_rect=draw_rect_store -Wl,--defsym=WorkBuffer__2=WorkBuffer)
+    set(DC_LINK_OPTIONS -Wl,--gc-sections)
 elseif(WIN32)
-    # The two aliases are /alternatename directives in port/src/linknames.cpp.
     set(DC_LINK_OPTIONS -fuse-ld=lld -Wl,--gc-sections -Wl,--error-limit=0)
 elseif(APPLE)
-    set(DC_LINK_OPTIONS -Wl,-dead_strip -Wl,-alias,_draw_rect_store,_draw_rect
-        -Wl,-alias,_WorkBuffer,_WorkBuffer__2)
+    set(DC_LINK_OPTIONS -Wl,-dead_strip)
 else()
-    set(DC_LINK_OPTIONS -fuse-ld=lld -Wl,--gc-sections -Wl,--error-limit=0
-        -Wl,--defsym=draw_rect=draw_rect_store -Wl,--defsym=WorkBuffer__2=WorkBuffer)
+    set(DC_LINK_OPTIONS -fuse-ld=lld -Wl,--gc-sections -Wl,--error-limit=0)
     if(ANDROID)
         list(APPEND DC_LINK_OPTIONS -Wl,-z,max-page-size=16384)
     else()

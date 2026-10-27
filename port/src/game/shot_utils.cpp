@@ -5,6 +5,7 @@
 #include "charaheight.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "dataset.hpp"
 #include "dranmapfield.hpp"
 #include "dun/gameloop.hpp"
 #include "dungeonmap.hpp"
@@ -20,8 +21,8 @@
 SHOT_COLLISION_RESULT checkCollision(float *hit_position, float *position, float *movement, s32 target_mode, float radius) {
     sceVu0FVECTOR destination;
 
-    WorkBuffer__2->used = 0;
-    auto *polygons = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x500));
+    WorkBuffer->used = 0;
+    auto *polygons = reinterpret_cast<CCPoly *>(WorkBuffer->Alloc(0x500));
     int   polygon_count = setCollisionData(NowDngMap, polygons, position, 20.0f, 1.5f);
 
     if (polygon_count >= 256) {

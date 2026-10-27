@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstring>
 
-#include "eparts_port.hpp"
+#include "editpartsinfo.hpp"
 #include "objanime.hpp"
 
 int GetFuncPoint(int parts_no, u_int *archive, EPARTS_FUNC_DATA *points);

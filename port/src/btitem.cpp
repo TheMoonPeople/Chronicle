@@ -9,7 +9,6 @@
 
 #include "btactstatus.hpp"
 #include "btitem.hpp"
-#include "btitem_port.hpp"
 #include "btmisc.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"

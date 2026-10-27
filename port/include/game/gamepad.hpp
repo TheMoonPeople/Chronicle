@@ -329,3 +329,10 @@ int read_pad(PAD_STATUS *status, int port, int slot);
  * Applies the controller analog-axis dead zone and scale.
  */
 int AxisCalibration(int axis);
+
+// Port additions.
+
+/**
+ * Sets the buttons CGamePad::Down ignores, until cleared by passing 0.
+ */
+void PadHoldDown(int mask);

@@ -8,6 +8,7 @@ class CFish;
 class CCharacter;
 class CFrame;
 class CFrameVu1;
+struct RS_STACKDATA;
 
 /**
  * Whether the fish are drawn while none is being landed.
@@ -388,3 +389,20 @@ void FishLineDraw(int above_water);
  * Format of the fishing error message.
  */
 extern char fishing_err_format[];
+
+// Port additions.
+
+/**
+ * The towns' bait fix. Each town's bait-changing event (program 134 of gedit/e01, e02, e04 and s09
+ * in PAL retail) opens the bait picker (_GOTO_CHANGE_ESA), which offers all thirteen baits and takes
+ * the chosen one out of the bag, then looks the choice up in a list of eight baits the script keeps
+ * in the eight variables after the one the picker writes to. Only a bait on that list is attached
+ * (_LOAD_ITEM_FILE, _LOAD_ITEM, _SET_FISHING_ESA): Carrot, Potato Cake, Minon, Battan and Petite
+ * Fish are not on it, so they were eaten and the hook left empty.
+ *
+ * Puts bait into the list's first place after choice, the variable the picker writes to, if the
+ * script would not attach it otherwise, and returns whether it did. Nothing is changed when bait is
+ * not one of the thirteen (a cancelled pick), when it is on the list already, or when the eight
+ * variables do not all hold baits (a script laid out otherwise).
+ */
+bool ListBaitForScript(RS_STACKDATA *choice, int bait);

@@ -65,7 +65,6 @@ void TouchOverlayPoll();
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
-#include "title/title_draw.hpp"
 
 namespace fs = std::filesystem;
 

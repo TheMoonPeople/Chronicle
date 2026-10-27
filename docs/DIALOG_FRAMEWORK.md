@@ -50,7 +50,7 @@ file statics). The copies are retail's, with one addition in `EdTalkMode`:
    a page with the villager's words over the villager, with the tail and their talking motion, as
    retail's messages are; a page of choices alone over the player, as retail's choice prompts are. The
    page's text is one message (a `GameTextFile`) of its lines with the choices in view below them;
-   `ClsMesSetChoiceRows` (`clsmes_port.hpp`) marks the window: the text rows above the choices keep
+   `ClsMesSetChoiceRows` (`clsmes.hpp`) marks the window: the text rows above the choices keep
    their colour, and a coloured choice the hand is not on fades (half opacity) where retail's dimming,
    which doubles the colour, would brighten it. A page with no text is choices only, as retail's
    prompts are. The villager's own message file

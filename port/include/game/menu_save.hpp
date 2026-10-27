@@ -235,3 +235,10 @@ int BattleSubWeaponDmg(float amount, int kind);
 
 /** Texture block the event item selection menu's textures load into. */
 extern s32 MiniEventTextureBlock;
+
+// Port additions.
+
+/**
+ * Handles pointer input while the door/object item picker owns the menu.
+ */
+bool EventItemPointerUpdate();

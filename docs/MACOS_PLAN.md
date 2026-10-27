@@ -151,8 +151,7 @@ No memory mapping of PS2 address ranges is introduced on any platform.
   targets 14.0, the oldest macOS with Homebrew bottles; KosmicKrisp needs 26
   at run time; Homebrew prefix for SDL3, Vulkan and glslang).
 - `port/CMakeLists.txt` split per platform: link flags
-  (`-dead_strip`, `-alias` for `draw_rect`, `WorkBuffer__2`,
-  `EditGaijiTbl`), `-pagezero_size`, no `-no-pie`,
+  (`-dead_strip`, `EditGaijiTbl`'s placement), `-pagezero_size`, no `-no-pie`,
   `-ffp-contract=off` for `ps2/src`.
 - `scripts/host/mesa-macos.sh`: builds a pinned Mesa tag with meson for
   `kosmickrisp` and `swrast`, installs under a prefix, writes the ICD files,

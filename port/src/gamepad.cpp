@@ -4,7 +4,6 @@
 
 #include <memory>
 
-#include "gamepad_port.hpp"
 #include "input/dualsense.hpp"
 #include "mainselect.hpp"
 #include "platform/input.hpp"

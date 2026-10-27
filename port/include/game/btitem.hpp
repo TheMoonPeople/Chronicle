@@ -1,5 +1,7 @@
 #pragma once
 
+#include "runscript.hpp"
+
 /**
  * How the large treasure box shows its item, as TreasureboxBig_itemType holds it.
  */
@@ -211,3 +213,12 @@ extern char BtAtraShortCharaFile[];
  * Effect configuration entry inside an effect pack, shared by the pickup and escape presentations.
  */
 extern char BtEffectInfoFile[];
+
+// Port additions.
+
+/**
+ * The script stack slot ITEM_USE_WINDOW names for the chosen item (btsysscript.cpp), which
+ * BtMiniItemSelect_Loop (btitem.cpp) writes back. BtEventInfo.item_select_result, an s32, says
+ * whether one is pending; this holds the slot itself.
+ */
+extern RS_STACKDATA *PortItemSelectResult;

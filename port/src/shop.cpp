@@ -16,7 +16,6 @@
 #include "dataread.hpp"
 #include "editloop.hpp"
 #include "gamepad.hpp"
-#include "gamepad_port.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "mathutil.hpp"

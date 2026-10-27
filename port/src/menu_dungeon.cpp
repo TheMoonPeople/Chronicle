@@ -16,7 +16,6 @@
 #include "itemdata.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
-#include "menu_dungeon_port.hpp"
 #include "menu_inventory.hpp"
 #include "menuitemstep.hpp"
 #include "nowload.hpp"
