@@ -328,6 +328,11 @@ extern int MenuWeaponModelData[42];
 extern int MenuWeaponModelInfo[10][2];
 
 /**
+ * The party member the character change menu is previewing.
+ */
+extern s16 charachangeid;
+
+/**
  * The buffer the menu's weapon effect and model are read into.
  */
 extern u_long128 *WepEffectMenuReadBuf;

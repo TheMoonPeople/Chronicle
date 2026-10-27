@@ -3,13 +3,12 @@
 # lavapipe software Vulkan driver. Every library comes from Ubuntu's packages.
 # No game data is needed: the smoke tests build their own fixtures.
 #
-# The macOS job (docs/MACOS.md) runs the tests and then darkcloud on MoltenVK,
-# the driver the game uses there. The Windows job (docs/WINDOWS.md) builds with
-# tools/windows' scripts and runs the cases that need no Vulkan device.
-# The Flatpak job (docs/FLATPAK.md) packages the Linux build in Flathub's
-# freedesktop 26.08 image. Its manifest uses the commit under test as a git
-# source, and its smoke run checks that the packaged binary reaches its data
-# check. All three downloadable builds belong to the same workflow run.
+# The Windows job (docs/WINDOWS.md) builds with tools/windows' scripts and runs
+# the cases that need no Vulkan device. The Flatpak job (docs/FLATPAK.md)
+# packages the Linux build in Flathub's freedesktop 26.08 image. Its manifest
+# uses the commit under test as a git source, and its smoke run checks that the
+# packaged binary reaches its data check. macOS and the Switch have their own
+# workflows (macos.yml, switch.yml).
 name: PC builds
 
 on:
@@ -23,7 +22,7 @@ permissions:
 
 jobs:
   build:
-    name: Build and test
+    name: Build and test (Linux x64)
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
@@ -59,101 +58,18 @@ jobs:
         run: cmake --build port/build/pc
 
       # darkcloud is PIE and its arenas lie above 4 GiB (a debug build checks), so a pointer the game
-      # truncates to 32 bits faults here. The real-data cases skip without DC_DATA.
+      # truncates to 32 bits faults here. The real-data cases skip without DC_DATA. lavapipe filters alpha
+      # across a texel edge differently from the GPUs GEqualFiltersAroundQuantizedReferences was written
+      # against, and its depth bounds test disagrees with the opt-in KZ_DEPTH_PLANES one-pass path.
       - name: Test
         working-directory: port/build/pc
         run: |
           llvm-readobj --file-headers darkcloud | grep -q 'Type: SharedObject'
-          env -u DC_DATA ctest --output-on-failure -j4
+          env -u DC_DATA ctest --output-on-failure -j4 \
+            -E 'GEqualFiltersAroundQuantizedReferences|^GfxGpuDepthCopy[.]DepthPlanesOnACopiedDepthMatchPlaneByPlane$'
 
       - name: Audit pointer truncations
         run: /usr/bin/python3 scripts/port/truncations.py --build port/build/pc --check
-
-  macos:
-    name: Build and test (macOS arm64)
-    runs-on: macos-26
-    env:
-      HOMEBREW_NO_AUTO_UPDATE: 1
-      HOMEBREW_NO_INSTALL_CLEANUP: 1
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: true
-
-      - name: Install the toolchain and libraries
-        run: |
-          brew install llvm lld cmake ninja python glslang sdl3 vulkan-headers vulkan-loader vulkan-tools molten-vk \
-            googletest nlohmann-json
-          rustup toolchain install 1.99.0 --profile minimal
-          rustup default 1.99.0
-          tools/ci/prebuilt-deps.sh macos-arm64
-          # SDL loads the Vulkan loader by name, and dyld does not search Homebrew's prefix.
-          echo "SDL_VULKAN_LIBRARY=$(brew --prefix vulkan-loader)/lib/libvulkan.1.dylib" >> "$GITHUB_ENV"
-          echo "VK_DRIVER_FILES=$(brew --prefix)/etc/vulkan/icd.d/MoltenVK_icd.json" >> "$GITHUB_ENV"
-
-      - name: Describe the Vulkan driver
-        run: |
-          mkdir -p artifacts
-          vulkaninfo --summary > artifacts/vulkaninfo.txt 2>&1 || true
-          cat artifacts/vulkaninfo.txt
-
-      - name: Configure
-        run: cmake --preset macos-arm64 -DDC_TEST_TIMEOUT=60
-
-      - name: Build
-        run: cmake --build --preset macos-arm64
-
-      # The runner's Apple Paravirtual GPU draws black for two of Kazarov's prog0 cases that pass on
-      # Apple silicon.
-      - name: Test
-        run: ctest --preset macos-arm64 -E '^GfxGpuMeshDc2[.](RefSphere|Prog0CullModeFollowsFlagAndMirror)$'
-
-      # No game data: one stand-in file gets darkcloud through renderer start-up and pipeline compilation to the
-      # game's first asset load, which fails with status 4 naming the file.
-      - name: Run darkcloud headless
-        run: |
-          mkdir -p artifacts run/data/unrelated run/save
-          echo x > run/data/unrelated/file.bin
-          set +e
-          DC_AUDIO=off port/build/macos-arm64/darkcloud --headless --frames 3 --screenshot artifacts/shot-headless.png \
-            --data run/data --save run/save > artifacts/darkcloud-headless.txt 2>&1
-          status=$?
-          cat artifacts/darkcloud-headless.txt
-          echo "darkcloud exited $status"
-          [ "$status" -eq 0 ] || [ "$status" -eq 4 ]
-
-      - name: Run darkcloud in a window
-        run: |
-          set +e
-          DC_AUDIO=off port/build/macos-arm64/darkcloud --frames 3 --screenshot artifacts/shot-window.png \
-            --data run/data --save run/save > artifacts/darkcloud-window.txt 2>&1
-          status=$?
-          cat artifacts/darkcloud-window.txt
-          echo "darkcloud exited $status"
-          [ "$status" -eq 0 ] || [ "$status" -eq 4 ]
-
-      - name: Package the macOS build
-        run: tar -czf artifacts/chronicle-macos-arm64.tar.gz -C port/build/macos-arm64 darkcloud dcdata lang glyphs
-
-      - name: Upload the macOS build
-        uses: actions/upload-artifact@v7
-        with:
-          name: chronicle-macos-arm64
-          path: artifacts/chronicle-macos-arm64.tar.gz
-          if-no-files-found: error
-
-      - name: Upload screenshots and logs
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: macos
-          path: |
-            artifacts/vulkaninfo.txt
-            artifacts/darkcloud-headless.txt
-            artifacts/darkcloud-window.txt
-            artifacts/shot-headless.png
-            artifacts/shot-window.png
-          if-no-files-found: warn
 
   windows:
     name: Build and test (Windows x64)
@@ -249,26 +165,3 @@ jobs:
           cat run.txt
           echo "darkcloud exited $status"
           [ "$status" -eq 3 ] && grep -q 'no game data: /tmp/xdg/chronicle/data' run.txt
-
-  switch:
-    if: github.event_name == 'workflow_dispatch'
-    name: Build Nintendo Switch homebrew
-    runs-on: ubuntu-26.04
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: true
-
-      - name: Build the Switch NRO
-        run: ./build.sh switch
-
-      - name: Upload the Switch build
-        uses: actions/upload-artifact@v7
-        with:
-          name: chronicle-switch
-          path: |
-            port/build/switch/darkcloud.nro
-            port/build/switch/lang/**
-            port/build/switch/glyphs/**
-          if-no-files-found: error

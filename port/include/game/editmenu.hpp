@@ -51,6 +51,11 @@ int GetNumHowManyItemsHave(int item);
 void EditMenuInit(int *texture_blocks, int start_at_atora);
 
 /**
+ * Reports whether the edit menu is starting and has not yet read its textures and allmenu.mes.
+ */
+bool EditMenuTexturesLoading();
+
+/**
  * Runs one frame of the edit menu for its current state.
  *
  * Returns nonzero once the menu has finished and EditMenuStatus holds the result.

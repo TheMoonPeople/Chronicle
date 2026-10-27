@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -21,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "app/gameloop.hpp"
 #include "battlemenu.hpp"
 #include "boxvu0.hpp"
 #include "btsysscript.hpp"
@@ -33,8 +36,8 @@
 #include "dataread.hpp"
 #include "dataset.hpp"
 #include "debugfont.hpp"
-#include "dispctrl.hpp"
 #include "dialog/npc.hpp"
+#include "dispctrl.hpp"
 #include "dngstatusdata.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
@@ -290,7 +293,154 @@ void                EditMode();
 
 namespace {
 void EditMainDraw();
-}
+
+/**
+ * The spans of EditMainDraw timed under DC_PERF_GAME_PHASES=1.
+ */
+enum class GameDrawPhase : std::size_t {
+    Main,
+    SkyBase,
+    GroundFirst,
+    GroundSecond,
+    Water,
+    FarDof,
+    FarPrepare,
+    FarCharacter,
+    FarShadow,
+    FarShadowBegin,
+    FarShadowParts,
+    FarShadowEnd,
+    DofRecord,
+    Character,
+    CharacterStep,
+    CharacterNearParts,
+    CharacterLights,
+    CharacterDraw,
+    Shadows,
+    ShadowNear,
+    ShadowFar,
+    ShadowGeorama,
+    MotionParts,
+    Effects,
+    Final2D,
+    Count,
+};
+
+using GameDrawClock = std::chrono::steady_clock;
+
+struct GameDrawSpan {
+    double        total = 0.0;
+    double        maximum = 0.0;
+    std::uint32_t count = 0;
+};
+
+std::array<GameDrawSpan, static_cast<std::size_t>(GameDrawPhase::Count)> game_draw_spans;
+std::uint64_t                                                            far_villager_marks = 0;
+
+/**
+ * Times one EditMainDraw call and its phases when DC_PERF_GAME_PHASES is 1, and every 120 calls
+ * reports each phase's mean and longest time on stderr.
+ */
+class GameDrawTrace {
+public:
+    GameDrawTrace() {
+        static const bool enabled = [] {
+            const char *setting = std::getenv("DC_PERF_GAME_PHASES");
+            return setting != nullptr && std::string_view(setting) == "1";
+        }();
+        enabled_ = enabled;
+        start_ = Start();
+    }
+
+    GameDrawTrace(const GameDrawTrace &) = delete;
+    GameDrawTrace &operator=(const GameDrawTrace &) = delete;
+
+    ~GameDrawTrace() {
+        if (!enabled_) {
+            return;
+        }
+        Finish(GameDrawPhase::Main, start_);
+        const std::uint32_t calls = game_draw_spans[static_cast<std::size_t>(GameDrawPhase::Main)].count;
+        if (calls < 120) {
+            return;
+        }
+        constexpr std::array<const char *, static_cast<std::size_t>(GameDrawPhase::Count)> names = {
+            "main",
+            "sky_base",
+            "ground_first",
+            "ground_second",
+            "water",
+            "far_dof",
+            "far_prepare",
+            "far_character",
+            "far_shadow",
+            "far_shadow_begin",
+            "far_shadow_parts",
+            "far_shadow_end",
+            "dof_record",
+            "character",
+            "character_step",
+            "character_near_parts",
+            "character_lights",
+            "character_draw",
+            "shadows",
+            "shadow_near",
+            "shadow_far",
+            "shadow_georama",
+            "motion_parts",
+            "effects",
+            "final_2d",
+        };
+        for (std::size_t first = 0; first < game_draw_spans.size(); first += 4) {
+            std::string report = std::format("cpu gamephases {} calls mean/max ms:", calls);
+            if (first == 0) {
+                report += std::format(" far_marks={}", far_villager_marks);
+            }
+            for (std::size_t phase = first; phase < std::min(first + 4, game_draw_spans.size()); ++phase) {
+                const GameDrawSpan &span = game_draw_spans[phase];
+                const double        mean = span.count == 0 ? 0.0 : span.total / static_cast<double>(span.count);
+                report += std::format(" {}[{}]={:.3f}/{:.3f}", names[phase], span.count, mean, span.maximum);
+            }
+            std::fprintf(stderr, "%s\n", report.c_str());
+        }
+        game_draw_spans = {};
+        far_villager_marks = 0;
+    }
+
+    /**
+     * Returns the start of a phase: now while tracing, otherwise a zero time.
+     */
+    GameDrawClock::time_point Start() const { return enabled_ ? GameDrawClock::now() : GameDrawClock::time_point{}; }
+
+    /**
+     * Adds the time since start to phase while tracing.
+     */
+    void Finish(GameDrawPhase phase, GameDrawClock::time_point start) const {
+        if (!enabled_) {
+            return;
+        }
+        const double  elapsed = std::chrono::duration<double, std::milli>(GameDrawClock::now() - start).count();
+        GameDrawSpan &span = game_draw_spans[static_cast<std::size_t>(phase)];
+        span.total += elapsed;
+        span.maximum = std::max(span.maximum, elapsed);
+        ++span.count;
+    }
+
+    /**
+     * Counts a villager drawn before the depth of field while tracing.
+     */
+    void MarkFarVillager() const {
+        if (enabled_) {
+            ++far_villager_marks;
+        }
+    }
+
+private:
+    bool                      enabled_ = false;
+    GameDrawClock::time_point start_{};
+};
+
+} // namespace
 
 namespace {
 
@@ -498,11 +648,6 @@ void InitWorkBuffer() {
     EdMenuBuffer.used = 0;
 }
 
-namespace {
-
-/**
- * Reports whether any modal editor event currently blocks normal input.
- */
 int run_event_check() {
     if (goto_dungeon != 0 || goto_menu != 0 || goto_cmp_event != 0 || debug_menu_mode != 0 || EdSystemMesCheck() != 0 || EdCheckItemOver() != 0) {
         return 1;
@@ -510,8 +655,6 @@ int run_event_check() {
 
     return 0;
 }
-
-} // namespace
 
 /**
  * Disables editor input while an event is active or the loop is starting.
@@ -1575,6 +1718,7 @@ int EditLoop() {
                 EdExitMenu();
 
                 if (MenuMapJumpMode >= 0) {
+                    app::GameLoadTraceRequest(MenuMapJumpMode);
                     MapJump(MenuMapJumpMode, -1);
                     EdEventInfo.integer_arguments[0] = MenuMapJumpMode;
                     RunSystemEvent(2, NowCamera);
@@ -2063,6 +2207,10 @@ int EditLoop() {
 
     end_counter = std::max(end_counter, 0);
 
+    if (GameMode == ED_MODE_WALK && loop_counter >= 2 && key_lock == 0 && start_event_no <= 0 &&
+        start_system_event <= 0) {
+        app::GameLoadTraceControlsReady();
+    }
     SndStep();
     loop_counter++;
     key_counter++;
@@ -2092,8 +2240,9 @@ constexpr float kRetailVillagerReach = 150.0f;
  * place. far_marks receives the draw marks of the villagers drawn here, which the characters' own
  * pass then leaves out; returns whether it marked any.
  */
-bool EdDrawBeyondRetailReach(int *far_marks) {
-    bool drawn = false;
+bool EdDrawBeyondRetailReach(int *far_marks, const GameDrawTrace &draw_trace) {
+    const auto prepare_start = draw_trace.Start();
+    bool       drawn = false;
 
     for (int i = 0; i < 10; i++) {
         far_marks[i] = 0;
@@ -2117,23 +2266,30 @@ bool EdDrawBeyondRetailReach(int *far_marks) {
                 if (EdVillager[i].initialized != 0 && DistVector(player_position, villager_position) >= kRetailVillagerReach) {
                     far_marks[i] = 3;
                     drawn = true;
+                    draw_trace.MarkFarVillager();
                 }
             }
 
+            draw_trace.Finish(GameDrawPhase::FarPrepare, prepare_start);
             if (drawn) {
-                int shadow_on = GameMode != ED_MODE_TALK && EdSystemMesCheck() == 0;
+                const auto character_start = draw_trace.Start();
+                int        shadow_on = GameMode != ED_MODE_TALK && EdSystemMesCheck() == 0;
                 EdDrawCharacter(Chara, 0, 10, EdVillager, far_marks, shadow_on, nullptr);
+                draw_trace.Finish(GameDrawPhase::FarCharacter, character_start);
             }
             break;
         }
         default:
+            draw_trace.Finish(GameDrawPhase::FarPrepare, prepare_start);
             break;
     }
 
     if (EdDrawOffMapShadow == 0 && edit_mode_draw == 0 && EditMapInfo->shadow_level > 0) {
-        float saved_light[4][4];
-        float shadow_light[4][4];
-        float light_colour[4][4];
+        const auto shadow_start = draw_trace.Start();
+        const auto shadow_begin_start = draw_trace.Start();
+        float      saved_light[4][4];
+        float      shadow_light[4][4];
+        float      light_colour[4][4];
 
         MGGetPLight(saved_light, light_colour);
         sceVu0CopyMatrix(shadow_light, saved_light);
@@ -2141,9 +2297,15 @@ bool EdDrawBeyondRetailReach(int *far_marks) {
         MGSetPLight(shadow_light, light_colour);
         TexManager.ReloadTexture(Vif1Packet, 0x16);
         MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
+        draw_trace.Finish(GameDrawPhase::FarShadowBegin, shadow_begin_start);
+        const auto shadow_parts_start = draw_trace.Start();
         EdGroundDrawShadowBeyondNear(pEditGround, EditMapInfo->shadow_near);
+        draw_trace.Finish(GameDrawPhase::FarShadowParts, shadow_parts_start);
+        const auto shadow_end_start = draw_trace.Start();
         MGEndDrawShadow(EditMapInfo->shadow_mode);
         MGSetPLight(saved_light, light_colour);
+        draw_trace.Finish(GameDrawPhase::FarShadowEnd, shadow_end_start);
+        draw_trace.Finish(GameDrawPhase::FarShadow, shadow_start);
     }
 
     return drawn;
@@ -2153,8 +2315,9 @@ bool EdDrawBeyondRetailReach(int *far_marks) {
  * Draws the editor's world for one frame (retail's MainDraw).
  */
 void EditMainDraw() {
-    auto far_marks = std::make_unique<int[]>(10);
-    bool far_drawn = false;
+    const GameDrawTrace draw_trace;
+    auto                far_marks = std::make_unique<int[]>(10);
+    bool                far_drawn = false;
 
     if (EdDrawOffFlag == 0) {
         if (EdPauseFlag != 0 || GameMode == ED_MODE_RETURN_MENU_WALK || GameMode == ED_MODE_RETURN_MENU_GEORAMA) {
@@ -2171,6 +2334,7 @@ void EditMainDraw() {
         EdDrawOffMapShadow = EdEventInfo.suppress_shadows;
 
         if (EdDrawOffMap == 0) {
+            const auto sky_base_start = draw_trace.Start();
             if (draw_sky != 0) {
                 EdDrawSky(NowTime, SkyFrame, SunFrame, SkyBackFrame, NowCamera, EditMapInfo->sky_follow);
             }
@@ -2178,6 +2342,7 @@ void EditMainDraw() {
             TexManager.ReloadTexture(Vif1Packet, 1);
             TexAnime.TexAnime(1);
             pEditGround->DrawBaseGround();
+            draw_trace.Finish(GameDrawPhase::SkyBase, sky_base_start);
 
             // Georama mode draws the parts at walking's levels of detail, where retail drew them all at
             // their coarsest.
@@ -2185,7 +2350,9 @@ void EditMainDraw() {
             constexpr int near_lod = 2;
             constexpr int mid_lod = 0;
 
+            const auto ground_first_start = draw_trace.Start();
             pEditGround->Draw(NowTime, 1, far_lod, near_lod, mid_lod, near_lod);
+            draw_trace.Finish(GameDrawPhase::GroundFirst, ground_first_start);
 
             if (edit_mode_draw != 0) {
                 sceVu0FVECTOR at;
@@ -2197,9 +2364,11 @@ void EditMainDraw() {
                 pEditGround->DrawPartsCursor(NowSelectParts, at, NowPartsCursorPos, NowSelectAngle, colour, 1);
             }
 
+            const auto ground_second_start = draw_trace.Start();
             TexManager.ReloadTexture(Vif1Packet, 2);
             TexAnime.TexAnime(2);
             pEditGround->Draw(NowTime, 2, far_lod, near_lod, 0, 3);
+            draw_trace.Finish(GameDrawPhase::GroundSecond, ground_second_start);
 
             if (edit_mode_draw != 0) {
                 sceVu0FVECTOR at2;
@@ -2216,6 +2385,7 @@ void EditMainDraw() {
                 FishLineDraw(0);
             }
 
+            const auto water_start = draw_trace.Start();
             TexManager.ReloadTexture(Vif1Packet, 0x15);
             TexAnime.TexAnime(0x15);
             pEditGround->DrawWater(0x15);
@@ -2258,17 +2428,22 @@ void EditMainDraw() {
             }
 
             pEditGround->DrawRipple(0x15);
+            draw_trace.Finish(GameDrawPhase::Water, water_start);
 
             if (depth_of_field != 0) {
-                int dof_level = 2;
+                const auto far_dof_start = draw_trace.Start();
+                int        dof_level = 2;
 
-                far_drawn = EdDrawBeyondRetailReach(far_marks.get());
+                far_drawn = EdDrawBeyondRetailReach(far_marks.get(), draw_trace);
 
+                const auto dof_start = draw_trace.Start();
                 if ((static_cast<int *>(SaveData->GetConfigData()))[6] != 0) {
                     dof_level = 1;
                 }
 
                 EdDrawDOF(dof_level);
+                draw_trace.Finish(GameDrawPhase::DofRecord, dof_start);
+                draw_trace.Finish(GameDrawPhase::FarDof, far_dof_start);
             }
         }
 
@@ -2280,6 +2455,7 @@ void EditMainDraw() {
             EdEventBackSpriteDraw();
         }
 
+        const auto character_start = draw_trace.Start();
         PolyCount = 0;
 
         if (GameMode == ED_MODE_EVENT) {
@@ -2288,7 +2464,8 @@ void EditMainDraw() {
 
         switch (GameMode) {
             case ED_MODE_RETURN_MENU_WALK:
-            case ED_MODE_MENU_INIT:
+            case ED_MODE_MENU_INIT: {
+                const auto step_start = draw_trace.Start();
                 CCharacter::MotionStopFlag = 1;
                 Chara->Step();
                 Chara->ShadowStep();
@@ -2307,6 +2484,8 @@ void EditMainDraw() {
                 }
 
                 CCharacter::MotionStopFlag = 0;
+                draw_trace.Finish(GameDrawPhase::CharacterStep, step_start);
+            }
                 /* fallthrough */
             case ED_MODE_WALK:
             case ED_MODE_FISHING:
@@ -2355,9 +2534,12 @@ void EditMainDraw() {
                 box.max[2] = 100.0f + chara_pos[2];
                 box.max[3] = 1.0f;
 
-                int found = std::clamp(pEditGround->GetNearParts(near_parts.get(), near_parts_capacity, &box, nullptr), 0,
-                                       near_parts_capacity);
+                const auto near_parts_start = draw_trace.Start();
+                int        found = std::clamp(pEditGround->GetNearParts(near_parts.get(), near_parts_capacity, &box, nullptr), 0,
+                                              near_parts_capacity);
+                draw_trace.Finish(GameDrawPhase::CharacterNearParts, near_parts_start);
 
+                const auto lights_start = draw_trace.Start();
                 Chara->ClearPointLight();
 
                 for (int i = 0; i < found; i++) {
@@ -2393,17 +2575,23 @@ void EditMainDraw() {
                     }
                 }
 
+                draw_trace.Finish(GameDrawPhase::CharacterLights, lights_start);
+                const auto draw_start = draw_trace.Start();
                 EdDrawCharacter(Chara, detail, 0xA, EdVillager, marks, shadow_on, event);
+                draw_trace.Finish(GameDrawPhase::CharacterDraw, draw_start);
                 break;
             }
             default:
                 break;
         }
 
+        draw_trace.Finish(GameDrawPhase::Character, character_start);
+
         if (EdDrawOffMapShadow == 0 && EdDrawOffMap == 0) {
-            float saved_light[4][4];
-            float shadow_light[4][4];
-            float light_colour[4][4];
+            const auto shadows_start = draw_trace.Start();
+            float      saved_light[4][4];
+            float      shadow_light[4][4];
+            float      light_colour[4][4];
 
             MGGetPLight(saved_light, light_colour);
             sceVu0CopyMatrix(shadow_light, saved_light);
@@ -2414,33 +2602,43 @@ void EditMainDraw() {
             float shadow_range[4] = {-100.0f, EditMapInfo->shadow_near, EditMapInfo->shadow_far, 0.0f};
 
             if (edit_mode_draw != 0) {
+                const auto shadow_georama_start = draw_trace.Start();
                 MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
                 pEditGround->DrawShadow(1, 0.0f, 100000.0f);
                 MGEndDrawShadow(0x20);
+                draw_trace.Finish(GameDrawPhase::ShadowGeorama, shadow_georama_start);
             } else {
                 if (EditMapInfo->shadow_level > 0) {
+                    const auto shadow_near_start = draw_trace.Start();
                     MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
                     pEditGround->DrawShadow(0, shadow_range[0], shadow_range[1]);
                     MGEndDrawShadow(EditMapInfo->shadow_mode);
+                    draw_trace.Finish(GameDrawPhase::ShadowNear, shadow_near_start);
                 }
 
                 if (EditMapInfo->shadow_level >= 2) {
+                    const auto shadow_far_start = draw_trace.Start();
                     MGBeginDrawShadow(*reinterpret_cast<sceGsTex0 *>(&TexManager.GetTexture("shadow_buff", -1)->tex0));
                     pEditGround->DrawShadow(0, shadow_range[1], shadow_range[2]);
                     MGEndDrawShadow(EditMapInfo->shadow_mode_2);
+                    draw_trace.Finish(GameDrawPhase::ShadowFar, shadow_far_start);
                 }
             }
 
             MGSetPLight(saved_light, light_colour);
+            draw_trace.Finish(GameDrawPhase::Shadows, shadows_start);
         }
 
+        const auto motion_parts_start = draw_trace.Start();
         for (int i = 0; i < 4; i++) {
             TexManager.ReloadTexture(Vif1Packet, i + 0x1B);
             MotionParts[i].TextureAnime(i + 0x1B);
             MotionParts[i].Draw();
         }
+        draw_trace.Finish(GameDrawPhase::MotionParts, motion_parts_start);
 
         if (EdDrawOffMap == 0) {
+            const auto effects_start = draw_trace.Start();
             TexManager.ReloadTexture(Vif1Packet, 0x18);
             RunEffect.Lighting(1);
             RunEffect.Draw();
@@ -2489,8 +2687,10 @@ void EditMainDraw() {
             if (edit_mode_draw == 0) {
                 EdDrawLensFlare(NowTime, SunFrame);
             }
+            draw_trace.Finish(GameDrawPhase::Effects, effects_start);
         }
 
+        const auto final_2d_start = draw_trace.Start();
         if (GameMode == ED_MODE_EVENT) {
             EdEventSpriteDraw();
             EBDraw();
@@ -2582,6 +2782,7 @@ void EditMainDraw() {
         }
 
         clear_screen = 0;
+        draw_trace.Finish(GameDrawPhase::Final2D, final_2d_start);
     }
 }
 } // namespace
@@ -4331,7 +4532,8 @@ int LoadTexture() {
         {"#frame_image#640#" SCREEN_HEIGHT_STR "#4",      0x13, 0},
     };
 
-    auto blocks = std::make_unique<LOADTEXTURE_INFO2[]>(std::max(image_count + 1, std::size(system_blocks)));
+    // Room for the zeroed entry that ends either list.
+    auto blocks = std::make_unique<LOADTEXTURE_INFO2[]>(std::max(image_count, std::size(system_blocks)) + 1);
     std::ranges::copy(system_blocks, blocks.get());
     blocks[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, "sys_cmn.img", nullptr));
     blocks[5].name = reinterpret_cast<char *>(system_image);

@@ -27,7 +27,11 @@ Copy these files to `sdmc:/switch/chronicle/`:
 
 `data.zip` contains every extracted file, including the normalized copies and language list. It is a standard stored ZIP and stays outside Git. An existing extracted `data/` directory also works; when both are installed, `data.zip` takes precedence. `--data` still names the logical `data/` path beside the archive.
 
-Start Chronicle from the Homebrew Menu with a game's title override by holding R while starting a game. Launching from the album applet leaves too little memory for the game. Runtime logs are written to `darkcloud.log` beside the `.nro`; `save/` stores settings, saves and the Vulkan pipeline cache created at startup.
+Start Chronicle from the Homebrew Menu with a game's title override by holding R while starting a game. Launching from the album applet leaves too little memory for the game. `save/` stores settings, saves and the Vulkan pipeline cache created at startup.
+
+## Logs
+
+Sent with `nxlink -s`, stdout and stderr go back to the sending computer and no log file is written. Otherwise every line also goes to the system log manager (the `lm` service), which Atmosphère can retain. Started from the Homebrew Menu, the game also writes `darkcloud.log` beside the `.nro`. Each start replaces the previous file, and a run writes at most 4 MiB to it, then notes that it stopped. A low-priority thread writes the file because a single SD card write can take 10 to 25 ms on hardware, and the game thread would otherwise stall on every log line. An installed application writes no log file and removes one an earlier run left in its directory. Saves, settings and the pipeline cache are never touched by log handling.
 
 The Homebrew Menu does not pass arguments to the application. Put whitespace-separated arguments in `args.txt` beside the `.nro`; supported options are listed in [PC port documentation](PC.md).
 
@@ -35,13 +39,39 @@ With asynchronous rendering, Chronicle places the game and render threads on sep
 
 ## Platform support
 
-The Switch build supplies guarded arena memory, cooperative context switching, compatibility flags for newlib and logging through nxlink. Its Vulkan driver is [Mesa NVK from Dan's Switch port](https://github.com/danfromtico/mesa-switch), pinned to commit `0ff52079ca9e9e837ed27eb95a8d239f439a1864` (Mesa 26.2.4) and built as a loaderless static library with a direct libnx Horizon backend. The WSI presents scanout-backed images with the GPU completion fence, avoiding a CPU copy on the present path. The output target is 1280 × 720 at 60 Hz in handheld mode and 1920 × 1080 at 60 Hz when docked. The game fills those 16:9 targets, cropping the 4:3 image vertically as needed. The game has not been qualified for gameplay or performance on physical Switch hardware; these are output targets, not measured frame rates.
+The Switch build supplies guarded arena memory, cooperative context switching, compatibility flags for newlib and logging through nxlink, `lm` and a capped log file (see "Logs" above). Its Vulkan driver is [Mesa NVK from Dan's Switch port](https://github.com/danfromtico/mesa-switch), pinned to commit `0ff52079ca9e9e837ed27eb95a8d239f439a1864` (Mesa 26.2.4) and built as a loaderless static library with a direct libnx Horizon backend. The WSI presents scanout-backed images with the GPU completion fence, avoiding a CPU copy on the present path. The output target is 1280 × 720 at 60 Hz in handheld mode and 1920 × 1080 at 60 Hz when docked. The game fills those 16:9 targets, cropping the 4:3 image vertically as needed. Console tests have sustained 60 Hz in the title and selected populated Norune, Queens and Muska Lacka views at stock handheld clocks and full handheld render scale. Those fixtures do not qualify the entire game or docked performance.
 
 To send an existing build through the Homebrew Menu's netloader, use `port/switch/run.sh`. Set `SWITCH_ADDRESS` when the console cannot be discovered by broadcast.
 
 ## Display
 
 Switch selects its rendering scale from the current console mode: 1.5 for handheld and 2.25 for docked, relative to the game's 480-pixel logical height. Docking and undocking update the scale and output size. The Switch build does not offer resolution or render-scale controls; saved desktop settings and `args.txt` cannot override its output target. Motion interpolation is disabled, while the game's 60 Hz tick rate remains unchanged.
+
+Switch enables display-list arenas, direct shadow clipping, proven-opaque alpha-test
+draws, safe near-fog mesh variants, reciprocal near-fog depth, combined depth planes
+and inline render-thread mesh dispatch. Each preserves the general fallback for
+unsupported geometry or state. Heat haze begins farther from the player, skips
+identity copies and samples a half-resolution image with linear filtering. The
+renderer keeps normal ordered blending for 2D draws.
+
+For A/B comparisons, `--env NAME=VALUE` in `args.txt` overrides these defaults:
+`KZ_LIST_ARENA`, `DC_SHADOW_CLIP_DIRECT`, `KZ_ALPHA_OPAQUE`, `KZ_FOG_NEAR_SAFE`,
+`KZ_DEPTH_PLANES`, `DC_HAZE_SKIP_IDENTITY`, `KZ_FOG_NEAR_RECIPROCAL` and
+`KZ_INLINE_MESH_DISPATCH` are `1`; `DC_HAZE_SCALE` is `0.5`. Set the corresponding
+boolean to `0`, or the haze scale to `1`, for its baseline. These switches are
+diagnostic controls, not lower-quality display presets.
+
+The archive and source-metadata improvements described in [PC](PC.md) also apply
+on Switch. In a populated Norune loading fixture, archive indexing fell from about
+3.55 s to 0.18 s, and the measured archive/source-read span fell from 8.2 s to 1.4 s.
+That span excludes pipeline compilation and is not total startup time.
+Untextured draws share the pipeline variants whose texture-alpha settings cannot
+affect them, reducing startup creation from 16,851 to 13,107 pipelines. Compatible
+warm caches are retained when all startup pipelines report application-cache hits;
+missing feedback takes the conservative persistence path. One warm console check
+reduced this stage from 1.68 s to 0.71 s, avoiding a measured 983 ms cache write.
+Homebrew Menu launch-to-playable, normal UI loading and all area transitions still
+require separate measurement.
 
 ## Emulator testing
 
@@ -53,29 +83,42 @@ The Mesa 26.2.4 NVK migration built a fresh NRO on 2026-10-23, but a bounded lau
 
 The fresh Mesa 26.2.4 NRO was also tested with Ryubing Canary 1.3.351 (Windows x64 package SHA-256 `FD3C0D247A664C1FB670D559E32A5A3AEBB8ADED7A0C33FB95F369F84D829EB0`; package: [Ryubing Canary 1.3.351](https://starforgejo.dev/archive/-/packages/generic/ryubing/canary-1.3.351)). The PAL ISO was extracted with `dcdata extract "rom/pal/Dark Cloud (PAL).iso" "<isolated-trial>/ryubing-data/sdcard/data"`, and Ryubing loaded the NRO with the extracted data. A later rendered-menu check showed the correctly colored language selection screen and confirmed the ZIP-backed texture provenance. This validates asset loading and the menu render path only; no gameplay, Temple scene, or frame-rate result was established. Earlier in the same emulator investigation, Chronicle logged `gfx: vkCreateDevice failed (-2)` and Ryubing logged a fixed-buffer mapping error before rendering. That failed run remains diagnostic evidence for that build and configuration, not a current gameplay result. Emulator config, SD data and logs stayed under isolated trial directories.
 
-## Performance work
+## Performance measurement
 
-The Switch integration has not been measured on physical hardware. Establish a repeatable baseline on physical consoles before attributing slow scenes to the CPU, GPU or storage. Use the same PAL data, save, scripted inputs, area and camera path for each run, with the fixed mode-specific resolution. Record frame times, late presents, CPU and GPU timings, memory use and game ticks. Check screenshots against the existing rendering baseline after every optimization. The separate-core setting needs a physical comparison against `--switch-core-affinity auto`; libnx otherwise allows its worker threads on every process core.
+Use the same PAL data, isolated save root, scripted inputs, scene and camera path
+for comparisons. Keep console mode, clocks, output resolution and render scale
+fixed. `--perf-log` works on every platform and reports CPU work, render-thread
+cost, Vulkan GPU timestamps, present waits and late ticks once a second.
+`DC_PERF_LOAD=1` adds archive/source-read timings; `KZ_PERF_INIT_TRACE=1` reports
+pipeline-cache acceptance. These timings describe separate stages, not total
+launch-to-playable latency. Use `nxlink -s` to collect console output.
 
-| Console mode | Repeatable scene runs | Capture and timing checks |
-|---|---|---|
-| Handheld, 720p | Town water and refraction; dungeon shadows and effects; skinned character and cloth; material animation; area transitions, followed by a long run and shutdown | Canonical screenshots; cold and warm pipeline-cache runs; separate-core and `--switch-core-affinity auto` runs in async mode, then render-thread-off runs; native frame times, late presents, CPU/GPU timings and unchanged 60 Hz game ticks |
-| Docked, 1080p | The same save, inputs, areas and camera paths as handheld | The same screenshot, cache, core-affinity and timing checks, including dock and undock during a run |
+`args.txt` accepts `--env NAME=VALUE`. Desktop runs use environment variables.
+The offline `port/switch/perf-log-audit.ps1` script summarizes saved frame reports:
 
-Keep the console mode and every other quality setting fixed while timing one change at a time. Use the [Eden downloads page](https://eden-emu.dev/downloads/) only as a rough reminder to evaluate profile-guided builds: emulator speed on a desktop GPU does not predict native Switch performance. Profile-guided optimization would need representative training runs on a console and a reproducible cross-build before it can be adopted.
+```powershell
+port/switch/perf-log-audit.ps1 -AuditLogPath run.log -AuditWindowCount 5
+```
 
-The shared Kazarov renderer already has cached camera rebasing, separate bone palettes, shared storage-buffer records, deduplicated uploads and descriptor bindings, cached display-list rewrites, full-cover grab optimization, and device-local host-visible transient memory when supported. Chronicle caches compatible strip runs for static MDT visuals while animated remakes invalidate their runs and upload new vertex positions. Strip order and draw state are preserved. Chronicle's animated MDTs still use CPU skinning; Kazarov bone palettes serve prog0 draws. `DC_PRESENT_STATS=1` reports draw counts and canonical and display render times at exit. Kazarov's Tracy CPU and Vulkan GPU zones are available behind `KZ_PORT_TRACY`, but that instrumentation is not enabled in the Switch build. A profiling build should first establish whether CPU submission, GPU work, synchronization or memory pressure limits each scene.
+At stock handheld clocks, the 2026-10-26 scripted fixtures sustained about 60 Hz
+with zero selected late ticks at 1280 × 720:
 
-The build runs glslang on the host and embeds the resulting SPIR-V. NVK compiles GPU binaries as Chronicle creates its application pipelines at startup, then saves a driver-specific cache. The cache UUID includes the Mesa build, chipset and compiler flags; a desktop Vulkan cache is not a substitute for a Switch NVK cache. The first startup needs time for compilation, while compatible subsequent launches can reuse the saved application pipelines. Internal NVK meta pipelines can still compile when first used.
+| View | Canonical GPU mean |
+|---|---:|
+| Title | 13.86 ms |
+| Populated Norune | 12.41 ms |
+| Muska Lacka, village | 12.16 ms |
+| Muska Lacka, oasis | 13.72 ms |
+| Queens, shell | 11.63 ms |
+| Queens, fountain | 11.97 ms |
+| Queens, palace | 10.85 ms |
 
-The next performance steps are driven by the scene matrix:
+These results cover specific views, not every area or docked gameplay. Compare
+canonical images after rendering changes, excluding live timing text. Loading
+comparisons need both empty and compatible pipeline caches: cached startup and
+first launch have different costs. Internal driver pipelines can also compile
+on first use. Keep loose data and packed data comparisons separate; `dcdata pack`
+currently writes stored ZIP entries.
 
-1. Capture CPU submission time, GPU time, present latency, draw counts and memory pressure at both target resolutions. Determine which scenes actually miss the 16.7 ms frame budget.
-2. Measure cold startup compilation and warm startup cache reuse on a console. Confirm the cache is rewritten after a driver update and identify any internal NVK pipeline compilation during gameplay.
-3. If the CPU limits frames, profile display-list submission, draw calls, animated MDT skinning and archive access. Apply batching or caching only where the trace shows a gain, preserving draw order and gameplay. Compare pinned and automatic core placement.
-4. If the GPU limits frames, inspect overdraw, refraction, shadows, texture bandwidth and blend-heavy effects at both fixed resolutions. Change shaders or passes only with image comparisons and timing gains. Treat 1080p as its own target rather than assuming a 720p optimization scales.
-5. Once representative console traces exist, evaluate profile-guided optimization and link-time optimization in a reproducible Switch build. Check startup, frame times and binary size against the same baseline.
-
-Packed `data.zip` replaces thousands of loose-file directory lookups with one indexed archive; the supplied `dcdata pack` command stores entries without compression. Compare it with loose data on hardware before crediting it with a frame-time gain.
-
-The proposed CT frustum-culling work was skipped; no new CT frustum path is in scope. GPU skinning and multi-draw indirect submission have not started. Treat them as profiling-dependent follow-ups, and consider them only where measurements identify a bottleneck. For each change, rerun the same scene matrix and validate water and refraction, shadows, cloth and material animation, transitions, unchanged tick counts and asynchronous shutdown.
+See [Loading and character switching](LOADING.md) for asset-work optimizations,
+measurement controls, fixture limits and pending platform qualification.

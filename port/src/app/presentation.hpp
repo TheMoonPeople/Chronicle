@@ -77,6 +77,12 @@ struct GamePresentStats {
 GamePresentStats GamePresentStatistics();
 
 /**
+ * Turns the --perf-log report on or off: once a second, the game thread's tick times and the
+ * renderer's gfx::FrameTimings on stderr.
+ */
+void GameSetPerfLog(bool on);
+
+/**
  * Whether the FPS counter is drawn now.
  */
 bool GameShowingFps();

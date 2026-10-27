@@ -2,7 +2,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdlib>
 #include <limits>
+#include <memory>
+#include <print>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -30,6 +35,7 @@ constexpr std::size_t   kEndRecordSize = 22;
 constexpr std::uint64_t kMaxTailSize = kEndRecordSize + 0xFFFF;
 constexpr std::size_t   kLocalHeaderSize = 30;
 constexpr std::size_t   kCentralHeaderSize = 46;
+constexpr std::size_t   kMaxBulkIndexSize = 16 * 1024 * 1024;
 
 std::uint16_t Read16(std::span<const std::uint8_t> bytes, std::size_t offset = 0) {
     return static_cast<std::uint16_t>(bytes[offset]) | static_cast<std::uint16_t>(bytes[offset + 1] << 8);
@@ -53,7 +59,20 @@ constexpr std::array<std::uint32_t, 256> MakeCrcTable() {
     return table;
 }
 
-constexpr auto kCrcTable = MakeCrcTable();
+constexpr std::array<std::array<std::uint32_t, 256>, 8> MakeCrcTables() {
+    std::array<std::array<std::uint32_t, 256>, 8> tables{};
+    tables[0] = MakeCrcTable();
+    for (std::size_t slice = 1; slice < tables.size(); ++slice) {
+        for (std::size_t value = 0; value < tables[slice].size(); ++value) {
+            const std::uint32_t crc = tables[slice - 1][value];
+            tables[slice][value] = tables[0][crc & 0xFF] ^ (crc >> 8);
+        }
+    }
+    return tables;
+}
+
+constexpr auto        kCrcTables = MakeCrcTables();
+constexpr const auto &kCrcTable = kCrcTables[0];
 
 std::uint32_t Crc32(std::span<const std::uint8_t> bytes) {
     std::uint32_t crc = 0xFFFFFFFF;
@@ -61,6 +80,60 @@ std::uint32_t Crc32(std::span<const std::uint8_t> bytes) {
         crc = kCrcTable[(crc ^ byte) & 0xFF] ^ (crc >> 8);
     }
     return ~crc;
+}
+
+std::uint32_t Crc32Slice8(std::span<const std::uint8_t> bytes) {
+    std::uint32_t crc = 0xFFFFFFFF;
+    while (bytes.size() >= 8) {
+        const std::uint32_t first = crc ^ Read32(bytes);
+        crc = kCrcTables[7][first & 0xFF] ^ kCrcTables[6][(first >> 8) & 0xFF] ^
+              kCrcTables[5][(first >> 16) & 0xFF] ^ kCrcTables[4][first >> 24] ^
+              kCrcTables[3][bytes[4]] ^ kCrcTables[2][bytes[5]] ^
+              kCrcTables[1][bytes[6]] ^ kCrcTables[0][bytes[7]];
+        bytes = bytes.subspan(8);
+    }
+    for (const std::uint8_t byte : bytes) {
+        crc = kCrcTable[(crc ^ byte) & 0xFF] ^ (crc >> 8);
+    }
+    return ~crc;
+}
+
+bool CrcSlice8Enabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_ARCHIVE_CRC_SLICE8");
+        return value == nullptr || std::string_view(value) == "1";
+    }();
+    return enabled;
+}
+
+bool BulkIndexEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_ARCHIVE_BULK_INDEX");
+        return value == nullptr || std::string_view(value) == "1";
+    }();
+    return enabled;
+}
+
+bool SequentialIndexEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_ARCHIVE_SEQUENTIAL_INDEX");
+        return value == nullptr || std::string_view(value) == "1";
+    }();
+    return enabled;
+}
+
+bool LoadPerfEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_PERF_LOAD");
+        return value != nullptr && std::string_view(value) == "1";
+    }();
+    return enabled;
+}
+
+using LoadClock = std::chrono::steady_clock;
+
+double LoadMilliseconds(LoadClock::time_point start, LoadClock::time_point end) {
+    return std::chrono::duration<double, std::milli>(end - start).count();
 }
 
 bool SafeEntryName(std::string_view name) {
@@ -101,6 +174,10 @@ bool SafeEntryName(std::string_view name) {
 
 DataArchive::DataArchive(const std::filesystem::path &path)
     : path_(path), stream_(path, std::ios::binary) {
+    const bool perf_load = LoadPerfEnabled();
+    const bool sequential_index = SequentialIndexEnabled();
+    const bool bulk_requested = BulkIndexEnabled();
+    const auto started = perf_load ? LoadClock::now() : LoadClock::time_point{};
     if (!stream_) {
         Invalid(path_, "cannot open ZIP archive");
     }
@@ -151,11 +228,22 @@ DataArchive::DataArchive(const std::filesystem::path &path)
     records_.reserve(total_entries);
     stream_.clear();
     stream_.seekg(static_cast<std::streamoff>(central_offset));
+    const bool                          bulk_index = bulk_requested && central_size <= kMaxBulkIndexSize;
+    std::unique_ptr<std::istringstream> bulk_stream;
+    if (bulk_index) {
+        std::string storage(central_size, '\0');
+        stream_.read(storage.data(), static_cast<std::streamsize>(storage.size()));
+        if (std::cmp_not_equal(stream_.gcount(), storage.size())) {
+            Invalid(path_, "cannot read ZIP central directory");
+        }
+        bulk_stream = std::make_unique<std::istringstream>(std::move(storage), std::ios::binary);
+    }
+    std::istream &central_stream = bulk_stream ? static_cast<std::istream &>(*bulk_stream) : stream_;
     std::uint64_t consumed = 0;
     for (std::uint32_t index = 0; index < total_entries; ++index) {
         std::array<std::uint8_t, kCentralHeaderSize> header{};
-        stream_.read(reinterpret_cast<char *>(header.data()), header.size());
-        if (std::cmp_not_equal(stream_.gcount(), header.size()) || Read32(header) != kCentralSignature) {
+        central_stream.read(reinterpret_cast<char *>(header.data()), header.size());
+        if (std::cmp_not_equal(central_stream.gcount(), header.size()) || Read32(header) != kCentralSignature) {
             Invalid(path_, "invalid ZIP central directory entry");
         }
         const std::uint16_t flags = Read16(header, 8);
@@ -186,11 +274,11 @@ DataArchive::DataArchive(const std::filesystem::path &path)
         }
 
         std::string name(name_size, '\0');
-        stream_.read(name.data(), name_size);
+        central_stream.read(name.data(), name_size);
         std::vector<std::uint8_t> extra(extra_size);
-        stream_.read(reinterpret_cast<char *>(extra.data()), extra_size);
-        stream_.ignore(comment_size);
-        if (!stream_ || !SafeEntryName(name)) {
+        central_stream.read(reinterpret_cast<char *>(extra.data()), extra_size);
+        central_stream.ignore(comment_size);
+        if (!central_stream || !SafeEntryName(name)) {
             Invalid(path_, "invalid or unsafe ZIP entry name");
         }
         for (std::size_t at = 0; at < extra.size();) {
@@ -226,11 +314,23 @@ DataArchive::DataArchive(const std::filesystem::path &path)
             Invalid(path_, "ZIP local entry offset is outside the file area");
         }
         records_.push_back(std::move(record));
-        stream_.clear();
-        stream_.seekg(static_cast<std::streamoff>(central_offset + consumed));
+        if (!sequential_index) {
+            central_stream.clear();
+            central_stream.seekg(static_cast<std::streamoff>(bulk_index ? consumed : central_offset + consumed));
+        }
     }
     if (consumed != central_size) {
         Invalid(path_, "ZIP central directory size mismatch");
+    }
+    if (perf_load) {
+        const auto finished = LoadClock::now();
+        std::println(stderr,
+                     "perf load archive index entries {} central_bytes {} sequential_index {} index_ms {:.6f} "
+                     "bulk_index {} bulk_fallback_count {} bulk_fallback_reason {}",
+                     records_.size(), central_size, static_cast<int>(sequential_index),
+                     LoadMilliseconds(started, finished), static_cast<int>(bulk_index),
+                     static_cast<int>(bulk_requested && !bulk_index),
+                     !bulk_requested ? "disabled" : (bulk_index ? "none" : "central_size_cap"));
     }
 }
 
@@ -243,6 +343,8 @@ const DataArchive::Entry &DataArchive::GetEntry(std::size_t index) const {
 }
 
 bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const {
+    const bool perf_load = LoadPerfEnabled();
+    const auto started = perf_load ? LoadClock::now() : LoadClock::time_point{};
     if (index >= records_.size()) {
         return false;
     }
@@ -253,9 +355,15 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
         return false;
     }
     std::vector<std::uint8_t> compressed;
+    LoadClock::time_point     locked;
+    const auto                lock_started = perf_load ? LoadClock::now() : LoadClock::time_point{};
     {
         std::scoped_lock lock(stream_mutex_);
-        if (!record.local_header_checked) {
+        if (perf_load) {
+            locked = LoadClock::now();
+        }
+        const bool first_read = !record.local_header_checked;
+        if (first_read) {
             std::array<std::uint8_t, kLocalHeaderSize> local{};
             stream_.clear();
             stream_.seekg(static_cast<std::streamoff>(record.local_header_offset));
@@ -305,16 +413,20 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             if (record.compressed_size != record.entry.size) {
                 return false;
             }
-            stream_.clear();
-            stream_.seekg(static_cast<std::streamoff>(record.data_offset));
+            if (!first_read) {
+                stream_.clear();
+                stream_.seekg(static_cast<std::streamoff>(record.data_offset));
+            }
             stream_.read(reinterpret_cast<char *>(output.data()), static_cast<std::streamsize>(output.size()));
             if (std::cmp_not_equal(stream_.gcount(), output.size())) {
                 return false;
             }
         } else {
             compressed.resize(record.compressed_size);
-            stream_.clear();
-            stream_.seekg(static_cast<std::streamoff>(record.data_offset));
+            if (!first_read) {
+                stream_.clear();
+                stream_.seekg(static_cast<std::streamoff>(record.data_offset));
+            }
             stream_.read(reinterpret_cast<char *>(compressed.data()), static_cast<std::streamsize>(compressed.size()));
             if (std::cmp_not_equal(stream_.gcount(), compressed.size())) {
                 return false;
@@ -328,7 +440,6 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             }
             std::array<std::uint8_t, 16> descriptor{};
             stream_.clear();
-            stream_.seekg(static_cast<std::streamoff>(descriptor_offset));
             const std::uint64_t available = central_directory_offset_ - descriptor_offset;
             const std::size_t   descriptor_size = static_cast<std::size_t>(std::min<std::uint64_t>(available, descriptor.size()));
             stream_.read(reinterpret_cast<char *>(descriptor.data()), static_cast<std::streamsize>(descriptor_size));
@@ -348,6 +459,8 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
         }
     }
 
+    const auto io_finished = perf_load ? LoadClock::now() : LoadClock::time_point{};
+    auto       inflate_finished = io_finished;
     if (record.method == Method::Deflated) {
         char      empty_output = 0;
         char     *output_data = output.empty() ? &empty_output : reinterpret_cast<char *>(output.data());
@@ -359,7 +472,24 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             return false;
         }
     }
-    return Crc32(output) == record.crc;
+    if (perf_load && record.method == Method::Deflated) {
+        inflate_finished = LoadClock::now();
+    }
+    const bool slice8 = CrcSlice8Enabled();
+    const auto crc_started = perf_load ? LoadClock::now() : LoadClock::time_point{};
+    const bool valid = (slice8 ? Crc32Slice8(output) : Crc32(output)) == record.crc;
+    if (perf_load && valid) {
+        const auto finished = LoadClock::now();
+        std::println(stderr,
+                     "perf load archive entry {} bytes {} method {} crc_slice8 {} "
+                     "total_wall_ms {:.6f} lock_wait_ms {:.6f} IO_wall_ms {:.6f} "
+                     "inflate_wall_ms {:.6f} crc_wall_ms {:.6f} name {}",
+                     index, output.size(), std::to_underlying(record.method), static_cast<int>(slice8),
+                     LoadMilliseconds(started, finished), LoadMilliseconds(lock_started, locked),
+                     LoadMilliseconds(locked, io_finished), LoadMilliseconds(io_finished, inflate_finished),
+                     LoadMilliseconds(crc_started, finished), record.entry.name);
+    }
+    return valid;
 }
 
 bool DataArchivePresent(const std::filesystem::path &data_root) {

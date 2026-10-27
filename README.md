@@ -29,6 +29,13 @@ The project aims to produce **100% matching text and data sections** for:
 ### Prerequisites
 
 - A copy of _Dark Cloud_ (ideally the PAL version).
+- Git, to clone the repository and its submodule.
+- **Windows:** nothing else; the first build downloads its toolchain.
+- **Linux:** Docker or Podman (the build runs in Kazarov's container), Python 3, and to run the
+  game SDL3 3.4 and a Vulkan 1.3 driver with its loader.
+- **macOS:** Xcode's command line tools and the Homebrew packages in
+  [`docs/MACOS.md`](docs/MACOS.md).
+- **Nintendo Switch:** Docker on Linux or in WSL (see [`docs/SWITCH.md`](docs/SWITCH.md)).
 
 ### 1. Clone the repository
 

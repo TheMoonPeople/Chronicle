@@ -3,9 +3,11 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <print>
 #include <string_view>
@@ -23,7 +25,9 @@
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
 #include "ebattle.hpp"
+#include "editground.hpp"
 #include "editloop.hpp"
+#include "editloop3.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
 #include "langset.hpp"
@@ -50,6 +54,7 @@
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
+#include "wind.hpp"
 
 namespace dc::app {
 
@@ -63,6 +68,42 @@ using namespace dc::render;
 using namespace dc::save;
 
 namespace {
+
+using LoadTraceClock = std::chrono::steady_clock;
+
+struct LoadTrace {
+    bool                       active = false;
+    bool                       controls_seen = false;
+    bool                       fade_clear_seen = false;
+    unsigned                   sequence = 0;
+    const char                *kind = "mode";
+    int                        target = -1;
+    LoadTraceClock::time_point started;
+    LoadTraceClock::time_point previous;
+} g_load_trace;
+
+bool LoadTraceEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_PERF_TRANSITIONS");
+        return value != nullptr && std::strcmp(value, "1") == 0;
+    }();
+    return enabled;
+}
+
+void BeginLoadTrace(const char *kind, int target) {
+    if (!LoadTraceEnabled()) {
+        return;
+    }
+    g_load_trace.active = true;
+    g_load_trace.controls_seen = false;
+    g_load_trace.fade_clear_seen = false;
+    ++g_load_trace.sequence;
+    g_load_trace.kind = kind;
+    g_load_trace.target = target;
+    g_load_trace.started = g_load_trace.previous = LoadTraceClock::now();
+    std::println(stderr, "perf transition begin id {} kind {} source {} target {} frame {} fast_load {}", g_load_trace.sequence,
+                 kind, MapNo, target, GameFrameCount(), static_cast<int>(GameFastLoad()));
+}
 
 // Words of CSaveData::config that main() reads and writes directly.
 constexpr int kConfigVibrationOff = 7;
@@ -120,6 +161,7 @@ void GiveOnArrival() {
 
 struct Jump {
     bool set = false;
+    bool preset = false;
     int  mode = GAME_MODE_MENU;
     int  map = 0;
 };
@@ -182,6 +224,10 @@ void ModeInit(int &title_ran, int &exist_data, bool &skip_title) {
             }
             break;
         case GAME_MODE_EDIT:
+            if (g_jump.preset) {
+                old_main_mode = GAME_MODE_MENU;
+                main_select_padrup = 0;
+            }
             EditInit(nullptr);
             break;
         case GAME_MODE_MENU:
@@ -281,6 +327,9 @@ void ApplyJump() {
         case GAME_MODE_EDIT:
             main_select_menu_no = g_jump.map;
             MapNo = g_jump.map;
+            if (g_jump.preset) {
+                SetMainSelectParam(std::format("e{:02d}", g_jump.map + 1));
+            }
             if (g_jump.map != 99) {
                 LocalMapNo = g_jump.map;
             }
@@ -341,6 +390,76 @@ void ResetSaveKeepingConfig(CSaveData &save) {
     save.Initialize();
     save.InvertConfig(&config);
     static_cast<s32 *>(save.GetConfigData())[kConfigLastFile] = last_file;
+}
+
+void GameLoadTraceLaunch() {
+    BeginLoadTrace("launch", -1);
+}
+
+void GameLoadTraceRequest(int map_no) {
+    if (!LoadTraceEnabled() ||
+        (g_load_trace.active && std::string_view(g_load_trace.kind) == "world" && g_load_trace.target == map_no)) {
+        return;
+    }
+    BeginLoadTrace("world", map_no);
+}
+
+void GameLoadTraceCheckpoint(const char *stage) {
+    if (!g_load_trace.active) {
+        return;
+    }
+    const auto now = LoadTraceClock::now();
+    std::println(stderr,
+                 "perf transition stage id {} kind {} map {} stage {} frame {} clock_tick {} elapsed_wall_ms {:.3f} "
+                 "delta_wall_ms {:.3f}",
+                 g_load_trace.sequence, g_load_trace.kind, MapNo, stage, GameFrameCount(), ClockTickCount(),
+                 std::chrono::duration<double, std::milli>(now - g_load_trace.started).count(),
+                 std::chrono::duration<double, std::milli>(now - g_load_trace.previous).count());
+    g_load_trace.previous = now;
+    if (const std::string_view name = stage; name == "mode_init_done" || name == "revealed_walk") {
+        std::println(stderr, "perf transition random id {} stage {} state {} wind_gust {:.9f} wind_velocity {:.9f}",
+                     g_load_trace.sequence, stage, GameRandomStateForTrace(), static_cast<double>(EdWind.gust),
+                     static_cast<double>(EdWind.velocity));
+    }
+}
+
+void GameLoadTraceControlsReady() {
+    if (g_load_trace.active && (g_load_trace.target < 0 || g_load_trace.target == MapNo) && run_event_check() == 0) {
+        if (!g_load_trace.controls_seen) {
+            GameLoadTraceCheckpoint("controls_ready");
+            g_load_trace.controls_seen = true;
+        }
+        std::array<float, 4> fade{};
+        EdGetFadeColor(fade.data());
+        const bool clear = fade[3] <= 0.0f;
+        if (clear && g_load_trace.fade_clear_seen) {
+            GameLoadTraceCheckpoint("revealed_walk");
+            g_load_trace.active = false;
+        }
+        g_load_trace.fade_clear_seen = clear;
+    }
+}
+
+void GameLoadTraceWorldMapSelection(int cursor, int state, int target) {
+    if (!LoadTraceEnabled()) {
+        return;
+    }
+    static int last_cursor = -1;
+    static int last_state = -1;
+    if (cursor == last_cursor && state == last_state) {
+        return;
+    }
+    if (state == MENU_MOVE_STATE_SELECT && last_state != state) {
+        for (int place = 0; place < WORLD_PLACE_COUNT; ++place) {
+            const WORLD_MAP_POS &position = TownOrDngPos[place];
+            std::println(stderr, "perf world position place {} target {} x {} y {} visited {}", place,
+                         MenuGrobalMapNoTbl[place], position.x, position.y, position.visited);
+        }
+    }
+    std::println(stderr, "perf world selection cursor {} state {} target {} frame {}", cursor, state, target,
+                 GameFrameCount());
+    last_cursor = cursor;
+    last_state = state;
 }
 
 void GameFollowMapJump() {
@@ -520,8 +639,16 @@ bool GameSetJump(const char *spec) {
     if (!numbered && !number.empty()) {
         return false;
     }
-    if (name == "edit") {
+    if (name == "edit" || name == "e01" || name == "e03" || name == "e04") {
         jump.mode = GAME_MODE_EDIT;
+        jump.preset = name != "edit";
+        if (name == "e01") {
+            jump.map = TOWN_NORUNE;
+        } else if (name == "e03") {
+            jump.map = TOWN_QUEENS;
+        } else if (name == "e04") {
+            jump.map = TOWN_MUSKA_LACKA;
+        }
     } else if (name == "dungeon" && jump.map <= 6) {
         jump.mode = GAME_MODE_DUNGEON;
     } else if (name == "title") {
@@ -687,12 +814,17 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     bool data_loaded = false;
     bool skip_title = false;
     for (;;) {
+        if (!g_load_trace.active) {
+            BeginLoadTrace("mode", MapNo);
+        }
+        GameLoadTraceCheckpoint("mode_begin");
         // A language chosen on the Options screen takes hold here, where the next area is about to load.
         LocalizeApplyPendingLanguage();
         if (mode != GAME_MODE_UNUSED_12 && !data_loaded) {
             initialize_data();
             data_loaded = true;
         }
+        GameLoadTraceCheckpoint("common_data_done");
         InitReadBG();
         SndInit();
 
@@ -702,6 +834,7 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         }
 
         LoadOverlay(mode);
+        GameLoadTraceCheckpoint("overlay_done");
         MGSetRenderInfo(800.0f, 10.0f, 65535.0f);
         switch (mode) {
             case GAME_MODE_LOADER:
@@ -719,6 +852,7 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         if (mode != GAME_MODE_UNUSED_12 && StartEventNo < 0) {
             init_now_loading(MapNo);
         }
+        GameLoadTraceCheckpoint("loading_card_started");
         GamePad.StopVibration();
         if (DebugMode) {
             LoadSystemMessage();
@@ -728,11 +862,13 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         GameOptionsApply(ConfigGet().options);
         bool event_start = StartEventNo >= 0;
         ModeInit(title_ran, exist_data, skip_title);
+        GameLoadTraceCheckpoint("mode_init_done");
 
         NextMapNo = -1;
         // check_now_loading pumps the clock while the loading screen runs.
         while (check_now_loading() == 0) {
         }
+        GameLoadTraceCheckpoint("loading_card_done");
 
         MGInitVSyncCallBack(PlayTimeCount);
         LoadDrawEnv();
@@ -743,10 +879,18 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
             std::println(stderr, "autosave: could not write {}", PathsDisplay(SaveSlotPath(kSaveSlotAutosave)));
         }
 
-        int result = 0;
+        int  result = 0;
+        bool first_tick = true;
         do {
             if (FrameBoundaryStop()) {
                 return kExitOk;
+            }
+            if (first_tick) {
+                GameLoadTraceCheckpoint("first_mode_tick");
+                first_tick = false;
+                if (mode != GAME_MODE_EDIT) {
+                    g_load_trace.active = false;
+                }
             }
             MGAdjustScreen(ConfigWords()[kConfigScreenX], ConfigWords()[kConfigScreenY]);
             ConfigWords()[kConfigGameClear] = GameClearFlag;

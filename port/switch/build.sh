@@ -2,7 +2,8 @@
 # Builds the Nintendo Switch homebrew port (docs/SWITCH.md) in port/switch/Containerfile
 # describes, building that image first when this checkout's Containerfile has no image yet.
 # Docker by default; BUILDER can select another OCI-compatible runtime. The arguments go to the
-# build (targets, -v); `port/switch/build.sh shell` opens a shell in the image instead.
+# build (targets, -v); `port/switch/build.sh shell` opens a shell in the image instead, and
+# `port/switch/build.sh image` prints the image's name.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -28,6 +29,11 @@ tag=$({
         "$root"/port/switch/patches/*.patch
 } | sha256sum | cut -c1-12)
 image=$name:$tag
+# `port/switch/build.sh image` names the image this checkout builds in, for a cache to key on.
+if [ "${1:-}" = image ]; then
+    echo "$image"
+    exit 0
+fi
 if ! "$builder" image inspect "$image" > /dev/null 2>&1; then
     echo "switch: building $image (the first build takes a while)" >&2
     "$builder" build -t "$image" -t "$name:latest" -f "$containerfile" "$root/port/switch"

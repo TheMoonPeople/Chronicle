@@ -1,3 +1,4 @@
+#include "app/gameloop.hpp"
 #include "battlemenu/internal.hpp"
 
 namespace dc::battlemenu {
@@ -57,6 +58,11 @@ void ExtractMovePromptText(std::string &out_title, std::string &out_desc) {
 } // namespace
 
 void PortDrawMenuMove() {
+    if ((MenuMove.mode == MENU_MOVE_WORLD_MAP || MenuMove.mode == MENU_MOVE_WORLD_MAP_DIRECT) &&
+        MenuMove.cursor >= 0 && MenuMove.cursor < WORLD_PLACE_COUNT) {
+        const int target = MenuGrobalMapNoTbl[MenuMove.cursor];
+        app::GameLoadTraceWorldMapSelection(MenuMove.cursor, MenuMove.state, target);
+    }
     if (MenuMove.mode == MENU_MOVE_WORLD_MAP_DIRECT) {
         MenuWorldTrans(&MenuCamera);
         FrameImageDraw(0x40, 0x80);

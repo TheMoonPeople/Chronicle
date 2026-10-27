@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <span>
 #include <utility>
@@ -100,6 +103,166 @@ struct Volume {
     std::vector<uint32_t> away;
     std::vector<uint32_t> cap;
 };
+
+bool ShadowHashEnabled() {
+    static const bool enabled = [] {
+        const char *setting = std::getenv("DC_PERF_SHADOW_HASH");
+        return setting != nullptr && std::strcmp(setting, "1") == 0;
+    }();
+    return enabled;
+}
+
+bool ShadowVolumePhasesEnabled() {
+    static const bool enabled = [] {
+        const char *setting = std::getenv("DC_PERF_GAME_PHASES");
+        return setting != nullptr && std::strcmp(setting, "1") == 0;
+    }();
+    return enabled;
+}
+
+using ShadowVolumeClock = std::chrono::steady_clock;
+
+struct ShadowVolumeSpan {
+    double total = 0.0;
+    double maximum = 0.0;
+};
+
+void NoteShadowVolumePhases(ShadowVolumeClock::time_point start, ShadowVolumeClock::time_point built,
+                            ShadowVolumeClock::time_point assembled, ShadowVolumeClock::time_point drawn,
+                            size_t vertices, size_t indices) {
+    struct Samples {
+        unsigned                        count = 0;
+        std::array<ShadowVolumeSpan, 3> spans{};
+        uint64_t                        vertices = 0;
+        uint64_t                        indices = 0;
+    };
+
+    static Samples              samples;
+    const std::array<double, 3> elapsed = {
+        std::chrono::duration<double, std::milli>(built - start).count(),
+        std::chrono::duration<double, std::milli>(assembled - built).count(),
+        std::chrono::duration<double, std::milli>(drawn - assembled).count()};
+    for (size_t i = 0; i < elapsed.size(); ++i) {
+        samples.spans[i].total += elapsed[i];
+        samples.spans[i].maximum = std::max(samples.spans[i].maximum, elapsed[i]);
+    }
+    samples.vertices += vertices;
+    samples.indices += indices;
+    if (++samples.count == 120) {
+        std::fprintf(stderr,
+                     "cpu precisevolume %u calls mean/max ms: build %.3f/%.3f assemble %.3f/%.3f "
+                     "draw %.3f/%.3f vertices %llu indices %llu\n",
+                     samples.count,
+                     samples.spans[0].total / samples.count, samples.spans[0].maximum,
+                     samples.spans[1].total / samples.count, samples.spans[1].maximum,
+                     samples.spans[2].total / samples.count, samples.spans[2].maximum,
+                     static_cast<unsigned long long>(samples.vertices), static_cast<unsigned long long>(samples.indices));
+        samples = {};
+    }
+}
+
+enum class FastShadowCount : size_t {
+    Triangles,
+    Selected,
+    Prisms,
+    Vertices,
+    Indices,
+    AwayOnlyCalls,
+    EveryCalls,
+    Count,
+};
+
+using FastShadowCounts = std::array<uint64_t, static_cast<size_t>(FastShadowCount::Count)>;
+
+void NoteFastShadowPhases(ShadowVolumeClock::time_point start, ShadowVolumeClock::time_point built,
+                          ShadowVolumeClock::time_point drawn, const FastShadowCounts &counts) {
+    struct Samples {
+        unsigned                        count = 0;
+        std::array<ShadowVolumeSpan, 2> spans{};
+        FastShadowCounts                counts{};
+    };
+
+    static Samples              samples;
+    const std::array<double, 2> elapsed = {
+        std::chrono::duration<double, std::milli>(built - start).count(),
+        std::chrono::duration<double, std::milli>(drawn - built).count()};
+    for (size_t i = 0; i < elapsed.size(); ++i) {
+        samples.spans[i].total += elapsed[i];
+        samples.spans[i].maximum = std::max(samples.spans[i].maximum, elapsed[i]);
+    }
+    for (size_t i = 0; i < counts.size(); ++i) {
+        samples.counts[i] += counts[i];
+    }
+    if (++samples.count == 120) {
+        const auto count = [&](FastShadowCount kind) {
+            return static_cast<unsigned long long>(samples.counts[static_cast<size_t>(kind)]);
+        };
+        std::fprintf(stderr,
+                     "cpu fastvolume %u valid calls mean/max ms: build %.3f/%.3f draw %.3f/%.3f "
+                     "triangles %llu selected %llu prisms %llu vertices %llu indices %llu away_only_calls %llu every_calls %llu\n",
+                     samples.count, samples.spans[0].total / samples.count, samples.spans[0].maximum,
+                     samples.spans[1].total / samples.count, samples.spans[1].maximum,
+                     count(FastShadowCount::Triangles), count(FastShadowCount::Selected), count(FastShadowCount::Prisms),
+                     count(FastShadowCount::Vertices), count(FastShadowCount::Indices), count(FastShadowCount::AwayOnlyCalls),
+                     count(FastShadowCount::EveryCalls));
+        samples = {};
+    }
+}
+
+constexpr uint64_t kShadowHashOffset = 14695981039346656037ULL;
+constexpr uint64_t kShadowHashPrime = 1099511628211ULL;
+
+enum class ShadowHashSection : uint32_t {
+    Call,
+    Vertices,
+    Both,
+    Away,
+    Cap,
+};
+
+void HashShadowWord(uint64_t &hash, uint32_t value) {
+    for (unsigned shift = 0; shift < 32; shift += 8) {
+        hash = (hash ^ ((value >> shift) & 0xffu)) * kShadowHashPrime;
+    }
+}
+
+void HashShadowSize(uint64_t &hash, uint64_t value) {
+    HashShadowWord(hash, static_cast<uint32_t>(value));
+    HashShadowWord(hash, static_cast<uint32_t>(value >> 32));
+}
+
+void NoteFastShadowHash(const Volume &volume, bool away_only) {
+    static uint64_t hash = kShadowHashOffset;
+    static uint64_t calls = 0;
+    static unsigned count = 0;
+    HashShadowWord(hash, static_cast<uint32_t>(ShadowHashSection::Call));
+    HashShadowSize(hash, ++calls);
+    HashShadowWord(hash, away_only ? 1u : 0u);
+    HashShadowWord(hash, static_cast<uint32_t>(ShadowHashSection::Vertices));
+    HashShadowSize(hash, volume.vertices.size());
+    for (const gfx::Vertex3D &vertex : volume.vertices) {
+        for (float coordinate : vertex.position) {
+            HashShadowWord(hash, std::bit_cast<uint32_t>(coordinate));
+        }
+    }
+    const auto indices = [&](ShadowHashSection section, const std::vector<uint32_t> &values) {
+        HashShadowWord(hash, static_cast<uint32_t>(section));
+        HashShadowSize(hash, values.size());
+        for (uint32_t value : values) {
+            HashShadowWord(hash, value);
+        }
+    };
+    indices(ShadowHashSection::Both, volume.both);
+    indices(ShadowHashSection::Away, volume.away);
+    indices(ShadowHashSection::Cap, volume.cap);
+    if (++count == 120) {
+        std::fprintf(stderr, "cpu fastshadowhash valid_calls %llu-%llu n%u geometry %016llx\n",
+                     static_cast<unsigned long long>(calls - count + 1), static_cast<unsigned long long>(calls), count,
+                     static_cast<unsigned long long>(hash));
+        hash = kShadowHashOffset;
+        count = 0;
+    }
+}
 
 uint32_t AddVertex(Volume &volume, Vec3 corner) {
     gfx::Vertex3D vertex = {};
@@ -421,7 +584,7 @@ bool SideCancelled(const Prism &a, const Prism &b, int edge) {
 void DrawCount(const Volume &volume, const Projection &projection, const RenderInfo &info, bool add) {
     // DrawMeshImmediate copies recorded vertices and indices, so the pass list can be reused.
     static thread_local std::vector<uint32_t> indices;
-    const std::vector<uint32_t>              &own = add ? volume.cap : volume.away;
+    const std::span<const uint32_t>           own = add ? volume.cap : volume.away;
     indices.clear();
     indices.reserve(volume.both.size() + own.size());
     indices.insert(indices.end(), volume.both.begin(), volume.both.end());
@@ -455,6 +618,59 @@ void DrawVolume(const Volume &volume, const Projection &projection, const Render
     current.alpha.bits.fix = 0x80;
 }
 
+bool DirectShadowClipEnabled() {
+    static const bool enabled = [] {
+        const char *setting = std::getenv("DC_SHADOW_CLIP_DIRECT");
+        return setting != nullptr && std::strcmp(setting, "1") == 0;
+    }();
+    return enabled;
+}
+
+int BuildSelectedShadowVolume(Volume &volume, const Projection &projection, unsigned int *model_data,
+                              const RenderInfo &info, float (*matrix)[4], float near_cap) {
+    sceVu0FVECTOR light = {info.light_direction[0][0], info.light_direction[1][0], info.light_direction[2][0], 0.0f};
+    sceVu0FMATRIX transpose;
+    sceVu0FVECTOR local_light;
+    sceVu0TransposeMatrix(transpose, matrix);
+    sceVu0ApplyMatrix(local_light, transpose, light);
+    auto *model = reinterpret_cast<MDT_HEADER *>(model_data);
+    auto *shadow = reinterpret_cast<MDT_SHADOW *>(reinterpret_cast<unsigned char *>(model) + model->mesh_ofs);
+    auto *vertices = reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<unsigned char *>(model) + model->vertex_ofs);
+    auto *corner = reinterpret_cast<MDT_SVERTEX *>(shadow->shape);
+    int   selected = 0;
+    for (int shape = 0; shape < shadow->shape_num; ++shape) {
+        const int index_count = reinterpret_cast<MDT_SSHAPE *>(corner)->index_num;
+        corner = reinterpret_cast<MDT_SSHAPE *>(corner)->vertex;
+        for (int emitted = 0; emitted < index_count; emitted += 3, corner += 3) {
+            const int     a = corner[0].index;
+            const int     b = corner[1].index;
+            const int     c = corner[2].index;
+            sceVu0FVECTOR edge0;
+            sceVu0FVECTOR edge1;
+            sceVu0FVECTOR face;
+            sceVu0SubVector(edge0, vertices[b], vertices[a]);
+            sceVu0SubVector(edge1, vertices[c], vertices[a]);
+            sceVu0OuterProduct(face, edge0, edge1);
+            if (sceVu0InnerProduct(face, local_light) > 0.0f) {
+                continue;
+            }
+            const Vec3 local[3] = {
+                {vertices[a][0], vertices[a][1], vertices[a][2]},
+                {vertices[b][0], vertices[b][1], vertices[b][2]},
+                {vertices[c][0], vertices[c][1], vertices[c][2]}
+            };
+            Vec3 top[3];
+            Vec3 drop[3];
+            Corners(projection, local, top, drop);
+            const bool sides[3] = {corner[0].edge == 0, corner[1].edge == 0, corner[2].edge == 0};
+            AddPrism(volume, top, drop, sides, Count::AwayOnly);
+            AddNearCap(volume, top, drop, near_cap);
+            ++selected;
+        }
+    }
+    return selected;
+}
+
 } // namespace
 
 int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, VU1_PROGRAM program,
@@ -471,12 +687,19 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
     }
 
     if (info->shadow_pass == 2) {
-        u_int *saved_primary = vu_data_buffer[0];
-        u_int *saved_secondary = vu_data_buffer[1];
-        u_int  saved_size = vu_size;
+        u_int     *saved_primary = vu_data_buffer[0];
+        u_int     *saved_secondary = vu_data_buffer[1];
+        u_int      saved_size = vu_size;
+        const bool trace = ShadowVolumePhasesEnabled();
+        const auto start = trace ? ShadowVolumeClock::now() : ShadowVolumeClock::time_point{};
         ActiveData->Align64();
         ActiveData->Alloc(CreateVUdataShadowCLIP(reinterpret_cast<u_int *>(ActiveData->base + static_cast<ptrdiff_t>(ActiveData->used) * 16), data,
                                                  info, matrix));
+        const auto built = trace ? ShadowVolumeClock::now() : ShadowVolumeClock::time_point{};
+        auto       assembled = built;
+        auto       drawn = built;
+        size_t     vertices = 0;
+        size_t     indices = 0;
         if (const Draw3DVisual *visual = Draw3DFindVisual(vu_data);
             visual && visual->strips.size() == 3 && !visual->indices.empty()) {
             Volume volume;
@@ -485,7 +708,18 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
             volume.both.assign(begin, begin + visual->strips[1].first_index);
             volume.away.assign(begin + visual->strips[1].first_index, begin + visual->strips[2].first_index);
             volume.cap.assign(begin + visual->strips[2].first_index, visual->indices.end());
+            if (trace) {
+                assembled = ShadowVolumeClock::now();
+                vertices = volume.vertices.size();
+                indices = volume.both.size() + volume.away.size() + volume.cap.size();
+            }
             DrawVolume(volume, projection, *info);
+        } else if (trace) {
+            assembled = ShadowVolumeClock::now();
+        }
+        if (trace) {
+            drawn = ShadowVolumeClock::now();
+            NoteShadowVolumePhases(start, built, assembled, drawn, vertices, indices);
         }
         vu_data_buffer[0] = saved_primary;
         vu_data_buffer[1] = saved_secondary;
@@ -498,7 +732,10 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
     if (visual == nullptr) {
         return 0;
     }
-    bool away_only = Draw3DCurrentShadowProgram() == Draw3DShadowProgram::AwayFromLight;
+    const bool       trace_fast = ShadowVolumePhasesEnabled();
+    const auto       fast_start = trace_fast ? ShadowVolumeClock::now() : ShadowVolumeClock::time_point{};
+    FastShadowCounts fast_counts{};
+    bool             away_only = Draw3DCurrentShadowProgram() == Draw3DShadowProgram::AwayFromLight;
     // Every selected triangle's prism is built first; each side is then left out where the
     // neighbouring triangle's prism lies across it and has the same quad with the opposite winding.
     static thread_local std::vector<Prism> prisms;
@@ -516,6 +753,9 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
         prism.selected = !away_only || FacesAwayFromLight(projection, local);
         prism.solid = false;
         if (prism.selected) {
+            if (trace_fast) {
+                ++fast_counts[static_cast<size_t>(FastShadowCount::Selected)];
+            }
             Corners(projection, local, prism.top, prism.drop);
             bool down = false;
             prism.solid = PrismThickness(prism.top, prism.drop, down);
@@ -527,6 +767,9 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
         const Prism &prism = prisms[triangle];
         if (!prism.solid) {
             continue;
+        }
+        if (trace_fast) {
+            ++fast_counts[static_cast<size_t>(FastShadowCount::Prisms)];
         }
         bool sides[3] = {true, true, true};
         for (int edge = 0; linked && edge < 3; edge++) {
@@ -545,7 +788,20 @@ int CVisualShadow::DrawVu1(u_int *packet, float (*matrix)[4], RenderInfo *info, 
         }
         AddPrism(volume, prism.top, prism.drop, sides, Count::Both);
     }
+    const auto fast_built = trace_fast ? ShadowVolumeClock::now() : ShadowVolumeClock::time_point{};
     DrawVolume(volume, projection, *info);
+    if (trace_fast) {
+        const auto fast_drawn = ShadowVolumeClock::now();
+        fast_counts[static_cast<size_t>(FastShadowCount::Triangles)] = triangles;
+        fast_counts[static_cast<size_t>(FastShadowCount::Vertices)] = volume.vertices.size();
+        fast_counts[static_cast<size_t>(FastShadowCount::Indices)] = volume.both.size() + volume.away.size() + volume.cap.size();
+        fast_counts[static_cast<size_t>(FastShadowCount::AwayOnlyCalls)] = away_only ? 1 : 0;
+        fast_counts[static_cast<size_t>(FastShadowCount::EveryCalls)] = away_only ? 0 : 1;
+        NoteFastShadowPhases(fast_start, fast_built, fast_drawn, fast_counts);
+        if (ShadowHashEnabled()) {
+            NoteFastShadowHash(volume, away_only);
+        }
+    }
     return 0;
 }
 
@@ -619,26 +875,32 @@ int CVisualShadow::CreateVUdataShadowCLIP(u_int *block, u_int *model_data, Rende
     if (!projection.valid) {
         return 0;
     }
-    int count = ShadowClipBuild(nullptr, 0, model_data, info, matrix, 0);
-    if (count <= 0) {
-        return vu_size;
-    }
-    std::vector<ShadowClipTriangle> triangles(static_cast<size_t>(count));
-    ShadowClipBuild(triangles.data(), count, model_data, info, matrix, 0);
-
     float  near_cap = NearPlane(projection) * 1.001f;
     Volume volume;
-    for (const ShadowClipTriangle &triangle : triangles) {
-        Vec3 local[3];
-        for (int i = 0; i < 3; i++) {
-            local[i] = {.x = triangle.local[i][0], .y = triangle.local[i][1], .z = triangle.local[i][2]};
+    if (DirectShadowClipEnabled()) {
+        if (BuildSelectedShadowVolume(volume, projection, model_data, *info, matrix, near_cap) == 0) {
+            return vu_size;
         }
-        Vec3 top[3];
-        Vec3 drop[3];
-        Corners(projection, local, top, drop);
-        bool sides[3] = {triangle.edges[0] == 0, triangle.edges[1] == 0, triangle.edges[2] == 0};
-        AddPrism(volume, top, drop, sides, Count::AwayOnly);
-        AddNearCap(volume, top, drop, near_cap);
+    } else {
+        int count = ShadowClipBuild(nullptr, 0, model_data, info, matrix, 0);
+        if (count <= 0) {
+            return vu_size;
+        }
+        std::vector<ShadowClipTriangle> triangles(static_cast<size_t>(count));
+        ShadowClipBuild(triangles.data(), count, model_data, info, matrix, 0);
+
+        for (const ShadowClipTriangle &triangle : triangles) {
+            Vec3 local[3];
+            for (int i = 0; i < 3; i++) {
+                local[i] = {.x = triangle.local[i][0], .y = triangle.local[i][1], .z = triangle.local[i][2]};
+            }
+            Vec3 top[3];
+            Vec3 drop[3];
+            Corners(projection, local, top, drop);
+            bool sides[3] = {triangle.edges[0] == 0, triangle.edges[1] == 0, triangle.edges[2] == 0};
+            AddPrism(volume, top, drop, sides, Count::AwayOnly);
+            AddNearCap(volume, top, drop, near_cap);
+        }
     }
 
     Draw3DStrip both;

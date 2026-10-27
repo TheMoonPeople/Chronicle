@@ -2,10 +2,14 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iterator>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include "camera.hpp"
@@ -1234,14 +1238,88 @@ void CEditGround::DrawRipple(int pass) {
 
 namespace {
 
+using ShadowClock = std::chrono::steady_clock;
+
+// What EdGroundDrawShadowBeyondNear drew, reported every 120 calls under DC_PERF_GAME_PHASES=1.
+struct ShadowPartCounts {
+    unsigned calls = 0;
+    unsigned mutable_scanned = 0;
+    unsigned mutable_selected = 0;
+    unsigned fixed_scanned = 0;
+    unsigned fixed_selected = 0;
+    unsigned shades = 0;
+    unsigned shadows = 0;
+    unsigned precise = 0;
+    unsigned fast = 0;
+    double   shade_ms = 0.0;
+    double   shade_max_ms = 0.0;
+    double   shadow_ms = 0.0;
+    double   shadow_max_ms = 0.0;
+};
+
+ShadowPartCounts far_shadow_counts;
+
+bool ShadowPartCountsEnabled() {
+    static const bool enabled = [] {
+        const char *setting = std::getenv("DC_PERF_GAME_PHASES");
+        return setting != nullptr && std::string_view(setting) == "1";
+    }();
+    return enabled;
+}
+
+void AddShadowSpan(ShadowClock::time_point start, double &total_ms, double &max_ms) {
+    const double elapsed_ms = std::chrono::duration<double, std::milli>(ShadowClock::now() - start).count();
+    total_ms += elapsed_ms;
+    max_ms = std::max(max_ms, elapsed_ms);
+}
+
+// Draws part's shade and then its shadow, with the fast volume program for pass 1 or past
+// fast_distance; counts both when counts is given.
+void DrawPartShadow(CMapParts &part, int pass, float depth, float fast_distance, ShadowPartCounts *counts) {
+    if (counts != nullptr) {
+        ++counts->shades;
+    }
+    const auto shade_start = counts != nullptr ? ShadowClock::now() : ShadowClock::time_point{};
+    part.DrawShade();
+    if (counts != nullptr) {
+        AddShadowSpan(shade_start, counts->shade_ms, counts->shade_max_ms);
+    }
+
+    if (part.shadow_frame == nullptr) {
+        return;
+    }
+
+    int fast = pass != 0;
+
+    if (depth > fast_distance) {
+        fast = 1;
+    }
+
+    if (counts != nullptr) {
+        ++counts->shadows;
+        ++(fast != 0 ? counts->fast : counts->precise);
+    }
+    const auto shadow_start = counts != nullptr ? ShadowClock::now() : ShadowClock::time_point{};
+    part.DrawShadow(fast);
+    if (counts != nullptr) {
+        AddShadowSpan(shadow_start, counts->shadow_ms, counts->shadow_max_ms);
+    }
+}
+
 // The shadows of the parts whose depth from the eye lies between near_distance and far_distance.
 // A part within full of the eye takes the precise volume program whatever its draw_distance; past
 // it, one deeper than 300 takes the fast program and one with a draw_distance casts nothing past it.
-void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float far_distance, float full) {
+void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float far_distance, float full,
+                       ShadowPartCounts *counts = nullptr) {
     sceVu0FVECTOR position;
     sceVu0FVECTOR view;
     sceVu0FVECTOR clip_position;
     float         fast_distance = full > 300.0f ? full : 300.0f;
+
+    if (counts != nullptr) {
+        counts->mutable_scanned += static_cast<unsigned>(std::size(ground.parts));
+        counts->fixed_scanned += static_cast<unsigned>(std::size(ground.fixed_parts));
+    }
 
     for (CMapParts &object : ground.parts) {
         if (object.category_no < 0) {
@@ -1277,17 +1355,10 @@ void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float
         }
 
         if (view[2] > near_distance && view[2] < far_distance) {
-            object.DrawShade();
-
-            if (object.shadow_frame != nullptr) {
-                int fast = pass != 0;
-
-                if (view[2] > fast_distance) {
-                    fast = 1;
-                }
-
-                object.DrawShadow(fast);
+            if (counts != nullptr) {
+                ++counts->mutable_selected;
             }
+            DrawPartShadow(object, pass, view[2], fast_distance, counts);
         }
     }
 
@@ -1305,17 +1376,10 @@ void DrawShadowBetween(CEditGround &ground, int pass, float near_distance, float
         sceVu0ApplyMatrix(view, mgRenderInfo.view_scaled, position);
 
         if (view[2] > near_distance && view[2] < far_distance) {
-            fixed.DrawShade();
-
-            if (fixed.shadow_frame != nullptr) {
-                int fast = pass != 0;
-
-                if (view[2] > fast_distance) {
-                    fast = 1;
-                }
-
-                fixed.DrawShadow(fast);
+            if (counts != nullptr) {
+                ++counts->fixed_selected;
             }
+            DrawPartShadow(fixed, pass, view[2], fast_distance, counts);
         }
     }
 }
@@ -1344,10 +1408,22 @@ void CEditGround::DrawShadow(int pass, float near_distance, float far_distance) 
 }
 
 void EdGroundDrawShadowBeyondNear(CEditGround *ground, float shadow_near) {
-    float full = ConfigShadowDistance();
+    ShadowPartCounts *counts = ShadowPartCountsEnabled() ? &far_shadow_counts : nullptr;
+    float             full = ConfigShadowDistance();
 
     if (full > shadow_near) {
-        DrawShadowBetween(*ground, 0, shadow_near, full, full);
+        DrawShadowBetween(*ground, 0, shadow_near, full, full, counts);
+    }
+    if (counts != nullptr && ++counts->calls == 120) {
+        std::fprintf(stderr,
+                     "cpu farshadowparts %u calls: mutable %u/%u fixed %u/%u shade %u shadow %u precise %u fast %u\n",
+                     counts->calls, counts->mutable_selected, counts->mutable_scanned, counts->fixed_selected,
+                     counts->fixed_scanned, counts->shades, counts->shadows, counts->precise, counts->fast);
+        std::fprintf(
+            stderr,
+            "cpu farshadowparts calls wall ms: shade total %.3f max %.3f shadow total %.3f max %.3f over %u frames\n",
+            counts->shade_ms, counts->shade_max_ms, counts->shadow_ms, counts->shadow_max_ms, counts->calls);
+        *counts = {};
     }
 }
 

@@ -31,6 +31,40 @@ void GameSetFrameBudget(std::int64_t frames);
 std::int64_t GameFrameCount();
 
 /**
+ * Starts a DC_PERF_TRANSITIONS=1 load trace for the executable's launch.
+ */
+void GameLoadTraceLaunch();
+
+/**
+ * Starts a DC_PERF_TRANSITIONS=1 load trace for a world-map jump to map_no, unless one to it is
+ * already running.
+ */
+void GameLoadTraceRequest(int map_no);
+
+/**
+ * Logs a named milestone of the running load trace with its wall time since the trace began and
+ * since the previous milestone.
+ */
+void GameLoadTraceCheckpoint(const char *stage);
+
+/**
+ * Called every town frame: logs when the player first has control of the traced map and ends the
+ * trace once its fade has cleared.
+ */
+void GameLoadTraceControlsReady();
+
+/**
+ * Logs the world map's cursor and state, and every place's position when selection opens, under
+ * DC_PERF_TRANSITIONS=1.
+ */
+void GameLoadTraceWorldMapSelection(int cursor, int state, int target);
+
+/**
+ * The game's libc generator state, for load traces.
+ */
+unsigned int GameRandomStateForTrace();
+
+/**
  * Clears save for a new game as retail's main() does, keeping its configuration, and keeping the
  * last file's number whole where retail's round trip keeps one byte of it.
  */
@@ -39,9 +73,9 @@ void ResetSaveKeepingConfig(game::CSaveData &save);
 /**
  * Test hook: takes "edit[:<map no>]" (the game's MapNo: 0-4 the towns, 11 and up the sub maps, 99
  * the interior), "dungeon[:<n>]" (dungeon n, 0-6, map 200 + n, at its floor select), "title",
- * "rush", "opening" or "menu"; false for anything else. RunGame then sets DebugMode, skips the
- * warm-up and starts in that mode, set up as the developer menu (and, for a dungeon, its loader)
- * would have.
+ * "rush", "opening", "menu", or the populated town presets "e01" (Norune), "e03" (Queens) and "e04"
+ * (Muska Lacka); false for anything else. RunGame then sets DebugMode, skips the warm-up and starts
+ * in that mode, set up as the developer menu (and, for a dungeon, its loader) would have.
  */
 bool GameSetJump(const char *spec);
 

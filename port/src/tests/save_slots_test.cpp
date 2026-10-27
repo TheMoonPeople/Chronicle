@@ -579,4 +579,68 @@ TEST(SaveSlots, EndingSaveFailureCanBeLeft) {
     fs::remove_all(root);
 }
 
+TEST(SaveFixtureSeed, CopiesIntoNewAndEmptyRootsWithoutChangingSource) {
+    const fs::path root = UseTempSaveRoot();
+    const fs::path source = root / "fixture";
+    fs::create_directories(source / "saves" / "1");
+    const std::vector<char> bytes{'s', '\0', 'v', static_cast<char>(0xff)};
+    WriteFile(source / "saves" / "1" / "save.dat", bytes);
+    WriteFile(source / "saves" / "state.json", {'{', '}'});
+    std::string error;
+    for (const char *name : {"new", "empty"}) {
+        const fs::path destination = root / name;
+        if (std::string_view(name) == "empty") {
+            fs::create_directory(destination);
+        }
+        ASSERT_TRUE(SaveStateSeed(source, destination, error)) << error;
+        EXPECT_EQ(ReadFile(destination / "saves" / "1" / "save.dat"), bytes);
+        EXPECT_EQ(ReadFile(destination / "saves" / "state.json"), ReadFile(source / "saves" / "state.json"));
+        EXPECT_FALSE(fs::exists(destination / "config.json"));
+    }
+    EXPECT_EQ(ReadFile(source / "saves" / "1" / "save.dat"), bytes);
+    EXPECT_EQ(std::distance(fs::directory_iterator(source), fs::directory_iterator()), 1);
+    fs::remove_all(root);
+}
+
+TEST(SaveFixtureSeed, RefusesNonemptyDestinationWithoutOverwritingOrAddingFiles) {
+    const fs::path root = UseTempSaveRoot();
+    const fs::path source = root / "fixture";
+    const fs::path destination = root / "existing";
+    fs::create_directory(source);
+    fs::create_directory(destination);
+    WriteFile(source / "save.dat", {'n', 'e', 'w'});
+    WriteFile(source / "state.json", {'{', '}'});
+    const std::vector<char> original{'u', 's', 'e', 'r'};
+    WriteFile(destination / "save.dat", original);
+    std::string error;
+    EXPECT_FALSE(SaveStateSeed(source, destination, error));
+    EXPECT_NE(error.find("new or empty"), std::string::npos);
+    EXPECT_EQ(ReadFile(destination / "save.dat"), original);
+    EXPECT_FALSE(fs::exists(destination / "state.json"));
+    EXPECT_EQ(ReadFile(source / "save.dat"), (std::vector<char>{'n', 'e', 'w'}));
+    fs::remove_all(root);
+}
+
+TEST(SaveFixtureSeed, RejectsOverlappingRootsBeforeCreatingDestination) {
+    const fs::path root = UseTempSaveRoot();
+    const fs::path source = root / "fixture";
+    fs::create_directory(source);
+    WriteFile(source / "save.dat", {'x'});
+    std::string error;
+    EXPECT_FALSE(SaveStateSeed(source, source, error));
+    EXPECT_FALSE(SaveStateSeed(source, source / "nested", error));
+    EXPECT_FALSE(fs::exists(source / "nested"));
+    EXPECT_FALSE(SaveStateSeed(source, root, error));
+    EXPECT_EQ(ReadFile(source / "save.dat"), (std::vector<char>{'x'}));
+    fs::remove_all(root);
+}
+
+TEST(SaveFixtureSeed, MissingSourceDoesNotCreateDestination) {
+    const fs::path root = UseTempSaveRoot();
+    std::string    error;
+    EXPECT_FALSE(SaveStateSeed(root / "missing", root / "destination", error));
+    EXPECT_FALSE(fs::exists(root / "destination"));
+    fs::remove_all(root);
+}
+
 } // namespace dc::test

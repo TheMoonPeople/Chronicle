@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -29,6 +30,12 @@ std::vector<s32> SupportedLanguages();
 std::uintmax_t DataFileSize(std::string_view path);
 
 /**
+ * Whether the data has been indexed. Unlike the readers it never indexes, which stops the program
+ * when there is no data.
+ */
+bool DataReadIndexed();
+
+/**
  * Lists the logical paths of every file in the indexed game data.
  */
 std::vector<std::string> DataReadListFiles();
@@ -44,6 +51,16 @@ bool DataReadReadFile(std::string_view path, std::vector<std::uint8_t> &bytes);
  * none or more than one matches, or it cannot be read.
  */
 bool DataReadReadResolvedFile(std::string_view source_path, std::vector<std::uint8_t> &bytes);
+
+/**
+ * Pins raw source bytes for main-thread texture metadata inspection.
+ *
+ * Archived assets are cached by default and immutable within an index epoch; edits require DataReadReset
+ * or DataReadIndex. DC_TEXTURE_SOURCE_CACHE=0 disables caching. Loose files stay fresh. Pins survive
+ * eviction and index reset. Returns nullptr when the exact source binding is missing, ambiguous or
+ * unreadable.
+ */
+std::shared_ptr<const std::vector<std::uint8_t>> DataReadResolvedMetadataSnapshot(std::string_view source_path);
 
 /**
  * Counts of texture files read from the archive and from loose files, while tracking is enabled.

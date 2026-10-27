@@ -3,6 +3,7 @@
 #include <print>
 
 #include "app/exitcodes.hpp"
+#include "app/gameloop.hpp"
 
 // Retail halted on a failed assertion. The game prints its own context on stdout first (LoadFile
 // names the file), so stdout is flushed ahead of the message. _Exit, not exit: static destructors
@@ -32,6 +33,10 @@ extern "C" [[noreturn]] void __assert(const char *file, int line, const char *ex
 // title fires and everything without a priority.
 namespace {
 unsigned int g_rand_state = 1;
+}
+
+unsigned int dc::app::GameRandomStateForTrace() {
+    return g_rand_state;
 }
 
 // glibc declares these noexcept; Apple's libc and the Windows CRT do not.

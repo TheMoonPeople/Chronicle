@@ -36,9 +36,10 @@ meson setup builddir-native \
     -Dinstall-mesa-clc=true
 ninja -C builddir-native src/compiler/clc/mesa_clc src/compiler/spirv/vtn_bindgen2
 
+mesa_build_id=$(find src/nouveau src/compiler src/vulkan -type f ! -name '*.orig' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
 meson setup builddir-switch \
     --cross-file switch_cross_file.txt --native-file switch_native_file.txt \
-    --buildtype=release -Doptimization=1 \
+    --buildtype=release -Doptimization=1 -Dnvk-build-id="$mesa_build_id" \
     -Db_lto=false -Db_ndebug=true -Dvulkan-drivers=nouveau -Dgallium-drivers=nouveau \
     -Dshader-cache=true -Dgallium-rusticl=false -Dplatforms=switch -Dglx=disabled \
     -Degl=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled -Dllvm=disabled \

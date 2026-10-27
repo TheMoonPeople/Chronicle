@@ -10,12 +10,12 @@ The files are laid out as Minecraft's language files are: one flat JSON file per
 
 ## Quick start
 
-1. **The language files.** Build the game and start it once with the game data in place. The first start writes
-   every language's JSON to `<save folder>/lang-export/` (`en_gb.json`, `fr_fr.json`...; the save folder is
-   `--save`, else `./save`). They come from your own disc, so the build cannot make them and the repository
-   does not hold them. To write them again, or anywhere else:
-   `darkcloud --data <data folder> --export-text <folder>`. Copy the file you want to change to
-   `<save folder>/lang/` and edit it.
+1. **The language files.** Build the game with your game data in place, then generate translation templates with
+   `darkcloud --data <data folder> --export-text <folder>`. Choose `<save folder>/lang-export/` for the output
+   folder, for example. This writes every language's JSON (`en_gb.json`, `fr_fr.json`...). They come from your
+   own disc, so the build cannot make them and the repository does not hold them. Normal game startup does not
+   generate these exports. Copy the file you want to change to `<save folder>/lang/` and edit it (the save folder
+   is `--save`, else `./save`).
 2. **Sharp text.** The port draws text in Chronicle Sharp, the game's own letters redrawn as a TrueType font
    (`tools/font/`, see its README), instead of the game's blurry bitmaps. The build copies it to `lang/font.ttf`
    and `lang/font_thin.ttf` beside the executable. To use another font, put it at `<save folder>/lang/font.ttf`
@@ -148,15 +148,14 @@ current language alone.
 
 ## Exporting the disc's text
 
-The port does this for you: the first start with data in place (right after the first-run extraction, or
-any `dcdata extract`) writes the export to `<save>/lang-export/`, unless `en_gb.json` is already there.
-Delete that folder to have it made again. The same by hand:
+Translator exports are generated on demand. Normal game startup does not create or regenerate
+`<save>/lang-export/`. Generate the files with:
 
 ```
 darkcloud --data <extracted data> --export-text <folder>
 ```
 
-writes one flat file per language into `<folder>`, from every message file under the data folder (loose
+This writes one flat file per language into `<folder>`, from every message file under the data folder (loose
 `.mes` files and the `.mes` entries of `.pak` and `.pac` packs; 855 files on the PAL disc):
 
 | File | Holds |

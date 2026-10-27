@@ -9,6 +9,7 @@
 #include <array>
 #include <bit>
 #include <cctype>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #include "data/data_read.hpp"
+#include "platform/load_work_profile.hpp"
 #include "platform/png_image.hpp"
 #include "render/gs_state.hpp"
 #include "render/screen.hpp"
@@ -49,6 +51,102 @@ constexpr unsigned kPsmT4HL = 36;
 constexpr unsigned kPsmT4HH = 44;
 
 std::unordered_map<std::string, std::vector<std::uint8_t>> texture_cluts;
+
+using BakedLoadClock = std::chrono::steady_clock;
+
+bool BakedLoadPerfEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_PERF_LOAD");
+        return value != nullptr && std::strcmp(value, "1") == 0;
+    }();
+    return enabled;
+}
+
+double BakedLoadMilliseconds(BakedLoadClock::time_point start, BakedLoadClock::time_point end) {
+    return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+// A texture bundle commonly supplies several consecutive pictures. Keep only the last small document per loading
+// thread, and still read and compare its complete bytes each time.
+std::shared_ptr<const nlohmann::json> ParseBakedDocument(std::span<const std::uint8_t> bytes, bool &cache_hit) {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_TEXTURE_JSON_CACHE");
+        return value == nullptr || std::strcmp(value, "1") == 0;
+    }();
+
+    struct CachedDocument {
+        std::vector<std::uint8_t>             bytes;
+        std::shared_ptr<const nlohmann::json> parsed;
+    };
+
+    thread_local CachedDocument cached;
+    cache_hit = enabled && cached.parsed && std::ranges::equal(bytes, cached.bytes);
+    if (cache_hit) {
+        return cached.parsed;
+    }
+    auto parsed =
+        std::make_shared<const nlohmann::json>(nlohmann::json::parse(bytes.begin(), bytes.end(), nullptr, false));
+    if (enabled && bytes.size() <= 64 * 1024 && !parsed->is_discarded()) {
+        try {
+            std::vector<std::uint8_t> key(bytes.begin(), bytes.end());
+            cached.bytes = std::move(key);
+            cached.parsed = parsed;
+        } catch (const std::bad_alloc &) {
+            // Retaining a parsed document is optional; this load can still proceed.
+        }
+    }
+    return parsed;
+}
+
+// The timings and sizes of one baked texture load, printed when the load succeeds.
+struct BakedLoadTrace {
+    std::string_view           document;
+    std::string_view           name;
+    unsigned                   picture_index;
+    std::size_t                json_bytes = 0;
+    bool                       json_cache_hit = false;
+    std::size_t                png_reads = 0;
+    std::size_t                png_decodes = 0;
+    std::size_t                png_cache_hits = 0;
+    std::uint64_t              png_bytes = 0;
+    std::uint64_t              rgba_bytes = 0;
+    double                     json_read_ms = 0.0;
+    double                     json_parse_schema_ms = 0.0;
+    double                     png_read_ms = 0.0;
+    double                     png_decode_ms = 0.0;
+    bool                       success = false;
+    BakedLoadClock::time_point started;
+
+    BakedLoadTrace(std::string_view traced_document, std::string_view traced_name, unsigned traced_picture)
+        : document(traced_document), name(traced_name), picture_index(traced_picture),
+          started(BakedLoadClock::now()) {}
+
+    BakedLoadTrace(const BakedLoadTrace &) = delete;
+    BakedLoadTrace &operator=(const BakedLoadTrace &) = delete;
+
+    ~BakedLoadTrace() {
+        if (!success) {
+            return;
+        }
+        const double          total_ms = BakedLoadMilliseconds(started, BakedLoadClock::now());
+        const double          other_ms = total_ms - json_read_ms - json_parse_schema_ms - png_read_ms - png_decode_ms;
+        const auto            cache = PngDecodeCacheGetStats();
+        constexpr std::size_t kMaxText = 512;
+        std::fprintf(stderr,
+                     "perf load texture success picture %u mips %zu json_reads 1 json_bytes %zu "
+                     "png_reads %zu png_bytes %llu png_decodes %zu rgba_bytes %llu total_wall_ms %.6f "
+                     "json_read_wall_ms %.6f json_parse_schema_wall_ms %.6f png_read_wall_ms %.6f "
+                     "png_decode_wall_ms %.6f selection_assembly_other_wall_ms %.6f png_cache_hits %zu "
+                     "png_cache_resident_bytes %zu png_cache_entries %zu json_cache_hit %d "
+                     "doc_len %zu name_len %zu doc %.*s name %.*s\n",
+                     picture_index, png_reads, json_bytes, png_reads, static_cast<unsigned long long>(png_bytes),
+                     png_decodes, static_cast<unsigned long long>(rgba_bytes), total_ms, json_read_ms,
+                     json_parse_schema_ms, png_read_ms, png_decode_ms, other_ms, png_cache_hits, cache.resident_bytes,
+                     cache.entries, json_cache_hit, document.size(), name.size(),
+                     static_cast<int>(std::min(document.size(), kMaxText)), document.empty() ? "" : document.data(),
+                     static_cast<int>(std::min(name.size(), kMaxText)), name.empty() ? "" : name.data());
+    }
+};
 
 enum class EntryKind : uint8_t {
     Free,
@@ -303,6 +401,12 @@ bool ResolveSide(unsigned tbp, unsigned psm, Side &side) {
 } // namespace
 
 bool PortLegacyTexturePath() {
+    // An image the game read from its data was read through DataRead, which indexed it first. Before that there are
+    // only the program's own images (the texture tests' synthetic ones), which have no baked document, and listing the
+    // files would stop the program when there is no data.
+    if (!DataReadIndexed()) {
+        return true;
+    }
     static const bool legacy = [] {
         const std::vector<std::string> files = DataReadListFiles();
         const bool                     has_baked = std::ranges::any_of(files, [](const std::string &path) {
@@ -328,18 +432,33 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
                           [[maybe_unused]] unsigned level_count, const u_char *clut, std::size_t clut_bytes,
                           PortDecodedTexture &out, std::string &error,
                           std::optional<unsigned> entry_index, int source_bpp) {
+    // Declared before the parsed document and local buffers so a successful load's timing includes their teardown.
+    std::optional<BakedLoadTrace> trace;
+    if (BakedLoadPerfEnabled()) {
+        trace.emplace(document, name, picture_index);
+    }
     using Json = nlohmann::json;
     std::vector<std::uint8_t> json_bytes;
+    const auto                json_read_start = trace ? BakedLoadClock::now() : BakedLoadClock::time_point{};
     if (!DataReadReadFile(document, json_bytes)) {
         error = "missing texture document " + std::string(document);
         return false;
     }
-    Json root = Json::parse(json_bytes.begin(), json_bytes.end(), nullptr, false);
+    const auto  json_read_end = trace ? BakedLoadClock::now() : BakedLoadClock::time_point{};
+    bool        json_cache_hit = false;
+    const auto  parsed = ParseBakedDocument(json_bytes, json_cache_hit);
+    const Json &root = *parsed;
     if (root.is_discarded() || !root.is_object() || root.value("schema_version", 0) != 3 ||
         !root.contains("groups") || !root["groups"].is_array() || !root.contains("entries") ||
         !root["entries"].is_array()) {
         error = "invalid schema-3 texture document " + std::string(document);
         return false;
+    }
+    if (trace) {
+        trace->json_bytes = json_bytes.size();
+        trace->json_cache_hit = json_cache_hit;
+        trace->json_read_ms = BakedLoadMilliseconds(json_read_start, json_read_end);
+        trace->json_parse_schema_ms = BakedLoadMilliseconds(json_read_end, BakedLoadClock::now());
     }
     const Json *entry = nullptr;
     if (entry_index) {
@@ -430,16 +549,30 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
         }
         std::vector<std::uint8_t> png_bytes;
         const std::string         png_path = parent + relative;
+        const auto                png_read_start = trace ? BakedLoadClock::now() : BakedLoadClock::time_point{};
         if (!DataReadReadFile(png_path, png_bytes)) {
             error = "missing baked PNG " + png_path;
             return false;
         }
+        if (trace) {
+            ++trace->png_reads;
+            trace->png_bytes += png_bytes.size();
+            trace->png_read_ms += BakedLoadMilliseconds(png_read_start, BakedLoadClock::now());
+        }
         int                       decoded_width = 0;
         int                       decoded_height = 0;
         std::vector<std::uint8_t> rgba;
-        if (!PngDecodeRgba(png_bytes, decoded_width, decoded_height, rgba)) {
+        const auto                png_decode_start = trace ? BakedLoadClock::now() : BakedLoadClock::time_point{};
+        bool                      png_cache_hit = false;
+        if (!PngDecodeRgba(png_bytes, decoded_width, decoded_height, rgba, &png_cache_hit)) {
             error = "invalid baked PNG " + png_path;
             return false;
+        }
+        if (trace) {
+            trace->png_decodes += png_cache_hit ? 0 : 1;
+            trace->png_cache_hits += png_cache_hit ? 1 : 0;
+            trace->rgba_bytes += rgba.size();
+            trace->png_decode_ms += BakedLoadMilliseconds(png_decode_start, BakedLoadClock::now());
         }
         if (level == 0) {
             out.width = width == 0 ? static_cast<unsigned>(decoded_width) : width;
@@ -452,6 +585,9 @@ bool PortLoadBakedTexture(std::string_view document, std::string_view name, unsi
             return false;
         }
         out.levels.push_back(std::move(rgba));
+    }
+    if (trace) {
+        trace->success = true;
     }
     return true;
 }
@@ -503,6 +639,7 @@ bool PortDecodeTexture(int bpp, int width, int height, const u_char *const *leve
 }
 
 unsigned PortCreateTexture(const PortDecodedTexture &decoded, PortTextureOwner owner, unsigned *palette_key) {
+    const platform::load_profile::Span profile(platform::load_profile::Kind::Texture);
     if (palette_key != nullptr) {
         *palette_key = 0;
     }
@@ -1174,12 +1311,12 @@ std::optional<unsigned> Dc1ImgEntryIndex(const DataReadSource &source) {
     if (source.offset < member_start || source.offset - member_start >= member_size) {
         return std::nullopt;
     }
-    std::vector<std::uint8_t> raw;
-    if (!DataReadReadResolvedFile(source.path, raw) || member_start > raw.size() ||
-        member_size > raw.size() - member_start || member_size < 16) {
+    const auto snapshot = DataReadResolvedMetadataSnapshot(source.path);
+    if (snapshot == nullptr || member_start > snapshot->size() || member_size > snapshot->size() - member_start ||
+        member_size < 16) {
         return std::nullopt;
     }
-    const std::uint8_t *member = raw.data() + member_start;
+    const std::uint8_t *member = snapshot->data() + member_start;
     const bool          img3 = std::memcmp(member, "IM3\0", 4) == 0;
     if (!img3 && std::memcmp(member, "IMG\0", 4) != 0 && std::memcmp(member, "IM2\0", 4) != 0) {
         return std::nullopt;
@@ -1243,11 +1380,11 @@ std::optional<std::string> BakedTextureDocument(const DataReadSource &source) {
         } else {
             container_size = static_cast<std::size_t>(source.range_size);
         }
-        std::vector<std::uint8_t> raw;
-        if (!DataReadReadResolvedFile(source.path, raw)) {
+        const auto snapshot = DataReadResolvedMetadataSnapshot(source.path);
+        if (snapshot == nullptr) {
             return std::nullopt;
         }
-        const auto offset = EmbeddedTextureOffset(raw, container_start, container_size,
+        const auto offset = EmbeddedTextureOffset(*snapshot, container_start, container_size,
                                                   static_cast<std::size_t>(source.offset));
         if (!offset) {
             return std::nullopt;

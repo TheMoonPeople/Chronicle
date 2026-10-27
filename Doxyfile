@@ -7,7 +7,8 @@ HTML_OUTPUT            = .
 EXTRACT_PRIVATE        = YES
 EXTRACT_PRIV_VIRTUAL   = YES
 EXTRACT_STATIC         = YES
-INPUT                  = ps2/src ps2/include README.md docs/PC.md docs/SWITCH.md
+INPUT                  = ps2/src ps2/include README.md docs/PC.md docs/SWITCH.md docs/WINDOWS.md docs/LOADING.md \
+                         docs/LOCALIZATION.md docs/MACOS.md
 FILE_PATTERNS          = *.c \
                          *.cpp \
                          *.h \

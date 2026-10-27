@@ -679,6 +679,11 @@ int EditInit(void *param);
  */
 int EditLoop();
 
+/**
+ * Reports whether any modal editor event currently blocks normal input.
+ */
+int run_event_check();
+
 STATIC_ASSERT(sizeof(EDIT_IMAGE_INFO) == 0x48);
 STATIC_ASSERT(sizeof(EDIT_SCENE_LAYER_INFO) == 0xf8);
 STATIC_ASSERT(sizeof(EDIT_AREA_INFO) == 0x5c);

@@ -1,6 +1,8 @@
 #include "data/data_read.hpp"
+#include "language.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <charconv>
 #include <cstdint>
@@ -24,8 +26,8 @@
 
 #include "../../../tools/dcdata/dcdata.hpp"
 #include "dataalloc.hpp"
-#include "language.h"
 #include "platform/data_archive.hpp"
+#include "platform/load_work_profile.hpp"
 #include "platform/paths.hpp"
 
 namespace dc::data {
@@ -46,9 +48,47 @@ struct IndexedFile {
     bool           archived = false;
 };
 
-std::unordered_map<std::string, IndexedFile> data_index;
-std::unordered_map<std::string, IndexedFile> data_base_index;
-std::unique_ptr<DataArchive>                 data_archive;
+std::unordered_map<std::string, IndexedFile>         data_index;
+std::unordered_map<std::string, IndexedFile>         data_base_index;
+std::unordered_map<std::string, const IndexedFile *> source_index;
+std::unique_ptr<DataArchive>                         data_archive;
+
+constexpr std::size_t kMetadataCacheFiles = 4;
+constexpr std::size_t kMetadataCacheBytes = 16 * 1024 * 1024;
+
+struct MetadataSnapshot {
+    std::string                                      source_key;
+    std::shared_ptr<const std::vector<std::uint8_t>> bytes;
+    std::uint64_t                                    epoch = 0;
+};
+
+std::array<MetadataSnapshot, kMetadataCacheFiles> metadata_snapshots;
+std::size_t                                       metadata_snapshot_count = 0;
+std::size_t                                       metadata_snapshot_bytes = 0;
+std::uint64_t                                     data_index_epoch = 0;
+
+bool MetadataSnapshotsEnabled() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_TEXTURE_SOURCE_CACHE");
+        return value == nullptr || std::strcmp(value, "1") == 0;
+    }();
+    return enabled;
+}
+
+bool SourceLookupIndexed() {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_SOURCE_LOOKUP_INDEX");
+        return value == nullptr || std::strcmp(value, "1") == 0;
+    }();
+    return enabled;
+}
+
+void ResetMetadataSnapshots() {
+    ++data_index_epoch;
+    metadata_snapshots = {};
+    metadata_snapshot_count = 0;
+    metadata_snapshot_bytes = 0;
+}
 
 struct PackCapacity {
     std::size_t                capacity = 0;
@@ -120,6 +160,29 @@ void ForgetPackCapacities(const void *owner) {
             ForgetCopiedCapacity(at->first, at->second);
             at = loaded_capacities.erase(at);
         } else {
+            ++at;
+        }
+    }
+}
+
+// A read writes over whatever earlier loads left at those addresses, whichever buffer they were
+// read into. A record starting inside the new bytes no longer describes anything; one starting
+// before them keeps only the bytes in front of them.
+void ForgetOverwrittenCapacities(const void *bytes, std::size_t size) {
+    const auto start = reinterpret_cast<std::uintptr_t>(bytes);
+    const auto end = start + size;
+    for (auto at = loaded_capacities.begin(); at != loaded_capacities.end();) {
+        PackCapacity &range = at->second;
+        const auto    base = reinterpret_cast<std::uintptr_t>(at->first);
+        if (base >= end || base + std::max(range.capacity, range.source_size) <= start) {
+            ++at;
+        } else if (base >= start) {
+            ForgetCopiedCapacity(at->first, range);
+            at = loaded_capacities.erase(at);
+        } else {
+            const std::size_t kept = static_cast<std::size_t>(start - base);
+            range.capacity = std::min(range.capacity, kept);
+            range.source_size = std::min(range.source_size, kept);
             ++at;
         }
     }
@@ -230,6 +293,46 @@ const IndexedFile *Lookup(std::string_view path) {
     return found == data_index.end() ? nullptr : &found->second;
 }
 
+const IndexedFile *ResolveSource(std::string_view key) {
+    if (!SourceLookupIndexed()) {
+        const IndexedFile *resolved = nullptr;
+        for (const auto &entry : data_index) {
+            const IndexedFile &file = entry.second;
+            if (FoldArchivePath(file.source_path) != key) {
+                continue;
+            }
+            if (resolved != nullptr && resolved != &file) {
+                return nullptr;
+            }
+            resolved = &file;
+        }
+        return resolved;
+    }
+    const auto found = source_index.find(std::string(key));
+    return found == source_index.end() ? nullptr : found->second;
+}
+
+bool ReadResolved(const IndexedFile *resolved, std::vector<std::uint8_t> &bytes) {
+    if (resolved == nullptr || resolved->size > std::numeric_limits<std::size_t>::max()) {
+        bytes.clear();
+        return false;
+    }
+    bytes.resize(static_cast<std::size_t>(resolved->size));
+    if (resolved->archived) {
+        if (data_archive->Read(resolved->archive_index, bytes)) {
+            return true;
+        }
+    } else {
+        std::ifstream stream(resolved->path, std::ios::binary);
+        stream.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        if (static_cast<std::size_t>(stream.gcount()) == bytes.size()) {
+            return true;
+        }
+    }
+    bytes.clear();
+    return false;
+}
+
 // The drive wrote whole sectors, so up to 2047 bytes past the file were overwritten and callers
 // sized their buffers for that; the tail is zeroed rather than left as whatever was there.
 int ReadWhole(const IndexedFile &file, void *buffer, std::size_t *out_capacity = nullptr) {
@@ -272,8 +375,10 @@ std::string IndexedPath(const IndexedFile &file) {
 } // namespace
 
 void DataReadIndex() {
+    ResetMetadataSnapshots();
     const fs::path &root = PathsDataRoot();
     std::error_code error;
+    source_index.clear();
     data_index.clear();
     data_base_index.clear();
     data_archive.reset();
@@ -374,6 +479,17 @@ void DataReadIndex() {
     if (data_index.empty()) {
         NoData(root, "is empty");
     }
+    // Index the effective bindings after normalized overrides. Null preserves rejection
+    // of source names that become ambiguous after escaping and case folding.
+    if (SourceLookupIndexed()) {
+        source_index.reserve(data_index.size());
+        for (const auto &[logical, file] : data_index) {
+            auto [at, inserted] = source_index.emplace(FoldArchivePath(file.source_path), &file);
+            if (!inserted && at->second != &file) {
+                at->second = nullptr;
+            }
+        }
+    }
     data_indexed = true;
     CheckAgainstIndex(root);
 }
@@ -386,6 +502,7 @@ bool DataReadLoadFile(std::string_view path, void *buffer, int *size) {
     ForgetPackCapacities(buffer);
     std::size_t capacity = 0;
     *size = ReadWhole(*file, buffer, &capacity);
+    ForgetOverwrittenCapacities(buffer, capacity);
     TrackPackCapacity(buffer, capacity, buffer, IndexedPath(*file), {}, 0, static_cast<std::size_t>(*size));
     return true;
 }
@@ -393,6 +510,10 @@ bool DataReadLoadFile(std::string_view path, void *buffer, int *size) {
 std::uintmax_t DataFileSize(std::string_view path) {
     const IndexedFile *file = Lookup(path);
     return file != nullptr ? file->size : 0;
+}
+
+bool DataReadIndexed() {
+    return data_indexed;
 }
 
 std::vector<std::string> DataReadListFiles() {
@@ -447,37 +568,47 @@ bool DataReadReadResolvedFile(std::string_view source_path, std::vector<std::uin
     if (!data_indexed) {
         DataReadIndex();
     }
-    const std::string  key = FoldArchivePath(source_path);
-    const IndexedFile *resolved = nullptr;
-    for (const auto &entry : data_index) {
-        const IndexedFile &file = entry.second;
-        if (FoldArchivePath(file.source_path) != key) {
-            continue;
-        }
-        if (resolved != nullptr && resolved != &file) {
-            bytes.clear();
-            return false;
-        }
-        resolved = &file;
+    return ReadResolved(ResolveSource(FoldArchivePath(source_path)), bytes);
+}
+
+std::shared_ptr<const std::vector<std::uint8_t>> DataReadResolvedMetadataSnapshot(std::string_view source_path) {
+    const platform::load_profile::Span profile(platform::load_profile::Kind::Metadata);
+    if (!data_indexed) {
+        DataReadIndex();
     }
-    if (resolved == nullptr || resolved->size > std::numeric_limits<std::size_t>::max()) {
-        bytes.clear();
-        return false;
-    }
-    bytes.resize(static_cast<std::size_t>(resolved->size));
-    if (resolved->archived) {
-        if (data_archive->Read(resolved->archive_index, bytes)) {
-            return true;
-        }
-    } else {
-        std::ifstream stream(resolved->path, std::ios::binary);
-        stream.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-        if (static_cast<std::size_t>(stream.gcount()) == bytes.size()) {
-            return true;
+    const bool        cache = MetadataSnapshotsEnabled() && data_archive != nullptr;
+    const std::string key = FoldArchivePath(source_path);
+    if (cache) {
+        for (std::size_t index = 0; index < metadata_snapshot_count; ++index) {
+            if (metadata_snapshots[index].epoch == data_index_epoch && metadata_snapshots[index].source_key == key) {
+                auto bytes = metadata_snapshots[index].bytes;
+                std::rotate(metadata_snapshots.begin(), metadata_snapshots.begin() + static_cast<std::ptrdiff_t>(index),
+                            metadata_snapshots.begin() + static_cast<std::ptrdiff_t>(index + 1));
+                return bytes;
+            }
         }
     }
-    bytes.clear();
-    return false;
+    const IndexedFile *resolved = ResolveSource(key);
+    auto               bytes = std::make_shared<std::vector<std::uint8_t>>();
+    if (!ReadResolved(resolved, *bytes)) {
+        return nullptr;
+    }
+    if (cache && resolved->archived && bytes->size() <= kMetadataCacheBytes) {
+        while (metadata_snapshot_count != 0 &&
+               (metadata_snapshot_count == kMetadataCacheFiles ||
+                metadata_snapshot_bytes > kMetadataCacheBytes - bytes->size())) {
+            auto &last = metadata_snapshots[--metadata_snapshot_count];
+            metadata_snapshot_bytes -= last.bytes->size();
+            last = {};
+        }
+        std::move_backward(metadata_snapshots.begin(),
+                           metadata_snapshots.begin() + static_cast<std::ptrdiff_t>(metadata_snapshot_count),
+                           metadata_snapshots.begin() + static_cast<std::ptrdiff_t>(metadata_snapshot_count + 1));
+        metadata_snapshots[0] = {key, bytes, data_index_epoch};
+        ++metadata_snapshot_count;
+        metadata_snapshot_bytes += bytes->size();
+    }
+    return bytes;
 }
 
 bool DataReadSourceRange(const void *bytes, std::size_t size, DataReadSource &source) {
@@ -547,23 +678,9 @@ bool DataReadRegisterCopiedSource(const void *destination, std::size_t size, con
         size > static_cast<std::size_t>(arena->used) * 16 - (start - arena_start)) {
         return false;
     }
-    const auto end = start + size;
-    for (auto at = loaded_capacities.begin(); at != loaded_capacities.end();) {
-        const auto existing_start = reinterpret_cast<std::uintptr_t>(at->first);
-        const auto existing_end = existing_start + at->second.source_size;
-        if (at->second.copied && at->second.owner == owner && start < existing_end && existing_start < end) {
-            ForgetCopiedCapacity(at->first, at->second);
-            at = loaded_capacities.erase(at);
-        } else {
-            ++at;
-        }
-    }
+    // The copy overwrote whatever was recorded there, from this arena or any other that shares the memory.
+    ForgetOverwrittenCapacities(destination, size);
     const std::size_t arena_end = static_cast<std::size_t>(start - arena_start) + size;
-    auto              previous = loaded_capacities.find(destination);
-    if (previous != loaded_capacities.end()) {
-        ForgetCopiedCapacity(destination, previous->second);
-        loaded_capacities.erase(previous);
-    }
     loaded_capacities[destination] = {.capacity = size,
                                       .owner = owner,
                                       .logical_path = source.path,
@@ -640,7 +757,9 @@ void DataReadForgetPackCapacities(const void *owner) {
 }
 
 void DataReadReset() {
+    ResetMetadataSnapshots();
     loaded_capacities.clear();
+    source_index.clear();
     data_index.clear();
     data_base_index.clear();
     data_archive.reset();

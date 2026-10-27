@@ -71,7 +71,6 @@ s16             MenuCharaEffectReadFlag;
 s16             MenuCharaOldEffect;
 BT_SHOT_EFFECT *WepEffectMenuPt;
 int             CharaFileBGReadNo;
-s16             charachangeid;
 u_long128      *CharaChangeBaseBuf;
 u_long128      *menucharReadbuf;
 u_long128      *menud0wepReadBuf;
@@ -100,6 +99,7 @@ s16 DngEscapeSelect = 1;
 
 } // namespace
 
+s16        charachangeid;
 u_long128 *WepEffectMenuReadBuf;
 u_long128 *MenuWeaponModelBuildBuffer;
 

@@ -14,6 +14,7 @@
 #include "mathutil.hpp"
 #include "mdt.hpp"
 #include "mglib.hpp"
+#include "platform/load_work_profile.hpp"
 #include "render/draw3d.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
@@ -683,6 +684,7 @@ int CVisualVu1::DrawVu1(u_int * /*packet*/, float (*matrix)[4], RenderInfo *info
 // wound as their first triangle, other prims are lists already. A strip whose material is -1 keeps
 // the previous strip's material and texture, as VU1's memory did.
 int CVisualVu1::CreateVUdataFromMDT(u_int *block, u_int *data, int /*unknown0*/, int /*unknown1*/) {
+    const dc::platform::load_profile::Span profile(dc::platform::load_profile::Kind::Visual);
     vu_data = block;
     vu_size = kDraw3DBlockQuads;
     Draw3DVisual &visual = Draw3DRegisterVisual(block, false);

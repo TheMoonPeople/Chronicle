@@ -3,6 +3,7 @@ param([string]$Root, [switch]$SkipRustfmt, [switch]$SkipClippy)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/common.ps1"
 $root = Resolve-WindowsRoot $Root
+$sevenZip = Find-WindowsTool 7z 'C:/Program Files/7-Zip/7z.exe'
 $source = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $version = '1.99.0'
 $triple = 'x86_64-pc-windows-gnullvm'
@@ -23,6 +24,18 @@ function Get-VerifiedArchive([string]$Name, [string]$Url, [string]$Sha256) {
     return $archive
 }
 
+# Unpacks a .tar.xz into $stage, only Members when given, with 7-Zip as acquire.ps1 unpacks the rest. The tar of
+# Windows 10 reads no xz (Windows 11 23H2 added it) and waits forever rather than failing.
+function Expand-TarXz([string]$Archive, [string[]]$Members = @()) {
+    & $sevenZip x -y "-o$stage" $Archive > $null
+    if ($LASTEXITCODE) { throw "Extract failed: $Archive" }
+    $tar = Join-Path $stage ([IO.Path]::GetFileNameWithoutExtension($Archive))
+    & $sevenZip x -y "-o$stage" $tar @Members > $null
+    $status = $LASTEXITCODE
+    Remove-Item -LiteralPath $tar -Force
+    if ($status) { throw "Extract failed: $tar" }
+}
+
 $release = "https://static.rust-lang.org/dist/2026-10-01"
 $rustName = "rust-$version-$triple"
 $rustArchive = Get-VerifiedArchive "$rustName.tar.xz" "$release/$rustName.tar.xz" `
@@ -30,8 +43,7 @@ $rustArchive = Get-VerifiedArchive "$rustName.tar.xz" "$release/$rustName.tar.xz
 if (!(Test-Path -LiteralPath (Join-Path $prefix 'bin/rustc.exe')) -or
     !(Test-Path -LiteralPath (Join-Path $prefix 'bin/cargo.exe')) -or
     !(Test-Path -LiteralPath (Join-Path $prefix "lib/rustlib/$triple/lib"))) {
-    & tar -xf $rustArchive -C $stage "$rustName/rustc" "$rustName/cargo" "$rustName/rust-std-$triple"
-    if ($LASTEXITCODE) { throw 'Rust archive extraction failed' }
+    Expand-TarXz $rustArchive -Members @("$rustName/rustc", "$rustName/cargo", "$rustName/rust-std-$triple")
     foreach ($component in @('rustc', 'cargo', "rust-std-$triple")) {
         $componentRoot = Join-Path $stage "$rustName/$component"
         foreach ($file in Get-ChildItem -LiteralPath $componentRoot -Recurse -File) {
@@ -51,8 +63,7 @@ if (!$SkipRustfmt) {
     $fmtArchive = Get-VerifiedArchive "$fmtName.tar.xz" "$release/$fmtName.tar.xz" `
         '574D8389A6F73537357EDCCC2B6137BD934BC4E9351FD8BF5B0F5F5AA48B3C4B'
     if (!(Test-Path -LiteralPath (Join-Path $prefix 'bin/rustfmt.exe'))) {
-        & tar -xf $fmtArchive -C $stage
-        if ($LASTEXITCODE) { throw 'rustfmt archive extraction failed' }
+        Expand-TarXz $fmtArchive
         Copy-Item -Path (Join-Path $stage "$fmtName/rustfmt-preview/bin/*") -Destination (Join-Path $prefix 'bin') -Force
     }
 }
@@ -62,8 +73,7 @@ if (!$SkipClippy) {
     $clippyArchive = Get-VerifiedArchive "$clippyName.tar.xz" "$release/$clippyName.tar.xz" `
         'A6522090DC91603B1E1BAB5E65207DEF32487A49B76300D7DF2A3262E9A6F1BB'
     if (!(Test-Path -LiteralPath (Join-Path $prefix 'bin/cargo-clippy.exe'))) {
-        & tar -xf $clippyArchive -C $stage
-        if ($LASTEXITCODE) { throw 'Clippy archive extraction failed' }
+        Expand-TarXz $clippyArchive
         Copy-Item -Path (Join-Path $stage "$clippyName/clippy-preview/bin/*") -Destination (Join-Path $prefix 'bin') -Force
     }
 }

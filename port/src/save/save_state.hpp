@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 
 namespace dc::save {
 
@@ -24,5 +25,12 @@ bool SaveStateRead(const std::filesystem::path &path, SaveState &state);
  * Returns false when the directory or the file cannot be written.
  */
 bool SaveStateWrite(const std::filesystem::path &path, const SaveState &state);
+
+/**
+ * Copies the save-root fixture at source into destination, which must be new or empty, before
+ * start-up reads it. Rejects overlapping roots and a source holding anything but directories and
+ * regular files; returns false with a message in error, possibly leaving destination partial.
+ */
+bool SaveStateSeed(const std::filesystem::path &source, const std::filesystem::path &destination, std::string &error);
 
 } // namespace dc::save

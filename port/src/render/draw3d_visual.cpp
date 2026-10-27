@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "mglib.hpp"
+#include "platform/load_work_profile.hpp"
 #include "render/draw3d.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
@@ -120,6 +121,7 @@ void Draw3DSweepVisuals() {
 }
 
 void Draw3DFinishVisual(Draw3DVisual &visual) {
+    const dc::platform::load_profile::Span profile(dc::platform::load_profile::Kind::Mesh);
     if (visual.immediate) {
         return;
     }

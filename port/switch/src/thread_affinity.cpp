@@ -1,12 +1,153 @@
+#include <malloc.h>
 #include <switch.h>
 
+#include <atomic>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 #include "gfx/context.hpp"
 #include "kazarov/log.hpp"
 #include "switch_main.hpp"
 
 namespace dc::platform {
+namespace {
+
+struct ClockRate {
+    u32    hz = 0;
+    Result result = 0;
+};
+
+ClockRate ReadClockRate(PcvModuleId module) {
+    ClkrstSession session{};
+    ClockRate     rate;
+    rate.result = clkrstOpenSession(&session, module, 3);
+    if (R_SUCCEEDED(rate.result)) {
+        rate.result = clkrstGetClockRate(&session, &rate.hz);
+        clkrstCloseSession(&session);
+    }
+    return rate;
+}
+
+std::uint64_t IntegerCalibrationRounds(std::uint64_t value) {
+    for (unsigned int round = 0; round < 32768; ++round) {
+        value ^= value >> 12;
+        value ^= value << 25;
+        value ^= value >> 27;
+        value *= 2685821657736338717ULL;
+    }
+    return value;
+}
+
+void LogIntegerCalibration() {
+    const char *enabled = std::getenv("DC_PERF_CALIBRATE");
+    if (enabled == nullptr || std::strcmp(enabled, "0") == 0) {
+        return;
+    }
+
+    static volatile std::uint64_t sink = 0x4d595df4d0f33173ULL;
+    static const bool             warmed = [] {
+        sink = IntegerCalibrationRounds(sink);
+        return true;
+    }();
+    static_cast<void>(warmed);
+    const std::uint64_t seed = sink;
+    std::uint64_t       scheduled_started = 0;
+    std::uint64_t       scheduled_ended = 0;
+    const bool          scheduled_available = SwitchReadThreadTicks(scheduled_started);
+    const u64           started = armGetSystemTick();
+    // Tie the loop to the start read and publish its result before the end read.
+    const std::uint64_t value = IntegerCalibrationRounds(seed ^ started);
+    sink = value;
+    std::atomic_signal_fence(std::memory_order_seq_cst);
+    const u64    ticks = armGetSystemTick() - started;
+    const bool   scheduled_valid = scheduled_available && SwitchReadThreadTicks(scheduled_ended);
+    const double wall_ms = static_cast<double>(armTicksToNs(ticks)) / 1000000.0;
+    if (scheduled_valid) {
+        kz::Logf(kz::LogLevel::Info, "switch",
+                 "integer throughput rounds 32768 system_ticks {} wall {:.3f} ms scheduled {:.3f} ms checksum {:#x}",
+                 ticks, wall_ms, SwitchThreadTicksMilliseconds(scheduled_ended - scheduled_started), value);
+    } else {
+        kz::Logf(kz::LogLevel::Info, "switch",
+                 "integer throughput rounds 32768 system_ticks {} wall {:.3f} ms scheduled unavailable checksum {:#x}",
+                 ticks, wall_ms, value);
+    }
+}
+
+void LogProcessMemory() {
+    const char *enabled = std::getenv("DC_PERF_MEMORY");
+    if (enabled == nullptr || std::strcmp(enabled, "0") == 0) {
+        return;
+    }
+
+    const u64             started = armGetSystemTick();
+    u64                   used = 0;
+    u64                   total = 0;
+    const Result          used_result = svcGetInfo(&used, InfoType_UsedMemorySize, CUR_PROCESS_HANDLE, 0);
+    const Result          total_result = svcGetInfo(&total, InfoType_TotalMemorySize, CUR_PROCESS_HANDLE, 0);
+    const struct mallinfo heap = mallinfo();
+    const double          query_ms = static_cast<double>(armTicksToNs(armGetSystemTick() - started)) / 1000000.0;
+    kz::Logf(kz::LogLevel::Info, "switch",
+             "process memory used {} bytes ({:#x}), total {} bytes ({:#x}); malloc allocated {} free {} bytes "
+             "free_blocks {} arena {} bytes query {:.3f} ms",
+             used, used_result, total, total_result, heap.uordblks, heap.fordblks, heap.ordblks, heap.arena, query_ms);
+}
+
+} // namespace
+
+bool SwitchReadThreadTicks(std::uint64_t &ticks) {
+    static const bool enabled = [] {
+        const char *value = std::getenv("DC_PERF_THREAD_TICKS");
+        return value != nullptr && std::strcmp(value, "0") != 0;
+    }();
+    static std::atomic<bool> unavailable = false;
+    if (!enabled || unavailable.load(std::memory_order_relaxed)) {
+        return false;
+    }
+
+    u64          running = 0;
+    const Result result = svcGetInfo(&running, InfoType_ThreadTickCount, CUR_THREAD_HANDLE, TickCountInfo_Total);
+    if (R_FAILED(result)) {
+        if (!unavailable.exchange(true, std::memory_order_relaxed)) {
+            kz::Logf(kz::LogLevel::Warning, "switch", "scheduler thread tick query failed ({:#x})", result);
+        }
+        return false;
+    }
+    static std::atomic_flag announced = ATOMIC_FLAG_INIT;
+    if (!announced.test_and_set(std::memory_order_relaxed)) {
+        kz::Logf(kz::LogLevel::Info, "switch", "scheduler thread ticks use the {} Hz system counter",
+                 armGetSystemTickFreq());
+    }
+    ticks = running;
+    return true;
+}
+
+double SwitchThreadTicksMilliseconds(std::uint64_t delta) {
+    return static_cast<double>(armTicksToNs(delta)) / 1000000.0;
+}
+
+void SwitchLogClockRates() {
+    LogIntegerCalibration();
+    LogProcessMemory();
+    const char *enabled = std::getenv("DC_PERF_CLOCKS");
+    if (enabled == nullptr || std::strcmp(enabled, "0") == 0) {
+        return;
+    }
+
+    const Result initialized = clkrstInitialize();
+    ClockRate    cpu{.result = initialized};
+    ClockRate    gpu{.result = initialized};
+    ClockRate    emc{.result = initialized};
+    if (R_SUCCEEDED(initialized)) {
+        cpu = ReadClockRate(PcvModuleId_CpuBus);
+        gpu = ReadClockRate(PcvModuleId_GPU);
+        emc = ReadClockRate(PcvModuleId_EMC);
+        clkrstExit();
+    }
+    kz::Logf(kz::LogLevel::Info, "switch",
+             "clock rates CPU {} Hz ({:#x}), GPU {} Hz ({:#x}), EMC {} Hz ({:#x})",
+             cpu.hz, cpu.result, gpu.hz, gpu.result, emc.hz, emc.result);
+}
 
 void SwitchConfigureThreads() {
     if (gfx::ActiveRenderThreadMode() == gfx::RenderThreadMode::Off) {

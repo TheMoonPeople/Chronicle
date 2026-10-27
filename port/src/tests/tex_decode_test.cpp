@@ -523,6 +523,18 @@ TEST(Texture, BakedPngLoaderReadsSchema3ThroughDataVfs) {
                                      source32, error, std::nullopt, 4))
         << error;
     EXPECT_TRUE(source32.has_alpha);
+    // Cached parsing must not hide edits to a loose document at the same path.
+    std::string invalid_document = document;
+    invalid_document[invalid_document.find("\"schema_version\":3") + std::strlen("\"schema_version\":")] = '0';
+    datafix::WriteBytes(data / "textures/img/test_img.json",
+                        datafix::Bytes(invalid_document.begin(), invalid_document.end()));
+    EXPECT_FALSE(PortLoadBakedTexture("textures/img/test_img.json", "TEST", 0, 1, 1, 1, nullptr, 0,
+                                      source32, error));
+    datafix::WriteBytes(data / "textures/img/test_img.json", datafix::Bytes(document.begin(), document.end()));
+    ASSERT_TRUE(PortLoadBakedTexture("textures/img/test_img.json", "TEST", 0, 1, 1, 1, nullptr, 0,
+                                     source32, error))
+        << error;
+    EXPECT_EQ(source32.levels[0], (std::vector<std::uint8_t>{16, 32, 48, 128}));
     PortDecodedTexture canvas;
     ASSERT_FALSE(PortLoadBakedTexture("textures/img/canvas_img.json", "CANVAS", 0, 1, 1, 0, nullptr, 0,
                                       canvas, error));

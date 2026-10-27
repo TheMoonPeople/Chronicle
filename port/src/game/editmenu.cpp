@@ -421,6 +421,10 @@ void EditMenuInit(int *texture_blocks, int start_at_atora) {
     }
 }
 
+bool EditMenuTexturesLoading() {
+    return EditSwitch == EditMenuState::Start && EdMenuTextureReadEndFlag == 0;
+}
+
 int EditMenuLoop() {
     ReadBG();
     int result = 0;

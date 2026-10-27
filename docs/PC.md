@@ -94,6 +94,7 @@ a language the data lacks, and its English button reads as the disc's art does.
 |---|---|
 | `--data DIR` | the extracted data directory or the logical directory beside `data.zip` (default: `DC_DATA`, then `./data`, then `data/` beside the executable, then `$XDG_DATA_HOME/chronicle/data`) |
 | `--save DIR` | saves, `config.json`, the pipeline cache and host files (default: `DC_SAVE`, then `./save`, then `save/` beside the executable, then `save/` beside a local `data/`, then `$XDG_DATA_HOME/chronicle/save`); created on first use |
+| `--seed-save DIR` | copy this save-root fixture before startup reads it; requires an explicit `--save DIR` pointing to a new or empty directory; omit on subsequent runs |
 | `--headless` | SDL's offscreen video driver with `VK_EXT_headless_surface`, SDL's dummy audio driver, and the game clock unbounded (one tick per pump, no sleeping) |
 | `--offscreen` | `--headless` without a Vulkan surface: frames are drawn to an image only (what `--headless` does by itself when the loader has no `VK_EXT_headless_surface`) |
 | `--frames N` | stop after N frames of the game's main loop |
@@ -105,6 +106,7 @@ a language the data lacks, and its English button reads as the disc's art does.
 | `--give ITEM,...` | test hook: items and weapons the party is given when a town or dungeon starts (see "Test hooks"); also `DC_GIVE` |
 | `--display-per-tick N` | headless test aid: render N interpolated display frames per tick (offscreen, not presented) before presenting the tick's canonical image |
 | `--show-fps` | draw the FPS counter when headless too (a headless run leaves `show_fps` off) |
+| `--perf-log` | print tick, render-thread, GPU-timestamp and present timings once a second (see [Switch](SWITCH.md#performance-measurement)) |
 | `--screenshot-fps` | with `--screenshot` and `--show-fps`: write the image as a window shows it, the counter over the canonical image, instead of the canonical image alone |
 
 Environment: `DC_DATA` and `DC_SAVE` (above), `DC_INPUT` (above), `DC_AUDIO=off` (no audio
@@ -120,6 +122,15 @@ and no disc was given at the first-run prompt (one line names it and the
 `dcdata` command; a headless run checks before any window opens), 4 for a failed game assertion (retail's `__assert`, after the game's
 own message: `LoadFile` prints `File open error "<path>"`). A `PS2_UNIMPLEMENTED`
 stub aborts (SIGABRT) so a debugger or a core dump stops at it.
+
+For an isolated fixture, use `--seed-save path/to/fixture --save path/to/new-save` once.
+The source directory contains the save-root contents directly, such as `saves/1/save.dat`
+and `saves/state.json`. Existing nonempty destinations, overlapping roots and source links
+are refused. Files are copied without inheriting read-only source permissions; the source
+is unchanged. An I/O failure can leave a partial destination, which is refused on retry.
+Omit `--seed-save` on later runs to retain that root's config and pipeline cache. Any
+`config.json` included in the fixture is loaded normally; omit it to use platform defaults.
+Seeding does not change rendering settings or command-line overrides.
 
 `<save>/config.json` (`port/src/platform/config.cpp`, read with
 [nlohmann/json](https://github.com/nlohmann/json); `//` and `/* */` comments
@@ -567,7 +578,8 @@ For tests and debugging only; nothing the game does depends on them.
   and the developer menu, and starts `RunGame` in the mode with the globals the
   developer menu (and for a dungeon, the dungeon loader) would have left:
   `edit:<map>` (the game's `MapNo`: 0-4 the five towns, 11 and up the sub maps,
-  99 the interior), `dungeon:<n>` (dungeon n, 0-6, as `MapJump(200 + n)`, at its
+  99 the interior), `e01`, `e03` or `e04` (populated Norune, Queens or Muska Lacka developer presets),
+  `dungeon:<n>` (dungeon n, 0-6, as `MapJump(200 + n)`, at its
   floor select), `title`, `rush` (the attract movie), `opening`, or `menu` (the
   developer menu itself). A bad value exits with status 2.
 - `--fast-load` (or `DC_FAST_LOAD=1`) cuts the loading screen's start delay to
@@ -711,7 +723,8 @@ does the same from the keyboard.
 ## Start-up and the main loop
 
 `port/src/main.cpp` is the executable's `main`. In order: `PathsConsumeArgs`
-takes `--data`/`--save` out of argv; the other options are parsed; the data
+takes `--data`/`--save` out of argv; the other options are parsed; optional
+`--seed-save` copies a fixture into the explicit save root; the data
 directory is checked; `ConfigLoad` reads `config.json`; `WindowInit` opens the
 window (size and fullscreen from the config, offscreen when headless);
 `InputInit`; `gfx::RendererInit` with the config's present mode, the pipeline
@@ -1998,6 +2011,37 @@ their bytes change; material-only animation still updates its draw constants.
 Transient visuals are released every frame; persistent visual tables are swept every
 sixteen frames, with immediate tag validation on lookup.
 
+Archive loading uses slicing-by-eight IEEE CRC32 without weakening integrity checks.
+ZIP directory entries are parsed sequentially; directories up to 16 MiB are read in
+one bounded operation, while larger directories retain the streaming parser. Stored
+and deflated entries retain their existing validation and extraction behavior.
+
+Texture-container metadata reads share immutable source bytes for archive-backed
+files. The main-thread cache holds at most four files and 16 MiB; it does not cache
+decoded pixels, palettes, loose files or general file reads. Resetting the data root
+or reinitializing CD-file state clears future lookups. Existing readers retain their
+own immutable snapshot until they finish.
+
+These loading paths are enabled on all native platforms. For comparisons, set
+`DC_ARCHIVE_CRC_SLICE8`, `DC_ARCHIVE_SEQUENTIAL_INDEX`, `DC_ARCHIVE_BULK_INDEX` or
+`DC_TEXTURE_SOURCE_CACHE` to `0` before launch. An unset variable or exactly `1`
+enables its path; other values disable it. `DC_PERF_LOAD=1` adds archive and source-read
+timings and byte counts; it is disabled by default.
+
+Desktop startup leaves translation-template generation to the explicit
+`--export-text DIR` command. A fresh save root no longer scans every message
+container to create translator files before the game starts. Translation loading
+and the export command are unchanged; see [Localization](LOCALIZATION.md).
+
+Loading traces separate baked-texture JSON parsing/schema checks and PNG decoding
+from their file-read API spans. Those outer spans include lookup and diagnostic
+output costs and should not be reported as storage throughput or parsing CPU time.
+A populated Norune console trace measured 27.8 ms in JSON parse/schema calls and
+356.8 ms in PNG decode calls across 113 texture loads and 141 distinct PNGs. The
+largest remaining measured software stage is image decoding; a repeated-image
+cache has no demonstrated opportunity in this fixture. Model conversion and upload
+costs still need separate measurement.
+
 Chronicle reads the retail HD/BD/SQ audio formats through Kazarov's raw audio parser
 (`tools/kazarov/src/cpp/audio/raw_audio.cpp`), which normalizes retail events once when a
 sequence loads; playback uses Kazarov's event player. Dark Cloud's SQ note-offs carry only a
@@ -2005,13 +2049,12 @@ note number, so `LoadSequence` passes `SqRawOptions::short_note_off`. This does 
 re-extracting disc data.
 
 
-Verification on Windows x64 (2026-10-20): the release game and test executables
-build against this pin. The full suite has three failures in untouched code:
-`LocalizeOptions.ShippedTranslationsHaveExactlyTheCodesKeys` (quest translation keys)
-and the two `AreaCard.Translated*` cases (the shared PNG loader accepts RGBA only,
-while the tests write RGB). The async handoff, batching, cleared-block validation,
-config persistence and retail audio compatibility have dedicated passing tests.
-The shared render-thread and palette tests also pass. A 120-frame offscreen town
-run wrote its screenshot, and a windowed async town run completed 120 ticks and
-478 display frames. These runs establish functionality, not a measured speedup;
-Android and interactive resize/fullscreen transitions are not qualified here.
+Verification on Windows x64 (2026-10-26): the release game and test executables
+build against this pin. The native and GPU suites passed 651 tests, with eight skips
+for unavailable fixtures or test-environment features and one disabled latency benchmark.
+Coverage includes alpha-tested and fogged meshes, depth copies and planes,
+display-list lifetimes, draw order, archive integrity and source-cache invalidation.
+A populated Norune replay matched the pre-cleanup raw RGBA image exactly and
+retained all 34 shadow-geometry hash batches. See [Switch](SWITCH.md) for the scope
+of physical hardware checks; Android and interactive resize/fullscreen transitions
+are not qualified by these runs.

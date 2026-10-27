@@ -17,6 +17,7 @@
 #include "../../../tools/dcdata/dcdata.hpp"
 #include "data/data_read.hpp"
 #include "localize/localize.hpp"
+#include "platform/load_work_profile.hpp"
 #include "platform/paths.hpp"
 
 namespace dc::game {
@@ -114,6 +115,7 @@ void InitReadBG() {
 // The read happens here rather than a vertical sync later, so the slot is handed out already
 // complete: issued (id) and done, as retail's ReadBG leaves it.
 int LoadFileBG(char *name, u_long128 *buffer, int *out_size) {
+    const dc::platform::load_profile::Span profile(dc::platform::load_profile::Kind::BackgroundRead);
     if (out_size) {
         *out_size = 0;
     }

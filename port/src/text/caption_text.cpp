@@ -10,8 +10,10 @@
 #include <map>
 #include <print>
 #include <span>
+#include <string>
 #include <utility>
 
+#include "editmenu.hpp"
 #include "gfx/gfx.hpp"
 #include "localize/localize.hpp"
 #include "mainselect.hpp"
@@ -96,6 +98,9 @@ constexpr float kOutlineWidth = 1.6f;
 constexpr float kLeastShrink = 0.62f;
 
 std::array<std::optional<CaptionBounds>, kIcons> g_bounds;
+// The titles HelpTitle read last, and the language they are in.
+std::array<std::string, kIcons> g_help_titles;
+int                             g_help_language = -1;
 
 std::filesystem::path FindStatusFontPath() {
     if (std::filesystem::path localized = LocalizeFindFile("SourceSansProSemibold.ttf"); !localized.empty()) {
@@ -165,6 +170,11 @@ char32_t Upper(char32_t ch) {
 }
 
 std::string HelpTitle(int icon) {
+    // The town menu draws its icons a few frames before it reads allmenu.mes, while CommonMenuMes2 still
+    // points at the previous menu's messages, memory the town may since have reused.
+    if (EditMenuTexturesLoading()) {
+        return LanguageCode == g_help_language ? g_help_titles[icon] : std::string{};
+    }
     const MENU_ICON_INFO *info = GetMenuIconInfo(icon);
     if (info == nullptr || CommonMenuMes2.buff == nullptr) {
         return {};
@@ -184,6 +194,11 @@ std::string HelpTitle(int icon) {
     while (!text.empty() && (text.back() == '"' || text.back() == ' ')) {
         text.pop_back();
     }
+    if (g_help_language != LanguageCode) {
+        g_help_titles = {};
+        g_help_language = LanguageCode;
+    }
+    g_help_titles[icon] = text;
     return text;
 }
 

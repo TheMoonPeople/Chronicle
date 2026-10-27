@@ -6,9 +6,13 @@
 #include <libvu0.h>
 
 #include <algorithm>
+#include <array>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <optional>
@@ -66,6 +70,30 @@ sceVu0FMATRIX mgZeroMatrix;
 CRect_i_ mgWindowRect;
 
 namespace {
+
+using EndFrameClock = std::chrono::steady_clock;
+
+void NoteEndFramePhases(const std::array<EndFrameClock::time_point, 5> &stamps, uint32_t picks) {
+    static std::array<double, 4> totals{};
+    static std::array<double, 4> maxima{};
+    static uint32_t              frames = 0;
+    static uint32_t              depth_picks = 0;
+    for (size_t i = 0; i < totals.size(); i++) {
+        const double elapsed = std::chrono::duration<double, std::milli>(stamps[i + 1] - stamps[i]).count();
+        totals[i] += elapsed;
+        maxima[i] = std::max(maxima[i], elapsed);
+    }
+    depth_picks += picks;
+    if (++frames == 120) {
+        std::fprintf(stderr, "cpu endframe %u frames: lease %.3f/%.3f preDraw %.3f/%.3f draw %.3f/%.3f depth %.3f/%.3f picks %u\n",
+                     frames, totals[0] / frames, maxima[0], totals[1] / frames, maxima[1],
+                     totals[2] / frames, maxima[2], totals[3] / frames, maxima[3], depth_picks);
+        frames = 0;
+        depth_picks = 0;
+        totals.fill(0.0);
+        maxima.fill(0.0);
+    }
+}
 
 // PAL's field buffer is half the frame's height. GS coordinates the game hands to the 2D units
 // keep counting field rows (MGPortLogicalY doubles them), so the eye-to-GS step keeps the squeeze
@@ -409,8 +437,17 @@ void MGBeginFrame() {
 // game asked not to wait twice (mgWaitVSync 0). The count only moves when the clock is pumped, so
 // it is pumped first to see whether a tick went by.
 void MGEndFrame() {
+    static const bool                        trace_phases = std::getenv("DC_PERF_END_FRAME") != nullptr;
+    std::array<EndFrameClock::time_point, 5> stamps{};
+    uint32_t                                 depth_picks = 0;
+    if (trace_phases) {
+        stamps[0] = EndFrameClock::now();
+    }
     {
         gfx::RenderLease lease;
+        if (trace_phases) {
+            stamps[1] = EndFrameClock::now();
+        }
         for (int i = 0; i < 16; i++) {
             g_pick_pending[i].reset();
             if (!mgPickZBuff[i].enable) {
@@ -425,6 +462,7 @@ void MGEndFrame() {
             gfx::ReadDepth(static_cast<uint32_t>(i), static_cast<float>(mgPickZBuff[i].x - 4),
                            static_cast<float>(mgPickZBuff[i].y - 8), 8.0f, 16.0f);
             g_pick_pending[i] = i;
+            ++depth_picks;
         }
 
         gfx::SetRenderTarget(gfx::kMainTarget);
@@ -432,11 +470,20 @@ void MGEndFrame() {
         if (gfx::Recording()) {
             textwipe::DrawDivider();
             list = gfx::EndRecording();
+            if (trace_phases) {
+                stamps[2] = EndFrameClock::now();
+            }
             app::GameRenderTick(list);
             sceVu0CopyMatrix(g_tick_view, mgRenderInfo.view_scaled);
             g_have_tick_view = true;
         } else {
+            if (trace_phases) {
+                stamps[2] = EndFrameClock::now();
+            }
             gfx::EndFrame();
+        }
+        if (trace_phases) {
+            stamps[3] = EndFrameClock::now();
         }
 
         for (int i = 0; i < 16; i++) {
@@ -452,6 +499,12 @@ void MGEndFrame() {
                 mgPickZBuff[i].z = static_cast<int>(std::lround(1.0 + static_cast<double>(*depth) * kGsDepthRange));
             }
         }
+        if (trace_phases) {
+            stamps[4] = EndFrameClock::now();
+        }
+    }
+    if (trace_phases) {
+        NoteEndFramePhases(stamps, depth_picks);
     }
     if (!mgWaitVSync) {
         ClockPump();

@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -14,6 +16,7 @@
 #include <string>
 #include <string_view>
 
+#include "app/gameloop.hpp"
 #include "battlemenu.hpp"
 #include "btactstatus.hpp"
 #include "btmisc.hpp"
@@ -37,6 +40,8 @@
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"
+#include "platform/input.hpp"
+#include "platform/load_work_profile.hpp"
 #include "rect.hpp"
 #include "savedata.hpp"
 #include "shot_freefuncs.hpp"
@@ -1256,6 +1261,50 @@ int CharaChangeLoopRetail() {
     return result;
 }
 
+/**
+ * Runs CharaChangeLoopRetail, and when DC_PERF_CHARACTER_SWITCH is 1 reports on stderr what the
+ * frame changed and how long its loading work took.
+ */
+int CharaChangeLoopTraced() {
+    static const bool trace = [] {
+        const char *value = std::getenv("DC_PERF_CHARACTER_SWITCH");
+        return value != nullptr && std::string_view(value) == "1";
+    }();
+    if (!trace) {
+        return CharaChangeLoopRetail();
+    }
+    namespace profile = platform::load_profile;
+    static unsigned long long ordinal = 0;
+    const std::int64_t        frame = app::GameFrameCount();
+    const auto                buttons = InputGetPad(0).buttons;
+    const int                 character_before = ChangeStatusDataPt == nullptr ? -1 : ChangeStatusDataPt->cur_chara;
+    const int                 preview_before = charachangeid;
+    const int                 read_before = CharaChangeReadFlag;
+    const auto                work_before = profile::counters;
+    const profile::Activation activation;
+    const auto                started = std::chrono::steady_clock::now();
+    const int                 result = CharaChangeLoopRetail();
+    const auto                finished = std::chrono::steady_clock::now();
+    const int                 character_after = ChangeStatusDataPt == nullptr ? -1 : ChangeStatusDataPt->cur_chara;
+    std::fprintf(stderr,
+                 "perf character party_loop ordinal %llu frame %lld buttons %u "
+                 "character_before %d character_after %d preview_before %d preview_after %d "
+                 "menu_ready_before %d menu_ready_after %d result %d wall_ms %.6f "
+                 "background_read_ms %.6f metadata_ms %.6f png_ms %.6f texture_api_ms %.6f "
+                 "visual_build_ms %.6f mesh_finish_ms %.6f\n",
+                 ++ordinal, static_cast<long long>(frame), static_cast<unsigned>(buttons), character_before,
+                 character_after, preview_before, static_cast<int>(charachangeid), read_before,
+                 static_cast<int>(CharaChangeReadFlag), result,
+                 std::chrono::duration<double, std::milli>(finished - started).count(),
+                 profile::MillisecondsSince(work_before, profile::Kind::BackgroundRead),
+                 profile::MillisecondsSince(work_before, profile::Kind::Metadata),
+                 profile::MillisecondsSince(work_before, profile::Kind::Png),
+                 profile::MillisecondsSince(work_before, profile::Kind::Texture),
+                 profile::MillisecondsSince(work_before, profile::Kind::Visual),
+                 profile::MillisecondsSince(work_before, profile::Kind::Mesh));
+    return result;
+}
+
 } // namespace
 
 /* The dungeon's quick-change menu, opened with D-pad Up, as a picker for the equipped weapon's
@@ -1700,7 +1749,7 @@ void QuickChangeOpenElements(bool elements) {
 
 int CharaChangeLoop() {
     if (!g_picker.requested) {
-        return CharaChangeLoopRetail();
+        return CharaChangeLoopTraced();
     }
 
     if (!g_picker.loaded) {
