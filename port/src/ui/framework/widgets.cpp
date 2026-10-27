@@ -5,7 +5,7 @@
 #include "ui/framework/internal.hpp"
 #include "ui/menu_pointer.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 namespace {
 
@@ -46,8 +46,8 @@ bool ItemIcon::Draw(int item_no, int x, int y, int size, int alpha, bool drop_sh
         return false;
     }
 
-    if (::ItemIcon == nullptr) {
-        ::ItemIcon = detail::FindMenuTexture("itemicon");
+    if (game::ItemIcon == nullptr) {
+        game::ItemIcon = detail::FindMenuTexture("itemicon");
     }
     if (::WepIcon == nullptr) {
         ::WepIcon = detail::FindMenuTexture("wepicon");
@@ -321,4 +321,4 @@ void MenuHeader::Draw(MenuIconKind icon, std::string_view title,
     }
 }
 
-} // namespace UI
+} // namespace dc::ui

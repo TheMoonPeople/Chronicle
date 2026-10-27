@@ -17,6 +17,8 @@
 #include "platform/data_archive.hpp"
 #include "platform/paths.hpp"
 
+namespace dc::app {
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -476,3 +478,5 @@ GameIconSource RetailIconSource(const fs::path &root) {
     };
     return source;
 }
+
+} // namespace dc::app

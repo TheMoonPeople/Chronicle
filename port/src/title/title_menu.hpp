@@ -10,7 +10,7 @@
  * Rows keep CCursol's numbering: 0 to 2 are retail's, so TitleLoop's handling of them is unchanged,
  * and Exit comes after them. Exit asks before closing the game.
  */
-namespace TitleMenu {
+namespace dc::title::menu {
 
 /**
  * Exit's row. It shares TITLE_MENU_ATTRACT's number, which retail only sets on the way to the attract
@@ -70,4 +70,11 @@ void DrawConfirm(int alpha);
  */
 std::vector<std::pair<std::string, std::string>> Strings();
 
-} // namespace TitleMenu
+} // namespace dc::title::menu
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::title;
+namespace TitleMenu = dc::title::menu;
+#endif
+// DC_TRANSITIONAL_END

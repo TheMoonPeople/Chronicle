@@ -14,7 +14,7 @@
 #include "platform/input.hpp"
 #include "platform/window.hpp"
 
-namespace options {
+namespace dc::options {
 
 namespace {
 
@@ -983,49 +983,45 @@ void ListResolutions() {
                                    height);
 }
 
-} // namespace options
-
 int OptionZoomResetChoice(const Config &config) {
-    return options::ZoomResetChoice(config);
+    return ZoomResetChoice(config);
 }
 
 int OptionZoomResetCount(const Config &config) {
-    return options::ZoomResetCount(config);
+    return ZoomResetCount(config);
 }
 
 std::string OptionZoomResetText(const Config &config) {
-    return options::ZoomResetText(config);
+    return ZoomResetText(config);
 }
 
 void OptionSetZoomReset(Config &config, int choice) {
-    options::SetZoomReset(config, choice);
+    SetZoomReset(config, choice);
 }
 
 void OptionRestoreZoomReset(Config &config, const Config &defaults) {
-    options::RestoreZoomReset(config, defaults);
+    RestoreZoomReset(config, defaults);
 }
 
 int OptionCameraReturnChoice(const Config &config) {
-    return options::CameraReturnChoice(config);
+    return CameraReturnChoice(config);
 }
 
 int OptionCameraReturnCount(const Config &config) {
-    return options::CameraReturnCount(config);
+    return CameraReturnCount(config);
 }
 
 std::string OptionCameraReturnText(const Config &config) {
-    return options::CameraReturnText(config);
+    return CameraReturnText(config);
 }
 
 void OptionSetCameraReturn(Config &config, int choice) {
-    options::SetCameraReturn(config, choice);
+    SetCameraReturn(config, choice);
 }
 
 void OptionRestoreCameraReturn(Config &config, const Config &defaults) {
-    options::RestoreCameraReturn(config, defaults);
+    RestoreCameraReturn(config, defaults);
 }
-
-namespace options {
 
 void SetBinding(Config &config, std::string_view action, std::string_view key) {
     auto                     binding = std::ranges::find(config.key_bindings, std::string(action), &ConfigKeyBinding::action);
@@ -1038,4 +1034,4 @@ void SetBinding(Config &config, std::string_view action, std::string_view key) {
     }
 }
 
-} // namespace options
+} // namespace dc::options

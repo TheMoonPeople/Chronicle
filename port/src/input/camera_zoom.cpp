@@ -18,6 +18,8 @@ extern float camera_near_dist;
 extern float camera_far_dist;
 } // namespace dc::game
 
+namespace dc::input {
+
 namespace {
 constexpr float kMinDistance = 30.0f;
 constexpr float kMaxDistance = 2000.0f;
@@ -153,3 +155,5 @@ float DungeonZoomNearDistance(CCameraFollow *camera, float normal, bool lock_on)
     // intentionally closer zoom that would keep lifting it into a steep overhead view.
     return std::min(normal, g_dungeon.requested);
 }
+
+} // namespace dc::input

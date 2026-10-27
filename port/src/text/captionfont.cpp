@@ -21,7 +21,7 @@
 
 #include "platform/paths.hpp"
 
-namespace capfont {
+namespace dc::text::capfont {
 
 namespace {
 
@@ -1214,4 +1214,4 @@ Metrics GetMetrics() {
     return metrics;
 }
 
-} // namespace capfont
+} // namespace dc::text::capfont

@@ -50,12 +50,16 @@ void RemoveGuard(unsigned char *page) {
 
 } // namespace
 
+namespace dc::platform {
+
 void SwitchRestoreMemoryGuards() {
     for (unsigned char *guard : Guards()) {
         SetPermission(guard, Perm_Rw);
     }
     Guards().clear();
 }
+
+} // namespace dc::platform
 
 std::size_t ArenaMemoryPageSize() { return kPage; }
 

@@ -6,6 +6,8 @@ class CEditGround;
 class CDungeonMap;
 } // namespace dc::game
 
+namespace dc::input {
+
 /**
  * Opens a town zoom scope for one walk update; collision correction still owns the eye.
  */
@@ -30,3 +32,11 @@ void DungeonZoomApply(CCameraFollow *camera, CDungeonMap *map, bool lock_on, flo
  * Returns the dungeon eye-lift distance, capped by the requested zoom.
  */
 float DungeonZoomNearDistance(CCameraFollow *camera, float normal, bool lock_on);
+
+} // namespace dc::input
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::input;
+#endif
+// DC_TRANSITIONAL_END

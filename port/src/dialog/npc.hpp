@@ -6,6 +6,8 @@
 // each conversation to the framework on its first tick; one the framework takes runs here until it
 // closes, or until "Talk" hands it back to the retail message window.
 
+namespace dc::dialog {
+
 /**
  * Where a framework conversation stands after a tick of DialogNpcStep.
  */
@@ -72,3 +74,12 @@ void DialogNpcMouseUpdate();
  *
  */
 void DialogNpcMouseRelease();
+
+} // namespace dc::dialog
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::dialog;
+namespace Dialog = dc::dialog;
+#endif
+// DC_TRANSITIONAL_END

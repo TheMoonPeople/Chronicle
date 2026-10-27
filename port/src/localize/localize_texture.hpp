@@ -5,7 +5,11 @@
 #include <string_view>
 #include <vector>
 
+namespace dc::render {
 struct PortDecodedTexture;
+} // namespace dc::render
+
+namespace dc::localize {
 
 // Pictures of text. Some of the game's words are not messages but textures (an area's name card, the floor
 // labels, a boss's name), one picture per language. The localization takes these from
@@ -38,4 +42,12 @@ void LocalizeCastShadow(std::vector<uint8_t> &rgba, int width, int height, const
 /**
  * Called for each texture the game decodes: swaps in the language's picture when there is one. True if it did.
  */
-bool LocalizeTexture(const char *name, PortDecodedTexture &texture);
+bool LocalizeTexture(const char *name, render::PortDecodedTexture &texture);
+
+} // namespace dc::localize
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::localize;
+#endif
+// DC_TRANSITIONAL_END

@@ -14,7 +14,7 @@
 #include "texture.hpp"
 #include "ui/framework.hpp"
 
-namespace options {
+namespace dc::options {
 
 namespace {
 
@@ -315,4 +315,4 @@ void Draw() {
     setbilinear(1);
 }
 
-} // namespace options
+} // namespace dc::options

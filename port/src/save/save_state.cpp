@@ -8,6 +8,8 @@
 
 #include "platform/files.hpp"
 
+namespace dc::save {
+
 namespace {
 
 using Json = nlohmann::ordered_json;
@@ -57,3 +59,5 @@ bool SaveStateWrite(const std::filesystem::path &path, const SaveState &state) {
     std::string text = json.dump(4) + "\n";
     return FilesWrite(path, text.data(), text.size(), true) == FilesResult::kWritten;
 }
+
+} // namespace dc::save

@@ -8,6 +8,8 @@
 #include "render/draw3d.hpp"
 #include "render/screen.hpp"
 
+namespace dc::render {
+
 namespace {
 
 // TEXA as vudata.cpp's My_DrawEnv leaves it before the game sends its own.
@@ -147,3 +149,5 @@ bool MGPortTakeInterpolationCut() {
     g_cut_next_tick = false;
     return cut;
 }
+
+} // namespace dc::render

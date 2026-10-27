@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::app {
+
 /**
  * Names the game to the shared host: its environment prefix, per-user directories and window
  * identity. Called before anything else in a game's entry point.
@@ -13,3 +15,11 @@ void GameSetIdentity();
  * carrying it beside data/.
  */
 void GameSetDataIcon();
+
+} // namespace dc::app
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::app;
+#endif
+// DC_TRANSITIONAL_END

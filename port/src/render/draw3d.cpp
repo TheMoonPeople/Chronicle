@@ -8,6 +8,8 @@
 #include "render/screen.hpp"
 #include "renderinfo.hpp"
 
+namespace dc::render {
+
 namespace {
 
 // The GS screen centre MGSetRenderInfo puts at offset[0] and offset[1], and the depth range of
@@ -245,3 +247,5 @@ void Draw3DShadowCount(gfx::DrawState &state, bool subtract) {
     face.pass = subtract ? gfx::StencilOp::DecrementClamp : gfx::StencilOp::IncrementClamp;
     state.stencil_front = state.stencil_back = face;
 }
+
+} // namespace dc::render

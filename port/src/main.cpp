@@ -25,8 +25,10 @@
 #endif
 
 #ifdef __ANDROID__
+namespace dc::platform {
 void TouchOverlaySetOpacity(float opacity);
 void TouchOverlayPoll();
+} // namespace dc::platform
 #endif
 
 #include "app/exitcodes.hpp"
@@ -62,6 +64,7 @@ void TouchOverlayPoll();
 
 namespace fs = std::filesystem;
 
+namespace dc::app {
 namespace {
 
 struct Options {
@@ -327,7 +330,7 @@ void PumpHost() {
         }
     }
 #ifdef __ANDROID__
-    TouchOverlayPoll();
+    platform::TouchOverlayPoll();
 #endif
     InputPoll();
     InputScriptApply(GameFrameCount());
@@ -441,7 +444,7 @@ void ApplyConfigChange(const Config &before, const Config &after) {
 #endif
 #ifdef __ANDROID__
     if (after.touch_overlay_opacity != before.touch_overlay_opacity) {
-        TouchOverlaySetOpacity(after.touch_overlay_opacity / 100.0f);
+        platform::TouchOverlaySetOpacity(after.touch_overlay_opacity / 100.0f);
     }
 #endif
     if (after.discord_rich_presence != before.discord_rich_presence) {
@@ -560,7 +563,7 @@ int Run(int argc, const char **argv) {
     DC_ANDROID_TRACE("Run: window initialized");
     InputInit();
 #ifdef __ANDROID__
-    TouchOverlaySetOpacity(config.touch_overlay_opacity / 100.0f);
+    platform::TouchOverlaySetOpacity(config.touch_overlay_opacity / 100.0f);
 #endif
 
     gfx::RendererConfig renderer;
@@ -644,12 +647,13 @@ int Run(int argc, const char **argv) {
 }
 
 } // namespace
+} // namespace dc::app
 
 int main(int argc, const char **argv) {
 #ifdef __SWITCH__
-    return SwitchMain(argc, argv, Run);
+    return SwitchMain(argc, argv, dc::app::Run);
 #else
-    return Run(argc, argv);
+    return dc::app::Run(argc, argv);
 #endif
 }
 
@@ -657,7 +661,7 @@ int main(int argc, const char **argv) {
 // SDLActivity resolves SDL_main from the native application library.
 extern "C" int SDL_main(int argc, char **argv) {
     DC_ANDROID_TRACE("SDL_main: entry");
-    return Run(argc, const_cast<const char **>(argv));
+    return dc::app::Run(argc, const_cast<const char **>(argv));
 }
 #endif
 
@@ -674,6 +678,6 @@ int wmain(int argc, wchar_t **wide_argv) {
         argv.push_back(arg.c_str());
     }
     argv.push_back(nullptr);
-    return Run(argc, argv.data());
+    return dc::app::Run(argc, argv.data());
 }
 #endif

@@ -31,6 +31,8 @@
 #include "render/screen.hpp"
 #include "texture.hpp"
 
+namespace dc::render {
+
 namespace {
 
 constexpr unsigned kKeyCount = 1u << 14;
@@ -1270,3 +1272,5 @@ std::string PortTextureDocumentFromAlias(std::string_view source_alias) {
 std::optional<unsigned> PortTextureEntryIndexFromSource(const DataReadSource &source) {
     return Dc1ImgEntryIndex(source);
 }
+
+} // namespace dc::render

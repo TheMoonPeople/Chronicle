@@ -9,6 +9,8 @@
 #include "text/text_shadow.hpp"
 #include "text/textwipe.hpp"
 
+namespace dc::text {
+
 namespace {
 
 /**
@@ -160,3 +162,5 @@ void GlyphOverlaySprite(const char *texture, const CRect_i_ &screen, const CRect
         GlyphDrawSlot(baked.button, slot, alpha, 1.0f);
     }
 }
+
+} // namespace dc::text

@@ -19,6 +19,8 @@
 #include "platform/display.hpp"
 #include "platform/paths.hpp"
 
+namespace dc::platform {
+
 namespace {
 
 Config                        g_config;
@@ -667,15 +669,19 @@ const Config &ConfigGet() {
     return g_config;
 }
 
+} // namespace dc::platform
+
 const HostSettings &SettingsGet() {
-    return ConfigGet();
+    return dc::platform::ConfigGet();
 }
 
 bool SettingsChange(const HostSettings &settings) {
-    Config config = ConfigGet();
+    dc::platform::Config config = dc::platform::ConfigGet();
     static_cast<HostSettings &>(config) = settings;
-    return ConfigChange(config);
+    return dc::platform::ConfigChange(config);
 }
+
+namespace dc::platform {
 
 float ConfigDetailDistance() {
     float distance = g_config.detail_distance;
@@ -859,3 +865,5 @@ bool ConfigChange(const Config &config) {
 bool ConfigAppliesOnRestart(std::string_view key) {
     return key == "game.debug_mode" || key == "video.render_thread";
 }
+
+} // namespace dc::platform

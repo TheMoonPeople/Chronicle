@@ -36,6 +36,8 @@
 #include "platform/window.hpp"
 #include "render/screen.hpp"
 
+namespace dc::platform {
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -743,3 +745,5 @@ void FirstRunIfNoData(bool headless) {
         PrintFlatpakHint(root);
     }
 }
+
+} // namespace dc::platform

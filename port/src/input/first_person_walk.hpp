@@ -7,6 +7,8 @@ struct MoveCheckInfo;
 struct BT_ACT_STATUS;
 } // namespace dc::game
 
+namespace dc::input {
+
 /**
  * Moves the first-person character through the dungeon with character (not camera) collision.
  * Returns false without moving when the collision geometry is invalid.
@@ -18,3 +20,11 @@ bool FirstPersonDungeonStep(CDungeonMap &map, DRAN_MAP_FIELD_SET *fields, float 
  * Returns whether movement is currently allowed; the velocity is zeroed when it is not.
  */
 bool FirstPersonDungeonKeyboardVelocity(float *velocity, float heading, const BT_ACT_STATUS &status, bool held, bool alive, bool slow);
+
+} // namespace dc::input
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::input;
+#endif
+// DC_TRANSITIONAL_END

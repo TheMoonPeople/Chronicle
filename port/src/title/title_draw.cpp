@@ -16,6 +16,8 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace dc::title {
+
 namespace {
 
 // TEX1 0x61: LCM 1, linear both ways, as setbilinear(1) leaves the title's sprites.
@@ -157,3 +159,5 @@ void TitlePortCard(CTexture *texture, float angle) {
     draw2d::TurnedSprite(texture, CRect_i_(320, 224, 768, 768), CRect_i_(0, 0, 768, 768), 384, 384, angle,
                          TitlePortBackdropScale());
 }
+
+} // namespace dc::title

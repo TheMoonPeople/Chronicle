@@ -8,6 +8,8 @@ namespace dc::game {
 class CSaveData;
 } // namespace dc::game
 
+namespace dc::app {
+
 /**
  * The game's main(): start-up, then one mode after another. The window, renderer, input and clock
  * must already be initialised; the tick callback is the game's to install, the idle hook and the
@@ -108,3 +110,11 @@ void GameFollowMapJump();
  * result 2 reinitialises sound.
  */
 void GameApplyLoopResult(int loop_mode, int result);
+
+} // namespace dc::app
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::app;
+#endif
+// DC_TRANSITIONAL_END

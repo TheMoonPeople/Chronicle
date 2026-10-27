@@ -6,7 +6,7 @@
 #include "ui/framework/text.hpp"
 #include "ui/framework/types.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 /**
  * Visual material presets for window background plates.
@@ -95,7 +95,7 @@ public:
                                     .color = ColorGold,
                                     .drop_shadow = true,
                                     .align = Alignment::Center,
-                                    .scale = Metrics::kScaleHeader,
+                                    .scale = metrics::kScaleHeader,
                                 });
 };
 
@@ -235,8 +235,8 @@ public:
     /**
      * Draws a stone title banner anchored to the top center of the outer bounds.
      */
-    void DrawBanner(std::string_view title, int banner_w = Metrics::kBannerWidth,
-                    int banner_h = Metrics::kBannerHeight, int y_offset = -17,
+    void DrawBanner(std::string_view title, int banner_w = metrics::kBannerWidth,
+                    int banner_h = metrics::kBannerHeight, int y_offset = -17,
                     int alpha = 0x80) const;
 
     /**
@@ -255,13 +255,13 @@ public:
     /**
      * Splits the content area into left and right child sub-windows with an optional vertical divider.
      */
-    std::pair<SubWindow, SubWindow> SplitVertical(int left_w, int gap = Metrics::kPaneGap,
+    std::pair<SubWindow, SubWindow> SplitVertical(int left_w, int gap = metrics::kPaneGap,
                                                   bool draw_divider = false, int alpha = 0x80) const;
 
     /**
      * Splits the content area into top and bottom child sub-windows with an optional horizontal divider.
      */
-    std::pair<SubWindow, SubWindow> SplitHorizontal(int top_h, int gap = Metrics::kPaneGap,
+    std::pair<SubWindow, SubWindow> SplitHorizontal(int top_h, int gap = metrics::kPaneGap,
                                                     bool draw_divider = false, int alpha = 0x80) const;
 
 private:
@@ -270,4 +270,11 @@ private:
     WindowPreset m_preset{WindowPreset::None}; /**< Background surface preset. */
 };
 
-} // namespace UI
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace UI = dc::ui;
+#endif
+// DC_TRANSITIONAL_END

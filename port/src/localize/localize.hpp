@@ -12,6 +12,12 @@
 
 #include "text/gametext.hpp"
 
+namespace dc::platform {
+struct Config;
+} // namespace dc::platform
+
+namespace dc::localize {
+
 // Game text from JSON the port ships, laid over the retail message files (docs/LOCALIZATION.md). Each
 // language is one flat file named for it (en_gb.json, fr_fr.json...), read from <exe>/lang/, then
 // <save>/lang/ over it:
@@ -144,13 +150,11 @@ void LocalizeSetFontPath(const std::filesystem::path &file);
  */
 std::filesystem::path LocalizeFindFile(std::string_view name);
 
-struct Config;
-
 /**
  * ConfigChangeHook that holds a game.language change until the game can apply it between areas, since
  * an area's message files, menu packs and images all depend on it.
  */
-void LocalizeConfigChanged(const Config &before, const Config &after);
+void LocalizeConfigChanged(const platform::Config &before, const platform::Config &after);
 
 /**
  * Whether a language is waiting to be switched to.
@@ -172,3 +176,11 @@ void LocalizeSetDirectories(std::vector<std::filesystem::path> directories);
  * Test hook: forgets what was read.
  */
 void LocalizeReset();
+
+} // namespace dc::localize
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::localize;
+#endif
+// DC_TRANSITIONAL_END

@@ -1,9 +1,11 @@
 #include "battlemenu/internal.hpp"
 
+namespace dc::battlemenu {
+
 namespace {
 
-using btlmenu_detail::DecodeMesFromBuffer;
-using btlmenu_detail::RefreshBtlMenuTextures;
+using detail::DecodeMesFromBuffer;
+using detail::RefreshBtlMenuTextures;
 
 UI::Cursor move_cursor;
 int        last_move_state = -1;
@@ -210,3 +212,5 @@ void PortDrawMenuMove() {
         MenuMove.counter++;
     }
 }
+
+} // namespace dc::battlemenu

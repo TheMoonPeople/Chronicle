@@ -16,7 +16,7 @@
 #include "ui/chests_data.hpp"
 #include "ui/framework.hpp"
 
-namespace JournalChest {
+namespace dc::ui::journal_chest {
 
 namespace {
 
@@ -30,8 +30,8 @@ constexpr std::array<int, 6> kDefenseTreatItems = {ITEM_FLUFFY_DOUGHNUT, ITEM_FI
 
 int          s_selected_town = 0;
 bool         s_filter_miracle_only = true;
-UI::Cursor   s_cursor;
-UI::Brackets s_brackets;
+ui::Cursor   s_cursor;
+ui::Brackets s_brackets;
 int          s_item_anim_tick = 0;
 
 constexpr bool IsItemEden(uint16_t id) { return id == 180; }
@@ -199,53 +199,53 @@ void Draw() {
     constexpr int label_x = right_pane_x + 32;
     constexpr int count_x = 460;
 
-    UI::TrackerWindow::DrawPaper(64, 91, 512, 262, 0x80);
+    ui::TrackerWindow::DrawPaper(64, 91, 512, 262, 0x80);
 
-    UI::TrackerWindow::DrawStoneBanner(
-        UI::Rect(150, 74, 340, 28),
+    ui::TrackerWindow::DrawStoneBanner(
+        ui::Rect(150, 74, 340, 28),
         0x80,
         0x80,
         LocalizeText("tracker.title", "JOURNAL: CHEST TRACKER"));
 
-    UI::Divider::DrawVertical(divider_x, 132, 338, 0x80);
-    UI::Divider::DrawHorizontal(84, divider_x - 10, 285, 0x80);
-    UI::Divider::DrawHorizontal(right_pane_x, 542, 285, 0x80);
+    ui::Divider::DrawVertical(divider_x, 132, 338, 0x80);
+    ui::Divider::DrawHorizontal(84, divider_x - 10, 285, 0x80);
+    ui::Divider::DrawHorizontal(right_pane_x, 542, 285, 0x80);
 
     MenuTextureReload(0x1A);
 
     const std::string mode_label = s_filter_miracle_only
                                        ? LocalizeText("tracker.filter.stat_boosts_only", "< STAT BOOSTS ONLY >")
                                        : LocalizeText("tracker.filter.all_chests", "< ALL TOWN CHESTS >");
-    const u32         mode_color = s_filter_miracle_only ? UI::ColorYellow : UI::ColorWhite;
-    UI::Label(mode_label, mode_color, UI::Alignment::Center, true, body_scale).Draw(320, 108, 0x80);
+    const u32         mode_color = s_filter_miracle_only ? ui::ColorYellow : ui::ColorWhite;
+    ui::Label(mode_label, mode_color, ui::Alignment::Center, true, body_scale).Draw(320, 108, 0x80);
 
-    UI::Label(LocalizeText("tracker.settlements", "SETTLEMENTS"),
-              UI::ColorYellow, UI::Alignment::Left, true, header_scale)
+    ui::Label(LocalizeText("tracker.settlements", "SETTLEMENTS"),
+              ui::ColorYellow, ui::Alignment::Left, true, header_scale)
         .Draw(left_pane_x, 132, 0x80);
 
     for (int i = 0; i < TRACKER_TOWN_COUNT; i++) {
         const int  row_y = kLeftStartY + (i * kRowSpacing);
         const bool selected = (i == s_selected_town);
-        const u32  color = selected ? UI::ColorYellow : UI::ColorWhite;
+        const u32  color = selected ? ui::ColorYellow : ui::ColorWhite;
         const int  row_alpha = selected ? 0x80 : 0x58;
 
         const std::string town_name = LocalizeText("tracker.town." + std::to_string(i), TRACKER_TOWNS[i].name);
-        UI::Label(town_name, color, UI::Alignment::Left, true, body_scale).Draw(left_pane_x, row_y, row_alpha);
+        ui::Label(town_name, color, ui::Alignment::Left, true, body_scale).Draw(left_pane_x, row_y, row_alpha);
     }
 
     const TownStats world_stats = GetGlobalStats();
     const int       world_collected = s_filter_miracle_only ? world_stats.collected_miracle : world_stats.collected_total;
     const int       world_max = s_filter_miracle_only ? world_stats.max_miracle : world_stats.max_total;
 
-    UI::Label(LocalizeText("tracker.world_total", "World Total"),
-              UI::ColorGold, UI::Alignment::Left, true, header_scale)
+    ui::Label(LocalizeText("tracker.world_total", "World Total"),
+              ui::ColorGold, ui::Alignment::Left, true, header_scale)
         .Draw(left_pane_x, 287, 0x80);
-    UI::DrawCounter(left_pane_x, 316, world_collected, world_max, body_scale);
+    ui::DrawCounter(left_pane_x, 316, world_collected, world_max, body_scale);
 
     const std::string cur_town_name = LocalizeText("tracker.town." + std::to_string(s_selected_town),
                                                    TRACKER_TOWNS[s_selected_town].name);
     const std::string right_title = LocalizeFormat(LocalizeText("tracker.breakdown", "%1 Breakdown"), {cur_town_name});
-    UI::Label(right_title, UI::ColorYellow, UI::Alignment::Left, true, header_scale).Draw(right_pane_x, 132, 0x80);
+    ui::Label(right_title, ui::ColorYellow, ui::Alignment::Left, true, header_scale).Draw(right_pane_x, 132, 0x80);
 
     const TownStats cur_stats = GetTownStats(s_selected_town);
 
@@ -287,22 +287,22 @@ void Draw() {
 
     int row_y = kLeftStartY;
     for (const MetricRow &row : breakdown) {
-        const bool icon_drawn = UI::ItemIcon::Draw(row.item_no, right_pane_x + 2, row_y - 1, icon_size, 0x80);
+        const bool icon_drawn = ui::ItemIcon::Draw(row.item_no, right_pane_x + 2, row_y - 1, icon_size, 0x80);
 
         MenuTextureReload(0x1A);
         const int text_x = icon_drawn ? label_x : right_pane_x;
-        UI::Label(row.label, UI::ColorWhite, UI::Alignment::Left, true, body_scale).Draw(text_x, row_y, 0x80);
-        UI::DrawCounter(count_x, row_y, row.collected, row.max_val, body_scale);
+        ui::Label(row.label, ui::ColorWhite, ui::Alignment::Left, true, body_scale).Draw(text_x, row_y, 0x80);
+        ui::DrawCounter(count_x, row_y, row.collected, row.max_val, body_scale);
         row_y += kRowSpacing;
     }
 
     const int town_cur_collected = s_filter_miracle_only ? cur_stats.collected_miracle : cur_stats.collected_total;
     const int town_cur_max = s_filter_miracle_only ? cur_stats.max_miracle : cur_stats.max_total;
 
-    UI::Label(LocalizeText("tracker.area_total", "Area Total"),
-              UI::ColorYellow, UI::Alignment::Left, true, header_scale)
+    ui::Label(LocalizeText("tracker.area_total", "Area Total"),
+              ui::ColorYellow, ui::Alignment::Left, true, header_scale)
         .Draw(right_pane_x, 287, 0x80);
-    UI::DrawCounter(count_x, 287, town_cur_collected, town_cur_max, body_scale);
+    ui::DrawCounter(count_x, 287, town_cur_collected, town_cur_max, body_scale);
 
     const float       progress_ratio = (town_cur_max > 0)
                                            ? static_cast<float>(town_cur_collected) / static_cast<float>(town_cur_max)
@@ -311,16 +311,16 @@ void Draw() {
     const std::string progress_text =
         LocalizeFormat(LocalizeText("tracker.progress", "Progress: %1%"), {std::to_string(percent)});
 
-    UI::ProgressBarStyle bar_style{};
+    ui::ProgressBarStyle bar_style{};
     bar_style.text_scale = 0.76f;
-    UI::ProgressBar::Draw(UI::Rect(right_pane_x, 314, 268, 22), progress_ratio, progress_text, bar_style, 0x80);
+    ui::ProgressBar::Draw(ui::Rect(right_pane_x, 314, 268, 22), progress_ratio, progress_text, bar_style, 0x80);
 
     MenuTextureReload(0x1A);
     const std::string controls_text = LocalizeText("tracker.controls", kControlsText);
-    UI::Label(controls_text, UI::ColorWhite, UI::Alignment::Center).Draw(320, 418, 0x80);
+    ui::Label(controls_text, ui::ColorWhite, ui::Alignment::Center).Draw(320, 418, 0x80);
 
     const int sel_y = kLeftStartY + (s_selected_town * kRowSpacing);
-    s_brackets.Draw(UI::Rect(left_pane_x - 4, sel_y - 1, 152, 22), 0x80);
+    s_brackets.Draw(ui::Rect(left_pane_x - 4, sel_y - 1, 152, 22), 0x80);
 
     s_cursor.SetTarget(48.0f, static_cast<float>(sel_y - 2));
     s_cursor.Draw(0x80);
@@ -353,4 +353,4 @@ void AppendStrings(std::vector<std::pair<std::string, std::string>> &out) {
     }
 }
 
-} // namespace JournalChest
+} // namespace dc::ui::journal_chest

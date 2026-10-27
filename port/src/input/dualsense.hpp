@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+namespace dc::input {
+
 /**
  * An RGB colour for a pad's lightbar.
  */
@@ -27,3 +29,11 @@ LightbarColour LightbarIdle();
  * Sets pad 0's lightbar to the active character's life in a dungeon; called once a tick after the pad read.
  */
 void DualSenseUpdate();
+
+} // namespace dc::input
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::input;
+#endif
+// DC_TRANSITIONAL_END

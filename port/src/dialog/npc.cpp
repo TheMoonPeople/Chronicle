@@ -17,6 +17,8 @@
 #include "text/gametext.hpp"
 #include "ui/menu_pointer.hpp"
 
+namespace dc::dialog {
+
 namespace {
 
 /**
@@ -47,23 +49,23 @@ void Setup() {
     }
     done = true;
 
-    Dialog::LayoutConfig cfg = Dialog::GetLayoutConfig();
+    LayoutConfig cfg = GetLayoutConfig();
     cfg.max_inner_width = 380.0f;
     cfg.max_visible_choices = 6;
-    Dialog::SetLayoutConfig(cfg);
+    SetLayoutConfig(cfg);
 
     // DC_DIALOG_TEST=1: every villager offers one more choice, to see the framework in the game
     // before anything registers a provider of its own.
     if (std::getenv("DC_DIALOG_TEST") == nullptr) {
         return;
     }
-    Dialog::RegisterOptionProvider([](const Dialog::NpcContext &, std::vector<Dialog::ChoiceItem> &out) {
-        Dialog::ChoiceItem item;
+    RegisterOptionProvider([](const NpcContext &, std::vector<ChoiceItem> &out) {
+        ChoiceItem item;
         item.id = "test.who";
         item.fallback_label = "Who are you?";
-        item.color = Dialog::ChoiceColor::Cyan;
-        item.on_select = [](Dialog::ISessionController &session) {
-            const Dialog::NpcContext &ctx = session.GetContext();
+        item.color = ChoiceColor::Cyan;
+        item.on_select = [](ISessionController &session) {
+            const NpcContext &ctx = session.GetContext();
             session.PushRawMessage("Map %1, villager %2, message %3\nof %4.{page}Press {cross} to go back.",
                                    {std::to_string(ctx.map_no), std::to_string(ctx.npc_id),
                                     std::to_string(ctx.mes_id), ctx.mes_file_key});
@@ -73,24 +75,24 @@ void Setup() {
 }
 
 // The colour tag a choice's label is wrapped in, or none for the window's own colour.
-std::string_view ColourTag(const Dialog::ChoiceItem &item) {
+std::string_view ColourTag(const ChoiceItem &item) {
     if (!item.enabled) {
         return "grey";
     }
     switch (item.color) {
-        case Dialog::ChoiceColor::White:
+        case ChoiceColor::White:
             return {};
-        case Dialog::ChoiceColor::Yellow:
+        case ChoiceColor::Yellow:
             return "yellow";
-        case Dialog::ChoiceColor::Cyan:
+        case ChoiceColor::Cyan:
             return "cyan";
-        case Dialog::ChoiceColor::Green:
+        case ChoiceColor::Green:
             return "green";
-        case Dialog::ChoiceColor::Gold:
+        case ChoiceColor::Gold:
             return "gold";
-        case Dialog::ChoiceColor::Grey:
+        case ChoiceColor::Grey:
             return "grey";
-        case Dialog::ChoiceColor::Highlight:
+        case ChoiceColor::Highlight:
             return "highlight";
     }
     return {};
@@ -98,7 +100,7 @@ std::string_view ColourTag(const Dialog::ChoiceItem &item) {
 
 // The view as one message: the page's lines, then the choices in view. first_row is the row the
 // choices start on, cursor_row the one the hand stands on (-1 for a page without choices).
-std::string WindowText(const Dialog::ActiveView &view, int &first_row, int &cursor_row) {
+std::string WindowText(const ActiveView &view, int &first_row, int &cursor_row) {
     std::string text;
     int         rows = 0;
     auto        add = [&](std::string_view line) {
@@ -135,7 +137,7 @@ std::string WindowText(const Dialog::ActiveView &view, int &first_row, int &curs
 
 // Makes EditMes1 show the open session, rebuilding its window only when the text changes.
 void ShowWindow() {
-    const Dialog::ActiveView *view = Dialog::GetActiveView();
+    const ActiveView *view = GetActiveView();
     if (view == nullptr) {
         return;
     }
@@ -209,14 +211,14 @@ void DialogNpcSetMessageFile(const char *path) {
 
 bool DialogNpcOpen(int map_no, int character_info_id, int mes_no) {
     Setup();
-    Dialog::NpcContext ctx;
+    NpcContext ctx;
     ctx.map_no = map_no;
     ctx.npc_id = character_info_id;
     ctx.mes_id = mes_no;
     ctx.mes_file_key = g_message_file_key;
-    ctx.bubble = Dialog::BubbleKind::SpeechTail;
+    ctx.bubble = BubbleKind::SpeechTail;
     ctx.host_plays_original = true;
-    if (!Dialog::TryInterceptOpen(ctx, {})) {
+    if (!TryInterceptOpen(ctx, {})) {
         return false;
     }
     g_window.retail_buff = EditMes1.buff;
@@ -225,36 +227,35 @@ bool DialogNpcOpen(int map_no, int character_info_id, int mes_no) {
 }
 
 DialogNpcState DialogNpcStep() {
-    Dialog::StepSession();
+    StepSession();
 
     // As EdTalkMode's choice prompt reads the pad: Up and Down move, Cross takes (or, while the
     // text is still typing out, shows it whole), Circle backs out.
-    if (GamePad.Down(PAD_UP) != 0 && Dialog::InputMoveUp()) {
+    if (GamePad.Down(PAD_UP) != 0 && InputMoveUp()) {
         ComMenuSePlay(MENU_SOUND_CURSOR);
     }
-    if (GamePad.Down(PAD_DOWN) != 0 && Dialog::InputMoveDown()) {
+    if (GamePad.Down(PAD_DOWN) != 0 && InputMoveDown()) {
         ComMenuSePlay(MENU_SOUND_CURSOR);
     }
     if (GamePad.Down(PAD_CROSS) != 0) {
         if (EditMes1.State() != CLSMES_SHOWN) {
             EditMes1.text_rate = 0.0f;
-        } else if (Dialog::InputConfirm()) {
+        } else if (InputConfirm()) {
             ComMenuSePlay(MENU_SOUND_CONFIRM);
         }
     } else if (GamePad.Down(PAD_CIRCLE) != 0) {
-        Dialog::InputCancel();
+        InputCancel();
     }
 
-    if (Dialog::IsSessionActive()) {
+    if (IsSessionActive()) {
         return DialogNpcState::Running;
     }
     HideWindow();
-    return Dialog::TakeSessionEnd() == Dialog::SessionEnd::PlayOriginal ? DialogNpcState::PlayOriginal
-                                                                        : DialogNpcState::Closed;
+    return TakeSessionEnd() == SessionEnd::PlayOriginal ? DialogNpcState::PlayOriginal : DialogNpcState::Closed;
 }
 
 bool DialogNpcSpeaking() {
-    const Dialog::ActiveView *view = Dialog::GetActiveView();
+    const ActiveView *view = GetActiveView();
     if (view == nullptr) {
         return false;
     }
@@ -283,7 +284,7 @@ std::string DialogNpcTalkLine(int message) {
 }
 
 bool DialogNpcMouseOpen() {
-    return g_window.retail_buff != nullptr && Dialog::IsSessionActive();
+    return g_window.retail_buff != nullptr && IsSessionActive();
 }
 
 void DialogNpcMouseRelease() {
@@ -307,7 +308,7 @@ void DialogNpcMouseUpdate() {
     }
 
     const int choice = ChoiceAt(pointer.x, pointer.y);
-    if (choice >= 0 && take.moved && Dialog::InputHoverChoice(choice)) {
+    if (choice >= 0 && take.moved && InputHoverChoice(choice)) {
         ComMenuSePlay(MENU_SOUND_CURSOR);
     }
 
@@ -327,3 +328,5 @@ void DialogNpcMouseUpdate() {
     }
     MenuPointerPress(pressed);
 }
+
+} // namespace dc::dialog

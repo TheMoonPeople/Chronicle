@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 
+namespace dc::data {
+
 /**
  * The languages the extracted disc carries, as LanguageCode numbers, from the languages.json dcdata
  * writes for its release (dcdata::ReleaseOf); none when the data has no such file.
@@ -138,3 +140,11 @@ bool DataReadPackCapacity(const void *pack, std::size_t &capacity);
  */
 void DataReadTrackPackMember(const void *pack, const void *data, std::size_t size, std::size_t entry_offset,
                              std::string_view entry_name, std::size_t entry_size, int index, bool duplicate_name);
+
+} // namespace dc::data
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::data;
+#endif
+// DC_TRANSITIONAL_END

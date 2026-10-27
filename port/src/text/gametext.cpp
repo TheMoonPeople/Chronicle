@@ -13,6 +13,8 @@
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 
+namespace dc::text {
+
 namespace {
 
 // gaiji.img's letter grid in code order: nine 14x20 cells a row from u 128 (GaijiDataTbl).
@@ -581,3 +583,5 @@ void GameText::Draw(int x, int y, int alpha) {
     mes.edge_alpha = alpha;
     DrawMenuClsMes(&mes, x, y);
 }
+
+} // namespace dc::text

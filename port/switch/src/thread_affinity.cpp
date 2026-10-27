@@ -6,6 +6,8 @@
 #include "kazarov/log.hpp"
 #include "switch_main.hpp"
 
+namespace dc::platform {
+
 void SwitchConfigureThreads() {
     if (gfx::ActiveRenderThreadMode() == gfx::RenderThreadMode::Off) {
         return;
@@ -97,3 +99,5 @@ void SwitchConfigureThreads() {
              game_actual_core, game_actual_mask, render_actual_core, render_actual_mask, allowed, game_priority,
              render_priority);
 }
+
+} // namespace dc::platform

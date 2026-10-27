@@ -2,7 +2,7 @@
 
 #include <array>
 
-namespace namemouse {
+namespace dc::ui::name_mouse {
 
 namespace {
 
@@ -174,4 +174,4 @@ float PointerUnitsPerCount(float target_pixels_per_unit, float target_width, flo
     return target_width / window_width / target_pixels_per_unit;
 }
 
-} // namespace namemouse
+} // namespace dc::ui::name_mouse

@@ -24,7 +24,7 @@
 #include "text/caption_text.hpp"
 #include "text/textwipe.hpp"
 
-namespace areacard {
+namespace dc::ui::area_card {
 
 namespace {
 
@@ -672,4 +672,4 @@ void Draw(float x0, float y0, float x1, float y1, float fade) {
     textwipe::Draw2D(gfx::Primitive::Quads, body, {}, blended);
 }
 
-} // namespace areacard
+} // namespace dc::ui::area_card

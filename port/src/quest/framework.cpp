@@ -11,7 +11,7 @@
 
 #include "localize/localize.hpp"
 
-namespace Quest {
+namespace dc::quest {
 namespace {
 
 using nlohmann::json;
@@ -59,7 +59,7 @@ std::string Localized(Text text) {
 
 // Runs a quest's choice: a Scene of the quest as it is now. What the choice changed can change what
 // the NPC's menu offers, so the menu is asked for again after it.
-void RunScene(const std::string &quest_id, const SceneFn &on_select, Dialog::ISessionController &session) {
+void RunScene(const std::string &quest_id, const SceneFn &on_select, dialog::ISessionController &session) {
     Entry *entry = FindEntry(quest_id);
     IGame *game = Get().game;
     if (entry == nullptr || game == nullptr || !on_select) {
@@ -71,13 +71,13 @@ void RunScene(const std::string &quest_id, const SceneFn &on_select, Dialog::ISe
     session.RefreshHub();
 }
 
-Dialog::ChoiceItem MakeChoice(const std::string &quest_id, std::string id, Text label, SceneFn on_select,
-                              Dialog::ChoiceColor color) {
-    Dialog::ChoiceItem item;
+dialog::ChoiceItem MakeChoice(const std::string &quest_id, std::string id, Text label, SceneFn on_select,
+                              dialog::ChoiceColor color) {
+    dialog::ChoiceItem item;
     item.id = std::move(id);
     item.fallback_label = Localized(label);
     item.color = color;
-    item.on_select = [quest_id, on_select = std::move(on_select)](Dialog::ISessionController &session) {
+    item.on_select = [quest_id, on_select = std::move(on_select)](dialog::ISessionController &session) {
         RunScene(quest_id, on_select, session);
     };
     return item;
@@ -145,7 +145,7 @@ int Context::Var(std::string_view name) const {
 
 void Context::SetVar(std::string_view name, int value) { progress->vars[std::string(name)] = value; }
 
-Scene::Scene(const Definition &quest, Progress &progress, IGame &game, Dialog::ISessionController &session)
+Scene::Scene(const Definition &quest, Progress &progress, IGame &game, dialog::ISessionController &session)
     : Context(quest, progress, game), session(&session) {}
 
 void Scene::Say(Text text, std::vector<std::string> args) {
@@ -157,11 +157,11 @@ void Scene::SayTalkLine(int message, Text fallback) {
     session->PushRawMessage(line.empty() ? Localized(fallback) : std::move(line));
 }
 
-void Scene::Ask(Text prompt, std::vector<Dialog::ChoiceItem> choices, std::vector<std::string> args) {
+void Scene::Ask(Text prompt, std::vector<dialog::ChoiceItem> choices, std::vector<std::string> args) {
     session->PushRawChoicePage(Localized(prompt), std::move(choices), std::move(args));
 }
 
-Dialog::ChoiceItem Scene::Choice(Text label, SceneFn on_select, Dialog::ChoiceColor color) const {
+dialog::ChoiceItem Scene::Choice(Text label, SceneFn on_select, dialog::ChoiceColor color) const {
     return MakeChoice(QuestId(), QuestId() + "." + std::string(label.key), label, std::move(on_select), color);
 }
 
@@ -178,7 +178,7 @@ void Scene::OpenShop(ShopSpec shop) {
     session->Close();
 }
 
-bool NpcMatch::Matches(const Dialog::NpcContext &npc) const {
+bool NpcMatch::Matches(const dialog::NpcContext &npc) const {
     return (map_no == kAny || map_no == npc.map_no) && (npc_id == kAny || npc_id == npc.npc_id) &&
            (mes_file_key.empty() || mes_file_key == npc.mes_file_key);
 }
@@ -282,7 +282,7 @@ Builder &Builder::Advance(std::string_view from, Condition when, std::string_vie
     return *this;
 }
 
-Builder &Builder::Option(NpcMatch npc, Condition when, Text label, SceneFn on_select, Dialog::ChoiceColor color) {
+Builder &Builder::Option(NpcMatch npc, Condition when, Text label, SceneFn on_select, dialog::ChoiceColor color) {
     quest.options.push_back({.npc = std::move(npc),
                              .when = std::move(when),
                              .label = label,
@@ -380,7 +380,7 @@ void Evaluate() {
     std::print(stderr, "quests: rules still moving after {} passes; stopped\n", kMaxEvaluatePasses);
 }
 
-void CollectOptions(const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceItem> &out) {
+void CollectOptions(const dialog::NpcContext &npc, std::vector<dialog::ChoiceItem> &out) {
     State &state = Get();
     if (state.game == nullptr) {
         return;
@@ -399,7 +399,7 @@ void CollectOptions(const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceIte
     }
 }
 
-bool TakesOver(const Dialog::NpcContext &npc, Retail behaviour) {
+bool TakesOver(const dialog::NpcContext &npc, Retail behaviour) {
     for (const std::unique_ptr<Entry> &entry : Get().quests) {
         for (const Definition::Takeover &takeover : entry->quest.Takeovers()) {
             if (takeover.behaviour == behaviour && takeover.npc.Matches(npc)) {
@@ -457,4 +457,4 @@ bool LoadJson(std::string_view text) {
     return true;
 }
 
-} // namespace Quest
+} // namespace dc::quest

@@ -7,6 +7,8 @@
 // Battle menu text. A ring slot's text depends on menu state (town or dungeon, which exit the map
 // offers), so it lives with the menu rather than in the UI framework.
 
+namespace dc::battlemenu {
+
 /**
  * Returns the default English localization key-value pairs for the Battle Menu and Weapon Menu.
  */
@@ -28,3 +30,11 @@ void GetBattleMenuHelpData(int index, int menu_mode, std::string &out_title, std
  * Returns the unquoted caption string displayed beside a Battle Menu ring icon.
  */
 std::string GetBattleMenuCaption(int index, int menu_mode, bool ingame_load_active);
+
+} // namespace dc::battlemenu
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::battlemenu;
+#endif
+// DC_TRANSITIONAL_END

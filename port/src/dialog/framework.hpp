@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace Dialog {
+namespace dc::dialog {
 
 /**
  * The window style a dialog session is drawn with.
@@ -437,4 +437,11 @@ bool InputConfirm();
  */
 bool InputCancel();
 
-} // namespace Dialog
+} // namespace dc::dialog
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::dialog;
+namespace Dialog = dc::dialog;
+#endif
+// DC_TRANSITIONAL_END

@@ -10,6 +10,8 @@
 #define STBI_SUPPORT_ZLIB
 #include "stb_image.h"
 
+namespace dc::platform {
+
 namespace {
 
 constexpr std::uint32_t kEndSignature = 0x06054B50;
@@ -364,3 +366,5 @@ bool DataArchivePresent(const std::filesystem::path &data_root) {
     std::error_code error;
     return std::filesystem::is_regular_file(data_root.parent_path() / "data.zip", error);
 }
+
+} // namespace dc::platform

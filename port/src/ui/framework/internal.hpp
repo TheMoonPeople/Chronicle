@@ -14,7 +14,7 @@
 #include "texture.hpp"
 #include "ui/framework.hpp"
 
-namespace UI::detail {
+namespace dc::ui::detail {
 
 /**
  * Default capital letter height in logical pixels at unit scale.
@@ -148,4 +148,4 @@ inline void ColorToRgb(u32 color, unsigned char (&out)[3]) {
     }
 }
 
-} // namespace UI::detail
+} // namespace dc::ui::detail

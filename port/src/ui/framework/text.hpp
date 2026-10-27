@@ -8,7 +8,7 @@
 #include "text/gametext.hpp"
 #include "ui/framework/types.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 /**
  * Styling parameters for TrueType and bitmap UI text labels.
@@ -237,7 +237,7 @@ void DrawTextBox(std::string_view text, const Rect &box, const TextStyle &style 
  * Draws a bracketed "[current/max]" numeric counter at (x, y).
  */
 void DrawCounter(int x, int y, int current_val, int max_val,
-                 float scale = Metrics::kScaleBody, int alpha = 0x80,
+                 float scale = metrics::kScaleBody, int alpha = 0x80,
                  u32 normal_color = ColorWhite, u32 complete_color = ColorGold);
 
 /**
@@ -261,4 +261,11 @@ void DrawStatusNumber(int value, int right_x, int y,
 void DrawStatusSlashPair(int current_val, int max_val, int slash_x, int y,
                          float scale = 0.76f, int alpha = 0x80);
 
-} // namespace UI
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace UI = dc::ui;
+#endif
+// DC_TRANSITIONAL_END

@@ -15,6 +15,8 @@
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 
+namespace dc::input {
+
 namespace {
 
 // About 86 degrees: the tangent stays finite.
@@ -270,3 +272,5 @@ void TownMouseApply(CCamera *shown, CEditGround *ground, int map, int mode) {
         MouseLookTurnOrbit(camera, turn);
     }
 }
+
+} // namespace dc::input

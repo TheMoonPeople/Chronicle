@@ -2,6 +2,8 @@
 
 #include <filesystem>
 
+namespace dc::save {
+
 /**
  * What the title needs to know before a save is loaded, kept as JSON beside the saves.
  * On the PS2 the memory card's configuration file held it.
@@ -22,3 +24,11 @@ bool SaveStateRead(const std::filesystem::path &path, SaveState &state);
  * Returns false when the directory or the file cannot be written.
  */
 bool SaveStateWrite(const std::filesystem::path &path, const SaveState &state);
+
+} // namespace dc::save
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::save;
+#endif
+// DC_TRANSITIONAL_END

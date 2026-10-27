@@ -18,7 +18,7 @@
  * the game only through Quest::IGame, so it runs the same against the save data in play and against a
  * fake in a test. Like dialog_framework.hpp, this header includes no PS2 headers.
  */
-namespace Quest {
+namespace dc::quest {
 
 /**
  * Text a quest shows: its key in lang/<language>.json, and the English for a language without it.
@@ -232,7 +232,7 @@ using SceneFn = std::function<void(Scene &)>;
  */
 class Scene : public Context {
 public:
-    Scene(const Definition &quest, Progress &progress, IGame &game, Dialog::ISessionController &session);
+    Scene(const Definition &quest, Progress &progress, IGame &game, dialog::ISessionController &session);
 
     /**
      * A page of text, then back to the page under it. "{page}" splits it; %1... are args.
@@ -246,12 +246,12 @@ public:
     /**
      * A question with choices of the quest's own (Choice); cancelling goes back.
      */
-    void Ask(Text prompt, std::vector<Dialog::ChoiceItem> choices, std::vector<std::string> args = {});
+    void Ask(Text prompt, std::vector<dialog::ChoiceItem> choices, std::vector<std::string> args = {});
     /**
      * A choice for Ask: on_select runs as a Scene of the same quest.
      */
-    Dialog::ChoiceItem Choice(Text label, SceneFn on_select,
-                              Dialog::ChoiceColor color = Dialog::ChoiceColor::White) const;
+    dialog::ChoiceItem Choice(Text label, SceneFn on_select,
+                              dialog::ChoiceColor color = dialog::ChoiceColor::White) const;
     /**
      * Back to the page under this one, or out of the conversation from the NPC's menu.
      */
@@ -269,10 +269,10 @@ public:
      */
     void SayThenClose(Text text, std::vector<std::string> args = {});
 
-    Dialog::ISessionController &Session() const { return *session; }
+    dialog::ISessionController &Session() const { return *session; }
 
 private:
-    Dialog::ISessionController *session;
+    dialog::ISessionController *session;
 };
 
 using Condition = std::function<bool(const Context &)>;
@@ -290,7 +290,7 @@ struct NpcMatch {
     int         npc_id = kAny;
     std::string mes_file_key;
 
-    bool Matches(const Dialog::NpcContext &npc) const;
+    bool Matches(const dialog::NpcContext &npc) const;
 };
 
 /**
@@ -342,7 +342,7 @@ public:
         NpcMatch            npc;
         Condition           when;
         Text                label;
-        Dialog::ChoiceColor color = Dialog::ChoiceColor::White;
+        dialog::ChoiceColor color = dialog::ChoiceColor::White;
         SceneFn             on_select;
     };
 
@@ -400,7 +400,7 @@ public:
      * A choice the quest adds to the menu of the NPCs npc matches, while when holds.
      */
     Builder &Option(NpcMatch npc, Condition when, Text label, SceneFn on_select,
-                    Dialog::ChoiceColor color = Dialog::ChoiceColor::White);
+                    dialog::ChoiceColor color = dialog::ChoiceColor::White);
     /**
      * Holds retail's own behaviour back for the NPCs npc matches: the quest does it instead.
      */
@@ -440,11 +440,11 @@ void Evaluate();
 /**
  * The choices quests add for an NPC, after Evaluate: a Dialog option provider.
  */
-void CollectOptions(const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceItem> &out);
+void CollectOptions(const dialog::NpcContext &npc, std::vector<dialog::ChoiceItem> &out);
 /**
  * Whether a registered quest takes behaviour over from retail for an NPC.
  */
-bool TakesOver(const Dialog::NpcContext &npc, Retail behaviour);
+bool TakesOver(const dialog::NpcContext &npc, Retail behaviour);
 
 /**
  * A new game: every quest at its first stage, with no numbers.
@@ -460,4 +460,11 @@ std::string SaveJson();
  */
 bool LoadJson(std::string_view json);
 
-} // namespace Quest
+} // namespace dc::quest
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::quest;
+namespace Quest = dc::quest;
+#endif
+// DC_TRANSITIONAL_END

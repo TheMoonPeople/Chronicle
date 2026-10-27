@@ -10,6 +10,8 @@ class CCPoly;
 class CEditGround;
 } // namespace dc::game
 
+namespace dc::input {
+
 // The mouse turns the game's cameras where the right stick does, by the angle it moved
 // (InputGetMouseLook) rather than through a stick's dead zone, steps and full deflection. A camera
 // reads it in its stick's units, added to the stick's reading, so its own conditions (R1 and L1
@@ -109,3 +111,11 @@ void TownMouseRecord(CCameraFollow *camera, bool fishing);
  * the ones it was opened for, in the same pad read.
  */
 void TownMouseApply(CCamera *shown, CEditGround *ground, int map, int mode);
+
+} // namespace dc::input
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::input;
+#endif
+// DC_TRANSITIONAL_END

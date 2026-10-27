@@ -10,6 +10,8 @@ class CCameraFollow;
 class CDungeonMap;
 } // namespace dc::game
 
+namespace dc::input {
+
 /**
  * Collects town camera geometry into polys, proving an allocation bound before each retail collector.
  * mask bit 0 selects fixed parts and bit 1 movable parts; grid areas are always included.
@@ -46,3 +48,11 @@ float MouseCameraClamp(CCameraFollow &camera, float turn, CCPoly *polys, int cou
  */
 float MouseCameraClampDistance(CCameraFollow &camera, float distance, CCPoly *polys, int count,
                                float floor_clearance = 18.0f);
+
+} // namespace dc::input
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::input;
+#endif
+// DC_TRANSITIONAL_END

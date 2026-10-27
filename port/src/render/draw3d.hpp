@@ -14,6 +14,8 @@ namespace dc::game {
 struct RenderInfo;
 } // namespace dc::game
 
+namespace dc::render {
+
 /**
  * The GS registers the game last sent (MGSetGs*, and the clears, fills, stretches and shadow
  * calls that leave them set) and the scissor MGSetWindowRect set, in the logical frame.
@@ -151,7 +153,7 @@ Draw3DExtent Draw3DVisibleExtent();
  * Builds the transform from eye space (what view_scaled produces: x right, y down, z forward) to
  * clip space of the current render target.
  */
-void Draw3DEyeToClip(const RenderInfo &info, float clip[4][4]);
+void Draw3DEyeToClip(const game::RenderInfo &info, float clip[4][4]);
 
 /**
  * Fills the mvp, normal matrix, lights, ambient and fog of one draw, as the VU1 header carried
@@ -159,7 +161,7 @@ void Draw3DEyeToClip(const RenderInfo &info, float clip[4][4]);
  * the view. transform, when given, receives the factors of mvp for the display list's
  * interpolation.
  */
-void Draw3DSceneConstants(gfx::MeshConstants &constants, const RenderInfo &info, const float model[4][4],
+void Draw3DSceneConstants(gfx::MeshConstants &constants, const game::RenderInfo &info, const float model[4][4],
                           gfx::MeshTransform *transform = nullptr);
 
 /** World units an object may move in one tick and still be interpolated; further is a teleport. */
@@ -187,14 +189,14 @@ private:
  * Applies what SetMaterial uploaded: diffuse (alpha in w), ambient and specular. The diffuse
  * colours the ambient light as well as the lights, as VU1 lit with it; ambient is not used.
  */
-void Draw3DMaterial(gfx::MeshConstants &constants, const RenderInfo &info, const float *diffuse,
+void Draw3DMaterial(gfx::MeshConstants &constants, const game::RenderInfo &info, const float *diffuse,
                     const float *ambient, const float *specular);
 
 /**
  * Builds a draw state from the current registers, PRMODE.ABE on, the window scissor on the
  * current target, and fog when asked.
  */
-gfx::DrawState Draw3DState(const RenderInfo &info, bool fog);
+gfx::DrawState Draw3DState(const game::RenderInfo &info, bool fog);
 
 /** Quadwords of the game's vu_data block that tag a built visual, keyed by the block's address. */
 inline constexpr unsigned kDraw3DBlockQuads = 4;
@@ -284,9 +286,17 @@ void Draw3DInvalidateStripRuns(Draw3DVisual &visual);
 /**
  * Draws a built visual with the given model matrix and VU1 program.
  */
-void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const RenderInfo &info, int program);
+void Draw3DDrawVisual(const Draw3DVisual &visual, const float model[4][4], const game::RenderInfo &info, int program);
 
 /**
  * Appends a strip's indices as a triangle list, every triangle wound as the strip's first.
  */
 void Draw3DStripToList(std::vector<uint32_t> &indices, uint32_t first_vertex, uint32_t count);
+
+} // namespace dc::render
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::render;
+#endif
+// DC_TRANSITIONAL_END

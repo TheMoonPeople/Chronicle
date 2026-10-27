@@ -16,6 +16,8 @@ namespace dc::game {
 extern s32 mode;
 } // namespace dc::game
 
+namespace dc::app {
+
 namespace {
 
 struct Character {
@@ -156,3 +158,5 @@ void PresenceTick() {
         DiscordSetActivity(g_shown);
     }
 }
+
+} // namespace dc::app

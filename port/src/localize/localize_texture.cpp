@@ -16,6 +16,8 @@
 
 namespace fs = std::filesystem;
 
+namespace dc::localize {
+
 namespace {
 
 // Pictures already complained about, so a wrong-shaped one says so once.
@@ -261,3 +263,5 @@ bool LocalizeTexture(const char *name, PortDecodedTexture &texture) {
     texture.four_bit = false;
     return true;
 }
+
+} // namespace dc::localize

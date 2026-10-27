@@ -8,9 +8,11 @@
 #include <utility>
 #include <vector>
 
+namespace dc::render {
 struct PortDecodedTexture;
+} // namespace dc::render
 
-namespace caption {
+namespace dc::text::caption {
 
 /**
  * RGB of the menu captions' painted letter fill.
@@ -74,7 +76,7 @@ struct CaptionBounds {
 /**
  * Measures stayframe labels without altering the original texture.
  */
-void PreparePainted(const char *name, const PortDecodedTexture &texture);
+void PreparePainted(const char *name, const render::PortDecodedTexture &texture);
 /**
  * Returns measured bounds, or no value for an absent label.
  */
@@ -230,4 +232,10 @@ std::vector<LetterWidth> LetterWidths(std::string_view utf8);
 bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_height, float xsq, float max_width,
               const LineStyle &style, float fade, float rows, LineBounds *bounds);
 
-} // namespace caption
+} // namespace dc::text::caption
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

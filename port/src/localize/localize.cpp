@@ -32,6 +32,8 @@
 
 namespace fs = std::filesystem;
 
+namespace dc::localize {
+
 namespace {
 
 using Json = nlohmann::ordered_json;
@@ -929,3 +931,5 @@ int LocalizeExport(const fs::path &out, bool verify) {
     }
     return static_cast<int>(found.size());
 }
+
+} // namespace dc::localize

@@ -13,6 +13,8 @@ namespace dc::game {
 extern s32 mode;
 } // namespace dc::game
 
+namespace dc::input {
+
 LightbarColour LightbarForLife(int life, int max_life) {
     if (max_life <= 0) {
         return LightbarIdle();
@@ -36,3 +38,5 @@ void DualSenseUpdate() {
     }
     InputSetLightbar(0, colour.red, colour.green, colour.blue);
 }
+
+} // namespace dc::input

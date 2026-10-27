@@ -13,7 +13,7 @@
 #include "text/textwipe.hpp"
 #include "texture.hpp"
 
-namespace draw2d {
+namespace dc::render::draw2d {
 
 namespace {
 
@@ -240,4 +240,4 @@ void TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &tex
     draw2d::RestoreTestZbuf();
 }
 
-} // namespace draw2d
+} // namespace dc::render::draw2d

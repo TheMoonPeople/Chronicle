@@ -59,8 +59,12 @@ extern s32 mc_mode;
 extern s32 NextMapNo;
 } // namespace dc::game
 
+namespace dc::battlemenu {
 bool TakeBattleMenuLoadRequest();
 bool TakeBattleMenuTitleRequest();
+} // namespace dc::battlemenu
+
+namespace dc::app {
 
 namespace {
 
@@ -768,7 +772,7 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
                 result = 1;
             }
 
-            if (result == 0 && TakeBattleMenuLoadRequest()) {
+            if (result == 0 && battlemenu::TakeBattleMenuLoadRequest()) {
                 const s32 loaded_map = *reinterpret_cast<const s32 *>(
                     reinterpret_cast<const char *>(SaveData) + kSaveMapNoOffset);
                 MapNo = (loaded_map >= 0 && loaded_map < 200) ? loaded_map : 0;
@@ -780,7 +784,7 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
                 break;
             }
 
-            if (result == 0 && TakeBattleMenuTitleRequest()) {
+            if (result == 0 && battlemenu::TakeBattleMenuTitleRequest()) {
                 ReturnToTitle();
                 break;
             }
@@ -819,3 +823,5 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         }
     }
 }
+
+} // namespace dc::app

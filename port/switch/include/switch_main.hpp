@@ -2,6 +2,8 @@
 
 #include "gfx/gfx.hpp"
 
+namespace dc::platform {
+
 /**
  * Entry point callback receiving the composed command-line arguments.
  * Argument strings remain valid for the duration of the call.
@@ -35,3 +37,11 @@ void SwitchConfigureThreads();
  * Shows missing-data instructions on the console until + is pressed or the applet exits.
  */
 void SwitchShowMissingData();
+
+} // namespace dc::platform
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::platform;
+#endif
+// DC_TRANSITIONAL_END

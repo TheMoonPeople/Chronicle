@@ -16,6 +16,8 @@
 #include "platform/settings.hpp"
 #include "platform/window.hpp"
 
+namespace dc::app {
+
 namespace {
 
 #ifdef __ANDROID__
@@ -63,3 +65,5 @@ void GameSetDataIcon() {
     source.shortcut = shortcut.c_str();
     GameIconInstall(PathsDataRoot(), source);
 }
+
+} // namespace dc::app

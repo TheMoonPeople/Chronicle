@@ -16,7 +16,11 @@ namespace dc::game {
 class CTexture;
 } // namespace dc::game
 
+namespace dc::data {
 struct DataReadSource;
+} // namespace dc::data
+
+namespace dc::render {
 
 /**
  * What the renderer needs to sample one of the game's textures. The game passes textures
@@ -39,7 +43,7 @@ struct PortTextureRef {
 PortTextureRef PortTextureFromTex0(u_long tex0, u_long tex1);
 PortTextureRef PortTextureFromTex0(const sceGsTex0 &tex0, u_long tex1 = 0);
 PortTextureRef PortTextureFromHandle(int handle);
-PortTextureRef PortTextureFromCTexture(const CTexture *texture);
+PortTextureRef PortTextureFromCTexture(const game::CTexture *texture);
 
 /*
  * The registry behind the resolvers.
@@ -84,9 +88,9 @@ bool PortLegacyTexturePath();
  * Maps a data source (or its alias) to the baked texture document describing it, and to the
  * ordinal of its entry in that document when the source pins one.
  */
-std::optional<std::string> PortTextureDocumentFromSource(const DataReadSource &source);
+std::optional<std::string> PortTextureDocumentFromSource(const data::DataReadSource &source);
 std::string                PortTextureDocumentFromAlias(std::string_view source_alias);
-std::optional<unsigned>    PortTextureEntryIndexFromSource(const DataReadSource &source);
+std::optional<unsigned>    PortTextureEntryIndexFromSource(const data::DataReadSource &source);
 
 /**
  * Reads one schema-3 document and its RGBA levels through the active data VFS. A CLUT matching
@@ -177,3 +181,11 @@ bool PortLoadClut(unsigned cbp, const u_int *clut);
  * False when cbp names no live palette.
  */
 bool PortPaletteEntries(unsigned cbp, uint32_t *rgba);
+
+} // namespace dc::render
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::render;
+#endif
+// DC_TRANSITIONAL_END

@@ -7,7 +7,7 @@
 #include "gameutil.hpp"
 #include "rect.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 /**
  * Standard white font palette index.
@@ -29,7 +29,7 @@ constexpr u32 ColorYellow = FONT_COLOR_YELLOW;
  */
 constexpr u32 ColorBlue = 3;
 
-namespace Metrics {
+namespace metrics {
 
 /**
  * Logical screen width in pixels.
@@ -171,7 +171,7 @@ constexpr int kModalMinWidth = 260;
  */
 constexpr int kModalMaxWidth = 360;
 
-} // namespace Metrics
+} // namespace metrics
 
 /**
  * Horizontal text alignment modes.
@@ -237,7 +237,7 @@ struct Rect {
      * Returns a rectangle covering the full 640x480 logical screen.
      */
     static constexpr Rect Screen() {
-        return Rect(0, 0, Metrics::kScreenWidth, Metrics::kScreenHeight);
+        return Rect(0, 0, metrics::kScreenWidth, metrics::kScreenHeight);
     }
 
     /**
@@ -393,7 +393,7 @@ struct Rect {
     /**
      * Splits the rectangle into left and right panes separated by a horizontal gap.
      */
-    constexpr std::pair<Rect, Rect> SplitVertical(int left_w, int gap = Metrics::kPaneGap,
+    constexpr std::pair<Rect, Rect> SplitVertical(int left_w, int gap = metrics::kPaneGap,
                                                   int *out_divider_x = nullptr) const {
         if (out_divider_x != nullptr) {
             *out_divider_x = x + left_w + (gap / 2);
@@ -406,7 +406,7 @@ struct Rect {
     /**
      * Splits the rectangle into top and bottom panes separated by a vertical gap.
      */
-    constexpr std::pair<Rect, Rect> SplitHorizontal(int top_h, int gap = Metrics::kPaneGap,
+    constexpr std::pair<Rect, Rect> SplitHorizontal(int top_h, int gap = metrics::kPaneGap,
                                                     int *out_divider_y = nullptr) const {
         if (out_divider_y != nullptr) {
             *out_divider_y = y + top_h + (gap / 2);
@@ -419,8 +419,8 @@ struct Rect {
     /**
      * Returns the bounding rectangle of the Nth vertical row inside this rectangle.
      */
-    constexpr Rect Row(int index, int row_h = Metrics::kRowHeight,
-                       int stride = Metrics::kRowStride) const {
+    constexpr Rect Row(int index, int row_h = metrics::kRowHeight,
+                       int stride = metrics::kRowStride) const {
         return Rect(x, y + index * stride, w, row_h);
     }
 };
@@ -461,4 +461,12 @@ public:
     static void Flush();
 };
 
-} // namespace UI
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace UI = dc::ui;
+namespace Metrics = dc::ui::metrics;
+#endif
+// DC_TRANSITIONAL_END

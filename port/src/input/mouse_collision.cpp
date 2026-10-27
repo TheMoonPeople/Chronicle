@@ -15,6 +15,8 @@
 #include "frame.hpp"
 #include "rect.hpp"
 
+namespace dc::input {
+
 namespace {
 
 constexpr int   kPolyBudget = 32768;
@@ -490,3 +492,5 @@ float MouseCameraClampDistance(CCameraFollow &camera, float distance, CCPoly *po
     }
     return accepted;
 }
+
+} // namespace dc::input

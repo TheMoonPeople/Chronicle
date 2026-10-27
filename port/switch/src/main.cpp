@@ -15,6 +15,8 @@ std::uint32_t romfsUnmount(const char *name);
 #include "platform/window.hpp"
 #include "switch_main.hpp"
 
+namespace dc::platform {
+
 int SwitchMain(int argc, const char **argv, SwitchRunFunction run) {
     const std::uint32_t romfs_result = romfsMountSelf("romfs");
 
@@ -63,3 +65,5 @@ void SwitchConfigureRenderer(gfx::RendererConfig &config) {
     std::fprintf(stderr, "switch: mode target=%dx%d, SDL=%dx%d, render scale=%.2f\n", width, height,
                  window_width, window_height, static_cast<double>(config.render_scale));
 }
+
+} // namespace dc::platform

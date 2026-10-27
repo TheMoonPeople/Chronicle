@@ -46,6 +46,8 @@
 #include "weapon_buildup.hpp"
 #include "weaponlevelup.hpp"
 
+namespace dc::battlemenu {
+
 /**
  * Draws the Battle Menu's main ring and eases the system cursor towards the selected icon.
  */
@@ -127,7 +129,7 @@ inline constexpr int BTLMENU_PAGE_LOAD = 99;
  */
 inline constexpr int BTLMENU_PAGE_QUIT = 100;
 
-namespace btlmenu_detail {
+namespace detail {
 
 /**
  * Refreshes cached pointers to the resident Battle Menu textures.
@@ -136,7 +138,7 @@ inline void RefreshBtlMenuTextures() {
     MenuCharaFace = TexManager.GetTexture(const_cast<char *>("charaface"), BtlMenuReadBlock);
     BtStatus = TexManager.GetTexture(const_cast<char *>("btstatus2"), BtlMenuReadBlock);
     WepIcon = TexManager.GetTexture(const_cast<char *>("wepicon"), -1);
-    ItemIcon = TexManager.GetTexture(const_cast<char *>("itemicon"), BtlMenuReadBlock);
+    game::ItemIcon = TexManager.GetTexture(const_cast<char *>("itemicon"), BtlMenuReadBlock);
     PerBoardTex = TexManager.GetTexture(const_cast<char *>("perbrd"), BtlMenuReadBlock);
     WepStatus = TexManager.GetTexture(const_cast<char *>("wepstatus"), BtlMenuExtBlock);
     VillageName = TexManager.GetTexture(const_cast<char *>("vilname"), -1);
@@ -199,4 +201,13 @@ inline std::string DecodeItemNamePort(int item_no, std::string_view fallback = {
     return std::string(fallback);
 }
 
-} // namespace btlmenu_detail
+} // namespace detail
+
+} // namespace dc::battlemenu
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::battlemenu;
+namespace btlmenu_detail = dc::battlemenu::detail;
+#endif
+// DC_TRANSITIONAL_END

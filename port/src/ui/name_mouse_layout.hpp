@@ -6,7 +6,7 @@
  * DrawNameTemplete, DrawCharaName and NameEnterDraw draw with.
  */
 
-namespace namemouse {
+namespace dc::ui::name_mouse {
 
 // NameSelect::area, as the game numbers them.
 constexpr int kAreaKeyboard = 4;
@@ -117,4 +117,11 @@ Hit HitTest(const Screen &screen, float x, float y);
  */
 float PointerUnitsPerCount(float target_pixels_per_unit, float target_width, float window_width);
 
-} // namespace namemouse
+} // namespace dc::ui::name_mouse
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace namemouse = dc::ui::name_mouse;
+#endif
+// DC_TRANSITIONAL_END

@@ -15,7 +15,7 @@
 #include "title/tisound.hpp"
 #include "ui/framework.hpp"
 
-namespace TitleMenu {
+namespace dc::title::menu {
 
 namespace {
 
@@ -240,4 +240,4 @@ std::vector<std::pair<std::string, std::string>> Strings() {
     return out;
 }
 
-} // namespace TitleMenu
+} // namespace dc::title::menu

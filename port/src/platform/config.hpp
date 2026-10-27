@@ -8,6 +8,8 @@
 #include "gfx/gfx.hpp"
 #include "platform/settings.hpp"
 
+namespace dc::platform {
+
 /**
  * The shape of the picture: the window's own, or 4:3 as on the PS2.
  */
@@ -185,3 +187,11 @@ bool ConfigChange(const Config &config);
  * game only at the next start.
  */
 bool ConfigAppliesOnRestart(std::string_view key);
+
+} // namespace dc::platform
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::platform;
+#endif
+// DC_TRANSITIONAL_END

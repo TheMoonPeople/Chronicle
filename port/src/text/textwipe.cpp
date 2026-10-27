@@ -24,7 +24,7 @@
 #include "platform/overlay.hpp"
 #include "platform/paths.hpp"
 
-namespace textwipe {
+namespace dc::text::textwipe {
 
 namespace {
 
@@ -508,4 +508,4 @@ void DrawDivider() {
     }
 }
 
-} // namespace textwipe
+} // namespace dc::text::textwipe

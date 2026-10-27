@@ -6,7 +6,7 @@
 
 #include "gfx/gfx.hpp"
 
-namespace capfont {
+namespace dc::text::capfont {
 
 /**
  * Loads the main caption font into slot 0 and clears the glyph atlas.
@@ -200,4 +200,10 @@ struct Metrics {
  */
 Metrics GetMetrics();
 
-} // namespace capfont
+} // namespace dc::text::capfont
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

@@ -11,6 +11,8 @@
 #include "renderinfo.hpp"
 #include "texture.hpp"
 
+namespace dc::render {
+
 namespace {
 
 constexpr uint32_t kBlockTag = 0x44334443; // "CD3D"
@@ -296,3 +298,5 @@ Draw3DIdentityScope::Draw3DIdentityScope(const void *object, float teleport_dist
 Draw3DIdentityScope::~Draw3DIdentityScope() {
     gfx::SetInterpKey(key, no_interpolation);
 }
+
+} // namespace dc::render

@@ -10,6 +10,8 @@ namespace dc::game {
 class CTexture;
 } // namespace dc::game
 
+namespace dc::title {
+
 /**
  * Draws the previous frame over the whole logical frame at alpha (0x80 opaque) through the
  * current ALPHA register: the motion trail of the title scenes.
@@ -51,3 +53,11 @@ float TitlePortBackdropScale();
  * centre, at TitlePortBackdropScale.
  */
 void TitlePortCard(CTexture *texture, float angle);
+
+} // namespace dc::title
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::title;
+#endif
+// DC_TRANSITIONAL_END

@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+namespace dc::ui {
+
 /**
  * One tick of a menu pointer: whether it is in use and what the mouse did.
  */
@@ -94,3 +96,11 @@ bool MenuPointerHand(float &x, float &y);
  * A tick's worth of the Register Name screen's and the menus' mouse, ahead of the pad's read.
  */
 void MenuMouseUpdate();
+
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+#endif
+// DC_TRANSITIONAL_END

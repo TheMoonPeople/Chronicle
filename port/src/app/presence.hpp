@@ -2,6 +2,8 @@
 
 #include "platform/discord.hpp"
 
+namespace dc::app {
+
 /**
  * Snapshot of the game state that Discord rich presence is derived from.
  * Negative values mean "unknown" for the corresponding field.
@@ -28,3 +30,11 @@ DiscordActivity PresenceDescribe(const PresenceState &state);
  * after it has stayed unchanged for a short settle period; loading and saving modes are ignored.
  */
 void PresenceTick();
+
+} // namespace dc::app
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::app;
+#endif
+// DC_TRANSITIONAL_END

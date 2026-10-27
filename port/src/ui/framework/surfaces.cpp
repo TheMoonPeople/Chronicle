@@ -16,7 +16,7 @@
 #include "render/texture_registry.hpp"
 #include "ui/framework/internal.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 namespace {
 
@@ -695,4 +695,4 @@ std::pair<SubWindow, SubWindow> SubWindow::SplitHorizontal(int top_h, int gap,
     return {SubWindow(top_r), SubWindow(bot_r)};
 }
 
-} // namespace UI
+} // namespace dc::ui

@@ -16,6 +16,8 @@
 #include "gameutil.hpp"
 #include "platform/input.hpp"
 
+namespace dc::input {
+
 namespace {
 constexpr int kPolys = 32768;
 constexpr int kFrames = 4096;
@@ -169,3 +171,5 @@ bool FirstPersonDungeonKeyboardVelocity(float *velocity, float heading, const BT
     velocity[2] = allowed ? speed * (-keyboard.y * cosf(heading) - keyboard.x * sinf(heading)) : 0.0f;
     return allowed;
 }
+
+} // namespace dc::input

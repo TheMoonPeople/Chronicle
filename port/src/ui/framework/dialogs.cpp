@@ -7,7 +7,7 @@
 #include "ui/framework/internal.hpp"
 #include "ui/menu_pointer.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 namespace {
 
@@ -65,11 +65,11 @@ ConfirmLayout LayOutConfirm(std::string_view title, std::string_view description
     }
 
     const int line_count = static_cast<int>(layout.lines.size());
-    layout.box_w = std::clamp(max_text_w + 48, Metrics::kModalMinWidth, Metrics::kModalMaxWidth);
+    layout.box_w = std::clamp(max_text_w + 48, metrics::kModalMinWidth, metrics::kModalMaxWidth);
     layout.box_h = 38 + (line_count - 1) * kModalLineSpacing;
-    layout.box_x = (Metrics::kScreenWidth - layout.box_w) / 2;
+    layout.box_x = (metrics::kScreenWidth - layout.box_w) / 2;
     layout.box_y = 164 - std::max(0, line_count - 2) * 12;
-    layout.btn_x = (Metrics::kScreenWidth - kConfirmButtonWidth) / 2;
+    layout.btn_x = (metrics::kScreenWidth - kConfirmButtonWidth) / 2;
     layout.btn_y0 = layout.box_y + layout.box_h + 10;
     layout.btn_y1 = layout.btn_y0 + kConfirmButtonStride;
     return layout;
@@ -166,7 +166,7 @@ Rect DialogBox::ComputeBoxRect(std::vector<std::string> &out_lines) const {
 
     const int box_w = std::clamp(max_text_w + 48, m_style.min_width, m_style.max_width);
     const int box_h = 38 + static_cast<int>(out_lines.size() - 1) * kModalLineSpacing;
-    const int box_x = (Metrics::kScreenWidth - box_w) / 2;
+    const int box_x = (metrics::kScreenWidth - box_w) / 2;
     const int box_y = m_style.base_y - std::max(0, static_cast<int>(out_lines.size()) - 2) * 12;
     return Rect(box_x, box_y, box_w, box_h);
 }
@@ -174,7 +174,7 @@ Rect DialogBox::ComputeBoxRect(std::vector<std::string> &out_lines) const {
 Rect DialogBox::GetButtonRect(int index) const {
     std::vector<std::string> lines;
     const Rect               box = ComputeBoxRect(lines);
-    const int                btn_x = (Metrics::kScreenWidth - m_style.button_width) / 2;
+    const int                btn_x = (metrics::kScreenWidth - m_style.button_width) / 2;
     const int                btn_y = box.Bottom() + 10 + index * (m_style.button_height + m_style.button_gap);
     return Rect(btn_x, btn_y, m_style.button_width, m_style.button_height);
 }
@@ -479,4 +479,4 @@ void ListView::Draw(int total_items, const RowDrawFn &draw_row, int alpha) {
     }
 }
 
-} // namespace UI
+} // namespace dc::ui

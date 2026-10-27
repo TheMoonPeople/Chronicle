@@ -2,6 +2,8 @@
 
 #include <string>
 
+namespace dc::platform {
+
 /**
  * Rich presence shown on the player's Discord profile; empty fields are omitted.
  */
@@ -42,3 +44,11 @@ void DiscordStop();
  * start_time is a Unix timestamp in seconds; nonce identifies the request.
  */
 std::string DiscordActivityCommand(const DiscordActivity &activity, long long start_time, int pid, int nonce);
+
+} // namespace dc::platform
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::platform;
+#endif
+// DC_TRANSITIONAL_END

@@ -7,6 +7,8 @@
 
 #include "platform/paths.hpp"
 
+namespace dc::save {
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -98,3 +100,5 @@ int SaveSlotFileAt(const SaveSlotList &list, int row) {
     }
     return SaveSlotFirstFree(list.files);
 }
+
+} // namespace dc::save

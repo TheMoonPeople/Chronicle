@@ -16,7 +16,7 @@ class CRect_i_;
  * Shared by the game units that draw 2D (snd, gameutil, clsmes, spritetable, dispctrl,
  * editloop): sprite state, texture resolution and the mapping into the current target.
  */
-namespace draw2d {
+namespace dc::render::draw2d {
 
 /**
  * The services the 2D units take from units other phases own. Tests swap them to run the 2D
@@ -25,7 +25,7 @@ namespace draw2d {
 struct Services {
     gfx::DrawState (*draw_state)();                      /**< Current mglib draw state. */
     PortTextureRef (*texture)(u_long tex0, u_long tex1); /**< Texture a TEX0/TEX1 pair names. */
-    CTexture *(*find_texture)(const char *name);         /**< Texture manager lookup by name. */
+    game::CTexture *(*find_texture)(const char *name);   /**< Texture manager lookup by name. */
     void (*set_test)(sceGsTest *test);                   /**< TEST write; null writes mglib's shadow. */
     void (*set_zbuf)(sceGsZbuf *zbuf);                   /**< ZBUF write; null writes mglib's shadow. */
     void (*set_alpha)(sceGsAlpha *alpha);                /**< ALPHA write; null writes mglib's shadow. */
@@ -98,7 +98,13 @@ void DrawUntextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices,
 /**
  * set2DSprite's turned sprite with its corners scale times as far from where the pivot lands.
  */
-void TurnedSprite(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int pivot_x, int pivot_y,
-                  float angle, float scale);
+void TurnedSprite(game::CTexture *texture, const game::CRect_i_ &screen, const game::CRect_i_ &texel,
+                  int pivot_x, int pivot_y, float angle, float scale);
 
-} // namespace draw2d
+} // namespace dc::render::draw2d
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::render;
+#endif
+// DC_TRANSITIONAL_END

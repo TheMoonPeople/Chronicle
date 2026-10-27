@@ -24,7 +24,7 @@
 #include "text/gametext.hpp"
 #include "text/textwipe.hpp"
 
-namespace caption {
+namespace dc::text::caption {
 
 namespace {
 
@@ -1842,4 +1842,4 @@ bool DrawLine(std::string_view utf8, float center_x, float cap_top, float cap_he
     return true;
 }
 
-} // namespace caption
+} // namespace dc::text::caption

@@ -4,9 +4,11 @@
 #include <utility>
 #include <vector>
 
+namespace dc::render {
 struct PortDecodedTexture;
+} // namespace dc::render
 
-namespace areacard {
+namespace dc::ui::area_card {
 
 /**
  * Area-name translation keys and their English defaults.
@@ -21,7 +23,7 @@ void Clear();
 /**
  * Replaces a card with its text-free plate when the font and layout are available.
  */
-bool Prepare(const std::string &name, PortDecodedTexture &texture);
+bool Prepare(const std::string &name, render::PortDecodedTexture &texture);
 
 /**
  * Reports whether a card is prepared for drawing.
@@ -33,4 +35,11 @@ bool Prepared();
  */
 void Draw(float x0, float y0, float x1, float y1, float fade);
 
-} // namespace areacard
+} // namespace dc::ui::area_card
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace areacard = dc::ui::area_card;
+#endif
+// DC_TRANSITIONAL_END

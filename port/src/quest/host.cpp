@@ -34,6 +34,8 @@
 #include "savedata.hpp"
 #include "stockitem.hpp"
 
+namespace dc::quest {
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -109,7 +111,7 @@ bool HasAnywhere(int item) {
 bool g_hold_mayor_supplies = false;
 
 // The save data in play, as the quests see it.
-class SaveGame final : public Quest::IGame {
+class SaveGame final : public IGame {
 public:
     [[nodiscard]] int ItemCount(int item) const override {
         const CDngStatusData *status = Status();
@@ -275,38 +277,38 @@ public:
         return DialogNpcTalkLine(message);
     }
 
-    void OpenShop(Quest::ShopSpec shop) override;
+    void OpenShop(ShopSpec shop) override;
     bool ShowItemReceived(int item) override;
 };
 
 // A quest's shop, from the choice that opened it until the conversation has ended.
-std::optional<Quest::ShopSpec> g_pending_shop;
+std::optional<ShopSpec> g_pending_shop;
 // An item a quest shows the player receiving, likewise; -1 for none.
 int g_pending_item_shown = -1;
 
-CustomShopLine ToCustomLine(Quest::ShopLine line) {
+CustomShopLine ToCustomLine(ShopLine line) {
     switch (line) {
-        case Quest::ShopLine::Greeting:
+        case ShopLine::Greeting:
             return CustomShopLine::Greeting;
-        case Quest::ShopLine::Browsing:
+        case ShopLine::Browsing:
             return CustomShopLine::Browsing;
-        case Quest::ShopLine::Selling:
+        case ShopLine::Selling:
             return CustomShopLine::Selling;
-        case Quest::ShopLine::NotEnoughMoney:
+        case ShopLine::NotEnoughMoney:
             return CustomShopLine::NotEnoughMoney;
-        case Quest::ShopLine::NoRoom:
+        case ShopLine::NoRoom:
             return CustomShopLine::NoRoom;
-        case Quest::ShopLine::Confirm:
+        case ShopLine::Confirm:
             return CustomShopLine::Confirm;
-        case Quest::ShopLine::Thanks:
+        case ShopLine::Thanks:
             return CustomShopLine::Thanks;
-        case Quest::ShopLine::Goodbye:
+        case ShopLine::Goodbye:
             return CustomShopLine::Goodbye;
     }
     return CustomShopLine::Greeting;
 }
 
-void SaveGame::OpenShop(Quest::ShopSpec shop) {
+void SaveGame::OpenShop(ShopSpec shop) {
     g_pending_shop = std::move(shop);
 }
 
@@ -329,18 +331,18 @@ void QuestHostSetup() {
 
     static SaveGame game;
     RegisterAllQuests();
-    Quest::SetGame(&game);
-    Dialog::RegisterOptionProvider(
-        [](const Dialog::NpcContext &npc, std::vector<Dialog::ChoiceItem> &out) { Quest::CollectOptions(npc, out); });
+    SetGame(&game);
+    dialog::RegisterOptionProvider(
+        [](const dialog::NpcContext &npc, std::vector<dialog::ChoiceItem> &out) { CollectOptions(npc, out); });
 }
 
 void QuestHostTalkStarting(int map_no, int npc_id) {
     QuestHostSetup();
     g_pending_item_shown = -1;
-    Dialog::NpcContext npc;
+    dialog::NpcContext npc;
     npc.map_no = map_no;
     npc.npc_id = npc_id;
-    g_hold_mayor_supplies = Quest::TakesOver(npc, Quest::Retail::MayorSupplies);
+    g_hold_mayor_supplies = TakesOver(npc, Retail::MayorSupplies);
 }
 
 void QuestHostTalkOpened() {
@@ -358,14 +360,14 @@ int QuestHostPlayerAllItemCheck(int item) {
 void QuestHostNewGame() {
     QuestHostSetup();
     g_hold_mayor_supplies = false;
-    Quest::ResetProgress();
+    ResetProgress();
     g_pending_shop.reset();
     CustomShopEnd();
 }
 
 bool QuestHostSave(const fs::path &save_directory) {
     QuestHostSetup();
-    const std::string text = Quest::SaveJson();
+    const std::string text = SaveJson();
     if (FilesWrite(save_directory / kFileName, text.data(), text.size(), true) != FilesResult::kWritten) {
         std::println(stderr, "quests: could not write {}", (save_directory / kFileName).string());
         return false;
@@ -380,11 +382,11 @@ void QuestHostLoad(const fs::path &save_directory) {
 
     std::ifstream stream(save_directory / kFileName, std::ios::binary);
     if (!stream) {
-        Quest::ResetProgress();
+        ResetProgress();
         return;
     }
     const std::string text{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
-    if (!Quest::LoadJson(text)) {
+    if (!LoadJson(text)) {
         std::println(stderr, "quests: {} is not a quest file; every quest starts again",
                      (save_directory / kFileName).string());
     }
@@ -409,15 +411,15 @@ bool QuestHostTakeShop(const char *speaker_model, int *shop_no) {
     if (!g_pending_shop) {
         return false;
     }
-    Quest::ShopSpec spec = std::move(*g_pending_shop);
+    ShopSpec spec = std::move(*g_pending_shop);
     g_pending_shop.reset();
 
     CustomShop shop;
     shop.look = spec.look_of_shop;
-    for (const Quest::ShopGood &good : spec.goods) {
+    for (const ShopGood &good : spec.goods) {
         shop.goods.emplace_back(good.item, good.price);
     }
-    if (spec.keeper == Quest::Shopkeeper::Speaker && speaker_model != nullptr) {
+    if (spec.keeper == Shopkeeper::Speaker && speaker_model != nullptr) {
         shop.keeper = speaker_model;
     }
     // DC_DIALOG_TEST=1 traces who stands behind the counter, beside the dialog framework's test choice.
@@ -431,3 +433,5 @@ bool QuestHostTakeShop(const char *speaker_model, int *shop_no) {
     *shop_no = CustomShopBegin(std::move(shop));
     return true;
 }
+
+} // namespace dc::quest

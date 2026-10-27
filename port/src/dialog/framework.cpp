@@ -17,7 +17,7 @@
 #include "texture.hpp"
 #include "ui/framework/internal.hpp"
 
-namespace Dialog {
+namespace dc::dialog {
 namespace {
 
 // What a custom text measurer's caller counts an icon or name tag as.
@@ -1228,4 +1228,4 @@ bool InputCancel() {
     return true;
 }
 
-} // namespace Dialog
+} // namespace dc::dialog

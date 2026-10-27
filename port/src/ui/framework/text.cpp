@@ -11,7 +11,7 @@
 #include "text/textwipe.hpp"
 #include "ui/framework/internal.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 namespace {
 
@@ -980,4 +980,4 @@ void DrawStatusSlashPair(int current_val, int max_val, int slash_x, int y,
     Label(std::to_string(max_val), slash_style).Draw(slash_x + 8, y, alpha);
 }
 
-} // namespace UI
+} // namespace dc::ui

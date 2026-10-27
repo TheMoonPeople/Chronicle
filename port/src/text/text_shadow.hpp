@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <span>
 
+namespace dc::text {
+
 /**
  * One tap of the drop shadow message text casts: taps sit at half-pixel steps along the light's
  * direction (down and right) and the texture filter blends them. Message text and the button
@@ -72,3 +74,11 @@ void TextShadowEach(int percent, Draw &&draw) {
     cast(soft, soft_scale);
     cast(deep, to_deep);
 }
+
+} // namespace dc::text
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

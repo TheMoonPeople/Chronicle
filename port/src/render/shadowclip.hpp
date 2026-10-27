@@ -4,6 +4,8 @@ namespace dc::game {
 struct RenderInfo;
 } // namespace dc::game
 
+namespace dc::render {
+
 /**
  * One shadow-volume triangle in the 11-quadword layout the VU1 shadow program consumes.
  *
@@ -27,5 +29,13 @@ struct ShadowClipTriangle {
  * perspective, light_direction column 0, shadow_point, shadow_normal and near[2]. Returns how many
  * triangles the pass has, which may exceed capacity.
  */
-int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_data, RenderInfo *info,
+int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_data, game::RenderInfo *info,
                     float (*matrix)[4], int pass);
+
+} // namespace dc::render
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::render;
+#endif
+// DC_TRANSITIONAL_END

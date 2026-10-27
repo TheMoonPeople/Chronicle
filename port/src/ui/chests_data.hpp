@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <iterator>
 
+namespace dc::ui {
+
 /**
  * One treasure chest in a town: the map flag set once it is opened and the item it holds.
  */
@@ -400,3 +402,5 @@ inline constexpr TownTrackerDef TRACKER_TOWNS[] = {
  * Number of towns in TRACKER_TOWNS.
  */
 inline constexpr int TRACKER_TOWN_COUNT = static_cast<int>(std::size(TRACKER_TOWNS));
+
+} // namespace dc::ui

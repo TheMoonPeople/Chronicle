@@ -6,6 +6,8 @@
 
 #include "gfx/gfx.hpp"
 
+namespace dc::render {
+
 // What the game units drawing 2D and 3D share with mglib.cpp: the draw state the game's current
 // register shadows describe, and the conversions from GS units into the renderer's.
 
@@ -96,3 +98,11 @@ void MGPortCutInterpolation();
  * mark.
  */
 bool MGPortTakeInterpolationCut();
+
+} // namespace dc::render
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::render;
+#endif
+// DC_TRANSITIONAL_END

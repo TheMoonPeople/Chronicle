@@ -15,15 +15,14 @@
 //   asked  -- Gina's excuse -->  excuse  -- Carl doesn't buy it -->  doubted
 //   doubted  -- Gina owns up -->  confessed  -- Carl gives up the new slingshot -->  done
 
-namespace {
+namespace dc::quest {
 
-using Quest::Scene;
-using Quest::Text;
+namespace {
 
 // Carl and Gina, as the dialog framework numbers Norune's villagers (their lines in the town's
 // message file start at 20 + villager * 20: Carl's 160, "Gina calls me shorty", and Gina's 200).
-const Quest::NpcMatch kCarl{.map_no = 0, .npc_id = 7, .mes_file_key = {}};
-const Quest::NpcMatch kGina{.map_no = 0, .npc_id = 9, .mes_file_key = {}};
+const NpcMatch kCarl{.map_no = 0, .npc_id = 7, .mes_file_key = {}};
+const NpcMatch kGina{.map_no = 0, .npc_id = 9, .mes_file_key = {}};
 
 constexpr int kXiao = 1;
 
@@ -112,19 +111,21 @@ void GinaOnTheSlingshot(Scene &scene) {
 
 } // namespace
 
-std::span<const Quest::Text> CarlsSlingshotTexts() {
+std::span<const Text> CarlsSlingshotTexts() {
     static constexpr std::array texts{kCarlAsk, kCarlAbout, kCarlStory, kCarlWaiting, kCarlBird,
                                       kCarlAgain, kCarlJunk, kCarlNoRoom, kReceived, kGinaAbout,
                                       kGinaExcuse, kGinaBird, kGinaConfess, kGinaWaiting};
     return texts;
 }
 
-Quest::Definition CarlsSlingshot() {
-    return Quest::Builder("carls_slingshot")
+Definition CarlsSlingshot() {
+    return Builder("carls_slingshot")
         .Stages({"hidden", "offered", "asked", "excuse", "doubted", "confessed", "done"})
-        .Advance("hidden", Quest::PartyMember(kXiao), "offered")
-        .Option(kCarl, Quest::AtStage("offered"), kCarlAsk, CarlAsksForHelp)
-        .Option(kCarl, Quest::AtStages({"asked", "excuse", "doubted", "confessed"}), kCarlAbout, CarlOnTheSlingshot)
-        .Option(kGina, Quest::AtStages({"asked", "excuse", "doubted", "confessed"}), kGinaAbout, GinaOnTheSlingshot)
+        .Advance("hidden", PartyMember(kXiao), "offered")
+        .Option(kCarl, AtStage("offered"), kCarlAsk, CarlAsksForHelp)
+        .Option(kCarl, AtStages({"asked", "excuse", "doubted", "confessed"}), kCarlAbout, CarlOnTheSlingshot)
+        .Option(kGina, AtStages({"asked", "excuse", "doubted", "confessed"}), kGinaAbout, GinaOnTheSlingshot)
         .Build();
 }
+
+} // namespace dc::quest

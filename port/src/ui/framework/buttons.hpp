@@ -6,7 +6,7 @@
 #include "ui/framework/text.hpp"
 #include "ui/framework/types.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 /**
  * Procedural surface material presets for beveled UI buttons.
@@ -126,4 +126,11 @@ public:
                      const TextStyle &text_style = {});
 };
 
-} // namespace UI
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace UI = dc::ui;
+#endif
+// DC_TRANSITIONAL_END

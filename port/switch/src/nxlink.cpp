@@ -29,6 +29,8 @@ void LogToFile() {
 }
 } // namespace
 
+namespace dc::platform {
+
 void SwitchDisplaySize(int &width, int &height) {
     const bool handheld = appletGetOperationMode() == AppletOperationMode_Handheld;
     width = handheld ? 1280 : 1920;
@@ -57,6 +59,8 @@ void SwitchShowMissingData() {
     consoleExit(nullptr);
 }
 
+} // namespace dc::platform
+
 extern "C" void userAppInit() {
     if (__nxlink_host.s_addr != 0 && R_SUCCEEDED(socketInitializeDefault())) {
         g_sockets = true;
@@ -69,7 +73,7 @@ extern "C" void userAppInit() {
 }
 
 extern "C" void userAppExit() {
-    SwitchRestoreMemoryGuards();
+    dc::platform::SwitchRestoreMemoryGuards();
     if (g_socket >= 0) {
         close(g_socket);
     }

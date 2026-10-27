@@ -28,6 +28,8 @@
 #include "platform/data_archive.hpp"
 #include "platform/paths.hpp"
 
+namespace dc::data {
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -733,3 +735,5 @@ void DataReadTrackPackMember(const void *pack, const void *data, std::size_t siz
                       parent.source_offset + entry_offset, entry_size,
                       std::move(member_offsets), std::move(member_source_offsets), std::move(member_sizes));
 }
+
+} // namespace dc::data

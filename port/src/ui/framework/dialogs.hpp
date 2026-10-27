@@ -10,7 +10,7 @@
 #include "ui/framework/types.hpp"
 #include "ui/framework/widgets.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 /**
  * Configurable button option entry for a modal DialogBox.
@@ -27,11 +27,11 @@ struct DialogOption {
  */
 struct DialogStyle {
     WindowPreset window_preset = WindowPreset::DarkTranslucent; /**< Background surface preset for the prompt box. */
-    int          min_width = Metrics::kModalMinWidth;           /**< Minimum prompt box width in logical pixels. */
-    int          max_width = Metrics::kModalMaxWidth;           /**< Maximum prompt box width in logical pixels. */
-    int          button_width = Metrics::kButtonWidth;          /**< Option button width in logical pixels. */
-    int          button_height = Metrics::kButtonHeight;        /**< Option button height in logical pixels. */
-    int          button_gap = Metrics::kButtonGap;              /**< Vertical gap between option buttons in pixels. */
+    int          min_width = metrics::kModalMinWidth;           /**< Minimum prompt box width in logical pixels. */
+    int          max_width = metrics::kModalMaxWidth;           /**< Maximum prompt box width in logical pixels. */
+    int          button_width = metrics::kButtonWidth;          /**< Option button width in logical pixels. */
+    int          button_height = metrics::kButtonHeight;        /**< Option button height in logical pixels. */
+    int          button_gap = metrics::kButtonGap;              /**< Vertical gap between option buttons in pixels. */
     int          base_y = 164;                                  /**< Baseline top Y coordinate of the prompt box. */
 };
 
@@ -148,8 +148,8 @@ public:
  */
 struct ListViewConfig {
     Rect  bounds{};                         /**< Bounding rectangle of the visible row area. */
-    int   row_height = Metrics::kRowHeight; /**< Height of an individual row in logical pixels. */
-    int   row_stride = Metrics::kRowStride; /**< Vertical distance between row tops in pixels. */
+    int   row_height = metrics::kRowHeight; /**< Height of an individual row in logical pixels. */
+    int   row_stride = metrics::kRowStride; /**< Vertical distance between row tops in pixels. */
     int   visible_rows = 6;                 /**< Maximum number of rows visible at once. */
     int   bracket_pad_x = 4;                /**< Horizontal expansion of selection brackets around a row. */
     int   bracket_pad_y = 1;                /**< Vertical expansion of selection brackets around a row. */
@@ -254,4 +254,11 @@ private:
     ScrollBar      m_scrollbar;    /**< Vertical scrollbar instance. */
 };
 
-} // namespace UI
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace UI = dc::ui;
+#endif
+// DC_TRANSITIONAL_END

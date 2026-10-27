@@ -11,6 +11,8 @@
 #include "renderinfo.hpp"
 #include "vu0_ops.hpp"
 
+namespace dc::render {
+
 int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_data, RenderInfo *info,
                     float (*matrix)[4], int pass) {
     if (model_data == nullptr) {
@@ -150,3 +152,5 @@ int ShadowClipBuild(ShadowClipTriangle *out, int capacity, unsigned int *model_d
 
     return total;
 }
+
+} // namespace dc::render

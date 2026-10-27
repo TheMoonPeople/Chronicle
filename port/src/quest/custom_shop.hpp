@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+namespace dc::quest {
+
 /**
  * The shopkeeper's lines a custom shop can give, by when the item shop screen shows them.
  */
@@ -67,3 +69,12 @@ void PortItemShopGetPacFileName(int shop_kind, int shop_no, char *file_name);
  * Writes the shopkeeper's texture file name for shop_kind and shop_no into file_name, NUL-terminated.
  */
 void PortItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name);
+
+} // namespace dc::quest
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::quest;
+namespace Quest = dc::quest;
+#endif
+// DC_TRANSITIONAL_END

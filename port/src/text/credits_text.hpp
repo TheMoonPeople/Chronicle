@@ -4,7 +4,7 @@ namespace dc::game {
 class CRect_i_;
 } // namespace dc::game
 
-namespace credits {
+namespace dc::text::credits {
 
 /**
  * Draws one band of an end-credits page (endname1..4) as Chronicle Sharp lettering at the screen's own resolution,
@@ -12,4 +12,10 @@ namespace credits {
  */
 bool DrawBand(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha);
 
-} // namespace credits
+} // namespace dc::text::credits
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

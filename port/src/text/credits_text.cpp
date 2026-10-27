@@ -14,7 +14,7 @@
 #include "text/captionfont.hpp"
 #include "text/textwipe.hpp"
 
-namespace credits {
+namespace dc::text::credits {
 
 namespace {
 
@@ -566,4 +566,4 @@ bool DrawBand(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel
     return true;
 }
 
-} // namespace credits
+} // namespace dc::text::credits

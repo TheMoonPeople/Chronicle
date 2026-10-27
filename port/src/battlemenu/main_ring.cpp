@@ -6,6 +6,8 @@
 #include "save/save_slots.hpp"
 #include "savedata.hpp"
 
+namespace dc::battlemenu {
+
 namespace {
 
 /**
@@ -787,3 +789,5 @@ bool TakeBattleMenuTitleRequest() {
 }
 
 void BattleMenuIconPosition(int index, float &x, float &y) { GetSafeIconPos(index, x, y); }
+
+} // namespace dc::battlemenu

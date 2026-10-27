@@ -2,11 +2,13 @@
 
 #include "battlemenu/internal.hpp"
 
+namespace dc::battlemenu {
+
 namespace {
 
-using btlmenu_detail::DecodeItemNamePort;
-using btlmenu_detail::DecodeMesFromBuffer;
-using btlmenu_detail::RefreshBtlMenuTextures;
+using detail::DecodeItemNamePort;
+using detail::DecodeMesFromBuffer;
+using detail::RefreshBtlMenuTextures;
 
 /**
  * Bitflags indicating which customization actions are available for a weapon.
@@ -1039,3 +1041,5 @@ void PortWeaponMenuDraw() {
         }
     }
 }
+
+} // namespace dc::battlemenu

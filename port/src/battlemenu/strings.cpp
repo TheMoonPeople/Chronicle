@@ -10,6 +10,8 @@
 #include "menu_misc.hpp"
 #include "menuetc.hpp"
 
+namespace dc::battlemenu {
+
 namespace {
 
 /**
@@ -190,3 +192,5 @@ std::string GetBattleMenuCaption(int index, int menu_mode, bool ingame_load_acti
     StripQuotes(title);
     return title;
 }
+
+} // namespace dc::battlemenu

@@ -74,6 +74,8 @@ InputTouchOverlayState TouchOverlayState() {
     return g_visible.load() ? g_state : InputTouchOverlayState{};
 }
 
+namespace dc::platform {
+
 void TouchOverlayPoll() {
     TouchOverlaySetVisible(InputTouchOverlayVisible());
     InputSetTouchOverlay(TouchOverlayState());
@@ -82,4 +84,6 @@ void TouchOverlayPoll() {
 void TouchOverlaySetOpacity(float opacity) {
     CallActivityMethod("setTouchControlsOpacity", "(F)V", static_cast<jfloat>(opacity));
 }
+
+} // namespace dc::platform
 #endif

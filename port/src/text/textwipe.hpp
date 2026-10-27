@@ -5,7 +5,7 @@
 
 #include "gfx/gfx.hpp"
 
-namespace textwipe {
+namespace dc::text::textwipe {
 
 /**
  * Developer comparison view between baked text pictures and runtime text.
@@ -117,4 +117,10 @@ void DrawDivider();
 void Draw2D(gfx::Primitive primitive, std::span<const gfx::Vertex2D> vertices, const gfx::TextureBinding &binding,
             const gfx::DrawState &state);
 
-} // namespace textwipe
+} // namespace dc::text::textwipe
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

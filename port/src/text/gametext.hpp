@@ -8,6 +8,8 @@
 
 #include "clsmes.hpp"
 
+namespace dc::text {
+
 // Port text in the game's own message font. The PAL font is the 88 characters of gaiji.img's
 // letter grid (codes -0x2DF to -0x288) and the accented letters DrawGaijiFont builds from them
 // with an accent drawn over (to -0x254); every PAL language's mes_tex_N.pak draws the same
@@ -143,3 +145,11 @@ private:
     int          cell_width = 0;
     int          base_char_width = 11;
 };
+
+} // namespace dc::text
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

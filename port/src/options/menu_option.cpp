@@ -12,6 +12,8 @@
 #include "sound.hpp"
 #include "userstatus.hpp"
 
+namespace dc::options {
+
 namespace {
 
 // Indices into the save's configuration words (CSaveData::config).
@@ -102,7 +104,7 @@ std::vector<OptionResolution> OptionResolutionList(std::span<const DisplayModeSi
 }
 
 bool MenuOptionOpen() {
-    return options::g_screen.open;
+    return g_screen.open;
 }
 
 void GameOptionsApply(const ConfigGameOptions &options) {
@@ -132,3 +134,5 @@ void GameOptionsClear(CSaveData &save) {
     reinterpret_cast<CUserStatus *>(save.GetDngStatus())->minimap_status = 0;
     save.GetMenuCursor()->reset_pos = 0;
 }
+
+} // namespace dc::options

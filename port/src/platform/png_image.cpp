@@ -11,6 +11,8 @@
 #define STBI_NO_STDIO
 #include "stb_image.h"
 
+namespace dc::platform {
+
 bool PngLoadRgba(const std::filesystem::path &file, int &width, int &height, std::vector<std::uint8_t> &rgba) {
     std::ifstream stream(file, std::ios::binary);
     if (!stream) {
@@ -45,3 +47,5 @@ bool PngDecodeRgba(std::span<const std::uint8_t> bytes, int &width, int &height,
     height = decoded_height;
     return true;
 }
+
+} // namespace dc::platform

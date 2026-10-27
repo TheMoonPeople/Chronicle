@@ -5,7 +5,7 @@
 #include "texture.hpp"
 #include "ui/framework/types.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 /**
  * Inventory item and weapon icon renderer with optional recessed socket backing.
@@ -20,7 +20,7 @@ public:
     /**
      * Draws the icon for item_no at (x, y) with optional drop shadow and socket backing.
      */
-    static bool Draw(int item_no, int x, int y, int size = Metrics::kIconSizeStandard, int alpha = 0x80,
+    static bool Draw(int item_no, int x, int y, int size = metrics::kIconSizeStandard, int alpha = 0x80,
                      bool drop_shadow = true, bool with_socket = false);
 };
 
@@ -225,4 +225,11 @@ public:
                      const MenuHeaderStyle &style = {});
 };
 
-} // namespace UI
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace UI = dc::ui;
+#endif
+// DC_TRANSITIONAL_END

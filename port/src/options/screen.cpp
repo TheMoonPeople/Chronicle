@@ -30,7 +30,7 @@
 #include "ui/area_card.hpp"
 #include "ui/framework.hpp"
 
-namespace options {
+namespace dc::options {
 
 Screen g_screen;
 
@@ -687,20 +687,18 @@ int Run() {
     return result;
 }
 
-} // namespace options
-
 std::vector<std::pair<std::string, std::string>> OptionStrings() {
     std::vector<std::pair<std::string, std::string>> out = {
-        {"options.shortcuts",              options::kShortcutsText    },
-        {"options.help.save_failed",       options::kSaveHelpText     },
-        {"options.help.display_kept",      options::kDisplayHelpText  },
-        {"options.help.turn_page",         options::kTurnPageText     },
-        {"options.help.exit",              options::kExitHelpText     },
-        {"options.help.display_now",       options::kDisplayNowText   },
-        {"options.display.fullscreen_now", options::kFullscreenNowText},
-        {"options.display.window_now",     options::kWindowNowText    },
+        {"options.shortcuts",              kShortcutsText    },
+        {"options.help.save_failed",       kSaveHelpText     },
+        {"options.help.display_kept",      kDisplayHelpText  },
+        {"options.help.turn_page",         kTurnPageText     },
+        {"options.help.exit",              kExitHelpText     },
+        {"options.help.display_now",       kDisplayNowText   },
+        {"options.display.fullscreen_now", kFullscreenNowText},
+        {"options.display.window_now",     kWindowNowText    },
     };
-    for (auto &entry : options::RowStrings()) {
+    for (auto &entry : RowStrings()) {
         out.push_back(std::move(entry));
     }
     for (auto &entry : areacard::Strings()) {
@@ -723,3 +721,5 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
     }
     return out;
 }
+
+} // namespace dc::options

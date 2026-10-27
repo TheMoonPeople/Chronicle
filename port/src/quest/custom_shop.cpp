@@ -32,6 +32,8 @@ extern ITEM_MONEY_ENTRY PriceList[296];
 
 } // namespace dc::game
 
+namespace dc::quest {
+
 namespace {
 
 constexpr int kRetailShops = 18;
@@ -227,3 +229,5 @@ void PortItemShopGetImgFileName(int shop_kind, int shop_no, char *file_name) {
     const char *keeper = kRetailKeeperImages[RetailKind(shop_kind)][RetailShop(shop_no)];
     CopyName(std::format("{}01.img", keeper), file_name);
 }
+
+} // namespace dc::quest

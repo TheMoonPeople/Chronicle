@@ -17,7 +17,7 @@
 #include "text/caption_text.hpp"
 #include "ui/framework/internal.hpp"
 
-namespace UI {
+namespace dc::ui {
 
 namespace {
 
@@ -802,4 +802,4 @@ void TextureButton::Draw(int x, int y, int width, int height,
     Draw(Rect(x, y, width, height), texture, Rect(u, v, uv_w, uv_h), alpha, text, text_style);
 }
 
-} // namespace UI
+} // namespace dc::ui

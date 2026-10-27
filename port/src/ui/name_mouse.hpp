@@ -10,6 +10,8 @@ class CTexture;
 class CRect_i_;
 } // namespace dc::game
 
+namespace dc::ui {
+
 /**
  * Reports whether the screen is open: its textures are read and the game has not closed it.
  */
@@ -32,3 +34,11 @@ void NameMouseRelease();
  * the draw is not the hand's, true when screen was changed.
  */
 bool NameMouseHand(CTexture *texture, CRect_i_ &screen, const CRect_i_ &texel, bool shadow);
+
+} // namespace dc::ui
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+#endif
+// DC_TRANSITIONAL_END

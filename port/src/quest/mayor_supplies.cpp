@@ -7,10 +7,9 @@
 // he talks about the buggy. Here it is a choice of his menu instead, "Do you have any supplies?",
 // and the script's own handing out is held back (Quest::Retail::MayorSupplies, quest_host.cpp).
 
-namespace {
+namespace dc::quest {
 
-using Quest::Scene;
-using Quest::Text;
+namespace {
 
 constexpr int kDivineBeastCave = 0;
 // Gaffer's Buggy: part 7 of Norune.
@@ -62,15 +61,17 @@ void HandOutSupplies(Scene &scene) {
 const int kNoruneMayorSupplies[5] = {ITEM_TASTY_WATER, ITEM_BREAD, ITEM_REPAIR_POWDER, ITEM_ESCAPE_POWDER,
                                      ITEM_ANTIDOTE_DRINK};
 
-std::span<const Quest::Text> MayorSuppliesTexts() {
+std::span<const Text> MayorSuppliesTexts() {
     static constexpr Text texts[] = {kAsk, kHere, kBuggy, kStocked, kNoRoom};
     return texts;
 }
 
-Quest::Definition MayorSupplies() {
-    return Quest::Builder("mayor_supplies")
+Definition MayorSupplies() {
+    return Builder("mayor_supplies")
         .Stages({"open"})
-        .TakesOver(NoruneMayor(), Quest::Retail::MayorSupplies)
-        .Option(NoruneMayor(), Quest::DungeonStarted(kDivineBeastCave), kAsk, HandOutSupplies)
+        .TakesOver(NoruneMayor(), Retail::MayorSupplies)
+        .Option(NoruneMayor(), DungeonStarted(kDivineBeastCave), kAsk, HandOutSupplies)
         .Build();
 }
+
+} // namespace dc::quest

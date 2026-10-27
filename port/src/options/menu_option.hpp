@@ -12,6 +12,8 @@ namespace dc::game {
 class CSaveData;
 } // namespace dc::game
 
+namespace dc::options {
+
 /**
  * Returns whether the Options screen is open, from InitMenuOption until MenuOptionKey reports it
  * closed. The host keeps the interface at 100% meanwhile; video.ui_scale applies once it closes.
@@ -81,3 +83,12 @@ int         OptionCameraReturnCount(const Config &config);
 std::string OptionCameraReturnText(const Config &config);
 void        OptionSetCameraReturn(Config &config, int choice);
 void        OptionRestoreCameraReturn(Config &config, const Config &defaults);
+
+} // namespace dc::options
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::options;
+namespace options = dc::options;
+#endif
+// DC_TRANSITIONAL_END

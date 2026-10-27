@@ -4,7 +4,7 @@
 #include <utility>
 #include <vector>
 
-namespace JournalChest {
+namespace dc::ui::journal_chest {
 
 /**
  * Resets the selection and snaps the cursor when the Chest Tracker opens from the Journal menu.
@@ -32,4 +32,11 @@ void Draw();
  */
 void AppendStrings(std::vector<std::pair<std::string, std::string>> &out);
 
-} // namespace JournalChest
+} // namespace dc::ui::journal_chest
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::ui;
+namespace JournalChest = dc::ui::journal_chest;
+#endif
+// DC_TRANSITIONAL_END

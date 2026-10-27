@@ -34,6 +34,8 @@
 // the pointer is over becomes the game's own cursor, a click a pad press the game reads, so the
 // game's code does the rest. A screen with no handler leaves the mouse to the pad.
 
+namespace dc::ui {
+
 namespace {
 
 struct Rect {
@@ -61,13 +63,13 @@ int RingIconCount() {
 Rect RingRow(int icon) {
     float icon_x = 0.0f;
     float icon_y = 0.0f;
-    BattleMenuIconPosition(icon, icon_x, icon_y);
+    battlemenu::BattleMenuIconPosition(icon, icon_x, icon_y);
     int left = static_cast<int>(icon_x) - 18;
     int top = static_cast<int>(icon_y) - 8;
     return Rect{left, top, left + 250, top + 34};
 }
 
-// Hit-test for UI::ConfirmModal's centred Yes (0) and No (1) buttons.
+// Hit-test for ui::ConfirmModal's centred Yes (0) and No (1) buttons.
 int ConfirmModalHit(float px, float py, int btn_y0 = 232) {
     constexpr int k_btn_w = 100;
     constexpr int k_btn_x = (640 - k_btn_w) / 2;
@@ -1200,3 +1202,5 @@ void MenuMouseDrawOverlay() {
                  0x26, 0, StayTex, 0x80);
     DrawMenuObjectVibe(static_cast<int>(SysCur[0]), static_cast<int>(SysCur[1]), 1, 0x40);
 }
+
+} // namespace dc::ui

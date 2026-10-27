@@ -7,6 +7,8 @@
 
 #include "../../../tools/dcdata/dcdata.hpp"
 
+namespace dc::platform {
+
 // The first start of an installed copy: the data directory is missing or holds no file, so the
 // game asks for the disc in the system's file selector (the file-chooser portal inside Flatpak,
 // which hands over the chosen file without any filesystem permission) and extracts it itself.
@@ -62,3 +64,11 @@ void FirstRunSetChooser(FirstRunChooser chooser);
  * extraction shows the error and exits with status 1.
  */
 void FirstRunIfNoData(bool headless);
+
+} // namespace dc::platform
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::platform;
+#endif
+// DC_TRANSITIONAL_END

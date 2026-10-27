@@ -33,6 +33,8 @@
 #include <utility>
 #include <vector>
 
+namespace dc::platform {
+
 namespace {
 
 using Json = nlohmann::json;
@@ -414,3 +416,5 @@ void DiscordStop() {
     g_state.wake.notify_one();
     g_state.thread.join();
 }
+
+} // namespace dc::platform

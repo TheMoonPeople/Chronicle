@@ -6,6 +6,8 @@
 // quests act on, their choices in villagers' conversations, their progress kept beside each save,
 // and the shops they open.
 
+namespace dc::quest {
+
 /**
  * Registers the quests, the game and the conversation choices, the first time it is called.
  * Later calls do nothing.
@@ -69,3 +71,12 @@ bool QuestHostTakeItemShown(int *event_no);
  * null for none. False when no quest opened a shop.
  */
 bool QuestHostTakeShop(const char *speaker_model, int *shop_no);
+
+} // namespace dc::quest
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::quest;
+namespace Quest = dc::quest;
+#endif
+// DC_TRANSITIONAL_END

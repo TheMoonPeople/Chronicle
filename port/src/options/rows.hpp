@@ -8,7 +8,7 @@
 
 #include "platform/config.hpp"
 
-namespace options {
+namespace dc::options {
 
 /**
  * One line of the options screen: a setting, a key binding or an action, with its strings and handlers.
@@ -77,4 +77,11 @@ void SetBinding(Config &config, std::string_view action, std::string_view key);
  */
 void ListResolutions();
 
-} // namespace options
+} // namespace dc::options
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::options;
+namespace options = dc::options;
+#endif
+// DC_TRANSITIONAL_END

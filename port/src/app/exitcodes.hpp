@@ -1,5 +1,7 @@
 #pragma once
 
+namespace dc::app {
+
 /**
  * The process's exit statuses. A PS2_UNIMPLEMENTED stub still aborts (SIGABRT, 134 from a shell)
  * so that a debugger or a core dump stops at it.
@@ -11,3 +13,11 @@ enum ExitStatus : int {
     kExitNoData = 3,     /**< The data directory is missing or holds no file. */
     kExitGameAssert = 4, /**< The game's own __assert, such as LoadFile on a missing file. */
 };
+
+} // namespace dc::app
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::app;
+#endif
+// DC_TRANSITIONAL_END

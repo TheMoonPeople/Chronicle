@@ -6,6 +6,8 @@
 
 #include "memorycardaccess.hpp"
 
+namespace dc::save {
+
 // The port keeps no memory card. Its saves are in <save root>/saves: a folder for each save, named
 // after the number its board shows, N + 1 for the game's file N, holding save.dat, the image retail
 // wrote to the card as darkcloudN. Shared state.json sits beside the numbered folders.
@@ -55,8 +57,8 @@ int SaveSlotFirstFree(const std::vector<int> &files);
  * What the save and load screens list.
  */
 struct SaveSlotList {
-    std::vector<int>           files; /**< Every save file, readable or not. */
-    std::vector<SAVEDATA_INFO> saves; /**< The readable ones, ascending by file. */
+    std::vector<int>                 files; /**< Every save file, readable or not. */
+    std::vector<game::SAVEDATA_INFO> saves; /**< The readable ones, ascending by file. */
 };
 
 extern SaveSlotList SaveSlots;
@@ -82,3 +84,11 @@ int SaveSlotRow(const SaveSlotList &list, int file_no, bool new_save);
  * Returns the file a board stands for; the new save's board stands for the first free file.
  */
 int SaveSlotFileAt(const SaveSlotList &list, int row);
+
+} // namespace dc::save
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::save;
+#endif
+// DC_TRANSITIONAL_END

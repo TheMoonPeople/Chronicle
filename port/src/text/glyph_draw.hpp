@@ -3,6 +3,8 @@
 #include "platform/glyphs.hpp"
 #include "rect.hpp"
 
+namespace dc::text {
+
 /**
  * Draws a pad button's symbol (platform/glyphs.hpp) centred in a slot of 2D screen space, keeping
  * the art's proportions; grow adds pixels on every side. False when the game's own art is used.
@@ -26,3 +28,11 @@ bool GlyphReplaceSprite(const char *texture, const CRect_i_ &screen, const CRect
  * call after drawing the sprite.
  */
 void GlyphOverlaySprite(const char *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha);
+
+} // namespace dc::text
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::text;
+#endif
+// DC_TRANSITIONAL_END

@@ -14,7 +14,7 @@ namespace dc::game {
 class CTexture;
 } // namespace dc::game
 
-namespace options {
+namespace dc::options {
 
 constexpr int kTabY = 96;
 constexpr int kTabGap = 24;
@@ -168,4 +168,11 @@ int Run();
  */
 void Draw();
 
-} // namespace options
+} // namespace dc::options
+
+// DC_TRANSITIONAL_BEGIN
+#ifndef DC_NO_TRANSITIONAL_USING
+using namespace dc::options;
+namespace options = dc::options;
+#endif
+// DC_TRANSITIONAL_END

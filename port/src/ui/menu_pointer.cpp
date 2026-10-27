@@ -8,6 +8,8 @@
 #include "platform/window.hpp"
 #include "ui/name_mouse_layout.hpp"
 
+namespace dc::ui {
+
 namespace {
 
 // Where the game's hand rests against the control it is on: the fingertip, as the Options screen's
@@ -45,9 +47,9 @@ void UnitsPerCount(float &across, float &down) {
         width = static_cast<int>(mapping.pixel_width);
         height = static_cast<int>(mapping.pixel_height);
     }
-    across = namemouse::PointerUnitsPerCount(mapping.scale_x, static_cast<float>(mapping.pixel_width),
+    across = name_mouse::PointerUnitsPerCount(mapping.scale_x, static_cast<float>(mapping.pixel_width),
                                              static_cast<float>(width));
-    down = namemouse::PointerUnitsPerCount(mapping.scale_y, static_cast<float>(mapping.pixel_height),
+    down = name_mouse::PointerUnitsPerCount(mapping.scale_y, static_cast<float>(mapping.pixel_height),
                                            static_cast<float>(height));
     if (across <= 0.0f || down <= 0.0f) {
         across = down = 1.0f;
@@ -131,3 +133,5 @@ bool MenuPointerHand(float &x, float &y) {
     y = shown->y - kFingerY;
     return true;
 }
+
+} // namespace dc::ui
