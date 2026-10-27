@@ -10,13 +10,17 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "dcdata.hpp"
+#include "sound_data.hpp"
 
 namespace {
 namespace fs = std::filesystem;
@@ -173,10 +177,149 @@ void BakeTextures(const fs::path &raw, const fs::path &data) {
     dcdata::Log(stdout, "baked {} texture sources into {} PNGs\n", textures.sources, textures.pngs);
 }
 
+rust::Slice<const std::uint8_t> Bytes(const dcdata::PackMember &member) {
+    return {member.data.data(), member.data.size()};
+}
+
+std::string Lower(std::string_view text) {
+    std::string out(text);
+    std::ranges::transform(out, out.begin(), dcdata::FoldChar);
+    return out;
+}
+
+std::string_view Text(std::span<const unsigned char> bytes) {
+    return {reinterpret_cast<const char *>(bytes.data()), bytes.size()};
+}
+
+nlohmann::ordered_json SoundDocument(std::string_view kind) {
+    return {
+        {"schema_version", 1   },
+        {"kind",           kind}
+    };
+}
+
+void WriteJson(const fs::path &path, const nlohmann::ordered_json &document) {
+    const std::string text = document.dump(2) + '\n';
+    dcdata::WriteFile(path, {reinterpret_cast<const unsigned char *>(text.data()), text.size()});
+}
+
+// The load lists of one pack, each member they load naming the bank or sequence it was published as.
+nlohmann::ordered_json PublishPackLists(const std::vector<dcdata::PackMember> &members, const std::string &pack,
+                                        const std::string &out, std::map<std::string, std::string> &banks) {
+    namespace sound = dcdata::sound;
+    std::map<std::string, std::string> sequences;
+    nlohmann::ordered_json             lists = nlohmann::ordered_json::array();
+    for (const dcdata::PackMember &list : members) {
+        if (!Lower(list.name).ends_with(".txt")) {
+            continue;
+        }
+        nlohmann::ordered_json loads = nlohmann::ordered_json::array();
+        for (const sound::LoadEntry &entry : sound::ReadLoadList(Text(list.data))) {
+            // The game skips a member that is missing or empty, such as the dummy banks some packs carry.
+            const dcdata::PackMember *source = sound::FindMember(members, entry.member);
+            if (source == nullptr || source->data.empty()) {
+                continue;
+            }
+            nlohmann::ordered_json load = {
+                {"member", entry.member},
+                {"slot", std::string(1, entry.slot)}
+            };
+            if (entry.kind == sound::LoadKind::Bank) {
+                const dcdata::PackMember *bd = sound::FindMember(members, entry.member.substr(0, 7) + "bd");
+                if (bd == nullptr || bd->data.empty()) {
+                    continue;
+                }
+                const std::string key = sound::SharedBankKey(entry.member, source->data, bd->data);
+                auto              found = banks.find(key);
+                if (found == banks.end()) {
+                    found = banks.emplace(key, std::string(kazarov::audio_publish_bank(key, Bytes(*source), Bytes(*bd), out))).first;
+                }
+                load["bank"] = found->second;
+            } else {
+                const std::string name = Lower(entry.member);
+                auto              found = sequences.find(name);
+                if (found == sequences.end()) {
+                    found = sequences.emplace(name, std::string(kazarov::audio_publish_sequence(pack + "/" + name, Bytes(*source), out))).first;
+                }
+                load["sequence"] = found->second;
+            }
+            loads.push_back(std::move(load));
+        }
+        nlohmann::ordered_json config;
+        const std::string      stem = list.name.substr(0, list.name.find('.'));
+        if (const dcdata::PackMember *cfg = sound::FindMember(members, stem + ".cfg")) {
+            const sound::PackConfig commands = sound::ReadPackConfig(Text(cfg->data));
+            config = {
+                {"reverb_mode",   commands.reverb_mode  },
+                {"reverb_depth",  commands.reverb_depth },
+                {"se_table",      commands.se_table     },
+                {"se_table_type", commands.se_table_type}
+            };
+        }
+        lists.push_back({
+            {"name",   list.name},
+            {"config", config   },
+            {"load",   loads    }
+        });
+    }
+    return lists;
+}
+
+// Publishes the sound packs beside the originals in ChronicleTwo's formats (docs/AUDIO_FRAMEWORK.md):
+// each distinct bank once, each pack's sequences, a document per pack of its load lists, and the
+// global volume tables.
+void PublishSound(const fs::path &data) {
+    namespace sound = dcdata::sound;
+    std::vector<fs::path> packs;
+    for (const auto &entry : fs::recursive_directory_iterator(data)) {
+        const fs::path relative = entry.path().lexically_relative(data);
+        if (entry.is_regular_file() && *relative.begin() != "normalized" &&
+            dcdata::EqualsFolded(relative.extension().string(), ".snd")) {
+            packs.push_back(relative);
+        }
+    }
+    std::ranges::sort(packs);
+    const std::string                  out = Utf8Path(data);
+    std::map<std::string, std::string> banks;
+    for (const fs::path &relative : packs) {
+        nlohmann::ordered_json document = SoundDocument("sound_pack");
+        document["lists"] = PublishPackLists(dcdata::ReadPack(dcdata::ReadFile(data / relative)), relative.generic_string(), out, banks);
+        fs::path published = relative;
+        WriteJson(data / published.replace_extension(".sound.json"), document);
+    }
+
+    const fs::path tables = data / "sound" / "tbl";
+    if (fs::exists(tables / "sqtbl.txt")) {
+        nlohmann::ordered_json document = SoundDocument("sequence_volumes");
+        document["rows"] = nlohmann::ordered_json::array();
+        for (const sound::SequenceVolume &row : sound::ReadSequenceVolumes(Text(dcdata::ReadFile(tables / "sqtbl.txt")))) {
+            document["rows"].push_back({
+                {"name",   row.name  },
+                {"volume", row.volume}
+            });
+        }
+        WriteJson(tables / "sqtbl.json", document);
+    }
+    if (fs::exists(tables / "setbl.txt")) {
+        nlohmann::ordered_json document = SoundDocument("effect_volumes");
+        document["rows"] = nlohmann::ordered_json::array();
+        for (const sound::EffectVolume &row : sound::ReadEffectVolumes(Text(dcdata::ReadFile(tables / "setbl.txt")))) {
+            document["rows"].push_back({
+                {"bank",    row.bank   },
+                {"program", row.program},
+                {"volume",  row.volume }
+            });
+        }
+        WriteJson(tables / "setbl.json", document);
+    }
+    dcdata::Log(stdout, "published {} sound packs sharing {} banks\n", packs.size(), banks.size());
+}
+
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
                "       dcdata extract-raw <iso-or-directory> <data-directory>\n"
                "       dcdata bake-textures <raw-directory> <data-directory>\n"
+               "       dcdata publish-sound <data-directory>\n"
                "       dcdata texture-map <raw-directory> <mapping.json>\n"
                "       dcdata pack <data-directory> [output.zip]\n"
                "       dcdata list <iso-or-directory>\n",
@@ -276,6 +419,10 @@ int main(int argc, char **argv) {
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
+        }
+        if (argc == 3 && std::strcmp(argv[1], "publish-sound") == 0) {
+            PublishSound(argv[2]);
+            return 0;
         }
         if (argc == 4 && std::strcmp(argv[1], "bake-textures") == 0) {
             BakeTextures(argv[2], argv[3]);
