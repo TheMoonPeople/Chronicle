@@ -30,11 +30,11 @@ on arm64 macOS; it is the right shape on every platform.
   applied to a 64-bit base. Known round trips: `((int) buffer + 63) & ~63`
   style alignment that is cast back (`editloop.cpp`, `itemdata.cpp`,
   `clsmes.cpp`, `battlemenu.cpp`, `dungeonmap.cpp`, `visualshadow.cpp`,
-  `title/*.cpp`), `BtEventData = (s32) arena` (`btsysscript.cpp`), the
+  `title/*.cpp`), `BtEventData = (s32) arena` (`btsysscript.cpp`, already replaced), the
   `EPARTS_INFO_HEADER`/`EPARTS_FUNC_DATA` in-place relocation
   (`editloop.cpp:5262`, `edit_in.cpp:2017`), the script VM's `funcdata` and
   stack/call records (`runscript.hpp`, `editloop3.cpp:8294`,
-  `runscript_opcodes.cpp:1583`), `CSpriteTable` pointer comparisons (already
+  `BtSetEventScript` in `runscript_opcodes.cpp`), `CSpriteTable` pointer comparisons (already
   replaced), sound bank addresses (already replaced), the title units'
   `(int)` arithmetic (partly replaced).
 - **File formats with pointer-sized fields.** `EPARTS_*`, `funcdata` and

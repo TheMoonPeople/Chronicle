@@ -1576,9 +1576,9 @@ else changed:
 |---|---|---|
 | `DunMoveChara`, `BtCheckDamageProc` | `dun/movechara.cpp` | addresses of `NowDngMap`'s parts and of the active item counters on a `uintptr_t` |
 | `CDungeonMap::BuildCharaSpecialParts`, `SetCharaDoor` | `dungeonmap.cpp` | the key door's cell on a `uintptr_t` |
-| `BtGetTreasureboxBig_Init`/`_Loop`, `BtGetTreasureboxSmall_Init`/`_Loop`, `BtGetGateKey_Init`/`_Loop`, `BtEscape_Init`/`_Loop` | `btitem.cpp` | the files read between the two halves kept as pointers, not in `itemOpenItemMds`, `itemOpenItemImg` and `escape_chr` |
+| `BtGetTreasureboxBig_Init`/`_Loop`, `BtGetTreasureboxSmall_Init`/`_Loop`, `BtGetGateKey_Init`/`_Loop`, `BtEscape_Init`/`_Loop` | `btitem.cpp` | the files read between the two halves kept as pointers, where retail keeps them in `itemOpenItemMds`, `itemOpenItemImg` and `escape_chr` |
 | `_ITEM_USE_WINDOW`, `BtMiniItemSelect_Loop` | `btsysscript.cpp`, `btitem.cpp` | the script slot the choice goes to kept as a pointer (`btitem_port.hpp`) and written through the host's `RS_STACKDATA`, whose value is at byte 8 |
-| `BtSystemScriptLoad`, `BtSystemScriptRun` | `btsysscript.cpp` | the event script kept as a pointer, not in `BtEventData` |
+| `BtSystemScriptLoad`, `BtSystemScriptRun` | `btsysscript.cpp` | the event script kept as a pointer, where retail keeps it in `BtEventData` |
 | `PortWorldMapCommand`, `PortEdEventMenuMode` | `editloop3.cpp` | the world-map result destination stays a native-width script pointer until the town menu finishes |
 | `EditInit`, `InitWorkBuffer` | `editloop_init.cpp` | arena starts rounded on the whole pointer |
 | `CommandWATER_SHAKE` | `editmapscript.cpp` | the wave slot on a `uintptr_t` |
@@ -1750,9 +1750,10 @@ renames what the unit takes from MWCC or from the PS2 link alone:
 - `bound`, `cloth`, `collisionmdt`, `frame`, `gameutil`, `mglib`, `visualvu1`
   and `water` get declarations of their `static` assembly functions, which
   the port defines.
-- `battlemenu` and `editground` pass each temporary `CRect_i_` as an lvalue
-  (`Ps2Lvalue`, `port/include/port.h`): MWCC binds a temporary to the non-const
-  references of `DrawMenuColorGradation` and `CEditGround::CheckPartsRect`.
+- `battlemenu` passes each temporary `CRect_i_` as an lvalue (`Ps2Lvalue`,
+  `port/include/port.h`): MWCC binds a temporary to the non-const reference of
+  `DrawMenuColorGradation`. `editground` names its rectangles instead, so its
+  calls to `CEditGround::CheckPartsRect` need no stub.
 - `editloop3` gives its static `EdSetVillagerNextPos` a global forwarder,
   `PortEdSetVillagerNextPos`, for the port's `EdMoveVillager`, and declares
   its static `EdEventScript` `extern` first, for the port's `EdRunEvent`
@@ -1768,9 +1769,6 @@ renames what the unit takes from MWCC or from the PS2 link alone:
   it, and the script attaches it as it does the others.
 - `main` gets an overload of `LoadFileMenuData` for a `const char *`: one call
   names its file with a comma expression ending in a string literal.
-- `mathutil` gets the Metrowerks runtime's own `std::exception` and
-  `std::bad_exception` renamed apart from the host library's, and
-  `__exception_magic`, which MWCC provides inside an exception handler.
 - `menu_dungeon` renames its `CharaChangeLoop` to `CharaChangeLoopRetail`. The
   port's `CharaChangeLoop` (`port/src/menu_dungeon.cpp`) runs the dungeon's
   quick-change menu as an element picker when D-pad Up opened it, and this

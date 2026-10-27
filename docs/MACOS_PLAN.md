@@ -129,7 +129,7 @@ So the port stops relying on 32-bit round trips altogether:
    replacement unit or on the boot path is widened to keep a real pointer;
    round-trip sites that remain in retail functions are listed with the
    replacement each needs, and replaced one by one like any hardware
-   dependence. Known cases: `BtEventData = (s32) arena`, the `EPARTS_*`
+   dependence. Known cases: `BtEventData = (s32) arena` (since replaced), the `EPARTS_*`
    records, the script VM's `funcdata` (`dataio.md`, section 2.4), the title
    units' `(int)` arithmetic.
 4. **Fallback (unnecessary).** An x86-64 build under Rosetta 2, with
