@@ -45,12 +45,20 @@ public:
     bool Read(std::size_t index, std::span<std::uint8_t> output) const;
 
 private:
+    /**
+     * ZIP compression methods the archive accepts.
+     */
+    enum class Method : std::uint16_t {
+        Stored = 0,
+        Deflated = 8
+    };
+
     struct Record {
         Entry                 entry;
         std::uint32_t         crc = 0;
         std::uint32_t         compressed_size = 0;
         std::uint32_t         local_header_offset = 0;
-        std::uint16_t         method = 0;
+        Method                method = Method::Stored;
         std::uint16_t         flags = 0;
         mutable std::uint64_t data_offset = 0;
         mutable bool          local_header_checked = false;

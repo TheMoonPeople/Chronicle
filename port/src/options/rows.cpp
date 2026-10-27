@@ -1,7 +1,5 @@
 #include "options/rows.hpp"
 
-#include <SDL3/SDL.h>
-
 #include <algorithm>
 #include <cmath>
 #include <deque>
@@ -22,7 +20,7 @@ namespace {
 
 constexpr int kMapOff = 3;
 
-int Two(const Config &) {
+int Two(const Config & /*config*/) {
     return 2;
 }
 
@@ -38,7 +36,7 @@ void SetOption(Config &config, int choice) {
 }
 
 template <bool ConfigGameOptions::*Field, bool First>
-Row GameRow(const char *key, const char *label, const char *names, int game_help) {
+constexpr Row GameRow(const char *key, const char *label, const char *names, int game_help) {
     return {.key = key,
             .label = label,
             .game_help = game_help,
@@ -59,7 +57,7 @@ void SetOnOff(Config &config, int choice) {
 }
 
 template <auto Field>
-Row OnOffRow(const char *key, const char *label, const char *help) {
+constexpr Row OnOffRow(const char *key, const char *label, const char *help) {
     return {.key = key,
             .label = label,
             .help = help,
@@ -70,7 +68,7 @@ Row OnOffRow(const char *key, const char *label, const char *help) {
 }
 
 template <auto Field>
-Row NamedRow(const char *key, const char *label, const char *help, const char *names) {
+constexpr Row NamedRow(const char *key, const char *label, const char *help, const char *names) {
     return {.key = key,
             .label = label,
             .help = help,
@@ -80,9 +78,9 @@ Row NamedRow(const char *key, const char *label, const char *help, const char *n
             .names = names};
 }
 
-Row SettingRow(const char *key, const char *label, const char *help, int (*count)(const Config &),
-               int (*get)(const Config &), void (*set)(Config &, int), std::string (*text)(const Config &),
-               const char *names = nullptr, void (*restore)(Config &, const Config &) = nullptr) {
+constexpr Row SettingRow(const char *key, const char *label, const char *help, int (*count)(const Config &),
+                         int (*get)(const Config &), void (*set)(Config &, int), std::string (*text)(const Config &),
+                         const char *names = nullptr, void (*restore)(Config &, const Config &) = nullptr) {
     return {.key = key,
             .label = label,
             .help = help,
@@ -92,12 +90,6 @@ Row SettingRow(const char *key, const char *label, const char *help, int (*count
             .text = text,
             .names = names,
             .restore = restore};
-}
-
-void QuitGame() {
-    SDL_Event event{};
-    event.type = SDL_EVENT_QUIT;
-    SDL_PushEvent(&event);
 }
 
 std::string ChoiceName(const char *names, int choice) {
@@ -110,7 +102,7 @@ std::string ChoiceName(const char *names, int choice) {
 
 int Nearest(std::span<const double> choices, double value) {
     int best = 0;
-    for (int i = 1; i < static_cast<int>(choices.size()); ++i) {
+    for (int i = 1; i < std::ssize(choices); ++i) {
         if (std::abs(choices[i] - value) < std::abs(choices[best] - value)) {
             best = i;
         }
@@ -140,7 +132,7 @@ bool Desktop(const Config &config) {
     return config.window_width == 0 && config.window_height == 0;
 }
 
-int MapCount(const Config &) {
+int MapCount(const Config & /*config*/) {
     return 4;
 }
 
@@ -152,14 +144,14 @@ void SetMap(Config &config, int choice) {
     config.options.map = choice == kMapOff ? 0 : choice + 1;
 }
 
-int ResolutionCount(const Config &) {
-    return static_cast<int>(g_sizes.size());
+int ResolutionCount(const Config & /*config*/) {
+    return static_cast<int>(std::ssize(g_sizes));
 }
 
 int ResolutionChoice(const Config &config) {
     double area = static_cast<double>(config.window_width) * config.window_height;
     int    best = 0;
-    for (int i = 0; i < static_cast<int>(g_sizes.size()); ++i) {
+    for (int i = 0; i < std::ssize(g_sizes); ++i) {
         const OptionResolution &size = g_sizes[i];
         if (size.width == config.window_width && size.height == config.window_height) {
             return i;
@@ -213,7 +205,7 @@ void RestoreFullscreen(Config &config, const Config &defaults) {
 constexpr ConfigPresentMode kPresentModes[] = {ConfigPresentMode::Fifo, ConfigPresentMode::Mailbox,
                                                ConfigPresentMode::Immediate};
 
-int PresentModeCount(const Config &) {
+int PresentModeCount(const Config & /*config*/) {
     return static_cast<int>(std::size(kPresentModes));
 }
 
@@ -227,7 +219,7 @@ void SetPresentMode(Config &config, int choice) {
 
 constexpr ConfigFpsDetail kFpsDetails[] = {ConfigFpsDetail::Fps, ConfigFpsDetail::Ticks, ConfigFpsDetail::All};
 
-int FpsDetailCount(const Config &) {
+int FpsDetailCount(const Config & /*config*/) {
     return static_cast<int>(std::size(kFpsDetails));
 }
 
@@ -241,7 +233,7 @@ void SetFpsDetail(Config &config, int choice) {
 
 constexpr double kMaxFps[] = {0, 30, 60, 75, 90, 120, 144, 165, 240};
 
-int MaxFpsCount(const Config &) {
+int MaxFpsCount(const Config & /*config*/) {
     return static_cast<int>(std::size(kMaxFps));
 }
 
@@ -259,7 +251,7 @@ std::string MaxFpsText(const Config &config) {
 
 constexpr int kAnisotropy[] = {0, 2, 4, 8, 16};
 
-int AnisotropyCount(const Config &) {
+int AnisotropyCount(const Config & /*config*/) {
     return static_cast<int>(std::size(kAnisotropy));
 }
 
@@ -280,16 +272,16 @@ void SetAspect(Config &config, int choice) {
 }
 
 // 50% to 200% in tenths.
-int UiScaleCount(const Config &) {
+int UiScaleCount(const Config & /*config*/) {
     return 16;
 }
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 int RenderScaleChoice(const Config &config) {
     return std::clamp(static_cast<int>(std::lround(config.render_scale * 10.0f)) - 5, 0, 15);
 }
 
-int RenderScaleCount(const Config &) { return 16; }
+int RenderScaleCount(const Config & /*config*/) { return 16; }
 
 void SetRenderScale(Config &config, int choice) { config.render_scale = (choice + 5) / 10.0f; }
 
@@ -310,8 +302,8 @@ std::string UiScaleText(const Config &config) {
     return std::format("{:.0f}%", config.ui_scale * 100.0f);
 }
 
-#if defined(__ANDROID__)
-int TouchOpacityCount(const Config &) { return 10; }
+#ifdef __ANDROID__
+int TouchOpacityCount(const Config & /*config*/) { return 10; }
 
 int TouchOpacityChoice(const Config &config) { return config.touch_overlay_opacity / 10 - 1; }
 
@@ -321,7 +313,7 @@ std::string TouchOpacityText(const Config &config) { return std::format("{}%", c
 #endif
 
 // 0% to 100% in fives.
-int VolumeCount(const Config &) {
+int VolumeCount(const Config & /*config*/) {
     return 21;
 }
 
@@ -338,7 +330,7 @@ std::string VolumeText(const Config &config) {
 }
 
 // Hundredths up to 0.99, then tenths up to 10.
-int MouseSensitivityCount(const Config &) {
+int MouseSensitivityCount(const Config & /*config*/) {
     return 190;
 }
 
@@ -426,10 +418,10 @@ void SetZoomReset(Config &config, int choice) {
     auto                     binding = std::ranges::find(config.key_bindings, std::string{"zoom_reset"}, &ConfigKeyBinding::action);
     std::vector<std::string> keys;
     if (choice < 4) {
-        keys.push_back(kZoomResetBindings[choice]);
+        keys.emplace_back(kZoomResetBindings[choice]);
     }
     if (binding == config.key_bindings.end()) {
-        config.key_bindings.push_back({"zoom_reset", std::move(keys)});
+        config.key_bindings.push_back({.action = "zoom_reset", .keys = std::move(keys)});
     } else {
         binding->keys = std::move(keys);
     }
@@ -462,7 +454,7 @@ void RestoreZoomReset(Config &config, const Config &defaults) {
 }
 
 // 0.50 to 2.50 in twentieths.
-int StickSensitivityCount(const Config &) {
+int StickSensitivityCount(const Config & /*config*/) {
     return 41;
 }
 
@@ -482,7 +474,7 @@ void RestoreStickSensitivity(Config &config, const Config &defaults) {
     config.stick_sensitivity = defaults.stick_sensitivity;
 }
 
-int GyroCount(const Config &) {
+int GyroCount(const Config & /*config*/) {
     return 4;
 }
 
@@ -494,7 +486,7 @@ void SetGyro(Config &config, int choice) {
     config.gyro = static_cast<ConfigGyro>(choice);
 }
 
-int GlyphDeviceCount(const Config &) {
+int GlyphDeviceCount(const Config & /*config*/) {
     return 10;
 }
 
@@ -507,7 +499,7 @@ void SetGlyphDevice(Config &config, int choice) {
 }
 
 // 0.10 to 2.00 in twentieths.
-int GyroSensitivityCount(const Config &) {
+int GyroSensitivityCount(const Config & /*config*/) {
     return 39;
 }
 
@@ -536,11 +528,11 @@ void SetLanguage(Config &config, int choice) {
     config.language = choice == 0 ? 0 : choice + 1;
 }
 
-int LanguageCount(const Config &) {
+int LanguageCount(const Config & /*config*/) {
     return 6;
 }
 
-int ShadowCount(const Config &) {
+int ShadowCount(const Config & /*config*/) {
     return 21;
 }
 
@@ -568,13 +560,15 @@ std::string GlyphShadowText(const Config &config) {
     return std::format("{}%", config.glyph_shadow);
 }
 
-int Three(const Config &) {
+int Three(const Config & /*config*/) {
     return 3;
 }
 
 int SoundChoice(const Config &config) {
-    return config.surround ? 2 : config.options.stereo ? 1
-                                                       : 0;
+    if (config.surround) {
+        return 2;
+    }
+    return config.options.stereo ? 1 : 0;
 }
 
 void SetSound(Config &config, int choice) {
@@ -597,7 +591,7 @@ std::string PictureShadowText(const Config &config) {
     return std::format("{}%", config.*Member);
 }
 
-const Row kGameRows[] = {
+constexpr Row kGameRows[] = {
     GameRow<&ConfigGameOptions::save_cursor_position, true>("game.save_cursor_position", "Save Cursor Position",
                                                             "On|Off", 0x15E),
     GameRow<&ConfigGameOptions::clock, true>("game.clock", "Clock", "On|Off", 0x162),
@@ -621,7 +615,7 @@ const Row kGameRows[] = {
                                           "\"Swap Keeps Lock-On\"\nSwitching characters\nkeeps the enemy\nlocked on.")
 };
 
-const Row kDisplayRows[] = {
+constexpr Row kDisplayRows[] = {
     SettingRow("video.fullscreen", "Window Mode", "\"Window Mode\"\nPlay in a window or\non the whole screen.", Two,
                Fullscreen, SetFullscreen, nullptr, "Windowed|Fullscreen", RestoreFullscreen),
     SettingRow("video.width", "Resolution",
@@ -637,7 +631,7 @@ const Row kDisplayRows[] = {
     SettingRow("video.ui_scale", "Interface Size",
                "\"Interface Size\"\nThe size of the HUD\nand menus, from when\nOptions closes.", UiScaleCount,
                UiScaleChoice, SetUiScale, UiScaleText),
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     SettingRow("video.touch_overlay_opacity", "Touch Opacity",
                "\"Touch Opacity\"\nHow visible the on-screen\nbuttons are.", TouchOpacityCount,
                TouchOpacityChoice, SetTouchOpacity, TouchOpacityText),
@@ -653,8 +647,8 @@ const Row kDisplayRows[] = {
     GameRow<&ConfigGameOptions::soft_focus, true>("video.soft_focus", "Soft Focus", "On|Off", 0x169),
 };
 
-#if defined(__ANDROID__)
-const Row kAndroidDisplayRows[] = {
+#ifdef __ANDROID__
+constexpr Row kAndroidDisplayRows[] = {
     SettingRow("video.render_scale", "Render Resolution",
                "\"Render Resolution\"\nThe game's internal image\nsize. Lower values improve\nspeed and battery life.",
                RenderScaleCount, RenderScaleChoice, SetRenderScale, RenderScaleText),
@@ -669,8 +663,8 @@ const Row kAndroidDisplayRows[] = {
     kDisplayRows[10],
     kDisplayRows[11],
 };
-#elif defined(__SWITCH__)
-const Row kSwitchDisplayRows[] = {
+#elifdef __SWITCH__
+constexpr Row kSwitchDisplayRows[] = {
     kDisplayRows[5],
     kDisplayRows[7],
     kDisplayRows[8],
@@ -680,16 +674,16 @@ const Row kSwitchDisplayRows[] = {
 #endif
 
 std::span<const Row> DisplayRows() {
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     return kAndroidDisplayRows;
-#elif defined(__SWITCH__)
+#elifdef __SWITCH__
     return kSwitchDisplayRows;
 #else
     return kDisplayRows;
 #endif
 }
 
-const Row kAudioRows[] = {
+constexpr Row kAudioRows[] = {
     SettingRow("audio.master_volume", "Volume", "\"Volume\"\nHow loud the game is.", VolumeCount, VolumeChoice,
                SetVolume, VolumeText),
     SettingRow("audio.sound", "Sound", "\"Sound\"\nMono, stereo, or\nsurround for 5.1\nspeakers.", Three, SoundChoice,
@@ -699,7 +693,7 @@ const Row kAudioRows[] = {
                                   "PS2|Custom"),
 };
 
-const Row kControlRows[] = {
+constexpr Row kControlRows[] = {
     GameRow<&ConfigGameOptions::vibration, true>("input.vibration", "Vibration", "On|Off", 0x15F),
     SettingRow("input.mouse_sensitivity", "Mouse Sensitivity", "\"Mouse Sensitivity\"\nHow fast the mouse\nturns the camera.",
                MouseSensitivityCount, MouseSensitivityChoice, SetMouseSensitivity, MouseSensitivityText, nullptr,
@@ -731,12 +725,12 @@ const Row kControlRows[] = {
                                      "\"Invert Gyro Y\"\nFlips the gyro's\nup and down."),
 };
 
-const Row kAccessibilityRows[] = {
+constexpr Row kAccessibilityRows[] = {
     OnOffRow<&Config::qte_always_win>("game.qte_always_win", "Always Win QTEs",
                                       "\"Always Win QTEs\"\nButton prompts always\nend in a perfect."),
 };
 
-const Row kTextRows[] = {
+constexpr Row kTextRows[] = {
     Row{.key = "game.language",
         .label = "Language",
         .help = "\"Language\"\nThe language of the game;\nAsk shows the language\nscreen at start-up.",
@@ -783,36 +777,36 @@ std::string ActionName(std::string_view action) {
         std::string_view action;
         const char      *name;
     } kNames[] = {
-        {"up",             "Up"               },
-        {"down",           "Down"             },
-        {"left",           "Left"             },
-        {"right",          "Right"            },
-        {"cross",          "Cross"            },
-        {"circle",         "Circle"           },
-        {"square",         "Square"           },
-        {"triangle",       "Triangle"         },
-        {"l1",             "L1"               },
-        {"r1",             "R1"               },
-        {"l2",             "L2"               },
-        {"r2",             "R2"               },
-        {"l3",             "L3"               },
-        {"r3",             "R3"               },
-        {"start",          "Start"            },
-        {"select",         "Select"           },
-        {"lx-",            "Left Stick Left"  },
-        {"lx+",            "Left Stick Right" },
-        {"ly-",            "Left Stick Up"    },
-        {"ly+",            "Left Stick Down"  },
-        {"rx-",            "Right Stick Left" },
-        {"rx+",            "Right Stick Right"},
-        {"ry-",            "Right Stick Up"   },
-        {"ry+",            "Right Stick Down" },
-        {"fps_toggle",     "Toggle FPS"       },
-        {"developer_menu", "Developer Menu"   },
-        {"debug_menu",     "Debug Menu"       },
-        {"walk",           "Walk"             },
-        {"gyro_hold",      "Gyro Hold"        },
-        {"zoom_reset",     "Reset Zoom"       },
+        {.action = "up",             .name = "Up"               },
+        {.action = "down",           .name = "Down"             },
+        {.action = "left",           .name = "Left"             },
+        {.action = "right",          .name = "Right"            },
+        {.action = "cross",          .name = "Cross"            },
+        {.action = "circle",         .name = "Circle"           },
+        {.action = "square",         .name = "Square"           },
+        {.action = "triangle",       .name = "Triangle"         },
+        {.action = "l1",             .name = "L1"               },
+        {.action = "r1",             .name = "R1"               },
+        {.action = "l2",             .name = "L2"               },
+        {.action = "r2",             .name = "R2"               },
+        {.action = "l3",             .name = "L3"               },
+        {.action = "r3",             .name = "R3"               },
+        {.action = "start",          .name = "Start"            },
+        {.action = "select",         .name = "Select"           },
+        {.action = "lx-",            .name = "Left Stick Left"  },
+        {.action = "lx+",            .name = "Left Stick Right" },
+        {.action = "ly-",            .name = "Left Stick Up"    },
+        {.action = "ly+",            .name = "Left Stick Down"  },
+        {.action = "rx-",            .name = "Right Stick Left" },
+        {.action = "rx+",            .name = "Right Stick Right"},
+        {.action = "ry-",            .name = "Right Stick Up"   },
+        {.action = "ry+",            .name = "Right Stick Down" },
+        {.action = "fps_toggle",     .name = "Toggle FPS"       },
+        {.action = "developer_menu", .name = "Developer Menu"   },
+        {.action = "debug_menu",     .name = "Debug Menu"       },
+        {.action = "walk",           .name = "Walk"             },
+        {.action = "gyro_hold",      .name = "Gyro Hold"        },
+        {.action = "zoom_reset",     .name = "Reset Zoom"       },
     };
 
     for (const auto &entry : kNames) {
@@ -823,15 +817,15 @@ std::string ActionName(std::string_view action) {
     return std::string(action);
 }
 
-int One(const Config &) {
+int One(const Config & /*config*/) {
     return 1;
 }
 
-int Zero(const Config &) {
+int Zero(const Config & /*config*/) {
     return 0;
 }
 
-void NoopSet(Config &, int) {}
+void NoopSet(Config & /*config*/, int /*choice*/) {}
 
 void RemoveBinding(Config &config, std::string_view action) {
     std::erase_if(config.key_bindings, [&](const ConfigKeyBinding &binding) {
@@ -898,8 +892,8 @@ std::string ChoiceText(const Row &row, int choice) {
 
 std::string PageKey(const char *name) {
     std::string key = "options.page.";
-    for (const char *c = name; *c != '\0'; ++c) {
-        key += static_cast<char>(*c >= 'A' && *c <= 'Z' ? *c - 'A' + 'a' : *c);
+    for (const char letter : std::string_view(name)) {
+        key += static_cast<char>(letter >= 'A' && letter <= 'Z' ? letter - 'A' + 'a' : letter);
     }
     return key;
 }
@@ -1038,7 +1032,7 @@ void SetBinding(Config &config, std::string_view action, std::string_view key) {
     std::vector<std::string> keys;
     keys.emplace_back(key);
     if (binding == config.key_bindings.end()) {
-        config.key_bindings.push_back({std::string(action), std::move(keys)});
+        config.key_bindings.push_back({.action = std::string(action), .keys = std::move(keys)});
     } else {
         binding->keys = std::move(keys);
     }

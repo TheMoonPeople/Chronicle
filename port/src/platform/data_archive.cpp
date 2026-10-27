@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 #define STBI_SUPPORT_ZLIB
 #include "stb_image.h"
@@ -15,26 +16,33 @@ constexpr std::uint32_t kEndSignature = 0x06054B50;
 constexpr std::uint32_t kCentralSignature = 0x02014B50;
 constexpr std::uint32_t kLocalSignature = 0x04034B50;
 constexpr std::uint32_t kDescriptorSignature = 0x08074B50;
+constexpr std::uint16_t kEncryptedFlag = 1U << 0;
+constexpr std::uint16_t kDeflateOptionFlags = (1U << 1) | (1U << 2);
 constexpr std::uint16_t kDataDescriptorFlag = 1U << 3;
+constexpr std::uint16_t kStrongEncryptionFlag = 1U << 6;
 constexpr std::uint16_t kUtf8Flag = 1U << 11;
-constexpr std::uint16_t kAllowedFlags = kDataDescriptorFlag | kUtf8Flag | (1U << 1) | (1U << 2);
-constexpr std::uint64_t kMaxTailSize = 22 + 0xFFFF;
+constexpr std::uint16_t kMaskedHeaderFlag = 1U << 13;
+constexpr std::uint16_t kAllowedFlags = kDataDescriptorFlag | kUtf8Flag | kDeflateOptionFlags;
+constexpr std::uint16_t kZip64ExtraTag = 1;
+constexpr std::size_t   kEndRecordSize = 22;
+constexpr std::uint64_t kMaxTailSize = kEndRecordSize + 0xFFFF;
 constexpr std::size_t   kLocalHeaderSize = 30;
 constexpr std::size_t   kCentralHeaderSize = 46;
 
-std::uint16_t Read16(const std::uint8_t *bytes) {
-    return static_cast<std::uint16_t>(bytes[0]) | static_cast<std::uint16_t>(bytes[1] << 8);
+std::uint16_t Read16(std::span<const std::uint8_t> bytes, std::size_t offset = 0) {
+    return static_cast<std::uint16_t>(bytes[offset]) | static_cast<std::uint16_t>(bytes[offset + 1] << 8);
 }
 
-std::uint32_t Read32(const std::uint8_t *bytes) {
-    return static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8) |
-           (static_cast<std::uint32_t>(bytes[2]) << 16) | (static_cast<std::uint32_t>(bytes[3]) << 24);
+std::uint32_t Read32(std::span<const std::uint8_t> bytes, std::size_t offset = 0) {
+    return static_cast<std::uint32_t>(bytes[offset]) | (static_cast<std::uint32_t>(bytes[offset + 1]) << 8) |
+           (static_cast<std::uint32_t>(bytes[offset + 2]) << 16) |
+           (static_cast<std::uint32_t>(bytes[offset + 3]) << 24);
 }
 
 constexpr std::array<std::uint32_t, 256> MakeCrcTable() {
     std::array<std::uint32_t, 256> table{};
     for (std::size_t value = 0; value < table.size(); ++value) {
-        std::uint32_t crc = static_cast<std::uint32_t>(value);
+        auto crc = static_cast<std::uint32_t>(value);
         for (int bit = 0; bit < 8; ++bit) {
             crc = (crc >> 1) ^ (0xEDB88320 & (0U - (crc & 1U)));
         }
@@ -54,8 +62,8 @@ std::uint32_t Crc32(std::span<const std::uint8_t> bytes) {
 }
 
 bool SafeEntryName(std::string_view name) {
-    if (name.empty() || name.front() == '/' || name.find('\\') != std::string_view::npos ||
-        name.find(':') != std::string_view::npos || name.find('\0') != std::string_view::npos) {
+    if (name.empty() || name.front() == '/' || name.contains('\\') ||
+        name.contains(':') || name.contains('\0')) {
         return false;
     }
     if (name.back() == '/') {
@@ -96,7 +104,7 @@ DataArchive::DataArchive(const std::filesystem::path &path)
     }
     std::error_code     error;
     const std::uint64_t file_size = std::filesystem::file_size(path_, error);
-    if (error || file_size < 22) {
+    if (error || file_size < kEndRecordSize) {
         Invalid(path_, "truncated ZIP archive");
     }
 
@@ -104,13 +112,13 @@ DataArchive::DataArchive(const std::filesystem::path &path)
     std::vector<std::uint8_t> tail(static_cast<std::size_t>(tail_size));
     stream_.seekg(static_cast<std::streamoff>(file_size - tail_size));
     stream_.read(reinterpret_cast<char *>(tail.data()), static_cast<std::streamsize>(tail.size()));
-    if (static_cast<std::size_t>(stream_.gcount()) != tail.size()) {
+    if (std::cmp_not_equal(stream_.gcount(), tail.size())) {
         Invalid(path_, "cannot read ZIP trailer");
     }
 
     std::size_t end_at = std::string::npos;
-    for (std::size_t at = tail.size() - 22 + 1; at-- > 0;) {
-        if (Read32(tail.data() + at) == kEndSignature && at + 22 + Read16(tail.data() + at + 20) == tail.size()) {
+    for (std::size_t at = tail.size() - kEndRecordSize + 1; at-- > 0;) {
+        if (Read32(tail, at) == kEndSignature && at + kEndRecordSize + Read16(tail, at + 20) == tail.size()) {
             end_at = at;
             break;
         }
@@ -118,13 +126,13 @@ DataArchive::DataArchive(const std::filesystem::path &path)
     if (end_at == std::string::npos) {
         Invalid(path_, "ZIP end record not found");
     }
-    const std::uint8_t *end = tail.data() + end_at;
-    const std::uint16_t disk = Read16(end + 4);
-    const std::uint16_t central_disk = Read16(end + 6);
-    const std::uint16_t disk_entries = Read16(end + 8);
-    const std::uint16_t total_entries = Read16(end + 10);
-    const std::uint32_t central_size = Read32(end + 12);
-    const std::uint32_t central_offset = Read32(end + 16);
+    const std::span<const std::uint8_t> end = std::span<const std::uint8_t>(tail).subspan(end_at);
+    const std::uint16_t                 disk = Read16(end, 4);
+    const std::uint16_t                 central_disk = Read16(end, 6);
+    const std::uint16_t                 disk_entries = Read16(end, 8);
+    const std::uint16_t                 total_entries = Read16(end, 10);
+    const std::uint32_t                 central_size = Read32(end, 12);
+    const std::uint32_t                 central_offset = Read32(end, 16);
     if (disk != 0 || central_disk != 0 || disk_entries != total_entries) {
         Invalid(path_, "multi-disk ZIP archives are unsupported");
     }
@@ -145,33 +153,33 @@ DataArchive::DataArchive(const std::filesystem::path &path)
     for (std::uint32_t index = 0; index < total_entries; ++index) {
         std::array<std::uint8_t, kCentralHeaderSize> header{};
         stream_.read(reinterpret_cast<char *>(header.data()), header.size());
-        if (static_cast<std::size_t>(stream_.gcount()) != header.size() || Read32(header.data()) != kCentralSignature) {
+        if (std::cmp_not_equal(stream_.gcount(), header.size()) || Read32(header) != kCentralSignature) {
             Invalid(path_, "invalid ZIP central directory entry");
         }
-        const std::uint16_t flags = Read16(header.data() + 8);
-        const std::uint16_t method = Read16(header.data() + 10);
-        const std::uint32_t crc = Read32(header.data() + 16);
-        const std::uint32_t compressed_size = Read32(header.data() + 20);
-        const std::uint32_t size = Read32(header.data() + 24);
-        const std::uint16_t name_size = Read16(header.data() + 28);
-        const std::uint16_t extra_size = Read16(header.data() + 30);
-        const std::uint16_t comment_size = Read16(header.data() + 32);
-        const std::uint16_t entry_disk = Read16(header.data() + 34);
-        const std::uint32_t local_offset = Read32(header.data() + 42);
+        const std::uint16_t flags = Read16(header, 8);
+        const std::uint16_t method = Read16(header, 10);
+        const std::uint32_t crc = Read32(header, 16);
+        const std::uint32_t compressed_size = Read32(header, 20);
+        const std::uint32_t size = Read32(header, 24);
+        const std::uint16_t name_size = Read16(header, 28);
+        const std::uint16_t extra_size = Read16(header, 30);
+        const std::uint16_t comment_size = Read16(header, 32);
+        const std::uint16_t entry_disk = Read16(header, 34);
+        const std::uint32_t local_offset = Read32(header, 42);
         if (entry_disk != 0) {
             Invalid(path_, "multi-disk ZIP entries are unsupported");
         }
         if (compressed_size == 0xFFFFFFFF || size == 0xFFFFFFFF || local_offset == 0xFFFFFFFF) {
             Invalid(path_, "ZIP64 entries are unsupported");
         }
-        if ((flags & ~kAllowedFlags) != 0 || (flags & 1U) != 0 || (flags & (1U << 6)) != 0 ||
-            (flags & (1U << 13)) != 0) {
+        if ((flags & ~kAllowedFlags) != 0 || (flags & kEncryptedFlag) != 0 || (flags & kStrongEncryptionFlag) != 0 ||
+            (flags & kMaskedHeaderFlag) != 0) {
             Invalid(path_, "encrypted or unsupported ZIP flags");
         }
-        if (method != 0 && method != 8) {
+        if (method != std::to_underlying(Method::Stored) && method != std::to_underlying(Method::Deflated)) {
             Invalid(path_, "only stored and deflated ZIP entries are supported");
         }
-        if (method == 0 && (flags & ((1U << 1) | (1U << 2))) != 0) {
+        if (method == std::to_underlying(Method::Stored) && (flags & kDeflateOptionFlags) != 0) {
             Invalid(path_, "deflate flags on a stored ZIP entry");
         }
 
@@ -187,13 +195,13 @@ DataArchive::DataArchive(const std::filesystem::path &path)
             if (extra.size() - at < 4) {
                 Invalid(path_, "truncated ZIP extra field");
             }
-            const std::uint16_t tag = Read16(extra.data() + at);
-            const std::uint16_t length = Read16(extra.data() + at + 2);
+            const std::uint16_t tag = Read16(extra, at);
+            const std::uint16_t length = Read16(extra, at + 2);
             at += 4;
             if (length > extra.size() - at) {
                 Invalid(path_, "invalid ZIP extra field");
             }
-            if (tag == 1) {
+            if (tag == kZip64ExtraTag) {
                 Invalid(path_, "ZIP64 entries are unsupported");
             }
             at += length;
@@ -209,13 +217,11 @@ DataArchive::DataArchive(const std::filesystem::path &path)
             .crc = crc,
             .compressed_size = compressed_size,
             .local_header_offset = local_offset,
-            .method = method,
+            .method = static_cast<Method>(method),
             .flags = flags
         };
-        if (!directory) {
-            if (local_offset >= central_offset || compressed_size > central_offset - local_offset) {
-                Invalid(path_, "ZIP local entry offset is outside the file area");
-            }
+        if (!directory && (local_offset >= central_offset || compressed_size > central_offset - local_offset)) {
+            Invalid(path_, "ZIP local entry offset is outside the file area");
         }
         records_.push_back(std::move(record));
         stream_.clear();
@@ -252,12 +258,12 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             stream_.clear();
             stream_.seekg(static_cast<std::streamoff>(record.local_header_offset));
             stream_.read(reinterpret_cast<char *>(local.data()), local.size());
-            if (static_cast<std::size_t>(stream_.gcount()) != local.size() || Read32(local.data()) != kLocalSignature ||
-                Read16(local.data() + 6) != record.flags || Read16(local.data() + 8) != record.method) {
+            if (std::cmp_not_equal(stream_.gcount(), local.size()) || Read32(local) != kLocalSignature ||
+                Read16(local, 6) != record.flags || Read16(local, 8) != std::to_underlying(record.method)) {
                 return false;
             }
-            const std::uint16_t local_name_size = Read16(local.data() + 26);
-            const std::uint16_t local_extra_size = Read16(local.data() + 28);
+            const std::uint16_t local_name_size = Read16(local, 26);
+            const std::uint16_t local_extra_size = Read16(local, 28);
             std::string         local_name(local_name_size, '\0');
             stream_.read(local_name.data(), local_name_size);
             std::vector<std::uint8_t> local_extra(local_extra_size);
@@ -269,18 +275,18 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
                 if (local_extra.size() - at < 4) {
                     return false;
                 }
-                const std::uint16_t tag = Read16(local_extra.data() + at);
-                const std::uint16_t length = Read16(local_extra.data() + at + 2);
+                const std::uint16_t tag = Read16(local_extra, at);
+                const std::uint16_t length = Read16(local_extra, at + 2);
                 at += 4;
-                if (length > local_extra.size() - at || tag == 1) {
+                if (length > local_extra.size() - at || tag == kZip64ExtraTag) {
                     return false;
                 }
                 at += length;
             }
             if ((record.flags & kDataDescriptorFlag) == 0 &&
-                (Read32(local.data() + 14) != record.crc ||
-                 Read32(local.data() + 18) != record.compressed_size ||
-                 Read32(local.data() + 22) != record.entry.size)) {
+                (Read32(local, 14) != record.crc ||
+                 Read32(local, 18) != record.compressed_size ||
+                 Read32(local, 22) != record.entry.size)) {
                 return false;
             }
             const std::uint64_t data_offset = static_cast<std::uint64_t>(record.local_header_offset) +
@@ -293,14 +299,14 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             record.local_header_checked = true;
         }
 
-        if (record.method == 0) {
+        if (record.method == Method::Stored) {
             if (record.compressed_size != record.entry.size) {
                 return false;
             }
             stream_.clear();
             stream_.seekg(static_cast<std::streamoff>(record.data_offset));
             stream_.read(reinterpret_cast<char *>(output.data()), static_cast<std::streamsize>(output.size()));
-            if (static_cast<std::size_t>(stream_.gcount()) != output.size()) {
+            if (std::cmp_not_equal(stream_.gcount(), output.size())) {
                 return false;
             }
         } else {
@@ -308,7 +314,7 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             stream_.clear();
             stream_.seekg(static_cast<std::streamoff>(record.data_offset));
             stream_.read(reinterpret_cast<char *>(compressed.data()), static_cast<std::streamsize>(compressed.size()));
-            if (static_cast<std::size_t>(stream_.gcount()) != compressed.size()) {
+            if (std::cmp_not_equal(stream_.gcount(), compressed.size())) {
                 return false;
             }
         }
@@ -324,30 +330,30 @@ bool DataArchive::Read(std::size_t index, std::span<std::uint8_t> output) const 
             const std::uint64_t available = central_directory_offset_ - descriptor_offset;
             const std::size_t   descriptor_size = static_cast<std::size_t>(std::min<std::uint64_t>(available, descriptor.size()));
             stream_.read(reinterpret_cast<char *>(descriptor.data()), static_cast<std::streamsize>(descriptor_size));
-            if (static_cast<std::size_t>(stream_.gcount()) != descriptor_size || descriptor_size < 12) {
+            if (std::cmp_not_equal(stream_.gcount(), descriptor_size) || descriptor_size < 12) {
                 return false;
             }
-            const bool unsigned_match = Read32(descriptor.data()) == record.crc &&
-                                        Read32(descriptor.data() + 4) == record.compressed_size &&
-                                        Read32(descriptor.data() + 8) == record.entry.size;
-            const bool signed_match = descriptor_size == 16 && Read32(descriptor.data()) == kDescriptorSignature &&
-                                      Read32(descriptor.data() + 4) == record.crc &&
-                                      Read32(descriptor.data() + 8) == record.compressed_size &&
-                                      Read32(descriptor.data() + 12) == record.entry.size;
+            const bool unsigned_match = Read32(descriptor) == record.crc &&
+                                        Read32(descriptor, 4) == record.compressed_size &&
+                                        Read32(descriptor, 8) == record.entry.size;
+            const bool signed_match = descriptor_size == 16 && Read32(descriptor) == kDescriptorSignature &&
+                                      Read32(descriptor, 4) == record.crc &&
+                                      Read32(descriptor, 8) == record.compressed_size &&
+                                      Read32(descriptor, 12) == record.entry.size;
             if (!unsigned_match && !signed_match) {
                 return false;
             }
         }
     }
 
-    if (record.method == 8) {
+    if (record.method == Method::Deflated) {
         char      empty_output = 0;
         char     *output_data = output.empty() ? &empty_output : reinterpret_cast<char *>(output.data());
         const int decoded = stbi_zlib_decode_noheader_buffer(output_data,
                                                              static_cast<int>(output.size()),
                                                              reinterpret_cast<const char *>(compressed.data()),
                                                              static_cast<int>(compressed.size()));
-        if (decoded != static_cast<int>(output.size())) {
+        if (std::cmp_not_equal(decoded, output.size())) {
             return false;
         }
     }

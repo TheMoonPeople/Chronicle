@@ -14,18 +14,20 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <mutex>
 #include <optional>
+#include <print>
+#include <span>
 #include <string>
 #include <thread>
 #include <utility>
@@ -33,7 +35,6 @@
 
 namespace {
 
-namespace fs = std::filesystem;
 using Json = nlohmann::json;
 using Clock = std::chrono::steady_clock;
 
@@ -45,17 +46,17 @@ constexpr auto        kReconnectDelay = std::chrono::seconds(15);
 constexpr auto kUpdateInterval = std::chrono::seconds(4);
 constexpr auto kReplyTimeout = std::chrono::seconds(5);
 
-enum Opcode : std::uint32_t {
-    kOpHandshake = 0,
-    kOpFrame = 1,
-    kOpClose = 2,
-    kOpPing = 3,
-    kOpPong = 4,
+enum class Opcode : std::uint32_t {
+    Handshake = 0,
+    Frame = 1,
+    Close = 2,
+    Ping = 3,
+    Pong = 4,
 };
 
 struct Frame {
-    std::uint32_t opcode = 0;
-    Json          body;
+    Opcode opcode = Opcode::Handshake;
+    Json   body;
 };
 
 struct State {
@@ -73,8 +74,9 @@ const Pipe kNoPipe = INVALID_HANDLE_VALUE;
 
 std::vector<std::string> PipePaths() {
     std::vector<std::string> paths;
+    paths.reserve(10);
     for (int i = 0; i < 10; ++i) {
-        paths.push_back("\\\\.\\pipe\\discord-ipc-" + std::to_string(i));
+        paths.push_back(R"(\\.\pipe\discord-ipc-)" + std::to_string(i));
     }
     return paths;
 }
@@ -87,22 +89,19 @@ void ClosePipe(Pipe pipe) {
     CloseHandle(pipe);
 }
 
-bool WriteAll(Pipe pipe, const void *data, std::size_t size) {
-    const char *bytes = static_cast<const char *>(data);
-    while (size > 0) {
+bool WriteAll(Pipe pipe, std::span<const std::byte> bytes) {
+    while (!bytes.empty()) {
         DWORD written = 0;
-        if (!WriteFile(pipe, bytes, static_cast<DWORD>(size), &written, nullptr) || written == 0) {
+        if (!WriteFile(pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) || written == 0) {
             return false;
         }
-        bytes += written;
-        size -= written;
+        bytes = bytes.subspan(written);
     }
     return true;
 }
 
-bool ReadAll(Pipe pipe, void *data, std::size_t size, Clock::time_point deadline) {
-    char *bytes = static_cast<char *>(data);
-    while (size > 0) {
+bool ReadAll(Pipe pipe, std::span<std::byte> bytes, Clock::time_point deadline) {
+    while (!bytes.empty()) {
         DWORD available = 0;
         if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) {
             return false;
@@ -115,12 +114,11 @@ bool ReadAll(Pipe pipe, void *data, std::size_t size, Clock::time_point deadline
             continue;
         }
         DWORD got = 0;
-        DWORD want = static_cast<DWORD>(std::min<std::size_t>(size, available));
-        if (!ReadFile(pipe, bytes, want, &got, nullptr) || got == 0) {
+        DWORD want = static_cast<DWORD>(std::min<std::size_t>(bytes.size(), available));
+        if (!ReadFile(pipe, bytes.data(), want, &got, nullptr) || got == 0) {
             return false;
         }
-        bytes += got;
-        size -= got;
+        bytes = bytes.subspan(got);
     }
     return true;
 }
@@ -130,6 +128,8 @@ int ProcessId() {
 }
 
 #else
+
+namespace fs = std::filesystem;
 
 using Pipe = int;
 constexpr Pipe kNoPipe = -1;
@@ -187,25 +187,22 @@ void ClosePipe(Pipe fd) {
     close(fd);
 }
 
-bool WriteAll(Pipe fd, const void *data, std::size_t size) {
-    const char *bytes = static_cast<const char *>(data);
-    while (size > 0) {
-        ssize_t written = send(fd, bytes, size, kSendFlags);
+bool WriteAll(Pipe fd, std::span<const std::byte> bytes) {
+    while (!bytes.empty()) {
+        ssize_t written = send(fd, bytes.data(), bytes.size(), kSendFlags);
         if (written < 0 && errno == EINTR) {
             continue;
         }
         if (written <= 0) {
             return false;
         }
-        bytes += written;
-        size -= static_cast<std::size_t>(written);
+        bytes = bytes.subspan(static_cast<std::size_t>(written));
     }
     return true;
 }
 
-bool ReadAll(Pipe fd, void *data, std::size_t size, Clock::time_point deadline) {
-    char *bytes = static_cast<char *>(data);
-    while (size > 0) {
+bool ReadAll(Pipe fd, std::span<std::byte> bytes, Clock::time_point deadline) {
+    while (!bytes.empty()) {
         auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count();
         if (left <= 0) {
             return false;
@@ -218,15 +215,14 @@ bool ReadAll(Pipe fd, void *data, std::size_t size, Clock::time_point deadline) 
         if (ready <= 0) {
             return false;
         }
-        ssize_t got = recv(fd, bytes, size, 0);
+        ssize_t got = recv(fd, bytes.data(), bytes.size(), 0);
         if (got < 0 && errno == EINTR) {
             continue;
         }
         if (got <= 0) {
             return false;
         }
-        bytes += got;
-        size -= static_cast<std::size_t>(got);
+        bytes = bytes.subspan(static_cast<std::size_t>(got));
     }
     return true;
 }
@@ -237,22 +233,28 @@ int ProcessId() {
 
 #endif
 
-bool WriteFrame(Pipe pipe, std::uint32_t opcode, const std::string &payload) {
-    std::uint32_t header[2] = {opcode, static_cast<std::uint32_t>(payload.size())};
-    return WriteAll(pipe, header, sizeof(header)) && WriteAll(pipe, payload.data(), payload.size());
+// Each frame is a little-endian {opcode, payload length} header followed by the JSON payload.
+using FrameHeader = std::array<std::uint32_t, 2>;
+
+constexpr std::uint32_t kMaxPayloadSize = 1U << 20;
+
+bool WriteFrame(Pipe pipe, Opcode opcode, const std::string &payload) {
+    const FrameHeader header = {std::to_underlying(opcode), static_cast<std::uint32_t>(payload.size())};
+    return WriteAll(pipe, std::as_bytes(std::span(header))) &&
+           WriteAll(pipe, std::as_bytes(std::span(payload.data(), payload.size())));
 }
 
 std::optional<Frame> ReadFrame(Pipe pipe) {
     Clock::time_point deadline = Clock::now() + kReplyTimeout;
-    std::uint32_t     header[2];
-    if (!ReadAll(pipe, header, sizeof(header), deadline) || header[1] > (1u << 20)) {
+    FrameHeader       header = {};
+    if (!ReadAll(pipe, std::as_writable_bytes(std::span(header)), deadline) || header[1] > kMaxPayloadSize) {
         return std::nullopt;
     }
     std::string payload(header[1], '\0');
-    if (!ReadAll(pipe, payload.data(), payload.size(), deadline)) {
+    if (!ReadAll(pipe, std::as_writable_bytes(std::span(payload.data(), payload.size())), deadline)) {
         return std::nullopt;
     }
-    return Frame{header[0], Json::parse(payload, nullptr, false)};
+    return Frame{.opcode = static_cast<Opcode>(header[0]), .body = Json::parse(payload, nullptr, false)};
 }
 
 void Report(const Json &body) {
@@ -265,7 +267,7 @@ void Report(const Json &body) {
     }
     static std::string reported;
     if (message != reported) {
-        std::fprintf(stderr, "discord: %s\n", message.c_str());
+        std::println(stderr, "discord: {}", message);
         reported = message;
     }
 }
@@ -276,13 +278,13 @@ bool ReadReply(Pipe pipe) {
         if (!frame) {
             return false;
         }
-        if (frame->opcode == kOpPing) {
-            if (!WriteFrame(pipe, kOpPong, frame->body.dump())) {
+        if (frame->opcode == Opcode::Ping) {
+            if (!WriteFrame(pipe, Opcode::Pong, frame->body.dump())) {
                 return false;
             }
             continue;
         }
-        if (frame->opcode != kOpFrame || frame->body.value("evt", Json()) == "ERROR") {
+        if (frame->opcode != Opcode::Frame || frame->body.value("evt", Json()) == "ERROR") {
             Report(frame->body);
             return false;
         }
@@ -299,8 +301,8 @@ Pipe Connect(const std::string &client_id) {
         Json handshake;
         handshake["v"] = 1;
         handshake["client_id"] = client_id;
-        if (WriteFrame(pipe, kOpHandshake, handshake.dump()) && ReadReply(pipe)) {
-            std::fprintf(stderr, "discord: connected to %s\n", path.c_str());
+        if (WriteFrame(pipe, Opcode::Handshake, handshake.dump()) && ReadReply(pipe)) {
+            std::println(stderr, "discord: connected to {}", path);
             return pipe;
         }
         ClosePipe(pipe);
@@ -309,12 +311,12 @@ Pipe Connect(const std::string &client_id) {
     return kNoPipe;
 }
 
-void Run(std::string client_id) {
+void Run(const std::string &client_id) {
     Pipe                           pipe = kNoPipe;
     std::optional<DiscordActivity> sent;
     Clock::time_point              next_connect = Clock::now();
     Clock::time_point              next_send = Clock::now();
-    long long                      start_time = static_cast<long long>(std::time(nullptr));
+    auto                           start_time = static_cast<long long>(std::time(nullptr));
     int                            nonce = 0;
 
     std::unique_lock lock(g_state.mutex);
@@ -330,7 +332,7 @@ void Run(std::string client_id) {
         if (pipe != kNoPipe && g_state.wanted && g_state.wanted != sent && Clock::now() >= next_send) {
             DiscordActivity activity = *g_state.wanted;
             lock.unlock();
-            bool ok = WriteFrame(pipe, kOpFrame, DiscordActivityCommand(activity, start_time, ProcessId(), ++nonce)) &&
+            bool ok = WriteFrame(pipe, Opcode::Frame, DiscordActivityCommand(activity, start_time, ProcessId(), ++nonce)) &&
                       ReadReply(pipe);
             lock.lock();
             next_send = Clock::now() + kUpdateInterval;
@@ -395,7 +397,7 @@ void DiscordStart(std::string client_id) {
 
 void DiscordSetActivity(const DiscordActivity &activity) {
     {
-        std::lock_guard lock(g_state.mutex);
+        std::scoped_lock lock(g_state.mutex);
         g_state.wanted = activity;
     }
     g_state.wake.notify_one();
@@ -406,7 +408,7 @@ void DiscordStop() {
         return;
     }
     {
-        std::lock_guard lock(g_state.mutex);
+        std::scoped_lock lock(g_state.mutex);
         g_state.stop = true;
     }
     g_state.wake.notify_one();

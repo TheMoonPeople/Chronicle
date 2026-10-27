@@ -1,7 +1,7 @@
 #include "firstrun.hpp"
 
 #include <SDL3/SDL.h>
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 #include <SDL3/SDL_system.h>
 #include <android/log.h>
 #include <jni.h>
@@ -17,7 +17,9 @@
 #include <cstdlib>
 #include <exception>
 #include <format>
+#include <limits>
 #include <mutex>
+#include <print>
 #include <string_view>
 #include <system_error>
 #include <thread>
@@ -27,8 +29,8 @@
 #include "config.hpp"
 #include "exitcodes.hpp"
 #include "gfx/gfx.hpp"
-#include "platform/overlay.hpp"
 #include "platform/data_archive.hpp"
+#include "platform/overlay.hpp"
 #include "platform/paths.hpp"
 #include "platform/settings.hpp"
 #include "platform/window.hpp"
@@ -55,7 +57,7 @@ constexpr std::chrono::milliseconds kIdle{kIdleMilliseconds};
 
 FirstRunChooser chooser;
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 std::mutex              android_picker_mutex;
 std::condition_variable android_picker_changed;
 bool                    android_picker_answered = false;
@@ -157,7 +159,7 @@ std::optional<fs::path> ChooseAndroidDiscImage() {
             return std::nullopt;
         }
         {
-            std::lock_guard lock(android_picker_mutex);
+            std::scoped_lock lock(android_picker_mutex);
             android_picker_answered = false;
             android_picker_path.reset();
         }
@@ -175,7 +177,7 @@ std::optional<fs::path> ChooseAndroidDiscImage() {
 }
 
 bool AndroidFirstRunCancelled() {
-    std::lock_guard lock(android_picker_mutex);
+    std::scoped_lock lock(android_picker_mutex);
     return android_first_run_cancelled;
 }
 
@@ -201,7 +203,7 @@ float TextWidth(std::string_view text, float scale) {
 
 // Keeps the end of a path, which names the file, when the whole does not fit.
 std::string Fit(std::string_view text, float scale, float width) {
-    std::size_t room = static_cast<std::size_t>((width / scale + 1.0f) / kAdvance);
+    auto room = static_cast<std::size_t>((width / scale + 1.0f) / kAdvance);
     if (text.size() <= room) {
         return std::string(text);
     }
@@ -256,8 +258,6 @@ struct Canvas {
     }
 };
 
-// ---- Input --------------------------------------------------------------------------------------
-
 enum class Action {
     None,
     DiscImage,
@@ -272,10 +272,10 @@ struct Button {
     const char      *key;
 };
 
-constexpr Button kButtons[] = {
-    {{80.0f, 236.0f, 480.0f, 44.0f}, Action::DiscImage, "DISC IMAGE (.ISO .BIN .IMG)",       "ENTER"},
-    {{80.0f, 292.0f, 480.0f, 44.0f}, Action::Folder,    "FOLDER WITH DATA.DAT AND DATA.HD2", "F"    },
-    {{80.0f, 348.0f, 480.0f, 44.0f}, Action::Quit,      "QUIT",                              ""     },
+constexpr std::array kButtons = {
+    Button{{80.0f, 236.0f, 480.0f, 44.0f}, Action::DiscImage, "DISC IMAGE (.ISO .BIN .IMG)",       "ENTER"},
+    Button{{80.0f, 292.0f, 480.0f, 44.0f}, Action::Folder,    "FOLDER WITH DATA.DAT AND DATA.HD2", "F"    },
+    Button{{80.0f, 348.0f, 480.0f, 44.0f}, Action::Quit,      "QUIT",                              ""     },
 };
 
 struct Input {
@@ -286,13 +286,13 @@ struct Input {
 int ButtonAt(float window_x, float window_y) {
     SDL_Window         *window = WindowHandle();
     gfx::LogicalMapping mapping = gfx::GetLogicalMapping(gfx::kMainTarget);
-    float               density = window ? SDL_GetWindowPixelDensity(window) : 1.0f;
+    float               density = window != nullptr ? SDL_GetWindowPixelDensity(window) : 1.0f;
     float               x = (window_x * density - mapping.offset_x) / mapping.scale_x;
     float               y = (window_y * density - mapping.offset_y) / mapping.scale_y;
-    for (int i = 0; i < static_cast<int>(std::size(kButtons)); i++) {
+    for (std::size_t i = 0; i < kButtons.size(); i++) {
         const gfx::LogicalRect &rect = kButtons[i].rect;
         if (x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h) {
-            return i;
+            return static_cast<int>(i);
         }
     }
     return -1;
@@ -330,8 +330,6 @@ void OnEvent(const SDL_Event &event) {
     }
 }
 
-// ---- The file selector --------------------------------------------------------------------------
-
 // SDL calls back from its event pump with the portal and from a thread of its own with zenity.
 struct Dialog {
     std::mutex              mutex;
@@ -341,8 +339,8 @@ struct Dialog {
     std::string             error;
 } dialog;
 
-void SDLCALL OnDialog(void *, const char *const *files, int) {
-    std::lock_guard lock(dialog.mutex);
+void SDLCALL OnDialog(void * /*userdata*/, const char *const *files, int /*filter*/) {
+    std::scoped_lock lock(dialog.mutex);
     dialog.answered = true;
     if (files == nullptr) {
         dialog.error = SDL_GetError();
@@ -352,11 +350,11 @@ void SDLCALL OnDialog(void *, const char *const *files, int) {
 }
 
 void OpenDialog(FirstRunSource source) {
-    static const SDL_DialogFileFilter kImages[] = {
-        {"Disc images (.iso, .bin, .img)", "iso;ISO;bin;BIN;img;IMG"},
+    static const std::array kImages = {
+        SDL_DialogFileFilter{"Disc images (.iso, .bin, .img)", "iso;ISO;bin;BIN;img;IMG"},
     };
     {
-        std::lock_guard lock(dialog.mutex);
+        std::scoped_lock lock(dialog.mutex);
         dialog.open = true;
         dialog.answered = false;
         dialog.path.reset();
@@ -364,11 +362,10 @@ void OpenDialog(FirstRunSource source) {
     }
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, WindowHandle());
-    SDL_FileDialogType type;
+    SDL_FileDialogType type = SDL_FILEDIALOG_OPENFILE;
     if (source == FirstRunSource::DiscImage) {
-        type = SDL_FILEDIALOG_OPENFILE;
-        SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, const_cast<SDL_DialogFileFilter *>(kImages));
-        SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, std::size(kImages));
+        SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, const_cast<SDL_DialogFileFilter *>(kImages.data()));
+        SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, kImages.size());
         SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING,
                               "Choose your PAL disc image: the game data is extracted from it once");
     } else {
@@ -381,8 +378,6 @@ void OpenDialog(FirstRunSource source) {
     SDL_DestroyProperties(props);
 }
 
-// ---- Screens ------------------------------------------------------------------------------------
-
 std::string MegaBytes(std::uint64_t bytes) {
     return std::format("{:.1f}", static_cast<double>(bytes) / 1e6);
 }
@@ -393,10 +388,10 @@ void DrawChooser(const fs::path &root, bool waiting) {
     canvas.Centered(122.0f, 2.0f, "THIS PORT PLAYS FROM THE FILES OF YOUR OWN", kText);
     canvas.Centered(142.0f, 2.0f, "PAL DISC. CHOOSE IT AND THEY ARE COPIED TO", kText);
     canvas.Centered(176.0f, 1.0f, Fit(PathsDisplay(root), 1.0f, 600.0f), kDim);
-    for (int i = 0; i < static_cast<int>(std::size(kButtons)); i++) {
+    for (std::size_t i = 0; i < kButtons.size(); i++) {
         const Button &button = kButtons[i];
         canvas.Rect(button.rect.x, button.rect.y, button.rect.w, button.rect.h,
-                    i == input.hover ? kButtonLit : kButton);
+                    std::cmp_equal(i, input.hover) ? kButtonLit : kButton);
         canvas.Text(button.rect.x + 16.0f, button.rect.y + 15.0f, 2.0f, button.label, kText);
         canvas.Text(button.rect.x + button.rect.w - 16.0f - TextWidth(button.key, 1.0f), button.rect.y + 18.0f,
                     1.0f, button.key, kDim);
@@ -408,18 +403,18 @@ void DrawChooser(const fs::path &root, bool waiting) {
 }
 
 void DrawProgress(const fs::path &source, const dcdata::Progress &progress) {
-    constexpr float kBarX = 60.0f;
-    constexpr float kBarY = 228.0f;
-    constexpr float kBarW = 520.0f;
-    constexpr float kBarH = 28.0f;
+    constexpr float bar_x = 60.0f;
+    constexpr float bar_y = 228.0f;
+    constexpr float bar_w = 520.0f;
+    constexpr float bar_h = 28.0f;
     Canvas          canvas;
     canvas.Centered(96.0f, 4.0f, "EXTRACTING GAME DATA", kAccent);
     canvas.Centered(160.0f, 1.0f, Fit(PathsDisplay(source), 1.0f, 600.0f), kDim);
     float done = progress.total_bytes == 0
                      ? 0.0f
                      : static_cast<float>(static_cast<double>(progress.bytes) / static_cast<double>(progress.total_bytes));
-    canvas.Rect(kBarX - 4.0f, kBarY - 4.0f, kBarW + 8.0f, kBarH + 8.0f, kTrack);
-    canvas.Rect(kBarX, kBarY, kBarW * std::clamp(done, 0.0f, 1.0f), kBarH, kAccent);
+    canvas.Rect(bar_x - 4.0f, bar_y - 4.0f, bar_w + 8.0f, bar_h + 8.0f, kTrack);
+    canvas.Rect(bar_x, bar_y, bar_w * std::clamp(done, 0.0f, 1.0f), bar_h, kAccent);
     canvas.Centered(284.0f, 2.0f, std::format("{} / {} FILES", progress.files, progress.total_files), kText);
     canvas.Centered(310.0f, 2.0f,
                     std::format("{} / {} MB", MegaBytes(progress.bytes), MegaBytes(progress.total_bytes)), kText);
@@ -428,7 +423,7 @@ void DrawProgress(const fs::path &source, const dcdata::Progress &progress) {
 }
 
 void SetTitle(const dcdata::Progress &progress) {
-    static std::size_t shown = static_cast<std::size_t>(-1);
+    static std::size_t shown = std::numeric_limits<std::size_t>::max();
     if (progress.files != shown) {
         shown = progress.files;
         std::string title = std::format("Extracting game data: {}/{} files, {}/{} MB", progress.files,
@@ -454,16 +449,16 @@ std::optional<fs::path> Choose(const fs::path &root) {
         if (!WindowPollEvents()) {
             return std::nullopt;
         }
-        bool waiting;
+        bool waiting = false;
         {
-            std::lock_guard lock(dialog.mutex);
+            std::scoped_lock lock(dialog.mutex);
             if (dialog.open && dialog.answered) {
                 dialog.open = false;
                 if (dialog.path) {
                     return dialog.path;
                 }
                 if (!dialog.error.empty()) {
-                    std::fprintf(stderr, "no file selector: %s\n", dialog.error.c_str());
+                    std::println(stderr, "no file selector: {}", dialog.error);
                     return std::nullopt;
                 }
             }
@@ -492,16 +487,16 @@ fs::path Partial(const fs::path &root) {
 
 void PrintFlatpakHint(const fs::path &root) {
     if (const char *id = std::getenv("FLATPAK_ID"); id != nullptr && *id != '\0') {
-        std::fprintf(stderr,
+        std::println(stderr,
                      "inside the Flatpak, from a shell: flatpak run --filesystem=<folder of the image>:ro "
-                     "--command=dcdata %s extract <disc image> %s\n",
-                     id, PathsDisplay(root).c_str());
+                     "--command=dcdata {} extract <disc image> {}",
+                     id, PathsDisplay(root));
     }
 }
 
 } // namespace
 
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
 extern "C" JNIEXPORT void JNICALL
 Java_org_themoonpeople_chronicle_ChronicleActivity_nativeDiscImageResult(JNIEnv *env, jobject, jstring path) {
     __android_log_write(ANDROID_LOG_INFO, "Chronicle", "native document result received");
@@ -514,7 +509,7 @@ Java_org_themoonpeople_chronicle_ChronicleActivity_nativeDiscImageResult(JNIEnv 
         }
     }
     {
-        std::lock_guard lock(android_picker_mutex);
+        std::scoped_lock lock(android_picker_mutex);
         android_picker_path = std::move(chosen);
         android_picker_answered = true;
     }
@@ -524,7 +519,7 @@ Java_org_themoonpeople_chronicle_ChronicleActivity_nativeDiscImageResult(JNIEnv 
 extern "C" JNIEXPORT void JNICALL
 Java_org_themoonpeople_chronicle_ChronicleActivity_nativeCancelFirstRun(JNIEnv *, jobject) {
     {
-        std::lock_guard lock(android_picker_mutex);
+        std::scoped_lock lock(android_picker_mutex);
         android_first_run_cancelled = true;
         android_picker_path.reset();
         android_picker_answered = false;
@@ -570,7 +565,7 @@ FirstRunOutcome FirstRunExtract(const fs::path &source, const fs::path &root,
             dcdata::Archive archive = dcdata::OpenArchive(source);
             dcdata::Extract(archive, target, nullptr, [&](const dcdata::Progress &progress) {
                 {
-                    std::lock_guard lock(mutex);
+                    std::scoped_lock lock(mutex);
                     latest = progress;
                     fresh = true;
                 }
@@ -601,7 +596,7 @@ FirstRunOutcome FirstRunExtract(const fs::path &source, const fs::path &root,
             outcome.error = failure.what();
         }
         {
-            std::lock_guard lock(mutex);
+            std::scoped_lock lock(mutex);
             finished = true;
         }
         changed.notify_one();
@@ -633,7 +628,7 @@ void FirstRunIfNoData(bool headless) {
     if (!FirstRunDataMissing(root) || (headless && !chooser)) {
         return;
     }
-#if defined(__ANDROID__)
+#ifdef __ANDROID__
     // SDL's desktop file dialog is not supported by Android. Ask through SAF,
     // copy the selected document into app cache, and run the same extractor.
     if (!headless) {
@@ -650,7 +645,7 @@ void FirstRunIfNoData(bool headless) {
             AndroidShowStatus("Extracting game data…");
             __android_log_write(ANDROID_LOG_INFO, "Chronicle", "Android extraction started");
             FirstRunOutcome outcome = FirstRunExtract(*source, root, [](const dcdata::Progress &progress) {
-                static std::size_t last_files = static_cast<std::size_t>(-1);
+                static std::size_t last_files = std::numeric_limits<std::size_t>::max();
                 static auto        last_update = std::chrono::steady_clock::time_point{};
                 const auto         now = std::chrono::steady_clock::now();
                 if (progress.files != last_files && now - last_update >= std::chrono::milliseconds(500)) {
@@ -681,7 +676,7 @@ void FirstRunIfNoData(bool headless) {
 #endif
     // No display at all: leave it to main's data check, which says what to run instead.
     if (!headless && !SDL_InitSubSystem(SDL_INIT_VIDEO)) {
-        std::fprintf(stderr, "no display for the first-run screen: %s\n", SDL_GetError());
+        std::println(stderr, "no display for the first-run screen: {}", SDL_GetError());
         return;
     }
 
@@ -728,7 +723,7 @@ void FirstRunIfNoData(bool headless) {
     if (source && !outcome.ok && !outcome.cancelled) {
         std::string message = std::format("Extracting {} into {} failed:\n\n{}", PathsDisplay(*source),
                                           PathsDisplay(root), outcome.error);
-        std::fprintf(stderr, "%s\n", message.c_str());
+        std::println(stderr, "{}", message);
         if (!headless) {
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "The game data could not be extracted", message.c_str(),
                                      WindowHandle());
@@ -739,12 +734,11 @@ void FirstRunIfNoData(bool headless) {
     }
     gfx::RendererShutdown();
     WindowShutdown();
-    if (outcome.ok) {
-        std::fprintf(stderr, "extracted %s into %s\n", PathsDisplay(*source).c_str(), PathsDisplay(root).c_str());
+    if (outcome.ok && source) {
+        std::println(stderr, "extracted {} into {}", PathsDisplay(*source), PathsDisplay(root));
     } else {
         if (outcome.cancelled) {
-            std::fprintf(stderr, "extraction stopped; %s holds what was written so far\n",
-                         PathsDisplay(Partial(root)).c_str());
+            std::println(stderr, "extraction stopped; {} holds what was written so far", PathsDisplay(Partial(root)));
         }
         PrintFlatpakHint(root);
     }

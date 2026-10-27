@@ -20,9 +20,9 @@ namespace {
 
 constexpr int bar_fade = 15;
 
-static UI::Cursor    s_cursor;
-static UI::Brackets  s_brackets;
-static UI::ScrollBar s_scrollbar;
+UI::Cursor    s_cursor;
+UI::Brackets  s_brackets;
+UI::ScrollBar s_scrollbar;
 
 void DrawSprite(int x, int y, int u, int v, int width, int height, int alpha) {
     DrawMenu2DSprite(g_screen.texture, CRect_i_(x, y, width, height), CRect_i_(u, v, width, height), alpha);
@@ -182,12 +182,12 @@ void DrawRows(int alpha) {
         label.Draw(kLabelX, y, alpha);
 
         std::string val_str;
-        if (row.activate != nullptr) {
-            val_str.clear();
-        } else if (row.action != nullptr && g_screen.binding_row == r) {
-            val_str = g_screen.binding_prompt;
-        } else {
-            val_str = RowValue(row, config);
+        if (row.activate == nullptr) {
+            if (row.action != nullptr && g_screen.binding_row == r) {
+                val_str = g_screen.binding_prompt;
+            } else {
+                val_str = RowValue(row, config);
+            }
         }
 
         if (!val_str.empty()) {
@@ -276,6 +276,8 @@ void Draw() {
         case OPTION_STEP_FADE_OUT:
             alpha = 0x80 - g_screen.step_count * 7;
             break;
+        default:
+            break;
     }
     alpha = std::clamp(alpha, 0, 0x80);
 
@@ -286,7 +288,6 @@ void Draw() {
     DrawTabPlate(alpha);
     DrawScrollBar(alpha);
 
-    // Draws EXIT using the unified TextureButton API:
     MenuTextureReload(g_screen.block_no);
     UI::TextureButton::Draw(
         UI::Rect(kExitX, kExitY, kExitWidth, kExitHeight),

@@ -10,52 +10,71 @@
 
 namespace options {
 
+/**
+ * One line of the options screen: a setting, a key binding or an action, with its strings and handlers.
+ */
 struct Row {
-    const char *key = nullptr;
-    const char *label = nullptr;
-    const char *help = nullptr;
-    int         game_help = -1;
-    int (*count)(const Config &) = nullptr;
-    int (*get)(const Config &) = nullptr;
-    void (*set)(Config &, int choice) = nullptr;
-    std::string (*text)(const Config &) = nullptr;
-    const char *names = nullptr;
-    void (*restore)(Config &config, const Config &defaults) = nullptr;
-    // A binding row: the input action it edits. Its value is the action's current keys, and
-    // pressing confirm starts listening for the next one. nullptr for every other row.
-    const char *action = nullptr;
-    // An action row runs when the player confirms it instead of changing a setting.
-    void (*activate)() = nullptr;
+    const char *key = nullptr;                                         /**< config.json name; options.<key> prefixes its strings. */
+    const char *label = nullptr;                                       /**< English label. */
+    const char *help = nullptr;                                        /**< English help text, or nullptr when the game's is used. */
+    int         game_help = -1;                                        /**< Game help message id, or -1. */
+    int (*count)(const Config &) = nullptr;                            /**< Number of choices. */
+    int (*get)(const Config &) = nullptr;                              /**< Current choice. */
+    void (*set)(Config &, int choice) = nullptr;                       /**< Applies a choice. */
+    std::string (*text)(const Config &) = nullptr;                     /**< Value text when not one of names. */
+    const char *names = nullptr;                                       /**< English choice names separated by '|'. */
+    void (*restore)(Config &config, const Config &defaults) = nullptr; /**< Reset when set(get(defaults)) is not enough. */
+    const char *action = nullptr;                                      /**< Input action a binding row edits, else nullptr. */
+    void (*activate)() = nullptr;                                      /**< Runs on confirm for an action row, else nullptr. */
 };
 
+/**
+ * One tab of the options screen and the rows it lists.
+ */
 struct Page {
-    const char          *name;
-    const char          *help;
-    std::span<const Row> rows;
+    const char          *name; /**< English tab name. */
+    const char          *help; /**< English help text. */
+    std::span<const Row> rows; /**< Rows in display order. */
 };
 
+/**
+ * Every page of the options screen, in tab order.
+ */
 std::span<const Page> Pages();
 
-// The key of a page's name: options.page.<name in lower case>; its help is that key with .help.
+/**
+ * Localisation key of a page's name: options.page.<name in lower case>; its help adds .help.
+ */
 std::string PageKey(const char *name);
 
-// Every string the settings rows draw that is their own: key and English, as LocalizeText takes them.
+/**
+ * Every string the rows draw themselves, as the key and English pairs LocalizeText takes.
+ */
 std::vector<std::pair<std::string, std::string>> RowStrings();
 
-// The value a setting row shows, with " *" when it applies at the next start.
+/**
+ * Value text a row shows, with " *" appended when the setting applies at the next start.
+ */
 std::string RowValue(const Row &row, const Config &config);
 
-// Moves a setting one choice left or right, or round from the last to the first. Returns whether it moved.
+/**
+ * Moves a setting one choice left or right, wrapping from end to end when asked. Returns whether it moved.
+ */
 bool StepRow(const Row &row, Config &config, int direction, bool wrap);
 
-// Puts every setting of the page back to its default.
+/**
+ * Puts every setting of the page back to its default.
+ */
 void ResetPage(const Page &page, Config &config);
 
-// Points the action of a binding row at one key or button name ("F", "Mouse2", "Gamepad:paddle2"),
-// replacing whatever config.json had for it.
+/**
+ * Binds an action to a single key or button name ("F", "Mouse2", "Gamepad:paddle2"), replacing its keys.
+ */
 void SetBinding(Config &config, std::string_view action, std::string_view key);
 
-// Rebuilds the list of window sizes the Resolution row offers, for the window's monitor.
+/**
+ * Rebuilds the window sizes the Resolution row offers for the window's monitor.
+ */
 void ListResolutions();
 
 } // namespace options
