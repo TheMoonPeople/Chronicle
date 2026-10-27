@@ -147,7 +147,7 @@ void BtGetItemNamePath(char *model_path, char *texture_path, int item_no) {
     }
 
     const std::string texture = model + ".img";
-    model += MdsExtension;
+    model += ".mds";
     CopyToBuffer(model, model_path);
     CopyToBuffer(texture, texture_path);
     printf("mds = %s\n", model_path);

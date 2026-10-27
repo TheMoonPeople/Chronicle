@@ -158,9 +158,9 @@ s16 Port_ManualImgLoad() {
 s16 ManualImgEnter() {
     if (ManualMenu.images_ready == 0 && ReadBGSync() == 0) {
         LOADTEXTURE_INFO2 image_table[] = {
-            {.name = manual_frame_image, .block_no = 0, .mipmap = 0},
-            {.name = nullptr,            .block_no = 0, .mipmap = 0},
-            {.name = nullptr,            .block_no = 0, .mipmap = 0},
+            {.name = "#frame_image#640#480#4", .block_no = 0, .mipmap = 0},
+            {.name = nullptr,                  .block_no = 0, .mipmap = 0},
+            {.name = nullptr,                  .block_no = 0, .mipmap = 0},
         };
         image_table[0].block_no = ManualMenu.image_texture_block;
         image_table[1].block_no = ManualMenu.image_texture_block;
@@ -304,9 +304,9 @@ int SetManualMsgBuffer() {
     if (ManualMenu.messages_ready == 0 && ReadBGSync() == 0) {
         BG_READ_INFO     *archive = GetReadBGFile(0);
         LOADTEXTURE_INFO2 font_table[] = {
-            {.name = manual_frame_image, .block_no = 0, .mipmap = 0},
-            {.name = nullptr,            .block_no = 0, .mipmap = 0},
-            {.name = nullptr,            .block_no = 0, .mipmap = 0},
+            {.name = "#frame_image#640#480#4", .block_no = 0, .mipmap = 0},
+            {.name = nullptr,                  .block_no = 0, .mipmap = 0},
+            {.name = nullptr,                  .block_no = 0, .mipmap = 0},
         };
         font_table[0].block_no = ManualMenu.common_texture_block;
         font_table[1].block_no = ManualMenu.common_texture_block;

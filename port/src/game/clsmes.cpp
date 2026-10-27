@@ -59,6 +59,35 @@ MES_FUCHI FuchiTbl_E[] = {
     {.x = 0,  .y = 0,  .r = 0, .g = 0, .b = 0, .alpha = -1 },
 };
 
+// The linker script names EditGaijiTbl inside EditPartsData, and GetGaijiW indexes it with codes -0x300
+// and up, which on the PS2 lands on the last word of each GaijiDataTbl entry: EditGaijiTbl is
+// GaijiDataTbl + 0x601C. The port gives the table its own storage, copied from GaijiDataTbl before
+// main (which nothing writes), and points EditGaijiTbl at its end.
+namespace {
+
+constexpr int kEditGaijiCodes = 0x300;
+
+alignas(16) EDIT_GAIJI EditGaijiStorage[kEditGaijiCodes + 1];
+
+static_assert(kEditGaijiCodes * sizeof(EDIT_GAIJI) == 0x6000);
+
+[[gnu::constructor]] void CopyEditGaijiTable() {
+    const auto            table = std::as_bytes(std::span(GaijiDataTbl));
+    constexpr std::size_t first_word_offset = 0x1C;
+    for (std::size_t i = 0; i < kEditGaijiCodes; i++) {
+        std::size_t start = first_word_offset + i * sizeof(EDIT_GAIJI);
+        if (start >= sizeof(GaijiDataTbl)) {
+            break;
+        }
+        const auto entry = table.subspan(start, std::min(sizeof(EDIT_GAIJI), table.size() - start));
+        std::memcpy(&EditGaijiStorage[i], entry.data(), entry.size());
+    }
+}
+
+} // namespace
+
+EDIT_GAIJI *const EditGaijiTbl = EditGaijiStorage + kEditGaijiCodes;
+
 namespace {
 
 s16 NameRegistTbl[8][11];

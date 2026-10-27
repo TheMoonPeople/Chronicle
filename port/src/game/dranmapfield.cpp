@@ -1,7 +1,6 @@
 #include "dranmapfield.hpp"
 
 #include <print>
-#include <string_view>
 
 #include "boxvu0.hpp"
 #include "collision.hpp"
@@ -64,7 +63,7 @@ void CDranMapField::LoadCollision(unsigned int *pack, CDataAlloc2<1> *arena) {
         collision->SetRotation(0.0f, 0.0f, 0.0f);
         set->collision_count++;
     } else {
-        std::print("{}", std::string_view{OverMessage});
+        std::print(" ************* over!!\n");
     }
 }
 

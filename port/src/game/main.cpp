@@ -290,7 +290,7 @@ void MapJump(int map_no, int event_no) {
 void MenuInit() {
     static LOADTEXTURE_INFO texdata[64] = {{"#frame_buff#640#" HALF_BUFFER_HEIGHT_STR "#4"},
                                            {"img/ankfont.img"},
-                                           {gamemode_empty_string}};
+                                           {""}};
     InitializeDataBuffer();
     SetDataBuffer(&TextureData, 100000);
     SetPacketReadBuffer(10000, 100000);
@@ -556,7 +556,7 @@ void MemCheckInit() {
     }
 
     TexManager.Initialize(16352);
-    static LOADTEXTURE_INFO texdata[64] = {{nullptr}, {gamemode_empty_string}};
+    static LOADTEXTURE_INFO texdata[64] = {{nullptr}, {""}};
     texdata[0].name = memory_image_path.data();
     TexManager.EnterTextureFile(texdata);
     TexManager.LoadTextureBlock(-1, read_buffer);
@@ -783,4 +783,26 @@ u_char *CDataAlloc<1, 6000>::Alloc(int quads) {
     auto *run = reinterpret_cast<u_char *>(&block[used]);
     used += quads;
     return run;
+}
+
+// The PS2 link renames GeneratedNpcModel's implicit assignment to this: every member but the tail
+// padding, the character through its own assignment.
+MAP_NPC_MODEL &MAP_NPC_MODEL::operator=(const MAP_NPC_MODEL &other) {
+    chara = other.chara;
+    for (int i = 0; i < 4; i++) {
+        pos[i] = other.pos[i];
+        rot[i] = other.rot[i];
+    }
+    parts_no = other.parts_no;
+    used = other.used;
+    visible = other.visible;
+    motion_no = other.motion_no;
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 4; j++) {
+            draw_pos[i][j] = other.draw_pos[i][j];
+        }
+        draw_param[i] = other.draw_param[i];
+    }
+    draw_num = other.draw_num;
+    return *this;
 }

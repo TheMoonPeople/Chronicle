@@ -74,8 +74,3 @@ void BtBattleMusic_Stop();
  * Crossfades between the field and battle music as the party nears a monster.
  */
 void BtBattleMusic_Excg(float distance, float *field_volume, float *battle_volume);
-
-/**
- * The model file extension.
- */
-extern char MdsExtension[];

@@ -80,7 +80,7 @@ void CHealEffect::Step() {
 void CHealEffect::Draw() {
     if (this->active != 0) {
         float     world[4];
-        CTexture *texture = TexManager.GetTexture(HealEffectTextureName, -1);
+        CTexture *texture = TexManager.GetTexture("basefx00", -1);
 
         sceVu0CopyVector(this->position, CharaMain.pos);
 

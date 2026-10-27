@@ -512,7 +512,7 @@ int SaveMenuTextureEnter() {
     }
 
     if (SaveMenu.mode == SAVE_MENU_MODE_ENDING || SaveMenu.mode == SAVE_MENU_MODE_LOAD) {
-        InitMenuMesSet(MENU_MES_SET_ALLMENU, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(bg->buffer), allmenu_mes, nullptr)));
+        InitMenuMesSet(MENU_MES_SET_ALLMENU, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(bg->buffer), "allmenu.mes", nullptr)));
     }
 
     CommonMenuMes2.stay_frame = true;

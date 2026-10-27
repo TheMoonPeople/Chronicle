@@ -1714,8 +1714,8 @@ The root `CMakeLists.txt` only picks the platform:
 - The rest of `port/src` is the platform layer, in subsystem directories
   (`app/`, `data/`, `render/`, `audio/`, `ui/`, `save/` and the others).
   `port/CMakeLists.txt` is the port's build. `main.cpp` and
-  `app/gameloop.cpp` start the game; `linknames.cpp` supplies link-time
-  names (below); `tests/` is `darkcloud_tests`, GoogleTest cases that ctest
+  `app/gameloop.cpp` start the game, and `app/presentation.cpp` puts its
+  frames on screen; `tests/` is `darkcloud_tests`, GoogleTest cases that ctest
   runs one process each.
 - `tools/dcdata` is the data extraction tool.
 - `port/include` holds `port.h`, included ahead of every unit the port
@@ -1784,11 +1784,12 @@ linker script rather than through the source. The port reproduces each:
   apart from editloop's. The port's units use these names directly.
 - **Pooled literals under extern names** (`BtAtraShortCharaFile`,
   `MdsExtension`, `gamemode_empty_string`, `allmenu_mes` and six more) and
-  main's `MAP_NPC_MODEL::operator=`: weak definitions and forwarders in
-  `port/src/linknames.cpp`. The title overlay's own `CRect<int>` spelling of
-  the rectangle in `MGFillBox`, `MGMoveImage`, `MGStretchMoveImage`,
-  `MoveImageTest` and the `set2DSprite` overloads has adapters in
-  `port/src/game/title/title.cpp` and `port/src/game/clothread.cpp`.
+  main's `MAP_NPC_MODEL::operator=`: the literals are written where they are
+  used, and the operator is an ordinary definition in `port/src/game/main.cpp`.
+  The title overlay's own `CRect<int>` spelling of the rectangle in
+  `MGFillBox`, `MGMoveImage` and the `set2DSprite` overloads has adapters in
+  `port/src/game/title/title.cpp`, and `MoveImageTest`'s in
+  `port/src/game/title/op_a.cpp`.
 - **No linker aliases.** `draw_rect` is a real `CRect_i_` in
   `port/src/game/ebattle.cpp`, and every user of `WorkBuffer` names it
   through `dataset.hpp`. `ItemPutListTbl12_bytes` is not an alias: `GetItem`
@@ -1799,9 +1800,9 @@ linker script rather than through the source. The port reproduces each:
   indexes it with (-0x300 and up) only ever land on the last word of a
   `GaijiDataTbl` entry, and `GaijiDataTbl` keeps its layout on the host
   where `EditPartsData`'s pointers grow. ld64 cannot alias with an offset,
-  so `linknames.cpp` defines it on every platform: storage for the 0x300
+  so `clsmes.cpp` defines it on every platform: storage for the 0x300
   entries below it, filled from `GaijiDataTbl` before `main`, with
-  `EditGaijiTbl` an assembler alias of the storage's end.
+  `EditGaijiTbl` a pointer to the storage's end.
 
 Data the title overlay's units type themselves with PS2 layouts: see "The
 title overlay's own class declarations".

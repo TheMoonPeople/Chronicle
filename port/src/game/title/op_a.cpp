@@ -12,6 +12,7 @@
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
+#include "clothread.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
 #include "effect.hpp"
@@ -26,6 +27,7 @@
 #include "mds.hpp"
 #include "mglib.hpp"
 #include "objanime.hpp"
+#include "rect.hpp"
 #include "renderinfo.hpp"
 #include "sound.hpp"
 #include "texture.hpp"
@@ -60,6 +62,13 @@ void wait_now_loading_vsync();
 void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
 void DepthOfField(float *dist, int level, int alpha, int blur);
+
+// The title units' CRect<int> has rect.hpp's CRect_i_ layout (x, y, width, height), and MWCC mangled
+// both the same; clang does not, so the title's spelling forwards to the shared definition.
+void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw,
+                   int dpsm, int dsax, int dsay, int dir) {
+    MoveImageTest(packet, sbp, sbw, spsm, CRect_i_(rect.x, rect.y, rect.w, rect.h), dbp, dbw, dpsm, dsax, dsay, dir);
+}
 
 namespace {
 void LoadTexture();

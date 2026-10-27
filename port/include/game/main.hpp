@@ -60,8 +60,3 @@ extern sceVu0FMATRIX light;
  * Initial parallel-light colour matrix used by the renderer.
  */
 extern sceVu0FMATRIX lightcolor;
-
-/**
- * Empty string the game-mode table names modes without a file by.
- */
-extern char gamemode_empty_string[];

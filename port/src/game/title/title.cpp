@@ -92,7 +92,7 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst
 
 // The title units declare their own rectangle template where every other unit takes CRect_i_.
 // MWCC mangled both the same, so retail linked the title's calls to the shared definitions; clang
-// mangles CRect<int> apart, so these give the title's spelling a body (clothread.cpp has MoveImageTest's).
+// mangles CRect<int> apart, so these give the title's spelling a body (op_a.cpp has MoveImageTest's).
 namespace {
 
 CRect_i_ Rect(const CRect<int> &rect) { return CRect_i_(rect.x, rect.y, rect.w, rect.h); }
@@ -107,6 +107,11 @@ void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &scr
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &screen, const CRect<int> &texel,
                  u_char red, u_char green, u_char blue, u_char alpha) {
     set2DSprite(packet, texture, Rect(screen), Rect(texel), red, green, blue, alpha);
+}
+
+void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &screen, const CRect<int> &texel,
+                 int pivot_x, int pivot_y, float angle) {
+    set2DSprite(packet, texture, Rect(screen), Rect(texel), pivot_x, pivot_y, angle);
 }
 
 void MGMoveImage(sceGsTex0 *src, const CRect<int> &rect, sceGsTex0 *dst, int dst_x, int dst_y, int direction) {

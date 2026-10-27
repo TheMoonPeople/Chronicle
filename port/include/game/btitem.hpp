@@ -204,16 +204,6 @@ void setShotVector(float *velocity, float speed, float angle_y, float angle_x);
  */
 void getCharacterVector(float *vector, float pitch);
 
-/**
- * Model file of the pickup, shared with the treasure chests.
- */
-extern char BtAtraShortCharaFile[];
-
-/**
- * Effect configuration entry inside an effect pack, shared by the pickup and escape presentations.
- */
-extern char BtEffectInfoFile[];
-
 // Port additions.
 
 /**

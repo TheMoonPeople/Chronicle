@@ -478,18 +478,6 @@ void MoveImageTest(sceVif1Packet * /*packet*/, int src_base, int /*src_width*/, 
                   rect.height, static_cast<unsigned>(dst_base), static_cast<unsigned>(dst_format), dst_x, dst_y);
 }
 
-// The title overlay's units call MoveImageTest with their own CRect<int> (x, y, w, h), a type
-// distinct from CRect_i_ with the same layout.
-template <class T>
-class CRect;
-
-void MoveImageTest(sceVif1Packet *packet, int src_base, int src_width, int src_format, const CRect<int> &rect,
-                   int dst_base, int dst_width, int dst_format, int dst_x, int dst_y, int direction) {
-    const int *fields = reinterpret_cast<const int *>(&rect);
-    MoveImageTest(packet, src_base, src_width, src_format, CRect_i_(fields[0], fields[1], fields[2], fields[3]),
-                  dst_base, dst_width, dst_format, dst_x, dst_y, direction);
-}
-
 float unitRotation(CFrameVu1 *frame, float heading) {
     std::array<float, 4> rotation{};
     float                abs_delta = 0.0f;

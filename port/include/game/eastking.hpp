@@ -38,8 +38,3 @@ int EastKingEventKey();
  * Draws the East King event image, message, and fade overlay.
  */
 void EastKingEventDraw();
-
-/**
- * Frame image of the manual window.
- */
-extern char manual_frame_image[];

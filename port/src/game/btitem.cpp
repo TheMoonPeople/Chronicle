@@ -691,7 +691,7 @@ void BtAtraGetShort_Init() {
     BtCashBuffer.used = 0;
     StartReadBG();
     itemOpenItemChr = next_block();
-    LoadFileBG(BtAtraShortCharaFile, reinterpret_cast<u_long128 *>(itemOpenItemChr), &size);
+    LoadFileBG("dun/mainchara/c01d_ex00.chr", reinterpret_cast<u_long128 *>(itemOpenItemChr), &size);
     BtCashBuffer.Alloc((((size >> 6) + 1) << 6) >> 4);
     shortAtraEffectPtr = next_block();
     LoadFileBG(BtAtraShortEffectFile, reinterpret_cast<u_long128 *>(shortAtraEffectPtr), &size);
@@ -1136,7 +1136,7 @@ int BtEscape_Loop() {
     switch (escape_sled) {
         case 0:
             if (SndSPSeSyncBG() == 0 && ReadBGSync() == 0) {
-                EscapeEffect.LoadPackData2(reinterpret_cast<u_int *>(escape_file), BtEffectInfoFile, &BtCashBuffer, 0x1C, &BtCashBuffer, 0);
+                EscapeEffect.LoadPackData2(reinterpret_cast<u_int *>(escape_file), "info.cfg", &BtCashBuffer, 0x1C, &BtCashBuffer, 0);
                 EscapeEffect.SetMotion(0, 6);
                 EscapeEffect.motion_type.state.time = 10.0f;
                 EscapeFlag = 1;

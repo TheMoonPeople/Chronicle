@@ -118,6 +118,7 @@ struct EDIT_GAIJI {
 STATIC_ASSERT(sizeof(EDIT_GAIJI) == 0x20);
 
 /**
- * Table of external characters inside EditPartsData, which the linker script names.
+ * Table of external characters inside EditPartsData, which the linker script names; indexed from
+ * code -0x300 (clsmes.cpp).
  */
-extern EDIT_GAIJI EditGaijiTbl[];
+extern EDIT_GAIJI *const EditGaijiTbl;

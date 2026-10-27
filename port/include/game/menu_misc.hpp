@@ -334,13 +334,3 @@ extern u_long128 *WepEffectMenuReadBuf;
  * Buffer the menu's weapon models are built in.
  */
 extern u_long128 *MenuWeaponModelBuildBuffer;
-
-/**
- * The character file extension.
- */
-extern const char CharaFileExtension[5];
-
-/**
- * Name of the frame image texture.
- */
-extern const char FrameImageTexture[];

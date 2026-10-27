@@ -1048,7 +1048,7 @@ void MenuCharaMDSBuild2(int chara, int texture_block) {
 namespace {
 
 std::string GetCharaChangeReadCharaFilePath(int chara_no) {
-    return std::format("{}{}{}", readFilePath, charaFile[chara_no], CharaFileExtension);
+    return std::format("{}{}{}", readFilePath, charaFile[chara_no], ".chr");
 }
 
 /**
@@ -1320,9 +1320,9 @@ void DngEscapeMsgInit(ClsMes *title, ClsMes *choice, int dungeon) {
     int               block = 0x17;
     char             *image = reinterpret_cast<char *>(read_buffer);
     LOADTEXTURE_INFO2 texture[3] = {
-        {.name = const_cast<char *>(FrameImageTexture), .block_no = block, .mipmap = 0},
-        {.name = image,                                 .block_no = block, .mipmap = 0},
-        {.name = nullptr,                               .block_no = 0,     .mipmap = 0},
+        {.name = "#frame_image#640#480#4", .block_no = block, .mipmap = 0},
+        {.name = image,                    .block_no = block, .mipmap = 0},
+        {.name = nullptr,                  .block_no = 0,     .mipmap = 0},
     };
     std::array<int, 4> size{};
     TexManager.DeleteTextureBlock(block);

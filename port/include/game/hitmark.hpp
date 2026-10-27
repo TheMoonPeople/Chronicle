@@ -185,11 +185,6 @@ extern char DebugInfoMsgSePlay[];
 extern char DebugInfoMsgSetChrKey[];
 
 /**
- * Name of the heal effect's texture.
- */
-extern char HealEffectTextureName[];
-
-/**
  * Virtual table of CHitMark under the name main's array constructors install it by.
  */
 extern "C" void *GeneratedHitMarkVtable[];
