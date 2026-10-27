@@ -2,7 +2,6 @@
 
 #include "name_mouse_layout.hpp"
 
-// The game's own tables, which ps2/src/battle_globals.cpp keeps to itself.
 extern short       menu_euro_codetbl[5][2][13];
 extern signed char menu_kigoutbl[40];
 extern signed char euro_code_linelimmit[5];
@@ -47,7 +46,7 @@ TEST(NameMouse, AlphabetKeysAreWhereTheyAreDrawn) {
         EXPECT_EQ(Centre(screen, key), (Hit{Kind::Key, key})) << key;
     }
     // Nothing beyond the 52 letters in English.
-    EXPECT_TRUE(KeyRect(screen, 52).Contains(0, 0) == false);
+    EXPECT_FALSE(KeyRect(screen, 52).Contains(0, 0));
     EXPECT_EQ(KeyRect(screen, 52).right, 0);
 }
 

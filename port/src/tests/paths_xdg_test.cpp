@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
-#include <stdlib.h>
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 
 #include <cstdlib>
 #include <filesystem>
@@ -62,10 +65,10 @@ TEST_F(PathsXdgDarkcloud, DarkcloudNamesTheDirectoryToExtractTo) {
 #endif
     fs::path log = dir / "output.txt";
 #ifdef _WIN32
-    std::string command = "\"\"" + executable.string() + "\" --headless --frames 1 > \"" + log.string() + "\" 2>&1\"";
+    std::string command = std::format(R"(""{}" --headless --frames 1 > "{}" 2>&1")", executable.string(), log.string());
     int         status = std::system(command.c_str());
 #else
-    std::string command = "'" + executable.string() + "' --headless --frames 1 > '" + log.string() + "' 2>&1";
+    std::string command = std::format("'{}' --headless --frames 1 > '{}' 2>&1", executable.string(), log.string());
     int         raw = std::system(command.c_str());
     int         status = WIFEXITED(raw) ? WEXITSTATUS(raw) : 128 + WTERMSIG(raw);
 #endif
@@ -73,7 +76,7 @@ TEST_F(PathsXdgDarkcloud, DarkcloudNamesTheDirectoryToExtractTo) {
     text << std::ifstream(log).rdbuf();
     std::string data = PathsDisplay(fs::path(dir / "xdg/chronicle/data").make_preferred());
     ASSERT_TRUE(status == kExitNoData);
-    ASSERT_TRUE(text.str().find("no game data: " + data + " is not a directory") != std::string::npos);
-    ASSERT_TRUE(text.str().find("`dcdata extract <disc image> " + data + "`") != std::string::npos);
+    ASSERT_TRUE(text.str().contains("no game data: " + data + " is not a directory"));
+    ASSERT_TRUE(text.str().contains("`dcdata extract <disc image> " + data + "`"));
     Leave(dir);
 }

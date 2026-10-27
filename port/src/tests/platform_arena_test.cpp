@@ -2,6 +2,7 @@
 
 #include <climits>
 #include <csignal>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -31,11 +32,11 @@ TEST(PlatformArena, CarvesWithHeadroom) {
     // Past what retail's 1000 quadwords would hold.
     u_char *first = VisualData.Alloc(1500);
     ASSERT_TRUE(first == VisualData.base);
-    std::memset(first, 0x5A, 1500 * 16);
+    std::memset(first, 0x5A, std::size_t{1500} * 16);
     VisualData.Alloc(1);
     u_char *aligned = VisualData.Alloc64(1000);
     ASSERT_TRUE(Aligned64(aligned));
-    ASSERT_TRUE(aligned == VisualData.base + 1504 * 16);
+    ASSERT_TRUE(aligned == &VisualData.base[std::ptrdiff_t{1504} * 16]);
     std::memset(VisualData.base, 0x33, static_cast<std::size_t>(VisualData.limit) * 16);
 
     SetDataBuffer(&MotionData, 10);
@@ -50,7 +51,7 @@ TEST(PlatformArena, ReusesAndZeroes) {
     InitializeDataBuffer();
     SetDataBuffer(&TextureData, 2000);
     u_char *base = TextureData.base;
-    std::memset(base, 0xFF, 2000 * 16);
+    std::memset(base, 0xFF, std::size_t{2000} * 16);
     InitializeDataBuffer();
     SetDataBuffer(&TextureData, 1000);
     ASSERT_TRUE(TextureData.base == base);
@@ -72,7 +73,7 @@ TEST(PlatformArena, OverflowAborts) {
     KZ_ASSERT_ABORT([] { VisualData.Alloc64(400); });
     KZ_ASSERT_EXIT([] { VisualData.Alloc(400); }, 0);
     // An overrun that skips the allocator runs into the guard page behind the block.
-    KZ_ASSERT_FAULT([] { VisualData.base[VisualData.limit * 16] = 1; });
+    KZ_ASSERT_FAULT([] { VisualData.base[static_cast<std::ptrdiff_t>(VisualData.limit) * 16] = 1; });
     KZ_ASSERT_ABORT([] { SystemMesBuffer.Alloc(6001); });
 }
 
@@ -100,7 +101,7 @@ TEST(PlatformArena, ModeBuffers) {
     ASSERT_TRUE(workbuffer.limit == 2048 * 4 && workbuffer.used == 0);
     // EdMenuBuffer starts 0x180000 bytes before read_buffer (InitWorkBuffer).
     u_char *menu = reinterpret_cast<u_char *>(read_buffer) - 0x180000;
-    std::memset(menu, 1, 0x3A2E0 * 16);
+    std::memset(menu, 1, std::size_t{0x3A2E0} * 16);
 
     u_char *global = GlobalDataBuffer.Alloc64(10);
     ASSERT_TRUE(Aligned64(global));

@@ -13,12 +13,16 @@ std::filesystem::path FontFile() {
 }
 
 capfont::Paint Look() {
-    capfont::Paint paint = {
-        0.5f, 0.75f, 0.2f, 3, 1.0f, {232, 230, 216},
-             {52,  56,  192},
-             {0,   17,  121}
+    return capfont::Paint{
+        .depth_x = 0.5f,
+        .depth_y = 0.75f,
+        .stroke = 0.2f,
+        .strokes = 3,
+        .outline = 1.0f,
+        .fill = {232, 230, 216},
+        .body = {52,  56,  192},
+        .ring = {0,   17,  121},
     };
-    return paint;
 }
 
 bool Same(const capfont::Glyph &a, const capfont::Glyph &b) {
@@ -30,7 +34,8 @@ bool Same(const capfont::Glyph &a, const capfont::Glyph &b) {
 TEST(PaintedGlyph, MadeOnceThenTakenFromTheAtlas) {
     dc::test::GfxFixture fixture(640, 480, 1.0f, dc::test::GfxOptions{.offscreen = true});
     ASSERT_TRUE(capfont::Load(FontFile()));
-    capfont::Glyph first, again;
+    capfont::Glyph first;
+    capfont::Glyph again;
     ASSERT_TRUE(capfont::GetPaintedGlyph(U'A', -1, 30.0f, 36.0f, Look(), first));
     const unsigned generation = capfont::Generation();
     ASSERT_TRUE(capfont::GetPaintedGlyph(U'A', -1, 30.0f, 36.0f, Look(), again));
@@ -48,10 +53,11 @@ TEST(PaintedGlyph, EveryFieldOfTheLookIsItsOwnGlyph) {
     glow.shadow_alpha = 0.5f;
     glow.shadow_soft = 4.0f;
     const std::vector<capfont::PlacedLetter> word = {
-        {U'E', 0.0f,  0.0f, 20.0f, 36.0f},
-        {U'Q', 22.0f, 0.0f, 22.0f, 36.0f},
+        {.ch = U'E', .x = 0.0f,  .y = 0.0f, .w = 20.0f, .h = 36.0f},
+        {.ch = U'Q', .x = 22.0f, .y = 0.0f, .w = 22.0f, .h = 36.0f},
     };
-    capfont::Glyph plain, banded;
+    capfont::Glyph plain;
+    capfont::Glyph banded;
     ASSERT_TRUE(capfont::GetPaintedWord(word, glow, plain));
     capfont::Paint band = glow;
     band.band_alpha = 0.5f;

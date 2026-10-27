@@ -4,8 +4,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -16,6 +19,9 @@
 #include "gametext.hpp"
 #include "localize.hpp"
 #include "mainselect.hpp"
+#include "menu_option.hpp"
+#include "platform/config.hpp"
+#include "platform/paths.hpp"
 
 namespace {
 
@@ -74,8 +80,7 @@ struct Loaded {
     std::unique_ptr<unsigned char[]> bytes;
     int                              size = 0;
 
-    explicit Loaded(const std::vector<s16> &file) {
-        size = static_cast<int>(file.size() * 2);
+    explicit Loaded(const std::vector<s16> &file) : size(static_cast<int>(file.size() * 2)) {
         const std::size_t sectors = std::max<std::size_t>(1, (static_cast<std::size_t>(size) + 2047) / 2048);
         bytes = std::make_unique<unsigned char[]>(sectors * 2048);
         std::memcpy(bytes.get(), file.data(), static_cast<size_t>(size));
@@ -236,8 +241,8 @@ TEST(Localize, RetailRoundTrips) {
     ASSERT_TRUE(LocalizeMessages(retail.data(), retail.size(), read, out, stats));
     EXPECT_EQ(out, retail);
 
-    s16 junk[2] = {-1, 0};
-    EXPECT_FALSE(LocalizeReadMessages(junk, 2, read));
+    std::array<s16, 2> junk = {-1, 0};
+    EXPECT_FALSE(LocalizeReadMessages(junk.data(), junk.size(), read));
 }
 
 // A message that never ends (as the last id of the PAL allmenu.mes does) is left out, not fatal.
@@ -407,7 +412,9 @@ TEST(Localize, ParsesPatches) {
     ASSERT_EQ(table.patches["a"].size(), 2U);
     EXPECT_EQ(table.patches["a"][0].replace.size(), 2U);
     EXPECT_EQ(table.patches["a"][1].original, "0123456789abcdef");
-    EXPECT_EQ(*table.patches["a"][1].text, "new");
+    const auto &text_patch = table.patches["a"][1];
+    ASSERT_TRUE(text_patch.text.has_value());
+    EXPECT_EQ(*text_patch.text, "new");
 
     for (const char *bad : {R"({"patches": 1})", R"({"patches": [{"id": 1, "text": "x"}]})",
                             R"({"patches": [{"file": "a", "id": 1}]})",
@@ -488,8 +495,6 @@ TEST(Localize, PatchesChainAndAFilesTextWins) {
 
 // ---- game.language ----
 
-#include "platform/config.hpp"
-
 TEST(LocalizeLanguage, ConfigReadsAndWritesTheLanguage) {
     EXPECT_EQ(ConfigParse("").language, 0);
     EXPECT_EQ(ConfigParse(R"({"game": {"language": "francais"}})").language, 3);
@@ -509,8 +514,6 @@ TEST(LocalizeLanguage, ConfigReadsAndWritesTheLanguage) {
 }
 
 // ---- the language files and the export ----
-
-#include "platform/paths.hpp"
 
 namespace {
 
@@ -652,8 +655,6 @@ TEST(LocalizeLanguages, ChangingTheLanguageSettingWaitsForTheGameToSwitch) {
 
 // ---- the Options screen's own text ----
 
-#include "menu_option.hpp"
-
 // port/lang/ ships the port's registered strings in each language: the same keys as the code has, nothing
 // else, and the same placeholders and pad glyph codes as the English.
 TEST(LocalizeOptions, ShippedTranslationsHaveExactlyTheCodesKeys) {
@@ -670,7 +671,7 @@ TEST(LocalizeOptions, ShippedTranslationsHaveExactlyTheCodesKeys) {
     auto tokens = [](const std::string &text) {
         std::string out;
         for (size_t at = 0; at < text.size(); at++) {
-            if (text[at] == '%' && at + 1 < text.size() && isdigit(static_cast<unsigned char>(text[at + 1]))) {
+            if (text[at] == '%' && at + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[at + 1]))) {
                 out += text.substr(at, 2);
             } else if (text[at] == '{' && text.find('}', at) != std::string::npos) {
                 out += text.substr(at, text.find('}', at) - at + 1);
@@ -697,7 +698,7 @@ TEST(LocalizeOptions, ShippedTranslationsHaveExactlyTheCodesKeys) {
                 << name << " " << key << ": placeholders and pad glyphs differ";
         }
         for (const auto &item : shipped.items()) {
-            EXPECT_TRUE(english.count(item.key()) != 0)
+            EXPECT_TRUE(english.contains(item.key()))
                 << name << " has " << item.key() << " that the code does not";
         }
     }

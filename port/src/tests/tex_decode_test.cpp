@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <cstring>
@@ -9,7 +10,9 @@
 #include <memory>
 #include <random>
 #include <set>
+#include <span>
 #include <string>
+#include <string_view>
 
 #include "data_fixture.hpp"
 #include "dataread.hpp"
@@ -32,15 +35,18 @@ void Enter(Bytes &img, int block, int mipmap = 0) {
     TexManager.EndEnterTextureBlock(block);
 }
 
-PortTextureRef Resolve(const char *name) {
-    std::string mutable_name(name);
-    return PortTextureFromCTexture(TexManager.GetTexture(mutable_name.data(), -1));
+CTexture *Find(std::string name) {
+    return TexManager.GetTexture(name.data(), -1);
 }
 
-// Retail's Conv8to32, PageConv8to32 and BlockConv8to32 (ps2/src/texture.cpp), the specification of
-// the "IM2" layout; they are static there, so they are restated here.
-void BlockConv8to32(const uint8_t *source, uint8_t *destination) {
-    static const int lut[128] = {
+PortTextureRef Resolve(const char *name) {
+    return PortTextureFromCTexture(Find(name));
+}
+
+// Conv8to32, PageConv8to32 and BlockConv8to32 as the game swizzles 8-bit pixels: the
+// specification of the "IM2" layout.
+void BlockConv8to32(std::span<const uint8_t> source, std::span<uint8_t> destination) {
+    static constexpr std::array<int, 128> lut = {
         0, 36, 8, 44, 1, 37, 9, 45, 2, 38, 10, 46, 3, 39, 11, 47, 4, 32, 12, 40, 5, 33, 13, 41,
         6, 34, 14, 42, 7, 35, 15, 43, 16, 52, 24, 60, 17, 53, 25, 61, 18, 54, 26, 62, 19, 55, 27, 63,
         20, 48, 28, 56, 21, 49, 29, 57, 22, 50, 30, 58, 23, 51, 31, 59, 4, 32, 12, 40, 5, 33, 13, 41,
@@ -48,56 +54,57 @@ void BlockConv8to32(const uint8_t *source, uint8_t *destination) {
         20, 48, 28, 56, 21, 49, 29, 57, 22, 50, 30, 58, 23, 51, 31, 59, 16, 52, 24, 60, 17, 53, 25, 61,
         18, 54, 26, 62, 19, 55, 27, 63};
     int out_index = 0;
-    for (unsigned i = 0; i < 4; i++) {
-        int lut_index = (i & 1) * 64;
-        for (unsigned j = 0; j < 16; j++) {
-            for (unsigned k = 0; k < 4; k++) {
-                destination[out_index++] = source[lut[lut_index++]];
-            }
+    for (size_t column = 0; column < 4; column++) {
+        std::span<const uint8_t> column_source = source.subspan(column * 64, 64);
+        int                      lut_index = static_cast<int>(column & 1) * 64;
+        for (size_t texel = 0; texel < 64; texel++) {
+            destination[out_index++] = column_source[lut[lut_index++]];
         }
-        source += 64;
     }
 }
 
-void PageConv8to32(const uint8_t *source, uint8_t *destination) {
-    static const int block_table[32] = {0, 1, 4, 5, 16, 17, 20, 21, 2, 3, 6, 7, 18, 19, 22, 23,
-                                        8, 9, 12, 13, 24, 25, 28, 29, 10, 11, 14, 15, 26, 27, 30, 31};
-    auto             block_column = std::make_unique<int[]>(32);
-    auto             block_row = std::make_unique<int[]>(32);
-    int              entry = 0;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 8; j++) {
-            block_column[block_table[entry]] = j;
-            block_row[block_table[entry]] = i;
+void PageConv8to32(std::span<const uint8_t> source, std::span<uint8_t> destination) {
+    static constexpr std::array<int, 32> block_table = {0, 1, 4, 5, 16, 17, 20, 21, 2, 3, 6, 7, 18, 19, 22, 23,
+                                                        8, 9, 12, 13, 24, 25, 28, 29, 10, 11, 14, 15, 26, 27, 30, 31};
+    std::array<int, 32>                  block_column{};
+    std::array<int, 32>                  block_row{};
+    int                                  entry = 0;
+    for (int row = 0; row < 4; row++) {
+        for (int column = 0; column < 8; column++) {
+            block_column[block_table[entry]] = column;
+            block_row[block_table[entry]] = row;
             entry++;
         }
     }
-    auto work8 = std::make_unique<uint8_t[]>(256);
-    auto work32 = std::make_unique<uint8_t[]>(256);
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 8; j++) {
-            const uint8_t *source_cursor = source + i * 2048 + j * 16;
-            for (int k = 0; k < 16; k++) {
-                std::memcpy(work8.get() + k * 16, source_cursor + k * 128, 16);
+    std::array<uint8_t, 256> work8{};
+    std::array<uint8_t, 256> work32{};
+    for (size_t row = 0; row < 4; row++) {
+        for (size_t column = 0; column < 8; column++) {
+            const size_t source_offset = (row * 2048) + (column * 16);
+            for (size_t line = 0; line < 16; line++) {
+                std::memcpy(&work8[line * 16], &source[source_offset + (line * 128)], 16);
             }
-            BlockConv8to32(work8.get(), work32.get());
-            int      block_index = block_table[i * 8 + j];
-            uint8_t *destination_cursor = destination + block_row[block_index] * 2048 + block_column[block_index] * 32;
-            for (int k = 0; k < 8; k++) {
-                std::memcpy(destination_cursor + k * 256, work32.get() + k * 32, 32);
+            BlockConv8to32(work8, work32);
+            const int    block_index = block_table[(row * 8) + column];
+            const size_t destination_offset = (static_cast<size_t>(block_row[block_index]) * 2048) +
+                                              (static_cast<size_t>(block_column[block_index]) * 32);
+            for (size_t line = 0; line < 8; line++) {
+                std::memcpy(&destination[destination_offset + (line * 256)], &work32[line * 32], 32);
             }
         }
     }
 }
 
-Bytes Conv8to32(int width, int height, const Bytes &source) {
-    Bytes destination(static_cast<size_t>(width) * height);
-    auto  work8 = std::make_unique<uint8_t[]>(8192);
-    auto  work32 = std::make_unique<uint8_t[]>(8192);
-    int   pages_x = ((width - 1) >> 7) + 1;
-    int   pages_y = ((height - 1) >> 6) + 1;
-    int   row_bytes;
-    int   row_count;
+Bytes Conv8to32(int image_width, int image_height, const Bytes &source) {
+    auto   width = static_cast<size_t>(image_width);
+    auto   height = static_cast<size_t>(image_height);
+    Bytes  destination(width * height);
+    Bytes  work8(8192);
+    Bytes  work32(8192);
+    size_t pages_x = ((width - 1) >> 7) + 1;
+    size_t pages_y = ((height - 1) >> 6) + 1;
+    size_t row_bytes = 0;
+    size_t row_count = 0;
     if (pages_x == 1) {
         row_bytes = width * 2;
     } else {
@@ -110,18 +117,18 @@ Bytes Conv8to32(int width, int height, const Bytes &source) {
         height = 64;
         row_count = 32;
     }
-    for (int i = 0; i < pages_y; i++) {
-        for (int j = 0; j < pages_x; j++) {
-            const uint8_t *source_cursor = source.data() + i * (pages_x * (width << 6)) + width * j;
-            for (int k = 0; k < height; k++) {
-                std::memcpy(work8.get() + k * 128, source_cursor, width);
-                source_cursor += width * pages_x;
+    for (size_t page_y = 0; page_y < pages_y; page_y++) {
+        for (size_t page_x = 0; page_x < pages_x; page_x++) {
+            size_t source_offset = (page_y * (pages_x * (width << 6))) + (width * page_x);
+            for (size_t line = 0; line < height; line++) {
+                std::memcpy(&work8[line * 128], &source[source_offset], width);
+                source_offset += width * pages_x;
             }
-            PageConv8to32(work8.get(), work32.get());
-            uint8_t *destination_cursor = destination.data() + i * (pages_x * (row_bytes * row_count)) + row_bytes * j;
-            for (int k = 0; k < row_count; k++) {
-                std::memcpy(destination_cursor, work32.get() + k * 256, row_bytes);
-                destination_cursor += row_bytes * pages_x;
+            PageConv8to32(work8, work32);
+            size_t destination_offset = (page_y * (pages_x * (row_bytes * row_count))) + (row_bytes * page_x);
+            for (size_t line = 0; line < row_count; line++) {
+                std::memcpy(&destination[destination_offset], &work32[line * 256], row_bytes);
+                destination_offset += row_bytes * pages_x;
             }
         }
     }
@@ -130,7 +137,7 @@ Bytes Conv8to32(int width, int height, const Bytes &source) {
 
 // GitHub's macOS runner GPU reads palette index 1 wrong; real Apple GPUs do not.
 bool OnParavirtualGpu() {
-    return std::strstr(gfx::detail::g.properties.deviceName, "Paravirtual") != nullptr;
+    return std::string_view(gfx::detail::g.properties.deviceName).contains("Paravirtual");
 }
 
 } // namespace
@@ -138,7 +145,7 @@ bool OnParavirtualGpu() {
 TEST(TexDecode, Rgb32Alpha) {
     TexEnv env;
     Bytes  img = Img({
-        {"rgb32", Tim2({TIM2_RGB32, 2, 2, {Rgba32({Gs(255, 0, 0), Gs(0, 255, 0), Gs(0, 0, 255, 0x40), Gs(255, 0, 0, 0)})}, {}, 0})}
+        {"rgb32", Tim2({.type = TIM2_RGB32, .width = 2, .height = 2, .levels = {Rgba32({Gs(255, 0, 0), Gs(0, 255, 0), Gs(0, 0, 255, 0x40), Gs(255, 0, 0, 0)})}})}
     });
     Enter(img, 0);
     PortTextureRef ref = Resolve("rgb32");
@@ -156,8 +163,8 @@ TEST(TexDecode, Rgb32Alpha) {
 TEST(TexDecode, FixedAndBlockTexturesSurviveLegacyVramOverlap) {
     TexEnv env;
     char   fixed_name[] = "fixed";
-    Bytes  fixed(8 * 8 * 4, 0);
-    Bytes  menu(8 * 8 * 4, 0);
+    Bytes  fixed(size_t{8} * 8 * 4, 0);
+    Bytes  menu(size_t{8} * 8 * 4, 0);
     for (size_t i = 0; i < fixed.size(); i += 4) {
         fixed[i] = 255;
         fixed[i + 3] = 0x80;
@@ -170,7 +177,7 @@ TEST(TexDecode, FixedAndBlockTexturesSurviveLegacyVramOverlap) {
     TexManager.blocks[16].vram_top = 16320;
     TexManager.blocks[16].vram_end = 16320;
     Bytes img = Img({
-        {"menu", Tim2({TIM2_RGB32, 8, 8, {menu}, {}, 0})}
+        {"menu", Tim2({.type = TIM2_RGB32, .width = 8, .height = 8, .levels = {menu}})}
     });
     Enter(img, 16);
 
@@ -189,7 +196,7 @@ TEST(TexDecode, FixedAndBlockTexturesSurviveLegacyVramOverlap) {
 TEST(TexDecode, Rgb24TakesAlphaFromTexa) {
     TexEnv env;
     Bytes  img = Img({
-        {"rgb24", Tim2({TIM2_RGB24, 2, 1, {{255, 128, 0, 0, 0, 0}}, {}, 0})}
+        {"rgb24", Tim2({.type = TIM2_RGB24, .width = 2, .height = 1, .levels = {{255, 128, 0, 0, 0, 0}}})}
     });
     Enter(img, 0);
     PortTextureRef ref = Resolve("rgb24");
@@ -211,7 +218,7 @@ TEST(TexDecode, Rgb16WidensAndTakesTheAlphaBit) {
     Put16(pixels, 0, 0x8000 | (31 << 10) | (16 << 5));
     Put16(pixels, 2, 0x001F);
     Bytes img = Img({
-        {"rgb16", Tim2({TIM2_RGB16, 2, 1, {pixels}, {}, 0})}
+        {"rgb16", Tim2({.type = TIM2_RGB16, .width = 2, .height = 1, .levels = {pixels}})}
     });
     Enter(img, 0);
     PortTextureRef ref = Resolve("rgb16");
@@ -233,7 +240,7 @@ TEST(TexDecode, Idtex8ReadsTheClutInCsm1Order) {
         {31, Gs(255, 255, 0, 0x40)}
     });
     Bytes  img = Img({
-        {"idx8", Tim2({TIM2_IDTEX8, 4, 1, {{8, 16, 0, 255}}, clut, 256})}
+        {"idx8", Tim2({.type = TIM2_IDTEX8, .width = 4, .height = 1, .levels = {{8, 16, 0, 255}}, .clut = clut, .clut_colors = 256})}
     });
     Enter(img, 0);
     PortTextureRef ref = Resolve("idx8");
@@ -243,8 +250,8 @@ TEST(TexDecode, Idtex8ReadsTheClutInCsm1Order) {
     std::memcpy(&tex0, &texture->tex0, sizeof tex0);
     ASSERT_TRUE(tex0.PSM == SCE_GS_PSMT8 && tex0.CLD == 1 && tex0.CBP != 0);
 
-    uint32_t palette[256];
-    ASSERT_TRUE(PortPaletteEntries(tex0.CBP, palette));
+    std::array<uint32_t, 256> palette{};
+    ASSERT_TRUE(PortPaletteEntries(tex0.CBP, palette.data()));
     ASSERT_TRUE(palette[8] == Rgba(0, 255, 0));
     ASSERT_TRUE(palette[16] == Rgba(255, 0, 0));
     ASSERT_TRUE(palette[0] == Rgba(0, 0, 255));
@@ -270,7 +277,7 @@ TEST(TexDecode, Idtex4ExpandsToIndex8) {
     Bytes clut = Rgba32({Gs(255, 255, 255), Gs(255, 0, 0), Gs(0, 255, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                          Gs(0, 0, 255)});
     Bytes img = Img({
-        {"idx4", Tim2({TIM2_IDTEX4, 4, 1, {{0x21, 0x0F}}, clut, 16})}
+        {"idx4", Tim2({.type = TIM2_IDTEX4, .width = 4, .height = 1, .levels = {{0x21, 0x0F}}, .clut = clut, .clut_colors = 16})}
     });
     Enter(img, 0);
     PortTextureRef ref = Resolve("idx4");
@@ -278,8 +285,8 @@ TEST(TexDecode, Idtex4ExpandsToIndex8) {
     auto info = gfx::GetTextureInfo(ref.binding.texture);
     ASSERT_TRUE(info && info->format == gfx::TextureFormat::Index8);
     std::vector<uint8_t> indices;
-    uint32_t             width;
-    uint32_t             height;
+    uint32_t             width = 0;
+    uint32_t             height = 0;
     ASSERT_TRUE(gfx::ReadbackTexture(ref.binding.texture, indices, width, height));
     ASSERT_TRUE(width == 4 && indices[0] == 1 && indices[1] == 2 && indices[2] == 15 && indices[3] == 0);
     env.gfx.Frame({0, 0, 0, 0x80}, [&] { env.Draw(ref, 0, 0, 400, 100, 0, 0, 4, 1); });
@@ -290,16 +297,9 @@ TEST(TexDecode, Idtex4ExpandsToIndex8) {
 }
 
 TEST(TexDecode, Im2UnswizzleInvertsConv8to32) {
-    std::mt19937 random(7);
-    const int    sizes[][2] = {
-        {16,  16 },
-        {32,  16 },
-        {64,  32 },
-        {128, 64 },
-        {64,  128},
-        {256, 64 },
-        {256, 256},
-        {512, 128}
+    std::mt19937                                 random(7);
+    constexpr std::array<std::pair<int, int>, 8> sizes = {
+        {{16, 16}, {32, 16}, {64, 32}, {128, 64}, {64, 128}, {256, 64}, {256, 256}, {512, 128}}
     };
     for (auto [width, height] : sizes) {
         Bytes linear(static_cast<size_t>(width) * height);
@@ -309,10 +309,7 @@ TEST(TexDecode, Im2UnswizzleInvertsConv8to32) {
         Bytes swizzled = Conv8to32(width, height, linear);
         Bytes back(linear.size());
         PortUnswizzle8(width, height, swizzled.data(), back.data());
-        if (back != linear) {
-            std::fprintf(stderr, "unswizzle differs at %dx%d\n", width, height);
-        }
-        ASSERT_TRUE(back == linear);
+        ASSERT_TRUE(back == linear) << "unswizzle differs at " << width << "x" << height;
     }
 }
 
@@ -321,16 +318,16 @@ TEST(TexDecode, Im2ArchiveDrawsUnswizzled) {
     if (OnParavirtualGpu()) {
         GTEST_SKIP() << "the CI runner's virtual GPU misreads palette index 1";
     }
-    Bytes linear(32 * 32);
-    for (int y = 0; y < 32; y++) {
-        for (int x = 0; x < 32; x++) {
-            linear[y * 32 + x] = static_cast<uint8_t>(1 + x / 16 + 2 * (y / 16));
+    Bytes linear(size_t{32} * 32);
+    for (size_t y = 0; y < 32; y++) {
+        for (size_t x = 0; x < 32; x++) {
+            linear[(y * 32) + x] = static_cast<uint8_t>(1 + (x / 16) + (2 * (y / 16)));
         }
     }
-    Bytes mip(16 * 16);
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            mip[y * 16 + x] = static_cast<uint8_t>(1 + x / 8 + 2 * (y / 8));
+    Bytes mip(size_t{16} * 16);
+    for (size_t y = 0; y < 16; y++) {
+        for (size_t x = 0; x < 16; x++) {
+            mip[(y * 16) + x] = static_cast<uint8_t>(1 + (x / 8) + (2 * (y / 8)));
         }
     }
     Bytes clut = Clut256({
@@ -340,15 +337,15 @@ TEST(TexDecode, Im2ArchiveDrawsUnswizzled) {
         {4, Gs(255, 255, 255)}
     });
     Bytes img = Img({
-                        {"swz", Tim2({TIM2_IDTEX8, 32, 32, {Conv8to32(32, 32, linear), Conv8to32(16, 16, mip)}, clut, 256})}
+                        {"swz", Tim2({.type = TIM2_IDTEX8, .width = 32, .height = 32, .levels = {Conv8to32(32, 32, linear), Conv8to32(16, 16, mip)}, .clut = clut, .clut_colors = 256})}
     },
                     true);
     Enter(img, 0, 1);
     PortTextureRef ref = Resolve("swz");
     ASSERT_TRUE(ref.valid);
     std::vector<uint8_t> indices;
-    uint32_t             width;
-    uint32_t             height;
+    uint32_t             width = 0;
+    uint32_t             height = 0;
     ASSERT_TRUE(gfx::ReadbackTexture(ref.binding.texture, indices, width, height));
     ASSERT_TRUE(Bytes(indices.begin(), indices.end()) == linear);
     auto info = gfx::GetTextureInfo(ref.binding.texture);
@@ -362,12 +359,12 @@ TEST(TexDecode, Im2ArchiveDrawsUnswizzled) {
 
 TEST(TexDecode, MipmapsAsSupplied) {
     TexEnv env;
-    Bytes  base(8 * 8 * 4, 0x40);
-    Bytes  half(4 * 4 * 4, 0x80);
-    Bytes  quarter(2 * 2 * 4, 0xC0);
+    Bytes  base(size_t{8} * 8 * 4, 0x40);
+    Bytes  half(size_t{4} * 4 * 4, 0x80);
+    Bytes  quarter(size_t{2} * 2 * 4, 0xC0);
     Bytes  img = Img({
-        {"mips",  Tim2({TIM2_RGB32, 8, 8, {base, half, quarter}, {}, 0})},
-        {"plain", Tim2({TIM2_RGB32, 8, 8, {base, half, quarter}, {}, 0})}
+        {"mips",  Tim2({.type = TIM2_RGB32, .width = 8, .height = 8, .levels = {base, half, quarter}})},
+        {"plain", Tim2({.type = TIM2_RGB32, .width = 8, .height = 8, .levels = {base, half, quarter}})}
     });
     Enter(img, 0, 1);
     PortTextureRef ref = Resolve("mips");
@@ -552,7 +549,7 @@ TEST(Texture, DuplicateTextureNamesUseExactSourceImgOrdinal) {
         write32(picture, 52);
         write32(picture + 8, 4);
         img[picture + 12] = 48;
-        std::copy(pixel.begin(), pixel.end(), img.begin() + static_cast<std::ptrdiff_t>(header + 64));
+        std::ranges::copy(pixel, img.begin() + static_cast<std::ptrdiff_t>(header + 64));
     };
     std::memcpy(img.data() + 16, "DUP", 3);
     write32(16 + 32, 112);
@@ -637,14 +634,14 @@ TEST(Texture, BakedDocumentPathMapMatchesRustDc1Plan) {
 TEST(TexDecode, ColourImagesTakeIndexPsmCopies) {
     TexEnv env;
     Bytes  img = Img({
-        {"src", Tim2({TIM2_RGB32, 2, 2, {Rgba32({Gs(255, 0, 0), Gs(0, 255, 0), Gs(0, 0, 255), Gs(255, 255, 255)})}, {}, 0})},
-        {"dst", Tim2({TIM2_RGB32, 2, 2, {Rgba32({0, 0, 0, 0})}, {}, 0})                                                    }
+        {"src", Tim2({.type = TIM2_RGB32, .width = 2, .height = 2, .levels = {Rgba32({Gs(255, 0, 0), Gs(0, 255, 0), Gs(0, 0, 255), Gs(255, 255, 255)})}})},
+        {"dst", Tim2({.type = TIM2_RGB32, .width = 2, .height = 2, .levels = {Rgba32({0, 0, 0, 0})}})                                                    }
     });
     Enter(img, 0);
     PortTextureRef src = Resolve("src");
     PortTextureRef dst = Resolve("dst");
     ASSERT_TRUE(src.valid && dst.valid);
-    const sceGsTex0 &src_tex0 = *reinterpret_cast<const sceGsTex0 *>(&TexManager.GetTexture(const_cast<char *>("src"), -1)->tex0);
-    const sceGsTex0 &dst_tex0 = *reinterpret_cast<const sceGsTex0 *>(&TexManager.GetTexture(const_cast<char *>("dst"), -1)->tex0);
+    const sceGsTex0 &src_tex0 = *reinterpret_cast<const sceGsTex0 *>(&Find("src")->tex0);
+    const sceGsTex0 &dst_tex0 = *reinterpret_cast<const sceGsTex0 *>(&Find("dst")->tex0);
     EXPECT_TRUE(PortMoveImage(src_tex0.TBP0, SCE_GS_PSMT8, 0, 0, 2, 2, dst_tex0.TBP0, SCE_GS_PSMT8, 0, 0));
 }

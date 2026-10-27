@@ -62,6 +62,17 @@ void Move(float dx, float dy) {
 // The angle between two headings, folded into half a turn either way.
 float Gap(float a, float b) { return std::remainder(a - b, 2.0f * std::numbers::pi_v<float>); }
 
+CCPoly Triangle(std::array<float, 3> a, std::array<float, 3> b, std::array<float, 3> c) {
+    CCPoly                              poly{};
+    std::array<std::array<float, 3>, 3> points{a, b, c};
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            poly.vertex[i][j] = points[i][j];
+        }
+    }
+    return poly;
+}
+
 } // namespace
 
 TEST(PlatformMouseLook, TakesEachCountOnceAtTheSensitivity) {
@@ -96,7 +107,7 @@ TEST(PlatformMouseLook, InvertAndStickBindings) {
     ASSERT_NEAR(InputGetMouseLook().pitch, -5.0f * kDegree, 1e-6f);
 
     // An axis bound to a stick is the stick's alone.
-    std::string_view mouse_x[] = {"MouseX*0.5"};
+    const std::array<std::string_view, 1> mouse_x = {"MouseX*0.5"};
     ASSERT_TRUE(InputBindKeys("rx", mouse_x));
     Move(10.0f, 10.0f);
     InputLatchPad(0);
@@ -407,17 +418,17 @@ TEST(PlatformMouseLook, TownTurnStopsAtAWall) {
         *polys = &wall;
         return 0;
     };
-    float look[4] = {0.0f, 10.0f, 0.0f, 1.0f};
-    float eye[4] = {0.0f, 15.0f, 60.0f, 1.0f};
-    float whole = 200.0f * kDegree;
+    const std::array look = {0.0f, 10.0f, 0.0f, 1.0f};
+    const std::array eye = {0.0f, 15.0f, 60.0f, 1.0f};
+    const float      whole = 200.0f * kDegree;
 
     // Towards the wall the turn stops short of it (10 away); away from it, or in the open past half a
     // turn, it is whole.
-    float stopped = MouseLookClampOrbit(eye, look, whole, walled);
+    float stopped = MouseLookClampOrbit(eye.data(), look.data(), whole, walled);
     ASSERT_GT(stopped, 0.0f);
     ASSERT_LT(stopped, std::asin(20.0f / 60.0f));
-    ASSERT_NEAR(MouseLookClampOrbit(eye, look, -100.0f * kDegree, walled), -100.0f * kDegree, 1e-4f);
-    ASSERT_NEAR(MouseLookClampOrbit(eye, look, whole, open), whole, 1e-4f);
+    ASSERT_NEAR(MouseLookClampOrbit(eye.data(), look.data(), -100.0f * kDegree, walled), -100.0f * kDegree, 1e-4f);
+    ASSERT_NEAR(MouseLookClampOrbit(eye.data(), look.data(), whole, open), whole, 1e-4f);
 
     // What was stopped is not turned later.
     CCameraFollow camera(60.0f, 5.0f, 0.0f, 8.0f);
@@ -446,25 +457,13 @@ TEST(PlatformMouseLook, TownTurnStopsAtAWall) {
     ASSERT_TRUE(camera.GetAngle() == start);
 }
 
-namespace {
-CCPoly Triangle(std::array<float, 3> a, std::array<float, 3> b, std::array<float, 3> c) {
-    CCPoly                              p{};
-    std::array<std::array<float, 3>, 3> points{a, b, c};
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            p.vertex[i][j] = points[i][j];
-        }
-    }
-    return p;
-}
-} // namespace
-
 TEST(PlatformMouseLook, ThinWallStopsTheContinuousRayFan) {
-    CCPoly         thin = Triangle({.25f, -100, 20}, {.35f, -100, 20}, {.3f, 100, 20});
-    MouseLookPolys walls = [&](CBoxVu0 &, CCPoly **out) { *out=&thin; return 1; };
-    float          eye[4] = {0, 15, 60, 1}, look[4] = {0, 10, 0, 1};
-    // Both former endpoint samples (0 and .03) miss this triangle, but the ray at .015 hits.
-    float accepted = MouseLookClampOrbit(eye, look, .06f, walls);
+    CCPoly           thin = Triangle({.25f, -100, 20}, {.35f, -100, 20}, {.3f, 100, 20});
+    MouseLookPolys   walls = [&](CBoxVu0 &, CCPoly **out) { *out=&thin; return 1; };
+    const std::array eye = {0.0f, 15.0f, 60.0f, 1.0f};
+    const std::array look = {0.0f, 10.0f, 0.0f, 1.0f};
+    // Samples at 0 and .03 alone would miss this triangle; the ray at .015 hits it.
+    float accepted = MouseLookClampOrbit(eye.data(), look.data(), .06f, walls);
     ASSERT_GE(accepted, 0);
     ASSERT_LT(accepted, .015f);
 }
@@ -547,18 +546,20 @@ TEST(PlatformMouseLook, LowDungeonCameraZoomRetainsFloorAndWallClearance) {
 }
 
 TEST(PlatformMouseLook, InvalidFloorDoesNotDisableClearance) {
-    CCPoly         floor = Triangle({-100, 0, -100}, {100, 0, -100}, {0, 0, 300});
-    MouseLookPolys walls = [&](CBoxVu0 &, CCPoly **out) { *out=&floor; return 1; };
-    float          eye[4] = {0, 17, 60, 1}, look[4] = {0, 10, 0, 1};
-    ASSERT_EQ(MouseLookClampOrbit(eye, look, 45 * kDegree, walls), 0);
+    CCPoly           floor = Triangle({-100, 0, -100}, {100, 0, -100}, {0, 0, 300});
+    MouseLookPolys   walls = [&](CBoxVu0 &, CCPoly **out) { *out=&floor; return 1; };
+    const std::array eye = {0.0f, 17.0f, 60.0f, 1.0f};
+    const std::array look = {0.0f, 10.0f, 0.0f, 1.0f};
+    ASSERT_EQ(MouseLookClampOrbit(eye.data(), look.data(), 45 * kDegree, walls), 0);
 }
 
 TEST(PlatformMouseLook, ClearFloorDoesNotLimitAnInstantFlick) {
-    CCPoly         floor = Triangle({-1000, 0, -1000}, {1000, 0, -1000}, {0, 0, 3000});
-    MouseLookPolys walls = [&](CBoxVu0 &, CCPoly **out) { *out=&floor; return 1; };
-    float          eye[4] = {0, 19, 70, 1}, look[4] = {0, 14, 0, 1};
-    ASSERT_FLOAT_EQ(MouseLookClampOrbit(eye, look, 200 * kDegree, walls), 200 * kDegree);
-    ASSERT_FLOAT_EQ(MouseLookClampOrbit(eye, look, -200 * kDegree, walls), -200 * kDegree);
+    CCPoly           floor = Triangle({-1000, 0, -1000}, {1000, 0, -1000}, {0, 0, 3000});
+    MouseLookPolys   walls = [&](CBoxVu0 &, CCPoly **out) { *out=&floor; return 1; };
+    const std::array eye = {0.0f, 19.0f, 70.0f, 1.0f};
+    const std::array look = {0.0f, 14.0f, 0.0f, 1.0f};
+    ASSERT_FLOAT_EQ(MouseLookClampOrbit(eye.data(), look.data(), 200 * kDegree, walls), 200 * kDegree);
+    ASSERT_FLOAT_EQ(MouseLookClampOrbit(eye.data(), look.data(), -200 * kDegree, walls), -200 * kDegree);
 }
 
 TEST(PlatformMouseLook, ContractedEyeDoesNotLeavePendingTargetAcrossWall) {
@@ -585,15 +586,15 @@ TEST(PlatformMouseLook, CollectorHandlesMoreThanRetailScratchAndStopsBeforeBudge
     CFrame                 frame;
     CCollisionMDT          collision;
     std::vector<CCPolyBox> mesh(401);
-    for (auto &p : mesh) {
-        p.poly = Triangle({.25f, -100, 20}, {.35f, -100, 20}, {.3f, 100, 20});
+    for (auto &entry : mesh) {
+        entry.poly = Triangle({.25f, -100, 20}, {.35f, -100, 20}, {.3f, 100, 20});
         for (int j = 0; j < 3; ++j) {
-            p.box.min[j] = std::min({p.poly.vertex[0][j], p.poly.vertex[1][j], p.poly.vertex[2][j]});
-            p.box.max[j] = std::max({p.poly.vertex[0][j], p.poly.vertex[1][j], p.poly.vertex[2][j]});
+            entry.box.min[j] = std::min({entry.poly.vertex[0][j], entry.poly.vertex[1][j], entry.poly.vertex[2][j]});
+            entry.box.max[j] = std::max({entry.poly.vertex[0][j], entry.poly.vertex[1][j], entry.poly.vertex[2][j]});
         }
     }
     collision.mesh = mesh.data();
-    collision.mesh_count = int(mesh.size());
+    collision.mesh_count = static_cast<int>(mesh.size());
     frame.flags = 1;
     frame.collision = &collision;
     ground.parts[0].handle = 0;
@@ -620,7 +621,8 @@ TEST(PlatformMouseLook, CollectorHandlesMoreThanRetailScratchAndStopsBeforeBudge
 TEST(PlatformMouseLook, CollectorAppendsEveryGridAreaAndRejectsInvalidMetadata) {
     CEditGround ground{};
     ground.Initialize();
-    CEditArea first{}, second{};
+    CEditArea first{};
+    CEditArea second{};
     first.SetSize(16, 16, 20, 1);
     second.SetSize(16, 16, 20, 1);
     second.offset_y = 100;
@@ -643,7 +645,8 @@ TEST(PlatformMouseLook, CollectorAppendsEveryGridAreaAndRejectsInvalidMetadata) 
 TEST(PlatformMouseLook, CollectorBoundsVisitsEvenForDisabledSiblingCycles) {
     CEditGround ground{};
     ground.Initialize();
-    CFrame parent, child;
+    CFrame parent;
+    CFrame child;
     parent.flags = 0;
     child.flags = 4;
     parent.child = &child;

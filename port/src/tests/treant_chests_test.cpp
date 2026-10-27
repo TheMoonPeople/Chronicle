@@ -17,7 +17,7 @@ constexpr int kFlooded = 13;
 TEST(TreantChests, ChestsOpenedBeforeTheFloodStayOpenAfter) {
     g_treant_save.Initialize();
     SaveData = &g_treant_save;
-    const int map = MapNo;
+    const int saved_map = MapNo;
 
     MapNo = kDry;
     EdSetMapFlag(361, 1);
@@ -40,6 +40,6 @@ TEST(TreantChests, ChestsOpenedBeforeTheFloodStayOpenAfter) {
     MapNo = TOWN_MATATAKI;
     EXPECT_EQ(EdGetMapFlag(361), 0);
 
-    MapNo = map;
+    MapNo = saved_map;
     SaveData = nullptr;
 }

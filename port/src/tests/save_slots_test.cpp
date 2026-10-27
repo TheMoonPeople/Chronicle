@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <libpad.h>
 
+#include <algorithm>
 #include <array>
 #include <climits>
 #include <cstring>
@@ -9,6 +10,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gameloop.hpp"
@@ -118,7 +120,7 @@ void PrepareSave() {
     SaveData = &g_save;
     s16 *name = g_save.GetCharaName(0);
     for (int i = 0; i < 5; ++i) {
-        name[i] = static_cast<s16>("Toan"[i]);
+        name[i] = static_cast<s16>(static_cast<unsigned char>("Toan"[i]));
     }
     g_save.AddPlayTime(123456);
     g_save.QuestDungeon(0, 7);
@@ -177,7 +179,7 @@ TEST(SaveSlots, FolderNamesAreBoardNumbers) {
     ASSERT_EQ(SaveSlotFileNo("1"), 0);
     ASSERT_EQ(SaveSlotFileNo("12"), 11);
     ASSERT_EQ(SaveSlotFileNo("123456789"), 123456788);
-    for (const char *name : {"", "0", "01", "1.tmp", "-1", "1234567890", "darkcloud1", "state.json", "1a"}) {
+    for (std::string_view name : {"", "0", "01", "1.tmp", "-1", "1234567890", "darkcloud1", "state.json", "1a"}) {
         ASSERT_EQ(SaveSlotFileNo(name), -1) << name;
     }
 }
@@ -225,7 +227,7 @@ TEST(SaveSlots, SaveListAndLoad) {
     std::vector<char> image = ReadFile(root / "saves" / "14" / "save.dat");
     ASSERT_TRUE(image.size() == static_cast<std::size_t>(kImageSize));
     ASSERT_TRUE(std::memcmp(image.data(), g_mc.save_buffer, kImageSize) == 0);
-    ASSERT_TRUE(std::strcmp(image.data() + kSaveDataSize, "darkcloudVer1.9") == 0);
+    ASSERT_TRUE(std::string_view(image.data() + kSaveDataSize) == "darkcloudVer1.9");
     char total = 0;
     for (int i = 0; i < kSaveDataSize; ++i) {
         total = static_cast<char>(total + image[i]);
@@ -256,7 +258,9 @@ TEST(SaveSlots, SaveListAndLoad) {
     MapNoOf(g_save) = 7;
     g_mc.file_no = 2;
     ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_LOAD) == 1);
-    reinterpret_cast<s32 *>(expected.data() + (static_cast<char *>(g_save.GetConfigData()) - reinterpret_cast<char *>(&g_save)))[kLastFile] = 2;
+    const std::ptrdiff_t config_offset = static_cast<char *>(g_save.GetConfigData()) - reinterpret_cast<char *>(&g_save);
+    const s32            loaded_file = 2;
+    std::memcpy(expected.data() + config_offset + kLastFile * sizeof(s32), &loaded_file, sizeof(loaded_file));
     ASSERT_TRUE(std::memcmp(&g_save, expected.data(), kSaveDataSize) == 0);
     ASSERT_TRUE(SaveStateRead(root / "saves" / "state.json", state) && state.last_save == 3);
 
@@ -336,8 +340,8 @@ TEST(SaveSlots, StateKeepsTheLastSaveAndTheClearFlag) {
     ASSERT_TRUE(ConfigWord(kLastFile) == 5 && ConfigWord(kGameClear) == 1);
     // State cannot import options, and invalid numbers cannot wrap into a valid last slot.
     ConfigWord(0) = 19;
-    for (const char *value : {"-1", "1000000000", "18446744073709551615", "1.5", "\"2\""}) {
-        text = std::string(R"({"game_clear":true,"options":[1,2],"last_save":)") + value + "}";
+    for (std::string_view value : {"-1", "1000000000", "18446744073709551615", "1.5", "\"2\""}) {
+        text = std::string(R"({"game_clear":true,"options":[1,2],"last_save":)").append(value).append("}");
         WriteFile(path, {text.begin(), text.end()});
         ASSERT_TRUE(RunOperation(g_mc, MC_OPERATION_LOAD_CONFIG) == 1);
         ASSERT_TRUE(ConfigWord(kLastFile) == 5 && ConfigWord(0) == 19);
@@ -444,12 +448,11 @@ TEST(SaveSlots, LoadCursorFallsBackToPreLoadSessionState) {
     ASSERT_EQ(SaveNew(0), 1);
     g_mc.file_no = 0;
 
-    for (const char *text : {"", "malformed", "[]", "{}", R"({"game_clear":1})"}) {
+    for (std::string_view text : {"", "malformed", "[]", "{}", R"({"game_clear":1})"}) {
         for (int clear : {0, 1}) {
             fs::remove(SaveStatePath());
-            if (*text) {
-                std::string content = text;
-                WriteFile(SaveStatePath(), {content.begin(), content.end()});
+            if (!text.empty()) {
+                WriteFile(SaveStatePath(), {text.begin(), text.end()});
             }
             ConfigWord(kGameClear) = clear;
             ConfigWord(kLastFile) = 8;
@@ -476,10 +479,11 @@ TEST(SaveSlots, UnusableFilesStayAndKeepTheirNumbers) {
     // folder belongs, and a whole save whose map lies past the boards' table of names and whose
     // quest counts are negative.
     std::vector<char> other = image;
-    std::strcpy(other.data() + kSaveDataSize, "darkcloudVer1.0");
+    std::ranges::copy(std::to_array("darkcloudVer1.0"), other.begin() + kSaveDataSize);
     WriteSave(root, 4, other);
     std::vector<char> damaged = image;
-    *reinterpret_cast<s32 *>(damaged.data() + kSaveMapNoOffset) = 0x7fffffff;
+    const s32         damaged_map_no = 0x7fffffff;
+    std::memcpy(damaged.data() + kSaveMapNoOffset, &damaged_map_no, sizeof(damaged_map_no));
     WriteSave(root, 0, damaged);
     fs::create_directories(SlotOf(root, 2));
     WriteFile(SlotOf(root, 9), {'x'});

@@ -54,7 +54,7 @@ PortDecodedTexture Indexed(unsigned width, unsigned height) {
     texture.width = width;
     texture.height = height;
     texture.format = gfx::TextureFormat::Index8;
-    texture.levels.push_back(std::vector<uint8_t>(static_cast<size_t>(width) * height, 7));
+    texture.levels.emplace_back(static_cast<size_t>(width) * height, 7);
     return texture;
 }
 

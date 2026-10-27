@@ -6,6 +6,9 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <numbers>
+#include <string_view>
+#include <vector>
 
 #include "../first_person_walk.hpp"
 #include "btactstatus.hpp"
@@ -51,15 +54,15 @@ void PrepareInput() {
 }
 
 CCPoly Poly(std::array<float, 3> a, std::array<float, 3> b, std::array<float, 3> c, std::array<float, 3> normal) {
-    CCPoly     p{};
+    CCPoly     poly{};
     std::array vertices{a, b, c};
-    for (int j = 0; j < 3; ++j) {
-        p.normal[j] = normal[j];
-        for (int i = 0; i < 3; ++i) {
-            p.vertex[i][j] = vertices[i][j];
+    for (int axis = 0; axis < 3; ++axis) {
+        poly.normal[axis] = normal[axis];
+        for (int corner = 0; corner < 3; ++corner) {
+            poly.vertex[corner][axis] = vertices[corner][axis];
         }
     }
-    return p;
+    return poly;
 }
 } // namespace
 
@@ -73,7 +76,7 @@ TEST(FirstPersonWalk, KeyboardBindingsNormalizeCancelAndRespectMenuFocusAndPadLo
     Keyboard({SDL_SCANCODE_W, SDL_SCANCODE_S, SDL_SCANCODE_A, SDL_SCANCODE_D});
     EXPECT_FLOAT_EQ(InputGetKeyboardMovement().x, 0);
     EXPECT_FLOAT_EQ(InputGetKeyboardMovement().y, 0);
-    std::string_view keys[]{"Up"};
+    std::array<std::string_view, 1> keys{"Up"};
     ASSERT_TRUE(InputBindKeys("ly-", keys));
     Keyboard({SDL_SCANCODE_W});
     EXPECT_FLOAT_EQ(InputGetKeyboardMovement().y, 0);
@@ -111,10 +114,12 @@ TEST(FirstPersonWalk, TownKeyboardMovesAlongMouseHeadingWithoutSteeringViewAndLo
     viewAngleV = 0;
     EdSetKeyMode(1);
     Keyboard({SDL_SCANCODE_W}, 100);
-    sceVu0FVECTOR pos{0, 0, 0, 1}, velocity{0, 0, 0, 0}, next{};
+    sceVu0FVECTOR pos{0, 0, 0, 1};
+    sceVu0FVECTOR velocity{0, 0, 0, 0};
+    sceVu0FVECTOR next{};
     MoveCheckInfo info{};
     PortEdMoveCheck(pos, velocity, next, &info, nullptr, 0, 0);
-    float heading = -100 * 0.1f * 3.14159265358979323846f / 180;
+    float heading = -100 * 0.1f * std::numbers::pi_v<float> / 180;
     EXPECT_NEAR(velocity[0], 0.6f * std::sin(heading), 1e-5);
     EXPECT_NEAR(velocity[2], 0.6f * std::cos(heading), 1e-5);
     CCamera eye(1);
@@ -157,14 +162,15 @@ TEST(FirstPersonWalk, DungeonWalkUsesBodyFloorWallAndObjectCollisionAndRejectsMa
     mesh[0].poly = Poly({-100, 0, -100}, {-100, 0, 100}, {100, 0, -100}, {0, 1, 0});
     mesh[1].poly = Poly({100, 0, -100}, {-100, 0, 100}, {100, 0, 100}, {0, 1, 0});
     mesh[2].poly = Poly({-100, -100, 10}, {0, 100, 10}, {100, -100, 10}, {0, 0, -1});
-    for (int j = 0; j < 3; ++j) {
-        collision.min[j] = 1000;
-        collision.max[j] = -1000;
-        for (auto &m : mesh) {
-            m.box.min[j] = std::min({m.poly.vertex[0][j], m.poly.vertex[1][j], m.poly.vertex[2][j]});
-            m.box.max[j] = std::max({m.poly.vertex[0][j], m.poly.vertex[1][j], m.poly.vertex[2][j]});
-            collision.min[j] = std::min(collision.min[j], m.box.min[j]);
-            collision.max[j] = std::max(collision.max[j], m.box.max[j]);
+    for (int axis = 0; axis < 3; ++axis) {
+        collision.min[axis] = 1000;
+        collision.max[axis] = -1000;
+        for (auto &entry : mesh) {
+            const auto &vertex = entry.poly.vertex;
+            entry.box.min[axis] = std::min({vertex[0][axis], vertex[1][axis], vertex[2][axis]});
+            entry.box.max[axis] = std::max({vertex[0][axis], vertex[1][axis], vertex[2][axis]});
+            collision.min[axis] = std::min(collision.min[axis], entry.box.min[axis]);
+            collision.max[axis] = std::max(collision.max[axis], entry.box.max[axis]);
         }
     }
     collision.mesh = mesh.data();
@@ -172,7 +178,8 @@ TEST(FirstPersonWalk, DungeonWalkUsesBodyFloorWallAndObjectCollisionAndRejectsMa
     frame.flags = 1;
     frame.collision = &collision;
     map->parts[0].collision = &frame;
-    sceVu0FVECTOR pos{0, 0, 0, 1}, velocity{};
+    sceVu0FVECTOR pos{0, 0, 0, 1};
+    sceVu0FVECTOR velocity{};
     MoveCheckInfo info{};
     for (int tick = 0; tick < 100; ++tick) {
         velocity[0] = 0;
@@ -208,13 +215,13 @@ TEST(FirstPersonWalk, DungeonWalkUsesBodyFloorWallAndObjectCollisionAndRejectsMa
     map->parts[0].collision = &frame;
     map->map_type = 1;
     map->cells[0].parts_no = 72;
-    auto z = pos[2];
+    auto blocked_z = pos[2];
     EXPECT_FALSE(FirstPersonDungeonStep(*map, nullptr, pos, velocity, info, 1));
-    EXPECT_FLOAT_EQ(pos[2], z);
+    EXPECT_FLOAT_EQ(pos[2], blocked_z);
     map->cells[0].parts_no = 0;
     collision.mesh_count = 32769;
     EXPECT_FALSE(FirstPersonDungeonStep(*map, nullptr, pos, velocity, info, 1));
-    EXPECT_FLOAT_EQ(pos[2], z);
+    EXPECT_FLOAT_EQ(pos[2], blocked_z);
 }
 
 TEST(FirstPersonWalk, ReservedZoomResetCannotAlsoWalkAndDungeonScriptLocksKeepTheirOwnership) {
@@ -223,7 +230,7 @@ TEST(FirstPersonWalk, ReservedZoomResetCannotAlsoWalkAndDungeonScriptLocksKeepTh
     config.mouse_zoom = true;
     config.mouse_capture = false;
     InputApplyConfig(config);
-    std::string_view reset[]{"W"};
+    std::array<std::string_view, 1> reset{"W"};
     ASSERT_TRUE(InputBindKeys("zoom_reset", reset));
     Keyboard({SDL_SCANCODE_W});
     EXPECT_FLOAT_EQ(InputGetKeyboardMovement().y, 0);

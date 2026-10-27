@@ -52,26 +52,53 @@ void Unplug(int pad) {
     InputSetOverride(pad, &state);
 }
 
+void ZoomSettings(bool enabled = true) {
+    InputShutdown();
+    Config config;
+    config.mouse_zoom = enabled;
+    config.mouse_capture = false;
+    InputApplyConfig(config);
+    ClockSetUnbounded(true);
+    ClockReset();
+    InputLatchPad(0);
+}
+
+void Wheel(float notches) {
+    SDL_Event event{};
+    event.type = SDL_EVENT_MOUSE_WHEEL;
+    event.wheel.y = notches;
+    InputHandleEvent(event);
+}
+
+void MiddleClick(bool down) {
+    SDL_Event event{};
+    event.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+    event.button.button = SDL_BUTTON_MIDDLE;
+    InputHandleEvent(event);
+}
+
 } // namespace
 
 TEST(PlatformPad, ButtonOrderMatchesGame) {
-    const int pairs[][2] = {
-        {kInputL2,       PAD_L2      },
-        {kInputR2,       PAD_R2      },
-        {kInputL1,       PAD_L1      },
-        {kInputR1,       PAD_R1      },
-        {kInputTriangle, PAD_TRIANGLE},
-        {kInputCircle,   PAD_CIRCLE  },
-        {kInputCross,    PAD_CROSS   },
-        {kInputSquare,   PAD_SQUARE  },
-        {kInputSelect,   PAD_SELECT  },
-        {kInputL3,       PAD_L3      },
-        {kInputR3,       PAD_R3      },
-        {kInputStart,    PAD_START   },
-        {kInputUp,       PAD_UP      },
-        {kInputRight,    PAD_RIGHT   },
-        {kInputDown,     PAD_DOWN    },
-        {kInputLeft,     PAD_LEFT    },
+    const std::array<std::array<int, 2>, 16> pairs = {
+        {
+         {kInputL2, PAD_L2},
+         {kInputR2, PAD_R2},
+         {kInputL1, PAD_L1},
+         {kInputR1, PAD_R1},
+         {kInputTriangle, PAD_TRIANGLE},
+         {kInputCircle, PAD_CIRCLE},
+         {kInputCross, PAD_CROSS},
+         {kInputSquare, PAD_SQUARE},
+         {kInputSelect, PAD_SELECT},
+         {kInputL3, PAD_L3},
+         {kInputR3, PAD_R3},
+         {kInputStart, PAD_START},
+         {kInputUp, PAD_UP},
+         {kInputRight, PAD_RIGHT},
+         {kInputDown, PAD_DOWN},
+         {kInputLeft, PAD_LEFT},
+         }
     };
     for (const auto &pair : pairs) {
         ASSERT_TRUE(pair[0] == pair[1]);
@@ -325,12 +352,14 @@ TEST(PlatformPad, VibrationDrivesRumble) {
 }
 
 TEST(PlatformPad, BackButtonActions) {
-    std::string_view paddles[][1] = {{"Gamepad:paddle2"}, {"Gamepad:paddle1"}, {"Gamepad:paddle4"}};
+    const std::array<std::array<std::string_view, 1>, 3> paddles = {
+        {{"Gamepad:paddle2"}, {"Gamepad:paddle1"}, {"Gamepad:paddle4"}}
+    };
     ASSERT_TRUE(InputBindKeys("developer_menu", paddles[0]));
     ASSERT_TRUE(InputBindKeys("debug_menu", paddles[1]));
     ASSERT_TRUE(InputBindKeys("gyro_hold", paddles[2]));
-    std::string_view f9[] = {"F9"};
-    std::string_view f10[] = {"F10"};
+    const std::array<std::string_view, 1> f9 = {"F9"};
+    const std::array<std::string_view, 1> f10 = {"F10"};
     ASSERT_TRUE(InputBindKeys("debug_menu", f9));
     ASSERT_TRUE(InputBindKeys("developer_menu", f10));
 
@@ -363,9 +392,9 @@ TEST(PlatformPad, BackButtonActions) {
 }
 
 TEST(PlatformPad, InputBindings) {
-    std::string_view keys[] = {"Space", "Z"};
+    const std::array<std::string_view, 2> keys = {"Space", "Z"};
     ASSERT_TRUE(InputBindKeys("cross", keys));
-    std::string_view unknown[] = {"NoSuchKey"};
+    const std::array<std::string_view, 1> unknown = {"NoSuchKey"};
     ASSERT_TRUE(!InputBindKeys("cross", unknown));
     ASSERT_TRUE(!InputBindKeys("jump", keys));
     InputResetBindings();
@@ -381,7 +410,7 @@ TEST(PlatformPad, InputWithoutVideo) {
     InputPoll();
     ASSERT_TRUE(InputGetPad(0).connected);
     ASSERT_TRUE(InputGetPad(0).buttons == 0);
-    InputSetRumble(0, {true, 255});
+    InputSetRumble(0, {.small_motor = true, .large_motor = 255});
     InputShutdown();
 }
 
@@ -425,33 +454,6 @@ TEST(PlatformPad, OptionsMouseOwnsMotionButtonsAndWheel) {
     InputShutdown();
 }
 
-namespace {
-void ZoomSettings(bool enabled = true) {
-    InputShutdown();
-    Config config;
-    config.mouse_zoom = enabled;
-    config.mouse_capture = false;
-    InputApplyConfig(config);
-    ClockSetUnbounded(true);
-    ClockReset();
-    InputLatchPad(0);
-}
-
-void Wheel(float notches) {
-    SDL_Event event{};
-    event.type = SDL_EVENT_MOUSE_WHEEL;
-    event.wheel.y = notches;
-    InputHandleEvent(event);
-}
-
-void MiddleClick(bool down) {
-    SDL_Event event{};
-    event.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
-    event.button.button = SDL_BUTTON_MIDDLE;
-    InputHandleEvent(event);
-}
-} // namespace
-
 TEST(PlatformPad, MouseZoomWheelAndQuickResetAreTakenOnce) {
     ZoomSettings();
     Wheel(2.5f);
@@ -485,8 +487,8 @@ TEST(PlatformPad, MouseZoomResetReservesOnlyItsBoundSources) {
     held.keys = {SDL_SCANCODE_B};
     ASSERT_NE(InputApplyKeyboardMouse({}, held).buttons & kInputR3, 0);
     // A configured keyboard reset also owns its binding without disturbing other shortcuts.
-    std::string_view reset[] = {"Home"};
-    std::string_view cross[] = {"Home", "Space"};
+    const std::array<std::string_view, 1> reset = {"Home"};
+    const std::array<std::string_view, 2> cross = {"Home", "Space"};
     ASSERT_TRUE(InputBindKeys("zoom_reset", reset));
     ASSERT_TRUE(InputBindKeys("cross", cross));
     held = {.keys = {SDL_SCANCODE_HOME}};

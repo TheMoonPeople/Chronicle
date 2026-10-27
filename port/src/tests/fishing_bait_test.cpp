@@ -11,15 +11,15 @@ namespace {
 // The variables of PAL retail's bait-changing event (program 134 of gedit/e01): the picker's choice, then
 // the script's list of eight baits, then its loop counter.
 std::array<RS_STACKDATA, 10> PalBaitEvent() {
-    const int listed[] = {ITEM_THROBBING_CHERRY, ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS, ITEM_POISONOUS_APPLE,
-                          ITEM_MELLOW_BANANA,    ITEM_EVY,         ITEM_MIMI,      ITEM_PRICKLY};
+    constexpr std::array         listed = {ITEM_THROBBING_CHERRY, ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS, ITEM_POISONOUS_APPLE,
+                                           ITEM_MELLOW_BANANA, ITEM_EVY, ITEM_MIMI, ITEM_PRICKLY};
     std::array<RS_STACKDATA, 10> variables{};
     for (RS_STACKDATA &variable : variables) {
         variable.type = RS_INT;
         variable.i = 0;
     }
-    for (int i = 0; i < 8; i++) {
-        variables[1 + i].i = listed[i];
+    for (std::size_t slot = 0; slot < listed.size(); slot++) {
+        variables[1 + slot].i = listed[slot];
     }
     return variables;
 }

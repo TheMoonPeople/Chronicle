@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "clsmes.hpp"
@@ -159,7 +161,7 @@ TEST(GameText, EveryCodeSurvivesBeingWrittenAndReadBack) {
         const std::vector<s16> codes = {static_cast<s16>(code), MES_CODE_END};
         const std::string      text = GameTextDecode(codes.data());
         ASSERT_EQ(Encode(text), codes) << code << " written as " << text;
-        if (text.size() > 2 && text[0] == '{' && text[1] != '-' && !(text[1] >= '0' && text[1] <= '9') && text[1] != '{') {
+        if (text.size() > 2 && text[0] == '{' && text[1] != '-' && (text[1] < '0' || text[1] > '9') && text[1] != '{') {
             named++;
         }
     }

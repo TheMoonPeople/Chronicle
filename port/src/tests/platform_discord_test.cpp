@@ -8,9 +8,11 @@
 #include <unistd.h>
 #endif
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
+#include <span>
 #include <string>
 
 #include "editmapscript.hpp"
@@ -18,33 +20,32 @@
 #include "platform/discord.hpp"
 #include "presence.hpp"
 
-namespace fs = std::filesystem;
 using Json = nlohmann::json;
 
 #ifndef _WIN32
 
+namespace fs = std::filesystem;
+
 namespace {
 
-bool ReadExactly(int fd, void *data, std::size_t size) {
-    char *bytes = static_cast<char *>(data);
-    while (size > 0) {
-        ssize_t got = recv(fd, bytes, size, 0);
+bool ReadExactly(int fd, std::span<std::byte> bytes) {
+    while (!bytes.empty()) {
+        ssize_t got = recv(fd, bytes.data(), bytes.size(), 0);
         if (got <= 0) {
             return false;
         }
-        bytes += got;
-        size -= static_cast<std::size_t>(got);
+        bytes = bytes.subspan(static_cast<std::size_t>(got));
     }
     return true;
 }
 
 bool ReadFrame(int fd, std::uint32_t &opcode, Json &body) {
-    std::uint32_t header[2];
-    if (!ReadExactly(fd, header, sizeof(header))) {
+    std::array<std::uint32_t, 2> header{};
+    if (!ReadExactly(fd, std::as_writable_bytes(std::span(header)))) {
         return false;
     }
     std::string payload(header[1], '\0');
-    if (!ReadExactly(fd, payload.data(), payload.size())) {
+    if (!ReadExactly(fd, std::as_writable_bytes(std::span(payload)))) {
         return false;
     }
     opcode = header[0];
@@ -53,9 +54,9 @@ bool ReadFrame(int fd, std::uint32_t &opcode, Json &body) {
 }
 
 void WriteFrame(int fd, std::uint32_t opcode, const Json &body) {
-    std::string   payload = body.dump();
-    std::uint32_t header[2] = {opcode, static_cast<std::uint32_t>(payload.size())};
-    ASSERT_EQ(send(fd, header, sizeof(header), 0), static_cast<ssize_t>(sizeof(header)));
+    std::string                        payload = body.dump();
+    const std::array<std::uint32_t, 2> header = {opcode, static_cast<std::uint32_t>(payload.size())};
+    ASSERT_EQ(send(fd, header.data(), sizeof(header), 0), static_cast<ssize_t>(sizeof(header)));
     ASSERT_EQ(send(fd, payload.data(), payload.size(), 0), static_cast<ssize_t>(payload.size()));
 }
 
@@ -89,7 +90,8 @@ int ServeActivity(int server, const std::string &state) {
 #endif
 
 TEST(PlatformDiscord, ActivityCommand) {
-    Json command = Json::parse(DiscordActivityCommand({"Playing as Xiao", "Shipwreck · Floor 4", "xiao", "Xiao"}, 1000, 42, 7));
+    Json command = Json::parse(DiscordActivityCommand(
+        {.details = "Playing as Xiao", .state = "Shipwreck · Floor 4", .large_image = "xiao", .large_text = "Xiao"}, 1000, 42, 7));
     ASSERT_EQ(command["cmd"], "SET_ACTIVITY");
     ASSERT_EQ(command["nonce"], "7");
     ASSERT_EQ(command["args"]["pid"], 42);
@@ -104,8 +106,8 @@ TEST(PlatformDiscord, ActivityCommand) {
 #ifndef _WIN32
 
 TEST(PlatformDiscord, SendsTheActivity) {
-    char dir_template[] = "/tmp/dcdiscordXXXXXX";
-    ASSERT_NE(mkdtemp(dir_template), nullptr);
+    std::string dir_template = "/tmp/dcdiscordXXXXXX";
+    ASSERT_NE(mkdtemp(dir_template.data()), nullptr);
     fs::path dir = dir_template;
     fs::path path = dir / "discord-ipc-0";
     setenv("XDG_RUNTIME_DIR", dir.c_str(), 1);
@@ -114,12 +116,12 @@ TEST(PlatformDiscord, SendsTheActivity) {
     ASSERT_GE(server, 0);
     sockaddr_un address = {};
     address.sun_family = AF_UNIX;
-    std::strncpy(address.sun_path, path.c_str(), sizeof(address.sun_path) - 1);
+    path.native().copy(address.sun_path, sizeof(address.sun_path) - 1);
     ASSERT_EQ(bind(server, reinterpret_cast<const sockaddr *>(&address), sizeof(address)), 0);
     ASSERT_EQ(listen(server, 1), 0);
 
     DiscordStart("1234");
-    DiscordSetActivity({"Playing as Toan", "Norune Village", "toan", "Toan"});
+    DiscordSetActivity({.details = "Playing as Toan", .state = "Norune Village", .large_image = "toan", .large_text = "Toan"});
     int client = ServeActivity(server, "Norune Village");
     DiscordStop();
     close(client);

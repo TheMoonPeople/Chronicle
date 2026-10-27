@@ -1,8 +1,8 @@
 #include <SDL3/SDL.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
-#include <cstring>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -28,8 +28,9 @@ TEST(ChroniclePresentation, FullSizePictureFillsWidescreenWithoutSamplingPastArt
     image.levels.emplace_back(640 * 448 * 4, 255);
     for (unsigned y = 0; y < image.height; ++y) {
         for (unsigned x = 0; x < image.width; ++x) {
-            image.levels[0][(y * image.width + x) * 4] = static_cast<uint8_t>(y / 2);
-            image.levels[0][(y * image.width + x) * 4 + 1] = static_cast<uint8_t>(x / 3);
+            const size_t pixel = (static_cast<size_t>(y) * image.width + x) * 4;
+            image.levels[0][pixel] = static_cast<uint8_t>(y / 2);
+            image.levels[0][pixel + 1] = static_cast<uint8_t>(x / 3);
         }
     }
     const unsigned key = PortCreateTexture(image, PortTextureOwner::Manager, nullptr);
@@ -45,11 +46,11 @@ TEST(ChroniclePresentation, FullSizePictureFillsWidescreenWithoutSamplingPastArt
 }
 
 TEST(ChroniclePresentation, ClearedVisualBlocksAreRejectedBetweenSweeps) {
-    alignas(16) unsigned int block[16] = {};
-    Draw3DRegisterVisual(block, false);
-    ASSERT_NE(Draw3DFindVisual(block), nullptr);
+    alignas(16) std::array<unsigned int, 16> block = {};
+    Draw3DRegisterVisual(block.data(), false);
+    ASSERT_NE(Draw3DFindVisual(block.data()), nullptr);
     block[8] = 0;
-    EXPECT_EQ(Draw3DFindVisual(block), nullptr);
+    EXPECT_EQ(Draw3DFindVisual(block.data()), nullptr);
 }
 
 TEST(ChroniclePresentation, ClothTurnsWithItsAttachmentWithoutBlendingAcrossTheBody) {
@@ -59,7 +60,7 @@ TEST(ChroniclePresentation, ClothTurnsWithItsAttachmentWithoutBlendingAcrossTheB
 
     dc::test::GfxFixture fixture(64, 48, 1.0f, dc::test::GfxOptions{.offscreen = true});
     auto                 cloth = std::make_unique<Cloth>(2, 2, 1.0f);
-    auto                 block = std::make_unique<unsigned int[]>(kDraw3DBlockQuads * 4);
+    auto                 block = std::make_unique<unsigned int[]>(static_cast<size_t>(kDraw3DBlockQuads) * 4);
     cloth->vu_block[0] = cloth->vu_block[1] = block.get();
     cloth->polygon_divide[0] = 0;
     CFrame attachment;
@@ -124,8 +125,8 @@ TEST(ChroniclePresentation, AsyncPublishesAndStopsTheWorker) {
     {
         gfx::RenderLease lease;
         gfx::BeginRecording();
-        const uint8_t color[] = {20, 40, 60, 128};
-        gfx::Clear(true, color, true, 0);
+        const std::array<uint8_t, 4> color = {20, 40, 60, 128};
+        gfx::Clear(true, color.data(), true, 0);
         GameRenderTick(gfx::EndRecording());
     }
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
@@ -166,9 +167,8 @@ TEST(ChroniclePresentation, CachedAdjacentStripsRetainOrderAfterMaterialChanges)
     ASSERT_TRUE(visual.strip_runs_cached);
     ASSERT_EQ(visual.strip_runs.size(), 3u);
 
-    RenderInfo info;
-    std::memset(&info, 0, sizeof(info));
-    float model[4][4] = {};
+    RenderInfo info = {};
+    float      model[4][4] = {};
     for (int axis = 0; axis < 4; ++axis) {
         model[axis][axis] = 1;
         info.view_scaled[axis][axis] = 1;
@@ -188,16 +188,16 @@ TEST(ChroniclePresentation, CachedAdjacentStripsRetainOrderAfterMaterialChanges)
         std::vector<Draw> draws;
         for (const auto &entry : list->entries) {
             if (const auto *mesh = std::get_if<gfx::detail::MeshEntry>(&entry)) {
-                draws.push_back({mesh->first_index, mesh->index_count, mesh->constants.diffuse[0]});
+                draws.push_back({.first_index = mesh->first_index, .index_count = mesh->index_count, .diffuse = mesh->constants.diffuse[0]});
             }
         }
         return draws;
     };
 
     const std::vector<Draw> expected_initial = {
-        {0, 6, 1.0f},
-        {6, 3, 0.5f},
-        {9, 3, 1.0f}
+        {.first_index = 0, .index_count = 6, .diffuse = 1.0f},
+        {.first_index = 6, .index_count = 3, .diffuse = 0.5f},
+        {.first_index = 9, .index_count = 3, .diffuse = 1.0f},
     };
     const auto first_draw = record_draws();
     ASSERT_EQ(first_draw.size(), expected_initial.size());
@@ -220,7 +220,7 @@ TEST(ChroniclePresentation, CachedAdjacentStripsRetainOrderAfterMaterialChanges)
     ASSERT_TRUE(visual.strip_runs.empty());
     const auto changed_draw = record_draws();
     ASSERT_EQ(changed_draw.size(), 4u);
-    const float expected_diffuse[] = {1.0f, 0.25f, 0.5f, 1.0f};
+    const std::array expected_diffuse = {1.0f, 0.25f, 0.5f, 1.0f};
     for (size_t i = 0; i < changed_draw.size(); i++) {
         EXPECT_EQ(changed_draw[i].first_index, i * 3);
         EXPECT_EQ(changed_draw[i].index_count, 3u);

@@ -1,26 +1,32 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <array>
+#include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <span>
+#include <vector>
 
 #include "icon_retail.hpp"
 
 namespace {
 std::vector<std::uint8_t> Triangle() {
     std::vector<std::uint8_t> data;
-    auto                      word = [&](std::uint32_t v, int bytes) {for(int i=0;i<bytes;++i){ data.push_back(v>>(8*i));
-} };
+    auto                      word = [&](std::uint32_t value, int bytes) {
+        for (int byte = 0; byte < bytes; ++byte) {
+            data.push_back(static_cast<std::uint8_t>(value >> (8 * byte)));
+        }
+    };
     word(0x10000, 4);
     word(1, 4);
     word(0, 4);
     word(0, 4);
     word(3, 4);
-    for (const auto &p : std::array<std::array<int, 2>, 3>{
+    for (const auto &point : std::array<std::array<int, 2>, 3>{
              {{-4096, 4096}, {4096, 4096}, {0, -4096}}
     }) {
-        word(p[0], 2);
-        word(p[1], 2);
+        word(point[0], 2);
+        word(point[1], 2);
         word(0, 2);
         word(0, 2);
         word(0, 2);
@@ -58,7 +64,7 @@ TEST(RetailIcon, ConvertsAndRendersTriangleUsingOfficialGltfRenderer) {
 
 TEST(RetailIcon, DiscIconStillLoadsFromExistingPackWithoutReextracting) {
     const char *data = std::getenv("DC_DATA");
-    if (!data) {
+    if (data == nullptr) {
         GTEST_SKIP() << "Set DC_DATA to extracted retail data";
     }
     const auto source = RetailIconSource(data);

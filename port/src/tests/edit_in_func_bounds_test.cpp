@@ -18,7 +18,7 @@ TEST(EditInterior, RejectsFunctionTablePastFixedCapacity) {
     EPartsDiscHeader                         header{};
     header.func_count = 129;
     words[1] = 2;
-    std::memcpy(words + 2, &header, sizeof(header));
+    std::memcpy(&words[2], &header, sizeof(header));
     std::array<EPARTS_FUNC_DATA, 128> points{};
 
     EXPECT_EQ(GetFuncPoint(0, words, points.data()), 0);

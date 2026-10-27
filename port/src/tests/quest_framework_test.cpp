@@ -41,7 +41,7 @@ public:
     bool                                can_show_items = true;
     std::vector<int>                    items_shown;
 
-    int ItemCount(int item) const override {
+    [[nodiscard]] int ItemCount(int item) const override {
         const auto it = items.find(item);
         return it == items.end() ? 0 : it->second;
     }
@@ -64,7 +64,7 @@ public:
         return true;
     }
 
-    int Money() const override { return money; }
+    [[nodiscard]] int Money() const override { return money; }
 
     bool SpendMoney(int amount) override {
         if (amount > money) {
@@ -76,22 +76,22 @@ public:
 
     void EarnMoney(int amount) override { money += amount; }
 
-    int DeepestFloor(int dungeon) const override {
+    [[nodiscard]] int DeepestFloor(int dungeon) const override {
         const auto it = floors.find(dungeon);
         return it == floors.end() ? -1 : it->second;
     }
 
-    bool HasItemAnywhere(int item) const override {
+    [[nodiscard]] bool HasItemAnywhere(int item) const override {
         const auto it = stored.find(item);
         return ItemCount(item) > 0 || (it != stored.end() && it->second > 0);
     }
 
-    int DungeonCount(int dungeon) const override {
+    [[nodiscard]] int DungeonCount(int dungeon) const override {
         const auto it = dungeon_counts.find(dungeon);
         return it == dungeon_counts.end() ? 0 : it->second;
     }
 
-    int PartySize() const override { return party; }
+    [[nodiscard]] int PartySize() const override { return party; }
 
     template <typename Map, typename Key>
     static auto Get(const Map &map, const Key &key) {
@@ -99,33 +99,33 @@ public:
         return it == map.end() ? typename Map::mapped_type{} : it->second;
     }
 
-    bool GameFlag(int flag) const override { return Get(game_flags, flag); }
+    [[nodiscard]] bool GameFlag(int flag) const override { return Get(game_flags, flag); }
 
     void SetGameFlag(int flag, bool on) override { game_flags[flag] = on; }
 
-    int GameNumber(int slot) const override { return Get(game_numbers, slot); }
+    [[nodiscard]] int GameNumber(int slot) const override { return Get(game_numbers, slot); }
 
     void SetGameNumber(int slot, int value) override { game_numbers[slot] = value; }
 
-    bool MapFlag(int map, int flag) const override { return Get(map_flags, std::make_pair(map, flag)); }
+    [[nodiscard]] bool MapFlag(int map, int flag) const override { return Get(map_flags, std::make_pair(map, flag)); }
 
     void SetMapFlag(int map, int flag, bool on) override { map_flags[{map, flag}] = on; }
 
-    bool PartObtained(int town, int part) const override { return PartPlaced(town, part) > 0; }
+    [[nodiscard]] bool PartObtained(int town, int part) const override { return PartPlaced(town, part) > 0; }
 
-    int PartPlaced(int town, int part) const override { return Get(parts_placed, std::make_pair(town, part)); }
+    [[nodiscard]] int PartPlaced(int town, int part) const override { return Get(parts_placed, std::make_pair(town, part)); }
 
-    bool PartComplete(int town, int part) const override { return Get(parts_complete, std::make_pair(town, part)); }
+    [[nodiscard]] bool PartComplete(int town, int part) const override { return Get(parts_complete, std::make_pair(town, part)); }
 
-    bool PartEventDone(int town, int part) const override { return Get(part_events, std::make_pair(town, part)); }
+    [[nodiscard]] bool PartEventDone(int town, int part) const override { return Get(part_events, std::make_pair(town, part)); }
 
-    bool RequestMet(int town, int request) const override { return Get(requests, std::make_pair(town, request)); }
+    [[nodiscard]] bool RequestMet(int town, int request) const override { return Get(requests, std::make_pair(town, request)); }
 
-    bool VillagerHome(int town, int villager) const override {
+    [[nodiscard]] bool VillagerHome(int town, int villager) const override {
         return Get(villagers_home, std::make_pair(town, villager));
     }
 
-    std::string TalkLine(int message) const override {
+    [[nodiscard]] std::string TalkLine(int message) const override {
         const auto it = talk_lines.find(message);
         return it == talk_lines.end() ? std::string() : it->second;
     }
@@ -165,11 +165,11 @@ protected:
     }
 
     static Dialog::NpcContext Npc(int map_no, int npc_id) {
-        Dialog::NpcContext ctx;
-        ctx.map_no = map_no;
-        ctx.npc_id = npc_id;
-        ctx.host_plays_original = true;
-        return ctx;
+        Dialog::NpcContext context;
+        context.map_no = map_no;
+        context.npc_id = npc_id;
+        context.host_plays_original = true;
+        return context;
     }
 
     static const Dialog::ActiveView &View() {
@@ -218,7 +218,7 @@ Quest::Definition Errand() {
         .Stages({"start", "middle", "end"})
         .Advance("start", Quest::HasItem(ITEM_BREAD), "middle")
         .Advance("middle", Quest::HasMoney(100), "end")
-        .Option({0, 7, {}}, Quest::AtStage("middle"), {"quest.errand.ask", "The errand"},
+        .Option({.map_no = 0, .npc_id = 7}, Quest::AtStage("middle"), {.key = "quest.errand.ask", .english = "The errand"},
                 [](Quest::Scene &scene) { scene.SetVar("asked", scene.Var("asked") + 1); })
         .Build();
 }
@@ -292,15 +292,15 @@ TEST_F(QuestFramework, ProgressRoundTripsAndKeepsQuestsItDoesNotKnow) {
 // handed over, and a shop at the end. It lives only in this test.
 Quest::Definition FetchQuest() {
     using Quest::Scene;
-    constexpr Quest::Text kAsk = {"quest.test_fetch.ask", "The errand"};
-    constexpr Quest::Text kStory = {"quest.test_fetch.story", "One.{page}Two.{page}Three."};
-    constexpr Quest::Text kReminder = {"quest.test_fetch.reminder", "Any luck with the bread?"};
-    constexpr Quest::Text kFound = {"quest.test_fetch.found", "Is that bread?"};
-    constexpr Quest::Text kGive = {"quest.test_fetch.give", "Hand it over"};
-    constexpr Quest::Text kNotYet = {"quest.test_fetch.not_yet", "Not yet"};
-    constexpr Quest::Text kThanks = {"quest.test_fetch.thanks", "Thank you!{page}I sell it for %1 Gilda now."};
-    constexpr Quest::Text kBuy = {"quest.test_fetch.buy", "Buy bread"};
-    constexpr Quest::Text kGreeting = {"quest.test_fetch.greeting", "Fresh bread!"};
+    constexpr Quest::Text ask = {.key = "quest.test_fetch.ask", .english = "The errand"};
+    constexpr Quest::Text story = {.key = "quest.test_fetch.story", .english = "One.{page}Two.{page}Three."};
+    constexpr Quest::Text reminder = {.key = "quest.test_fetch.reminder", .english = "Any luck with the bread?"};
+    constexpr Quest::Text found = {.key = "quest.test_fetch.found", .english = "Is that bread?"};
+    constexpr Quest::Text give = {.key = "quest.test_fetch.give", .english = "Hand it over"};
+    constexpr Quest::Text not_yet = {.key = "quest.test_fetch.not_yet", .english = "Not yet"};
+    constexpr Quest::Text thanks = {.key = "quest.test_fetch.thanks", .english = "Thank you!{page}I sell it for %1 Gilda now."};
+    constexpr Quest::Text buy = {.key = "quest.test_fetch.buy", .english = "Buy bread"};
+    constexpr Quest::Text greeting = {.key = "quest.test_fetch.greeting", .english = "Fresh bread!"};
 
     auto hand_over = [=](Scene &scene) {
         if (!scene.Game().TakeItem(ITEM_BREAD)) {
@@ -309,31 +309,31 @@ Quest::Definition FetchQuest() {
         }
         scene.SetStage("done");
         scene.Back();
-        scene.Say(kThanks, {"50"});
+        scene.Say(thanks, {"50"});
     };
     auto talk = [=](Scene &scene) {
         if (scene.AtStage("asked") && scene.Game().ItemCount(ITEM_BREAD) > 0) {
-            scene.Ask(kFound, {scene.Choice(kGive, hand_over), scene.Choice(kNotYet, [](Scene &s) { s.Back(); })});
+            scene.Ask(found, {scene.Choice(give, hand_over), scene.Choice(not_yet, [](Scene &reply) { reply.Back(); })});
             return;
         }
-        scene.Say(scene.AtStage("asked") ? kReminder : kStory);
+        scene.Say(scene.AtStage("asked") ? reminder : story);
         scene.SetStage("asked");
     };
     auto sell = [=](Scene &scene) {
         Quest::ShopSpec shop;
         shop.goods = {
-            {ITEM_BREAD, 50}
+            {.item = ITEM_BREAD, .price = 50}
         };
         shop.lines = {
-            {Quest::ShopLine::Greeting, kGreeting}
+            {Quest::ShopLine::Greeting, greeting}
         };
         scene.OpenShop(std::move(shop));
     };
     return Quest::Builder("test_fetch")
         .Stages({"hidden", "offered", "asked", "done"})
         .Advance("hidden", Quest::FloorReached(0), "offered")
-        .Option({0, 4, {}}, Quest::AtStages({"offered", "asked"}), kAsk, talk)
-        .Option({0, 4, {}}, Quest::AtStage("done"), kBuy, sell)
+        .Option({.map_no = 0, .npc_id = 4}, Quest::AtStages({"offered", "asked"}), ask, talk)
+        .Option({.map_no = 0, .npc_id = 4}, Quest::AtStage("done"), buy, sell)
         .Build();
 }
 
@@ -390,7 +390,7 @@ TEST_F(QuestFramework, MayorSuppliesSitBelowTalkOnceTheCaveIsOpen) {
     // A quest registered after it comes after it in his menu.
     Quest::Register(Quest::Builder("test_after")
                         .Stages({"open"})
-                        .Option(NoruneMayor(), nullptr, {"quest.test_after.ask", "Something else"},
+                        .Option(NoruneMayor(), nullptr, {.key = "quest.test_after.ask", .english = "Something else"},
                                 [](Quest::Scene &scene) { scene.Back(); })
                         .Build());
     const Dialog::NpcContext mayor = Npc(NoruneMayor().map_no, NoruneMayor().npc_id);
@@ -553,7 +553,7 @@ TEST_F(QuestFramework, ConditionsReadTheGamesFlagsAndGeorama) {
                         .Advance("f", Quest::RequestMet(1, 2), "g")
                         .Advance("g", Quest::All({Quest::VillagerHome(0, 9), Quest::EventDone(0, 7)}), "h")
                         .Build());
-    const auto stage_after = [&]() {
+    const auto stage_after = [&] {
         Quest::Evaluate();
         return Stage("test_georama");
     };
@@ -579,7 +579,7 @@ TEST_F(QuestFramework, ConditionsReadTheGamesFlagsAndGeorama) {
 TEST_F(QuestFramework, AQuestCanSetTheGamesFlags) {
     Quest::Register(Quest::Builder("test_flags")
                         .Stages({"open"})
-                        .Option({0, 4, {}}, nullptr, {"quest.test_flags.ask", "Flags"},
+                        .Option({.map_no = 0, .npc_id = 4}, nullptr, {.key = "quest.test_flags.ask", .english = "Flags"},
                                 [](Quest::Scene &scene) {
                                     scene.Game().SetGameFlag(300, true);
                                     scene.Game().SetGameNumber(5, 7);

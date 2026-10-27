@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
-#include <cstring>
+#include <format>
+#include <string_view>
 
 #include "dataread.hpp"
 #include "dataset.hpp"
@@ -27,7 +30,9 @@ void Reset(int current_mode) {
     LocalMapNo = 9;
     NextMapNo = -1;
     main_select_menu_no = 5;
-    std::strcpy(main_select_param, "none");
+    constexpr std::string_view none = "none";
+    std::ranges::copy(none, main_select_param);
+    main_select_param[none.size()] = '\0';
     mc_mode = 0;
 }
 
@@ -54,7 +59,7 @@ TEST(IntegrationGameloop, MapJumpTransitions) {
 
     Jump(800);
     ASSERT_TRUE(mode == GAME_MODE_TITLE && MapNo == 800 && LocalMapNo == 0);
-    ASSERT_TRUE(std::strcmp(main_select_param, "title") == 0 && main_select_menu_no == 0);
+    ASSERT_TRUE(std::string_view(main_select_param) == "title" && main_select_menu_no == 0);
 
     Jump(801);
     ASSERT_TRUE(mode == GAME_MODE_RUSH_MOVIE && MapNo == 801);
@@ -66,7 +71,7 @@ TEST(IntegrationGameloop, MapJumpTransitions) {
     // 1000 passes the >= 800 branch first, then becomes the ending's save.
     Jump(1000);
     ASSERT_TRUE(mode == GAME_MODE_SAVE && MapNo == -1 && LocalMapNo == 0 && mc_mode == SAVE_MENU_MODE_ENDING);
-    ASSERT_TRUE(std::strcmp(main_select_param, "title") == 0);
+    ASSERT_TRUE(std::string_view(main_select_param) == "title");
 }
 
 TEST(IntegrationGameloop, LoopResults) {
@@ -78,36 +83,35 @@ TEST(IntegrationGameloop, LoopResults) {
         int map_jump;
     };
 
-    const Case cases[] = {
-        {GAME_MODE_LANGUAGE,     0, GAME_MODE_LANGUAGE,   7,   -1 },
-        {GAME_MODE_LANGUAGE,     1, GAME_MODE_RUSH_MOVIE, 801, -1 },
-        {GAME_MODE_MEMORY_CHECK, 1, GAME_MODE_RUSH_MOVIE, 801, -1 },
-        {GAME_MODE_RUSH_MOVIE,   1, GAME_MODE_RUSH_MOVIE, 7,   800},
-        {GAME_MODE_TITLE,        3, GAME_MODE_DUNGEON,    7,   -1 },
-        {GAME_MODE_TITLE,        4, GAME_MODE_TITLE,      7,   801},
-        {GAME_MODE_TITLE,        5, GAME_MODE_OPENING,    7,   -1 },
-        {GAME_MODE_EDIT,         1, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_EDIT,         2, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_EDIT,         3, GAME_MODE_DUNGEON,    7,   -1 },
-        {GAME_MODE_EDIT,         4, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_SAVE,         1, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_TRIAL_END,    1, GAME_MODE_TITLE,      800, -1 },
-        {GAME_MODE_OPENING,      1, GAME_MODE_TITLE,      7,   0  },
-        {GAME_MODE_LOADER,       1, GAME_MODE_DUNGEON,    7,   -1 },
-        {GAME_MODE_LOADER,       2, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_DUNGEON,      1, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_UNUSED_4,     1, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_MENU,         1, GAME_MODE_MENU,       7,   -1 },
-        {GAME_MODE_MENU,        -1, GAME_MODE_TITLE,      7,   800},
-        {GAME_MODE_UNUSED_12,    0, GAME_MODE_UNUSED_12,  7,   -1 },
-    };
-    for (const Case &c : cases) {
-        Reset(c.mode);
-        GameApplyLoopResult(c.mode, c.result);
-        if (mode != c.next_mode || MapNo != c.next_map_no || NextMapNo != c.map_jump) {
-            std::fprintf(stderr, "mode %d result %d: mode %d MapNo %d NextMapNo %d\n", c.mode, c.result, mode, MapNo,
-                         NextMapNo);
-            ASSERT_TRUE(false);
+    const auto cases = std::to_array<Case>({
+        {GAME_MODE_LANGUAGE,     0,  GAME_MODE_LANGUAGE,   7,   -1 },
+        {GAME_MODE_LANGUAGE,     1,  GAME_MODE_RUSH_MOVIE, 801, -1 },
+        {GAME_MODE_MEMORY_CHECK, 1,  GAME_MODE_RUSH_MOVIE, 801, -1 },
+        {GAME_MODE_RUSH_MOVIE,   1,  GAME_MODE_RUSH_MOVIE, 7,   800},
+        {GAME_MODE_TITLE,        3,  GAME_MODE_DUNGEON,    7,   -1 },
+        {GAME_MODE_TITLE,        4,  GAME_MODE_TITLE,      7,   801},
+        {GAME_MODE_TITLE,        5,  GAME_MODE_OPENING,    7,   -1 },
+        {GAME_MODE_EDIT,         1,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_EDIT,         2,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_EDIT,         3,  GAME_MODE_DUNGEON,    7,   -1 },
+        {GAME_MODE_EDIT,         4,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_SAVE,         1,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_TRIAL_END,    1,  GAME_MODE_TITLE,      800, -1 },
+        {GAME_MODE_OPENING,      1,  GAME_MODE_TITLE,      7,   0  },
+        {GAME_MODE_LOADER,       1,  GAME_MODE_DUNGEON,    7,   -1 },
+        {GAME_MODE_LOADER,       2,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_DUNGEON,      1,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_UNUSED_4,     1,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_MENU,         1,  GAME_MODE_MENU,       7,   -1 },
+        {GAME_MODE_MENU,         -1, GAME_MODE_TITLE,      7,   800},
+        {GAME_MODE_UNUSED_12,    0,  GAME_MODE_UNUSED_12,  7,   -1 },
+    });
+    for (const Case &test : cases) {
+        Reset(test.mode);
+        GameApplyLoopResult(test.mode, test.result);
+        if (mode != test.next_mode || MapNo != test.next_map_no || NextMapNo != test.map_jump) {
+            FAIL() << std::format("mode {} result {}: mode {} MapNo {} NextMapNo {}", test.mode, test.result, mode,
+                                  MapNo, NextMapNo);
         }
     }
 }
@@ -116,7 +120,7 @@ TEST(IntegrationGameloop, TitleNewGameJumpsToTheOpeningTown) {
     Reset(GAME_MODE_TITLE);
     GameApplyLoopResult(GAME_MODE_TITLE, 1);
     ASSERT_TRUE(mode == GAME_MODE_EDIT && NextMapNo == 400 && main_select_menu_no == 0);
-    ASSERT_TRUE(std::strcmp(main_select_param, "e01") == 0);
+    ASSERT_TRUE(std::string_view(main_select_param) == "e01");
 }
 
 // MenuLoop picks the next mode itself and returns 1; the result is the menu's, which leaves it.

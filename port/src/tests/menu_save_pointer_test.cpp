@@ -27,8 +27,7 @@ int Click(unsigned button) {
 }
 
 void Prompt(int left) {
-    // The initial pointer fingertip is (346, 254). Put the inline choices on
-    // the second message row, well away from the old hard-coded vertical plate.
+    // The initial pointer fingertip is (346, 254); the inline choices sit on the second message row.
     auto &mes = CommonMenuMes2;
     mes.text_x = left;
     mes.text_y = 220;
@@ -37,8 +36,8 @@ void Prompt(int left) {
     mes.fukidashi = 0;
     mes.centre_rows = 0;
     mes.win_line_num = 2;
-    mes.win_line[0] = {-0x2F8, 0, 24, 0, 0};
-    mes.win_line[1] = {-0x2FA, 80, 24, 0, 0};
+    mes.win_line[0] = {.code = -0x2F8, .x = 0, .y = 24, .clut = 0, .space = 0};
+    mes.win_line[1] = {.code = -0x2FA, .x = 80, .y = 24, .clut = 0, .space = 0};
 }
 } // namespace
 
@@ -55,7 +54,6 @@ TEST(MenuSavePointer, SaveNoFollowsCentredInlinePrompt) {
 }
 
 TEST(MenuSavePointer, CompletedMessageCanBeDismissedAnywhere) {
-    // Deliberately place the message away from the initial pointer.
     CommonMenuMes2.text_x = CommonMenuMes2.text_y = 0;
     CommonMenuMes2.text_columns = 1;
     CommonMenuMes2.text_rows = 1;

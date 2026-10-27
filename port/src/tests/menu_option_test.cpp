@@ -75,7 +75,7 @@ TEST(MenuOption, OptionsLiveInConfigNotInSaves) {
     ASSERT_EQ(reinterpret_cast<CUserStatus *>(g_options_save.GetDngStatus())->minimap_status, 3);
     ASSERT_EQ(g_options_save.GetMenuCursor()->reset_pos, 1);
 
-    SV_CONFIG_SYS saved;
+    SV_CONFIG_SYS saved{};
     card.save_buffer->ConvertConfig(&saved);
     ASSERT_TRUE(saved.values[5] == 0 && saved.values[15] == 0 && saved.values[16] == 0 && saved.values[14] == 1);
     // A load's neutral fields must be replaced by JSON before the game uses them again.
@@ -88,13 +88,10 @@ TEST(MenuOption, OptionsLiveInConfigNotInSaves) {
 
 TEST(MenuOption, AudioPageKeepsCustomSoundtrackAndSurround) {
     const auto pages = options::Pages();
-    const auto page = std::find_if(pages.begin(), pages.end(),
-                                   [](const options::Page &page) { return std::string_view(page.name) == "Audio"; });
+    const auto page = std::ranges::find_if(pages, [](const options::Page &page) { return std::string_view(page.name) == "Audio"; });
     ASSERT_NE(page, pages.end());
-    const auto soundtrack = std::find_if(page->rows.begin(), page->rows.end(),
-                                         [](const options::Row &row) { return std::string_view(row.key) == "audio.soundtrack"; });
-    const auto sound = std::find_if(page->rows.begin(), page->rows.end(),
-                                    [](const options::Row &row) { return std::string_view(row.key) == "audio.sound"; });
+    const auto soundtrack = std::ranges::find_if(page->rows, [](const options::Row &row) { return std::string_view(row.key) == "audio.soundtrack"; });
+    const auto sound = std::ranges::find_if(page->rows, [](const options::Row &row) { return std::string_view(row.key) == "audio.sound"; });
     ASSERT_NE(soundtrack, page->rows.end());
     ASSERT_NE(sound, page->rows.end());
     Config config;
@@ -115,18 +112,17 @@ namespace {
 
 std::vector<DisplayModeSize> Modes() {
     return {
-        {1920, 1200},
-        {640,  480 },
-        {1920, 1080},
-        {2560, 1080},
-        {1920, 1080},
-        {800,  600 },
+        {.width = 1920, .height = 1200},
+        {.width = 640,  .height = 480 },
+        {.width = 1920, .height = 1080},
+        {.width = 2560, .height = 1080},
+        {.width = 1920, .height = 1080},
+        {.width = 800,  .height = 600 },
     };
 }
 
 bool Has(const std::vector<OptionResolution> &list, int width, int height) {
-    return std::any_of(list.begin(), list.end(),
-                       [&](const OptionResolution &size) { return size.width == width && size.height == height; });
+    return std::ranges::any_of(list, [&](const OptionResolution &size) { return size.width == width && size.height == height; });
 }
 
 } // namespace
@@ -145,7 +141,7 @@ TEST(MenuOption, ResolutionListMergesDisplayModes) {
     ASSERT_FALSE(Has(list, 640, 480)) << "below the smallest size offered";
     ASSERT_FALSE(Has(list, 2560, 1080)) << "wider than the display";
     ASSERT_FALSE(Has(list, 2560, 1440));
-    ASSERT_EQ(std::count_if(list.begin(), list.end(), [](const OptionResolution &size) { return size.width == 1920 && size.height == 1080; }), 1);
+    ASSERT_EQ(std::ranges::count_if(list, [](const OptionResolution &size) { return size.width == 1920 && size.height == 1080; }), 1);
     for (size_t i = 2; i < list.size(); ++i) {
         ASSERT_LE(list[i - 1].width * list[i - 1].height, list[i].width * list[i].height);
     }
@@ -167,7 +163,7 @@ TEST(MenuOption, ResolutionListKeepsConfiguredSize) {
 TEST(MenuOption, ZoomResetPresetsPreserveOtherBindingsAndRestoreDefault) {
     Config config;
     config.key_bindings.push_back({
-        "cross", {"Space", "Z"}
+        .action = "cross", .keys = {"Space", "Z"}
     });
     ASSERT_EQ(OptionZoomResetChoice(config), 0);
     ASSERT_EQ(OptionZoomResetText(config), "Middle Mouse");
@@ -176,7 +172,7 @@ TEST(MenuOption, ZoomResetPresetsPreserveOtherBindingsAndRestoreDefault) {
     ASSERT_EQ(OptionZoomResetChoice(config), 2);
     ASSERT_EQ(OptionZoomResetText(config), "Mouse5");
     ASSERT_EQ(config.key_bindings.front(), (ConfigKeyBinding{
-                                               "cross", {"Space", "Z"}
+                                               .action = "cross", .keys = {"Space", "Z"}
     }));
     Config restored = ConfigParse(ConfigSerialize(config));
     ASSERT_EQ(OptionZoomResetText(restored), "Mouse5");
@@ -191,8 +187,8 @@ TEST(MenuOption, ZoomResetPresetsPreserveOtherBindingsAndRestoreDefault) {
 TEST(MenuOption, CustomZoomResetBindingIsShownAndKeptUntilChanged) {
     Config config;
     config.key_bindings = {
-        {"zoom_reset", {"F12", "Mouse4"}},
-        {"r3",         {"B"}            }
+        {.action = "zoom_reset", .keys = {"F12", "Mouse4"}},
+        {.action = "r3",         .keys = {"B"}            }
     };
     ASSERT_EQ(OptionZoomResetChoice(config), 5);
     ASSERT_EQ(OptionZoomResetCount(config), 6);
@@ -212,7 +208,7 @@ TEST(MenuOption, PagesInOrder) {
     std::span<const options::Page> pages = options::Pages();
     std::vector<std::string_view>  names;
     for (const options::Page &page : pages) {
-        names.push_back(page.name);
+        names.emplace_back(page.name);
     }
     ASSERT_TRUE((names == std::vector<std::string_view>{"Game", "Display", "Audio", "Controls", "Text", "Accessibility",
                                                         "Bindings"}));
@@ -257,8 +253,8 @@ TEST(MenuOption, CameraReturnPresetsAndDefaultRestoration) {
     Config config;
     ASSERT_EQ(OptionCameraReturnChoice(config), 2);
     ASSERT_EQ(OptionCameraReturnText(config), "Slow");
-    const float rates[] = {0.0f, 0.05f, 0.2f, 0.5f, 1.0f};
-    const char *names[] = {"Off", "Very Slow", "Slow", "Moderate", "Retail"};
+    constexpr std::array<float, 5>            rates = {0.0f, 0.05f, 0.2f, 0.5f, 1.0f};
+    constexpr std::array<std::string_view, 5> names = {"Off", "Very Slow", "Slow", "Moderate", "Retail"};
     for (int choice = 0; choice < 5; ++choice) {
         OptionSetCameraReturn(config, choice);
         ASSERT_FLOAT_EQ(config.mouse_camera_return, rates[choice]);
@@ -276,7 +272,7 @@ TEST(MenuOption, CustomCameraReturnIsShownAndKeptUntilPresetSelection) {
     config.mouse_camera_return = 0.37f;
     config.mouse_zoom = true;
     config.key_bindings = {
-        {"cross", {"Space", "Z"}}
+        {.action = "cross", .keys = {"Space", "Z"}}
     };
     const Config before = config;
     ASSERT_EQ(OptionCameraReturnChoice(config), 5);

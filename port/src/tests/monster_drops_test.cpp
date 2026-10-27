@@ -1,14 +1,15 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
+#include <array>
+#include <string_view>
 
 #include "monstorunit.hpp"
 
 namespace {
 
-const MONSTOR_MODEL *Species(const char *model) {
+const MONSTOR_MODEL *Species(std::string_view model) {
     for (const MONSTOR_MODEL &species : MonstorTable) {
-        if (std::strcmp(species.model_name[0], model) == 0) {
+        if (std::string_view(species.model_name[0]) == model) {
             return &species;
         }
     }
@@ -17,18 +18,18 @@ const MONSTOR_MODEL *Species(const char *model) {
 
 } // namespace
 
-// The port's MonstorTable (port/src/monstorunit.cpp): retail's, with the regular monsters retail leaves
-// unable to drop.
+// The port's MonstorTable is retail's, except that regular monsters retail leaves unable to drop can drop.
 TEST(MonsterDrops, RegularMonstersDropButNotTheUnlockable) {
-    const char *dropping[] = {"e09a", "e21a", "e22a", "e42a", "e51a", "e58a", "e60a", "e61a",
-                              "e90a", "e91a", "e127a", "e136a", "e140a", "e141a", "e158a", "e162a"};
-    for (const char *model : dropping) {
+    constexpr std::array<std::string_view, 16> dropping = {"e09a", "e21a", "e22a", "e42a", "e51a", "e58a",
+                                                           "e60a", "e61a", "e90a", "e91a", "e127a", "e136a",
+                                                           "e140a", "e141a", "e158a", "e162a"};
+    for (std::string_view model : dropping) {
         const MONSTOR_MODEL *species = Species(model);
         ASSERT_NE(species, nullptr) << model;
         EXPECT_NE(species->drops_items, 0) << model;
     }
     // Wine Keg and Gacious: no lock-on, left as retail.
-    for (const char *model : {"e85a", "e124a"}) {
+    for (std::string_view model : {"e85a", "e124a"}) {
         const MONSTOR_MODEL *species = Species(model);
         ASSERT_NE(species, nullptr) << model;
         EXPECT_EQ(species->kind, MONSTER_KIND_NO_LOCK_ON) << model;
