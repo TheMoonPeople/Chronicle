@@ -1,37 +1,47 @@
 #include "title/bombeffect.hpp"
 
+#include <array>
+
 #include "camera.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
 
+namespace {
+
+constexpr s32 kBillboardCount = 8;
+constexpr s32 kFireCount = 5;
+
+} // namespace
+
 void CBombEffect::Draw(CCamera *camera, int dust_only) {
-    sceVu0FVECTOR camera_position;
-    sceVu0FVECTOR direction;
-    sceVu0FVECTOR position;
-    int           top_left[4];
-    int           bottom_right[4];
-    int           top_right[4];
-    int           bottom_left[4];
-    sceGsAlpha    alpha;
-    sceGsZbuf     zbuf;
-    s32           i;
+    sceVu0FVECTOR      camera_position;
+    sceVu0FVECTOR      direction;
+    sceVu0FVECTOR      position;
+    std::array<int, 4> top_left{};
+    std::array<int, 4> bottom_right{};
 
     camera->GetPos(camera_position);
 
-    alpha = mgAlpha;
+    sceGsAlpha alpha = mgAlpha;
     alpha.bits.a = 0;
     alpha.bits.b = 2;
     alpha.bits.c = 0;
     alpha.bits.d = 1;
     MGSetGsALPHA(&alpha);
 
-    zbuf = mgZBuffer;
+    sceGsZbuf zbuf = mgZBuffer;
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
 
-    for (i = 0; i < 8; i++) {
+    CRect_i_ rect;
+    rect.x = 0;
+    rect.y = 0;
+    rect.width = 128;
+    rect.height = 128;
+
+    for (s32 i = 0; i < kBillboardCount; i++) {
         if (active[i] != 1) {
             continue;
         }
@@ -52,50 +62,30 @@ void CBombEffect::Draw(CCamera *camera, int dust_only) {
         position[2] = direction[2] + positions[i][2];
         position[3] = 1.0f;
 
-        if (MGRotTransPers3DSprite(top_left, bottom_right, position, sizes[i], sizes[i] / 2.0f, 0) != 1) {
+        if (MGRotTransPers3DSprite(top_left.data(), bottom_right.data(), position, sizes[i], sizes[i] / 2.0f, 0) != 1) {
             continue;
         }
 
-        top_right[0] = bottom_right[0];
-        top_right[1] = top_left[1];
-        top_right[2] = top_left[2];
-        top_right[3] = top_left[3];
-        bottom_left[0] = top_left[0];
-        bottom_left[1] = bottom_right[1];
-        bottom_left[2] = bottom_right[2];
-        bottom_left[3] = bottom_right[3];
+        std::array<int, 4> top_right = {bottom_right[0], top_left[1], top_left[2], top_left[3]};
+        std::array<int, 4> bottom_left = {top_left[0], bottom_right[1], bottom_right[2], bottom_right[3]};
 
-        if (i < 5) {
-            CRect_i_ rect;
-
+        if (i < kFireCount) {
             if (dust_only != 0) {
                 continue;
             }
 
-            rect.x = 0;
-            rect.y = 0;
-            rect.width = 128;
-            rect.height = 128;
-            set3DSprite(Vif1Packet, TexManager.GetTexture("bakuha1", -1), rect, top_left, top_right, bottom_left, bottom_right, static_cast<u8>(alphas[i]));
+            set3DSprite(Vif1Packet, TexManager.GetTexture("bakuha1", -1), rect, top_left.data(), top_right.data(), bottom_left.data(), bottom_right.data(), static_cast<u8>(alphas[i]));
         } else {
-            CRect_i_ rect;
-
-            rect.x = 0;
-            rect.y = 0;
-            rect.width = 128;
-            rect.height = 128;
-            set3DSprite(Vif1Packet, TexManager.GetTexture("sunakemuri", -1), rect, top_left, top_right, bottom_left, bottom_right, static_cast<u8>(alphas[i]));
+            set3DSprite(Vif1Packet, TexManager.GetTexture("sunakemuri", -1), rect, top_left.data(), top_right.data(), bottom_left.data(), bottom_right.data(), static_cast<u8>(alphas[i]));
         }
     }
 
-    MGSetGsALPHA(0);
-    MGSetGsZBUF(0);
+    MGSetGsALPHA(nullptr);
+    MGSetGsZBUF(nullptr);
 }
 
 void CBombEffect::Step() {
-    s32 i;
-
-    for (i = 0; i < 5; i++) {
+    for (s32 i = 0; i < kFireCount; i++) {
         if (active[i] != 1) {
             continue;
         }
@@ -148,10 +138,12 @@ void CBombEffect::Step() {
 
                 active[i] = 0;
                 break;
+            default:
+                break;
         }
     }
 
-    for (i = 5; i < 8; i++) {
+    for (s32 i = kFireCount; i < kBillboardCount; i++) {
         if (active[i] != 1) {
             continue;
         }
@@ -200,6 +192,8 @@ void CBombEffect::Step() {
                 }
 
                 active[i] = 0;
+                break;
+            default:
                 break;
         }
     }

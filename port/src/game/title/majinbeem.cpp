@@ -13,29 +13,20 @@
    moves and every other one is a place the head has been. */
 void CMajinBeem::Draw(CCamera *camera) {
     sceVu0FVECTOR camera_position;
-    sceVu0FVECTOR position;
-    int           top_left[4];
-    int           bottom_right[4];
-    int           top_right[4];
-    int           bottom_left[4];
-    sceGsAlpha    alpha;
-    sceGsZbuf     zbuf;
-    int           i;
-
     camera->GetPos(camera_position);
 
-    alpha = mgAlpha;
+    sceGsAlpha alpha = mgAlpha;
     alpha.bits.a = 0;
     alpha.bits.b = 2;
     alpha.bits.c = 0;
     alpha.bits.d = 1;
     MGSetGsALPHA(&alpha);
 
-    zbuf = mgZBuffer;
+    sceGsZbuf zbuf = mgZBuffer;
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
 
-    for (i = 0; i < 59; i++) {
+    for (int i = 0; i < 59; i++) {
         if (active != 1) {
             continue;
         }
@@ -44,15 +35,20 @@ void CMajinBeem::Draw(CCamera *camera) {
             continue;
         }
 
+        sceVu0FVECTOR position;
         position[0] = positions[i][0];
         position[1] = positions[i][1];
         position[2] = positions[i][2];
         position[3] = 1.0f;
 
+        int top_left[4];
+        int bottom_right[4];
         if (MGRotTransPers3DSprite(top_left, bottom_right, position, sizes[i], sizes[i] / 2.0f, 0) != 1) {
             continue;
         }
 
+        int top_right[4];
+        int bottom_left[4];
         top_right[0] = bottom_right[0];
         top_right[1] = top_left[1];
         top_right[2] = top_left[2];
@@ -62,19 +58,16 @@ void CMajinBeem::Draw(CCamera *camera) {
         bottom_left[2] = bottom_right[2];
         bottom_left[3] = bottom_right[3];
 
-        {
-            CRect_i_ rect;
-
-            rect.x = 0;
-            rect.y = 0;
-            rect.width = 128;
-            rect.height = 128;
-            set3DSprite(Vif1Packet, TexManager.GetTexture("beem", -1), rect, top_left, top_right, bottom_left, bottom_right, (u_char) alphas[i]);
-        }
+        CRect_i_ rect;
+        rect.x = 0;
+        rect.y = 0;
+        rect.width = 128;
+        rect.height = 128;
+        set3DSprite(Vif1Packet, TexManager.GetTexture("beem", -1), rect, top_left, top_right, bottom_left, bottom_right, static_cast<u_char>(alphas[i]));
     }
 
-    MGSetGsALPHA(0);
-    MGSetGsZBUF(0);
+    MGSetGsALPHA(nullptr);
+    MGSetGsZBUF(nullptr);
 }
 
 /* The head, which the caller places rather than the effect: whatever is carrying the beam hands
@@ -84,16 +77,6 @@ void CMajinBeem::Draw(CCamera *camera) {
    thing that fired the beam cannot be in front of. */
 void CMajinBeem::Draw2(CCamera *camera, float *head, float *source) {
     sceVu0FVECTOR direction;
-    sceVu0FVECTOR position;
-    int           top_left[4];
-    int           bottom_right[4];
-    int           near_top_left[4];
-    int           near_bottom_right[4];
-    int           top_right[4];
-    int           bottom_left[4];
-    sceGsAlpha    alpha;
-    sceGsZbuf     zbuf;
-
     camera->GetPos(direction);
     direction[0] -= source[0];
     direction[1] -= source[1];
@@ -103,14 +86,14 @@ void CMajinBeem::Draw2(CCamera *camera, float *head, float *source) {
     direction[1] *= 15.0f;
     direction[2] *= 15.0f;
 
-    alpha = mgAlpha;
+    sceGsAlpha alpha = mgAlpha;
     alpha.bits.a = 0;
     alpha.bits.b = 2;
     alpha.bits.c = 0;
     alpha.bits.d = 1;
     MGSetGsALPHA(&alpha);
 
-    zbuf = mgZBuffer;
+    sceGsZbuf zbuf = mgZBuffer;
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
 
@@ -119,14 +102,17 @@ void CMajinBeem::Draw2(CCamera *camera, float *head, float *source) {
         sizes[59] -= 0.25f;
         sceVu0CopyVector(positions[59], head);
 
+        sceVu0FVECTOR position;
         position[0] = positions[59][0];
         position[1] = positions[59][1];
         position[2] = positions[59][2];
         position[3] = 1.0f;
 
+        int top_left[4];
+        int bottom_right[4];
         if (MGRotTransPers3DSprite(top_left, bottom_right, position, sizes[59], sizes[59] / 2.0f, 0) == 1) {
-            CRect_i_ rect;
-
+            int top_right[4];
+            int bottom_left[4];
             top_right[0] = bottom_right[0];
             top_right[1] = top_left[1];
             top_right[2] = top_left[2];
@@ -140,6 +126,8 @@ void CMajinBeem::Draw2(CCamera *camera, float *head, float *source) {
             position[1] += direction[1];
             position[2] += direction[2];
 
+            int near_top_left[4];
+            int near_bottom_right[4];
             if (MGRotTransPers3DSprite(near_top_left, near_bottom_right, position, sizes[59], sizes[59] / 2.0f, 0) == 1) {
                 bottom_right[2] = near_top_left[2];
                 bottom_left[2] = near_top_left[2];
@@ -147,24 +135,22 @@ void CMajinBeem::Draw2(CCamera *camera, float *head, float *source) {
                 top_right[2] = near_top_left[2];
             }
 
+            CRect_i_ rect;
             rect.x = 0;
             rect.y = 0;
             rect.width = 128;
             rect.height = 128;
-            set3DSprite(Vif1Packet, TexManager.GetTexture("beem", -1), rect, top_left, top_right, bottom_left, bottom_right, (u_char) alphas[59]);
+            set3DSprite(Vif1Packet, TexManager.GetTexture("beem", -1), rect, top_left, top_right, bottom_left, bottom_right, static_cast<u_char>(alphas[59]));
         }
     }
 
-    MGSetGsALPHA(0);
-    MGSetGsZBUF(0);
+    MGSetGsALPHA(nullptr);
+    MGSetGsZBUF(nullptr);
 }
 
-/* The whole path is fixed on the first tick: the two angles source the head's starting point to the
+/* The whole path is fixed on the first tick: the two angles from the head's starting point to the
    target are taken once and nothing steers afterwards, so the beam is straight. */
 void CMajinBeem::Step() {
-    int substep;
-    int element;
-
     switch (state) {
         case MAJIN_BEEM_AIM:
             pitch = atan2f(target[0] - positions[0][0], target[1] - positions[0][1]);
@@ -173,8 +159,8 @@ void CMajinBeem::Step() {
             break;
 
         case MAJIN_BEEM_TRAVEL:
-            for (substep = 0; substep < 3; substep++) {
-                for (element = 0; element < 58; element++) {
+            for (int substep = 0; substep < 3; substep++) {
+                for (int element = 0; element < 58; element++) {
                     sceVu0CopyVector(positions[58 - element], positions[57 - element]);
                     counters[element]++;
                 }
@@ -188,6 +174,9 @@ void CMajinBeem::Step() {
                 active = false;
             }
 
+            break;
+
+        default:
             break;
     }
 }

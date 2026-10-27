@@ -1,7 +1,10 @@
 #include "sysmes.hpp"
 
-#include <cstdio>
-#include <cstring>
+#include <array>
+#include <format>
+#include <memory>
+#include <print>
+#include <string>
 
 #include "clsmes.hpp"
 #include "dataread.hpp"
@@ -13,12 +16,9 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
-extern "C" int SkipSpace__FR9input_str__3(input_str &input) {
-    char *text;
-    int   position;
-
-    text = input.data;
-    position = input.pos;
+int SkipSpace__FR9input_str__3(input_str &input) {
+    const char *text = input.data;
+    int         position = input.pos;
 
     while (position < input.size) {
         if (CheckChar__Fc__3(text[position])) {
@@ -37,31 +37,14 @@ extern "C" int SkipSpace__FR9input_str__3(input_str &input) {
     return 1;
 }
 
-extern "C" int CheckChar__Fc__3(char value) {
-    int whitespace = 0;
-
-    if (value == ' ') {
-        whitespace = 1;
-    }
-
-    if (value == '\t') {
-        whitespace = 1;
-    }
-
-    if (value == '\n') {
-        whitespace = 1;
-    }
-
-    if (value == '\r') {
-        whitespace = 1;
-    }
-
+int CheckChar__Fc__3(char value) {
+    const bool whitespace = value == ' ' || value == '\t' || value == '\n' || value == '\r';
     return !whitespace;
 }
 
-extern "C" void PreProcess__FR9input_str__2(input_str &input) {
-    u8 *text = (u8 *) input.data;
-    int position = 0;
+void PreProcess__FR9input_str__2(input_str &input) {
+    char *text = input.data;
+    int   position = 0;
 
     while (position < input.size) {
         if (text[position] == '/' && text[position + 1] == '/') {
@@ -94,45 +77,45 @@ extern "C" void PreProcess__FR9input_str__2(input_str &input) {
     }
 }
 
-/* The town's own message window, which everything with something to say to the player goes through
-   and which the map editor's gate calls into before doing the same thing to a window of its own.
-   It is set up once and asks for none of what the class can do — no speech bubble, no typing
-   animation, no page marker — so a system message is one line of at most 26 characters that
-   appears whole, sits under the picture for as many frames as its caller asked for, and goes. */
+namespace {
+
+/* One line of at most 26 characters with no speech bubble, typing animation or page marker; it
+   appears whole and stays for as many frames as its caller asked for. */
 ClsMes SystemMessage;
 
-/* The message file is read straight into this one off the disc, and the drive transfers by DMA
-   into whole cache lines. */
-short mes_data[24000] __attribute__((aligned(64)));
+// Read straight off the disc, which transfers by DMA into whole cache lines.
+alignas(64) std::array<short, 24000> mes_data;
 
-char mes_buff[65536];
+std::unique_ptr<char[]> mes_buff;
 
 int SystemMesNo = -1;
-
 int SystemMesPosition = MES_POS_BOTTOM;
-
 int SystemMesCount;
-
 int SystemMesWait;
-
 int SystemMesInputKey;
 
-/* The language is spelled into the file name rather than chosen between names, and the read that
-   fails falls back to one fixed file rather than to no text at all. */
-void InitSystemMes() {
-    short *data = mes_data;
-    int    size;
+} // namespace
 
-    char name[64] = "meswin/system_a";
+/* The language is spelled into the file name, and a failed read falls back to one fixed file
+   rather than to no text at all. */
+void InitSystemMes() {
+    short *data = mes_data.data();
+    int    size = 0;
+
+    std::string name = "meswin/system_a";
 
     if (LanguageCode > LANG_JAPANESE) {
-        sprintf(name, "meswin/system_a_%d", LanguageCode);
+        name = std::format("meswin/system_a_{}", LanguageCode);
     }
 
-    strcat(name, ".mes");
+    name += ".mes";
 
-    if (!LoadFile2(name, data, &size, 0)) {
+    if (!LoadFile2(name.data(), data, &size, 0)) {
         LoadFile("meswin/system_ae.bin", data, &size);
+    }
+
+    if (mes_buff == nullptr) {
+        mes_buff = std::make_unique<char[]>(65536);
     }
 
     SystemMessage.Preset(MES_PRESET_SYSTEM);
@@ -147,7 +130,7 @@ void InitSystemMes() {
     SystemMessage.rows = 1;
     SystemMessage.centre_rows = false;
     SystemMessage.style = MES_EDGE_BLACK;
-    SystemMessage.tex_buff = mes_buff;
+    SystemMessage.tex_buff = mes_buff.get();
     SystemMessage.tex_block = 26;
     SystemMessage.SetBuff(data);
     SystemMessage.SetBuff_system(SystemMes);
@@ -165,9 +148,8 @@ int SystemMesCheck() {
     return SystemMesCount > 0;
 }
 
-/* A message counts down to nothing and is cleared at one rather than at zero, so the frame that
-   would have shown it empty is the frame it goes away on. A message that asked for a button holds
-   at two until the button is pressed. */
+/* A message is cleared at one rather than at zero, so the frame that would have shown it empty is
+   the frame it goes away on. A message that asked for a button holds at two until it is pressed. */
 void SystemMesStep() {
     if (SystemMesWait > 0) {
         SystemMesWait--;
@@ -182,20 +164,14 @@ void SystemMesStep() {
         SystemMessage.Step();
     }
 
-    if (SystemMesInputKey == 0 || SystemMesCount != 2 || GamePad.Down(PAD_CROSS)) {
-        if (SystemMesCount > 0) {
-            SystemMesCount--;
-        }
+    if ((SystemMesInputKey == 0 || SystemMesCount != 2 || GamePad.Down(PAD_CROSS)) && SystemMesCount > 0) {
+        SystemMesCount--;
     }
 }
 
-/* The window's own textures are put back every frame it is drawn, because whatever the game drew
-   in between is free to have taken the video memory they were in. The line is centred by the width
-   the text actually laid out to, which is not known until the window has been made. */
+/* The window's textures are reloaded every frame because anything drawn in between may have taken
+   their video memory. The line is centred by the width the text laid out to. */
 void SystemMesDraw() {
-    int x;
-    int columns;
-
     if (SystemMesWait > 0) {
         return;
     }
@@ -205,9 +181,8 @@ void SystemMesDraw() {
     }
 
     TexManager.ReloadTexture(Vif1Packet, SystemMessage.tex_block);
-    columns = SystemMessage.text_columns;
-    x = 320;
-    x -= columns * 14 / 2;
+    const int columns = SystemMessage.text_columns;
+    const int x = 320 - columns * 14 / 2;
     setbilinear(0);
     SystemMessage.text_x = x;
     SystemMessage.text_y = 345;
@@ -215,17 +190,12 @@ void SystemMesDraw() {
     SystemMessage.DrawMesWin();
 }
 
-/* Which message an item announces is decided by the band its number falls in, and the fourth band
-   is the common items, whose message the item's own record names. */
+/* The message is chosen by the band the item number falls in; common items name their message in
+   their own record. */
 void ItemGetMes(int item_no, int value, int frames, int input_key) {
-    int           *number_ptr;
-    int            message_no;
-    COM_ITEM_INFO *info;
+    std::array<int, 4> mes_args = {-1, -1, -1, -1};
+    std::array<int, 4> numbers = {0, 0, 0, 0};
 
-    int mes_args[4] = {-1, -1, -1, -1};
-    int numbers[4] = {0, 0, 0, 0};
-
-    number_ptr = numbers;
     numbers[0] = value;
     SystemMessage.value_show = false;
     SystemMessage.value_signed = true;
@@ -236,7 +206,7 @@ void ItemGetMes(int item_no, int value, int frames, int input_key) {
     }
 
     mes_args[0] = item_no + 100;
-    message_no = 10;
+    int message_no = 10;
 
     if (item_no >= ITEM_ATTACH_START) {
         message_no += 10;
@@ -248,54 +218,45 @@ void ItemGetMes(int item_no, int value, int frames, int input_key) {
 
     if (item_no >= ITEM_WEAPON_START) {
         message_no = 10;
-        info = GetCommonItemInfo(item_no);
+        const COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
 
-        if (!info) {
-            printf("item_no: %d  is NULL\n", item_no);
+        if (info == nullptr) {
+            std::println("item_no: {}  is NULL", item_no);
         } else {
             mes_args[0] = info->msg + 100;
         }
     }
 
-    SetSystemMes(message_no, frames, MES_POS_BOTTOM, input_key, mes_args, number_ptr);
+    SetSystemMes(message_no, frames, MES_POS_BOTTOM, input_key, mes_args.data(), numbers.data());
 }
 
 void AtraGetMes(int map_no, int element, int frames) {
-    int mes_args[4] = {-1, -1, -1, -1};
-
-    mes_args[0] = GetAtraMsgNo(map_no, element);
-    SetSystemMes(40, frames, MES_POS_BOTTOM, 1, mes_args, 0);
+    std::array<int, 4> mes_args = {GetAtraMsgNo(map_no, element), -1, -1, -1};
+    SetSystemMes(40, frames, MES_POS_BOTTOM, 1, mes_args.data(), nullptr);
 }
 
 void TecGetMes(int technique, int frames) {
-    int mes_args[4] = {-1, -1, -1, -1};
-
-    mes_args[0] = technique + 500;
-    SetSystemMes(50, frames, MES_POS_BOTTOM, 1, mes_args, 0);
+    std::array<int, 4> mes_args = {technique + 500, -1, -1, -1};
+    SetSystemMes(50, frames, MES_POS_BOTTOM, 1, mes_args.data(), nullptr);
 }
 
 void MaxUpMes(int value, int frames) {
-    int numbers[4] = {0, -1, -1, -1};
-
-    numbers[0] = value;
-    SetSystemMes(51, frames, MES_POS_BOTTOM, 1, 0, numbers);
+    std::array<int, 4> numbers = {value, -1, -1, -1};
+    SetSystemMes(51, frames, MES_POS_BOTTOM, 1, nullptr, numbers.data());
 }
 
-/* A party member out of range names the first one rather than saying nothing, which is the clamp
-   the message further down makes one member along. */
+// An out-of-range member names the first one; NotGetAtraMes clamps to the second instead.
 void DeadMes(int member, int frames) {
     if (member < 0 || member > 5) {
         member = 0;
     }
 
-    int mes_args[4] = {0, -1, -1, -1};
-
-    mes_args[0] = member + 50;
-    SetSystemMes(60, frames, MES_POS_BOTTOM, 1, mes_args, 0);
+    std::array<int, 4> mes_args = {member + 50, -1, -1, -1};
+    SetSystemMes(60, frames, MES_POS_BOTTOM, 1, mes_args.data(), nullptr);
 }
 
 void AllDeadMes(int frames) {
-    SetSystemMes(61, frames, MES_POS_BOTTOM, 1, 0, 0);
+    SetSystemMes(61, frames, MES_POS_BOTTOM, 1, nullptr, nullptr);
 }
 
 void NotGetAtraMes(int member, int frames) {
@@ -303,52 +264,36 @@ void NotGetAtraMes(int member, int frames) {
         member = 1;
     }
 
-    int mes_args[4] = {0, -1, -1, -1};
-
-    mes_args[0] = member + 50;
-    SetSystemMes(70, frames, MES_POS_BOTTOM, 0, mes_args, 0);
+    std::array<int, 4> mes_args = {member + 50, -1, -1, -1};
+    SetSystemMes(70, frames, MES_POS_BOTTOM, 0, mes_args.data(), nullptr);
 }
 
 void DontGetItemMes(int kind) {
-    int message_no;
-
-    message_no = 72;
-
-    if (kind == 2) {
-        message_no = 81;
-    }
-
-    SetSystemMes(message_no, 40, MES_POS_BOTTOM, 1, 0, 0);
+    const int message_no = kind == 2 ? 81 : 72;
+    SetSystemMes(message_no, 40, MES_POS_BOTTOM, 1, nullptr, nullptr);
 }
 
-/* A negative entry in either list means *leave the slot empty* rather than substitute a negative
-   number, so every slot is cleared before it is written and only four of each are ever filled. */
+// A negative entry in either list leaves that slot empty (-1) rather than storing the negative.
 void SetSystemMes(int message_no, int frames, int position, int input_key, int *args, int *numbers) {
-    int i;
-
     SystemMesInputKey = input_key;
 
-    if (args) {
-        for (i = 0; i < 4; i++) {
+    if (args != nullptr) {
+        for (int i = 0; i < 4; i++) {
             SystemMessage.mes_no[i] = -1;
 
-            if (*args >= 0) {
-                SystemMessage.mes_no[i] = *args;
+            if (args[i] >= 0) {
+                SystemMessage.mes_no[i] = args[i];
             }
-
-            args++;
         }
     }
 
-    if (numbers) {
-        for (i = 0; i < 4; i++) {
+    if (numbers != nullptr) {
+        for (int i = 0; i < 4; i++) {
             SystemMessage.values[i] = -1;
 
-            if (*numbers >= 0) {
-                SystemMessage.values[i] = *numbers;
+            if (numbers[i] >= 0) {
+                SystemMessage.values[i] = numbers[i];
             }
-
-            numbers++;
         }
     }
 

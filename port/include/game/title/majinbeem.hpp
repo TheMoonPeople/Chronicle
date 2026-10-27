@@ -15,11 +15,11 @@ enum MajinBeemState {
 
 // clang-format on
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CCamera;
 
+/**
+ * The demon's beam in the opening: a head sprite followed by a trail of the places it has been.
+ */
 class CMajinBeem {
 public:
     sceVu0FVECTOR positions[60]; /**< Trail element positions, the head first. */
@@ -36,46 +36,26 @@ public:
 
     /**
      * Initializes the beam before it is fired.
-     *
-     * @mangled __ct__10CMajinBeemFv
-     * @address 0x1434C0
-     * @size 0x30
      */
     CMajinBeem();
 
     /**
      * Drops the beam, so that nothing draws until it is fired again.
-     *
-     * @mangled Initialize__10CMajinBeemFv
-     * @address 0x1434F0
-     * @size 0x10
      */
     void Initialize();
 
     /**
      * Draws the beam trail as camera-facing sprites.
-     *
-     * @mangled Draw__10CMajinBeemFP7CCamera
-     * @address 0x1DADD50
-     * @size 0x250
      */
     void Draw(CCamera *camera);
 
     /**
-     * Draws and contracts the beam's leading sprite.
-     *
-     * @mangled Draw2__10CMajinBeemFP7CCameraPfPf
-     * @address 0x1DADFA0
-     * @size 0x394
+     * Draws and contracts the beam's leading sprite at `head`, depth-biased towards the camera from `source`.
      */
     void Draw2(CCamera *camera, float *head, float *source);
 
     /**
      * Advances the beam and records its trail positions.
-     *
-     * @mangled Step__10CMajinBeemFv
-     * @address 0x1DAE340
-     * @size 0x24C
      */
     void Step();
 };

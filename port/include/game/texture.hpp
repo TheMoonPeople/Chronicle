@@ -8,45 +8,58 @@ class sceVif1Packet;
 class CTexture;
 struct TM2_head;
 
+/**
+ * Header at the start of an IMG texture archive, followed by one IMG_entry per picture.
+ */
 struct IMG_head {
     char  tag[4];   /**< IMG file signature. */
     u_int pictures; /**< Number of image entries in the file. */
     u_int unk_08[2];
 };
 
+/**
+ * One picture in an IMG texture archive's directory.
+ */
 struct IMG_entry {
     char  name[32]; /**< Null-terminated texture name. */
     u_int offset;   /**< Byte offset of the texture data. */
     u_int unk_24[3];
 };
 
+/**
+ * Fills a texture's size, format and GS registers from a TIM2 header.
+ */
 void SetTextureInfo(CTexture *texture, char *name, TM2_head *head);
+
+/**
+ * Fills a texture from the IMG archive picture with the given name, or every picture when empty.
+ */
 void SetTextureInfo(CTexture *texture, char *name, u_char *buffer);
 
-/* One texture file a block is built from, as the tables handed to EnterTextureFile hold them.
-   LoadTextureBlock walks a table from the front for each block in turn and stops at the first
-   entry whose name is null or empty, so a table states its own end rather than its length; the
-   third field is carried into EnterIMGFile unread by anything reconstructed. */
+/**
+ * One texture file a block is built from. A table of these ends at the first entry whose name is
+ * null or empty.
+ */
 struct LOADTEXTURE_INFO {
-    char *name;     /**< Texture file or synthetic frame-buffer specification. */
+    char *name;     /**< Texture file or "#name#width#height#bpp" placeholder specification. */
     int   block_no; /**< Destination texture block. */
     int   mipmap;   /**< Whether the file's textures keep their mip levels. */
 };
 
-/* The same three fields for the block loaders that take an image already in memory. The first
-   field is spelled as a name because that is what the loaders read it as — they compare its first
-   character and hand it to the archive reader — and a caller with pixels rather than a file name
-   casts on the way in. */
+/**
+ * One image already in memory a block is built from. The first field holds either a placeholder
+ * specification or the IMG archive itself, which callers cast to a name.
+ */
 struct LOADTEXTURE_INFO2 {
-    char *name;     /**< Texture file or synthetic frame-buffer specification. */
+    char *name;     /**< IMG archive in memory or "#name#width#height#bpp" placeholder specification. */
     int   block_no; /**< Destination texture block. */
     int   mipmap;   /**< Whether the image's textures keep their mip levels. */
 };
 
-/* One texture the registry hands out: the name it answers to, the block that owns it, the `TEX0`
-   and `TEX1` already assembled for it, and where each of its four mip levels and its palette were
-   copied. A block number of -1 marks a texture no block owns, which is what the registry's own
-   entry at index zero and every fixed texture carry. */
+/**
+ * One registered texture: its name, owning block, assembled TEX0/TEX1 and staged pixels. A block
+ * of -1 marks a texture no block owns, such as entry zero and every fixed texture.
+ */
 class CTexture {
 public:
     short  block;    /**< Texture block containing this texture. */
@@ -61,13 +74,17 @@ public:
     int    swizzled; /**< Whether the 8-bit pixels are stored in GS 32-bit page order. */
 
     CTexture();
+
+    /**
+     * Clears the texture back to an unused entry.
+     */
     void Initialize();
 };
 
-/* One of the seventy-two texture blocks: the run of video memory its textures were given, the run
-   of the registry's buffer their pixels were copied into, and how far another block has since
-   written over the first. `vram_end` is where the next texture entered into the block goes and
-   `vram_top` is where one entered without pixels goes, which is why the two move apart. */
+/**
+ * One of the seventy-two texture blocks: its run of video memory, its run of the staging buffer,
+ * and how far another block has since written over its VRAM.
+ */
 class CTextureBlock {
 public:
     char       name[32];   /**< Null-terminated block name. */
@@ -80,14 +97,17 @@ public:
     u_long128 *buffer_end; /**< End of the block's pixels in the staging buffer. */
 
     CTextureBlock();
+
+    /**
+     * Clears the block back to an empty, unloaded state.
+     */
     void Initialize();
 };
 
-/* The registry itself, of which the game keeps exactly one. Seventy-two blocks and a hundred and
-   ninety-six textures, all of them constructed at start-up, over one buffer taken whole from
-   `TextureData` at Initialize. Video memory is handed out from the bottom for the blocks and from
-   `vram_fix` downwards for the fixed textures, and the two meeting is the error every entry
-   point checks for. */
+/**
+ * The texture registry. Blocks take VRAM from the bottom and fixed textures from `vram_fix`
+ * downwards; the two meeting is the error every entry point checks for.
+ */
 class CTextureManager {
 public:
     int               texture_max;   /**< Upper bound of the texture indices searched. */
@@ -105,37 +125,128 @@ public:
 
     CTextureManager() { Initialize(16352); }
 
-    void      Initialize(int size);
-    void      SetBuffer(u_long128 *buffer, int size);
-    int       SearchTextureName(char *name, int block);
-    int       GetTextureHandle(char *name, int block);
+    /**
+     * Resets every block and texture and takes the whole staging buffer, managing VRAM up to size.
+     */
+    void Initialize(int size);
+
+    /**
+     * Uses a staging buffer of size quadwords, aligned forward for DMA.
+     */
+    void SetBuffer(u_long128 *buffer, int size);
+
+    /**
+     * Returns the index of a named texture in one block, or any block when negative, or -1.
+     */
+    int SearchTextureName(char *name, int block);
+
+    /**
+     * Returns the handle of a named texture in one block, or any block when negative, or -1.
+     */
+    int GetTextureHandle(char *name, int block);
+
+    /**
+     * Returns the texture for a handle, or entry zero when the handle is out of range.
+     */
     CTexture *GetTexture(int handle);
+
     /**
      * Finds a named texture in one block, or in every block when the block is negative.
-     *
-     * @mangled GetTexture__15CTextureManagerFPci
-     * @address 0x1312D0
-     * @size 0x50
      */
     CTexture *GetTexture(char *name, int block);
+
+    /**
+     * Returns the first unused texture entry.
+     */
     CTexture *SearchTexture(char *name);
-    void      EnterTexture(int block, char *name, u_char *image, int width, int height, int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3, u_long tex1, int swizzled);
-    void      EnterTextureEX(int block, char *name, u_char *image, int width, int height, int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3, u_long tex1, int swizzled);
-    void      EnterFixTexture(char *name, u_char *image, int width, int height, int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3, u_long tex1, int swizzled);
-    void      EnterFixTextureZ(u_char *buffer);
-    void      EnterIMGFile(u_char *buffer, int block, int mipmap, int extend);
-    void      ReloadTexture(sceVif1Packet *packet, int block);
-    void      BeginEnterTextureBlock(int block);
-    void      EndEnterTextureBlock(int block);
-    int       DeleteTextureBlock(int block);
-    int       CleanUpBuffer();
-    int       CleanUpTextureList();
-    int       LoadTextureBlock(int block, u_int *buffer);
-    int       LoadTextureBlock(int block, LOADTEXTURE_INFO *table, u_int *buffer);
-    int       LoadTextureBlock(int block, LOADTEXTURE_INFO2 *table);
-    int       LoadTextureBlockEX(int block, LOADTEXTURE_INFO2 *table);
-    int       EnterTextureFile(LOADTEXTURE_INFO *table);
-    void      print_buff_info();
+
+    /**
+     * Registers a texture in a block, copying its pixels into the staging buffer.
+     */
+    void EnterTexture(int block, char *name, u_char *image, int width, int height, int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3, u_long tex1, int swizzled);
+
+    /**
+     * Registers a texture in a block, keeping the caller's pixels rather than copying them.
+     */
+    void EnterTextureEX(int block, char *name, u_char *image, int width, int height, int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3, u_long tex1, int swizzled);
+
+    /**
+     * Registers a fixed texture and uploads it at once to the top of the managed VRAM.
+     */
+    void EnterFixTexture(char *name, u_char *image, int width, int height, int bpp, u_char *clut, int clut_colors, int mipmap, u_char *mip1, u_char *mip2, u_char *mip3, u_long tex1, int swizzled);
+
+    /**
+     * Registers the Z-buffer scratch texture from a TIM2 image.
+     */
+    void EnterFixTextureZ(u_char *buffer);
+
+    /**
+     * Registers every picture of an IMG archive in a block, or as fixed textures when negative.
+     */
+    void EnterIMGFile(u_char *buffer, int block, int mipmap, int extend);
+
+    /**
+     * Makes a block's textures resident and records it as the last block reloaded.
+     */
+    void ReloadTexture(sceVif1Packet *packet, int block);
+
+    /**
+     * Starts entering textures into a block at the end of the staging buffer.
+     */
+    void BeginEnterTextureBlock(int block);
+
+    /**
+     * Finishes entering textures into a block.
+     */
+    void EndEnterTextureBlock(int block);
+
+    /**
+     * Clears a block, or every block when negative, and unregisters its textures.
+     */
+    int DeleteTextureBlock(int block);
+
+    /**
+     * Packs the blocks' pixels to the front of the staging buffer.
+     */
+    int CleanUpBuffer();
+
+    /**
+     * Tidies the texture table after blocks have been deleted.
+     */
+    int CleanUpTextureList();
+
+    /**
+     * Builds a block, or every block when negative, from the table set by EnterTextureFile.
+     */
+    int LoadTextureBlock(int block, u_int *buffer);
+
+    /**
+     * Builds a block, or every block when negative, reading each file of the table into buffer.
+     */
+    int LoadTextureBlock(int block, LOADTEXTURE_INFO *table, u_int *buffer);
+
+    /**
+     * Builds a block, or every block when negative, from IMG archives already in memory.
+     */
+    int LoadTextureBlock(int block, LOADTEXTURE_INFO2 *table);
+
+    /**
+     * Builds a block like LoadTextureBlock, keeping the archives' pixels rather than copying them.
+     */
+    int LoadTextureBlockEX(int block, LOADTEXTURE_INFO2 *table);
+
+    /**
+     * Sets the table the two-argument LoadTextureBlock loads from.
+     */
+    int EnterTextureFile(LOADTEXTURE_INFO *table);
+
+    /**
+     * Debug hook that prints nothing.
+     */
+    void print_buff_info();
 };
 
+/**
+ * The game's one texture registry.
+ */
 extern CTextureManager TexManager;

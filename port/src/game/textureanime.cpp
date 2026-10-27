@@ -1,24 +1,162 @@
 #include "textureanime.hpp"
 
-#include <cstring>
+#include <array>
 
-#include "mglib.hpp"
-#include "rect.hpp"
 #include "scriptinterpreter.hpp"
 #include "texture.hpp"
 
-s32            CTextureAnime::stop_anime;
+s32 CTextureAnime::stop_anime;
+
+namespace {
+
 CTextureAnime *pTexAnime;
 int            now_group;
 
-static void CommandTEX_ANIME(void **arguments);
-static void CommandTEX_ANIME_DATA(void **arguments);
-static void CommandTEX_ANIME_DATA2(void **arguments);
-static void CommandTEX_SCROLL_DATA(void **arguments);
-static void CommandTEX_ANIME_END(void **arguments);
+/**
+ * Enables or disables the texture-animation group selected by configuration parsing.
+ */
+void CommandTEX_ANIME(void **arguments) {
+    now_group = *static_cast<int *>(arguments[0]);
+
+    if (*static_cast<int *>(arguments[1]) != 0) {
+        pTexAnime->Enable(now_group);
+        return;
+    }
+
+    pTexAnime->Disable(now_group);
+}
+
+/**
+ * Builds and appends a two-texture animation record from configuration arguments.
+ */
+void CommandTEX_ANIME_DATA(void **arguments) {
+    CTexAnimeData record;
+    record.group = static_cast<s16>(now_group);
+    record.kind = 0;
+    char *first_name = static_cast<char *>(arguments[0]);
+    record.source_x = *static_cast<s16 *>(arguments[1]);
+    record.source_y = *static_cast<s16 *>(arguments[2]);
+    record.source_width = *static_cast<s16 *>(arguments[3]);
+    record.source_height = *static_cast<s16 *>(arguments[4]);
+    char *second_name = static_cast<char *>(arguments[5]);
+    record.dest_x = *static_cast<s16 *>(arguments[6]);
+    record.dest_y = *static_cast<s16 *>(arguments[7]);
+    record.duration = *static_cast<s16 *>(arguments[8]);
+
+    if (*static_cast<int *>(arguments[9]) != 0) {
+        record.duration = -1;
+    }
+
+    CTexture *first_texture = TexManager.GetTexture(first_name, -1);
+    CTexture *second_texture = TexManager.GetTexture(second_name, -1);
+    record.first_texture = CTextureTexAnime{};
+    record.first_texture.block = -1;
+    record.second_texture = CTextureTexAnime{};
+    record.second_texture.block = -1;
+
+    if (first_texture != nullptr && second_texture != nullptr) {
+        record.first_texture.Copy(first_texture);
+        record.second_texture.Copy(second_texture);
+        pTexAnime->EnterTexAnime(&record);
+    }
+}
+
+/**
+ * Builds and appends a two-texture animation record with an explicit auxiliary index.
+ */
+void CommandTEX_ANIME_DATA2(void **arguments) {
+    CTexAnimeData record;
+    record.group = static_cast<s16>(now_group);
+    record.kind = 0;
+    char *first_name = static_cast<char *>(arguments[0]);
+    record.source_x = *static_cast<s16 *>(arguments[1]);
+    record.source_y = *static_cast<s16 *>(arguments[2]);
+    record.source_width = *static_cast<s16 *>(arguments[3]);
+    record.source_height = *static_cast<s16 *>(arguments[4]);
+    char *second_name = static_cast<char *>(arguments[5]);
+    record.dest_x = *static_cast<s16 *>(arguments[6]);
+    record.dest_y = *static_cast<s16 *>(arguments[7]);
+    record.duration = *static_cast<s16 *>(arguments[8]);
+    int hold = *static_cast<int *>(arguments[9]);
+    record.linked_group = *static_cast<s16 *>(arguments[10]);
+
+    if (hold != 0) {
+        record.duration = -1;
+    }
+
+    CTexture *first_texture = TexManager.GetTexture(first_name, -1);
+    CTexture *second_texture = TexManager.GetTexture(second_name, -1);
+
+    if (first_texture != nullptr && second_texture != nullptr) {
+        record.first_texture.Copy(first_texture);
+        record.second_texture.Copy(second_texture);
+        pTexAnime->EnterTexAnime(&record);
+    }
+}
+
+/**
+ * Builds and appends a scrolling texture-animation record from configuration arguments.
+ */
+void CommandTEX_SCROLL_DATA(void **arguments) {
+    CTexAnimeData record;
+    record.group = static_cast<s16>(now_group);
+    record.kind = 1;
+    char *first_name = static_cast<char *>(arguments[0]);
+    record.source_x = *static_cast<s16 *>(arguments[1]);
+    record.source_y = *static_cast<s16 *>(arguments[2]);
+    record.source_width = *static_cast<s16 *>(arguments[3]);
+    record.source_height = *static_cast<s16 *>(arguments[4]);
+    char *second_name = static_cast<char *>(arguments[5]);
+    record.dest_x = *static_cast<s16 *>(arguments[6]);
+    record.dest_y = *static_cast<s16 *>(arguments[7]);
+    record.scroll_x_step = *static_cast<float *>(arguments[8]);
+    record.scroll_y_step = *static_cast<float *>(arguments[9]);
+    record.duration = *static_cast<s16 *>(arguments[10]);
+
+    if (*static_cast<int *>(arguments[11]) != 0) {
+        record.duration = -1;
+    }
+
+    CTexture *first_texture = TexManager.GetTexture(first_name, -1);
+    CTexture *second_texture = TexManager.GetTexture(second_name, -1);
+
+    if (first_texture != nullptr && second_texture != nullptr) {
+        record.first_texture.Copy(first_texture);
+        record.second_texture.Copy(second_texture);
+        pTexAnime->EnterTexAnime(&record);
+    }
+}
+
+/**
+ * Ends a texture animation command; nothing remains to be done.
+ */
+void CommandTEX_ANIME_END(void ** /*arguments*/) {
+}
+
+/** The tags LoadCFGFile recognises, each with its argument kinds. */
+std::array<TAG_PARAM, 5> Command = {
+    {
+     {.name = "TEX_ANIME", .argument_types = {1, 1, -1}},
+     {.name = "TEX_ANIME_DATA", .argument_types = {0, 1, 1, 1, 1, 0, 1, 1, 1, 1, -1}},
+     {.name = "TEX_ANIME_DATA2", .argument_types = {0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, -1}},
+     {.name = "TEX_SCROLL_DATA", .argument_types = {0, 1, 1, 1, 1, 0, 1, 1, 2, 2, 1, 1, -1}},
+     {.name = "TEX_ANIME_END", .argument_types = {-1}},
+     }
+};
+
+/** The handler LoadCFGFile calls for each of Command's tags. */
+constexpr std::array<void (*)(void **arguments), 5> CommandExe = {
+    CommandTEX_ANIME,
+    CommandTEX_ANIME_DATA,
+    CommandTEX_ANIME_DATA2,
+    CommandTEX_SCROLL_DATA,
+    CommandTEX_ANIME_END,
+};
+
+} // namespace
 
 void CTextureTexAnime::Copy(CTexture *texture) {
-    if (texture != NULL) {
+    if (texture != nullptr) {
         block = texture->block;
         width = texture->width;
         height = texture->height;
@@ -36,9 +174,9 @@ void CTexAnimeData::Initialize() {
     kind = -1;
     group = 0;
     duration = 0;
-    memset(&first_texture, 0, sizeof(first_texture));
+    first_texture = CTextureTexAnime{};
     first_texture.block = -1;
-    memset(&second_texture, 0, sizeof(second_texture));
+    second_texture = CTextureTexAnime{};
     second_texture.block = -1;
     source_height = 0;
     source_width = 0;
@@ -50,7 +188,7 @@ void CTexAnimeData::Initialize() {
     scroll_x = 0.0f;
     scroll_y_step = 0.0f;
     scroll_x_step = 0.0f;
-    next = NULL;
+    next = nullptr;
     linked_group = -1;
 }
 
@@ -58,10 +196,10 @@ void CTextureAnime::Initialize(CTexAnimeData *records, int count) {
     data = records;
     data_count = count;
 
-    for (int group = 0; group < 24; group++) {
-        first[group] = 0;
-        current[group] = 0;
-        last[group] = 0;
+    for (int group = 0; group < kGroupCount; group++) {
+        first[group] = nullptr;
+        current[group] = nullptr;
+        last[group] = nullptr;
         frame[group] = 0;
         enabled[group] = 0;
     }
@@ -72,46 +210,44 @@ CTextureAnime::CTextureAnime(CTexAnimeData *records, int count) {
 }
 
 CTexAnimeData *CTextureAnime::NewTexAnimeData() {
-    if (data == NULL) {
-        return NULL;
+    if (data == nullptr) {
+        return nullptr;
     }
 
-    CTexAnimeData *record = data;
-
-    for (int i = 0; i < data_count; i++, record++) {
-        if (record->kind == -1) {
-            return record;
+    for (int index = 0; index < data_count; index++) {
+        if (data[index].kind == -1) {
+            return &data[index];
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 CTexAnimeData *CTextureAnime::NewTexAnimeGroupData(int group) {
-    if (group < 0 || group >= 24) {
-        return NULL;
+    if (group < 0 || group >= kGroupCount) {
+        return nullptr;
     }
 
     CTexAnimeData *record = NewTexAnimeData();
 
-    if (record == NULL) {
-        return NULL;
+    if (record == nullptr) {
+        return nullptr;
     }
 
     record->Initialize();
 
-    if (last[group] != NULL) {
+    if (last[group] != nullptr) {
         last[group]->next = record;
     }
 
     last[group] = record;
-    record->next = NULL;
+    record->next = nullptr;
 
-    if (current[group] == NULL) {
+    if (current[group] == nullptr) {
         current[group] = record;
     }
 
-    if (first[group] == NULL) {
+    if (first[group] == nullptr) {
         first[group] = record;
     }
 
@@ -121,7 +257,7 @@ CTexAnimeData *CTextureAnime::NewTexAnimeGroupData(int group) {
 int CTextureAnime::EnterTexAnime(CTexAnimeData *source) {
     CTexAnimeData *record = NewTexAnimeGroupData(source->group);
 
-    if (record == NULL) {
+    if (record == nullptr) {
         return 0;
     }
 
@@ -143,13 +279,13 @@ int CTextureAnime::EnterTexAnime(CTexAnimeData *source) {
 }
 
 void CTextureAnime::DisableAll() {
-    for (int group = 0; group < 24; group++) {
+    for (int group = 0; group < kGroupCount; group++) {
         Disable(group);
     }
 }
 
 void CTextureAnime::Enable(int group) {
-    if (group < 0 || group >= 24) {
+    if (group < 0 || group >= kGroupCount) {
         return;
     }
 
@@ -157,7 +293,7 @@ void CTextureAnime::Enable(int group) {
 }
 
 void CTextureAnime::Disable(int group) {
-    if (group < 0 || group >= 24) {
+    if (group < 0 || group >= kGroupCount) {
         return;
     }
 
@@ -166,24 +302,6 @@ void CTextureAnime::Disable(int group) {
     frame[group] = 0;
 }
 
-/** The tags LoadCFGFile recognises, each with its argument kinds. */
-static TAG_PARAM Command[5] = {
-    {"TEX_ANIME",       {1, 1, -1}                                    },
-    {"TEX_ANIME_DATA",  {0, 1, 1, 1, 1, 0, 1, 1, 1, 1, -1}            },
-    {"TEX_ANIME_DATA2", {0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, -1}},
-    {"TEX_SCROLL_DATA", {0, 1, 1, 1, 1, 0, 1, 1, 2, 2, 1, 1, -1}      },
-    {"TEX_ANIME_END",   {-1}                                          },
-};
-
-/** The handler LoadCFGFile calls for each of Command's tags. */
-static void (*CommandExe[5])(void **arguments) = {
-    CommandTEX_ANIME,
-    CommandTEX_ANIME_DATA,
-    CommandTEX_ANIME_DATA2,
-    CommandTEX_SCROLL_DATA,
-    CommandTEX_ANIME_END,
-};
-
 void CTextureAnime::LoadCFGFile(char *script, int script_size) {
     pTexAnime = this;
     now_group = 0;
@@ -191,157 +309,8 @@ void CTextureAnime::LoadCFGFile(char *script, int script_size) {
 
     CScriptInterpreter interpreter;
     interpreter.SetScript(script, script_size);
-    interpreter.SetTAG((TAG_PARAM *) Command, 5);
-    int command;
-
-    for (;;) {
-        command = interpreter.GetNextTAG();
-
-        if (command < 0) {
-            break;
-        }
-
+    interpreter.SetTAG(Command.data(), static_cast<int>(Command.size()));
+    for (int command = interpreter.GetNextTAG(); command >= 0; command = interpreter.GetNextTAG()) {
         CommandExe[command](interpreter.arguments);
     }
-}
-
-/**
- * Enables or disables the texture-animation group selected by configuration parsing.
- *
- * @mangled CommandTEX_ANIME__FPPv
- * @address 0x167C80
- * @size 0x5C
- */
-static void CommandTEX_ANIME(void **arguments) {
-    now_group = *(int *) arguments[0];
-
-    if (*(int *) arguments[1] != 0) {
-        pTexAnime->Enable(now_group);
-        return;
-    }
-
-    pTexAnime->Disable(now_group);
-}
-
-/**
- * Builds and appends a two-texture animation record from configuration arguments.
- *
- * @mangled CommandTEX_ANIME_DATA__FPPv
- * @address 0x167CE0
- * @size 0x180
- */
-static void CommandTEX_ANIME_DATA(void **arguments) {
-    CTexAnimeData record;
-    record.group = (s16) now_group;
-    record.kind = 0;
-    char *first_name = (char *) arguments[0];
-    record.source_x = *(s16 *) arguments[1];
-    record.source_y = *(s16 *) arguments[2];
-    record.source_width = *(s16 *) arguments[3];
-    record.source_height = *(s16 *) arguments[4];
-    char *second_name = (char *) arguments[5];
-    record.dest_x = *(s16 *) arguments[6];
-    record.dest_y = *(s16 *) arguments[7];
-    record.duration = *(s16 *) arguments[8];
-
-    if (*(int *) arguments[9] != 0) {
-        record.duration = -1;
-    }
-
-    CTexture *first_texture = TexManager.GetTexture(first_name, -1);
-    CTexture *second_texture = TexManager.GetTexture(second_name, -1);
-    memset(&record.first_texture, 0, sizeof(record.first_texture));
-    record.first_texture.block = -1;
-    memset(&record.second_texture, 0, sizeof(record.second_texture));
-    record.second_texture.block = -1;
-
-    if (first_texture != NULL && second_texture != NULL) {
-        record.first_texture.Copy(first_texture);
-        record.second_texture.Copy(second_texture);
-        pTexAnime->EnterTexAnime(&record);
-    }
-}
-
-/**
- * Builds and appends a two-texture animation record with an explicit auxiliary index.
- *
- * @mangled CommandTEX_ANIME_DATA2__FPPv
- * @address 0x167E60
- * @size 0x13C
- */
-static void CommandTEX_ANIME_DATA2(void **arguments) {
-    CTexAnimeData record;
-    record.group = (s16) now_group;
-    record.kind = 0;
-    char *first_name = (char *) arguments[0];
-    record.source_x = *(s16 *) arguments[1];
-    record.source_y = *(s16 *) arguments[2];
-    record.source_width = *(s16 *) arguments[3];
-    record.source_height = *(s16 *) arguments[4];
-    char *second_name = (char *) arguments[5];
-    record.dest_x = *(s16 *) arguments[6];
-    record.dest_y = *(s16 *) arguments[7];
-    record.duration = *(s16 *) arguments[8];
-    int hold = *(int *) arguments[9];
-    record.linked_group = *(s16 *) arguments[10];
-
-    if (hold != 0) {
-        record.duration = -1;
-    }
-
-    CTexture *first_texture = TexManager.GetTexture(first_name, -1);
-    CTexture *second_texture = TexManager.GetTexture(second_name, -1);
-
-    if (first_texture != NULL && second_texture != NULL) {
-        record.first_texture.Copy(first_texture);
-        record.second_texture.Copy(second_texture);
-        pTexAnime->EnterTexAnime(&record);
-    }
-}
-
-/**
- * Builds and appends a scrolling texture-animation record from configuration arguments.
- *
- * @mangled CommandTEX_SCROLL_DATA__FPPv
- * @address 0x167FA0
- * @size 0x14C
- */
-static void CommandTEX_SCROLL_DATA(void **arguments) {
-    CTexAnimeData record;
-    record.group = (s16) now_group;
-    record.kind = 1;
-    char *first_name = (char *) arguments[0];
-    record.source_x = *(s16 *) arguments[1];
-    record.source_y = *(s16 *) arguments[2];
-    record.source_width = *(s16 *) arguments[3];
-    record.source_height = *(s16 *) arguments[4];
-    char *second_name = (char *) arguments[5];
-    record.dest_x = *(s16 *) arguments[6];
-    record.dest_y = *(s16 *) arguments[7];
-    record.scroll_x_step = *(float *) arguments[8];
-    record.scroll_y_step = *(float *) arguments[9];
-    record.duration = *(s16 *) arguments[10];
-
-    if (*(int *) arguments[11] != 0) {
-        record.duration = -1;
-    }
-
-    CTexture *first_texture = TexManager.GetTexture(first_name, -1);
-    CTexture *second_texture = TexManager.GetTexture(second_name, -1);
-
-    if (first_texture != NULL && second_texture != NULL) {
-        record.first_texture.Copy(first_texture);
-        record.second_texture.Copy(second_texture);
-        pTexAnime->EnterTexAnime(&record);
-    }
-}
-
-/**
- * Ends a texture animation command; nothing remains to be done.
- *
- * @mangled CommandTEX_ANIME_END__FPPv
- * @address 0x1680F0
- * @size 0x8
- */
-static void CommandTEX_ANIME_END(void **arguments) {
 }

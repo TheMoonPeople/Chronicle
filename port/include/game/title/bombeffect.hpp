@@ -33,37 +33,21 @@ public:
 
     /**
      * Initializes the fire and dust billboards before animation begins.
-     *
-     * @mangled __ct__11CBombEffectFv
-     * @address 0x143460
-     * @size 0x30
      */
     CBombEffect();
 
     /**
      * Drops every billboard the effect is carrying.
-     *
-     * @mangled Initialize__11CBombEffectFv
-     * @address 0x143490
-     * @size 0x30
      */
     void Initialize();
 
     /**
      * Draws the active fire and dust billboards facing the camera.
-     *
-     * @mangled Draw__11CBombEffectFP7CCamerai
-     * @address 0x1DAD610
-     * @size 0x3AC
      */
     void Draw(CCamera *camera, int dust_only);
 
     /**
      * Advances every active billboard through its size and alpha envelope.
-     *
-     * @mangled Step__11CBombEffectFv
-     * @address 0x1DAD9C0
-     * @size 0x390
      */
     void Step();
 };

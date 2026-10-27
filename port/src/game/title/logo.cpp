@@ -3,6 +3,9 @@
 #include <libgraph.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
+
 #include "camera.hpp"
 #include "character.hpp"
 #include "main.hpp"
@@ -12,24 +15,42 @@
 #include "title/title.hpp"
 #include "title/titleloop.hpp"
 
-CLogo::CLogo() {
-    int i;
+namespace {
 
-    for (i = 0; i < 9; i++) {
-        alpha[i] = 0;
-    }
+struct SparkWindow {
+    float start;
+    float end;
+};
 
-    count = 0;
-    unused_count = 0;
-}
+// Open motion-time interval during which each sparkle is drawn.
+constexpr std::array<SparkWindow, CLogo::kLetterCount> kSparkWindows = {
+    {
+     {.start = 1.0f, .end = 41.0f},
+     {.start = 10.0f, .end = 50.0f},
+     {.start = 20.0f, .end = 60.0f},
+     {.start = 30.0f, .end = 70.0f},
+     {.start = 40.0f, .end = 80.0f},
+     {.start = 50.0f, .end = 90.0f},
+     {.start = 60.0f, .end = 100.0f},
+     {.start = 70.0f, .end = 110.0f},
+     {.start = 80.0f, .end = 105.0f},
+     }
+};
+
+constexpr std::array<const char *, CLogo::kLetterCount> kLetterFrameNames = {
+    "logo_D1", "logo_A1", "logo_R1", "logo_K1", "logo_C1", "logo_L1", "logo_O1", "logo_U1", "logo_D2"};
+
+constexpr int kFadeStep = 4;
+constexpr int kMaxAlpha = 128;
+constexpr int kLetterLight = 40;
+
+} // namespace
+
+CLogo::CLogo() : alpha{}, count(0), unused_count(0) {}
 
 void CLogo::Init() {
-    int i;
-
-    for (i = 0; i < 9; i++) {
-        alpha[i] = 0;
-        light[i] = 40;
-    }
+    alpha.fill(0);
+    light.fill(kLetterLight);
 
     count = 0;
     unused_count = 0;
@@ -39,35 +60,30 @@ void CLogo::Init() {
     Logo.frame->SetPosition(position);
     Logo.motion_type.state.time = 1.0f;
 
-    for (i = 0; i < 9; i++) {
+    for (int i = 0; i < kLetterCount; i++) {
         Spark[i].motion_type.state.time = 1.0f;
     }
 }
 
 void CLogo::Fade() {
-    int i;
+    if (count >= 2000) {
+        return;
+    }
 
-    if (count < 2000) {
-        count++;
+    count++;
 
-        for (i = 0; i < 9; i++) {
-            if (count > i * 10) {
-                alpha[i] += 4;
-
-                if (alpha[i] > 128) {
-                    alpha[i] = 128;
-                }
-            }
+    // Each letter starts fading in ten ticks after the previous one.
+    for (int i = 0; i < kLetterCount; i++) {
+        if (count > i * 10) {
+            alpha[i] = std::min(alpha[i] + kFadeStep, kMaxAlpha);
         }
     }
 }
 
 void CLogo::FadeOut() {
-    int i;
-
-    for (i = 0; i < 9; i++) {
-        if (alpha[i] > 0) {
-            alpha[i] -= 4;
+    for (int &letter_alpha : alpha) {
+        if (letter_alpha > 0) {
+            letter_alpha -= kFadeStep;
         }
     }
 }
@@ -77,59 +93,23 @@ void CLogo::Sparkdraw(float time) {
 
     MGSetAmbient(color);
 
-    if (time > 1.0f && time < 41.0f) {
-        Spark[0].Draw();
-    }
-
-    if (time > 10.0f && time < 50.0f) {
-        Spark[1].Draw();
-    }
-
-    if (time > 20.0f && time < 60.0f) {
-        Spark[2].Draw();
-    }
-
-    if (time > 30.0f && time < 70.0f) {
-        Spark[3].Draw();
-    }
-
-    if (time > 40.0f && time < 80.0f) {
-        Spark[4].Draw();
-    }
-
-    if (time > 50.0f && time < 90.0f) {
-        Spark[5].Draw();
-    }
-
-    if (time > 60.0f && time < 100.0f) {
-        Spark[6].Draw();
-    }
-
-    if (time > 70.0f && time < 110.0f) {
-        Spark[7].Draw();
-    }
-
-    if (time > 80.0f && time < 105.0f) {
-        Spark[8].Draw();
+    for (int i = 0; i < kLetterCount; i++) {
+        if (time > kSparkWindows[i].start && time < kSparkWindows[i].end) {
+            Spark[i].Draw();
+        }
     }
 }
 
 void CLogo::Draw() {
     sceVu0FVECTOR color = {0.0f, 0.0f, 0.0f, 128.0f};
-    CFrame       *frame;
-    int           i;
 
-    for (i = 0; i < 9; i++) {
-        char *name[9] = {
-            "logo_D1", "logo_A1", "logo_R1", "logo_K1", "logo_C1",
-            "logo_L1", "logo_O1", "logo_U1", "logo_D2"};
-
-        frame = Logo.frame->SearchFrame(name[i]);
-        color[3] = (float) alpha[i];
-        light[i] = 40;
-        color[0] = (float) light[i] / 2.0f;
-        color[1] = (float) light[i] / 4.0f;
-        color[2] = (float) light[i];
+    for (int i = 0; i < kLetterCount; i++) {
+        CFrame *frame = Logo.frame->SearchFrame(const_cast<char *>(kLetterFrameNames[i]));
+        color[3] = static_cast<float>(alpha[i]);
+        light[i] = kLetterLight;
+        color[0] = static_cast<float>(light[i]) / 2.0f;
+        color[1] = static_cast<float>(light[i]) / 4.0f;
+        color[2] = static_cast<float>(light[i]);
         MGSetAmbient(color);
         MGDraw(frame);
     }

@@ -2,10 +2,8 @@
 
 #include "common.h"
 
-class ClsMes;
-
 /**
- *          Carries a mutable text buffer and the parser's current position.
+ * Carries a mutable text buffer and the parser's current position.
  */
 struct input_str {
     char *data; /**< Text being parsed. */
@@ -14,10 +12,11 @@ struct input_str {
 
     input_str() : size(0), pos(0) {}
 
-    input_str(int unused) {}
-
+    /**
+     * Reads the byte at the current position and advances past it; returns 0 once that passes the end.
+     */
     int get(int *value) {
-        *value = (u_char) data[pos];
+        *value = static_cast<u_char>(data[pos]);
         pos++;
 
         if (size < pos) {
@@ -29,39 +28,6 @@ struct input_str {
 };
 
 STATIC_ASSERT(sizeof(input_str) == 0xC);
-
-/**
- * Message window used for transient system notifications.
- */
-extern ClsMes SystemMessage;
-/**
- * Aligned storage containing the system-message file.
- */
-extern short mes_data[24000];
-/**
- * Work buffer used while laying out a system message.
- */
-extern char mes_buff[65536];
-/**
- * Message number currently displayed, or -1 when none is active.
- */
-extern int SystemMesNo;
-/**
- * Screen-position preset used by the active message.
- */
-extern int SystemMesPosition;
-/**
- * Display frames remaining for the active message.
- */
-extern int SystemMesCount;
-/**
- * Frames before the active message begins stepping.
- */
-extern int SystemMesWait;
-/**
- * Whether the active message waits for confirm input.
- */
-extern int SystemMesInputKey;
 
 /**
  * Initializes the system-message window and loads its message file.
@@ -116,33 +82,21 @@ void NotGetAtraMes(int member, int frames);
  */
 void DontGetItemMes(int kind);
 /**
- * Configures and opens one system message.
+ * Configures and opens one system message; negative entries in args or numbers leave that slot empty.
  */
 void SetSystemMes(int message_no, int frames, int position, int input_key, int *args, int *numbers);
 
 /**
- * Skips the blanks in front of the next token; the system message copy of the script reader's SkipSpace.
- *
- * @mangled SkipSpace__FR9input_str__3
- * @address 0x15FD30
- * @size 0x94
+ * Skips the blanks in front of the next token; returns 0 when the text runs out first.
  */
-extern "C" int SkipSpace__FR9input_str__3(input_str &input);
+int SkipSpace__FR9input_str__3(input_str &input);
 
 /**
- * Whether a character can start a token; the system message copy of the script reader's CheckChar.
- *
- * @mangled CheckChar__Fc__3
- * @address 0x15FDD0
- * @size 0x60
+ * Whether a character can start a token, i.e. is not a space, tab or line end.
  */
-extern "C" int CheckChar__Fc__3(char value);
+int CheckChar__Fc__3(char value);
 
 /**
- * Strips comments and line ends from a script; the system message copy of the script reader's PreProcess.
- *
- * @mangled PreProcess__FR9input_str__2
- * @address 0x15FE30
- * @size 0x11c
+ * Blanks out // and block comments in a script in place.
  */
-extern "C" void PreProcess__FR9input_str__2(input_str &input);
+void PreProcess__FR9input_str__2(input_str &input);
