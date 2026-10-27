@@ -845,7 +845,7 @@ void AtraLight() {
             dir[1] = world[1] - eye[1] - 12.0f;
             dir[2] = world[2] - eye[2];
 
-            float len = std::max(sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]), 10.0f);
+            float len = std::max(std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]), 10.0f);
 
             float power = 5.0f * (100.0f / (len * len));
 
