@@ -4,9 +4,8 @@
 #include <utility>
 #include <vector>
 
-// The battle menu's text. What a ring slot says depends on the menu's state (town or dungeon, which
-// exit the map offers), so it lives with the menu rather than in the UI framework, which holds no
-// menu's content.
+// Battle menu text. A ring slot's text depends on menu state (town or dungeon, which exit the map
+// offers), so it lives with the menu rather than in the UI framework.
 
 /**
  * Returns the default English localization key-value pairs for the Battle Menu and Weapon Menu.

@@ -9,10 +9,13 @@ struct PortDecodedTexture;
 namespace areacard {
 
 /**
- * Area-name translation keys and English defaults.
+ * Area-name translation keys and their English defaults.
  */
 std::vector<std::pair<std::string, std::string>> Strings();
 
+/**
+ * Forgets the prepared card, so nothing is drawn until the next Prepare.
+ */
 void Clear();
 
 /**
@@ -20,6 +23,9 @@ void Clear();
  */
 bool Prepare(const std::string &name, PortDecodedTexture &texture);
 
+/**
+ * Reports whether a card is prepared for drawing.
+ */
 bool Prepared();
 
 /**

@@ -82,5 +82,7 @@ struct BT_ACT_STATUS {
 
 STATIC_ASSERT(sizeof(BT_ACT_STATUS) == 0x150);
 
-/** What the player is doing in the dungeon this frame. */
-extern "C" BT_ACT_STATUS BtActStatus;
+/**
+ * What the player is doing in the dungeon this frame.
+ */
+extern BT_ACT_STATUS BtActStatus;

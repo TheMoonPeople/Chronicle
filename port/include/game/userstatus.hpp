@@ -77,8 +77,7 @@ STATIC_ASSERT(sizeof(ATRA_SAVE) == 0xC);
  */
 class CUserStatus {
 public:
-    /* CDngStatusData extends this layout with its dungeon tail. The fields are
-     * public because retail reaches into them from outside both classes. */
+    // CDngStatusData extends this layout; callers of both classes reach the fields directly.
     s8        cur_georama; /**< Current town and dungeon index. */
     char      unk_01[1];
     s8        cur_floor;  /**< Floor the party stands on. */
@@ -141,60 +140,46 @@ public:
     s32            active_item_vol[3];     /**< Uses left of the item in each quick-use slot. */
 
     /**
-     * @mangled ChkEventFlag__11CUserStatusFi
-     * @address 0x1BDAC0
-     * @size 0x5C
+     * Returns the dungeon event flag flag_no, which is not range-checked.
      */
     int ChkEventFlag(int flag_no);
 
     /**
-     * @mangled ClearEventFlag__11CUserStatusFv
-     * @address 0x1BDB20
-     * @size 0x34
+     * Clears every dungeon event flag.
      */
     void ClearEventFlag();
 
     /**
-     * @mangled AddDrink__11CUserStatusFisf
-     * @address 0x1BE510
-     * @size 0x1FC
+     * Changes a character's water by amount, at once when ratio is zero or else in steps of
+     * ratio percent of the change per Step.
      */
     void AddDrink(int chara_no, s16 amount, float ratio);
 
     /**
-     * @mangled AddNowLife__11CUserStatusFisf
-     * @address 0x1BE710
-     * @size 0x178
+     * Changes a character's life by amount, at once when ratio is zero or else in steps of
+     * ratio percent of the change per Step.
      */
     void AddNowLife(int chara_no, s16 amount, float ratio);
 
     /**
-     * @mangled CheckLife__11CUserStatusFv
-     * @address 0x1BE890
-     * @size 0x68
+     * Returns 0 if the active character's life is or is heading to zero, otherwise 1.
      */
     int CheckLife();
 
     /**
-     * @mangled SetNextLife__11CUserStatusFisf
-     * @address 0x1BE900
-     * @size 0x144
+     * Sets a character's life to value, at once when ratio is zero or else in steps of ratio
+     * percent of the change per Step.
      */
     void SetNextLife(int chara_no, s16 value, float ratio);
 
     /**
-     * Drains the active character's water, then moves every water and HP gauge one step.
-     *
-     * @mangled Step__11CUserStatusFi
-     * @address 0x1BEA50
-     * @size 0x388
+     * Drains the active character's water when mode is 0, then moves every water and life gauge
+     * one step.
      */
     void Step(int mode);
 
     /**
-     * @mangled Init__11CUserStatusFv
-     * @address 0x1BEDE0
-     * @size 0x108
+     * Clears the gauges' steps, the event flags, and the drain and restriction state.
      */
     void Init();
 };

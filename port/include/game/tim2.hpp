@@ -2,10 +2,8 @@
 
 /**
  * A TIM2 image as the texture registry reads it: a sixteen-byte file header followed by one
-   picture header per picture, whose own header states how far past it the pixels start. Only the
-   fields the reconstruction reads are named; the game's own name for the picture header is not in
-   the image, so `TM2_head` is the only one of the two names it provides
-   (docs/formats/tim2.md).
+ * picture header per picture, whose header_size states how far past it the pixels start. Only the
+ * fields the game reads are named (docs/formats/tim2.md).
  */
 
 #include "common.h"
@@ -25,10 +23,8 @@ enum TIM2_IMAGE_TYPE {
 // clang-format on
 
 /**
- * The file header, which the registry reads the first picture's size and format through as well:
-   the game's own declaration names those three fields at their absolute offsets rather than
-   reaching them through the picture header beside it, and both spellings appear in the same
-   file.
+ * The file header, through which the registry also reads the first picture's format and size at
+ * their absolute offsets rather than through the picture header that follows it.
  */
 struct TM2_head {
     char    unk_00[35];

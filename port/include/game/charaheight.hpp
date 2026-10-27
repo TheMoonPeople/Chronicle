@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <array>
+
 #include "userstatus.hpp"
 
 /**
@@ -13,7 +15,7 @@
  * How tall the current character stands.
  */
 static inline float CharaHeight(CUserStatus *status) {
-    float chara_height[6] = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
+    constexpr std::array<float, 6> chara_height = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
 
     return chara_height[status->cur_chara];
 }

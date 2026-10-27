@@ -13,7 +13,7 @@
  * `CRect_i_` is the disassembler's filesystem-safe spelling of the retail
  * name; it is what every mangled symbol in this project carries.
  */
-class CRect_i_ {
+class alignas(16) CRect_i_ {
 public:
     s32 x;      /**< Distance of the left edge from the left of the texture. */
     s32 y;      /**< Distance of the top edge from the top of the texture. */
@@ -23,7 +23,7 @@ public:
     CRect_i_() {}
 
     CRect_i_(s32 x, s32 y, s32 width, s32 height) : x(x), y(y), width(width), height(height) {}
-} __attribute__((aligned(16)));
+};
 
 STATIC_ASSERT(sizeof(CRect_i_) == 0x10);
 

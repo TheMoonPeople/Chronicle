@@ -6,12 +6,12 @@
 
 /**
  * Everything a frame is drawn against, kept in one object so that a draw takes a single pointer:
-   the camera, the screen it is projected onto, the lights and the fog. Most of it is derived
-   rather than set — the two matrices a caller supplies are the view and the projection, and the
-   rest is recomputed from them whenever either changes.
-
-   The block from scale to far is one clip volume expressed per axis rather than four
-   vectors: x, y and z each get a scale, an offset and the two bounds they are held between.
+ * the camera, the screen it is projected onto, the lights and the fog. Most of it is derived
+ * rather than set: the two matrices a caller supplies are the view and the projection, and the
+ * rest is recomputed from them whenever either changes.
+ *
+ * The block from scale to far is one clip volume expressed per axis rather than four vectors:
+ * x, y and z each get a scale, an offset and the two bounds they are held between.
  */
 struct RenderInfo {
     float         projection; /**< Projection scale the render info was last built from. */
@@ -36,29 +36,22 @@ struct RenderInfo {
     sceVu0FVECTOR clip_min;    /**< Lower clip bounds sent to the microprograms, near depth in w. */
     sceVu0FMATRIX perspective; /**< Perspective matrix into clip space. */
     sceVu0FMATRIX viewport;    /**< Clip space to GS screen coordinates matrix. */
-    /**
- * The plane a frame's shadow is cast onto, kept as a point and a normal, and the projection
-       onto it that ShadowMatrix derives from the pair and the first light direction.
- */
+    // The shadow plane is kept as a point and a normal; ShadowMatrix derives the projection onto
+    // it from the pair and the first light direction.
     sceVu0FVECTOR shadow_point;  /**< Point on the plane shadows are cast onto. */
     sceVu0FVECTOR shadow_normal; /**< Normal of the plane shadows are cast onto. */
     sceVu0FMATRIX shadow;        /**< Projection onto the shadow plane along the first light. */
-    /**
- * The block a draw fills in on its way through rather than one the camera setup owns: every
-       field from here to the fog is written by CFrameVu1::DrawVu1 out of the frame's own
-       attributes, so what a microprogram reads here belongs to the frame being drawn and not to
-       the scene. unk_320 is the exception and is a switch the caller sets.
- */
+    // The fields from here to the fog describe the frame being drawn rather than the scene; all but
+    // scissoring and shadow_pass, which the caller sets, are written by CFrameVu1::DrawVu1 from the
+    // frame's own attributes.
     int   clip_flags;  /**< Microprogram flags: 1 clips, 2 scissors, 4 is the frame's own switch. */
     int   scissor;     /**< Whether the frame being drawn crosses the near plane and must be scissored. */
     int   scissoring;  /**< Forces scissoring of every frame that crosses the near plane. */
     float frame_far_z; /**< Far depth from the attributes of the frame last drawn. */
     int   shadow_pass; /**< Pass being drawn: 0 normal, 1 fast shadow, 2 shadow, 8 shade. */
     int   fog_enabled; /**< Whether the frame being drawn takes fog. */
-    /**
- * Fog is applied as a + b/z, which is what makes both ends of it a division the caller never
-       does: MGSetFogParm takes the two depths and the two densities and solves for the pair.
- */
+    // Fog is applied as a + b/z; MGSetFogParm takes the two depths and the two densities and
+    // solves for the pair.
     float  fog_a;     /**< Constant term of the fog factor. */
     float  fog_b;     /**< Coefficient of 1/z in the fog factor. */
     float  fog_far;   /**< Fog amount at the far fog depth. */

@@ -45,8 +45,12 @@ struct ShopMenuWork {
 
 STATIC_ASSERT(sizeof(ShopMenuWork) == 0x1A8);
 
-/** Shared UI state for the charge shop and item shop screens. */
+/**
+ * Shared UI state for the charge shop and item shop screens.
+ */
 extern ShopMenuWork ShopMenu;
 
-/** Which shop is open. @see ShopKind */
+/**
+ * Which shop is open. @see ShopKind
+ */
 extern s16 ChargeOrShopFlag;

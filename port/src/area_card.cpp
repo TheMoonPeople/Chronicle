@@ -8,9 +8,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <format>
 #include <fstream>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "caption_text.hpp"
@@ -26,27 +29,27 @@ namespace areacard {
 namespace {
 
 struct Entry {
-    const char *card;
-    const char *english;
+    std::string_view card;
+    std::string_view english;
 };
 
 constexpr Entry kCards[] = {
-    {"mt01",  "NORUNE VILLAGE"    },
-    {"mt02",  "MATATAKI VILLAGE"  },
-    {"mt03",  "QUEENS"            },
-    {"mt04",  "MUSKA RACKA"       },
-    {"mt05",  "MOON FACTORY"      },
-    {"mt101", "DIVINE BEAST CAVE" },
-    {"mt102", "WISE OWL FOREST"   },
-    {"mt103", "SHIPWRECK"         },
-    {"mt104", "SUN&MOON TEMPLE"   },
-    {"mt105", "MOON SEA"          },
-    {"mt106", "GALLERY OF TIME"   },
-    {"mt107", "DEMON SHAFT"       },
-    {"mt14",  "BROWNBOO VILLAGE"  },
-    {"mt23",  "YELLOW DROPS"      },
-    {"mt301", "DARK SHRINE"       },
-    {"mt40",  "DARK HEAVEN CASTLE"},
+    {.card = "mt01",  .english = "NORUNE VILLAGE"    },
+    {.card = "mt02",  .english = "MATATAKI VILLAGE"  },
+    {.card = "mt03",  .english = "QUEENS"            },
+    {.card = "mt04",  .english = "MUSKA RACKA"       },
+    {.card = "mt05",  .english = "MOON FACTORY"      },
+    {.card = "mt101", .english = "DIVINE BEAST CAVE" },
+    {.card = "mt102", .english = "WISE OWL FOREST"   },
+    {.card = "mt103", .english = "SHIPWRECK"         },
+    {.card = "mt104", .english = "SUN&MOON TEMPLE"   },
+    {.card = "mt105", .english = "MOON SEA"          },
+    {.card = "mt106", .english = "GALLERY OF TIME"   },
+    {.card = "mt107", .english = "DEMON SHAFT"       },
+    {.card = "mt14",  .english = "BROWNBOO VILLAGE"  },
+    {.card = "mt23",  .english = "YELLOW DROPS"      },
+    {.card = "mt301", .english = "DARK SHRINE"       },
+    {.card = "mt40",  .english = "DARK HEAVEN CASTLE"},
 };
 
 struct Layout {
@@ -61,29 +64,41 @@ struct Layout {
     float       underline_pad_left = 0.0117f;
     float       underline_pad_right = 0.0169f;
     float       underline_bow = 0.0078f;
-    float       underline_wave = 0.0420f; // height of the tilde in the ribbon, of the card's height
+    float       underline_wave = 0.0420f; /**< Height of the ribbon's tilde, as a fraction of the card's height. */
     bool        drips = false;
 
-    // Measured ink bounds exclude the underline and use fractions of the card.
+    /**
+     * Measured ink bounds, excluding the underline, as fractions of the card.
+     */
     struct Ink {
         float                             left, right, top, bottom;
         std::vector<std::array<float, 2>> slots;
-        caption::FillField                field;            // the painted lettering's colours spread outward, for the texture of the fill
-        bool                              has_ring = false; // the colours of the dark outline and the glow just outside the painted letters
+        caption::FillField                field;            /**< Painted lettering colours spread outward, used as the fill texture. */
+        bool                              has_ring = false; /**< Whether outline and glow hold the colours just outside the letters. */
         unsigned char                     outline[3] = {0, 0, 0}, glow[3] = {0, 0, 0};
-        bool                              has_rule = false; // and the brush underneath it, where the card has one
+        bool                              has_rule = false; /**< Whether the card has a painted underline brush. */
         float                             rule_y = 0.0f, rule_thick = 0.0f, rule_left = 0.0f, rule_right = 0.0f;
     };
 
     std::optional<Ink> ink;
     unsigned           field_id = 0;
-    float              underline_y0 = 0.7656f; // the plate json's, before the fit moves it
+    float              underline_y0 = 0.7656f; /**< The plate layout's underline_y, before fitting moves it. */
     caption::LineStyle style;
-    float              edge_width = 0.0039f; // of the card's width
+    float              edge_width = 0.0039f; /**< Fraction of the card's width. */
     float              glow_width = 0.013f;
 };
 
+unsigned g_next_field = 0;
+
 std::optional<Layout> g_card;
+
+std::array<int, 3> TexelColour(const PortDecodedTexture &card, size_t index) {
+    if (card.format == gfx::TextureFormat::Index8) {
+        const uint32_t colour = card.palette[card.levels[0][index]];
+        return {static_cast<int>(colour & 0xFF), static_cast<int>((colour >> 8) & 0xFF), static_cast<int>((colour >> 16) & 0xFF)};
+    }
+    return {card.levels[0][index * 4], card.levels[0][(index * 4) + 1], card.levels[0][(index * 4) + 2]};
+}
 
 std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &card, const unsigned char (&fill)[3],
                                       const std::vector<caption::LetterWidth> &letters) {
@@ -98,18 +113,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
     std::vector<uint8_t> rule_row(static_cast<size_t>(height), 0);
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            const size_t i = static_cast<size_t>(y) * width + x;
-            int          rgb[3];
-            if (card.format == gfx::TextureFormat::Index8) {
-                const uint32_t colour = card.palette[card.levels[0][i]];
-                rgb[0] = static_cast<int>(colour & 0xFF);
-                rgb[1] = static_cast<int>((colour >> 8) & 0xFF);
-                rgb[2] = static_cast<int>((colour >> 16) & 0xFF);
-            } else {
-                rgb[0] = card.levels[0][i * 4];
-                rgb[1] = card.levels[0][i * 4 + 1];
-                rgb[2] = card.levels[0][i * 4 + 2];
-            }
+            const size_t             i = static_cast<size_t>(y) * width + x;
+            const std::array<int, 3> rgb = TexelColour(card, i);
 
             const float lum = static_cast<float>(rgb[0] + rgb[1] + rgb[2]) / 3.0f;
             const float fill_lum = static_cast<float>(fill[0] + fill[1] + fill[2]) / 3.0f;
@@ -124,7 +129,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
     }
     // Long horizontal runs belong to the underline rather than the letters.
     for (int y = 0; y < height; y++) {
-        int longest = 0, run = 0;
+        int longest = 0;
+        int run = 0;
         for (int x = 0; x < width; x++) {
             run = mask[static_cast<size_t>(y) * width + x] ? run + 1 : 0;
             longest = std::max(longest, run);
@@ -136,7 +142,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
     }
 
     const int least = std::max(6, height / 12);
-    int       top = -1, bottom = -1;
+    int       top = -1;
+    int       bottom = -1;
     for (int y = 0; y < height && top < 0;) {
         if (rows[static_cast<size_t>(y)] < 2) {
             y++;
@@ -160,7 +167,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
     if (top < 0) {
         return std::nullopt;
     }
-    int left = width, right = -1;
+    int left = width;
+    int right = -1;
     for (int y = top; y <= bottom; y++) {
         for (int x = 0; x < width; x++) {
             if (mask[static_cast<size_t>(y) * width + x]) {
@@ -172,8 +180,10 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
     if (right < left || right - left + 1 < width / 8) {
         return std::nullopt;
     }
-    Layout::Ink ink = {static_cast<float>(left) / width, static_cast<float>(right + 1) / width,
-                       static_cast<float>(top) / height, static_cast<float>(bottom + 1) / height};
+    Layout::Ink ink = {.left = static_cast<float>(left) / width,
+                       .right = static_cast<float>(right + 1) / width,
+                       .top = static_cast<float>(top) / height,
+                       .bottom = static_cast<float>(bottom + 1) / height};
     // Touching painted letters require sheared-column cuts near the font's estimated boundaries.
     {
         constexpr float  lean = -0.1f; // the painted lean, the same on every card (x = x' + lean * (y - mid))
@@ -184,14 +194,15 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
             for (int x = 0; x < width; x++) {
                 if (mask[static_cast<size_t>(y) * width + x]) {
                     const int sheared = static_cast<int>(std::lround(static_cast<float>(x) - lean * (static_cast<float>(y - top) - rows_n / 2.0f))) + pad;
-                    if (sheared >= 0 && sheared < static_cast<int>(cols.size())) {
+                    if (sheared >= 0 && std::cmp_less(sheared, cols.size())) {
                         cols[static_cast<size_t>(sheared)]++;
                     }
                 }
             }
         }
-        int first = -1, last = -1;
-        for (int x = 0; x < static_cast<int>(cols.size()); x++) {
+        int first = -1;
+        int last = -1;
+        for (int x = 0; std::cmp_less(x, cols.size()); x++) {
             if (cols[static_cast<size_t>(x)] > 0) {
                 first = first < 0 ? x : first;
                 last = x;
@@ -204,7 +215,7 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
             drawn += item.blank ? 0 : 1;
         }
         if (first >= 0 && total > 0.0f && drawn >= 2) {
-            const float      span = static_cast<float>(last - first + 1);
+            const auto       span = static_cast<float>(last - first + 1);
             std::vector<int> bound(letters.size() + 1, 0);
             bound[0] = first - 1;
             bound[letters.size()] = last + 1;
@@ -216,7 +227,7 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
                 int         best = static_cast<int>(std::lround(expect));
                 int         best_count = 1 << 30;
                 for (int x = static_cast<int>(std::floor(expect - reach)); x <= static_cast<int>(std::ceil(expect + reach)); x++) {
-                    if (x < 0 || x >= static_cast<int>(cols.size())) {
+                    if (x < 0 || std::cmp_greater_equal(x, cols.size())) {
                         continue;
                     }
                     const int count = cols[static_cast<size_t>(x)];
@@ -228,7 +239,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
                 bound[i + 1] = std::max(best, bound[i] + 1);
             }
 
-            std::vector<int> lo(letters.size(), 1 << 30), hi(letters.size(), -1);
+            std::vector<int> lo(letters.size(), 1 << 30);
+            std::vector<int> hi(letters.size(), -1);
             for (int y = top; y <= bottom; y++) {
                 for (int x = 0; x < width; x++) {
                     if (!mask[static_cast<size_t>(y) * width + x]) {
@@ -261,18 +273,6 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
     }
     // Extend each painted ink color to its nearest uncovered texels before sampling runtime glyphs.
     {
-        auto colour_at = [&](size_t i, int rgb[3]) {
-            if (card.format == gfx::TextureFormat::Index8) {
-                const uint32_t colour = card.palette[card.levels[0][i]];
-                rgb[0] = static_cast<int>(colour & 0xFF);
-                rgb[1] = static_cast<int>((colour >> 8) & 0xFF);
-                rgb[2] = static_cast<int>((colour >> 16) & 0xFF);
-            } else {
-                rgb[0] = card.levels[0][i * 4];
-                rgb[1] = card.levels[0][i * 4 + 1];
-                rgb[2] = card.levels[0][i * 4 + 2];
-            }
-        };
         const size_t        count = static_cast<size_t>(width) * height;
         std::vector<int>    nearest(count, -1);
         std::vector<int>    distance(count, 0);
@@ -287,11 +287,14 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
             }
         }
         for (size_t head = 0; head < queue.size(); head++) {
-            const size_t i = queue[head];
-            const int    x = static_cast<int>(i % width), y = static_cast<int>(i / width);
-            const int    dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+            const size_t                 i = queue[head];
+            const int                    x = static_cast<int>(i % width);
+            const int                    y = static_cast<int>(i / width);
+            constexpr std::array<int, 4> dx = {1, -1, 0, 0};
+            constexpr std::array<int, 4> dy = {0, 0, 1, -1};
             for (int k = 0; k < 4; k++) {
-                const int nx = x + dx[k], ny = y + dy[k];
+                const int nx = x + dx[k];
+                const int ny = y + dy[k];
                 if (nx < 0 || ny < 0 || nx >= width || ny >= height || ny < top - 12 || ny > bottom + 12) {
                     continue;
                 }
@@ -311,20 +314,22 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
             {0, 0, 0, 0}
         };
         for (size_t i = 0; i < count; i++) {
-            int rgb[3] = {fill[0], fill[1], fill[2]};
-            if (nearest[i] >= 0) {
-                colour_at(static_cast<size_t>(nearest[i]), rgb);
-            }
+            const std::array<int, 3> rgb =
+                nearest[i] >= 0 ? TexelColour(card, static_cast<size_t>(nearest[i])) : std::array<int, 3>{fill[0], fill[1], fill[2]};
             for (int c = 0; c < 3; c++) {
                 ink.field.rgb[i * 3 + c] = static_cast<unsigned char>(rgb[c]);
             }
-            const int x = static_cast<int>(i % width), y = static_cast<int>(i / width);
+            const int x = static_cast<int>(i % width);
+            const int y = static_cast<int>(i / width);
             if (nearest[i] >= 0 && !mask[i] && y >= top && y <= bottom && x >= left && x <= right) {
-                const int which = distance[i] >= 1 && distance[i] <= 2 ? 0 : distance[i] >= 3 && distance[i] <= 5 ? 1
-                                                                                                                  : -1;
+                int which = -1;
+                if (distance[i] >= 1 && distance[i] <= 2) {
+                    which = 0;
+                } else if (distance[i] >= 3 && distance[i] <= 5) {
+                    which = 1;
+                }
                 if (which >= 0) {
-                    int own[3];
-                    colour_at(i, own);
+                    const std::array<int, 3> own = TexelColour(card, i);
                     for (int c = 0; c < 3; c++) {
                         ring[which][c] += own[c];
                     }
@@ -341,7 +346,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
         }
     }
 
-    int rule_top = -1, rule_bottom = -1;
+    int rule_top = -1;
+    int rule_bottom = -1;
     for (int y = 0; y < height; y++) {
         if (rule_row[static_cast<size_t>(y)]) {
             if (rule_top < 0) {
@@ -351,7 +357,8 @@ std::optional<Layout::Ink> MeasureInk(const PortDecodedTexture                &c
         }
     }
     if (rule_top >= 0) {
-        int rule_left = width, rule_right = -1;
+        int rule_left = width;
+        int rule_right = -1;
         for (int y = rule_top; y <= rule_bottom; y++) {
             for (int x = 0; x < width; x++) {
                 if (mask[static_cast<size_t>(y) * width + x]) {
@@ -389,9 +396,9 @@ float Number(const nlohmann::json &json, const char *key, float fallback) {
 struct Frame {
     float x0, y0, w, h;
 
-    float X(float fx) const { return x0 + fx * w; }
+    [[nodiscard]] float X(float fx) const { return x0 + fx * w; }
 
-    float Y(float fy) const { return y0 + fy * h; }
+    [[nodiscard]] float Y(float fy) const { return y0 + fy * h; }
 };
 
 // A tapered sine-wave ribbon preserves the painted underline's curved silhouette.
@@ -417,7 +424,7 @@ void Ribbon(std::vector<gfx::Vertex2D> &out, const Frame &frame, const Layout &l
         const float y = cy + at * (half + (grow + extra) * aspect);
         const auto  c = shade(rgb, alpha);
         return gfx::Vertex2D{
-            frame.X(x), frame.Y(y), 0.0f, 0.0f, 0.0f, {c[0], c[1], c[2], c[3]}
+            .x = frame.X(x), .y = frame.Y(y), .z = 0.0f, .u = 0.0f, .v = 0.0f, .color = {c[0], c[1], c[2], c[3]}
         };
     };
     auto band = [&](float at0, const unsigned char (&rgb0)[3], float a0, float e0, float at1, const unsigned char (&rgb1)[3], float a1,
@@ -430,7 +437,6 @@ void Ribbon(std::vector<gfx::Vertex2D> &out, const Frame &frame, const Layout &l
         }
     };
     if (feather > 0.0f) {
-
         band(-1.0f, top_rgb, 0.0f, feather, -1.0f, top_rgb, 1.0f, 0.0f);
         band(1.0f, low_rgb, 1.0f, 0.0f, 1.0f, low_rgb, 0.0f, feather);
     }
@@ -450,7 +456,7 @@ void Mix(unsigned char (&out)[3], const unsigned char (&a)[3], const unsigned ch
 std::vector<std::pair<std::string, std::string>> Strings() {
     std::vector<std::pair<std::string, std::string>> out;
     for (const Entry &entry : kCards) {
-        out.emplace_back(std::string("area.") + entry.card, entry.english);
+        out.emplace_back(std::format("area.{}", entry.card), entry.english);
     }
     return out;
 }
@@ -500,7 +506,7 @@ bool Prepare(const std::string &name, PortDecodedTexture &texture) {
         layout.glow_width = Number(look, "glow_width", layout.glow_width);
         layout.drips = look.contains("drips") && look["drips"].is_number() && look["drips"].get<int>() != 0;
     } catch (const std::exception &error) {
-        std::fprintf(stderr, "areacard: cannot read %s: %s\n", sheet.string().c_str(), error.what());
+        std::fputs(std::format("areacard: cannot read {}: {}\n", sheet.string(), error.what()).c_str(), stderr);
         return false;
     }
 
@@ -508,19 +514,23 @@ bool Prepare(const std::string &name, PortDecodedTexture &texture) {
     int                  height = 0;
     std::vector<uint8_t> rgba;
     if (!PngLoadRgba(plate, width, height, rgba)) {
-        std::fprintf(stderr, "areacard: cannot read picture %s\n", plate.string().c_str());
+        std::fputs(std::format("areacard: cannot read picture {}\n", plate.string()).c_str(), stderr);
         return false;
     }
     layout.underline_y0 = layout.underline_y;
-    const std::string text = LocalizeText(std::string("area.") + name, entry->english);
+    const std::string text = LocalizeText("area." + name, entry->english);
     // Per-letter slots are valid only when runtime and painted strings correspond.
     const bool match_letters = LocalizeLanguageFile() == "en_us" && text == entry->english && name != "mt14";
     layout.ink = MeasureInk(texture, layout.style.fill,
                             match_letters ? caption::LetterWidths(text) : std::vector<caption::LetterWidth>{});
     if (layout.ink) {
-        std::fprintf(stderr, "areacard: %s measured lettering %.3f..%.3f x %.3f..%.3f, rule %d at %.3f, %zu letter slots\n", name.c_str(), layout.ink->left, layout.ink->right, layout.ink->top, layout.ink->bottom, layout.ink->has_rule ? 1 : 0, layout.ink->rule_y, layout.ink->slots.size());
+        std::fputs(std::format("areacard: {} measured lettering {:.3f}..{:.3f} x {:.3f}..{:.3f}, rule {} at {:.3f}, {} letter slots\n",
+                               name, layout.ink->left, layout.ink->right, layout.ink->top, layout.ink->bottom,
+                               layout.ink->has_rule ? 1 : 0, layout.ink->rule_y, layout.ink->slots.size())
+                       .c_str(),
+                   stderr);
     } else {
-        std::fprintf(stderr, "areacard: %s: no lettering measured\n", name.c_str());
+        std::fputs(std::format("areacard: {}: no lettering measured\n", name).c_str(), stderr);
     }
     std::vector<std::vector<uint8_t>> levels;
     for (size_t level = 0; level < std::max<size_t>(1, texture.levels.size()); level++) {
@@ -546,7 +556,7 @@ void Draw(float x0, float y0, float x1, float y1, float fade) {
         return;
     }
     Layout            &layout = *g_card;
-    const Frame        frame = {x0, y0, x1 - x0, y1 - y0};
+    const Frame        frame = {.x0 = x0, .y0 = y0, .w = x1 - x0, .h = y1 - y0};
     caption::LineStyle style = layout.style;
     style.edge_width = layout.edge_width * frame.w;
     style.glow_width = layout.glow_width * frame.w;
@@ -575,9 +585,8 @@ void Draw(float x0, float y0, float x1, float y1, float fade) {
         style.ink_fit = true;
         style.thin = caption::ThinReady();
 
-        static unsigned next_field = 0;
         if (layout.field_id == 0) {
-            layout.field_id = ++next_field;
+            layout.field_id = ++g_next_field;
             layout.ink->field.id = layout.field_id;
         }
         style.field = &layout.ink->field;
@@ -592,7 +601,6 @@ void Draw(float x0, float y0, float x1, float y1, float fade) {
             }
         }
         if (!ink.slots.empty()) {
-
             const float middle = (ink.left + ink.right) / 2;
             for (const std::array<float, 2> &slot : ink.slots) {
                 style.slots.push_back({frame.X(middle + (slot[0] - middle) * tune.size) + tune.dx,
@@ -619,32 +627,38 @@ void Draw(float x0, float y0, float x1, float y1, float fade) {
         right = layout.ink->rule_right;
     }
     const float                grow = layout.edge_width;
-    std::vector<gfx::Vertex2D> outline, body;
+    std::vector<gfx::Vertex2D> outline;
+    std::vector<gfx::Vertex2D> body;
     if (layout.underline) {
-
-        const float   feather = std::max(frame.w * 0.0022f, 0.9f) / frame.w;
-        unsigned char light[3], dark[3], white[3] = {255, 255, 255}, black[3] = {0, 0, 0};
+        const float         feather = std::max(frame.w * 0.0022f, 0.9f) / frame.w;
+        unsigned char       light[3];
+        unsigned char       dark[3];
+        const unsigned char white[3] = {255, 255, 255};
+        const unsigned char black[3] = {0, 0, 0};
         Mix(light, style.fill, white, 0.45f);
         Mix(dark, style.fill, black, 0.30f);
         Ribbon(outline, frame, layout, left, right, grow, feather, style.edge, style.edge, style.edge, fade);
         Ribbon(body, frame, layout, left, right, 0.0f, 0.0f, light, style.fill, dark, fade);
     }
     if (layout.drips) {
-
         const float k = std::clamp(fade, 0.0f, 1.0f);
         for (int pass = 0; pass < 2; pass++) {
             const unsigned char (&rgb)[3] = pass == 0 ? style.edge : style.fill;
             const float                 fat = pass == 0 ? grow : 0.0f;
-            const u_char                r = static_cast<u_char>(rgb[0] * k), g = static_cast<u_char>(rgb[1] * k), b = static_cast<u_char>(rgb[2] * k);
+            const auto                  r = static_cast<unsigned char>(rgb[0] * k);
+            const auto                  g = static_cast<unsigned char>(rgb[1] * k);
+            const auto                  b = static_cast<unsigned char>(rgb[2] * k);
             std::vector<gfx::Vertex2D> &out = pass == 0 ? outline : body;
             for (int drop = 0; drop < 7; drop++) {
                 const float x = (span.left - frame.x0) / frame.w + (static_cast<float>(drop) + 0.5f) * (span.right - span.left) / frame.w / 7;
                 const float y = layout.underline_y + 0.0195f;
                 const float length = 0.0898f * (0.7f + 0.3f * static_cast<float>((drop * 7) % 3) / 2);
                 const float half = 0.0059f + fat;
-                auto        vertex = [&](float px, float py) { return gfx::Vertex2D{
-                                                                   frame.X(px), frame.Y(py), 0.0f, 0.0f, 0.0f, {r, g, b, 0x80}
- }; };
+                auto        vertex = [&](float px, float py) {
+                    return gfx::Vertex2D{
+                        .x = frame.X(px), .y = frame.Y(py), .z = 0.0f, .u = 0.0f, .v = 0.0f, .color = {r, g, b, 0x80}
+                    };
+                };
                 out.push_back(vertex(x - half, y - fat));
                 out.push_back(vertex(x + half, y - fat));
                 out.push_back(vertex(x, y + length + fat));

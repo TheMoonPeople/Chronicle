@@ -5,20 +5,11 @@ namespace {
 using btlmenu_detail::DecodeMesFromBuffer;
 using btlmenu_detail::RefreshBtlMenuTextures;
 
-/**
- * Animated hand cursor for the move confirmation modal.
- */
 UI::Cursor move_cursor;
+int        last_move_state = -1;
 
-/**
- * Previous move menu state used to detect when the modal opens.
- */
-int last_move_state = -1;
-
-/**
- * Frames since the answer was chosen. It is lit for as long as the weapon menu's EQUIP is once a weapon is equipped:
- * the weapon's hop, WepFrameRate rising to pi by pi/9 a frame.
- */
+// Frames since the answer was chosen; it stays lit as long as the weapon menu's EQUIP does once a weapon is equipped
+// (WepFrameRate rising to pi by pi/9 a frame).
 int           chosen_frames = 0;
 constexpr int kChosenLitFrames = 9;
 
@@ -110,7 +101,7 @@ void PortDrawMenuMove() {
             chosen_frames <= kChosenLitFrames);
 
         if (MenuMove.state == MENU_MOVE_STATE_INTERIOR_FADE && GetInteriorOutFlag() != 0) {
-            AllFadeForMenu(std::min(0x80, static_cast<int>(MenuMove.counter * 3)));
+            AllFadeForMenu(std::min(0x80, MenuMove.counter * 3));
         }
 
         if (MenuMove.state == MENU_MOVE_STATE_SELECT || MenuMove.state == MENU_MOVE_STATE_CONFIRM) {
@@ -121,9 +112,9 @@ void PortDrawMenuMove() {
         return;
     }
 
-    int            x = 0;
-    int            y = 0;
-    WORLD_MAP_POS *next = reinterpret_cast<WORLD_MAP_POS *>(NextWorldPos);
+    int   x = 0;
+    int   y = 0;
+    auto *next = reinterpret_cast<WORLD_MAP_POS *>(NextWorldPos);
     if (next != nullptr) {
         x = next->x;
         y = next->y;
@@ -137,7 +128,7 @@ void PortDrawMenuMove() {
     const int map_alpha = (MenuMove.state == MENU_MOVE_STATE_CLOSE) ? alpha : 0x80;
     if (MenuMove.ready != 0 && MenuCharaFrame.frame != nullptr) {
         MenuTextureReload(MenuMove.tex_block);
-        MenuPolygonDraw(map_alpha, +[]() {
+        MenuPolygonDraw(map_alpha, +[] {
             MenuCharaFrame.SetScale(2.2f, 2.2f, 2.2f);
             MenuCharaFrame.SetPosition(mapo);
             MenuCharaFrame.Step();
@@ -154,7 +145,7 @@ void PortDrawMenuMove() {
     }
     CommonMenuMes3.stay_frame = false;
 
-    const float width = static_cast<float>(CommonMenuMes3.GetMesWidth_system(CommonMenuMes3.mes_no[0]));
+    const auto width = static_cast<float>(CommonMenuMes3.GetMesWidth_system(CommonMenuMes3.mes_no[0]));
     CommonMenuMes3.text_x = static_cast<int>(static_cast<double>(x) - static_cast<double>(width) / 2.0);
     CommonMenuMes3.text_y = y - 0x22;
 

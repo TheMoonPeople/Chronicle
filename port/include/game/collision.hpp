@@ -43,7 +43,7 @@ public:
 /**
  * Stores a collision triangle, its plane normal, and its associated metadata.
  */
-class CCPoly {
+class alignas(16) CCPoly {
 public:
     sceVu0FVECTOR vertex[3]; /**< Corners of the triangle. */
     sceVu0FVECTOR normal;    /**< Normal of the triangle's plane. */
@@ -59,7 +59,7 @@ public:
             u8  unk_48[8];
         } attr;
     };
-} __attribute__((aligned(16)));
+};
 
 /**
  * Pairs a collision triangle with its axis-aligned bounding box.
@@ -99,22 +99,21 @@ public:
     CCPolyBox  *mesh;       /**< Bounded polygons the collision tests against. */
     int         mesh_count; /**< Number of bounded polygons in mesh. */
 
-    /* The same three fields Initialize clears, cleared again here because construction cannot
-       reach a virtual of its own class. */
+    // Clears the same fields Initialize does, since construction cannot reach this class's virtual.
     CCollisionMDT() {
-        model = 0;
-        mesh = 0;
+        model = nullptr;
+        mesh = nullptr;
         mesh_count = 0;
     }
 
-    virtual int            GetPolygon(int index, sceVu0FMATRIX v0, sceVu0FMATRIX v1, sceVu0FMATRIX v2);
-    virtual int            GetMaxY(float *position);
-    virtual sceVu0FVECTOR *GetVertexAddress(int *count);
-    virtual int            Intersection(float *from, float *to, float *hit);
-    virtual int            PickUpNearPoly(CCPoly *poly, float *position, float radius);
-    virtual int            PickUpNearPoly(CCPoly *poly, const CBoxVu0 &box);
-    virtual int            PickUpNearPoly(CCPoly *poly);
-    virtual void           Initialize();
+    int            GetPolygon(int index, sceVu0FMATRIX v0, sceVu0FMATRIX v1, sceVu0FMATRIX v2) override;
+    int            GetMaxY(float *position) override;
+    sceVu0FVECTOR *GetVertexAddress(int *count) override;
+    int            Intersection(float *from, float *to, float *hit) override;
+    int            PickUpNearPoly(CCPoly *poly, float *position, float radius) override;
+    int            PickUpNearPoly(CCPoly *poly, const CBoxVu0 &box) override;
+    int            PickUpNearPoly(CCPoly *poly) override;
+    void           Initialize() override;
 };
 
 STATIC_ASSERT(sizeof(CCPoly) == 0x50);
@@ -122,20 +121,10 @@ STATIC_ASSERT(sizeof(CBoxVu0) == 0x20);
 
 /**
  * Reports whether a ray meets any polygon of a set, and where.
- *
- * @mangled CheckHit__FP6CCPolyiPfPfPfii
- * @address 0x149D50
- * @size 0x324
- * @unknownret
  */
 int CheckHit(CCPoly *poly, int count, float *from, float *to, float *hit_point, int nearest, int mode);
 
 /**
  * Finds the collision polygon under a point, and the one above it.
- *
- * @mangled GetFootPoly__FPffP6CCPolyPfP6CCPolyii
- * @address 0x14ABB0
- * @size 0x1DC
- * @unknownret
  */
 int GetFootPoly(float *position, float depth, CCPoly *found, float *ground, CCPoly *polys, int count, int mode);
