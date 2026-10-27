@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Declarations of what ps2/src/title/titleloop.cpp defines for the rest of the title overlay.
+ * Fade, wait and blink counters the title screen loop shares with the rest of the title overlay.
  */
 
 #include "common.h"

@@ -9,4 +9,3 @@
 #include "mdt.hpp"
 #include "mglib.hpp"
 #include "renderinfo.hpp"
-

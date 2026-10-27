@@ -1,6 +1,8 @@
 #include "title/seireiking.hpp"
 
+#include <array>
 #include <cstdlib>
+#include <utility>
 
 #include "camera.hpp"
 #include "mglib.hpp"
@@ -8,35 +10,62 @@
 #include "snd.hpp"
 #include "texture.hpp"
 
-/* The jitter is taken in hundredths so that `spread` reads as a whole-unit radius: the caller in
-   the movie asks for 2 and gets an offset anywhere in [-2, 2] to a hundredth. */
-void CSeireiKing::Draw(float *origin, float size, int spread) {
-    sceVu0FVECTOR point;
-    int           corner0[4];
-    int           corner1[4];
-    int           corner2[4];
-    int           corner3[4];
-    sceGsAlpha    blend;
-    sceGsZbuf     zbuf;
-    int           i;
+namespace {
 
-    blend = mgAlpha;
+using Corner = std::array<int, 4>;
+
+constexpr std::array kSparkTextures{"eef01", "eef02", "eef04"};
+
+/* Quarters of the 64x64 "eef05" sheet, picked at random for the outer sparks. */
+constexpr std::array<std::pair<int, int>, 4> kGlintOffsets{
+    {{0, 0}, {32, 0}, {0, 32}, {32, 32}}
+};
+
+/* The jitter is taken in hundredths so that `spread` reads as a whole-unit radius: a spread of 2
+   gives an offset anywhere in [-2, 2] to a hundredth. */
+float Jitter(int spread) {
+    return static_cast<float>((spread * 100) - (rand() % (spread * 200))) / 100.0f;
+}
+
+void SetAdditiveBlend() {
+    sceGsAlpha blend = mgAlpha;
     blend.bits.a = 0;
     blend.bits.b = 2;
     blend.bits.c = 0;
     blend.bits.d = 1;
     MGSetGsALPHA(&blend);
 
-    zbuf = mgZBuffer;
+    sceGsZbuf zbuf = mgZBuffer;
     zbuf.bits.zmsk = 1;
     MGSetGsZBUF(&zbuf);
+}
 
-    sceVu0CopyVector(this->position[0], origin);
-    position[0][0] += (float) (spread * 100 - rand() % (spread * 200)) / 100.0f;
-    position[0][1] += (float) (spread * 100 - rand() % (spread * 200)) / 100.0f;
-    position[0][2] += (float) (spread * 100 - rand() % (spread * 200)) / 100.0f;
+void BuildQuadCorners(const Corner &top_left, const Corner &bottom_right, Corner &top_right, Corner &bottom_left) {
+    top_right = {bottom_right[0], top_left[1], top_left[2], top_left[3]};
+    bottom_left = {top_left[0], bottom_right[1], bottom_right[2], bottom_right[3]};
+}
 
-    for (i = 0; i < 19; i++) {
+void DrawQuad(const char *texture, const CRect_i_ &source, Corner &top_left, Corner &top_right, Corner &bottom_left, Corner &bottom_right, float alpha) {
+    set3DSprite(Vif1Packet, TexManager.GetTexture(const_cast<char *>(texture), -1), source, top_left.data(), top_right.data(), bottom_left.data(), bottom_right.data(), static_cast<u8>(alpha));
+}
+
+} // namespace
+
+void CSeireiKing::Draw(float *origin, float size, int spread) {
+    sceVu0FVECTOR point;
+    Corner        top_left;
+    Corner        bottom_right;
+    Corner        top_right;
+    Corner        bottom_left;
+
+    SetAdditiveBlend();
+
+    sceVu0CopyVector(position[0], origin);
+    position[0][0] += Jitter(spread);
+    position[0][1] += Jitter(spread);
+    position[0][2] += Jitter(spread);
+
+    for (int i = 0; i < 19; i++) {
         if (count[i] < 0) {
             continue;
         }
@@ -46,116 +75,25 @@ void CSeireiKing::Draw(float *origin, float size, int spread) {
         point[2] = position[i][2];
         point[3] = 1.0f;
 
-        if (MGRotTransPers3DSprite(corner0, corner1, point, size, size / 2.0f, 0) == 1) {
-            corner2[0] = corner1[0];
-            corner2[1] = corner0[1];
-            corner2[2] = corner0[2];
-            corner2[3] = corner0[3];
-            corner3[0] = corner0[0];
-            corner3[1] = corner1[1];
-            corner3[2] = corner1[2];
-            corner3[3] = corner1[3];
-
-            switch (rand() % 3) {
-                case 0: {
-                    CRect_i_ rect;
-
-                    rect.x = 0;
-                    rect.y = 0;
-                    rect.width = 64;
-                    rect.height = 64;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef01", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-
-                case 1: {
-                    CRect_i_ rect;
-
-                    rect.x = 0;
-                    rect.y = 0;
-                    rect.width = 64;
-                    rect.height = 64;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef02", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-
-                case 2: {
-                    CRect_i_ rect;
-
-                    rect.x = 0;
-                    rect.y = 0;
-                    rect.width = 64;
-                    rect.height = 64;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef04", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-            }
+        if (MGRotTransPers3DSprite(top_left.data(), bottom_right.data(), point, size, size / 2.0f, 0) == 1) {
+            BuildQuadCorners(top_left, bottom_right, top_right, bottom_left);
+            const char *texture = kSparkTextures[rand() % 3];
+            DrawQuad(texture, CRect_i_(0, 0, 64, 64), top_left, top_right, bottom_left, bottom_right, alpha[i]);
         }
 
-        point[0] += (float) (spread * 100 - rand() % (spread * 200)) / 100.0f;
-        point[1] += (float) (spread * 100 - rand() % (spread * 200)) / 100.0f;
-        point[2] += (float) (spread * 100 - rand() % (spread * 200)) / 100.0f;
+        point[0] += Jitter(spread);
+        point[1] += Jitter(spread);
+        point[2] += Jitter(spread);
 
-        if (MGRotTransPers3DSprite(corner0, corner1, point, size, size / 2.0f, 0) == 1) {
-            corner2[0] = corner1[0];
-            corner2[1] = corner0[1];
-            corner2[2] = corner0[2];
-            corner2[3] = corner0[3];
-            corner3[0] = corner0[0];
-            corner3[1] = corner1[1];
-            corner3[2] = corner1[2];
-            corner3[3] = corner1[3];
-
-            switch (rand() % 4) {
-                case 0: {
-                    CRect_i_ rect;
-
-                    rect.x = 0;
-                    rect.y = 0;
-                    rect.width = 32;
-                    rect.height = 32;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef05", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-
-                case 1: {
-                    CRect_i_ rect;
-
-                    rect.x = 32;
-                    rect.y = 0;
-                    rect.width = 32;
-                    rect.height = 32;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef05", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-
-                case 2: {
-                    CRect_i_ rect;
-
-                    rect.x = 0;
-                    rect.y = 32;
-                    rect.width = 32;
-                    rect.height = 32;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef05", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-
-                case 3: {
-                    CRect_i_ rect;
-
-                    rect.x = 32;
-                    rect.y = 32;
-                    rect.width = 32;
-                    rect.height = 32;
-                    set3DSprite(Vif1Packet, TexManager.GetTexture("eef05", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[i]);
-                    break;
-                }
-            }
+        if (MGRotTransPers3DSprite(top_left.data(), bottom_right.data(), point, size, size / 2.0f, 0) == 1) {
+            BuildQuadCorners(top_left, bottom_right, top_right, bottom_left);
+            const auto [offset_x, offset_y] = kGlintOffsets[rand() % 4];
+            DrawQuad("eef05", CRect_i_(offset_x, offset_y, 32, 32), top_left, top_right, bottom_left, bottom_right, alpha[i]);
         }
     }
 
-    MGSetGsALPHA(0);
-    MGSetGsZBUF(0);
+    MGSetGsALPHA(nullptr);
+    MGSetGsZBUF(nullptr);
 }
 
 /* The head, which the caller places rather than the effect. It is projected twice and only the
@@ -165,14 +103,12 @@ void CSeireiKing::Draw(float *origin, float size, int spread) {
 void CSeireiKing::Draw2(CCamera *camera, float *head, float *source) {
     sceVu0FVECTOR direction;
     sceVu0FVECTOR point;
-    int           corner0[4];
-    int           corner1[4];
-    int           near0[4];
-    int           near1[4];
-    int           corner2[4];
-    int           corner3[4];
-    sceGsAlpha    blend;
-    sceGsZbuf     zbuf;
+    Corner        top_left;
+    Corner        bottom_right;
+    Corner        near_top_left;
+    Corner        near_bottom_right;
+    Corner        top_right;
+    Corner        bottom_left;
 
     camera->GetPos(direction);
     direction[0] -= source[0];
@@ -183,16 +119,7 @@ void CSeireiKing::Draw2(CCamera *camera, float *head, float *source) {
     direction[1] *= 25.0f;
     direction[2] *= 25.0f;
 
-    blend = mgAlpha;
-    blend.bits.a = 0;
-    blend.bits.b = 2;
-    blend.bits.c = 0;
-    blend.bits.d = 1;
-    MGSetGsALPHA(&blend);
-
-    zbuf = mgZBuffer;
-    zbuf.bits.zmsk = 1;
-    MGSetGsZBUF(&zbuf);
+    SetAdditiveBlend();
 
     if (alpha[19] > 0.0f) {
         alpha[19] -= 1.0f;
@@ -203,47 +130,32 @@ void CSeireiKing::Draw2(CCamera *camera, float *head, float *source) {
         point[2] = position[19][2];
         point[3] = 1.0f;
 
-        if (MGRotTransPers3DSprite(corner0, corner1, point, 5.0f, 2.5f, 0) == 1) {
-            CRect_i_ rect;
-
-            corner2[0] = corner1[0];
-            corner2[1] = corner0[1];
-            corner2[2] = corner0[2];
-            corner2[3] = corner0[3];
-            corner3[0] = corner0[0];
-            corner3[1] = corner1[1];
-            corner3[2] = corner1[2];
-            corner3[3] = corner1[3];
+        if (MGRotTransPers3DSprite(top_left.data(), bottom_right.data(), point, 5.0f, 2.5f, 0) == 1) {
+            BuildQuadCorners(top_left, bottom_right, top_right, bottom_left);
 
             point[0] += direction[0];
             point[1] += direction[1];
             point[2] += direction[2];
 
-            if (MGRotTransPers3DSprite(near0, near1, point, 5.0f, 2.5f, 0) == 1) {
-                corner1[2] = near0[2];
-                corner3[2] = near0[2];
-                corner0[2] = near0[2];
-                corner2[2] = near0[2];
+            if (MGRotTransPers3DSprite(near_top_left.data(), near_bottom_right.data(), point, 5.0f, 2.5f, 0) == 1) {
+                bottom_right[2] = near_top_left[2];
+                bottom_left[2] = near_top_left[2];
+                top_left[2] = near_top_left[2];
+                top_right[2] = near_top_left[2];
             }
 
-            rect.x = 0;
-            rect.y = 0;
-            rect.width = 64;
-            rect.height = 64;
-            set3DSprite(Vif1Packet, TexManager.GetTexture("eef01", -1), rect, corner0, corner2, corner3, corner1, (u8) alpha[19]);
+            DrawQuad("eef01", CRect_i_(0, 0, 64, 64), top_left, top_right, bottom_left, bottom_right, alpha[19]);
         }
     }
 
-    MGSetGsALPHA(0);
-    MGSetGsZBUF(0);
+    MGSetGsALPHA(nullptr);
+    MGSetGsZBUF(nullptr);
 }
 
 /* The trail is shifted rather than advanced: every element takes the position of the one in front
    of it and `Draw` writes the new head, so an element's own age is all that decides how it looks. */
 void CSeireiKing::Step() {
-    int i;
-
-    for (i = 0; i < 18; i++) {
+    for (int i = 0; i < 18; i++) {
         sceVu0CopyVector(position[18 - i], position[17 - i]);
         count[i]++;
     }

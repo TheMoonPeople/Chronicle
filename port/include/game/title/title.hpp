@@ -37,110 +37,67 @@ class CFrameVu1;
 class CScFader;
 
 /**
- *          Draws title cinematic scene A.
- *
- * @mangled DrawProcA__Fv
- * @address 0x1DCBD90
- * @size 0x7D4
- * @unknownret
+ * Draws title cinematic scene A.
  */
 void DrawProcA();
 
 /**
- * @mangled DrawProcB__Fv
- * @address 0x1DCCD20
- * @size 0x4B0
- * @unknownret
+ * Draws title cinematic scene B.
  */
 void DrawProcB();
 
 /**
- * @mangled DrawProcC__Fv
- * @address 0x1DCDAE0
- * @size 0x37C
- * @unknownret
+ * Draws title cinematic scene C.
  */
 void DrawProcC();
 
 /**
- * @mangled DrawProcD__Fv
- * @address 0x1DCE480
- * @size 0x218
- * @unknownret
+ * Draws title cinematic scene D.
  */
 void DrawProcD();
 
 /**
- * @mangled DrawProcE__Fv
- * @address 0x1DCEBE0
- * @size 0x230
- * @unknownret
+ * Draws title cinematic scene E.
  */
 void DrawProcE();
 
 /**
- * @mangled DrawProcF__Fv
- * @address 0x1DCF4A0
- * @size 0x27C
- * @unknownret
+ * Draws title cinematic scene F.
  */
 void DrawProcF();
 
 /**
- * @mangled DrawProcG__Fv
- * @address 0x1DCFCF0
- * @size 0x200
- * @unknownret
+ * Draws title cinematic scene G.
  */
 void DrawProcG();
 
 /**
- * @mangled DrawProcH__Fv
- * @address 0x1DD08E0
- * @size 0x3BC
- * @unknownret
+ * Draws title cinematic scene H.
  */
 void DrawProcH();
 
 /**
- * @mangled DrawProcI__Fv
- * @address 0x1DD14C0
- * @size 0x29C
- * @unknownret
+ * Draws title cinematic scene I.
  */
 void DrawProcI();
 
 /**
- * @mangled DrawProcTitle__Fv
- * @address 0x1DD1800
- * @size 0x2A4
- * @unknownret
+ * Draws the title scene that ends the cinematic.
  */
 void DrawProcTitle();
 
 /**
- * @mangled TitleInit__Fi
- * @address 0x1DD1AB0
- * @size 0x76C
- * @unknownret
+ * Sets up the title screen; a mode of 1 starts with the cursor on Load.
  */
 void TitleInit(int mode);
 
 /**
- * @mangled TitleLoop__Fv
- * @address 0x1DD2220
- * @size 0x9E4
- * @unknownret
+ * Runs one frame of the title screen and returns what the game loop moves on to, or 0 to stay.
  */
 int TitleLoop();
 
 /**
- *          Draws the active title cinematic or title-screen scene.
- *
- * @mangled TitleDraw__Fv
- * @address 0x1DD2C10
- * @size 0x11EC
- * @unknownret
+ * Draws the active title cinematic or title-screen scene.
  */
 void TitleDraw();
 
@@ -180,15 +137,14 @@ extern CFrame *ObjectFrame3;
 extern CScFader CFade;
 
 /**
- * The step the title screen is on. The symbol is eight bytes; only the first word is ever
- * initialised and the second is never read or written anywhere in the overlay.
+ * The step the title screen is on; the second word is never used.
  */
 class CProcess {
 public:
     int no; /**< Step the title screen is on. @see TitleStep. */
     int unk_04;
 
-    CProcess() { no = 0; }
+    CProcess() : no(0) {}
 };
 
 /**

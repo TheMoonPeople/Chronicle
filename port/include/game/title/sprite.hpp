@@ -2,49 +2,40 @@
 
 #include "common.h"
 
+#include <array>
+
+/**
+ * The spark that streaks across the title screen, trailing a tail of fading points.
+ */
 class CSprite {
 public:
-    float x[12];   /**< Horizontal position of each trail point, newest first. */
-    float y[12];   /**< Vertical position of each trail point, newest first. */
-    float angle;   /**< Heading the head of the trail is turning towards. */
-    int   started; /**< Whether the trail has been let go. */
+    std::array<float, 12> x;       /**< Horizontal position of each trail point, newest first. */
+    std::array<float, 12> y;       /**< Vertical position of each trail point, newest first. */
+    float                 angle;   /**< Heading the head of the trail is turning towards. */
+    int                   started; /**< Whether the trail has been let go. */
 
     /**
-     * @mangled __ct__7CSpriteFv
-     * @address 0x1DD4420
-     * @size 0x48
+     * Parks the trail off the left of the screen, not yet started.
      */
     CSprite();
 
     /**
-     * @mangled Init__7CSpriteFv
-     * @address 0x1DD4470
-     * @size 0x44
-     * @unknownret
+     * Resets the trail to its constructed state.
      */
     void Init();
 
     /**
-     * @mangled Move__7CSpriteFv
-     * @address 0x1DD44C0
-     * @size 0x2A0
-     * @unknownret
+     * Shifts the trail along and steers its head towards the next waypoint.
      */
     void Move();
 
     /**
-     * @mangled Draw__7CSpriteFv
-     * @address 0x1DD4760
-     * @size 0x544
-     * @unknownret
+     * Draws the head, its sparks and the fading tail.
      */
     void Draw();
 
     /**
-     * @mangled Se__7CSpriteFv
-     * @address 0x1DD4CB0
-     * @size 0xC
-     * @unknownret
+     * Returns nonzero once Move has been called since the last reset.
      */
     int Se();
 };

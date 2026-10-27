@@ -2,8 +2,6 @@
 
 #include "vudata.hpp"
 
-/* The DMA chain and GS environment the frame starts with. */
-
 // clang-format off
 u_int My_dma_start0[20] __attribute__((section(".vudata"))) = {
     0x10000001, 0x00000000, 0x00000000, 0x00000000,
