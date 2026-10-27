@@ -3,61 +3,34 @@
 #include "common.h"
 
 /**
- *          Tracks the title screen's signed scene-fade value.
+ * Tracks the title screen's signed scene-fade value.
  */
 class CScFader {
 public:
-    int value; /**< The fade itself, between -4 and 128. */
-
-    CScFader() { value = 0; }
+    int value = 0; /**< The fade itself, between -4 and 128. */
 
     /**
-     *          Advances the primary fade-in transition.
-     *
-     * @mangled In__8CScFaderFv
-     * @address 0x1DD5100
-     * @size 0x48
-     * @unknownret
+     * Advances the fade-in by 2, returning nonzero once it has reached 128.
      */
     int In();
 
     /**
-     *          Advances the alternate fade-in transition.
-     *
-     * @mangled In2__8CScFaderFv
-     * @address 0x1DD5150
-     * @size 0x48
-     * @unknownret
+     * Advances the fade-in by 8, returning nonzero once it has reached 128.
      */
     int In2();
 
     /**
-     *          Advances the fade-out transition.
-     *
-     * @mangled Out__8CScFaderFv
-     * @address 0x1DD51A0
-     * @size 0x48
-     * @unknownret
+     * Advances the fade-out by 2, returning nonzero once it has reached -4.
      */
     int Out();
 
     /**
-     *          Converts the stored fade for the requested use.
-     *
-     * @mangled Get__8CScFaderFi
-     * @address 0x1DD51F0
-     * @size 0x38
-     * @unknownret
+     * Returns the fade clamped to the range zero to limit.
      */
     int Get(int limit);
 
     /**
-     *          Forces the fade to its skipped terminal state.
-     *
-     * @mangled Skip__8CScFaderFv
-     * @address 0x1DD5230
-     * @size 0x10
-     * @unknownret
+     * Forces the fade to its fully faded-in state.
      */
     void Skip();
 };

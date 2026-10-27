@@ -2,63 +2,37 @@
 
 #include "common.h"
 
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
-class CFrameVu1;
-
 /**
- * @mangled OpD_LoadDataBG__Fv
- * @address 0x1DC40B0
- * @size 0x4C
- * @unknownret
+ * Waits for the previous background read and starts loading the spirit king's hall.
  */
 void OpD_LoadDataBG();
 
 /**
- * @mangled OpD_LoadDataBG2__Fv
- * @address 0x1DC4100
- * @size 0x74
- * @unknownret
+ * Waits for the previous background read and starts loading the meadow and its music bank.
  */
 void OpD_LoadDataBG2();
 
 /**
- * @mangled OpD_InitProcess__Fv
- * @address 0x1DC4180
- * @size 0x758
- * @unknownret
+ * Sets up the spirit king's hall, the first half of the scene.
  */
 void OpD_InitProcess();
 
 /**
- * @mangled OpD_InitProcess2__Fv
- * @address 0x1DC48E0
- * @size 0x650
- * @unknownret
+ * Sets up the meadow the girl walks out into, the second half of the scene.
  */
 void OpD_InitProcess2();
 
 /**
- * @mangled OpD_MotionProcess__Fv
- * @address 0x1DC50D0
- * @size 0x52C
- * @unknownret
+ * Applies the script's motions to the actors, places them and steps the wind and cloth.
  */
 void OpD_MotionProcess();
 
 /**
- * @mangled OpD_SoundProcess__Fv
- * @address 0x1DC5600
- * @size 0x560
- * @unknownret
+ * Plays the scene's camera-cued sound effects and music.
  */
 void OpD_SoundProcess();
 
 /**
- * @mangled OpD_DrawProcess__Fv
- * @address 0x1DC5B60
- * @size 0x9DC
- * @unknownret
+ * Draws the scene, its effects, the screen fades and the caption.
  */
 void OpD_DrawProcess();

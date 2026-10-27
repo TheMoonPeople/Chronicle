@@ -5,40 +5,37 @@
 #include <libvu0.h>
 
 /**
- * Commands of the title script, indexing Command.
+ * Commands of the title script, in the order the parser's table holds them.
  */
-// clang-format off
-enum TitleScriptCommand {
-    TSC_OBJ_MOTION2   = 0,  /**< OBJ_MOTION2. */
-    TSC_OBJ_MOTION    = 1,  /**< OBJ_MOTION. */
-    TSC_OBJ_MOVE      = 2,  /**< OBJ_MOVE. */
-    TSC_OBJ_TALK      = 3,  /**< OBJ_TALK. */
-    TSC_OBJ_EYE       = 4,  /**< OBJ_EYE. */
-    TSC_OBJ_MOUTH     = 5,  /**< OBJ_MOUTH. */
-    TSC_OBJ_DISP      = 6,  /**< OBJ_DISP. */
-    TSC_OBJ_STEP      = 7,  /**< OBJ_STEP. */
-    TSC_CAMERA        = 8,  /**< CAMERA. */
-    TSC_SE_STOP       = 9,  /**< SE_STOP. */
-    TSC_SE            = 10, /**< SE. */
-    TSC_SOUND_FADE    = 11, /**< SOUND_FADE. */
-    TSC_FADE_IN       = 12, /**< FADE_IN. */
-    TSC_FADE_OUT      = 13, /**< FADE_OUT. */
-    TSC_MESSAGE       = 14, /**< MESSAGE. */
-    TSC_NEXT_MES      = 15, /**< NEXT_MES. */
-    TSC_MES_CLR       = 16, /**< MES_CLR. */
-    TSC_LOAD_OBJ      = 17, /**< LOAD_OBJ. */
-    TSC_SPRITE        = 18, /**< SPRITE. */
-    TSC_BOM           = 19, /**< BOM. */
-    TSC_BEEM          = 20, /**< BEEM. */
-    TSC_SCENE_LOAD    = 21, /**< SCENE_LOAD. */
-    TSC_SCENE         = 22, /**< SCENE. */
-    TSC_END           = 23, /**< END. */
-    TSC_WAIT_KEY      = 24, /**< WAIT_KEY. */
-    TSC_WAIT          = 25, /**< WAIT. */
-    TSC_COMMAND_COUNT = 26, /**< Number of commands. */
+enum class TitleScriptCommand : int {
+    ObjMotion2 = 0, /**< OBJ_MOTION2. */
+    ObjMotion = 1,  /**< OBJ_MOTION. */
+    ObjMove = 2,    /**< OBJ_MOVE. */
+    ObjTalk = 3,    /**< OBJ_TALK. */
+    ObjEye = 4,     /**< OBJ_EYE. */
+    ObjMouth = 5,   /**< OBJ_MOUTH. */
+    ObjDisp = 6,    /**< OBJ_DISP. */
+    ObjStep = 7,    /**< OBJ_STEP. */
+    Camera = 8,     /**< CAMERA. */
+    SeStop = 9,     /**< SE_STOP. */
+    Se = 10,        /**< SE. */
+    SoundFade = 11, /**< SOUND_FADE. */
+    FadeIn = 12,    /**< FADE_IN. */
+    FadeOut = 13,   /**< FADE_OUT. */
+    Message = 14,   /**< MESSAGE. */
+    NextMes = 15,   /**< NEXT_MES. */
+    MesClr = 16,    /**< MES_CLR. */
+    LoadObj = 17,   /**< LOAD_OBJ. */
+    Sprite = 18,    /**< SPRITE. */
+    Bom = 19,       /**< BOM. */
+    Beem = 20,      /**< BEEM. */
+    SceneLoad = 21, /**< SCENE_LOAD. */
+    Scene = 22,     /**< SCENE. */
+    End = 23,       /**< END. */
+    WaitKey = 24,   /**< WAIT_KEY. */
+    Wait = 25,      /**< WAIT. */
+    Count = 26,     /**< Number of commands. */
 };
-
-// clang-format on
 
 /**
  * Kinds of title script argument, as CSCRIPT_COMMAND::arg_type holds them.
@@ -92,7 +89,7 @@ enum TitleScriptLoadStep {
 // clang-format on
 
 /**
- *          Describes one command recognized by the title script parser.
+ * Describes one command recognized by the title script parser.
  */
 struct CSCRIPT_COMMAND {
     const char *name;        /**< Text that identifies the command. */
@@ -104,7 +101,7 @@ struct CSCRIPT_COMMAND {
 STATIC_ASSERT(sizeof(CSCRIPT_COMMAND) == 0x2C);
 
 /**
- *          Holds the pending title-script requests for one scene object.
+ * Holds the pending title-script requests for one scene object.
  */
 struct SCRIPT_OBJ {
     u8    disp; /**< Whether the object is displayed. */
@@ -128,7 +125,7 @@ struct SCRIPT_OBJ {
 STATIC_ASSERT(sizeof(SCRIPT_OBJ) == 0x34);
 
 /**
- *          Parses and stores the state of the title overlay's text script.
+ * Parses and stores the state of the title overlay's text script.
  */
 class CScript {
 public:
@@ -187,55 +184,35 @@ public:
     u8            unk_E2C0[56];
 
     /**
-     *          Loads a title script and resets its execution state.
-     *
-     * @mangled Load__7CScriptFPCc
-     * @address 0x1DABD80
-     * @size 0x158
+     * Loads a title script and resets its execution state.
      */
     void Load(const char *name);
 
     /**
-     *          Advances the title script until a command yields execution.
-     *
-     * @mangled Step__7CScriptFv
-     * @address 0x1DABEE0
-     * @size 0x228
+     * Advances the title script until a command yields execution.
      */
     void Step();
 
     /**
-     *          Applies one parsed command to the title scene state.
-     *
-     * @mangled CheckScript__7CScriptFPciP15CSCRIPT_COMMANDi
-     * @address 0x1DAC110
-     * @size 0xB40
+     * Applies one parsed command to the title scene state.
      */
-    int CheckScript(char *buffer, int position, CSCRIPT_COMMAND *command, int command_no);
+    int CheckScript(const char *buffer, int position, const CSCRIPT_COMMAND *command, TitleScriptCommand command_no);
 
     /**
-     *          Parses the arguments required by one title script command.
-     *
-     * @mangled CheckArg__7CScriptFPciP15CSCRIPT_COMMAND
-     * @address 0x1DACC50
-     * @size 0x43C
+     * Parses the arguments required by one title script command.
      */
-    int CheckArg(char *buffer, int position, CSCRIPT_COMMAND *command);
+    int CheckArg(const char *buffer, int position, const CSCRIPT_COMMAND *command);
 
     /**
-     *          Skips whitespace and comments before the next script token.
-     *
-     * @mangled SkipSpace__7CScriptFPci
-     * @address 0x1DAD090
-     * @size 0x14C
+     * Skips whitespace and comments before the next script token.
      */
-    int SkipSpace(char *buffer, int position);
+    int SkipSpace(const char *buffer, int position);
 };
 
 STATIC_ASSERT(sizeof(CScript) == 0xE300);
 
-/** Command grammar recognized by the title script parser. */
-extern CSCRIPT_COMMAND Command[26];
-
-/** Shared title script parser and pending scene requests. */
+/**
+ * Shared title script parser and pending scene requests.
+ */
+// The elaborated specifier is needed where rushmovi.hpp's CScript object hides the class.
 extern class CScript CScript__2;

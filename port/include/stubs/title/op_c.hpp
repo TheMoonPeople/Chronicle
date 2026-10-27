@@ -1,5 +1,4 @@
 #pragma once
 
-// The PS2 link tells the four FaceChange(int) definitions of the opening scenes apart by renaming
-// them per object (object_fixups.json); op_b.cpp calls this unit's as FaceChangeC.
+// Four opening units each define FaceChange(int); this unit's is linked as FaceChangeC, the name op_b.cpp calls.
 #define FaceChange FaceChangeC

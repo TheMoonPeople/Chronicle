@@ -5,106 +5,67 @@
 class CWater;
 
 /**
- * @mangled OpC_LoadDataBG__Fv
- * @address 0x1DBBEA0
- * @size 0x4C
- * @unknownret
+ * Waits for the previous background read, then starts reading Norune at night's image pack.
  */
 void OpC_LoadDataBG();
 
 /**
- * @mangled OpC_LoadDataBG2__Fv
- * @address 0x1DBBEF0
- * @size 0x4C
- * @unknownret
+ * Waits for the previous background read, then starts reading the dance's pack.
  */
 void OpC_LoadDataBG2();
 
 /**
- * @mangled OpC_LoadDataBG3__Fv
- * @address 0x1DBBF40
- * @size 0x4C
- * @unknownret
+ * Waits for the previous background read, then starts reading the demon's pack.
  */
 void OpC_LoadDataBG3();
 
 /**
- * @mangled OpC_LoadDataBG4__Fv
- * @address 0x1DBBF90
- * @size 0x4C
- * @unknownret
+ * Waits for the previous background read, then starts reading Norune at night's image pack again.
  */
 void OpC_LoadDataBG4();
 
 /**
- * @mangled OpC_LoadDataBG5__Fv
- * @address 0x1DBBFE0
- * @size 0x4C
- * @unknownret
+ * Waits for the previous background read, then starts reading the burning village's pack.
  */
 void OpC_LoadDataBG5();
 
 /**
- * @mangled OpC_InitProcess__Fv
- * @address 0x1DBC030
- * @size 0xD9C
- * @unknownret
+ * Sets up Norune at night: its scenery, its images and the scene's shared state.
  */
 void OpC_InitProcess();
 
 /**
- * @mangled OpC_InitProcess2__Fv
- * @address 0x1DBCDD0
- * @size 0x510
- * @unknownret
+ * Loads the dancers: the shared shadow model and the villagers who join the dance.
  */
 void OpC_InitProcess2();
 
 /**
- * @mangled OpC_InitProcess3__Fv
- * @address 0x1DBD2E0
- * @size 0x73C
- * @unknownret
+ * Sets up the demon's arrival: the demon, its beam, and the sky and moonlight behind it.
  */
 void OpC_InitProcess3();
 
 /**
- * @mangled OpC_InitProcess4__Fv
- * @address 0x1DBDA20
- * @size 0x2D0
- * @unknownret
+ * Loads the images of the village after the demon, with the explosion and its dust.
  */
 void OpC_InitProcess4();
 
 /**
- * @mangled OpC_InitProcess5__Fv
- * @address 0x1DBDCF0
- * @size 0x8AC
- * @unknownret
+ * Sets up the burning village: the ruined map, the smoke pool and the actors who walk through it.
  */
 void OpC_InitProcess5();
 
 /**
- * @mangled OpC_MotionProcess__Fv
- * @address 0x1DBF300
- * @size 0x808
- * @unknownret
+ * Advances every displayed actor's motion and places it from the camera's model for this tick.
  */
 void OpC_MotionProcess();
 
 /**
- * @mangled OpC_SoundProcess__Fv
- * @address 0x1DBFC20
- * @size 0x924
- * @unknownret
+ * Plays this tick's scheduled sounds and the actors' footfalls.
  */
 void OpC_SoundProcess();
 
 /**
- * @mangled OpC_DrawProcess__Fv
- * @address 0x1DC0550
- * @size 0x14B0
- * @unknownret
+ * Draws the scene for this tick: world, actors, shadows, water, fires, beam and explosions.
  */
 void OpC_DrawProcess();
 

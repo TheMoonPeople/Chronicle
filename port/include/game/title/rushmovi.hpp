@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include "dataalloc_fwd.hpp"
+#include "title/script.hpp"
 
 /**
  * Scenes of the attract movie, as CScript::scene, load_no and init_no hold them.
@@ -30,10 +31,6 @@ class CCharacter;
 class CCameraFollow;
 class CWater;
 class CWind;
-
-// Forward declarations for the types these declarations name. The skeleton
-// headers are generated from the retail symbol table, which knows the type
-// names but not where they live.
 class CFrame;
 class CFrameVu1;
 
@@ -43,35 +40,25 @@ class CFrameVu1;
 extern CFrame *OP_CharaFrame;
 
 /**
- * @mangled RushInit__Fv
- * @address 0x1DC8C50
- * @size 0x254
- * @unknownret
+ * Sets up the attract movie's buffers, sound and first scene, and starts its fade.
  */
 void RushInit();
 
 /**
- * @mangled RushLoop__Fv
- * @address 0x1DC8EB0
- * @size 0x1E4
- * @unknownret
+ * Runs one frame of the attract movie: script, motion, drawing and sound.
+ * Returns 1 once the movie ends or Start skips it, otherwise 0.
  */
 int RushLoop();
 
 /**
- * @mangled SetObjAnime__FPcP9CFrameVu1PfPf
- * @address 0x1DCAEC0
- * @size 0x160
- * @unknownret
+ * Starts a linear rotation animation on the named frame of a model, from a
+ * start angle by a fixed step each frame.
  */
 void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step);
 
 /**
- * @mangled WaterProcess__Fv__2
- * @address 0x1DCB020
- * @size 0x290
- * @unknownret
- * @note disambiguated by disassembler ("__2" suffix); real retail name has no suffix
+ * Copies the frame buffer into the water texture, ripples the water surface
+ * and draws it.
  */
 void WaterProcess();
 

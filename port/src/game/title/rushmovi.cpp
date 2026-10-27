@@ -1,20 +1,22 @@
-#include "stubs/title/rushmovi.hpp"
-
 #include "common.h"
 
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataalloc.hpp"
 #include "dataread.hpp"
+#include "fireomni.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
@@ -22,9 +24,12 @@
 #include "mathutil.hpp"
 #include "mds.hpp"
 #include "mglib.hpp"
+#include "objanime.hpp"
 #include "object.hpp"
+#include "runeffect.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
+#include "stubs/title/rushmovi.hpp"
 #include "texture.hpp"
 #include "title/dispfade.hpp"
 #include "title/op_a.hpp"
@@ -33,139 +38,8 @@
 #include "title/rushmovi.hpp"
 #include "title/script.hpp"
 #include "vutext.hpp"
+#include "water.hpp"
 #include "wind.hpp"
-
-class OBJ_ANIME_SEQ {
-public:
-    char          name[16]; /**< Name of the frame the animation drives. */
-    int           type;     /**< Kind of animation the sequence plays. */
-    int           number;   /**< Animation number selected within that kind. */
-    char          unk_18[8];
-    sceVu0FVECTOR start; /**< Value the animation starts from. */
-    sceVu0FVECTOR unk_30;
-    float         step_x; /**< Amount the first component advances each step. */
-    float         step_y; /**< Amount the second component advances each step. */
-    float         step_z; /**< Amount the third component advances each step. */
-    float         step_w;
-    sceVu0FVECTOR current;    /**< Current animated value applied to the attached frames. */
-    CFrame       *frames[10]; /**< Frames driven by this animation. */
-    int           completion_flag;
-    int           unk_8C;
-
-    void Initialize();
-};
-
-/* The classes this movie places in the world, declared here rather than reached through headers of
-   their own because each is another unit's to type. Only the members this file touches are named;
-   the extents are the sizes the executable gives the objects below. */
-
-/* The rippling water plane the outdoor scenes stand on. The frame is where the plane sits in the
-   world. */
-class CWater {
-public:
-    char      unk_00[176];
-    CFrameVu1 frame; /**< Frame that places the plane in the world. */
-
-    CWater();
-
-    void SetVertex(float *v0, float *v1, float *v2, float *v3);
-    void SetSize(int x, int y, CDataAlloc2<1> *buffer);
-    void SetParam(float wave_speed, float damping, float height_scale, float distortion);
-    void SetColor(u_char r, u_char g, u_char b, u_char a);
-    void Shake(int x, int y, float power);
-    void Hamon();
-    int  DrawVu1(RenderInfo *info, sceVif1Packet *packet, u_long128 *parent_info);
-};
-
-/* Named rather than included, because a unit's include list is a dial on the order a call's
-   floating-point arguments are set up in and nothing here needs the definition: adding
-   renderinfo.h alone takes RushInit's three-float SetFollow out of the order the image has. */
-
-/* A frame parented to an object, which is what lets the world transform drive a model. */
-class CObjectFrame : public CObject {
-public:
-    CFrameVu1 *frame[4];         /**< Frame of each level of detail; zero where the object has none. */
-    s32        rotation_changed; /**< Set whenever the angle, its motion or the moment changes. */
-    s32        draw_on;          /**< 1 while the object draws; 0 leaves it out of the scene. */
-
-    virtual void FrameObjectOnOff(char *name, int on);
-    virtual void Draw();
-
-    void SetFrame(CFrameVu1 *frame, int level);
-};
-
-/* One piece of scenery. The movie builds a table of them, hands each its model, and drives them
-   through the object dispatch like anything else in the world. */
-class CMapObject : public CObjectFrame {
-public:
-    CFrameVu1 *collision_frame; /**< Frame that collision reads; zero where the object has none. */
-    CFrameVu1 *unk_D4;
-    CFrameVu1 *shade_frame;  /**< Frame that the shade draws from; zero where the object takes none. */
-    CFrameVu1 *camera_frame; /**< Collision frame the camera reads; zero where the object has none. */
-    float      unk_E0;
-    int        unk_E4;
-    int        unk_E8;
-    char       unk_EC[4];
-
-    CMapObject();
-
-    virtual void Draw();
-
-    void Initialize();
-    void DrawShadow(int fast);
-};
-
-/* The dust the running feet kick up, declared here for the same reason. */
-class CRunEffect {
-public:
-    char unk_00[208];
-
-    CRunEffect();
-
-    void Lighting(int on);
-    void Set(float *position);
-    void Step();
-    void Draw();
-};
-
-class CTexture;
-
-/* The movie's one fire, which is a light rather than a model. */
-class CFireOmni {
-public:
-    char          unk_18[32];
-    sceVu0FVECTOR position;    /**< World position the fire draws at. */
-    s32           texture_set; /**< Indicates that the textures were supplied rather than looked up. */
-    CTexture     *core;        /**< Bright inner texture of the flame. */
-    CTexture     *glow;        /**< Soft outer texture of the flame. */
-    s32           unk_3C;
-
-    CFireOmni();
-
-    void FireStep();
-    void FireCreate();
-
-    void SetPosition(float x, float y, float z) {
-        position[0] = 10.0f * x;
-        position[1] = 10.0f * y;
-        position[2] = 10.0f * z;
-        position[3] = 1.0f;
-    }
-
-    void DrawFire(int unused0, int unused1, CCamera *camera, float *colour, float scale, int layers, float camera_offset);
-};
-
-/* A run of frames the world draws as one. */
-class CMap {
-public:
-    char unk_00[2800];
-
-    void        Initialize();
-    CMapObject *SetObject(CFrameVu1 *frame, int category_no, int handle);
-    CMapObject *SetObject(int no, CFrameVu1 *frame, int category_no, int handle);
-    CMapObject *GetObject(int no);
-    void        Draw();
-};
 
 /* The overlay's own rectangle. Its constructor assigns x, y, w, h in that order, where
    rect.h's assigns them in the other; the same split title.cpp and opening.cpp carry. */
@@ -187,107 +61,52 @@ public:
     }
 };
 
-/* One piece of scenery the third scene lays out: the model file, where it stands and how far it is
-   turned about the vertical axis, in degrees. */
-struct MAP_INFO {
-    char *name;        /**< Model file of the piece. */
-    float position[3]; /**< Where the piece stands. */
-    float rotation;    /**< Turn about the vertical axis, in degrees. */
-};
-
-void wait_now_loading_vsync();
-void InitializeDataBuffer();
-void InitObjAnime(CFrame *frame, OBJ_ANIME_SEQ *sequence);
-void ObjAnimePlay(OBJ_ANIME_SEQ *sequence);
-void MGMoveImage(sceGsTex0 *src, const CRect<int> &rect, sceGsTex0 *dst, int dsax, int dsay, int dir);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char alpha);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &dst, const CRect<int> &src, u_char r, u_char g, u_char b, u_char a);
 
-void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
+// Definition order is construction order, so internal and external globals stay interleaved.
+CCameraFollow MainCamera__3(20.0f, 15.0f, 0.0f, 8.0f);
 
-CCameraFollow         MainCamera__3(20.0f + 0.0f + 0.0f + 0.0f + 0.0f + 0.0f + 0.0f + 0.0f + 0.0f + 0.0f + 0.0f, 15.0f, 0.0f, 8.0f);
-static CDispFade      DispFade;
-extern CFireOmni             CFire__4;
-class CScript         CScript;
-CWind                 Wind__4;
-extern CWater                Water__2;
-char                  CharaTex[9];
-CDataAlloc2<1>        CharaDataBuffer(-1);
-static tagFRAME_INF   frame_info_cam[300];
-CCharacter            Cam[4];
-static MOTION_INFO    MotionInfo;
-CDataAlloc2<1>        PathDataBuffer(-1);
-CDataAlloc2<1>        WaterBuffer(-1);
-static CDataAlloc2<1> DummyDataBuffer(-1);
-CTexAnimeData         TexAnimeDataMovie[30];
-CRunEffect            CRunFx;
+namespace {
+CDispFade DispFade;
+}
 
-/* The frame the opening movies point their camera at, which the dungeon also reads. */
-CFrame *OP_CharaFrame;
+class CScript  CScript;
+CWind          Wind__4;
+char           CharaTex[9];
+CDataAlloc2<1> CharaDataBuffer(-1);
 
-static u_char bEnd;
-static int    EndCnt;
-static int    CameraMode;
+namespace {
+auto frame_info_cam = std::make_unique<tagFRAME_INF[]>(300);
+}
+
+CCharacter Cam[4];
+
+namespace {
+MOTION_INFO MotionInfo;
+}
+
+CDataAlloc2<1> PathDataBuffer(-1);
+CDataAlloc2<1> WaterBuffer(-1);
+
+namespace {
+CDataAlloc2<1> DummyDataBuffer(-1);
+}
+
+CTexAnimeData TexAnimeDataMovie[30];
+CRunEffect    CRunFx;
+CFrame       *OP_CharaFrame;
 int           SceneNp;
 float         TitleAngle;
-static int    StartDisp;
 int           TitleFade;
 int           TitleFadeCnt;
 int           StartLightning;
 float         atraGetStatusRate;
 
-/* One actor's face, as this scene animates it. The eyes and the mouth are two strips of frames
-   stacked bottom-up in one texture, and a tick copies the current frame of each over the model's
-   face plate. This scene's eye strip is three columns of ten rather than one column, which is what
-   the eye number is folded into two coordinates for below. */
-struct FACE_INFO {
-    char *plate;        /**< Texture of the face plate the frames are copied over. */
-    char *strip;        /**< Texture holding the eye and mouth frame strips. */
-    int   eye_bottom;   /**< Distance of the eye area above the plate's bottom edge. */
-    int   eye_height;   /**< Height of one eye frame. */
-    int   mouth_bottom; /**< Distance of the mouth area above the plate's bottom edge. */
-    int   mouth_height; /**< Height of one mouth frame. */
-    int   eye;          /**< Eye frame currently shown. */
-    int   mouth;        /**< Mouth frame currently shown. */
-    int   strip_bottom; /**< Bottom row of the frame strips in the strip texture. */
-    int   unk_24;
-    int   unk_28;
-};
+namespace {
+int StartDisp;
 
-static void MotionProcess();
-static void DrawProcess();
-static void SoundProcess();
-static void DataLoad();
-static void DrawProcA();
-static void DrawProcB();
-static void DrawProcC();
-static void DrawProcD();
-static void DrawProcE();
-static void DrawProcF();
-static void DrawProcG();
-static void DrawProcH();
-static void DrawProcI();
-static void DrawProcTitle();
-
-/* One actor's blinking and speaking. The eyes and the mouth are two strips of frames in one
-   texture, and a tick copies the current frame of each over the actor's face plate. This scene's
-   eye strip is three columns of ten frames rather than one column, so the eye number the script
-   holds picks the column as well as the row. */
-void FaceChange(int actor_no);
-
-void RushInit();
-
-int RushLoop();
-
-/**
- *
- *
- * @mangled MotionProcess__Fv__2
- * @address 0x1DC90A0
- * @size 0xDD0
- * @unknownret
- */
-static void MotionProcess() {
+void MotionProcess() {
     switch (CScript.fade) {
         case TSFADE_IN_BLACK:
             DispFade.FadeInStart(CScript.fade_speed, 0);
@@ -304,6 +123,8 @@ static void MotionProcess() {
         case TSFADE_OUT_WHITE:
             DispFade.FadeOutStart(CScript.fade_speed, 1);
             CScript.fade = TSFADE_NONE;
+            break;
+        default:
             break;
     }
 
@@ -324,14 +145,12 @@ static void MotionProcess() {
             SceneNp++;
         }
 
-        Cam[SceneNp].motion_type.state.time = (float) CScript.motion_start;
+        Cam[SceneNp].motion_type.state.time = static_cast<float>(CScript.motion_start);
         Cam[SceneNp].motion_type.state.camera = &MainCamera__3;
         CScript.motion_req = false;
     }
 
-    if (Cam[SceneNp].motion_type.state.time > (float) (CScript.motion_end - 1)) {
-        Cam[SceneNp].motion_type.state.time = (float) (CScript.motion_end - 1);
-    }
+    Cam[SceneNp].motion_type.state.time = std::min(Cam[SceneNp].motion_type.state.time, static_cast<float>(CScript.motion_end - 1));
 
     for (int i = 0; i < OP_AnimeSeqRot - 1; i++) {
         ObjAnimePlay(&OP_AnimeSeq[i]);
@@ -339,18 +158,16 @@ static void MotionProcess() {
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
-            if (CScript.obj[i].motion_end != -1) {
-                if (Chara__3[i].motion_type.state.time > (float) (Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].end - 1)) {
-                    CScript.obj[i].motion = CScript.obj[i].motion_end;
-                    CScript.obj[i].motion_end = -1;
-                }
+            if (CScript.obj[i].motion_end != -1 && Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].end - 1)) {
+                CScript.obj[i].motion = CScript.obj[i].motion_end;
+                CScript.obj[i].motion_end = -1;
             }
 
             Chara__3[i].motion_type.state.blend_step = CScript.obj[i].step;
 
             if (CScript.obj[i].step == 1.0f) {
                 if (CScript.obj[i].motion != Chara__3[i].motion_no) {
-                    Chara__3[i].motion_type.state.time = (float) Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].start;
+                    Chara__3[i].motion_type.state.time = static_cast<float>(Chara__3[i].motion_type.motion_info[CScript.obj[i].motion].start);
                     Chara__3[i].motion_no = CScript.obj[i].motion;
                     Chara__3[i].motion_flags = 4;
                     Chara__3[i].motion_speed = -1.0f;
@@ -367,7 +184,7 @@ static void MotionProcess() {
         }
     }
 
-    SetMotionEX(Cam[SceneNp].frame, &Cam[SceneNp].motion_type, &MotionInfo, &Cam[SceneNp].motion_type.state, frame_info_cam);
+    SetMotionEX(Cam[SceneNp].frame, &Cam[SceneNp].motion_type, &MotionInfo, &Cam[SceneNp].motion_type.state, frame_info_cam.get());
 
     sceVu0FVECTOR wind_dir;
 
@@ -390,49 +207,38 @@ static void MotionProcess() {
             Wind__4.SetVelocity(1.3f);
             break;
         case RUSH_SCENE_B:
-            Wind__4.SetVelocity(0.4f);
-            break;
         case RUSH_SCENE_C:
-            Wind__4.SetVelocity(0.4f);
-            break;
         case RUSH_SCENE_D:
+        case RUSH_SCENE_F:
+        case RUSH_SCENE_G:
+        case RUSH_SCENE_H:
+        case RUSH_SCENE_I:
             Wind__4.SetVelocity(0.4f);
             break;
         case RUSH_SCENE_E:
             Wind__4.SetVelocity(0.0f);
             break;
-        case RUSH_SCENE_F:
-            Wind__4.SetVelocity(0.4f);
-            break;
-        case RUSH_SCENE_G:
-            Wind__4.SetVelocity(0.4f);
-            break;
-        case RUSH_SCENE_H:
-            Wind__4.SetVelocity(0.4f);
-            break;
-        case RUSH_SCENE_I:
-            Wind__4.SetVelocity(0.4f);
-            break;
         case RUSH_SCENE_TITLE:
             Wind__4.SetVelocity(0.3f);
+            break;
+        default:
             break;
     }
 
     if (CScript.scene == RUSH_SCENE_H) {
-        Chara__3[1].wind = (int) &Wind__4;
+        Chara__3[1].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     } else {
-        Chara__3[0].wind = (int) &Wind__4;
+        Chara__3[0].wind = static_cast<int>(reinterpret_cast<std::intptr_t>(&Wind__4));
     }
 
     Wind__4.Step();
 
-    typedef float MotionLocal0, MotionLocal1, MotionLocal2, MotionLocal3, MotionLocal4, MotionLocal5, MotionLocal6, MotionLocal7, MotionLocal8, MotionLocal9, MotionLocal10, MotionLocal11, MotionLocal12, MotionLocal13, MotionLocal14, MotionLocal15;
-    char         *opening_frames[9] = {
+    char *opening_frames[9] = {
         "c12a", "c12a", "c08a", "c08a", "e04a1", "e04a2", "e04a3", "e04a4", "e04a5"};
     char *scene_frames[9] = {
         "chr_a", "chr_b", "chr_c", "chr_d", "chr_e", "chr_f", "chr_g", "chr_h", "chr_i"};
     sceVu0FMATRIX matrix;
-    CFrame       *frame;
+    CFrame       *frame = nullptr;
 
     for (int i = 0; i < 9; i++) {
         if (CScript.obj[i].disp) {
@@ -474,7 +280,7 @@ static void MotionProcess() {
             sceVu0Normalize(matrix[0], matrix[0]);
             sceVu0Normalize(matrix[1], matrix[1]);
             sceVu0Normalize(matrix[2], matrix[2]);
-            Chara__3[8].SetPosition((float) (scene & 0), 0.0f, 0.0f);
+            Chara__3[8].SetPosition(static_cast<float>(scene & 0), 0.0f, 0.0f);
             Chara__3[8].SetRotation(0.0f, 0.0f, 0.0f);
             Chara__3[8].frame->SetTransMatrix(matrix);
         }
@@ -493,7 +299,6 @@ static void MotionProcess() {
                 sceVu0Normalize(matrix[0], matrix[0]);
                 sceVu0Normalize(matrix[1], matrix[1]);
                 sceVu0Normalize(matrix[2], matrix[2]);
-                typedef float m7p0, m7p1, m7p2, m7p3, m7p4, m7p5, m7p6, m7p7, m7p8, m7p9, m7p10, m7p11, m7p12, m7p13, m7p14, m7p15, m7p16, m7p17, m7p18, m7p19, m7p20, m7p21, m7p22, m7p23, m7p24, m7p25, m7p26, m7p27, m7p28, m7p29, m7p30, m7p31;
                 Chara__3[7].SetPosition(0.0f, 0.0f, 0.0f);
                 Chara__3[7].SetRotation(0.0f, 0.0f, 0.0f);
                 Chara__3[7].frame->SetTransMatrix(matrix);
@@ -501,7 +306,7 @@ static void MotionProcess() {
 
             static int old = 0;
 
-            int cam_frame = (int) Cam[SceneNp].motion_type.state.time;
+            int cam_frame = static_cast<int>(Cam[SceneNp].motion_type.state.time);
 
             if (old != cam_frame && (cam_frame == 12 || cam_frame == 17 || cam_frame == 52 || cam_frame == 111)) {
                 CScript.obj[7].motion = 0;
@@ -537,7 +342,7 @@ static void MotionProcess() {
 
         if (iwacnt == 330) {
             Chara__3[2].SetPosition(260.26f, 507.76f, 520.5f);
-            Chara__3[2].SetRotation((float) (iwacnt & 0), 1.92f, 0.0f);
+            Chara__3[2].SetRotation(static_cast<float>(iwacnt & 0), 1.92f, 0.0f);
             Chara__3[2].motion_no = 1;
             Chara__3[2].motion_flags = 4;
             Chara__3[2].motion_speed = -1.0f;
@@ -556,15 +361,7 @@ static void MotionProcess() {
     }
 }
 
-/**
- *
- *
- * @mangled DrawProcess__Fv__2
- * @address 0x1DC9E70
- * @size 0x344
- * @unknownret
- */
-static void DrawProcess() {
+void DrawProcess() {
     if (DispFade.GetRate() == 128.0) {
         return;
     }
@@ -583,7 +380,7 @@ static void DrawProcess() {
     sceVu0MulMatrix(view, unit, camera);
     MGSetViewMatrix(view, position);
 
-    sceVif1PkCall(Vif1Packet, (u_long128 *) Vu_prog0f, 0);
+    sceVif1PkCall(Vif1Packet, reinterpret_cast<u_long128 *>(Vu_prog0f), 0);
     sceVif1PkTerminate(Vif1Packet);
 
     switch (CScript.scene) {
@@ -617,6 +414,8 @@ static void DrawProcess() {
         case RUSH_SCENE_TITLE:
             DrawProcTitle();
             break;
+        default:
+            break;
     }
 
     if (CScript.scene != RUSH_SCENE_TITLE) {
@@ -643,19 +442,11 @@ static void DrawProcess() {
 
     CTexture texture;
 
-    texture.tex0 = *(u_long *) &back_tex;
+    texture.tex0 = *reinterpret_cast<u_long *>(&back_tex);
     set2DSprite(Vif1Packet, &texture, CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, SCREEN_HALF_HEIGHT), 128, 128, 128, 35);
 }
 
-/**
- *
- *
- * @mangled SoundProcess__Fv__2
- * @address 0x1DCA1C0
- * @size 0xCF4
- * @unknownret
- */
-static void SoundProcess() {
+void SoundProcess() {
     if (CScript.bgm_fade) {
         SndBgmFadeOut(64, 0);
         CScript.bgm_fade = 0;
@@ -719,7 +510,7 @@ static void SoundProcess() {
 
         if (CScript.scene == RUSH_SCENE_A) {
             CFrame *frame = Cam[SceneNp].frame->SearchFrame("c12a");
-            int     chara_frame = (int) Chara__3[1].motion_type.state.time;
+            int     chara_frame = static_cast<int>(Chara__3[1].motion_type.state.time);
 
             if (wait == 0) {
                 if (chara_frame == 10) {
@@ -743,7 +534,7 @@ static void SoundProcess() {
             }
         } else {
             CFrame *frame = Cam[SceneNp].frame->SearchFrame("chr_a");
-            int     chara_frame = (int) Chara__3[0].motion_type.state.time;
+            int     chara_frame = static_cast<int>(Chara__3[0].motion_type.state.time);
 
             if (wait == 0) {
                 if (chara_frame == 20) {
@@ -771,7 +562,7 @@ static void SoundProcess() {
     static int wait = 0;
 
     if (wait == 0) {
-        int cam_frame = (int) Cam[SceneNp].motion_type.state.time;
+        int cam_frame = static_cast<int>(Cam[SceneNp].motion_type.state.time);
 
         switch (CScript.camera_start) {
             case 4:
@@ -1027,13 +818,11 @@ static void SoundProcess() {
                 }
 
                 break;
+            default:
+                break;
         }
     } else {
         wait--;
     }
 }
-
-void SetObjAnime(char *name, CFrameVu1 *frame, float *start, float *step);
-
-void WaterProcess();
-
+} // namespace

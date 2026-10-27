@@ -1,13 +1,15 @@
-#include "stubs/title/op_d.hpp"
-
 #include "common.h"
 
 #include <libgraph.h>
 #include <libpkt.h>
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
+#include <span>
 
 #include "camera.hpp"
 #include "camerafollow.hpp"
@@ -24,6 +26,7 @@
 #include "renderinfo.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
+#include "stubs/title/op_d.hpp"
 #include "texture.hpp"
 #include "title/op_a.hpp"
 #include "title/op_b.hpp"
@@ -34,25 +37,7 @@
 #include "visual.hpp"
 #include "wind.hpp"
 
-/**
- * Sprite cues the script raises during the spirit king and meadow scenes, as CScript::sprite holds them.
- */
-// clang-format off
-enum OpDSprite {
-    OPD_SPRITE_NONE         = 0, /**< No cue. */
-    OPD_SPRITE_HALL_LIGHT   = 1, /**< Raise the hall's ambient light. */
-    OPD_SPRITE_RUIN_STILL_1 = 2, /**< First still of the ruined village. */
-    OPD_SPRITE_RUIN_STILL_2 = 3, /**< Second still of the ruined village. */
-    OPD_SPRITE_RUIN_STILL_3 = 4, /**< Third still of the ruined village. */
-    OPD_SPRITE_CAPTION_1    = 5, /**< First explanation caption. */
-    OPD_SPRITE_CAPTION_2    = 6, /**< Second explanation caption. */
-};
-
-// clang-format on
-
-/* The rectangle a texture transfer takes, declared here rather than reached through rect.h for the
-   reason op_b.cpp and op_c.cpp declare their own: rect.h's four-argument constructor assigns h, w,
-   y and x in that order and every rectangle this file builds assigns them the other way round. */
+// rect.h's four-argument constructor assigns the fields in the opposite order to this one.
 template <class T>
 class CRect {
 public:
@@ -61,251 +46,184 @@ public:
     T w; /**< Width. */
     T h; /**< Height. */
 
-    CRect() {
-        h = 0;
-        w = 0;
-        y = 0;
-        x = 0;
-    }
-
-    CRect(T left, T top, T width, T height) {
-        x = left;
-        y = top;
-        w = width;
-        h = height;
-    }
+    CRect(T left, T top, T width, T height) : x(left), y(top), w(width), h(height) {}
 } __attribute__((aligned(16)));
 
-/* The two classes this scene places in the world, declared here rather than reached through headers
-   of their own because each is another unit's to type. Only the members this file touches are
-   named; the extents are the sizes the executable gives the objects below. */
-
-/* A frame parented to an object, which is what lets the world transform drive a model. */
-class CObjectFrame : public CObject {
-public:
-    CFrameVu1 *frame[4];         /**< Frame of each level of detail; zero where the object has none. */
-    s32        rotation_changed; /**< Set whenever the angle, its motion or the moment changes. */
-    s32        draw_on;          /**< 1 while the object draws; 0 leaves it out of the scene. */
-
-    virtual void FrameObjectOnOff(char *name, int on);
-    virtual void Draw();
-
-    void SetFrame(CFrameVu1 *frame, int level);
-};
-
-/* One piece of scenery. The scene builds a table of them, hands each its model, and drives them
-   through the object dispatch like anything else in the world. The frame it was handed is read back
-   out of it here, which is what names the first member. */
-class CMapObject : public CObjectFrame {
-public:
-    CFrameVu1 *collision_frame; /**< Frame that collision reads; zero where the object has none. */
-    CFrameVu1 *shadow_frame;    /**< Model the object's shadow is drawn from; zero where it casts none. */
-    CFrameVu1 *shade_frame;     /**< Frame that the shade draws from; zero where the object takes none. */
-    CFrameVu1 *camera_frame;    /**< Collision frame the camera reads; zero where the object has none. */
-    float      shadow_offset;   /**< Height the shadow drops below the object. */
-    int        unk_34;          /**< Category of map part the object belongs to. */
-    int        handle;          /**< Handle the map gave the object. */
-    char       unk_3C[4];
-
-    CMapObject();
-
-    virtual void Draw();
-
-    void Initialize();
-    void DrawShadow(int fast);
-};
-
-/* One piece of scenery as the scene was laid out: the model, the model its shadow is drawn
-   from, where it stands in tenths of a world unit, and its three rotations in degrees. */
-struct MAPOBJ_INFO {
-    char *name;        /**< Model file inside the scene's pack. */
-    char *shadow_name; /**< Model file the shadow is drawn from, or zero for none. */
-    float position[3]; /**< Position in tenths of a world unit. */
-    float rotation[3]; /**< Rotation about each axis in degrees. */
-};
-
-/* One actor's face, as this scene animates it. The eyes and the mouth are two strips of frames
-   stacked bottom-up in one 256-wide texture — the eyes down the left half and the mouth down the
-   right — and a tick copies the current frame of each over the model's face plate. The two offsets
-   are measured from the bottom edge of the 128-pixel plate. */
-struct FACE_INFO {
-    char *plate;        /**< Texture the model draws the face with, or zero for an actor without one. */
-    char *strip;        /**< Texture holding the eye and mouth frames. */
-    int   eye_bottom;   /**< Distance of the eyes' bottom edge above the plate's bottom edge. */
-    int   eye_height;   /**< Height of one eye frame. */
-    int   mouth_bottom; /**< Distance of the mouth's bottom edge above the plate's bottom edge. */
-    int   mouth_height; /**< Height of one mouth frame. */
-    int   eye;          /**< Eye frame currently shown. */
-    int   mouth;        /**< Mouth frame currently shown. */
-    int   strip_bottom; /**< Bottom edge of the frame strips within the strip texture. */
-    int   unk_24;
-    int   unk_28;
-};
-
-void MoveImageTest(sceVif1Packet *packet, int sbp, int sbw, int spsm, const CRect<int> &rect, int dbp, int dbw, int dpsm, int dsax, int dsay, int dir);
 void set2DSprite(sceVif1Packet *packet, CTexture *texture, const CRect<int> &src, const CRect<int> &dst, u_char alpha);
-void DepthOfField(float *dist, int level, int alpha, int blur);
 
-static void SkyColor(CFrameVu1 *frame);
-static void EffectAtraPrizum();
-static void RollLight(float *target);
-static void EffectSeireiKing(float size);
-static void LensFreaProcess();
-static void Setsumei();
-static void HamonProcess();
-void        FaceChangeMovie(int actor);
-
-static CWind       Wind;
-static CFrameVu1  *Hamon[4];
-static float       HScale[5];
-static CCharacter  Effect;
-static CSeireiKing SeireiKing;
-
-static int        amb3;
-static CFrameVu1 *SkyFrame;
-
-/* One actor's blinking and speaking. The eyes and the mouth are two strips of frames in one
-   256-wide texture, and a tick copies the current frame of each over the actor's face plate. The
-   mouth is driven from the script's own clock rather than from a motion: while the actor is talking
-   a new frame is picked at random every sixth hundredth of a second left on the timer, and the
-   timer running out closes the mouth and ends the line. */
-void FaceChange(int actor_no);
-
-/* The background loads are one wrapper per file because the script names them by index: each waits
-   for the previous read to land, starts the next, and marks the load done by putting the script's
-   own load number back to none. The second one also starts the music bank packed behind the scene
-   in the same file, because the second half of the scene is scored differently from the first. */
-void OpD_LoadDataBG() {
-    while (ReadBGSync())
-        ;
-
-    LoadFileBG("opdat/norn4/seirei.pak", (u_long128 *) read_buffer, 0);
-    CScript__2.load_no = OP_SCENE_NONE;
-}
-
-void OpD_LoadDataBG2() {
-    int size;
-
-    while (ReadBGSync())
-        ;
-
-    LoadFileBG("opdat/norn4/seirei2.pak", (u_long128 *) read_buffer, &size);
-    SndBgmLoadBG(0, (u_int *) ((u_long128 *) read_buffer + (size >> 4) + 1), 0);
-    CScript__2.load_no = OP_SCENE_NONE;
-}
-
-/* The set-up for the first of the scene's two halves, the spirit king's hall. Every texture block
-   the scene before it left is dropped first, because this is the point in the opening that arrives
-   with the most already loaded. The three actors are the king, the king speaking and the girl; the
-   ripples the hall's floor carries are one model drawn four times, which is what the four-entry
-   frame table and the five-entry scale table are. */
-void OpD_InitProcess();
-
-/* The set-up for the second half, the meadow the girl walks out into. Ten models are placed from a
-   table of this file's own rather than from a configuration file: the seventh is the flowers, which
-   take a frame attribute the rest do not and whose one named frame is drawn again later under a
-   light of its own, the eighth is the sky, whose vertex colours this file writes itself, and the
-   tenth is kept aside because the lens flare is aimed at a frame inside it. */
-void OpD_InitProcess2();
+namespace {
 
 /**
- * The sky's own colours, written into the model rather than lit: the dome is thirty-two vertices
- * around and the two colours alternate two at a time, which is what paints the band the sun sits
- * in. Setting the frame's own attribute afterwards is what makes the model draw with them.
- *
- * @mangled SkyColor__FP9CFrameVu1
- * @address 0x1DC4F30
- * @size 0x194
- * @unknownret
+ * Sprite cues the script raises during the spirit king and meadow scenes, as CScript::sprite holds them.
  */
-static void SkyColor(CFrameVu1 *frame) {
-    if (frame) {
-        CVisualVu1 *visual = frame->GetVisual();
+enum class OpDSprite : int {
+    None = 0,       /**< No cue. */
+    HallLight = 1,  /**< Raise the hall's ambient light. */
+    RuinStill1 = 2, /**< First still of the ruined village. */
+    RuinStill2 = 3, /**< Second still of the ruined village. */
+    RuinStill3 = 4, /**< Third still of the ruined village. */
+    Caption1 = 5,   /**< First explanation caption. */
+    Caption2 = 6,   /**< Second explanation caption. */
+};
 
-        if (visual) {
-            MDT_HEADER *model = (MDT_HEADER *) visual->GetMDTDataAddress();
+CWind Wind;
 
-            if (model) {
-                if (model->colour_count) {
-                    sceVu0FVECTOR *color = (sceVu0FVECTOR *) ((char *) model + model->colour_ofs);
-                    sceVu0FVECTOR  color0 = {50.0f, 100.0f, 255.0f, 0.0f};
-                    sceVu0FVECTOR  color1 = {255.0f, 255.0f, 255.0f, 0.0f};
+// A rising star turns towards its target above the screen a step at a time and restarts from the
+// bottom once it leaves the top.
+void DrawRisingStar(float &x, float &y, float &rot, float target_x, float start_x) {
+    const float heading = atan2f(target_x - x, -107.0f - y);
 
-                    color0[0] = color0[0] / 128.0f;
-                    color0[1] = color0[1] / 128.0f;
-                    color0[2] = color0[2] / 128.0f;
-                    color1[0] = color1[0] / 128.0f;
-                    color1[1] = color1[1] / 128.0f;
-                    color1[2] = color1[2] / 128.0f;
-
-                    for (int i = 0; i < 32; i++) {
-                        if (i % 4 < 2) {
-                            color[i][0] = color0[0];
-                            color[i][1] = color0[1];
-                            color[i][2] = color0[2];
-                            color[i][3] = 1.0f;
-                        } else {
-                            color[i][0] = color1[0];
-                            color[i][1] = color1[1];
-                            color[i][2] = color1[2];
-                            color[i][3] = 1.0f;
-                        }
-                    }
-
-                    frame->attr.remake_pending = 1;
-                }
-            }
-        }
+    if (heading < rot) {
+        rot = rot - 0.05f;
     }
+
+    if (heading > rot) {
+        rot += 0.05f;
+    }
+
+    x = x + static_cast<float>(sin(rot) * 4.0);
+    y = y + static_cast<float>(cos(rot) * 4.0);
+
+    const int alpha = y < 32.0f ? std::max(static_cast<int>(128.0f - 4.0f * (32.0f - y)), 0) : 128;
+
+    if (y <= 0.0f) {
+        x = start_x;
+        y = 245.0f;
+    }
+
+    const int cut = static_cast<int>((245.0f - y) / 2.0f);
+
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(static_cast<int>(x), static_cast<int>(y), 178 - cut, 191 - cut),
+                CRect<int>(210, 0, 178, 178), static_cast<u_char>(alpha));
 }
 
-/* The tick's motion. Every actor the script has asked for takes what it last asked, and the ones
-   the scene animates are then placed from a frame of the camera's own model found by name. The wind
-   picks up when the scene moves outdoors, and a change of camera settles the girl's dress with no
-   time passing rather than letting it swing into place. */
+// A falling star heads straight for its target and restarts from its start once it reaches it.
+void DrawFallingStar(float &x, float &y, float target_x, float start_x, float start_y) {
+    const float heading = atan2f(target_x - x, 193.0f - y);
+
+    x = x + static_cast<float>(sin(heading) * 3.0);
+    y = y + static_cast<float>(cos(heading) * 3.0);
+
+    const int alpha = y > 148.0f ? std::max(static_cast<int>(128.0f - 4.0f * (y - 159.0f)), 0) : 128;
+
+    if (y >= 191.0f) {
+        x = start_x;
+        y = start_y;
+    }
+
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(static_cast<int>(x), static_cast<int>(y), 210, 221),
+                CRect<int>(0, 0, 210, 206), static_cast<u_char>(alpha));
+}
+
+} // namespace
+
+CFrameVu1  *Hamon[4];
+float       HScale[5];
+CCharacter  Effect;
+CSeireiKing SeireiKing;
+
+int        amb3;
+CFrameVu1 *SkyFrame;
+
+void OpD_LoadDataBG() {
+    while (ReadBGSync()) {
+    }
+
+    LoadFileBG("opdat/norn4/seirei.pak", reinterpret_cast<u_long128 *>(read_buffer), nullptr);
+    CScript__2.load_no = OP_SCENE_NONE;
+}
+
+// The music bank is packed behind the scene in the same file.
+void OpD_LoadDataBG2() {
+    int size = 0;
+
+    while (ReadBGSync()) {
+    }
+
+    LoadFileBG("opdat/norn4/seirei2.pak", reinterpret_cast<u_long128 *>(read_buffer), &size);
+    SndBgmLoadBG(0, reinterpret_cast<u_int *>(reinterpret_cast<u_long128 *>(read_buffer) + (size >> 4) + 1), nullptr);
+    CScript__2.load_no = OP_SCENE_NONE;
+}
+
+// The dome is thirty-two vertices around; the two colours alternate two vertices at a time.
+void SkyColor(CFrameVu1 *frame) {
+    if (frame == nullptr) {
+        return;
+    }
+
+    CVisualVu1 *visual = frame->GetVisual();
+
+    if (visual == nullptr) {
+        return;
+    }
+
+    auto *model = reinterpret_cast<MDT_HEADER *>(visual->GetMDTDataAddress());
+
+    if (model == nullptr || model->colour_count == 0) {
+        return;
+    }
+
+    constexpr int vertex_count = 32;
+
+    std::span     colors{reinterpret_cast<sceVu0FVECTOR *>(reinterpret_cast<char *>(model) + model->colour_ofs), vertex_count};
+    sceVu0FVECTOR sky_color = {50.0f, 100.0f, 255.0f, 0.0f};
+    sceVu0FVECTOR band_color = {255.0f, 255.0f, 255.0f, 0.0f};
+
+    sky_color[0] = sky_color[0] / 128.0f;
+    sky_color[1] = sky_color[1] / 128.0f;
+    sky_color[2] = sky_color[2] / 128.0f;
+    band_color[0] = band_color[0] / 128.0f;
+    band_color[1] = band_color[1] / 128.0f;
+    band_color[2] = band_color[2] / 128.0f;
+
+    for (int i = 0; i < vertex_count; i++) {
+        const sceVu0FVECTOR &source = i % 4 < 2 ? sky_color : band_color;
+
+        colors[i][0] = source[0];
+        colors[i][1] = source[1];
+        colors[i][2] = source[2];
+        colors[i][3] = 1.0f;
+    }
+
+    frame->attr.remake_pending = 1;
+}
+
 void OpD_MotionProcess() {
-    {
-        register float zero = 0.0f;
+    constexpr int actor_count = 23;
 
-        for (int i = 0; i < 23; i++) {
-            if (CScript__2.obj[i].disp) {
-                if (CScript__2.obj[i].motion_end != -1) {
-                    if (Chara__3[i].motion_type.state.time > (float) (Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
-                        CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
-                        CScript__2.obj[i].motion_end = -1;
-                    }
-                }
-
-                Chara__3[i].motion_type.state.blend_step = CScript__2.obj[i].step;
-
-                if (CScript__2.obj[i].step == 1.0f) {
-                    if (CScript__2.obj[i].motion != Chara__3[i].motion_no) {
-                        Chara__3[i].motion_type.state.time = (float) Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].start;
-                    }
-                }
-
-                Chara__3[i].motion_no = CScript__2.obj[i].motion;
-                Chara__3[i].motion_flags = 0;
-                Chara__3[i].motion_speed = -1.0f;
+    for (int i = 0; i < actor_count; i++) {
+        if (CScript__2.obj[i].disp) {
+            if (CScript__2.obj[i].motion_end != -1 &&
+                Chara__3[i].motion_type.state.time > static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].end - 1)) {
+                CScript__2.obj[i].motion = CScript__2.obj[i].motion_end;
+                CScript__2.obj[i].motion_end = -1;
             }
+
+            Chara__3[i].motion_type.state.blend_step = CScript__2.obj[i].step;
+
+            if (CScript__2.obj[i].step == 1.0f && CScript__2.obj[i].motion != Chara__3[i].motion_no) {
+                Chara__3[i].motion_type.state.time = static_cast<float>(Chara__3[i].motion_type.motion_info[CScript__2.obj[i].motion].start);
+            }
+
+            Chara__3[i].motion_no = CScript__2.obj[i].motion;
+            Chara__3[i].motion_flags = 0;
+            Chara__3[i].motion_speed = -1.0f;
         }
+    }
 
-        char         *frame_names[23] = {"", "", "", "", "", "tyou2", "", "", "c01d", "", "", "c01d", "", "", "", "",
-                                         "", "", "", "", "", "c03c", "tyou"};
-        sceVu0FMATRIX matrix;
+    // Frame of the camera's model each actor is placed on.
+    constexpr std::array<const char *, actor_count> frame_names = {
+        "", "", "", "", "", "tyou2", "", "", "c01d", "", "", "c01d", "", "", "", "", "", "", "", "", "", "c03c", "tyou"};
+    sceVu0FMATRIX matrix;
 
-        for (int i = 0; i < 23; i++) {
-            if (CScript__2.obj[i].disp) {
-                CFrame *frame = Cam__2[SceneNp__2].frame->SearchFrame(frame_names[i]);
+    for (int i = 0; i < actor_count; i++) {
+        if (CScript__2.obj[i].disp) {
+            CFrame *frame = Cam__2[SceneNp__2].frame->SearchFrame(const_cast<char *>(frame_names[i]));
 
-                if (frame) {
-                    frame->GetLWMatrix(matrix);
-                    Chara__3[i].SetRotation(zero, atan2f(matrix[2][0], matrix[2][2]), zero);
-                    float x = matrix[3][0];
-                    float y = matrix[3][1];
-                    float z = matrix[3][2];
-                    Chara__3[i].SetPosition(x, y, z);
-                }
+            if (frame) {
+                frame->GetLWMatrix(matrix);
+                Chara__3[i].SetRotation(0.0f, atan2f(matrix[2][0], matrix[2][2]), 0.0f);
+                Chara__3[i].SetPosition(matrix[3][0], matrix[3][1], matrix[3][2]);
             }
         }
     }
@@ -328,15 +246,9 @@ void OpD_MotionProcess() {
         Wind.SetVelocity(0.2f);
     }
 
-    int cloth_actor;
+    const int cloth_actor = CScript__2.camera_start > 111 ? 11 : 8;
 
-    if (CScript__2.camera_start > 111) {
-        cloth_actor = 11;
-    } else {
-        cloth_actor = 8;
-    }
-
-    Chara__3[cloth_actor].wind = (int) &Wind;
+    Chara__3[cloth_actor].wind = static_cast<int>(reinterpret_cast<intptr_t>(&Wind));
     Wind.Step();
 
     static int camera = 0;
@@ -368,21 +280,20 @@ void OpD_MotionProcess() {
                 }
 
                 break;
+
+            default:
+                break;
         }
     }
 }
 
-/* The tick's sound, which is a set of camera marks rather than a table: each one acts once and
-   clears itself again when the camera moves off it, which is what the flag behind every one is for.
-   The last of them reloads the whole sound file, because the second half of the scene is scored
-   differently from the first. The one footfall is a window on the girl's own motion frame with a
-   wait behind it, so a motion that stalls inside the window plays the step once. */
+// Each camera cue fires once and re-arms when the camera moves off it.
 void OpD_SoundProcess() {
     {
-        static int se = 0;
+        static int fired = 0;
 
         if (CScript__2.camera_start == 111) {
-            if (!se) {
+            if (!fired) {
                 OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 42, 1.0f);
                 OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 44, 1.0f);
                 OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 49, 1.0f);
@@ -390,74 +301,72 @@ void OpD_SoundProcess() {
                 OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 45, 1.0f);
                 OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 47, 1.0f);
                 OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 48, 1.0f);
-                se = 1;
+                fired = 1;
             }
         } else {
-            se = 0;
+            fired = 0;
         }
     }
 
     {
-        static int mus = 0;
+        static int fired = 0;
 
         if (CScript__2.camera_start == 101) {
-            if (CScript__2.mes_no == 101) {
-                if (!mus) {
-                    OpBgmPlay();
-                    CSnd.SQ_Play(MIDI_PORT_AMBIENT, 0);
-                    mus = 1;
-                }
-            }
-        } else {
-            mus = 0;
-        }
-    }
-
-    {
-        static int se = 0;
-
-        if (CScript__2.camera_start == 110) {
-            if (!se) {
-                CSnd.Fade(MIDI_PORT_BGM, -1.0f, 0);
-                se = 1;
-            }
-        } else {
-            se = 0;
-        }
-    }
-
-    {
-        static int mus = 0;
-
-        if (CScript__2.camera_start == 115) {
-            if (!mus) {
+            if (CScript__2.mes_no == 101 && !fired) {
                 OpBgmPlay();
                 CSnd.SQ_Play(MIDI_PORT_AMBIENT, 0);
-                mus = 1;
+                fired = 1;
             }
         } else {
-            mus = 0;
+            fired = 0;
         }
     }
 
     {
-        static int se = 0;
+        static int fired = 0;
+
+        if (CScript__2.camera_start == 110) {
+            if (!fired) {
+                CSnd.Fade(MIDI_PORT_BGM, -1.0f, 0);
+                fired = 1;
+            }
+        } else {
+            fired = 0;
+        }
+    }
+
+    {
+        static int fired = 0;
+
+        if (CScript__2.camera_start == 115) {
+            if (!fired) {
+                OpBgmPlay();
+                CSnd.SQ_Play(MIDI_PORT_AMBIENT, 0);
+                fired = 1;
+            }
+        } else {
+            fired = 0;
+        }
+    }
+
+    {
+        static int fired = 0;
 
         if (CScript__2.camera_start == 118) {
-            if (!se) {
+            if (!fired) {
                 CSnd.Fade(MIDI_PORT_BGM, -1.0f, 0);
-                se = 1;
+                fired = 1;
             }
         } else {
-            se = 0;
+            fired = 0;
         }
     }
 
     {
-        static int mus = 0;
+        static int fired = 0;
 
         if (CScript__2.camera_start == 123) {
-            if (!mus) {
+            if (!fired) {
                 SndStopAllSe();
                 CSnd.Stop(MIDI_PORT_BGM);
                 CSnd.StopVoice(0);
@@ -469,26 +378,26 @@ void OpD_SoundProcess() {
                 CSnd.SetVol(MIDI_PORT_UNK_D, 256);
                 CSnd.SetVol(MIDI_PORT_SE_SPECIAL, 256);
 
-                while (SndSyncBG())
-                    ;
+                while (SndSyncBG()) {
+                }
 
                 SndBgmPlay(0);
                 CSnd.SQ_Play(MIDI_PORT_AMBIENT, 0);
-                mus = 1;
+                fired = 1;
             }
         } else {
-            mus = 0;
+            fired = 0;
         }
     }
 
     if (CScript__2.obj[21].disp) {
         static int    wait = 0;
         sceVu0FVECTOR position;
-        float         motion_frame;
 
         sceVu0CopyVector(position, Chara__3[21].pos);
-        motion_frame = (int) Chara__3[21].motion_type.state.time;
+        const auto motion_frame = static_cast<float>(static_cast<int>(Chara__3[21].motion_type.state.time));
 
+        // The wait keeps a motion that stalls inside a footstep window from repeating the step.
         if (wait == 0) {
             if (motion_frame > 43.0f && motion_frame < 45.0f) {
                 OpPlayVolPanSE(position, 50.0f, 300.0f, MIDI_PORT_SE_DEFAULT, 21, 20);
@@ -503,22 +412,8 @@ void OpD_SoundProcess() {
     }
 }
 
-/* The tick's drawing in the order the frame is built. The hall is one object under an ambient the
-   script raises a step at a time; the meadow is ten, one of which is held back because the flowers
-   are drawn a second time under a light of their own. Then the shadows, the actors, the spirit
-   king's effect, and last the three screen fades and the caption. */
-void OpD_DrawProcess();
-
-/**
- * The prism the spirit king turns above the girl: one model drawn twice, spun opposite ways about
- * the frame the actor carries it on, with the spark trail drawn over the top of it.
- *
- * @mangled EffectAtraPrizum__Fv
- * @address 0x1DC6540
- * @size 0x3A8
- * @unknownret
- */
-static void EffectAtraPrizum() {
+// One model drawn twice, spun opposite ways about the frame the actor carries it on.
+void EffectAtraPrizum() {
     if (CScript__2.obj[11].disp) {
         static float rot1 = 0.0f;
         static float rot2 = 0.0f;
@@ -603,26 +498,11 @@ static void EffectAtraPrizum() {
     }
 }
 
-/**
- * The light the actors are drawn under while the spirit king is out: a direction aimed from the
- * effect at the actor rather than one fixed for the whole frame, which is what turns the light
- * around a character as the effect moves. The third camera puts the source on a circle of its own
- * instead, so the light sweeps while nothing else does.
- *
- * @mangled RollLight__FPf
- * @address 0x1DC68F0
- * @size 0x378
- * @unknownret
- */
-static void RollLight(float *target) {
+// On camera 113 the source circles the effect, so the light sweeps while nothing else moves.
+void RollLight(float *target) {
     if (CScript__2.camera_start >= 111 && CScript__2.camera_start < 114) {
-        CFrame *frame;
-
-        if (CScript__2.camera_start == 111) {
-            frame = Cam__2[SceneNp__2].frame->SearchFrame("hikari");
-        } else {
-            frame = Chara__3[11].frame->SearchFrame("atrp");
-        }
+        CFrame *frame = CScript__2.camera_start == 111 ? Cam__2[SceneNp__2].frame->SearchFrame("hikari")
+                                                       : Chara__3[11].frame->SearchFrame("atrp");
 
         sceVu0FMATRIX matrix;
         sceVu0FMATRIX dirs;
@@ -657,9 +537,9 @@ static void RollLight(float *target) {
                     angle = angle - 6.28f;
                 }
 
-                dir[0] = (float) (matrix[3][0] + sin(angle) * 25.0 - target[0]);
-                dir[1] = (float) (matrix[3][1] + 5.0);
-                dir[2] = (float) (matrix[3][2] + cos(angle) * 25.0 - target[2]);
+                dir[0] = static_cast<float>(matrix[3][0] + sin(angle) * 25.0 - target[0]);
+                dir[1] = static_cast<float>(matrix[3][1] + 5.0);
+                dir[2] = static_cast<float>(matrix[3][2] + cos(angle) * 25.0 - target[2]);
                 sceVu0Normalize(dir, dir);
                 sceVu0CopyMatrix(dirs, light);
                 sceVu0CopyMatrix(colors, lightcolor);
@@ -670,23 +550,17 @@ static void RollLight(float *target) {
                 colors[1][1] = 128.0f;
                 colors[1][2] = 128.0f;
             } break;
+
+            default:
+                break;
         }
 
         MGSetPLight(dirs, colors);
     }
 }
 
-/**
- * The spirit king itself before it has anything to carry: the trail grows from a frame of the
- * camera's own model and is stepped every other tick rather than every one, which is what makes it
- * drift rather than dart.
- *
- * @mangled EffectSeireiKing__Ff
- * @address 0x1DC6C70
- * @size 0x114
- * @unknownret
- */
-static void EffectSeireiKing(float size) {
+// The trail is stepped every other tick so it drifts rather than darts.
+void EffectSeireiKing(float size) {
     CFrame *frame = Cam__2[SceneNp__2].frame->SearchFrame("hikari");
 
     if (frame) {
@@ -702,15 +576,15 @@ static void EffectSeireiKing(float size) {
         head[2] = matrix[3][2];
 
         if (!Pause) {
-            static int cnt = 0;
+            static int tick = 0;
 
-            cnt = cnt + 1;
+            tick = tick + 1;
 
-            if (cnt > 1) {
-                cnt = 0;
+            if (tick > 1) {
+                tick = 0;
             }
 
-            if (cnt == 0) {
+            if (tick == 0) {
                 SeireiKing.Step();
             }
         }
@@ -719,158 +593,140 @@ static void EffectSeireiKing(float size) {
     }
 }
 
-/**
- * The sun's flare, aimed at a frame inside the sky model the set-up kept aside and drawn only when
- * that point projects onto the screen at all.
- *
- * @mangled LensFreaProcess__Fv
- * @address 0x1DC6D90
- * @size 0xD4
- * @unknownret
- */
-static void LensFreaProcess() {
-    sceVu0FVECTOR world;
-    int           screen[4];
-    sceVu0FVECTOR local = {0.0f, 0.0f, 0.0f, 1.0f};
-    CFrame       *frame = SkyFrame->SearchFrame("sun1");
+void LensFreaProcess() {
+    sceVu0FVECTOR      world;
+    std::array<int, 4> screen{};
+    sceVu0FVECTOR      local = {0.0f, 0.0f, 0.0f, 1.0f};
+    CFrame            *frame = SkyFrame->SearchFrame("sun1");
 
     if (frame) {
         frame->GetWorldPosition(world, local);
 
-        if (MGRotTransPers2D(screen, world, 0)) {
-            if (TexManager.GetTexture("lensfler", -1)) {
-                LensFlare(TexManager.GetTexture("lensfler", -1), world, 255, 255, 255);
-            }
+        if (MGRotTransPers2D(screen.data(), world, 0) && TexManager.GetTexture("lensfler", -1)) {
+            LensFlare(TexManager.GetTexture("lensfler", -1), world, 255, 255, 255);
         }
     }
 }
 
-/**
- * The caption over the meadow: a plate the whole screen wide with the pieces of the text cut out of
- * one strip and copied over it, and two counters running underneath that cross-fade one group of
- * pieces into another. Which half of the caption is up is the sprite number the script holds; the
- * trails of stars across it are drawn from positions of their own rather than from the strip, each
- * one steering towards a point off the screen and restarting when it leaves.
- *
- * @mangled Setsumei__Fv
- * @address 0x1DC6E70
- * @size 0x178C
- * @unknownret
- */
-static void Setsumei() {
-    static int cnt1 = 0;
-    static int cntA = 0;
+// Two counters cross-fade groups of caption pieces; each star trail steers towards a point off the
+// screen and restarts when it leaves.
+void Setsumei() {
+    static int tick_a = 0;
+    static int phase_a = 0;
 
-    cnt1 = cnt1 + 1;
+    tick_a = tick_a + 1;
 
-    if (cnt1 > 30) {
-        cnt1 = 0;
-        cntA = cntA + 1;
+    if (tick_a > 30) {
+        tick_a = 0;
+        phase_a = phase_a + 1;
 
-        if (cntA > 1) {
-            cntA = 0;
+        if (phase_a > 1) {
+            phase_a = 0;
         }
     }
 
-    static int cnt2 = 0;
-    static int cntB = 0;
+    static int tick_b = 0;
+    static int phase_b = 0;
 
-    cnt2 = cnt2 + 1;
+    tick_b = tick_b + 1;
 
-    if (cnt2 > 30) {
-        cnt2 = 0;
-        cntB = cntB + 1;
+    if (tick_b > 30) {
+        tick_b = 0;
+        phase_b = phase_b + 1;
 
-        if (cntB > 2) {
-            cntB = 0;
+        if (phase_b > 2) {
+            phase_b = 0;
         }
     }
 
-    static int fadeA1 = 128;
-    static int fadeA2 = 0;
+    static int fade_a1 = 128;
+    static int fade_a2 = 0;
 
-    if (cntA == 0) {
-        fadeA1 = 128;
+    if (phase_a == 0) {
+        fade_a1 = 128;
 
-        if (fadeA2 > 0) {
-            fadeA2 = fadeA2 - 8;
+        if (fade_a2 > 0) {
+            fade_a2 = fade_a2 - 8;
         }
     } else {
-        fadeA2 = 128;
+        fade_a2 = 128;
 
-        if (fadeA1 > 0) {
-            fadeA1 = fadeA1 - 8;
+        if (fade_a1 > 0) {
+            fade_a1 = fade_a1 - 8;
         }
     }
 
-    static int fadeB1 = 128;
-    static int fadeB2 = 0;
-    static int fadeB3 = 0;
+    static int fade_b1 = 128;
+    static int fade_b2 = 0;
+    static int fade_b3 = 0;
 
-    switch (cntB) {
+    switch (phase_b) {
         case 0:
-            fadeB1 = 128;
+            fade_b1 = 128;
 
-            if (fadeB2 > 0) {
-                fadeB2 = fadeB2 - 8;
+            if (fade_b2 > 0) {
+                fade_b2 = fade_b2 - 8;
             }
 
-            if (fadeB3 > 0) {
-                fadeB3 = fadeB3 - 8;
+            if (fade_b3 > 0) {
+                fade_b3 = fade_b3 - 8;
             }
 
             break;
 
         case 1:
-            fadeB2 = 128;
+            fade_b2 = 128;
 
-            if (fadeB1 > 0) {
-                fadeB1 = fadeB1 - 8;
+            if (fade_b1 > 0) {
+                fade_b1 = fade_b1 - 8;
             }
 
-            if (fadeB3 > 0) {
-                fadeB3 = fadeB3 - 8;
+            if (fade_b3 > 0) {
+                fade_b3 = fade_b3 - 8;
             }
 
             break;
 
         case 2:
-            fadeB3 = 128;
+            fade_b3 = 128;
 
-            if (fadeB1 > 0) {
-                fadeB1 = fadeB1 - 8;
+            if (fade_b1 > 0) {
+                fade_b1 = fade_b1 - 8;
             }
 
-            if (fadeB2 > 0) {
-                fadeB2 = fadeB2 - 8;
+            if (fade_b2 > 0) {
+                fade_b2 = fade_b2 - 8;
             }
 
+            break;
+
+        default:
             break;
     }
 
     set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519", -1), CRect<int>(0, 0, 640, SCREEN_HEIGHT), CRect<int>(0, 0, 640, 448), 128);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(540, 254, 88, 128), CRect<int>(89, 206, 88, 119), (u_char) fadeA1);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(540, 254, 88, 128), CRect<int>(0, 206, 88, 119), (u_char) fadeA2);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(450, 27, 105, 113), CRect<int>(117, 448, 105, 105), (u_char) fadeB1);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(450, 27, 105, 113), CRect<int>(222, 448, 105, 105), (u_char) fadeB2);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(450, 27, 105, 113), CRect<int>(327, 448, 105, 105), (u_char) fadeB3);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(350, 139, 208, 62), CRect<int>(432, 448, 208, 58), (u_char) fadeB1);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(350, 139, 208, 62), CRect<int>(432, 506, 208, 58), (u_char) fadeB2);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(350, 139, 208, 62), CRect<int>(432, 564, 208, 58), (u_char) fadeB3);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(100, 188, 117, 60), CRect<int>(0, 325, 117, 56), (u_char) fadeA1);
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(100, 188, 117, 60), CRect<int>(0, 381, 117, 56), (u_char) fadeA2);
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(540, 254, 88, 128), CRect<int>(89, 206, 88, 119), static_cast<u_char>(fade_a1));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(540, 254, 88, 128), CRect<int>(0, 206, 88, 119), static_cast<u_char>(fade_a2));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(450, 27, 105, 113), CRect<int>(117, 448, 105, 105), static_cast<u_char>(fade_b1));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(450, 27, 105, 113), CRect<int>(222, 448, 105, 105), static_cast<u_char>(fade_b2));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(450, 27, 105, 113), CRect<int>(327, 448, 105, 105), static_cast<u_char>(fade_b3));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(350, 139, 208, 62), CRect<int>(432, 448, 208, 58), static_cast<u_char>(fade_b1));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(350, 139, 208, 62), CRect<int>(432, 506, 208, 58), static_cast<u_char>(fade_b2));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(350, 139, 208, 62), CRect<int>(432, 564, 208, 58), static_cast<u_char>(fade_b3));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(100, 188, 117, 60), CRect<int>(0, 325, 117, 56), static_cast<u_char>(fade_a1));
+    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(100, 188, 117, 60), CRect<int>(0, 381, 117, 56), static_cast<u_char>(fade_a2));
 
-    if (CScript__2.sprite == OPD_SPRITE_CAPTION_1) {
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(6, 245, 178, 191), CRect<int>(388, 0, 178, 178), (u_char) fadeA1);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(184, 245, 178, 191), CRect<int>(388, 0, 178, 178), (u_char) fadeA1);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(362, 245, 178, 191), CRect<int>(388, 0, 178, 178), (u_char) fadeA1);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(6, 245, 178, 191), CRect<int>(210, 0, 178, 178), (u_char) fadeA2);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(184, 245, 178, 191), CRect<int>(210, 0, 178, 178), (u_char) fadeA2);
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(362, 245, 178, 191), CRect<int>(210, 0, 178, 178), (u_char) fadeA2);
+    if (static_cast<OpDSprite>(CScript__2.sprite) == OpDSprite::Caption1) {
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(6, 245, 178, 191), CRect<int>(388, 0, 178, 178), static_cast<u_char>(fade_a1));
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(184, 245, 178, 191), CRect<int>(388, 0, 178, 178), static_cast<u_char>(fade_a1));
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(362, 245, 178, 191), CRect<int>(388, 0, 178, 178), static_cast<u_char>(fade_a1));
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(6, 245, 178, 191), CRect<int>(210, 0, 178, 178), static_cast<u_char>(fade_a2));
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(184, 245, 178, 191), CRect<int>(210, 0, 178, 178), static_cast<u_char>(fade_a2));
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(362, 245, 178, 191), CRect<int>(210, 0, 178, 178), static_cast<u_char>(fade_a2));
     } else {
-        static float x = 6.0f;
-        static float y = 245.0f;
-        static float rot = -1.57f;
+        static float x1 = 6.0f;
+        static float y1 = 245.0f;
+        static float rot1 = -1.57f;
         static float x2 = 184.0f;
         static float y2 = 245.0f;
         static float rot2 = 1.57f;
@@ -878,229 +734,49 @@ static void Setsumei() {
         static float y3 = 245.0f;
         static float rot3 = 1.57f;
 
-        float heading = atan2f((float) (-100.0f - x), -107.0f - y);
-
-        if (heading < rot) {
-            rot = rot - 0.05f;
-        }
-
-        if (heading > rot) {
-            rot += 0.05f;
-        }
-
-        x = x + (float) (sin(rot) * 4.0);
-        y = y + (float) (cos(rot) * 4.0);
-
-        int alpha;
-
-        if (y < 32.0f) {
-            alpha = (int) (128.0f - 4.0f * (32.0f - y));
-        } else {
-            alpha = 128;
-        }
-
-        if (alpha < 0) {
-            alpha = 0;
-        }
-
-        if (y <= 0.0f) {
-            x = 6.0f;
-            y = 245.0f;
-        }
-
-        int cut = (int) ((245.0f - y) / 2.0f);
-
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>((int) x, (int) y, 178 - cut, 191 - cut), CRect<int>(210, 0, 178, 178), (u_char) alpha);
-
-        float heading2 = atan2f(500.0f - x2, -107.0f - y2);
-
-        if (heading2 < rot2) {
-            rot2 = rot2 - 0.05f;
-        }
-
-        if (heading2 > rot2) {
-            rot2 += 0.05f;
-        }
-
-        x2 = x2 + (float) (sin(rot2) * 4.0);
-        y2 = y2 + (float) (cos(rot2) * 4.0);
-
-        int alpha2;
-
-        if (y2 < 32.0f) {
-            alpha2 = (int) (128.0f - 4.0f * (32.0f - y2));
-        } else {
-            alpha2 = 128;
-        }
-
-        if (alpha2 < 0) {
-            alpha2 = 0;
-        }
-
-        if (y2 <= 0.0f) {
-            x2 = 184.0f;
-            y2 = 245.0f;
-        }
-
-        int cut2 = (int) ((245.0f - y2) / 2.0f);
-
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>((int) x2, (int) y2, 178 - cut2, 191 - cut2), CRect<int>(210, 0, 178, 178), (u_char) alpha2);
-
-        float heading3 = atan2f(900.0f - x3, -107.0f - y3);
-
-        if (heading3 < rot3) {
-            rot3 = rot3 - 0.05f;
-        }
-
-        if (heading3 > rot3) {
-            rot3 += 0.05f;
-        }
-
-        x3 = x3 + (float) (sin(rot3) * 4.0);
-        y3 = y3 + (float) (cos(rot3) * 4.0);
-
-        int alpha3;
-
-        if (y3 < 32.0f) {
-            alpha3 = (int) (128.0f - 4.0f * (32.0f - y3));
-        } else {
-            alpha3 = 128;
-        }
-
-        if (alpha3 < 0) {
-            alpha3 = 0;
-        }
-
-        if (y3 <= 0.0f) {
-            x3 = 362.0f;
-            y3 = 245.0f;
-        }
-
-        int cut3 = (int) ((245.0f - y3) / 2.0f);
-
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>((int) x3, (int) y3, 178 - cut3, 191 - cut3), CRect<int>(210, 0, 178, 178), (u_char) alpha3);
+        DrawRisingStar(x1, y1, rot1, -100.0f, 6.0f);
+        DrawRisingStar(x2, y2, rot2, 500.0f, 184.0f);
+        DrawRisingStar(x3, y3, rot3, 900.0f, 362.0f);
     }
 
-    static float x = 426.0f;
-    static float y = -221.0f;
-    static float x2 = 726;
+    static float x1 = 426.0f;
+    static float y1 = -221.0f;
+    static float x2 = 726.0f;
     static float y2 = -328.0f;
 
-    float dx, dy;
+    DrawFallingStar(x1, y1, 40.0f, 426.0f, -221.0f);
+    DrawFallingStar(x2, y2, 240.0f, 726.0f, -328.0f);
 
-    dy = 193.0f - y;
-    dx = 40.0f - x;
-    float heading = atan2f(dx, dy);
-
-    x = x + (float) (sin(heading) * 3.0);
-    y = y + (float) (cos(heading) * 3.0);
-
-    int alpha;
-
-    if (y > 148.0f) {
-        alpha = (int) (128.0f - 4.0f * (y - 159.0f));
-
-        if (alpha < 0) {
-            alpha = 0;
-        }
-    } else {
-        alpha = 128;
-    }
-
-    if (y >= 191.0f) {
-        x = 426.0f;
-        y = -221.0f;
-    }
-
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>((int) x, (int) y, 210, 221), CRect<int>(0, 0, 210, 206), (u_char) alpha);
-
-    float heading2 = atan2f(240.0f - x2, 193.0f - y2);
-
-    x2 = x2 + (float) (sin(heading2) * 3.0);
-    y2 = y2 + (float) (cos(heading2) * 3.0);
-
-    int alpha2;
-
-    if (y2 > 148.0f) {
-        alpha2 = (int) (128.0f - 4.0f * (y2 - 159.0f));
-
-        if (alpha2 < 0) {
-            alpha2 = 0;
-        }
-    } else {
-        alpha2 = 128;
-    }
-
-    if (y2 >= 191.0f) {
-        x2 = 726;
-        y2 = -328.0f;
-    }
-
-    set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>((int) x2, (int) y2, 210, 221), CRect<int>(0, 0, 210, 206), (u_char) alpha2);
-
-    if (CScript__2.sprite == OPD_SPRITE_CAPTION_2) {
-        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(40, 193, 463, 221), CRect<int>(177, 206, 463, 242), (u_char) fadeA1);
+    if (static_cast<OpDSprite>(CScript__2.sprite) == OpDSprite::Caption2) {
+        set2DSprite(GetVif1Packet(), TexManager.GetTexture("0519p", -1), CRect<int>(40, 193, 463, 221), CRect<int>(177, 206, 463, 242), static_cast<u_char>(fade_a1));
     }
 }
 
-/**
- * The ripples on the hall's floor: one model drawn four times, each at its own scale and a little
- * higher than the last, fading as it grows. The five scales start staggered and then run together,
- * which is why the table has one more entry than there are frames to draw; each ripple plays a
- * sound of its own the first time it grows past nothing.
- *
- * @mangled HamonProcess__Fv
- * @address 0x1DC8600
- * @size 0x330
- * @unknownret
- */
-static void HamonProcess() {
+// Each ripple plays its sound the first time its scale grows past zero; only the first four draw.
+void HamonProcess() {
     sceVu0FVECTOR ambient;
 
     sceVu0CopyVector(ambient, ambientlight);
 
+    constexpr std::array<float, 5> volumes = {1.0f, 0.85f, 0.6f, 0.45f, 0.3f};
+
     for (int i = 0; i < 5; i++) {
-        static int se[5] = {0, 0, 0, 0, 0};
+        static std::array<int, 5> sound_played = {0, 0, 0, 0, 0};
 
         if (!Pause && HScale[i] < 3.2f) {
             HScale[i] += 0.005f;
         }
 
         if (HScale[i] > 0.0f) {
-            if (!se[i]) {
-                switch (i) {
-                    case 0:
-                        OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 46, 1.0f);
-                        break;
-
-                    case 1:
-                        OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 46, 0.85f);
-                        break;
-
-                    case 2:
-                        OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 46, 0.6f);
-                        break;
-
-                    case 3:
-                        OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 46, 0.45f);
-                        break;
-
-                    case 4:
-                        OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 46, 0.3f);
-                        break;
-                }
-
-                se[i] = 1;
+            if (!sound_played[i]) {
+                OpPlayVolSE(MIDI_PORT_SE_DEFAULT, 40, 46, volumes[i]);
+                sound_played[i] = 1;
             }
 
             if (i < 4) {
                 Hamon[i]->SetScale(HScale[i], HScale[i], HScale[i]);
-                Hamon[i]->SetPosition((float) (i - i), 0.01f + (float) i / 100.0f, 0.0f);
-                ambient[3] = 128.0f - 40.0f * HScale[i];
-
-                if (ambient[3] < 0.0f) {
-                    ambient[3] = 0.0f;
-                }
+                Hamon[i]->SetPosition(0.0f, 0.01f + static_cast<float>(i) / 100.0f, 0.0f);
+                ambient[3] = std::max(128.0f - 40.0f * HScale[i], 0.0f);
 
                 MGSetAmbient(ambient);
 

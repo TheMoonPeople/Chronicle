@@ -1,14 +1,19 @@
 #include "title/script.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
 #include "dataread.hpp"
 
+namespace {
+
+constexpr int kCommandCount = static_cast<int>(TitleScriptCommand::Count);
+
 /* The command table the parser matches a line against, in the order it matches them: a name is
    compared by the length the row carries rather than by its own, so a name that is another's prefix
    has to stand in front of it ([title-script.md](../../docs/formats/title-script.md)). */
-CSCRIPT_COMMAND Command[TSC_COMMAND_COUNT] = {
+constexpr CSCRIPT_COMMAND Command[kCommandCount] = {
     {"OBJ_MOTION2", 11, 3, {TSARG_VALUE, TSARG_COMMA_VALUE, TSARG_COMMA_VALUE}                                                                            },
     {"OBJ_MOTION",  10, 3, {TSARG_VALUE, TSARG_COMMA_VALUE, 0}                                                                                            },
     {"OBJ_MOVE",    8,  2, {TSARG_VALUE, TSARG_COMMA_VALUE}                                                                                               },
@@ -37,19 +42,67 @@ CSCRIPT_COMMAND Command[TSC_COMMAND_COUNT] = {
     {"WAIT",        4,  1, {TSARG_VALUE}                                                                                                                  },
 };
 
-/* The one script the overlay runs. It is 58112 bytes because the file is held whole inside it and
-   re-parsed from the cursor every tick. */
-class CScript CScript__2;
+/* Reads ON, OFF or a number standing at the cursor into value and returns the cursor past it, or -1
+   when none of the three stands there or the number runs past 32 characters. */
+int ReadValue(const char *buffer, int cursor, float &value) {
+    if (std::memcmp(&buffer[cursor], "ON", 2) == 0) {
+        value = 1.0f;
+        return cursor + 2;
+    }
 
-/* Read the whole script in and put every actor back to a state nothing has asked anything of yet.
-   Nothing is reset when the load fails, so a missing file leaves the previous script's state
+    if (std::memcmp(&buffer[cursor], "OFF", 3) == 0) {
+        value = 0.0f;
+        return cursor + 3;
+    }
+
+    if (buffer[cursor] != '-' && (buffer[cursor] < '0' || buffer[cursor] > '9')) {
+        return -1;
+    }
+
+    value = static_cast<float>(std::strtod(&buffer[cursor], nullptr));
+
+    int char_count = 0;
+
+    for (; char_count < 32; char_count++) {
+        bool accepted = false;
+
+        if (buffer[cursor] == '-') {
+            cursor++;
+            accepted = true;
+        }
+
+        if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
+            cursor++;
+            accepted = true;
+        }
+
+        if (buffer[cursor] == '.') {
+            cursor++;
+            accepted = true;
+        }
+
+        if (!accepted) {
+            break;
+        }
+    }
+
+    if (char_count == 32) {
+        return -1;
+    }
+
+    return cursor;
+}
+
+} // namespace
+
+CScript CScript__2;
+
+/* Nothing is reset when the load fails, so a missing file leaves the previous script's state
    standing rather than an empty one. */
 void CScript::Load(const char *name) {
-    int i;
-
     p = data;
 
-    if (LoadFile((char *) name, p, &size)) {
+    if (LoadFile(const_cast<char *>(name), p, &size) != 0) {
         wait = 0;
         mes_no = 0;
         mes_page_wait = 40;
@@ -61,226 +114,207 @@ void CScript::Load(const char *name) {
         end = 0;
         scene = 0;
         load_no = -1;
-        mes_wait = false;
+        mes_wait = 0;
         bom_no = 0;
         beem_no = 0;
         reset_flag = 0;
         se_no = 0;
         se_voice = 0;
-        se_stop = false;
+        se_stop = 0;
         bgm_fade = 0;
 
-        for (i = 0; i < 128; i++) {
-            arg[i] = 0;
-        }
+        std::ranges::fill(arg, 0.0f);
 
-        for (i = 0; i < 23; i++) {
-            obj[i].disp = true;
-            obj[i].motion = 0;
-            obj[i].motion_end = -1;
-            obj[i].move = 0;
-            obj[i].move_req = false;
-            obj[i].eye = 0;
-            obj[i].eye_time = 0;
-            obj[i].mouth = 0;
-            obj[i].mouth_time = 0;
-            obj[i].talk = false;
-            obj[i].load = -1;
-            obj[i].load_step = TSLOAD_NONE;
-            obj[i].step = 0.05f;
+        for (SCRIPT_OBJ &object : obj) {
+            object.disp = 1;
+            object.motion = 0;
+            object.motion_end = -1;
+            object.move = 0;
+            object.move_req = 0;
+            object.eye = 0;
+            object.eye_time = 0;
+            object.mouth = 0;
+            object.mouth_time = 0;
+            object.talk = 0;
+            object.load = -1;
+            object.load_step = TSLOAD_NONE;
+            object.step = 0.05f;
         }
     }
 }
 
-/* One tick of the script: nothing happens while the wait is still running, and when it runs out
-   the parser reads one command after another out of the text until it reaches one that ends the
-   tick. A line matching no row is fatal - there is no way to skip it, because nothing in the format
-   says where a line ends. */
+/* A line matching no command is fatal: nothing in the format says where a line ends, so there is no
+   way to skip it. */
 void CScript::Step() {
-    bool unmatched;
-    bool done;
-    int  i;
-
-    if (this->end) {
+    if (end != 0) {
         return;
     }
 
-    if (mes_wait) {
+    if (mes_wait != 0) {
         wait = 1.0f + motion_step;
     }
 
-    if (wait < 1.0f) {
-        done = false;
-        pos = SkipSpace(p, pos);
-
-        do {
-            unmatched = true;
-
-            for (i = 0; i < TSC_COMMAND_COUNT; i++) {
-                if (memcmp(&p[pos], Command[i].name, Command[i].length) == 0) {
-                    unmatched = false;
-                    pos = SkipSpace(p, pos + Command[i].length);
-                    pos = CheckScript(p, pos, &Command[i], i);
-
-                    if (pos != -1) {
-                        if (i == TSC_END || i == TSC_WAIT_KEY || i == TSC_WAIT) {
-                            done = true;
-                        }
-                    }
-
-                    break;
-                }
-            }
-
-            if (unmatched) {
-                exit__2(-1);
-            }
-        } while (!done);
-    } else {
+    // Negated rather than >= so a NaN wait counts down instead of parsing.
+    if (!(wait < 1.0f)) {
         wait = wait - motion_step;
+        return;
     }
+
+    bool done = false;
+    pos = SkipSpace(p, pos);
+
+    do {
+        bool unmatched = true;
+
+        for (int command_no = 0; command_no < kCommandCount; command_no++) {
+            const CSCRIPT_COMMAND &command = Command[command_no];
+
+            if (std::memcmp(&p[pos], command.name, command.length) == 0) {
+                const auto kind = static_cast<TitleScriptCommand>(command_no);
+
+                unmatched = false;
+                pos = SkipSpace(p, pos + command.length);
+                pos = CheckScript(p, pos, &command, kind);
+
+                if (pos != -1 &&
+                    (kind == TitleScriptCommand::End || kind == TitleScriptCommand::WaitKey || kind == TitleScriptCommand::Wait)) {
+                    done = true;
+                }
+
+                break;
+            }
+        }
+
+        if (unmatched) {
+            exit__2(-1);
+        }
+    } while (!done);
 }
 
-/* One command, once its arguments have been read: every case is a write into the object and
-   nothing acts on it here, so a command is a request the overlay's own per-tick code picks up
+/* Every case only records a request; the overlay's own per-tick code acts on it
    ([title-script.md](../../docs/formats/title-script.md)). */
-int CScript::CheckScript(char *buffer, int position, CSCRIPT_COMMAND *command, int command_no) {
-    int cursor;
+int CScript::CheckScript(const char *buffer, int position, const CSCRIPT_COMMAND *command, TitleScriptCommand command_no) {
+    auto object = [this](float index) -> SCRIPT_OBJ & { return obj[static_cast<int>(index)]; };
 
-    cursor = position;
+    int cursor = position;
 
-    if (command->arg_count) {
+    if (command->arg_count != 0) {
         cursor = CheckArg(buffer, cursor, command);
     }
 
     switch (command_no) {
-        case TSC_OBJ_MOTION2:
-            obj[(int) arg[0]].motion = (int) arg[1];
-            obj[(int) arg[0]].motion_end = (int) arg[2];
+        case TitleScriptCommand::ObjMotion2:
+            object(arg[0]).motion = static_cast<int>(arg[1]);
+            object(arg[0]).motion_end = static_cast<int>(arg[2]);
             break;
 
-        case TSC_OBJ_MOTION:
-            obj[(int) arg[0]].motion = (int) arg[1];
-            obj[(int) arg[0]].motion_end = -1;
+        case TitleScriptCommand::ObjMotion:
+            object(arg[0]).motion = static_cast<int>(arg[1]);
+            object(arg[0]).motion_end = -1;
             break;
 
-        case TSC_OBJ_MOVE:
-            obj[(int) arg[0]].move = (int) arg[1];
-            obj[(int) arg[0]].move_req = true;
+        case TitleScriptCommand::ObjMove:
+            object(arg[0]).move = static_cast<int>(arg[1]);
+            object(arg[0]).move_req = 1;
             break;
 
-        case TSC_OBJ_TALK:
-            obj[(int) arg[0]].talk = true;
-            mes_no = (int) arg[1];
+        case TitleScriptCommand::ObjTalk:
+            object(arg[0]).talk = 1;
+            mes_no = static_cast<int>(arg[1]);
             mes_timer = arg[2];
-            obj[(int) arg[0]].mouth_time = arg[2];
-            mes_x = (int) arg[3];
-            mes_y = (int) arg[4];
-            mes_talker = (int) arg[0];
-            mes_tail_x = (int) arg[5];
-            mes_tail_y = (int) arg[6];
+            object(arg[0]).mouth_time = arg[2];
+            mes_x = static_cast<int>(arg[3]);
+            mes_y = static_cast<int>(arg[4]);
+            mes_talker = static_cast<int>(arg[0]);
+            mes_tail_x = static_cast<int>(arg[5]);
+            mes_tail_y = static_cast<int>(arg[6]);
             break;
 
-        case TSC_OBJ_EYE:
-            obj[(int) arg[0]].eye = (char) arg[1];
-            obj[(int) arg[0]].eye_time = arg[2];
+        case TitleScriptCommand::ObjEye:
+            object(arg[0]).eye = static_cast<char>(arg[1]);
+            object(arg[0]).eye_time = arg[2];
             break;
 
-        case TSC_OBJ_MOUTH:
-            obj[(int) arg[0]].mouth = (char) arg[1];
-            obj[(int) arg[0]].mouth_time = arg[2];
+        case TitleScriptCommand::ObjMouth:
+            object(arg[0]).mouth = static_cast<char>(arg[1]);
+            object(arg[0]).mouth_time = arg[2];
             break;
 
-        case TSC_OBJ_DISP:
-            if (arg[1] == 1.0f) {
-                obj[(int) arg[0]].disp = true;
-            } else {
-                obj[(int) arg[0]].disp = false;
-            }
-
+        case TitleScriptCommand::ObjDisp:
+            object(arg[0]).disp = arg[1] == 1.0f ? 1 : 0;
             break;
 
-        case TSC_OBJ_STEP:
-            obj[(int) arg[0]].step = arg[1];
+        case TitleScriptCommand::ObjStep:
+            object(arg[0]).step = arg[1];
             break;
 
-        case TSC_CAMERA:
+        case TitleScriptCommand::Camera:
             camera_no = camera_start;
-            camera_start = (int) arg[0];
-            motion_start = (int) arg[1];
-            motion_end = (int) arg[2];
+            camera_start = static_cast<int>(arg[0]);
+            motion_start = static_cast<int>(arg[1]);
+            motion_end = static_cast<int>(arg[2]);
             motion_step = arg[3];
-            motion_req = true;
+            motion_req = 1;
             break;
 
-        case TSC_SE_STOP:
-            se_kind = (int) arg[0];
-            se_no = (int) arg[1];
-            se_voice = (int) arg[2];
-            se_stop = true;
+        case TitleScriptCommand::SeStop:
+            se_kind = static_cast<int>(arg[0]);
+            se_no = static_cast<int>(arg[1]);
+            se_voice = static_cast<int>(arg[2]);
+            se_stop = 1;
             break;
 
-        case TSC_SE:
-            se_kind = (int) arg[0];
-            se_no = (int) arg[1];
-            se_voice = (int) arg[2];
-            se_fade_time = (int) arg[3];
+        case TitleScriptCommand::Se:
+            se_kind = static_cast<int>(arg[0]);
+            se_no = static_cast<int>(arg[1]);
+            se_voice = static_cast<int>(arg[2]);
+            se_fade_time = static_cast<int>(arg[3]);
             break;
 
-        case TSC_SOUND_FADE:
-            se_kind = (int) arg[0];
-            se_fade_time = (int) arg[1];
-            bgm_fade = (int) arg[2];
+        case TitleScriptCommand::SoundFade:
+            se_kind = static_cast<int>(arg[0]);
+            se_fade_time = static_cast<int>(arg[1]);
+            bgm_fade = static_cast<int>(arg[2]);
             break;
 
-        case TSC_FADE_IN:
-            if (arg[0] == 0.0f) {
-                fade = TSFADE_IN_BLACK;
-            } else {
-                fade = TSFADE_IN_WHITE;
-            }
-
+        case TitleScriptCommand::FadeIn:
+            fade = arg[0] == 0.0f ? TSFADE_IN_BLACK : TSFADE_IN_WHITE;
             fade_speed = arg[1];
             break;
 
-        case TSC_FADE_OUT:
-            if (arg[0] == 0.0f) {
-                fade = TSFADE_OUT_BLACK;
-            } else {
-                fade = TSFADE_OUT_WHITE;
-            }
-
+        case TitleScriptCommand::FadeOut:
+            fade = arg[0] == 0.0f ? TSFADE_OUT_BLACK : TSFADE_OUT_WHITE;
             fade_speed = arg[1];
             break;
 
-        case TSC_MESSAGE:
-            mes_no = (int) arg[0];
+        case TitleScriptCommand::Message:
+            mes_no = static_cast<int>(arg[0]);
             mes_timer = arg[1];
-            mes_x = (int) arg[2];
-            mes_y = (int) arg[3];
+            mes_x = static_cast<int>(arg[2]);
+            mes_y = static_cast<int>(arg[3]);
             mes_talker = -1;
-            mes_tail_x = (int) arg[4];
-            mes_tail_y = (int) arg[5];
+            mes_tail_x = static_cast<int>(arg[4]);
+            mes_tail_y = static_cast<int>(arg[5]);
             break;
 
-        case TSC_NEXT_MES:
-            mes_page_wait = (int) arg[0];
+        case TitleScriptCommand::NextMes:
+            mes_page_wait = static_cast<int>(arg[0]);
             break;
 
-        case TSC_MES_CLR:
+        case TitleScriptCommand::MesClr:
             mes_no = 0;
             break;
 
-        case TSC_LOAD_OBJ:
-            obj[(int) arg[1]].load = (int) arg[0];
-            obj[(int) arg[1]].load_step = TSLOAD_START;
+        case TitleScriptCommand::LoadObj:
+            object(arg[1]).load = static_cast<int>(arg[0]);
+            object(arg[1]).load_step = TSLOAD_START;
             break;
 
-        case TSC_SPRITE:
-            sprite = (char) arg[0];
+        case TitleScriptCommand::Sprite:
+            sprite = static_cast<char>(arg[0]);
             break;
 
-        case TSC_BOM:
+        case TitleScriptCommand::Bom:
             bom_no++;
 
             if (bom_no > 2) {
@@ -291,10 +325,10 @@ int CScript::CheckScript(char *buffer, int position, CSCRIPT_COMMAND *command, i
             bom_pos[bom_no][1] = arg[1];
             bom_pos[bom_no][2] = arg[2];
             bom_size[bom_no] = arg[3];
-            bom_req = true;
+            bom_req = 1;
             break;
 
-        case TSC_BEEM:
+        case TitleScriptCommand::Beem:
             beem_no++;
 
             if (beem_no > 2) {
@@ -302,9 +336,9 @@ int CScript::CheckScript(char *buffer, int position, CSCRIPT_COMMAND *command, i
             }
 
             if (arg[0] == -1.0f) {
-                beem_end = true;
+                beem_end = 1;
             } else {
-                beem_end = false;
+                beem_end = 0;
                 beem_from[beem_no][0] = arg[0];
                 beem_from[beem_no][1] = arg[1];
                 beem_from[beem_no][2] = arg[2];
@@ -313,180 +347,78 @@ int CScript::CheckScript(char *buffer, int position, CSCRIPT_COMMAND *command, i
                 beem_to[beem_no][2] = arg[5];
             }
 
-            beem_req = true;
+            beem_req = 1;
             break;
 
-        case TSC_SCENE_LOAD:
-            load_no = (int) arg[0];
+        case TitleScriptCommand::SceneLoad:
+            load_no = static_cast<int>(arg[0]);
             break;
 
-        case TSC_SCENE:
-            scene = (int) arg[0];
-            init_no = (int) arg[0];
+        case TitleScriptCommand::Scene:
+            scene = static_cast<int>(arg[0]);
+            init_no = static_cast<int>(arg[0]);
             break;
 
-        case TSC_WAIT:
+        case TitleScriptCommand::Wait:
             wait = arg[0] - 1.0f;
             break;
 
-        case TSC_WAIT_KEY:
-            mes_wait = (int) (1.0f + arg[0]);
+        case TitleScriptCommand::WaitKey:
+            mes_wait = static_cast<int>(1.0f + arg[0]);
             break;
 
-        case TSC_END:
+        case TitleScriptCommand::End:
             end = 1;
             break;
+
+        case TitleScriptCommand::Count:
+            break;
     }
 
     return cursor;
 }
 
-/* One command's arguments. Both kinds read the same three forms and differ only in what stands
-   before them: a kind-1 argument must be preceded by a comma and a kind-2 one stands where it is.
-   Anything the three forms do not cover hands back -1, which the caller stores and then parses
-   from ([title-script.md](../../docs/formats/title-script.md)). */
-int CScript::CheckArg(char *buffer, int position, CSCRIPT_COMMAND *command) {
-    int cursor;
-    int i;
-    int digit_count;
-    int accepted;
-
-    cursor = position;
-
-    for (i = 0; i < command->arg_count; i++) {
-        switch (command->arg_type[i]) {
-            case TSARG_COMMA_VALUE:
-                if (buffer[cursor] != ',') {
-                    return -1;
-                }
-
-                cursor = SkipSpace(buffer, cursor + 1);
-
-                if (memcmp(&buffer[cursor], "ON", 2) == 0) {
-                    arg[i] = 1.0f;
-                    cursor += 2;
-                } else if (memcmp(&buffer[cursor], "OFF", 3) == 0) {
-                    arg[i] = 0;
-                    cursor += 3;
-                } else {
-                    accepted = 0;
-
-                    if (buffer[cursor] == '-') {
-                        accepted = 1;
-                    }
-
-                    if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                        accepted = 1;
-                    }
-
-                    if (!accepted) {
-                        return -1;
-                    }
-
-                    arg[i] = (float) atof(&buffer[cursor]);
-
-                    for (digit_count = 0; digit_count < 32; digit_count++) {
-                        accepted = 0;
-
-                        if (buffer[cursor] == '-') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] == '.') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (!accepted) {
-                            break;
-                        }
-                    }
-
-                    if (digit_count == 32) {
-                        return -1;
-                    }
-                }
-
-                cursor = SkipSpace(buffer, cursor);
-                break;
-
-            case TSARG_VALUE:
-                if (memcmp(&buffer[cursor], "ON", 2) == 0) {
-                    arg[i] = 1.0f;
-                    cursor += 2;
-                } else if (memcmp(&buffer[cursor], "OFF", 3) == 0) {
-                    arg[i] = 0;
-                    cursor += 3;
-                } else {
-                    accepted = 0;
-
-                    if (buffer[cursor] == '-') {
-                        accepted = 1;
-                    }
-
-                    if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                        accepted = 1;
-                    }
-
-                    if (!accepted) {
-                        return -1;
-                    }
-
-                    arg[i] = (float) atof(&buffer[cursor]);
-
-                    for (digit_count = 0; digit_count < 32; digit_count++) {
-                        accepted = 0;
-
-                        if (buffer[cursor] == '-') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] >= '0' && buffer[cursor] <= '9') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (buffer[cursor] == '.') {
-                            cursor++;
-                            accepted = 1;
-                        }
-
-                        if (!accepted) {
-                            break;
-                        }
-                    }
-
-                    if (digit_count == 32) {
-                        return -1;
-                    }
-                }
-
-                cursor = SkipSpace(buffer, cursor);
-                break;
-        }
-    }
-
-    return cursor;
-}
-
-/* The run of separators standing before a token. Two of the five consume more than the byte they
-   are found cursor - a comment runs to its line ending inclusive and the ideographic space is two bytes -
-   which is why the skip is a loop over the whole file rather than a walk over one kind of byte
+/* A comma-value argument must be preceded by a comma; a plain value stands where it is. Anything
+   else hands back -1, which the caller stores and then parses from
    ([title-script.md](../../docs/formats/title-script.md)). */
-int CScript::SkipSpace(char *buffer, int position) {
-    bool stop;
+int CScript::CheckArg(const char *buffer, int position, const CSCRIPT_COMMAND *command) {
+    int cursor = position;
 
+    for (int i = 0; i < command->arg_count; i++) {
+        const int type = command->arg_type[i];
+
+        if (type != TSARG_COMMA_VALUE && type != TSARG_VALUE) {
+            continue;
+        }
+
+        if (type == TSARG_COMMA_VALUE) {
+            if (buffer[cursor] != ',') {
+                return -1;
+            }
+
+            cursor = SkipSpace(buffer, cursor + 1);
+        }
+
+        cursor = ReadValue(buffer, cursor, arg[i]);
+
+        if (cursor == -1) {
+            return -1;
+        }
+
+        cursor = SkipSpace(buffer, cursor);
+    }
+
+    return cursor;
+}
+
+/* A comment runs to its line ending inclusive and the ideographic space is two bytes, so the skip
+   walks the whole file rather than one kind of byte
+   ([title-script.md](../../docs/formats/title-script.md)). */
+int CScript::SkipSpace(const char *buffer, int position) {
     while (position < size) {
-        stop = true;
+        bool stop = true;
 
-        if (memcmp(&buffer[position], "\x81\x40", 2) == 0) {
+        if (std::memcmp(&buffer[position], "\x81\x40", 2) == 0) {
             position++;
             stop = false;
         }
@@ -509,7 +441,7 @@ int CScript::SkipSpace(char *buffer, int position) {
             stop = false;
         }
 
-        if (memcmp(&buffer[position], "//", 2) == 0) {
+        if (std::memcmp(&buffer[position], "//", 2) == 0) {
             while (buffer[position] != '\n' && buffer[position] != '\r') {
                 position++;
             }

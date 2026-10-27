@@ -11,42 +11,22 @@ class CFrameVu1;
 struct MOTION_INFO;
 
 /**
- *          Initializes the dungeon-square opening scene.
- *
- * @mangled OpA_InitProcess__Fv
- * @address 0x1DB4EC0
- * @size 0x1A8
- * @unknownret
+ * Initializes the dungeon-square opening scene.
  */
 void OpA_InitProcess();
 
 /**
- *          Draws one frame of the dungeon-square scene.
- *
- * @mangled OpA_DrawProcess__Fv
- * @address 0x1DB59D0
- * @size 0xD34
- * @unknownret
+ * Draws one frame of the dungeon-square scene.
  */
 void OpA_DrawProcess();
 
 /**
- *          Advances the dungeon-square scene state.
- *
- * @mangled OpA_MotionProcess__Fv
- * @address 0x1DB6BF0
- * @size 0x9E0
- * @unknownret
+ * Advances the dungeon-square scene state.
  */
 void OpA_MotionProcess();
 
 /**
- *          Updates sound and music for the dungeon-square scene.
- *
- * @mangled OpA_SoundProcess__Fv
- * @address 0x1DB7B90
- * @size 0x740
- * @unknownret
+ * Updates sound and music for the dungeon-square scene.
  */
 void OpA_SoundProcess();
 

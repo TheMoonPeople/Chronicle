@@ -1,13 +1,10 @@
 #include "title/scfader.hpp"
 
+#include <algorithm>
+
 int CScFader::In() {
     if (value < 128) {
-        value += 2;
-
-        if (value > 128) {
-            value = 128;
-        }
-
+        value = std::min(value + 2, 128);
         return 0;
     }
 
@@ -16,12 +13,7 @@ int CScFader::In() {
 
 int CScFader::In2() {
     if (value < 128) {
-        value += 8;
-
-        if (value > 128) {
-            value = 128;
-        }
-
+        value = std::min(value + 8, 128);
         return 0;
     }
 
@@ -30,12 +22,7 @@ int CScFader::In2() {
 
 int CScFader::Out() {
     if (value > -4) {
-        value -= 2;
-
-        if (value < -4) {
-            value = -4;
-        }
-
+        value = std::max(value - 2, -4);
         return 0;
     }
 

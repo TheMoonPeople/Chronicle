@@ -32,112 +32,57 @@ class CCameraFollow;
 struct MOTION_INFO;
 
 /**
- *          Initializes the opening-movie controller and shared scene state.
- *
- * @mangled OpeningInit__Fv
- * @address 0x1DAF1C0
- * @size 0x2FC
- * @unknownret
+ * Initializes the opening-movie controller and shared scene state.
  */
 void OpeningInit();
 
 /**
- *          Loads the active opening scene's background phase.
- *
- * @mangled LoadSceneBG__Fv
- * @address 0x1DAF7E0
- * @size 0x188
- * @unknownret
+ * Loads the active opening scene's background phase.
  */
 void LoadSceneBG();
 
 /**
- *          Advances the opening movie and reports its completion state.
- *
- * @mangled OpeningLoop__Fv
- * @address 0x1DAF970
- * @size 0x128
- * @unknownret
+ * Advances the opening movie and reports its completion state.
  */
 int OpeningLoop();
 
 /**
- *          Starts the opening movie's selected background music.
- *
- * @mangled OpBgmPlay__Fv
- * @address 0x1DB0EB0
- * @size 0x90
- * @unknownret
+ * Starts the opening movie's selected background music.
  */
 void OpBgmPlay();
 
 /**
- *          Plays a positionally panned opening sound effect.
- *
- * @mangled OpPlayVolPanSE__FPfffiii
- * @address 0x1DB0F40
- * @size 0x158
- * @unknownret
+ * Plays a positionally panned opening sound effect.
  */
 void OpPlayVolPanSE(float *position, float near_dist, float far_dist, int group, int no, int voice);
 
 /**
- *          Updates a positional opening sound effect's volume and pan.
- *
- * @mangled OpSetVolPanSE__FPfffiii
- * @address 0x1DB10A0
- * @size 0x164
- * @unknownret
+ * Updates a positional opening sound effect's volume and pan.
  */
 void OpSetVolPanSE(float *position, float near_dist, float far_dist, int group, int no, int voice);
 
 /**
- *          Plays an opening sound effect at an explicit volume.
- *
- * @mangled OpPlayVolSE__Fiiif
- * @address 0x1DB1210
- * @size 0xD4
- * @unknownret
+ * Plays an opening sound effect at an explicit volume.
  */
 void OpPlayVolSE(int group, int no, int voice, float volume);
 
 /**
- *          Returns the current volume of an opening sequence channel.
- *
- * @mangled OpGetVolSQ__Fi
- * @address 0x1DB12F0
- * @size 0x6C
- * @unknownret
+ * Returns the current volume of an opening sequence channel.
  */
 int OpGetVolSQ(int no);
 
 /**
- *          Cancels active opening sound fades.
- *
- * @mangled FadeCansel__Fv
- * @address 0x1DB1360
- * @size 0x98
- * @unknownret
+ * Cancels active opening sound fades.
  */
 void FadeCansel();
 
 /**
- *          Parses an opening scene definition file.
- *
- * @mangled OPAnalyz__FPc
- * @address 0x1DB1400
- * @size 0x152C
- * @unknownret
+ * Parses an opening scene definition file.
  */
 void OPAnalyz(char *name);
 
 /**
- *          Constructs scene objects from the parsed definition tree.
- *
- * @mangled OPMdsLoad__Fv
- * @address 0x1DB2930
- * @size 0x1EFC
- * @unknownret
+ * Constructs scene objects from the parsed definition tree.
  */
 void OPMdsLoad();
 
