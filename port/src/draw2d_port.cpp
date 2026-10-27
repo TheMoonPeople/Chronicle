@@ -20,13 +20,13 @@ PortTextureRef RealTexture(u_long tex0, u_long tex1) { return PortTextureFromTex
 CTexture *RealFindTexture(const char *name) { return TexManager.GetTexture(const_cast<char *>(name), -1); }
 
 constexpr Services kRealServices = {
-    RealDrawState,
-    RealTexture,
-    RealFindTexture,
-    MGSetGsTEST,
-    MGSetGsZBUF,
-    MGSetGsALPHA,
-    MGSetGsTEXA,
+    .draw_state = RealDrawState,
+    .texture = RealTexture,
+    .find_texture = RealFindTexture,
+    .set_test = MGSetGsTEST,
+    .set_zbuf = MGSetGsZBUF,
+    .set_alpha = MGSetGsALPHA,
+    .set_texa = MGSetGsTEXA,
 };
 
 const Services *g_services = &kRealServices;
@@ -118,6 +118,8 @@ gfx::Vertex2D Vertex(float x, float y, float z, float u, float v, u_char r, u_ch
     return vertex;
 }
 
+namespace {
+
 constexpr float kEdgeSettle = 1.0f / 256.0f;
 
 bool ScaledOnMainTarget() {
@@ -153,6 +155,8 @@ void SettleEdgeSamples(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertic
         }
     }
 }
+
+} // namespace
 
 void DrawTextured(gfx::Primitive primitive, std::span<gfx::Vertex2D> vertices, u_long tex0, u_long tex1,
                   gfx::DrawState state) {

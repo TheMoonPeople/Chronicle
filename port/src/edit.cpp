@@ -22,19 +22,23 @@
 #include "camera.hpp"
 #include "character.hpp"
 #include "clsmes.hpp"
+#include "dataset.hpp"
 #include "debugfont.hpp"
 #include "dngstatusdata.hpp"
 #include "draw2d_port.hpp"
 #include "draw3d.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
+#include "editloop.hpp"
 #include "editloop3.hpp"
 #include "editmapscript.hpp"
+#include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "effectmacro.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
+#include "main.hpp"
 #include "mainselect.hpp"
 #include "mapparts.hpp"
 #include "mathutil.hpp"
@@ -52,67 +56,22 @@
 #include "sound.hpp"
 #include "texture.hpp"
 
-// The bodies are retail's, which pass string literals as char *.
-#pragma clang diagnostic ignored "-Wwritable-strings"
-
-// Retail's editor debug layer. The free camera and character draw their box through the static
-// DrawLine, which wrote a LINE primitive into the packet; it draws through the 2D renderer here. The
-// three callers share Debug and DebugFont with the overlay, the menus and EdDDebug, so the whole
-// layer moves; the rest of the unit stays retail.
-
-/* Retail editetc.cpp: shared editor presentation, sound, menus and message helpers. */
-
 namespace {
 void DrawBound(CFrame *frame);
-void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a);
-} // namespace
+void DrawLine(const int *from, const int *to, u_char r, u_char g, u_char b, u_char a);
 
-/**
- * Stores one positional sound effect and every place it is heard from this frame.
- */
-struct SOUND_SRC {
-    int   se;         /**< Sound effect the slot plays; negative when the slot is free. */
-    int   num;        /**< Number of places entered this frame. */
-    float volume[16]; /**< Volume the sound arrives at from each place. */
-    float pan[16];    /**< Pan the sound arrives at from each place. */
-};
-
-void EdSaveFrameImage(CTexture texture);
-
-/* 28 bytes nothing reads other than a word at a time, so it is spelled as words rather than as a
-   layout nothing supports. */
-#include "dataset.hpp"
-#include "editloop.hpp"
-#include "editmenu.hpp"
-#include "main.hpp"
-
-void ClearSystemMes();
-int  SystemMesCheck();
-void SystemMesStep();
-void SystemMesDraw();
-void ItemGetMes(int item, int value, int duration, int input_key);
-
-/* The map editor's own debug layer: a text overlay anything may append a line to, a free camera
-   and a free character driven straight off the pad, and a wireframe box drawn through the GS by
-   hand because nothing else in the game draws lines.
+/* The map editor's debug layer: a text overlay anything may append a line to, a free camera and a
+   free character driven straight off the pad, and a wireframe box drawn at the point being moved.
    Two switches gate all of it. Debug starts on and EdDDebug turns it off for good - the argument
    it is handed is not read - so a build reaches the overlay only until the first call. DebugFont
    is null until somebody hands one over, and every entry point checks it, because the overlay
    writes into that object's buffer rather than one of its own. */
-extern int EdDebugEventEnable;
-extern int EdDebugCameraFlag;
-extern int EdDebugParamDrawOff;
-extern int EdDebugCharaDrawOff;
-extern int EdDebugMoveFlag;
-extern int EdDebugRunEventNo;
-
-namespace {
 int         Debug = 1;
 CDebugFont *DebugFont;
 int         AddStr(CDebugFont *font, std::string_view text);
 } // namespace
 
-void EdDDebug(int on) {
+void EdDDebug(int /*on*/) {
     Debug = 0;
 }
 
@@ -154,8 +113,6 @@ void EdDCheck() {
 }
 
 void EdOutPutFile() {
-    int fd;
-
     if (Debug == 0) {
         return;
     }
@@ -164,7 +121,7 @@ void EdOutPutFile() {
         return;
     }
 
-    fd = sceOpen("host0:debug.txt", SCE_WRONLY | SCE_CREAT | SCE_TRUNC);
+    const int fd = sceOpen("host0:debug.txt", SCE_WRONLY | SCE_CREAT | SCE_TRUNC);
 
     if (fd < 0) {
         return;
@@ -272,23 +229,16 @@ void EdDPrint(char *text) {
 void EdDMoveCamera(float *position, float *reference) {
     sceVu0FVECTOR offset;
     sceVu0FVECTOR move;
-    float         distance;
-    float         angle;
-    float         x;
-    float         y;
-    float         z;
-    float         projection;
-    int           i;
 
     if (Debug == 0) {
         return;
     }
 
     sceVu0SubVector(offset, reference, position);
-    distance = sqrtf(offset[0] * offset[0] + offset[2] * offset[2]);
-    angle = atan2f(offset[0], offset[2]);
+    const float distance = sqrtf(offset[0] * offset[0] + offset[2] * offset[2]);
+    const float angle = atan2f(offset[0], offset[2]);
 
-    x = -GamePad.GetLXf();
+    float x = -GamePad.GetLXf();
 
     if (GamePad.On(PAD_R1)) {
         x = 0.02f * distance;
@@ -298,8 +248,8 @@ void EdDMoveCamera(float *position, float *reference) {
         x = 0.02f * -distance;
     }
 
-    y = -GamePad.GetRYf();
-    z = -GamePad.GetLYf();
+    const float y = -GamePad.GetRYf();
+    const float z = -GamePad.GetLYf();
 
     move[0] = x * cosf(angle) + z * sinf(angle);
     move[1] = y;
@@ -315,7 +265,7 @@ void EdDMoveCamera(float *position, float *reference) {
         sceVu0AddVector(reference, reference, move);
     }
 
-    projection = MGGetProjection();
+    float projection = MGGetProjection();
 
     if (GamePad.On(PAD_RIGHT)) {
         projection += 1.0f;
@@ -325,21 +275,16 @@ void EdDMoveCamera(float *position, float *reference) {
         projection -= 1.0f;
     }
 
-    if (projection < 100.0f) {
-        projection = 100.0f;
-    }
-
-    if (projection > 2000.0f) {
-        projection = 2000.0f;
-    }
+    projection = std::max(projection, 100.0f);
+    projection = std::min(projection, 2000.0f);
 
     MGSetProjection(projection);
 
     {
-        CFrame frame;
-        float  unit[2] = {-1.0f, 1.0f};
+        CFrame                         frame;
+        constexpr std::array<float, 2> unit = {-1.0f, 1.0f};
 
-        for (i = 0; i < 8; i++) {
+        for (int i = 0; i < 8; i++) {
             frame.corner[i][0] = unit[(i & 1) != 0];
             frame.corner[i][1] = unit[(i & 2) != 0];
             frame.corner[i][2] = unit[(i & 4) != 0];
@@ -356,22 +301,16 @@ void EdDMoveCamera(float *position, float *reference) {
 void EdDMoveCameraRef(float *position, float *reference) {
     sceVu0FVECTOR offset;
     sceVu0FVECTOR move;
-    float         distance;
-    float         angle;
-    float         x;
-    float         y;
-    float         z;
-    int           i;
 
     if (Debug == 0) {
         return;
     }
 
     sceVu0SubVector(offset, reference, position);
-    distance = sqrtf(offset[0] * offset[0] + offset[2] * offset[2]);
-    angle = atan2f(offset[0], offset[2]);
+    const float distance = sqrtf(offset[0] * offset[0] + offset[2] * offset[2]);
+    const float angle = atan2f(offset[0], offset[2]);
 
-    x = -GamePad.GetLXf();
+    float x = -GamePad.GetLXf();
 
     if (GamePad.On(PAD_R1)) {
         x = 0.02f * -distance;
@@ -381,8 +320,8 @@ void EdDMoveCameraRef(float *position, float *reference) {
         x = 0.02f * distance;
     }
 
-    y = GamePad.GetRYf();
-    z = -GamePad.GetLYf();
+    const float y = GamePad.GetRYf();
+    const float z = -GamePad.GetLYf();
 
     move[0] = x * cosf(angle) + z * sinf(angle);
     move[1] = y;
@@ -395,10 +334,10 @@ void EdDMoveCameraRef(float *position, float *reference) {
     }
 
     {
-        CFrame frame;
-        float  unit[2] = {-1.0f, 1.0f};
+        CFrame                         frame;
+        constexpr std::array<float, 2> unit = {-1.0f, 1.0f};
 
-        for (i = 0; i < 8; i++) {
+        for (int i = 0; i < 8; i++) {
             frame.corner[i][0] = unit[(i & 1) != 0];
             frame.corner[i][1] = unit[(i & 2) != 0];
             frame.corner[i][2] = unit[(i & 4) != 0];
@@ -423,13 +362,6 @@ void EdDMoveChara(CCharacter *character, CCamera *camera) {
     sceVu0FVECTOR rot;
     sceVu0FVECTOR view;
     sceVu0FVECTOR move;
-    float         angle;
-    float         speed;
-    float         x;
-    float         y;
-    float         z;
-    float         ambient;
-    int           i;
 
     if (character == nullptr) {
         return;
@@ -441,12 +373,12 @@ void EdDMoveChara(CCharacter *character, CCamera *camera) {
     camera->GetRef(camera_ref);
 
     sceVu0SubVector(view, camera_ref, camera_pos);
-    angle = atan2f(view[0], view[2]);
-    speed = 0.5f;
+    const float angle = atan2f(view[0], view[2]);
+    float       speed = 0.5f;
 
-    x = -GamePad.GetLXf();
-    y = -GamePad.GetRYf();
-    z = -GamePad.GetLYf();
+    const float x = -GamePad.GetLXf();
+    const float y = -GamePad.GetRYf();
+    const float z = -GamePad.GetLYf();
 
     if (GamePad.On(PAD_R1)) {
         rot[1] += -0.06f;
@@ -483,7 +415,7 @@ void EdDMoveChara(CCharacter *character, CCamera *camera) {
         camera->SetRef(camera_ref);
     }
 
-    ambient = character->ambient_offset[0];
+    float ambient = character->ambient_offset[0];
 
     if (GamePad.On(PAD_R2)) {
         ambient += 0.1f;
@@ -500,11 +432,11 @@ void EdDMoveChara(CCharacter *character, CCamera *camera) {
     }
 
     {
-        CFrame frame;
-        float  ground[2] = {-5.0f, 5.0f};
-        float  height[2] = {0.0f, 20.0f};
+        CFrame                         frame;
+        constexpr std::array<float, 2> ground = {-5.0f, 5.0f};
+        constexpr std::array<float, 2> height = {0.0f, 20.0f};
 
-        for (i = 0; i < 8; i++) {
+        for (int i = 0; i < 8; i++) {
             frame.corner[i][0] = ground[(i & 1) != 0];
             frame.corner[i][1] = height[(i & 2) != 0];
             frame.corner[i][2] = ground[(i & 4) != 0];
@@ -530,6 +462,8 @@ void EdDebugMenu() {
         case 1:
             DM_Flag();
             break;
+        default:
+            break;
     }
 
     if (GamePad.Down(PAD_R2)) {
@@ -540,9 +474,7 @@ void EdDebugMenu() {
         mode--;
     }
 
-    if (mode < 0) {
-        mode = 0;
-    }
+    mode = std::max(mode, 0);
 
     if (mode >= 3) {
         mode = 2;
@@ -553,11 +485,11 @@ void EdDebugMenu() {
 }
 
 void DM_Main() {
-    static int select = 0;
-    static int run_event = 150;
-    static int talk_chara = 0;
-    char      *on_off[2] = {"OFF", "ON"};
-    char      *cursor[2] = {"  ", "->"};
+    static int                                select = 0;
+    static int                                run_event = 150;
+    static int                                talk_chara = 0;
+    constexpr std::array<std::string_view, 2> on_off = {"OFF", "ON"};
+    constexpr std::array<std::string_view, 2> cursor = {"  ", "->"};
 
     AddStr(DebugFont, "    MAIN    ->R2\n");
     AddStr(DebugFont, std::format("{}DEBUG CAMERA {}\n", cursor[select == 0], on_off[EdDebugCameraFlag]));
@@ -622,13 +554,9 @@ void DM_Main() {
                 EdDebugMoveFlag--;
             }
 
-            if (EdDebugMoveFlag < 0) {
-                EdDebugMoveFlag = 0;
-            }
+            EdDebugMoveFlag = std::max(EdDebugMoveFlag, 0);
 
-            if (EdDebugMoveFlag > 2) {
-                EdDebugMoveFlag = 2;
-            }
+            EdDebugMoveFlag = std::min(EdDebugMoveFlag, 2);
 
             break;
         case 5:
@@ -695,14 +623,12 @@ void DM_Main() {
                 LanguageCode--;
             }
 
-            if (LanguageCode < LANG_JAPANESE) {
-                LanguageCode = LANG_JAPANESE;
-            }
+            LanguageCode = std::max<s32>(LanguageCode, LANG_JAPANESE);
 
-            if (LanguageCode > LANG_SPANISH) {
-                LanguageCode = LANG_SPANISH;
-            }
+            LanguageCode = std::min<s32>(LanguageCode, LANG_SPANISH);
 
+            break;
+        default:
             break;
     }
 
@@ -724,13 +650,13 @@ void DM_Main() {
 }
 
 void DM_Sound() {
-    static int select = 0;
-    static int bgm_no = 0;
-    static int se_no = 0;
-    static int set_no = 0;
-    static int bgm_seq = 0;
-    char      *on_off[2] = {"OFF", "ON"};
-    char      *cursor[2] = {"  ", "->"};
+    static int                                select = 0;
+    static int                                bgm_no = 0;
+    static int                                se_no = 0;
+    static int                                set_no = 0;
+    static int                                bgm_seq = 0;
+    constexpr std::array<std::string_view, 2> on_off = {"OFF", "ON"};
+    constexpr std::array<std::string_view, 2> cursor = {"  ", "->"};
 
     AddStr(DebugFont, "L2<-SOUND   ->\n");
     AddStr(DebugFont, std::format("{}BGM PLAY {} SEQ = {} x:PLAY start:STOP\n", cursor[select == 0], bgm_no, bgm_seq));
@@ -764,13 +690,9 @@ void DM_Sound() {
                 bgm_seq--;
             }
 
-            if (bgm_seq < 0) {
-                bgm_seq = 0;
-            }
+            bgm_seq = std::max(bgm_seq, 0);
 
-            if (bgm_seq > 3) {
-                bgm_seq = 3;
-            }
+            bgm_seq = std::min(bgm_seq, 3);
 
             if (GamePad.Down(PAD_CROSS)) {
                 SndBgmStop();
@@ -843,6 +765,8 @@ void DM_Sound() {
             }
 
             break;
+        default:
+            break;
     }
 
     if (GamePad.Down(PAD_DOWN)) {
@@ -853,18 +777,13 @@ void DM_Sound() {
         select--;
     }
 
-    if (select < 0) {
-        select = 0;
-    }
+    select = std::max(select, 0);
 
     if (select >= 4) {
         select = 3;
     }
 }
 
-/**
- * Raises the deepest floor reached in one dungeon to the given floor if it lies deeper.
- */
 namespace {
 void RaiseFloorReached(CDngStatusData *status, int dungeon, int floor) {
     if (floor > status->floor_reached[dungeon]) {
@@ -874,18 +793,12 @@ void RaiseFloorReached(CDngStatusData *status, int dungeon, int floor) {
 } // namespace
 
 void DM_Flag() {
-    static int      select = 0;
-    static int      game_no = 0;
-    static int      map_no = 0;
-    static int      comp_no = 0;
-    static int      dun_map = MapNo;
-    static int      chara = 0;
-    CDngStatusData *status;
-    SV_GRD_NPC     *npc;
-    int            *value;
-    int             floor;
-    int             talk;
-    int             i;
+    static int select = 0;
+    static int game_no = 0;
+    static int map_no = 0;
+    static int comp_no = 0;
+    static int dun_map = MapNo;
+    static int chara = 0;
 
     // Maps inside a dungeon count as that dungeon.
     if (dun_map == 11) {
@@ -924,29 +837,29 @@ void DM_Flag() {
         dun_map = 0;
     }
 
-    char *on_off[2] = {"OFF", "ON"};
-    char *cursor[2] = {"  ", "->"};
+    constexpr std::array<std::string_view, 2> on_off = {"OFF", "ON"};
+    constexpr std::array<std::string_view, 2> cursor = {"  ", "->"};
 
     AddStr(DebugFont, "L2<-FALG   ->R\n");
-    status = SaveData->GetDngStatus();
+    CDngStatusData *status = SaveData->GetDngStatus();
     AddStr(DebugFont, std::format("{}GAMEFLAG {:3d}    = {}\n", cursor[select == 0], game_no, on_off[SaveData->GetGameFlag(game_no)]));
     AddStr(DebugFont, std::format("{}MAPFLAG {:3d}     = {}\n", cursor[select == 1], map_no, on_off[!SaveData->GetMapFlag(MapNo, map_no)]));
     AddStr(DebugFont, std::format("{}COMPFLAG {:3d}    = {}\n", cursor[select == 2], comp_no, on_off[EditPartsInfo.GetCompEvent(comp_no)]));
     AddStr(DebugFont, std::format("{}GAME INT FALG 0 = {}\n", cursor[select == 3], SaveData->GetGameIntFlag(0)));
     AddStr(DebugFont, std::format("{}QUEST DUNGEON   = {}\n", cursor[select == 4], SaveData->QuestDungeon(dun_map, 0)));
-    floor = status->floor_reached[dun_map];
+    int floor = status->floor_reached[dun_map];
     AddStr(DebugFont, std::format("{}DUNGEON FLOOR   = {}\n", cursor[select == 5], floor));
     AddStr(DebugFont, std::format("{}PARTY NUM       = {}\n", cursor[select == 6], status->party_size));
-    npc = SaveData->GetGrdNPCData(MapNo, chara);
-    talk = false;
+    SV_GRD_NPC *npc = SaveData->GetGrdNPCData(MapNo, chara);
+    int         talk = 0;
 
-    if (npc) {
+    if (npc != nullptr) {
         talk = npc->talk_message;
     }
 
     AddStr(DebugFont, std::format("{}TALKFLAG {:3d}    = {}\n", cursor[select == 7], chara, talk));
 
-    value = nullptr;
+    int *value = nullptr;
 
     switch (select) {
         case 0:
@@ -985,29 +898,25 @@ void DM_Flag() {
             }
 
             if (GamePad.Down(PAD_TRIANGLE)) {
-                SV_GEORAMA_DATA *georama;
-
-                for (i = 0; i < 24; i++) {
+                for (int i = 0; i < 24; i++) {
                     EditPartsInfo.SetCompEvent(i, 1);
                 }
 
-                georama = SaveData->GetGrdData(MapNo);
+                SV_GEORAMA_DATA *georama = SaveData->GetGrdData(MapNo);
 
-                if (georama) {
+                if (georama != nullptr) {
                     georama->request_event_flag = 1;
                 }
             }
 
             if (GamePad.Down(PAD_SQUARE)) {
-                SV_GEORAMA_DATA *georama;
-
-                for (i = 0; i < 24; i++) {
+                for (int i = 0; i < 24; i++) {
                     EditPartsInfo.SetCompEvent(i, 0);
                 }
 
-                georama = SaveData->GetGrdData(MapNo);
+                SV_GEORAMA_DATA *georama = SaveData->GetGrdData(MapNo);
 
-                if (georama) {
+                if (georama != nullptr) {
                     georama->request_event_flag = 0;
                 }
             }
@@ -1032,9 +941,7 @@ void DM_Flag() {
                 flag -= 10;
             }
 
-            if (flag < 0) {
-                flag = 0;
-            }
+            flag = std::max(flag, 0);
 
             SaveData->SetGameIntFlag(0, flag);
             break;
@@ -1100,38 +1007,40 @@ void DM_Flag() {
         case 7:
             value = &chara;
 
-            if (GamePad.Down(PAD_CROSS) && npc) {
+            if (GamePad.Down(PAD_CROSS) && npc != nullptr) {
                 npc->talk_message++;
             }
 
-            if (GamePad.Down(PAD_START) && npc) {
+            if (GamePad.Down(PAD_START) && npc != nullptr) {
                 npc->talk_message--;
             }
 
             if (GamePad.Down(PAD_TRIANGLE)) {
-                for (i = 0; i < 20; i++) {
+                for (int i = 0; i < 20; i++) {
                     SV_GRD_NPC *other = SaveData->GetGrdNPCData(MapNo, i);
 
-                    if (other) {
+                    if (other != nullptr) {
                         other->talk_message = 1;
                     }
                 }
             }
 
             if (GamePad.Down(PAD_SQUARE)) {
-                for (i = 0; i < 20; i++) {
+                for (int i = 0; i < 20; i++) {
                     SV_GRD_NPC *other = SaveData->GetGrdNPCData(MapNo, i);
 
-                    if (other) {
+                    if (other != nullptr) {
                         other->talk_message = 0;
                     }
                 }
             }
 
             break;
+        default:
+            break;
     }
 
-    if (value) {
+    if (value != nullptr) {
         if (GamePad.Down(PAD_RIGHT)) {
             (*value)++;
         }
@@ -1148,9 +1057,7 @@ void DM_Flag() {
             *value -= 10;
         }
 
-        if (*value < 0) {
-            *value = 0;
-        }
+        *value = std::max(*value, 0);
     }
 
     if (GamePad.Down(PAD_DOWN)) {
@@ -1175,46 +1082,52 @@ void DM_Flag() {
    drawn through a projected point that means nothing. */
 namespace {
 void DrawBound(CFrame *frame) {
-    auto          screen = std::make_unique<int[]>(8 * 4);
+    constexpr std::array<std::array<int, 2>, 12> edges = {
+        {
+         {0, 1},
+         {1, 5},
+         {5, 4},
+         {4, 0},
+         {2, 3},
+         {3, 7},
+         {7, 6},
+         {6, 2},
+         {0, 2},
+         {4, 6},
+         {5, 7},
+         {1, 3},
+         }
+    };
+
+    auto          screen = std::make_unique<int[][4]>(8);
     auto          world = std::make_unique<sceVu0FVECTOR[]>(8);
     sceVu0FMATRIX matrix;
-    int           i;
-    int           visible;
 
     if (frame == nullptr) {
         return;
     }
 
     frame->GetLWMatrix(matrix);
-    visible = true;
+    int visible = 1;
     ApplyMatrixN(world.get(), matrix, frame->corner, 8);
 
-    for (i = 0; i < 8; i++) {
-        visible &= MGRotTransPers(screen.get() + i * 4, world[i], 0);
+    for (int i = 0; i < 8; i++) {
+        visible &= MGRotTransPers(screen[i], world[i], 0);
     }
 
     if (visible == 0) {
         return;
     }
 
-    DrawLine(screen.get() + 0 * 4, screen.get() + 1 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 1 * 4, screen.get() + 5 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 5 * 4, screen.get() + 4 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 4 * 4, screen.get() + 0 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 2 * 4, screen.get() + 3 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 3 * 4, screen.get() + 7 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 7 * 4, screen.get() + 6 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 6 * 4, screen.get() + 2 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 0 * 4, screen.get() + 2 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 4 * 4, screen.get() + 6 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 5 * 4, screen.get() + 7 * 4, 128, 64, 64, 80);
-    DrawLine(screen.get() + 1 * 4, screen.get() + 3 * 4, 128, 64, 64, 80);
+    for (const auto &[from, to] : edges) {
+        DrawLine(screen[from], screen[to], 128, 64, 64, 80);
+    }
 }
 
 // One line in the colour given, blended through the current ALPHA register, depth-tested ALWAYS but
-// writing depth as mgZBuffer says, with TEST and ZBUF left at mglib's shadows afterwards as retail's
-// packet left them. The ends are MGRotTransPers's GS window coordinates.
-void DrawLine(int *from, int *to, u_char r, u_char g, u_char b, u_char a) {
+// writing depth as mgZBuffer says, with TEST and ZBUF restored to mglib's shadows afterwards. The
+// ends are MGRotTransPers's GS window coordinates.
+void DrawLine(const int *from, const int *to, u_char r, u_char g, u_char b, u_char a) {
     sceGsTest test = mgPixelTest;
     test.bits.ate = 0;
     test.bits.aref = 0;

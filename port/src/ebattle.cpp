@@ -1,13 +1,22 @@
 #include "ebattle.hpp"
 
+#include <libvu0.h>
+
 #include <algorithm>
 #include <cmath>
 
+#include "camera.hpp"
+#include "camera_port.hpp"
+#include "camerafollow.hpp"
 #include "character.hpp"
 #include "dataread.hpp"
+#include "edit.hpp"
 #include "editloop.hpp"
+#include "fishing.hpp"
 #include "gamepad.hpp"
+#include "gameutil.hpp"
 #include "menu_save.hpp"
+#include "npcharacter.hpp"
 #include "platform/config.hpp"
 #include "platform/input.hpp"
 #include "snd.hpp"
@@ -40,10 +49,27 @@ extern int    eb_result;
 extern int    ok_draw_cnt;
 extern int    ok_type;
 extern int    ok_effect_button;
+extern int    viewMode;
+extern int    chara_mode;
+extern int    chara_fishing;
+extern float  viewAngleH;
+extern float  viewAngleV;
 
 void draw_ok_loop();
+int  PortEdCheckKeyMode(int mode);
 
 namespace {
+
+/** Streamed sound slot of the event battle's victory fanfare. */
+constexpr int kFanfareSound = 0x2F;
+
+/** First-person view's turn per tick at full stick deflection, in radians. */
+constexpr float kTurnRate = 0.02f;
+
+/** Distance walked since the last footstep sound. */
+float walked = 0.0f;
+/** Which foot the next footstep sound plays for. */
+int foot = 0;
 
 void set_draw_ok(int type, int button) {
     ok_effect_button = button;
@@ -69,36 +95,31 @@ int EBLoop() {
     }
 
     if (eb_count == 0 && play_fanfare != 0) {
-        int loaded_size;
+        int loaded_size = 0;
         StartReadBG();
-        SndSPSeLoadBG(0x2F, read_buffer, &loaded_size);
+        SndSPSeLoadBG(kFanfareSound, read_buffer, &loaded_size);
     }
 
     ReadBG();
 
-    int       i;
-    const int key_count = std::clamp(eb_key_num, 0, 64);
-    float     frame_speed = speed;
-    EB_KEY   *active = nullptr;
-    int       cool = 0;
+    const int   key_count = std::clamp(eb_key_num, 0, 64);
+    const float frame_speed = speed;
+    int         active_index = -1;
+    int         cool = 0;
 
-    for (i = 0; i < key_count; i++) {
-        EB_KEY *key = &eb_key[i];
-        float   distance = eb_count - key->frame;
+    for (int i = 0; i < key_count; i++) {
+        EB_KEY &key = eb_key[i];
+        auto    distance = static_cast<float>(eb_count - key.frame);
         distance *= frame_speed;
-        int early = 0;
+        const int early = key.mode > 0 ? (6 - key.mode) << 6 : 0;
 
-        if (key->mode > 0) {
-            early = (6 - key->mode) << 6;
-        }
-
-        key->highlight = false;
+        key.highlight = 0;
 
         if (distance > 0.0f) {
             if (distance < 48.0f) {
-                active = key;
+                active_index = i;
             } else {
-                key->passed = true;
+                key.passed = 1;
             }
 
             if (distance < 24.0f) {
@@ -106,57 +127,58 @@ int EBLoop() {
             }
         } else {
             if (distance > -16.0f) {
-                active = key;
+                active_index = i;
             }
 
-            if (early > 0 && distance <= 16.0f - early) {
-                key->highlight = true;
+            if (early > 0 && distance <= 16.0f - static_cast<float>(early)) {
+                key.highlight = 1;
             }
         }
 
-        if (debug_mode != 0 && eb_count == key->frame) {
+        if (debug_mode != 0 && eb_count == key.frame) {
             SndSePlay(SE_EB_HIT, -1, 0);
             SndSePlay(MENU_SOUND_CONFIRM, -1, 0);
         }
     }
 
-    int failed = 0;
+    bool failed = false;
 
-    if (active != nullptr) {
-        active->pressed |= GamePad.GetPadDown();
+    if (active_index >= 0) {
+        EB_KEY &active = eb_key[active_index];
+        active.pressed |= GamePad.GetPadDown();
 
-        if (active->pressed == active->buttons) {
-            if (active->hit == 0) {
+        if (active.pressed == active.buttons) {
+            if (active.hit == 0) {
                 if (cool) {
                     SndSePlay(SE_EB_HIT_COOL, -1, 0);
                 } else {
                     SndSePlay(SE_EB_HIT, -1, 0);
                 }
 
-                set_draw_ok(cool, active - eb_key);
+                set_draw_ok(cool, active_index);
                 eb_cool_flag &= cool;
                 eb_key_count++;
             }
 
-            active->hit = 1;
+            active.hit = 1;
         }
 
-        if (active->buttons != (active->buttons | active->pressed)) {
-            failed = 1;
+        if (active.buttons != (active.buttons | active.pressed)) {
+            failed = true;
         }
     } else if (GamePad.GetPadDown()) {
-        failed = 1;
+        failed = true;
     }
 
-    for (i = 0; i < key_count; i++) {
-        EB_KEY *key = &eb_key[i];
+    for (int i = 0; i < key_count; i++) {
+        const EB_KEY &key = eb_key[i];
 
-        if (key->passed == 0) {
+        if (key.passed == 0) {
             break;
         }
 
-        if (key->buttons != key->pressed) {
-            failed = 1;
+        if (key.buttons != key.pressed) {
+            failed = true;
         }
     }
 
@@ -178,7 +200,7 @@ int EBLoop() {
             while (SndSPSeSyncBG() != 0) {
             }
 
-            SndSPSePlay(0x2F, -1);
+            SndSPSePlay(kFanfareSound, -1);
         }
 
         eb_finish_cnt = 160;
@@ -191,25 +213,6 @@ int EBLoop() {
     eb_count++;
     return 0;
 }
-
-#include <libvu0.h>
-
-#include "camera.hpp"
-#include "camera_port.hpp"
-#include "camerafollow.hpp"
-#include "character.hpp"
-#include "edit.hpp"
-#include "fishing.hpp"
-#include "gameutil.hpp"
-#include "npcharacter.hpp"
-
-// Defined by ps2/src/ebattle.cpp without a header declaration.
-extern int   viewMode;
-extern int   chara_mode;
-extern float viewAngleH;
-extern float viewAngleV;
-
-int PortEdCheckKeyMode(int mode);
 
 // The right stick of the town's walk: EdMoveChara turns its camera by RX (0.03 a tick, unless a
 // wall is on that side) and raises it by RY while it is under 30. RX stays the stick's: the mouse's
@@ -254,11 +257,11 @@ float EdGetRYf(int mode) {
 // Retail's, with the mouse turning the view while it is the one shown. In an interior the view
 // takes its heading from the character's (EdMoveChara), so the mouse turns the character too.
 void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
-    float stick_x;
-    float stick_y;
-    bool  unlocked = (chara_mode & 3) == 0;
-    auto  keyboard = InputGetKeyboardMovement();
-    bool  walking = viewMode != 0 && (keyboard.x || keyboard.y);
+    float      stick_x = 0.0f;
+    float      stick_y = 0.0f;
+    const bool unlocked = (chara_mode & 3) == 0;
+    const auto keyboard = InputGetKeyboardMovement();
+    const bool walking = viewMode != 0 && (keyboard.x || keyboard.y);
 
     if (right_stick != 0) {
         stick_x = 0.0f;
@@ -269,8 +272,7 @@ void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
     }
 
     if (stick_x > 0.0f) {
-        float rate = 0.02f;
-        viewAngleH -= stick_x * rate;
+        viewAngleH -= stick_x * kTurnRate;
 
         if (viewAngleH < -PI) {
             viewAngleH += TWO_PI;
@@ -278,8 +280,7 @@ void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
     }
 
     if (stick_x < -0.0f) {
-        float rate = 0.02f;
-        viewAngleH -= stick_x * rate;
+        viewAngleH -= stick_x * kTurnRate;
 
         if (viewAngleH > PI) {
             viewAngleH -= TWO_PI;
@@ -287,13 +288,11 @@ void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
     }
 
     if (stick_y > 0.0f && viewAngleV < 0.65f) {
-        float rate = 0.02f;
-        viewAngleV += stick_y * rate;
+        viewAngleV += stick_y * kTurnRate;
     }
 
     if (stick_y < -0.0f && viewAngleV > -1.0f) {
-        float rate = 0.02f;
-        viewAngleV += stick_y * rate;
+        viewAngleV += stick_y * kTurnRate;
     }
 
     if (viewMode != 0 && unlocked && PortEdCheckKeyMode(1)) {
@@ -312,8 +311,6 @@ void EyeCamera(CCamera *camera, CCharacter *character, int right_stick) {
 
     EdEyeCamera(camera, character);
 }
-
-extern int chara_fishing;
 
 // Suppress the interior's keyboard steering; the collision seam supplies camera-relative WASD.
 float EdGetLXf(int mode) {
@@ -352,12 +349,10 @@ int PortEdMoveCheck(float *pos, float *velocity, float *out_pos, MoveCheckInfo *
         rotation[1] = heading;
         chara->SetRotation(rotation);
     }
-    int          result = MoveCheck(pos, velocity, out_pos, out_info, polys, poly_num, mode);
-    static float walked = 0.0f;
+    const int result = MoveCheck(pos, velocity, out_pos, out_info, polys, poly_num, mode);
     if (walking && !EdMoveCharaInfo.interior && out_info->landed) {
         walked += hypotf(out_pos[0] - pos[0], out_pos[2] - pos[2]);
         if (walked >= 10.0f) {
-            static int foot = 0;
             SndPlayFootSound(out_info->poly.attr.foot_sound, foot, out_pos);
             foot ^= 1;
             walked = fmodf(walked, 10.0f);

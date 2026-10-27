@@ -2,11 +2,17 @@
 
 #include <libvu0.h>
 
+#include <algorithm>
+#include <array>
+#include <bit>
 #include <cmath>
-#include <cstdio>
-#include <cstring>
+#include <cstddef>
+#include <format>
+#include <iterator>
 #include <memory>
+#include <print>
 #include <string>
+#include <string_view>
 
 #include "battlemenu.hpp"
 #include "btactstatus.hpp"
@@ -71,14 +77,12 @@
 #include "weaponeffect.hpp"
 #include "weaponelement.hpp"
 
-// The dungeon's MainDraw and LoaderLoop, replaced to drop what the renderer has no use for: the VU1
-// program call each opens with and MainDraw's wait for GIF path idle before the frame grab, which
-// the renderer orders itself. Everything else is retail's, PAL's branch only.
+// The dungeon's frame draw, loader menu and player damage handling. The renderer orders the frame
+// grab itself, so MainDraw neither starts a VU1 program nor waits for GIF path idle.
 //
-// port/include/stubs/dun/gameloop.hpp renames the unit's MainDraw to DunMainDraw, apart from
-// editloop's, as the PS2 link does.
+// port/include/stubs/dun/gameloop.hpp names this unit's MainDraw DunMainDraw so that it does not
+// collide with editloop's.
 
-// Defined by ps2/src/dun/gameloop.cpp without a header declaration.
 struct BOMB_INFO {
     sceVu0FVECTOR pos;
     s32           unk_10;
@@ -120,7 +124,6 @@ extern s32             oldMsgNo;
 extern s32             rogoAlphaA[3];
 extern s32             rogoSwitch2;
 extern s32             rogoY3;
-void                   unitBlowActionRot(float *velocity);
 
 namespace {
 
@@ -154,17 +157,28 @@ void DrawMonstorDetail() {
 // water (left of the quick items at 0x124) to the left edge, the floor plate (from 0x1FC) to the
 // right edge, the quick items between them stay centred; the panel to the top edge, the weapon's
 // portrait and gauge to the bottom edge.
-constexpr gfx::UiAnchor kStatusAnchor = {0x124, 0x1FC, 240.0f, 240.0f};
+constexpr gfx::UiAnchor kStatusAnchor = {.left_until = 0x124, .right_from = 0x1FC, .top_until = 240.0f, .bottom_from = 240.0f};
 // The mini map hangs under the floor plate.
 constexpr gfx::UiAnchor kMiniMapAnchor = gfx::UiAnchor::Side(1, -1);
 
 float CharaHeight(CUserStatus *status) {
-    float chara_height[6] = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
+    constexpr std::array<float, 6> chara_height = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
     return chara_height[static_cast<int>(status->cur_chara)];
 }
 
 CTexture *NamedTexture(const char *name) {
     return TexManager.GetTexture(const_cast<char *>(name), -1);
+}
+
+// Spends one use of the quick-use item in slot, dropping it and announcing so once none are left.
+void SpendActiveItem(int slot, int item_id) {
+    if (--UserStatus->active_item_vol[slot] <= 0) {
+        DelActiveItem(slot + 1);
+        DngMessMan.message = 0xB7;
+        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(item_id);
+        DngMessMan.timer = 0xB4;
+        DngMessMan.steev_window = false;
+    }
 }
 
 } // namespace
@@ -200,7 +214,6 @@ void DunMainDraw() {
     sceVu0FMATRIX unit;
     sceGsTex0     frame_tex;
     sceGsTex0     water_tex;
-    int           i;
 
     EdEventInfo.main_texture_animation = nullptr;
     NowCamera__3->GetPos(eye);
@@ -252,8 +265,7 @@ void DunMainDraw() {
         NowDngMap->DrawMapFreeStyle();
     }
 
-    // The map field's own draw, not the virtual one it inherits: retail binds
-    // this call at compile time.
+    // Deliberately non-virtual: the map field's own draw, not an override.
     NowDranMapField->CDranMapField::Draw();
 
     if (itemOpenSmallFlag == 0 && itemOpenBigFlag == 0) {
@@ -309,7 +321,7 @@ void DunMainDraw() {
     }
 
     if (BtEventMode != 0) {
-        for (i = 0; i < 6; i++) {
+        for (int i = 0; i < 6; i++) {
             if (EdEventInfo.npc_draw[i] != 0) {
                 TexManager.ReloadTexture(Vif1Packet, i + 0x20);
                 NPCUnit[i].TextureAnime(NPCUnit[i].texture_block);
@@ -341,7 +353,7 @@ void DunMainDraw() {
         area.y = 0;
         area.width = 0x280;
         area.height = SCREEN_HALF_HEIGHT;
-        water_tex = *reinterpret_cast<sceGsTex0 *>(&NamedTexture("water")->tex0);
+        water_tex = std::bit_cast<sceGsTex0>(NamedTexture("water")->tex0);
         MGMoveImage(&frame_tex, area, &water_tex, 0, 0, 0);
         sceVu0CopyVector(water_pos, CharaFrame->position);
         NowDngMap->DrawWater(water_pos, driveStepHold);
@@ -351,17 +363,17 @@ void DunMainDraw() {
         TexManager.ReloadTexture(Vif1Packet, 0x13);
         NowShockWave->Draw(NowCamera__3);
 
-        for (i = 0; i < 3; i++) {
-            CBomb__2[i].Draw(NowCamera__3);
+        for (CItemBombEffect &bomb : CBomb__2) {
+            bomb.Draw(NowCamera__3);
         }
 
-        for (i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             MasekiEffect[i].Draw();
         }
 
         CSHOT_EFFECT *shot = NowShotEffect->effect;
 
-        for (i = 0; i < 5; i++) {
+        for (int i = 0; i < 5; i++) {
             shot[i].Draw();
         }
 
@@ -546,13 +558,13 @@ void DunMainDraw() {
             depth.bits.zmsk = 1;
             MGSetGsZBUF(&depth);
 
-            for (i = 0; i < 4; i++) {
-                CWeaponElFx[i].Draw();
+            for (CWeaponElement &element_fx : CWeaponElFx) {
+                element_fx.Draw();
             }
 
             WeaponCrashEffect.Draw();
 
-            for (i = 0; i < 16; i++) {
+            for (int i = 0; i < 16; i++) {
                 HitMark[i].Draw();
                 HitPointMark[i].Draw();
                 MyHitPointMark[i].Draw();
@@ -620,8 +632,8 @@ void DunMainDraw() {
         BtStatusErrDraw(rogoY3);
         gfx::SetUiAnchor({});
 
-        for (i = 0; i < 32; i++) {
-            HitValue[i].Draw();
+        for (CHitValue &value : HitValue) {
+            value.Draw();
         }
 
         if (exitMenuFlag != 0) {
@@ -653,11 +665,9 @@ void DunMainDraw() {
         BtEventMes1.DrawMesWin();
     }
 
-    for (i = 0; i < 1; i++) {
-        if (EdEventInfo.item_frame[i] != nullptr) {
-            TexManager.ReloadTexture(Vif1Packet, i + 0x28);
-            MGDraw(EdEventInfo.item_frame[i]);
-        }
+    if (EdEventInfo.item_frame[0] != nullptr) {
+        TexManager.ReloadTexture(Vif1Packet, 0x28);
+        MGDraw(EdEventInfo.item_frame[0]);
     }
 
     setbilinear(0);
@@ -665,15 +675,7 @@ void DunMainDraw() {
     SystemMesStep();
     SystemMesDraw();
 
-    int showing;
-
-    if (DngMessMan.hide_timer > 0) {
-        showing = 0;
-    } else {
-        showing = DngMessMan.enabled;
-    }
-
-    if (showing != 0) {
+    if (DngMessMan.hide_timer <= 0 && DngMessMan.enabled != 0) {
         if (DngMessMan.steev_window == 0) {
             int mes_no = DngMessMan.message;
 
@@ -745,33 +747,26 @@ void DunMainDraw() {
 
 extern LOADTEXTURE_INFO2 texdata__2[];
 
-// Retail formats the floor's gate key image over the third name in texdata__2, a string literal the
-// PS2 left writable and a host need not; the port formats it into a buffer of its own.
+// The third entry of texdata__2 stands for the floor's gate key image, whose name is built here.
 void LoadBaseTexture() {
     std::size_t info_count = 0;
     while (texdata__2[info_count].name != nullptr) {
         info_count++;
     }
     auto        info = std::make_unique<LOADTEXTURE_INFO2[]>(info_count + 1);
-    int         size;
-    int         i;
-    char       *name;
-    std::string gate_key = "gatekey0" + std::to_string(selectMapNo + 1) + ".img";
+    int         size = 0;
+    std::string gate_key = std::format("gatekey0{}.img", selectMapNo + 1);
     std::string path = "dun/pack/teximg2";
     if (LanguageCode > LANG_JAPANESE) {
-        path += "_" + std::to_string(LanguageCode);
+        path += std::format("_{}", LanguageCode);
     }
     path += ".pac";
 
-    LoadFile(path.data(), reinterpret_cast<void *>(read_buffer), nullptr);
+    LoadFile(path.data(), read_buffer, nullptr);
     wait_now_loading_vsync();
 
-    i = 0;
-
-    while ((name = texdata__2[i].name) != nullptr) {
-        if (i == 2) {
-            name = gate_key.data();
-        }
+    for (std::size_t i = 0; i < info_count; i++) {
+        char *name = i == 2 ? gate_key.data() : texdata__2[i].name;
 
         // A name that starts with '#' asks the manager for a blank page of that size rather than
         // for a file inside the pack.
@@ -783,32 +778,33 @@ void LoadBaseTexture() {
             if (found != nullptr) {
                 info[i].name = reinterpret_cast<char *>(found);
             } else {
-                printf("Error::Pack->FileNotFound [%d]%s!!\n", i, name);
+                std::println("Error::Pack->FileNotFound [{}]{}!!", i, name);
                 exit__2(-1);
             }
         }
 
         info[i].block_no = texdata__2[i].block_no;
-        i++;
     }
 
-    info[i].name = nullptr;
+    info[info_count].name = nullptr;
     TexManager.LoadTextureBlock(-1, info.get());
 
     // The message window's pages, and the three images the language's own pack supplies in place of
     // the names written here.
-    LOADTEXTURE_INFO2 mes_info[8] = {
-        {const_cast<char *>("#mes_frame_buff#640#480#4"), 0x1A, 0},
-        {const_cast<char *>("#fukidashibase#640#224#4"),  0x1A, 0},
-        {const_cast<char *>("#fontbase#512#256#1"),       0x1A, 0},
-        {const_cast<char *>("meswin/gaiji.img"),          0x1A, 0},
-        {const_cast<char *>("meswin/fuki256.img"),        0x1A, 0},
-        {const_cast<char *>("meswin/syst04.img"),         0x1A, 0},
+    std::array<LOADTEXTURE_INFO2, 8> mes_info = {
+        {
+         {.name = const_cast<char *>("#mes_frame_buff#640#480#4"), .block_no = 0x1A, .mipmap = 0},
+         {.name = const_cast<char *>("#fukidashibase#640#224#4"), .block_no = 0x1A, .mipmap = 0},
+         {.name = const_cast<char *>("#fontbase#512#256#1"), .block_no = 0x1A, .mipmap = 0},
+         {.name = const_cast<char *>("meswin/gaiji.img"), .block_no = 0x1A, .mipmap = 0},
+         {.name = const_cast<char *>("meswin/fuki256.img"), .block_no = 0x1A, .mipmap = 0},
+         {.name = const_cast<char *>("meswin/syst04.img"), .block_no = 0x1A, .mipmap = 0},
+         }
     };
 
     std::string mes_path = "meswin/mes_tex";
     if (LanguageCode > LANG_JAPANESE) {
-        mes_path += "_" + std::to_string(LanguageCode);
+        mes_path += std::format("_{}", LanguageCode);
     }
     mes_path += ".pak";
 
@@ -818,49 +814,27 @@ void LoadBaseTexture() {
     mes_info[3].name = reinterpret_cast<char *>(GetPackFile(read_buffer, const_cast<char *>("gaiji.img"), nullptr));
     mes_info[4].name = reinterpret_cast<char *>(GetPackFile(read_buffer, const_cast<char *>("fuki256.img"), nullptr));
     mes_info[5].name = reinterpret_cast<char *>(GetPackFile(read_buffer, const_cast<char *>("syst04.img"), nullptr));
-    TexManager.LoadTextureBlock(-1, mes_info);
+    TexManager.LoadTextureBlock(-1, mes_info.data());
 }
 
 int LoaderLoop() {
-    int        i;
     int        chosen = 0;
     static int nowCursor = 0;
 
-    int length = snprintf(CDbgMsg.text, sizeof(CDbgMsg.text), "- MapInfomationFile Loader -\n");
+    std::string menu = "- MapInfomationFile Loader -\n";
 
-    if (length < 0 || length >= static_cast<int>(sizeof(CDbgMsg.text))) {
-        CDbgMsg.length = 0;
-        return 0;
+    for (int i = 0; i < 7; i++) {
+        std::string_view name = MapInfoNameArea[i] != nullptr ? MapInfoNameArea[i] : "";
+        std::string_view marker = nowCursor == i ? ">>" : "  ";
+
+        menu += std::format("{}[{:2}] {}\n", marker, i + 1, name);
     }
 
-    for (i = 0; i < 7; i++) {
-        const char *name = MapInfoNameArea[i] != nullptr ? MapInfoNameArea[i] : "";
-        const int   remaining = static_cast<int>(sizeof(CDbgMsg.text)) - length;
-
-        if (nowCursor == i) {
-            int written = snprintf(&CDbgMsg.text[length], remaining, ">>[%2d] %s\n", i + 1, name);
-
-            if (written < 0) {
-                break;
-            }
-
-            length += written < remaining ? written : remaining - 1;
-        } else {
-            int written = snprintf(&CDbgMsg.text[length], remaining, "  [%2d] %s\n", i + 1, name);
-
-            if (written < 0) {
-                break;
-            }
-
-            length += written < remaining ? written : remaining - 1;
-        }
-
-        if (length >= static_cast<int>(sizeof(CDbgMsg.text)) - 1) {
-            break;
-        }
-    }
-
-    CDbgMsg.length = length;
+    // The overlay's buffer keeps a terminator, so overlong text is cut one byte short of its size.
+    std::size_t length = std::min(menu.size(), sizeof(CDbgMsg.text) - 1);
+    std::ranges::copy_n(menu.begin(), static_cast<std::ptrdiff_t>(length), std::begin(CDbgMsg.text));
+    CDbgMsg.text[length] = '\0';
+    CDbgMsg.length = static_cast<int>(length);
 
     if (GamePad.Down(PAD_UP) != 0 && nowCursor != 0) {
         nowCursor--;
@@ -944,23 +918,17 @@ int BtCheckDamageProc() {
 
             int            damage = NowColData->Get(hit_no)->damage;
             int            guard = UserStatus->defense[static_cast<int>(UserStatus->cur_chara)];
-            int            monster;
-            int            roll;
             COLLISION_HIT *hit = &NowColData->hit[hit_no];
 
             if (StatusErrCheck(AILMENT_STAMINA) != 0) {
                 guard *= 2;
             }
 
-            damage -= guard;
+            damage = std::max(damage - guard, 0);
 
-            if (damage <= 0) {
-                damage = 0;
-            }
+            int owner = hit->owner;
 
-            int owner = NowColData->hit[hit_no].owner;
-
-            monster = -1;
+            int monster = -1;
 
             if (owner != -1) {
                 monster = (owner - 200) / 5;
@@ -973,18 +941,17 @@ int BtCheckDamageProc() {
                 NowMonstorUnit->chara[monster][0].GetPosition(from);
             }
 
-            roll = static_cast<int>(100.0f * static_cast<float>(rand()) / 2147483648.0f);
+            int roll = static_cast<int>(100.0f * static_cast<float>(rand()) / 2147483648.0f);
 
             // A hit that drains takes a fifth of the player's money and gives it to
             // whatever landed it.
             if ((hit->flags & 0x40000) && roll < 20 && monster != -1) {
-                u16 *wallet = &UserStatus->money;
-                u16  had = UserStatus->money;
+                u16 had = UserStatus->money;
 
                 if (had > 10) {
                     int drained = had / 5;
 
-                    *wallet -= drained;
+                    UserStatus->money -= drained;
                     SndSePlay(SE_ITEM_GET, -1, 0);
                     NowMonstorUnit->monster[monster].stolen_money += drained;
                     DngMessMan.message = 0xB5;
@@ -1002,30 +969,17 @@ int BtCheckDamageProc() {
             }
 
             if ((hit->flags & 0x100) && roll < 0x41) {
-                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTI_FREEZE_AMULET);
+                int slot = static_cast<CDngStatusData *>(UserStatus)->CheckActItemSlot(ITEM_ANTI_FREEZE_AMULET);
 
                 if (slot == -1) {
                     BtSetStatusErr(AILMENT_FREEZE);
                 } else {
-                    // &who->active_item_vol[slot], spelled so the index is added first.
-                    CUserStatus   *who = UserStatus;
-                    std::uintptr_t address = slot * sizeof(s32);
-
-                    address += reinterpret_cast<std::uintptr_t>(who);
-                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
-
-                    if (--(*vol) <= 0) {
-                        DelActiveItem(slot + 1);
-                        DngMessMan.message = 0xB7;
-                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTI_FREEZE_AMULET);
-                        DngMessMan.timer = 0xB4;
-                        DngMessMan.steev_window = false;
-                    }
+                    SpendActiveItem(slot, ITEM_ANTI_FREEZE_AMULET);
                 }
             }
 
             if ((hit->flags & 0x200) && roll < 0x41 && (UserStatus->ailments[static_cast<int>(UserStatus->cur_chara)] & AILMENT_POISON) == 0) {
-                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTIDOTE_AMULET);
+                int slot = static_cast<CDngStatusData *>(UserStatus)->CheckActItemSlot(ITEM_ANTIDOTE_AMULET);
 
                 if (slot == -1) {
                     BtSetStatusErr(AILMENT_POISON);
@@ -1033,24 +987,12 @@ int BtCheckDamageProc() {
                     DngMessMan.timer = 0xB4;
                     DngMessMan.steev_window = false;
                 } else {
-                    CUserStatus   *who = UserStatus;
-                    std::uintptr_t address = slot * sizeof(s32);
-
-                    address += reinterpret_cast<std::uintptr_t>(who);
-                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
-
-                    if (--(*vol) <= 0) {
-                        DelActiveItem(slot + 1);
-                        DngMessMan.message = 0xB7;
-                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTIDOTE_AMULET);
-                        DngMessMan.timer = 0xB4;
-                        DngMessMan.steev_window = false;
-                    }
+                    SpendActiveItem(slot, ITEM_ANTIDOTE_AMULET);
                 }
             }
 
             if ((hit->flags & 0x400) && roll < 0x41 && (UserStatus->ailments[static_cast<int>(UserStatus->cur_chara)] & AILMENT_CURSE) == 0) {
-                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTICURSEAMULET);
+                int slot = static_cast<CDngStatusData *>(UserStatus)->CheckActItemSlot(ITEM_ANTICURSEAMULET);
 
                 if (slot == -1) {
                     BtSetStatusErr(AILMENT_CURSE);
@@ -1058,24 +1000,12 @@ int BtCheckDamageProc() {
                     DngMessMan.timer = 0xB4;
                     DngMessMan.steev_window = false;
                 } else {
-                    CUserStatus   *who = UserStatus;
-                    std::uintptr_t address = slot * sizeof(s32);
-
-                    address += reinterpret_cast<std::uintptr_t>(who);
-                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
-
-                    if (--(*vol) <= 0) {
-                        DelActiveItem(slot + 1);
-                        DngMessMan.message = 0xB7;
-                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTICURSEAMULET);
-                        DngMessMan.timer = 0xB4;
-                        DngMessMan.steev_window = false;
-                    }
+                    SpendActiveItem(slot, ITEM_ANTICURSEAMULET);
                 }
             }
 
             if ((hit->flags & 0x800) && roll < 0x41 && (UserStatus->ailments[static_cast<int>(UserStatus->cur_chara)] & AILMENT_GOO) == 0) {
-                int slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_ANTIGOO_AMULET);
+                int slot = static_cast<CDngStatusData *>(UserStatus)->CheckActItemSlot(ITEM_ANTIGOO_AMULET);
 
                 if (slot == -1) {
                     BtSetStatusErr(AILMENT_GOO);
@@ -1083,19 +1013,7 @@ int BtCheckDamageProc() {
                     DngMessMan.timer = 0xB4;
                     DngMessMan.steev_window = false;
                 } else {
-                    CUserStatus   *who = UserStatus;
-                    std::uintptr_t address = slot * sizeof(s32);
-
-                    address += reinterpret_cast<std::uintptr_t>(who);
-                    s32 *vol = &reinterpret_cast<CUserStatus *>(address)->active_item_vol[0];
-
-                    if (--(*vol) <= 0) {
-                        DelActiveItem(slot + 1);
-                        DngMessMan.message = 0xB7;
-                        DngMessMan.insert_mes_1 = GetCommonItemDataSystemMsg(ITEM_ANTIGOO_AMULET);
-                        DngMessMan.timer = 0xB4;
-                        DngMessMan.steev_window = false;
-                    }
+                    SpendActiveItem(slot, ITEM_ANTIGOO_AMULET);
                 }
             }
 
@@ -1104,8 +1022,8 @@ int BtCheckDamageProc() {
                 damage = UserStatus->max_hp[static_cast<int>(UserStatus->cur_chara)] >> 1;
             }
 
-            if (NowColData->hit[hit_no].kind == 3) {
-                sceVu0CopyVector(blow, NowColData->hit[hit_no].pos);
+            if (hit->kind == 3) {
+                sceVu0CopyVector(blow, hit->pos);
                 GamePad.SetVibration(1, 0xE6, 0x16);
 
                 if (BtActStatus.action_no == 9) {
@@ -1113,7 +1031,7 @@ int BtCheckDamageProc() {
                     velo__2[0] = blowVelo[0] / 10.0f;
                     velo__2[2] = blowVelo[2] / 10.0f;
 
-                    if (NowColData->hit[hit_no].target_mask != 3) {
+                    if (hit->target_mask != 3) {
                         NowColData->active[hit_no] = 0;
                     }
 
@@ -1136,7 +1054,7 @@ int BtCheckDamageProc() {
                     HitBlowVelocity(hit_no, blowVelo);
                     unitBlowActionRot(blowVelo);
 
-                    if (NowColData->hit[hit_no].target_mask != 3) {
+                    if (hit->target_mask != 3) {
                         NowColData->active[hit_no] = 0;
                     }
 
@@ -1156,14 +1074,11 @@ int BtCheckDamageProc() {
                 }
             }
 
-            COLLISION_HIT *hits = NowColData->hit;
-            int            kind = hits[hit_no].kind;
-
-            if (kind == 2 || hits[hit_no].kind == 4) {
+            if (hit->kind == 2 || hit->kind == 4) {
                 sceVu0FVECTOR at;
                 sceVu0FVECTOR away;
 
-                sceVu0CopyVector(at, hits[hit_no].pos);
+                sceVu0CopyVector(at, hit->pos);
                 GamePad.SetVibration(1, 0xDC, 0xC);
 
                 if (blown != 0) {
@@ -1186,7 +1101,7 @@ int BtCheckDamageProc() {
                     velo__2[0] = away[0] / 2.0f;
                     velo__2[2] = away[2] / 2.0f;
 
-                    if (NowColData->hit[hit_no].target_mask != 3) {
+                    if (hit->target_mask != 3) {
                         NowColData->active[hit_no] = 0;
                     }
 
@@ -1201,7 +1116,7 @@ int BtCheckDamageProc() {
                     setUnitAmbientAnime(80.0f, 1.0f, 255.0f, 0.0f, 0.0f);
                     UserStatus->AddNowLife(UserStatus->cur_chara, -damage, 10.0f);
 
-                    if (NowColData->hit[hit_no].target_mask != 3) {
+                    if (hit->target_mask != 3) {
                         NowColData->active[hit_no] = 0;
                     }
 
@@ -1236,7 +1151,7 @@ int BtCheckDamageProc() {
                     driveNoInterpolate = 1;
                     BtActStatus.recoil_frames = 0x50;
 
-                    if (NowColData->hit[hit_no].kind == 4) {
+                    if (hit->kind == 4) {
                         BtActStatus.recoil_frames = 8;
                         setUnitAmbientAnime(10.0f, 1.0f, 255.0f, 0.0f, 0.0f);
                     } else {
@@ -1261,13 +1176,11 @@ void EyeCamera() {
     sceVu0FVECTOR ref;
     sceVu0FMATRIX rotation;
     sceVu0FMATRIX unit;
-    float         stick_x;
-    float         stick_y;
 
-    auto keyboard = InputGetKeyboardMovement();
-    bool walking = keyboard.x || keyboard.y;
-    stick_x = walking ? 0.0f : GamePad.GetLXf();
-    stick_y = walking ? 0.0f : -GamePad.GetLYf();
+    auto  keyboard = InputGetKeyboardMovement();
+    bool  walking = keyboard.x || keyboard.y;
+    float stick_x = walking ? 0.0f : GamePad.GetLXf();
+    float stick_y = walking ? 0.0f : -GamePad.GetLYf();
 
     if (stick_x > 0.0f) {
         float rate = 0.02f;
@@ -1289,20 +1202,16 @@ void EyeCamera() {
         }
     }
 
-    if (stick_y > 0.0f) {
-        if (viewAngleV__2 < 0.65f) {
-            float rate = 0.02f;
+    if (stick_y > 0.0f && viewAngleV__2 < 0.65f) {
+        float rate = 0.02f;
 
-            viewAngleV__2 += stick_y * rate;
-        }
+        viewAngleV__2 += stick_y * rate;
     }
 
-    if (stick_y < -0.0f) {
-        if (viewAngleV__2 > -1.0f) {
-            float rate = 0.02f;
+    if (stick_y < -0.0f && viewAngleV__2 > -1.0f) {
+        float rate = 0.02f;
 
-            viewAngleV__2 += stick_y * rate;
-        }
+        viewAngleV__2 += stick_y * rate;
     }
 
     viewAngleH__2 = MouseLookEyeAngleH(viewAngleH__2);

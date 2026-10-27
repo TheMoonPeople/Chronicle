@@ -83,7 +83,6 @@
 #include "weaponelement.hpp"
 #include "wind.hpp"
 
-// Defined by ps2/src/dun/gameloop.cpp without a header declaration.
 struct ENEMY_LIFE_GAGE {
     s32 life_max;
     s32 life;
@@ -124,12 +123,10 @@ void GoroKey_On();
 void GoroKey_Play();
 void NotGetAtraMes(int chara, int frames);
 void SetSystemMes(int mes_no, int frames, int x, int y, int *result, int *unk);
-void SndSeSeqAllStop();
 void ToanKey_On();
 void ToanKey_Play();
 void UngagaKey_On();
 void UngagaKey_Play();
-int  keyCtrl(float x, float y, MOTION_INFO *motion);
 
 extern BOMB_INFO       BombInfo;
 extern s32             BtEventItemNo;
@@ -151,6 +148,7 @@ extern CCharacter      NewChangeFx;
 extern s32             NewChangeFxFlag;
 extern s32             PadInput_NO;
 extern CRandomItem     SubRandomItem;
+extern float           camera_up_near_dist;
 extern CDungeonMap     UraDungeonMap;
 extern s32             battleMenuWait;
 extern s32             cameraAuto;
@@ -183,36 +181,21 @@ extern float           stickVector2;
 extern s32             targetCursorShiftNo;
 extern s32             targetCursorShiftRot;
 
-// The lock-on taken into the quick change (game.swap_keeps_lock_on), or -1.
-namespace {
-s32 quickChangeLockOn = -1;
-
-s32 quickChangeShiftNo;
-
-s32 quickChangeShiftRot;
-} // namespace
-
 extern s32           tryalExit;
 extern sceVu0FVECTOR velo2;
 extern sceVu0FVECTOR veloOld;
 extern s32           viewMode__2;
 
-// The bodies are retail's, spelled as MWCC took them.
 #pragma clang diagnostic ignored "-Wwritable-strings"
 #pragma clang diagnostic ignored "-Wchar-subscripts"
 #pragma clang diagnostic ignored "-Wunused-value"
 
-// The dungeon's MoveChara, with the addresses of NowDngMap's parts and of the active item counters
-// formed on the whole pointer instead of an unsigned int, and the mouse turning the camera beside
-// the right stick (camera_port.hpp).
-
 namespace {
 
-float CharaHeight(CUserStatus *status) {
-    float chara_height[6] = {16.0f, 14.0f, 16.0f, 16.0f, 18.0f, 15.0f};
-
-    return chara_height[status->cur_chara];
-}
+// The lock-on taken into the quick change (game.swap_keeps_lock_on), or -1.
+s32 quickChangeLockOn = -1;
+s32 quickChangeShiftNo;
+s32 quickChangeShiftRot;
 
 void DeleteItemModel(int slot) {
     if (activeItem.model[slot] != -1) {
@@ -224,19 +207,18 @@ void DeleteItemModel(int slot) {
 } // namespace
 
 void DunMoveChara() {
-    /* Where the camera looks relative to what it follows, before the floor's
-       own offset is added. */
+    // Where the camera looks relative to what it follows, before the floor's own offset is added.
     static sceVu0FVECTOR reference = {0.0f, 7.5f, 0.0f, 0.0f};
     sceVu0FVECTOR        pos;
-    float                move_z;
-    float                move_x;
-    float                ly;
-    float                lx;
-    float                angle;
-    float                rx;
-    float                ry;
-    CFrame              *collision;
-    int                  entry_no;
+    float                move_z = 0.0f;
+    float                move_x = 0.0f;
+    float                ly = 0.0f;
+    float                lx = 0.0f;
+    float                angle = 0.0f;
+    float                rx = 0.0f;
+    float                ry = 0.0f;
+    CFrame              *collision = nullptr;
+    int                  entry_no = 0;
 
     // An event that sets its own draw distance keeps it; anything else draws
     // the whole floor.
@@ -457,14 +439,8 @@ void DunMoveChara() {
                             gameTask = GAME_TASK_CHARA_SELECT_LOOP;
                             autoCamTrial();
                         } else {
-                            static int    cnt;
-                            static char   init;
+                            static int    cnt = 0;
                             sceVu0FVECTOR mask_pos;
-
-                            if (init == 0) {
-                                cnt = 0;
-                                init = 1;
-                            }
 
                             sceVu0CopyVector(mask_pos, CharaFrame->position);
 
@@ -537,11 +513,9 @@ void DunMoveChara() {
                             if (lockOnTargetFlag != 0) {
                                 CCharacter   *locked = &NowMonstorUnit->chara[lockOnTargetNo][0];
                                 sceVu0FVECTOR target;
-                                float         face;
 
                                 locked->GetPosition(target);
-                                atan2f(pos[0] - target[0], pos[2] - target[2]);
-                                face = atan2f(target[0] - pos[0], target[2] - pos[2]);
+                                float face = atan2f(target[0] - pos[0], target[2] - pos[2]);
 
                                 if (BtActStatus.stick_strength > 0.0f) {
                                     CharaFrame->SetRotation(0.0f, face, 0.0f);
@@ -550,13 +524,9 @@ void DunMoveChara() {
                                 }
 
                                 if (BtActStatus.action_on == 0) {
-                                    float turn;
-                                    float rate;
-                                    int   motion;
-
                                     BtActStatus.motion_no = 0x12;
                                     CharaMain.motion_type.motion_info[18].speed = 0.2f;
-                                    turn = atan2f(move_x, move_z);
+                                    float turn = atan2f(move_x, move_z);
                                     turn = face - turn;
 
                                     if (turn < -PI_SHORT) {
@@ -567,10 +537,9 @@ void DunMoveChara() {
                                         turn -= TWO_PI_SHORT;
                                     }
 
-                                    // Which strafe motion plays comes from the angle
-                                    // between the way the character faces and the way
-                                    // the stick points, in five bands around it.
-                                    motion = 0x12;
+                                    // The strafe motion comes from the angle between facing and stick
+                                    // direction, in five bands.
+                                    int motion = 0x12;
 
                                     if (turn > -1.2f && turn < 1.2f) {
                                         motion = 0x15;
@@ -590,7 +559,7 @@ void DunMoveChara() {
 
                                     if (BtActStatus.stick_strength > 0.0f) {
                                         BtActStatus.motion_no = motion;
-                                        rate = 0.2f + BtActStatus.stick_strength;
+                                        float rate = 0.2f + BtActStatus.stick_strength;
 
                                         if (rate >= 1.0f) {
                                             rate = 1.0f;
@@ -612,7 +581,7 @@ void DunMoveChara() {
                             }
 
                             if (BtActStatus.action_on == 6) {
-                                float end;
+                                float end = 0.0f;
 
                                 if (lockOnTargetFlag == 0) {
                                     BtActStatus.action_on = 0;
@@ -651,7 +620,7 @@ void DunMoveChara() {
                                 }
                             }
 
-                            int script;
+                            int script = 0;
 
                             if (NowMonstorUnit->requested_event != -1) {
                                 BtEventInfo.script_no = NowMonstorUnit->requested_event;
@@ -659,13 +628,7 @@ void DunMoveChara() {
                                 ResetStatusInfo();
                                 driveStepHold = 1;
                                 EdFadeInit();
-                                float r, g, b;
-#ifdef PAL
-                                b = g = r = 0.0f;
-#else
-                                r = g = b = 0.0f;
-#endif
-                                EdFadeOut(0x78, r, g, b);
+                                EdFadeOut(0x78, 0.0f, 0.0f, 0.0f);
                                 BtEventInfo.fade_on_start = false;
                                 gameTask = GAME_TASK_FLOOR_FADE_RESET;
                             } else if (UserStatus->CheckLife() != 0 && BtActStatus.action_on == 0 && (script = NowMonstorUnit->CheckEventFlag2()) != -1) {
@@ -681,7 +644,7 @@ void DunMoveChara() {
                                 gameTask = GAME_TASK_SCRIPT_START;
                             } else {
                                 MAP_TRAP_CIRCLE *trap = NowDngMap->DistTrapCircle();
-                                int              event;
+                                int              event = 0;
 
                                 if (trap != nullptr) {
                                     SetSystemMes(Run_TrapCircle(trap) + 0x12C, 0x96, MES_POS_BOTTOM, 0, nullptr, nullptr);
@@ -718,7 +681,7 @@ void DunMoveChara() {
                                                 case ITEM_CLOCK_HANDS:
                                                 case ITEM_POINTY_CHESTNUT:
                                                 case ITEM_BLACK_KNIGHT_CREST:
-                                                    (static_cast<CDngStatusData *>(UserStatus))->GetItem(event, 0);
+                                                    static_cast<CDngStatusData *>(UserStatus)->GetItem(event, 0);
                                                     BtGetGateKey_Init(event);
                                                     gameTask = GAME_TASK_GATE_KEY_LOOP;
                                                     break;
@@ -838,7 +801,9 @@ void DunMoveChara() {
                                         } else {
                                             BtEventItemNo = -1;
 
-                                            if ((iventActive = NowDngMap->GetActiveIvent(CharaFrame)) != -1 && BtActStatus.can_act != 0 && BtActStatus.movement_locked == 0) {
+                                            iventActive = NowDngMap->GetActiveIvent(CharaFrame);
+
+                                            if (iventActive != -1 && BtActStatus.can_act != 0 && BtActStatus.movement_locked == 0) {
                                                 iventInfo = NowDngMap->events[iventActive].kind;
                                                 BtEventInfo.event_marker = true;
                                                 iventMarker = 1;
@@ -968,6 +933,8 @@ void DunMoveChara() {
                                                             }
 
                                                             break;
+                                                        default:
+                                                            break;
                                                     }
 
                                                     run_play = true;
@@ -1006,6 +973,8 @@ void DunMoveChara() {
                                                             }
 
                                                             break;
+                                                        default:
+                                                            break;
                                                     }
                                                 }
                                                 BtBySpeedFlag = 0;
@@ -1019,10 +988,7 @@ void DunMoveChara() {
                                                         s16 *slots = UserStatus->active_item;
 
                                                         if (activeItem.CheckStatusType() == ACTIVE_ITEM_FEATHER && slots[itemNowSel + 3] > 0) {
-                                                            // A running item that
-                                                            // boosts is spent by the
-                                                            // frame while the button
-                                                            // is held.
+                                                            // A boosting running item is spent each frame the button is held.
                                                             BtBySpeedFlag = 1;
                                                             int slot = itemNowSel - 1;
                                                             int left = UserStatus->active_item_vol[slot] - 1;
@@ -1041,10 +1007,8 @@ void DunMoveChara() {
                                                 }
 
                                                 if (GamePad.Down(PAD_SQUARE) != 0 && BtActStatus.movement_locked == 0 && BtActStatus.action_on == 0 && gameTask != GAME_TASK_UNK_F0 && BtActStatus.can_act != 0) {
-                                                    int  used;
                                                     s16 *slots = UserStatus->active_item;
-
-                                                    used = checkItemUsed(itemNowSel - 1);
+                                                    int  used = checkItemUsed(itemNowSel - 1);
 
                                                     if (activeItem.CheckStatusType() == ACTIVE_ITEM_DRINK && used != 0 && slots[itemNowSel + 3] > 0) {
                                                         CMonUnitHold = 1;
@@ -1258,7 +1222,7 @@ void DunMoveChara() {
                                                                 }
                                                             }
 
-                                                            if (BtActStatus.jumping > 0 && BtActStatus.jumping == 1) {
+                                                            if (BtActStatus.jumping == 1) {
                                                                 velo__2[0] += BtActStatus.jump_velocity_x;
                                                                 velo__2[1] += BtActStatus.jump_velocity_y;
                                                                 velo__2[2] += BtActStatus.jump_velocity_z;
@@ -1287,31 +1251,23 @@ void DunMoveChara() {
                                                                     sceVu0FVECTOR parts_pos;
                                                                     CBoxVu0       bound;
                                                                     CCPoly        foot;
-                                                                    CCPoly       *polys;
-                                                                    int           mode;
 
                                                                     WorkBuffer__2->used = 0;
-                                                                    polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
+                                                                    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
                                                                     bound.max[0] = 20.0f + pos[0];
                                                                     bound.max[1] = 20.0f + pos[1];
                                                                     bound.max[2] = 20.0f + pos[2];
                                                                     bound.min[0] = pos[0] - 20.0f;
                                                                     bound.min[1] = pos[1] - 40.0f;
                                                                     bound.min[2] = pos[2] - 20.0f;
-                                                                    // A random floor
-                                                                    // is built from map
-                                                                    // parts, so the
-                                                                    // polygons come off
-                                                                    // each part's own
-                                                                    // collision model.
+                                                                    // A random floor is built from map parts, so the polygons
+                                                                    // come off each part's own collision model.
                                                                     int i = 0;
 
                                                                     colPolyNum = 0;
 
                                                                     for (; NowDngMap->parts[i].frame[0] != nullptr; i++) {
-                                                                        int turn;
-
-                                                                        collision = i == -1 ? nullptr : NowDngMap->parts[i].collision;
+                                                                        collision = NowDngMap->parts[i].collision;
 
                                                                         if (collision != nullptr) {
                                                                             CDungeonParts *part = &NowDngMap->parts[i];
@@ -1321,7 +1277,7 @@ void DunMoveChara() {
                                                                             CDungeonMap   *map = NowDngMap;
                                                                             CDungeonParts *turn_part = &map->parts[i];
 
-                                                                            turn = static_cast<int>(turn_part->frame_turn[0]);
+                                                                            int turn = static_cast<int>(turn_part->frame_turn[0]);
                                                                             turn += turn_part->collision_turn;
 
                                                                             if (turn > 3) {
@@ -1352,7 +1308,7 @@ void DunMoveChara() {
                                                                     colPolyNum = NowDngMap->CreateCollision(polys, bound, colPolyNum);
                                                                     colPolyNum = NowDranMapField->AddCollision(polys, colPolyNum, bound);
                                                                     NowMonstorUnit->MoveCheck(pos, velo__2, lockOnTargetFlag);
-                                                                    mode = 1;
+                                                                    int mode = 1;
 
                                                                     if (UserStatus->cur_chara == CHARA_OSMOND) {
                                                                         mode = 8;
@@ -1389,13 +1345,10 @@ void DunMoveChara() {
                                                                     MoveCheckInfo info;
                                                                     CBoxVu0       bound;
                                                                     CCPoly        foot;
-                                                                    int           mode;
-                                                                    int           x;
-                                                                    int           z;
-                                                                    CFrame       *collision;
+                                                                    CFrame       *collision = nullptr;
 
                                                                     WorkBuffer__2->used = 0;
-                                                                    CCPoly *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
+                                                                    auto *polys = reinterpret_cast<CCPoly *>(WorkBuffer__2->Alloc(0x7D0));
                                                                     bound.max[0] = 20.0f + pos[0];
                                                                     bound.max[1] = 20.0f + pos[1];
                                                                     bound.max[2] = 20.0f + pos[2];
@@ -1404,17 +1357,14 @@ void DunMoveChara() {
                                                                     bound.min[2] = pos[2] - 20.0f;
                                                                     colPolyNum = 0;
 
-                                                                    for (z = 0; z < 20; z++) {
-                                                                        for (x = 0; x < 20; x++) {
+                                                                    for (int z = 0; z < 20; z++) {
+                                                                        for (int x = 0; x < 20; x++) {
                                                                             CDungeonMap *cmap = NowDngMap;
                                                                             int          parts_no = cmap->cells[x + z * 20]
                                                                                                         .parts_no;
-                                                                            MAP_CELL    *cell;
-                                                                            int          turn;
 
                                                                             collision = parts_no == -1 ? nullptr : NowDngMap->parts[parts_no].collision;
-                                                                            cell = &NowDngMap
-                                                                                        ->cells[x + z * 20];
+                                                                            MAP_CELL *cell = &NowDngMap->cells[x + z * 20];
 
                                                                             if (selectMapNo == DUNGEON_GALLERY_OF_TIME && parts_no >= 0x28 && parts_no < 0x2C) {
                                                                                 cell->camera_dist -= 160.0f;
@@ -1424,7 +1374,7 @@ void DunMoveChara() {
                                                                                 int dir = NowDngMap->cells[x + z * 20].direction;
                                                                                 int base = parts_no == -1 ? 0 : NowDngMap->parts[parts_no].collision_turn;
 
-                                                                                turn = dir;
+                                                                                int turn = dir;
                                                                                 turn += base;
 
                                                                                 if (turn > 3) {
@@ -1445,18 +1395,18 @@ void DunMoveChara() {
                                                                         }
                                                                     }
 
-                                                                    for (int i = 0; i < 24; i++) {
-                                                                        if (NowDngMap->boxes[i].used != 0) {
+                                                                    for (TREASURE_BOX &box : NowDngMap->boxes) {
+                                                                        if (box.used != 0) {
                                                                             collision = NowDngMap->box_collision_model;
 
-                                                                            collision->SetPosition(NowDngMap->boxes[i].pos);
+                                                                            collision->SetPosition(box.pos);
                                                                             colPolyNum += collision->PickUpNearPoly(&polys[colPolyNum], bound);
                                                                         }
                                                                     }
 
                                                                     colPolyNum = NowDngMap->CreateCollision(polys, bound, colPolyNum);
                                                                     NowMonstorUnit->MoveCheck(pos, velo__2, lockOnTargetFlag);
-                                                                    mode = 1;
+                                                                    int mode = 1;
 
                                                                     if (UserStatus->cur_chara == CHARA_OSMOND) {
                                                                         mode = 8;
@@ -1500,20 +1450,8 @@ void DunMoveChara() {
                                                                 CharaMain.EventEnable(1);
                                                                 CharaMain.SetFootSoundID(BtActStatus.foot_sound);
                                                             } else {
-                                                                static int  snd_cnt;
-                                                                static char init;
-                                                                static int  id_cnt;
-                                                                static char init2;
-
-                                                                if (init == 0) {
-                                                                    snd_cnt = 0;
-                                                                    init = 1;
-                                                                }
-
-                                                                if (init2 == 0) {
-                                                                    id_cnt = 0;
-                                                                    init2 = 1;
-                                                                }
+                                                                static int snd_cnt = 0;
+                                                                static int id_cnt = 0;
 
                                                                 snd_cnt++;
 
@@ -1537,8 +1475,6 @@ void DunMoveChara() {
                                                                 EdFadeOut(0x78, 0.0f, 0.0f, 0.0f);
                                                                 gameTask = GAME_TASK_SCRIPT_RESTART;
                                                             } else {
-                                                                float time;
-
                                                                 if (CharaMain.motion_type.state.time >= static_cast<float>(0x12F) && CharaMain.motion_type.state.time <= 318.0f) {
                                                                     sceVu0FVECTOR run_pos;
 
@@ -1549,7 +1485,7 @@ void DunMoveChara() {
                                                                 if (BtActStatus.movement_locked == 0) {
                                                                     int dust = 0;
 
-                                                                    time = CharaMain.motion_type.state.time;
+                                                                    float time = CharaMain.motion_type.state.time;
 
                                                                     if (time >= 75.0f && time <= 76.0f) {
                                                                         dust = 1;
@@ -1664,10 +1600,9 @@ void DunMoveChara() {
                                                                                                     ->chara[lockOnTargetNo][0];
                                                                         sceVu0FVECTOR to_target;
                                                                         sceVu0FVECTOR target;
-                                                                        float         dist;
 
                                                                         locked->GetPosition(target);
-                                                                        dist = DistVector(target, pos);
+                                                                        float dist = DistVector(target, pos);
                                                                         to_target[0] = target[0] - pos[0];
                                                                         to_target[1] = target[1] - pos[1];
                                                                         to_target[2] = target[2] - pos[2];
@@ -1683,9 +1618,8 @@ void DunMoveChara() {
                                                                         NowCamera__3->SetFollow(pos[0] + to_target[0], BtActStatus.camera_shake_offset + (to_target[1] + (6.0f + pos[1] + reference[1])), pos[2] + to_target[2]);
                                                                     }
 
-                                                                    extern float camera_up_near_dist;
-                                                                    float        normal_near = camera_up_near_dist;
-                                                                    float        zoom_start_distance = NowCamera__3->GetDistance();
+                                                                    float normal_near = camera_up_near_dist;
+                                                                    float zoom_start_distance = NowCamera__3->GetDistance();
                                                                     camera_up_near_dist = DungeonZoomNearDistance(NowCamera__3, normal_near, lockOnTargetFlag != 0);
                                                                     autoCamTrial();
                                                                     camera_up_near_dist = normal_near;
@@ -1711,10 +1645,9 @@ void DunMoveChara() {
             break;
         case GAME_TASK_FLOOR_FADE_RESET:
             if (EdFadeOutCheck() != 0) {
-                int           i;
                 CSHOT_EFFECT *effects = NowShotEffect->effect;
 
-                for (i = 0; i < 5; i++) {
+                for (int i = 0; i < 5; i++) {
                     effects[i].Initialize();
                 }
 
@@ -1756,17 +1689,14 @@ void DunMoveChara() {
             }
 
             if (BtEventInfo.ext_memory != 0) {
-                int           i;
-                CSHOT_EFFECT *effects;
-
                 printf("********** ext mem !!!\n");
                 TexManager.DeleteTextureBlock(0x2A);
                 TexManager.DeleteTextureBlock(0x26);
                 TexManager.CleanUpBuffer();
                 TexManager.CleanUpTextureList();
-                effects = NowShotEffect->effect;
+                CSHOT_EFFECT *effects = NowShotEffect->effect;
 
-                for (i = 0; i < 5; i++) {
+                for (int i = 0; i < 5; i++) {
                     effects[i].Initialize();
                 }
 
@@ -1876,6 +1806,8 @@ void DunMoveChara() {
                     BtSystemScriptAfter();
                     BtEventInfo.script_no = BtEventInfo.chained_script_no;
                     gameTask = GAME_TASK_SCRIPT_START;
+                    break;
+                default:
                     break;
             }
 
@@ -2008,8 +1940,8 @@ void DunMoveChara() {
                 case DEBUG_INFO_FLOOR_ATRA_GET:
                     GamePad.AutoRepeatOff();
 
-                    for (int i = 0; i < 8; i++) {
-                        int atra_no = NowDngMap->atra[i].atra_no;
+                    for (const ATRA_BOLL &ball : NowDngMap->atra) {
+                        int atra_no = ball.atra_no;
 
                         if (atra_no != -1) {
                             int atra = UserStatus->atra_registry[selectMapNo][atra_no].id;
@@ -2053,12 +1985,16 @@ void DunMoveChara() {
                         case 5:
                             BtSetStatusErr(AILMENT_GOO);
                             break;
+                        default:
+                            break;
                     }
 
                     driveStepHold = 0;
                     CMonUnitHold = 0;
                     CEffectHold = 0;
                     gameTask = GAME_TASK_PLAY;
+                    break;
+                default:
                     break;
             }
 
@@ -2163,7 +2099,7 @@ void DunMoveChara() {
             autoCamTrial();
 
             if (DispFade__3.GetRate() >= 128.0f) {
-                int map_no;
+                int map_no = 0;
 
                 switch (selectMapNo) {
                     case DUNGEON_DIVINE_BEAST_CAVE:
@@ -2186,6 +2122,8 @@ void DunMoveChara() {
                         break;
                     case DUNGEON_DEMON_SHAFT:
                         map_no = 0x3C;
+                        break;
+                    default:
                         break;
                 }
 
@@ -2232,10 +2170,6 @@ void DunMoveChara() {
                 SndSePlay(MENU_SOUND_CONFIRM, -1, 0);
                 gameTask = GAME_TASK_PAUSE;
             } else {
-                int next_task;
-                int leaving;
-                int hand_ok;
-
                 if (StatusErrCheck(AILMENT_FREEZE) != 0) {
                     BtActStatus.movement_locked = 1;
                 }
@@ -2244,10 +2178,10 @@ void DunMoveChara() {
 
                 CUserStatus *drain_status = UserStatus;
 
-                hand_ok = 1;
+                int hand_ok = 1;
                 drain_status->water_drain_disable = 1;
-                next_task = GAME_TASK_PLAY;
-                leaving = 0;
+                int next_task = GAME_TASK_PLAY;
+                int leaving = 0;
 
                 bool can_walk = FirstPersonDungeonKeyboardVelocity(velo__2, viewAngleH__2, BtActStatus,
                                                                    driveStepHold || CMonUnitHold, UserStatus->CheckLife() > 0, StatusErrCheck(AILMENT_GOO) != 0);
@@ -2268,7 +2202,8 @@ void DunMoveChara() {
                         BtActStatus.ground_height = pos[1] - info.ground_point[1];
                     }
                     CharaMain.SetPosition(pos);
-                    sceVu0FVECTOR eye, look;
+                    sceVu0FVECTOR eye;
+                    sceVu0FVECTOR look;
                     NowCamera__3->GetPos(eye);
                     NowCamera__3->GetRef(look);
                     sceVu0AddVector(eye, eye, ref_off);
@@ -2345,6 +2280,8 @@ void DunMoveChara() {
                             }
 
                             break;
+                        default:
+                            break;
                     }
 
                     if (BtActStatus.action_on == 1) {
@@ -2368,6 +2305,8 @@ void DunMoveChara() {
                                     BattleActionPlay_Ozumond_F(1);
                                 }
 
+                                break;
+                            default:
                                 break;
                         }
                     }
@@ -2454,17 +2393,15 @@ void DunMoveChara() {
                         }
                     }
 
-                    if (UserStatus->CheckLife() != 0 && NowMonstorUnit->GetMonstorNum() <= 0) {
-                        if (BtEventInfo.clear_script_no != -1) {
-                            BtEventInfo.script_no = BtEventInfo.clear_script_no;
-                            BtEventInfo.ext_memory = BtEventInfo.clear_script_ext_memory;
-                            BtEventInfo.clear_script_no = -1;
-                            BtEventInfo.clear_script_ext_memory = 0;
-                            BtActStatus.action_busy = 0;
-                            printf("dead script !!\n");
-                            next_task = GAME_TASK_SCRIPT_START;
-                            leaving = 1;
-                        }
+                    if (UserStatus->CheckLife() != 0 && NowMonstorUnit->GetMonstorNum() <= 0 && BtEventInfo.clear_script_no != -1) {
+                        BtEventInfo.script_no = BtEventInfo.clear_script_no;
+                        BtEventInfo.ext_memory = BtEventInfo.clear_script_ext_memory;
+                        BtEventInfo.clear_script_no = -1;
+                        BtEventInfo.clear_script_ext_memory = 0;
+                        BtActStatus.action_busy = 0;
+                        printf("dead script !!\n");
+                        next_task = GAME_TASK_SCRIPT_START;
+                        leaving = 1;
                     }
 
                     if (UserStatus->CheckLife() != 0) {
@@ -2692,7 +2629,7 @@ void DunMoveChara() {
                     ClearSystemMes();
                     driveStepHold = 1;
                     gameTask = GAME_TASK_EXIT_FADE_START;
-                    (static_cast<CDngStatusData *>(UserStatus))->SetDead();
+                    static_cast<CDngStatusData *>(UserStatus)->SetDead();
                 } else {
                     if (oldUnitNow == nowUnitNow) {
                         DngMes1.mes_made = -1;
@@ -2778,8 +2715,6 @@ void DunMoveChara() {
 
             break;
         case GAME_TASK_DEAD: {
-            int slot;
-
             CUserStatus *step_status = UserStatus;
 
             step_status->step_disable = 1;
@@ -2791,13 +2726,11 @@ void DunMoveChara() {
                 ruby_effect_id = -1;
             }
 
-            slot = (static_cast<CDngStatusData *>(UserStatus))->CheckActItemSlot(ITEM_REVIVAL_POWDER);
+            int slot = static_cast<CDngStatusData *>(UserStatus)->CheckActItemSlot(ITEM_REVIVAL_POWDER);
 
             if (slot != -1) {
-                s8 chara;
-
                 setUnitAmbientAnime(64.0f, 1.0f, 0.0f, 122.0f, 208.0f);
-                chara = UserStatus->cur_chara;
+                s8 chara = UserStatus->cur_chara;
                 UserStatus->hp[chara] = UserStatus->max_hp[chara] >> 1;
                 UserStatus->ailments[UserStatus->cur_chara] = 0;
                 UserStatus->ailment_frames[UserStatus->cur_chara] = 0;
@@ -2847,7 +2780,7 @@ void DunMoveChara() {
                         activeItem.model[8] = -1;
                     }
 
-                    if ((static_cast<CDngStatusData *>(UserStatus))->GetLiveUnit() != 0 && UserStatus->party_size > 1) {
+                    if (static_cast<CDngStatusData *>(UserStatus)->GetLiveUnit() != 0 && UserStatus->party_size > 1) {
                         gameTask += 2;
                     } else {
                         gameTask++;
@@ -2892,11 +2825,11 @@ void DunMoveChara() {
                     CEffectHold = 0;
                 } else {
                     gameTask = GAME_TASK_EXIT_FADE_START;
-                    (static_cast<CDngStatusData *>(UserStatus))->SetDead();
+                    static_cast<CDngStatusData *>(UserStatus)->SetDead();
                 }
 #else
                 gameTask = GAME_TASK_EXIT_FADE_START;
-                ((CDngStatusData *) UserStatus)->SetDead();
+                static_cast<CDngStatusData *>(UserStatus)->SetDead();
 #endif
             }
 
@@ -2954,6 +2887,8 @@ void DunMoveChara() {
 
             autoCamTrial();
             break;
+        default:
+            break;
     }
 
     if (rogoSwitch2 != 0) {
@@ -2999,7 +2934,7 @@ void DunMoveChara() {
                 rogoSwitch2 = 0;
                 startCnt2 = -1;
                 break;
-            case -1:
+            default:
                 break;
         }
 
@@ -3011,8 +2946,3 @@ void DunMoveChara() {
 
     motionDrive();
 }
-
-// The way hit hit_no throws the player, into velocity. A bomb's blast (SetBombEffect, the only hit that
-// waits for its phase to reach 10) keeps CCollisionData::Set's (1, 0, 0), so retail threw the player toward
-// world +X whichever side of it he stood; it throws him level and away from the blast, or straight back from
-// where he faces when it bursts on him. Any other hit throws him the way it was recorded.
