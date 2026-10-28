@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 
 #include "bits64_fixture.hpp"
@@ -10,6 +11,8 @@
 #include "fish.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
+#include "mds.hpp"
+#include "mdt.hpp"
 #include "objanime.hpp"
 #include "sysmes.hpp"
 
@@ -121,6 +124,52 @@ TEST(Bits64Placement, CollisionFitsItsRun) {
     auto *collision = new (RetailRun(arena, 4)) CCollisionMDT;
 
     EXPECT_GE(arena.Next(), End(collision));
+}
+
+// CreateCollisionMDT builds the triangles right behind the collision, so it must fit its run.
+TEST(Bits64Placement, CreateCollisionMDTKeepsItsTrianglesWhole) {
+    Arena                             arena(64);
+    alignas(16) std::array<u_int, 40> data{};
+    auto                             *header = reinterpret_cast<MDT_HEADER *>(data.data());
+    header->size = sizeof(data);
+    header->vertex_num = 3;
+    header->vertex_ofs = 64;
+    header->mesh_ofs = 112;
+    auto       *corners = reinterpret_cast<float(*)[4]>(data.data() + 16);
+    const float wall[3][4] = {
+        {22.12f, -1.0f, 20.35f, 1.0f},
+        {20.95f, -1.0f, 25.57f, 1.0f},
+        {20.95f, 60.0f, 25.57f, 1.0f}
+    };
+    std::copy(&wall[0][0], &wall[0][0] + 12, &corners[0][0]);
+    MDT_CPOLY_SET &set = reinterpret_cast<MDT_COLLISION *>(data.data() + 28)->set;
+    set.num = 1;
+    set.poly[0].vertex[0] = 0;
+    set.poly[0].vertex[1] = 1;
+    set.poly[0].vertex[2] = 2;
+    set.poly[0].info_index = -1;
+
+    CCollisionMDT *collision = CreateCollisionMDT(data.data(), &arena.alloc);
+
+    EXPECT_LE(End(collision), reinterpret_cast<const u_char *>(collision->mesh));
+    EXPECT_EQ(collision->mesh_count, 1);
+    for (int corner = 0; corner < 3; corner++) {
+        for (int axis = 0; axis < 4; axis++) {
+            EXPECT_EQ(collision->mesh[0].poly.vertex[corner][axis], wall[corner][axis]);
+        }
+    }
+}
+
+// Each copy is the arena's last run when it is placed.
+TEST(Bits64Placement, CopyFrameKeepsTheCopyClearOfTheNextRun) {
+    Arena   arena(256);
+    CFrame  frame;
+    CFrame *copy = CopyFrame(&frame, &arena.alloc);
+    EXPECT_GE(arena.Next(), End(copy));
+
+    CFrameVu1  drawn;
+    CFrameVu1 *drawn_copy = CopyFrameVu1(&drawn, &arena.alloc);
+    EXPECT_GE(arena.Next(), End(drawn_copy));
 }
 
 // LoadData: 0x600 quadwords for the interior's 128 function points.

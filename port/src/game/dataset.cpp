@@ -544,15 +544,15 @@ CVisualMDTVu1 *CreateVisual(u_int *data, CDataAlloc2<1> *alloc, int attr) {
 
     if ((attr & kAttrKeepModel) != 0) {
         if ((attr & kAttrShadow) != 0) {
-            visual = new (alloc->Alloc(3)) CVisualShadow;
+            visual = new (reinterpret_cast<u_long128 *>(alloc->Alloc(3))) CVisualShadow;
         } else {
-            visual = new (alloc->Alloc(3)) CVisualMDTVu1;
+            visual = new (reinterpret_cast<u_long128 *>(alloc->Alloc(3))) CVisualMDTVu1;
         }
     } else {
         if ((attr & kAttrShadow) != 0) {
-            visual = new (alloc->Alloc(3)) CVisualShadow;
+            visual = new (reinterpret_cast<u_long128 *>(alloc->Alloc(3))) CVisualShadow;
         } else {
-            visual = static_cast<CVisualMDTVu1 *>(new (alloc->Alloc(2)) CVisualVu1);
+            visual = static_cast<CVisualMDTVu1 *>(new (reinterpret_cast<u_long128 *>(alloc->Alloc(2))) CVisualVu1);
         }
     }
 
@@ -672,7 +672,7 @@ CCollisionMDT *CreateCollisionMDT(u_int *data, CDataAlloc2<1> *alloc) {
     auto *model = reinterpret_cast<MDT_HEADER *>(alloc->Alloc64(static_cast<int>((source->size >> 4) + 1)));
     std::memcpy(model, source, source->size);
 
-    auto *collision = new (alloc->Alloc(4)) CCollisionMDT;
+    auto *collision = new (reinterpret_cast<u_long128 *>(alloc->Alloc(4))) CCollisionMDT;
     collision->model = model;
     collision->CreateBBox();
 
@@ -719,7 +719,7 @@ CFrameVu1 *CopyFrameVu1(CFrameVu1 *frame, CDataAlloc2<1> *alloc) {
         return nullptr;
     }
 
-    auto *copy = new (alloc->Alloc(sizeof(CFrameVu1) / 16)) CFrameVu1;
+    auto *copy = new (reinterpret_cast<u_long128 *>(alloc->Alloc(sizeof(CFrameVu1) / 16))) CFrameVu1;
     copy->Initialize();
     *copy = *frame;
 
@@ -735,7 +735,7 @@ CFrame *CopyFrame(CFrame *frame, CDataAlloc2<1> *alloc) {
         return nullptr;
     }
 
-    auto *copy = new (alloc->Alloc(sizeof(CFrame) / 16)) CFrame;
+    auto *copy = new (reinterpret_cast<u_long128 *>(alloc->Alloc(sizeof(CFrame) / 16))) CFrame;
     copy->Initialize();
     *copy = *frame;
 
