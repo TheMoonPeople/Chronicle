@@ -802,6 +802,35 @@ TEST(DataRead, NestedPackLookupUsesEachMembersExactCapacity) {
     fs::remove_all(dir);
 }
 
+// gedit/s01/chara/e105.chr holds c06w01.img twice; the extraction keeps the first one's name and
+// tells only the later one apart by its position, and the baked documents are named after that.
+TEST(DataRead, OnlyALaterMemberOfTheSameNameTakesItsPosition) {
+    fs::path dir = InstallStandardData("read_duplicate_member");
+    Bytes    first = Pattern(48, 50);
+    Bytes    other = Pattern(32, 51);
+    Bytes    second = Pattern(48, 52);
+    WriteBytes(dir / "data/goro.chr", MakePack({
+                                          {"c06w01.img", first },
+                                          {"other.bin",  other },
+                                          {"c06w01.img", second}
+    }));
+    InitCDFile();
+
+    Clear();
+    int   size = 0;
+    auto *pack = reinterpret_cast<u_int *>(buffer);
+    ASSERT_EQ(LoadFile2(Mutable("goro.chr"), buffer, &size, 0), 1);
+    char          *name = nullptr;
+    DataReadSource source;
+    auto          *first_file = GetPackFile(pack, 0, &name, &size);
+    ASSERT_TRUE(DataReadSourceRange(first_file, first.size(), source));
+    EXPECT_EQ(source.member, "c06w01.img");
+    auto *second_file = GetPackFile(pack, 2, &name, &size);
+    ASSERT_TRUE(DataReadSourceRange(second_file, second.size(), source));
+    EXPECT_EQ(source.member, "c06w01.img#entry:2");
+    fs::remove_all(dir);
+}
+
 TEST(DataRead, ReadOverAnotherBuffersMemberReplacesItsSource) {
     fs::path dir = InstallStandardData("read_over_member");
     Bytes    head = Pattern(64, 30);

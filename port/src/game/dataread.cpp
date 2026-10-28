@@ -66,13 +66,15 @@ PackEntry *PackEntryAt(u_int *pack, std::size_t capacity, int wanted) {
     return nullptr;
 }
 
+// As the extraction names members: the first holder of a name keeps it, and only a later member of
+// the same exact name is told apart by its position.
 bool PackNameDuplicated(u_int *pack, std::size_t capacity, const PackEntry *entry) {
     for (int index = 0;; index++) {
         PackEntry *candidate = PackEntryAt(pack, capacity, index);
-        if (candidate == nullptr) {
+        if (candidate == nullptr || candidate == entry) {
             return false;
         }
-        if (candidate != entry && SameName(candidate->name, entry->name)) {
+        if (std::strcmp(candidate->name, entry->name) == 0) {
             return true;
         }
     }
