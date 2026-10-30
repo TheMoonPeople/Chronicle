@@ -40,6 +40,12 @@ public:
     void SetTarget(float x, float y);
 
     /**
+     * Sets the target so that the fingertip, 26 right of the hand's corner and 14 down, comes to
+     * (tip_x, tip_y): the middle of what it points at.
+     */
+    void PointAt(float tip_x, float tip_y) { SetTarget(tip_x - 26.0f, tip_y - 14.0f); }
+
+    /**
      * Immediately teleports the cursor and its target to (x, y).
      */
     void SnapTo(float x, float y);

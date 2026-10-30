@@ -65,16 +65,16 @@ void DrawSelection(int alpha) {
         int x = glyph == Glyph::L1 ? L1X() : R1X();
         int w = (glyph == Glyph::L1 ? texts.l1 : texts.r1).GetWidth();
         s_brackets.Draw(x - 8, x + w + 8, kTabY - 4, kTabY + 22, alpha);
-        s_cursor.SetTarget(static_cast<float>(x - 38), static_cast<float>(kTabY + 9));
+        s_cursor.PointAt(static_cast<float>(x - 12), static_cast<float>(kTabY + 9));
     } else if (glyph != Glyph::None) {
         int y = glyph == Glyph::Up ? kRowY - 4 : kRowY + kVisibleRows * kRowStep - 16;
         s_brackets.Draw(kBarX - 10, kBarX + 18, y - 6, y + 16, alpha);
-        s_cursor.SetTarget(static_cast<float>(kBarX - 38), static_cast<float>(y + 4));
+        s_cursor.PointAt(static_cast<float>(kBarX - 12), static_cast<float>(y + 5));
     } else if (g_screen.row == kOnTabs) {
         int x = TabX(g_screen.page);
         int w = texts.tabs[g_screen.page].GetWidth();
         s_brackets.Draw(x - 8, x + w + 8, kTabY - 4, kTabY + 22, alpha);
-        s_cursor.SetTarget(static_cast<float>(L1X() - 44), static_cast<float>(kTabY + 9));
+        s_cursor.PointAt(static_cast<float>(L1X() - 18), static_cast<float>(kTabY + 9));
     } else if (g_screen.row < rows) {
         const Row    &row = CurrentPage().rows[g_screen.row];
         const Config &config = ConfigGet();
@@ -121,10 +121,11 @@ void DrawSelection(int alpha) {
         int bottom_y = row_top_y + 23;
 
         s_brackets.Draw(box_left, box_right, top_y, bottom_y, alpha);
-        s_cursor.SetTarget(static_cast<float>(kLabelX - 44), static_cast<float>(row_top_y + 9));
+        // The fingertip at the middle of the frame, as on the screen's other targets.
+        s_cursor.PointAt(static_cast<float>(kLabelX - 18), static_cast<float>((top_y + bottom_y) / 2));
     } else {
         s_brackets.Draw(kExitX - 6, kExitX + kExitWidth + 6, kExitY - 4, kExitY + kExitHeight + 4, alpha);
-        s_cursor.SetTarget(static_cast<float>(kExitX - 38), static_cast<float>(kExitY + 9));
+        s_cursor.PointAt(static_cast<float>(kExitX - 12), static_cast<float>(kExitY + kExitHeight / 2));
     }
 
     s_cursor.Draw(alpha);
