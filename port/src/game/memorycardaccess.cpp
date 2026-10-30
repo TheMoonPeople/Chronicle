@@ -19,6 +19,7 @@
 #include "options/menu_option.hpp"
 #include "platform/files.hpp"
 #include "quest/host.hpp"
+#include "save/extension.hpp"
 #include "save/save_slots.hpp"
 #include "save/save_state.hpp"
 #include "savedata.hpp"
@@ -94,6 +95,8 @@ void BuildImage(char *image, const char *version) {
     std::memcpy(save, SaveData, sizeof(CSaveData));
     GameOptionsClear(*save);
     save->ConvertConfig(&sys_config);
+    // What only the port's frameworks hold leaves the image before retail's checksums cover it.
+    ExtensionPrepare(*save);
     std::span<char, kImageSize> bytes(image, kImageSize);
     std::ranges::fill(bytes.subspan(sizeof(CSaveData)), '\0');
     std::ranges::copy(std::string_view(version), bytes.begin() + sizeof(CSaveData));
@@ -108,6 +111,7 @@ void BuildImage(char *image, const char *version) {
             total = 0;
         }
     }
+    ExtensionSeal(bytes);
 }
 
 // Reads file_no's whole save into g_image: this version's, and every checksum right.
@@ -387,6 +391,9 @@ int CMemoryCardAccess::GetSaveFileInfoFromMc(int file_no) {
 
     info.quest_total = std::min(info.quest_total, 9999);
 
+    if (ExtensionMissing(file_no, std::span(g_image, kImageSize))) {
+        SaveSlots.missing.push_back(info.file_no);
+    }
     SaveSlots.saves.push_back(info);
     return 1;
 }
@@ -396,6 +403,7 @@ int CMemoryCardAccess::GetAllSaveFileInfo() {
     std::memset(this->file_info, 0, sizeof(this->file_info));
     SaveSlots.files = SaveSlotFiles();
     SaveSlots.saves.clear();
+    SaveSlots.missing.clear();
 
     if (SaveMenu.mode == SAVE_MENU_MODE_LOAD) {
         this->GetSaveFileInfoFromMc(kSaveSlotAutosave);
@@ -441,7 +449,14 @@ int CMemoryCardAccess::SaveToMc(int file_no) {
     }
 
     if (result == FilesResult::kWritten) {
-        result = FilesWrite(SaveSlotPath(file_no), this->save_buffer, kImageSize, !SaveSlotNew);
+        const std::span image(reinterpret_cast<const char *>(this->save_buffer), kImageSize);
+        const bool      saved = ExtensionSave(file_no, image, [&] {
+            result = FilesWrite(SaveSlotPath(file_no), image.data(), image.size(), !SaveSlotNew);
+            return result == FilesResult::kWritten;
+        });
+        if (!saved) {
+            result = FilesResult::kFailed;
+        }
     }
 
     if (result != FilesResult::kWritten) {
@@ -467,6 +482,7 @@ int CMemoryCardAccess::LoadFromMc(int file_no) {
     SaveState state = CurrentState();
     SaveStateRead(SaveStatePath(), state);
     std::memcpy(SaveData, g_image, sizeof(CSaveData));
+    ExtensionLoad(file_no, std::span(g_image, kImageSize));
     QuestHostLoad(SaveSlotDirectory(file_no));
 
     // The save screen keeps starting at the last numbered save.
@@ -499,6 +515,7 @@ int CMemoryCardAccess::DeleteFile(int file_no) {
     }
 
     QuestHostDelete(SaveSlotDirectory(file_no));
+    ExtensionDelete(file_no);
     fs::remove(SaveSlotDirectory(file_no), error);
     return 1;
 }
@@ -560,7 +577,9 @@ bool SaveSlotWriteAutosave() {
         return false;
     }
     BuildImage(g_image, kVersion);
-    if (FilesWrite(SaveSlotPath(kSaveSlotAutosave), g_image, kImageSize, true) != FilesResult::kWritten) {
+    if (!ExtensionSave(kSaveSlotAutosave, std::span(g_image, kImageSize), [] {
+            return FilesWrite(SaveSlotPath(kSaveSlotAutosave), g_image, kImageSize, true) == FilesResult::kWritten;
+        })) {
         return false;
     }
     QuestHostSave(SaveSlotDirectory(kSaveSlotAutosave));

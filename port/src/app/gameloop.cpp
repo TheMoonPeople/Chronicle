@@ -10,6 +10,7 @@
 #include <format>
 #include <memory>
 #include <print>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -31,10 +32,15 @@
 #include "editloop3.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
+#include "item/framework.hpp"
+#include "fishing/host.hpp"
+#include "item/host.hpp"
 #include "langset.hpp"
 #include "localize/localize.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
+#include "edit.hpp"
+#include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
@@ -42,11 +48,13 @@
 #include "options/menu_option.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/input.hpp"
 #include "platform/paths.hpp"
 #include "quest/host.hpp"
 #include "render/draw2d.hpp"
 #include "render/gs_state.hpp"
+#include "save/extension.hpp"
 #include "save/save_slots.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
@@ -126,10 +134,11 @@ void SetMainSelectParam(std::string_view text) {
 bool g_menu_chord_held = false;
 bool g_debug_r3_held = false;
 
-std::vector<int> g_give;
+// Retail's numbers, or custom items' IDs, which have numbers only once the items load.
+std::vector<std::string> g_give;
 
 bool Holds(CDngStatusData &status, int item) {
-    if (item >= ITEM_WEAPON_START) {
+    if (item::KindOf(item) == item::Kind::Weapon) {
         for (const auto &weapons : status.chara_weapons) {
             for (const WEAPON_HAVE &weapon : weapons) {
                 if (weapon.item_no == item) {
@@ -139,7 +148,9 @@ bool Holds(CDngStatusData &status, int item) {
         }
         return false;
     }
-    return status.SearchItemIndexNo(item) >= 0;
+    // A copy with state of its own is in the bag under a handle, not its item's number.
+    return status.SearchItemIndexNo(item) >= 0 ||
+           std::ranges::any_of(status.item_pack.item, [&](s16 held) { return item::Definition(held) == item; });
 }
 
 void GiveOnArrival() {
@@ -150,8 +161,25 @@ void GiveOnArrival() {
         return;
     }
     CDngStatusData &status = *SaveData->GetDngStatus();
-    for (int item : g_give) {
-        if (!Holds(status, item)) {
+    for (const std::string &given : g_give) {
+        int item = 0;
+        if (given.find(':') == std::string::npos) {
+            std::from_chars(given.data(), given.data() + given.size(), item);
+        } else {
+            const item::Def *def = item::Find(given);
+            if (def == nullptr) {
+                std::println(stderr, "--give: no item {}", given);
+                continue;
+            }
+            item = def->number;
+        }
+        if (Holds(status, item)) {
+            continue;
+        }
+        if (const item::Def *def = item::Find(item); def != nullptr && !def->state.empty()) {
+            item = item::NewCopy(*def);
+        }
+        if (item >= 0) {
             status.GetItem(item, 0);
         }
     }
@@ -162,9 +190,13 @@ struct Jump {
     bool preset = false;
     int  mode = GAME_MODE_MENU;
     int  map = 0;
+    bool load = false; // a save to start from, read once the game's data is
+    int  file_no = 0;  // its slot, as the save screen numbers it from 0
 };
 
 Jump g_jump;
+int  g_town_menu;
+int  g_town_event;
 bool g_fast_load;
 bool g_autosave;
 int  g_developer_return_mode = GAME_MODE_TITLE;
@@ -265,6 +297,7 @@ void StartNewGame() {
         std::memcpy(g_save_data.GetCharaName(i), names[i].data(), names[i].size());
     }
     QuestHostNewGame();
+    ExtensionNewGame();
     TrialStart();
 }
 
@@ -321,7 +354,7 @@ void ApplyJump() {
     OldMapNo = -1;
     NextMapNo = -1;
     GamePad.AutoRepeatOff();
-    switch (g_jump.mode) {
+    switch (g_jump.load ? GAME_MODE_MENU : g_jump.mode) {
         case GAME_MODE_EDIT:
             main_select_menu_no = g_jump.map;
             MapNo = g_jump.map;
@@ -604,21 +637,53 @@ void GameApplyLoopResult(int loop_mode, int result) {
 }
 
 bool GameSetGive(const char *list) {
-    std::vector<int> items;
-    std::string_view rest = list;
+    std::vector<std::string> items;
+    std::string_view         rest = list;
     for (bool more = true; more;) {
         std::string_view token = rest.substr(0, rest.find(','));
         more = token.size() < rest.size();
         rest.remove_prefix(std::min(rest.size(), token.size() + 1));
         int item = 0;
         auto [end, error] = std::from_chars(token.data(), token.data() + token.size(), item);
-        if (error != std::errc{} || end != token.data() + token.size() || item < 1 || item >= ITEM_WEAPON_END) {
+        const bool number = error == std::errc{} && end == token.data() + token.size() && item >= 1 && item < ITEM_WEAPON_END;
+        if (!number && token.find(':') == std::string_view::npos) {
             return false;
         }
-        items.push_back(item);
+        items.emplace_back(token);
     }
     g_give = std::move(items);
     return !g_give.empty();
+}
+
+namespace {
+
+bool PositiveNumber(const char *text, int &number) {
+    const std::string_view digits = text;
+    auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), number);
+    return error == std::errc{} && end == digits.data() + digits.size() && number > 0;
+}
+
+} // namespace
+
+bool GameSetTownMenu(const char *number) {
+    int menu = 0;
+    if (!PositiveNumber(number, menu) || menu < ED_MENU_FISHING_EXCHANGE || menu > ED_MENU_CHANGE_ROD) {
+        return false;
+    }
+    g_town_menu = menu;
+    return true;
+}
+
+int GameTakeTownMenu() {
+    return std::exchange(g_town_menu, 0);
+}
+
+bool GameSetTownEvent(const char *number) {
+    return PositiveNumber(number, g_town_event);
+}
+
+int GameTakeTownEvent() {
+    return std::exchange(g_town_event, 0);
 }
 
 bool GameSetJump(const char *spec) {
@@ -633,7 +698,7 @@ bool GameSetJump(const char *spec) {
             return false;
         }
     }
-    bool numbered = name == "edit" || name == "dungeon";
+    bool numbered = name == "edit" || name == "dungeon" || name == "load";
     if (!numbered && !number.empty()) {
         return false;
     }
@@ -657,6 +722,10 @@ bool GameSetJump(const char *spec) {
         jump.mode = GAME_MODE_OPENING;
     } else if (name == "menu") {
         jump.mode = GAME_MODE_MENU;
+    } else if ((name == "load" && jump.map >= 1) || name == "autosave") {
+        jump.mode = GAME_MODE_EDIT;
+        jump.load = true;
+        jump.file_no = name == "autosave" ? kSaveSlotAutosave : jump.map - 1;
     } else {
         return false;
     }
@@ -786,6 +855,10 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     main_select_menu_no = 0;
     SetMainSelectParam("e01");
     InitCDFile();
+    // The items read their documents from the data as well as the packs, so they load once it is indexed.
+    datapacks::Load(PathsDataRoot());
+    item::Load();
+    fishing::Load();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
     std::vector<s32> languages = SupportedLanguages();
@@ -855,9 +928,27 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         GameLoadTraceCheckpoint("mode_begin");
         // A language chosen on the Options screen takes hold here, where the next area is about to load.
         LocalizeApplyPendingLanguage();
+        // No menu holds an item between areas, so a copy in none of the save's slots is gone.
+        item::ReclaimHeldCopies();
         if (mode != GAME_MODE_UNUSED_12 && !data_loaded) {
             initialize_data();
             data_loaded = true;
+        }
+        // A save to start from is read as the save screen's Load reads it, now that the items it holds
+        // are known, and its town starts as a load from the title does.
+        if (std::exchange(g_jump.load, false) && data_loaded) {
+            McAccess.Initialize();
+            if (McAccess.LoadFromMc(g_jump.file_no) != 1) {
+                std::println(stderr, "--jump: no save to load in {}", PathsDisplay(SaveSlotPath(g_jump.file_no)));
+                return kExitUsage;
+            }
+            const int loaded_map = SaveData->GetMapNo();
+            MapNo = (loaded_map >= 0 && loaded_map < DUNGEON_MAP_BASE) ? loaded_map : 0;
+            LocalMapNo = MapNo;
+            OldMapNo = -1;
+            NextMapNo = -1;
+            StartEventNo = -1;
+            GameApplyLoopResult(GAME_MODE_TITLE, 2);
         }
         GameLoadTraceCheckpoint("common_data_done");
         InitReadBG();

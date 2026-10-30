@@ -103,6 +103,7 @@ a language the data lacks, and its English button reads as the disc's art does.
 | `--width W`, `--height H` | window size in pixels, over `config.json` (default: the monitor's resolution) |
 | `--jump MODE[:MAP]` | test hook: start in a mode (see "Test hooks"); also `DC_JUMP` |
 | `--fast-load` | test hook: loading-screen holds and fades of a few ticks; also `DC_FAST_LOAD=1` |
+| `--town-menu N`, `--town-event N` | test hooks: open a town menu, or raise a town program (see "Test hooks") |
 | `--give ITEM,...` | test hook: items and weapons the party is given when a town or dungeon starts (see "Test hooks"); also `DC_GIVE` |
 | `--display-per-tick N` | headless test aid: render N interpolated display frames per tick (offscreen, not presented) before presenting the tick's canonical image |
 | `--show-fps` | draw the FPS counter when headless too (a headless run leaves `show_fps` off) |
@@ -113,7 +114,8 @@ Environment: `DC_DATA` and `DC_SAVE` (above), `DC_INPUT` (above), `DC_AUDIO=off`
 device), `DC_AUDIO_WAV` and `DC_AUDIO_TRACE` (see "Audio"), `DC_VULKAN_VALIDATION` (enable the Khronos validation layer in a
 release build; a debug build always asks for it), `DC_PRESENT_STATS=1` (print
 draws per tick and render times at exit, and what the FPS counter said last
-when it is on), and SDL's own variables.
+when it is on), `DC_FISHING_TRACE=1` (print a fishing session's steps and each fish's actions about the
+bait, docs/FISHING_FRAMEWORK.md), and SDL's own variables.
 
 Exit statuses (`port/src/app/exitcodes.hpp`): 0 when the window was closed or
 `--frames` ran out, 1 when the window, the renderer or the screenshot failed,
@@ -582,17 +584,29 @@ For tests and debugging only; nothing the game does depends on them.
   `edit:<map>` (the game's `MapNo`: 0-4 the five towns, 11 and up the sub maps,
   99 the interior), `e01`, `e03` or `e04` (populated Norune, Queens or Muska Lacka developer presets),
   `dungeon:<n>` (dungeon n, 0-6, as `MapJump(200 + n)`, at its
-  floor select), `title`, `rush` (the attract movie), `opening`, or `menu` (the
-  developer menu itself). A bad value exits with status 2.
+  floor select), `title`, `rush` (the attract movie), `opening`, `menu` (the
+  developer menu itself), or a save's town: `load:<slot>` (the slot as the save screen numbers it,
+  the folder `saves/<slot>`) or `autosave`, read as the save screen's Load reads it and started as a
+  load from the title (a save in a dungeon starts in Norune, as the pause menu's Load does). A bad
+  value exits with status 2, and so does a slot with no save. Pair it with `--seed-save` to keep
+  the player's saves untouched: loading a numbered slot remembers it in `saves/state.json`.
 - `--fast-load` (or `DC_FAST_LOAD=1`) cuts the loading screen's start delay to
   one tick, its fades to two or four ticks and its holds (PAL 120, 183 and 83
   ticks) to two. The modes' own fades are untouched.
 - `--give ITEM,...` (or `DC_GIVE`) gives the party the items and weapons it
-  lacks, by their numbers in `ps2/include/itemdata.hpp` (`ITEM_*`), each time a
+  lacks, by their numbers in `ps2/include/itemdata.hpp` (`ITEM_*`) or a custom
+  item's ID (`chronicle:rod_2`; one no pack defines is told and skipped), each time a
   town or dungeon starts, through `CDngStatusData::GetItem` as an event's gift
   would: an item into the dungeon inventory, a weapon to the character it
   belongs to. One already held is skipped. `--give 210,211` gives the Sun and
   Moon Signets. A bad list exits with status 2.
+- `--town-menu N` (or `DC_TOWN_MENU`) opens a town menu once the town walks, set up as the
+  town's scripts set it up: `8` the fish exchange, `9` the bait board (every bait), `10` the
+  fishing records, `11` the rods board (the rods carried). Anything else exits with status 2.
+- `--town-event N` (or `DC_TOWN_EVENT`) raises town program `N` the first time Cross goes down in
+  the town, as stepping onto its spot and pressing Cross does: `133` asks fishing's "Continue
+  fishing / Quit fishing", and `11` is Norune's fishing sign. With `--jump autosave` and a script
+  pressing Cross, these reach the fishing screens without walking to the water.
 
 `darkcloud --headless --jump dungeon:0 --fast-load --frames 60` shows the first
 dungeon's floor select after about five seconds on lavapipe.
@@ -1210,6 +1224,30 @@ otherwise unused direct mode. Its board names the dungeon's town. The load
 screen lists it first, its board reading "Auto"; loading it leaves
 `last_save` on the last numbered save. `game.autosave` (Options, Game page)
 turns it off; headless and `--jump` runs never write it.
+
+`chronicle.dat`, beside a save's `save.dat`, holds what the save has that
+retail's image cannot: custom items and copies with state of their own
+(docs/ITEM_FRAMEWORK.md), and custom fish species' records
+(docs/FISHING_FRAMEWORK.md, `FISH`). Before the image's checksums are made, each
+framework takes its part out of the image (`ExtensionPrepare`), leaving what
+retail would hold there, so `save.dat` stays retail's and a save without
+custom items writes no `chronicle.dat` at all. The file is a set of chunks,
+one per framework, each with a tag, version, length and CRC, kept under a
+hash of the exact `save.dat` bytes they belong to: a `save.dat` copied,
+restored from a backup or taken from a card export without its own
+`chronicle.dat` loads without those items, never with another save's.
+Saving writes `chronicle.dat` with the chunks of both the `save.dat` on disk
+and the new one, then `save.dat`, then `chronicle.dat` with the new one's
+alone, so an interruption anywhere leaves the chunks of whichever `save.dat`
+is there. A chunk whose CRC fails is left out alone, and the file is copied
+to `chronicle.dat.damaged`; a chunk no framework of this port reads is
+written back unchanged. Deleting the save deletes both. The items' chunk
+(`port/src/item/save.cpp`) keeps each custom item in the bag, its quick
+slots and storage by ID, with what is left of it and, for a copy, its
+instance and state. One whose definition is missing loads as an orphan: an
+"Unknown item" that keeps its ID and state, cannot be used or sold, and is
+itself again once its definition returns. `port/src/save/extension.cpp`
+reads and writes the file.
 
 `port/src/game/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
@@ -1936,6 +1974,7 @@ port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
 port/build/pc/dcdata pack data
 port/build/pc/dcdata list "rom/pal/Dark Cloud (PAL).iso"
 port/build/pc/dcdata publish-sound data
+port/build/pc/dcdata publish-gameplay data
 ```
 
 `pack` takes an existing extracted directory and writes a ZIP archive beside it by default; a second output path is optional. It stores files without compression so the port can read them on Switch without a decompression cost. The runtime also reads standard deflated ZIP entries. ZIP64, encrypted and multi-disk archives are unsupported. The game gives `data.zip` priority over loose files when both exist. Do not modify an archive while the game is running.
@@ -1959,6 +1998,10 @@ retail records from them as it reads a file. `convert-models <raw> <out>`
 writes that conversion to a folder of its own, `bake-assets <raw> <data>`
 publishes it into extracted data, and `strip-models <data>` empties the
 converted originals (`docs/MODEL_FRAMEWORK.md`).
+`extract` and `publish-gameplay` write the gameplay documents tracked in
+`port/gameplay` into the data under `gameplay/`, from the seed the build
+seals beside `dcdata` (`assets/data.zip`), so a package ships that folder with
+it (`docs/ITEM_FRAMEWORK.md`, `docs/FISHING_FRAMEWORK.md`).
 
 The layout of `data/` or the root of `data.zip` is the disc archive's own: `dun/pack/maindat.pac`,
 `commenu/a_eng/savetex.pak`, `sound/bgm/...` and so on. Lookups fold case,

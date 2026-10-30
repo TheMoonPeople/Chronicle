@@ -6,6 +6,7 @@
 #include <iterator>
 #include <utility>
 
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "menu_draw.hpp"
 
@@ -112,6 +113,14 @@ int SeitonAttachBoardSub(ATTACH_LIST (&attachments)[30]) {
     return static_cast<int>(moved);
 }
 
+// Storage takes retail's bag items up to ITEM_DUNGEON_END, and custom items.
+bool IsStoredItem(int item_no) {
+    if (item_no >= item::kCustomFirst) {
+        return item::KindOf(item_no) == item::Kind::Item;
+    }
+    return item_no >= ITEM_DUNGEON_START && item_no <= ITEM_DUNGEON_END;
+}
+
 } // namespace
 
 void CStockItem::Initialize() {
@@ -126,7 +135,7 @@ int CStockItem::SearchSpace(int slot_index, int search_space) {
         case game::SearchSpace::DungeonItems: {
             const int item_no = this->dungeon_items[slot_index];
 
-            if (item_no >= ITEM_DUNGEON_START && item_no <= ITEM_DUNGEON_END) {
+            if (IsStoredItem(item_no)) {
                 return item_no;
             }
 
@@ -181,11 +190,11 @@ void CStockItem::GetAttachInfo(int slot_index, ATTACH_LIST *attachment) {
 int CStockItem::SearchItem(int item_no) {
     bool found = false;
 
-    if (item_no >= ITEM_WEAPON_START) {
+    if (item::KindOf(item_no) == item::Kind::Weapon) {
         found = std::ranges::contains(this->weapons, item_no, &WEAPON_HAVE::item_no);
     } else if (item_no >= ITEM_ATTACH_START && item_no < ITEM_DUNGEON_START) {
         found = std::ranges::contains(this->attachments, item_no, &ATTACH_LIST::item_no);
-    } else if (item_no >= ITEM_DUNGEON_START && item_no <= ITEM_DUNGEON_END) {
+    } else if (IsStoredItem(item_no)) {
         found = std::ranges::contains(this->dungeon_items, item_no);
     }
 

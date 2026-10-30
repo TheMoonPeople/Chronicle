@@ -1,0 +1,58 @@
+{
+  "bait": [
+    {
+      "item_no": 193,
+      "radius": 50.0
+    },
+    {
+      "item_no": 197,
+      "radius": 25.0
+    },
+    {
+      "item_no": 199,
+      "radius": 25.0
+    },
+    {
+      "item_no": 166,
+      "radius": 25.0
+    },
+    {
+      "item_no": 167,
+      "radius": 25.0
+    },
+    {
+      "item_no": 168,
+      "radius": 25.0
+    },
+    {
+      "item_no": 169,
+      "radius": 25.0
+    },
+    {
+      "item_no": 170,
+      "radius": 25.0
+    },
+    {
+      "item_no": 186,
+      "radius": 25.0
+    },
+    {
+      "item_no": 187,
+      "radius": 25.0
+    },
+    {
+      "item_no": 188,
+      "radius": 25.0
+    },
+    {
+      "item_no": 189,
+      "radius": 25.0
+    },
+    {
+      "item_no": 190,
+      "radius": 40.0
+    }
+  ],
+  "kind": "bait",
+  "schema_version": 2
+}

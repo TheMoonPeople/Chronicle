@@ -33,6 +33,7 @@
 #include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "effectmacro.hpp"
+#include "fishing/host.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
@@ -1973,6 +1974,10 @@ int EdInitModeFinish(CCamera *camera, CTexture *texture) {
         case ED_MENU_CHANGE_ESA:
             InitEventItemSelect(16, use_item_list.data(), &SaveData->GetDngStatus()->item_pack, 180, 210, 1, 1);
             break;
+        case ED_MENU_CHANGE_ROD:
+            // A rod is kept, not used up.
+            InitEventItemSelect(16, use_item_list.data(), &SaveData->GetDngStatus()->item_pack, 180, 210, 0, EVENT_ITEM_MODE_ROD);
+            break;
         case ED_MENU_NAME_REGISTRY:
             InitNameRegist(name_reg_chara, 16, nullptr);
             break;
@@ -2016,6 +2021,14 @@ int EdMenuMode() {
         case ED_MENU_USE_ITEM:
         case ED_MENU_CHANGE_ESA:
             finished = EventItemSelectLoop(&use_item);
+            break;
+        case ED_MENU_CHANGE_ROD:
+            finished = EventItemSelectLoop(&use_item);
+
+            if (finished != 0 && use_item > 0) {
+                fishing::ChooseRodNumber(InvertItemNo(use_item));
+            }
+
             break;
         case ED_MENU_NAME_REGISTRY:
             finished = NameEnterKey();

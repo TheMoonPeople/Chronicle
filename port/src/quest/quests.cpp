@@ -10,11 +10,14 @@ const NpcMatch &NoruneMayor() {
 void RegisterAllQuests() {
     Register(MayorSupplies());
     Register(CarlsSlingshot());
+    if (RutysRodsAvailable()) {
+        Register(RutysRods());
+    }
 }
 
 std::vector<std::pair<std::string, std::string>> QuestStrings() {
     std::vector<std::pair<std::string, std::string>> out;
-    for (std::span<const Text> texts : {MayorSuppliesTexts(), CarlsSlingshotTexts()}) {
+    for (std::span<const Text> texts : {MayorSuppliesTexts(), CarlsSlingshotTexts(), RutysRodsTexts()}) {
         for (const Text &text : texts) {
             out.emplace_back(text.key, text.english);
         }

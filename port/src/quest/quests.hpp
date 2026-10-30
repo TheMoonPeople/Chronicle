@@ -51,6 +51,14 @@ std::span<const Text> CarlsSlingshotTexts();
 /**
  * Registers every quest above, in the order their choices appear in an NPC's menu.
  */
+/**
+ * Ruty's rods, Enhanced fishing's quest (rutys_rods.cpp): registered only where the Enhanced fishing
+ * pack's rods are.
+ */
+Definition            RutysRods();
+std::span<const Text> RutysRodsTexts();
+bool                  RutysRodsAvailable();
+
 void RegisterAllQuests();
 
 /**

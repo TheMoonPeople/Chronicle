@@ -362,6 +362,16 @@ const Progress *FindProgress(std::string_view id) {
     return entry != nullptr ? &entry->progress : nullptr;
 }
 
+bool ChangeVar(std::string_view quest, std::string_view name, const std::function<int(int)> &change) {
+    Entry *entry = FindEntry(quest);
+    if (entry == nullptr) {
+        return false;
+    }
+    int &value = entry->progress.vars[std::string(name)];
+    value = change(value);
+    return true;
+}
+
 void SetGame(IGame *game) { Get().game = game; }
 
 IGame *Game() { return Get().game; }

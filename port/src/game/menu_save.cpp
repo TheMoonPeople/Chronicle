@@ -12,6 +12,7 @@
 #include "dataread.hpp"
 #include "dun/gameloop.hpp"
 #include "editatra.hpp"
+#include "fishing/host.hpp"
 #include "gamepad.hpp"
 #include "itemdata.hpp"
 #include "localize/localize.hpp"
@@ -32,6 +33,7 @@
 #include "snd.hpp"
 #include "text/gametext.hpp"
 #include "texture.hpp"
+#include "ui/framework/widgets.hpp"
 #include "ui/menu_pointer.hpp"
 #include "userstatus.hpp"
 
@@ -49,24 +51,6 @@ CTexture       *SaveMenuMojiTextbl[4];
 /** State of the event item selection menu. */
 MINI_MENU_INFO MiniMenu;
 
-namespace {
-
-/**
- * Draws a section of the event item board, clipped to a range.
- */
-void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *texture);
-
-/**
- * Handles pad input for the event item selection menu.
- */
-int EventItemSelectKey(int *result);
-
-/**
- * Draws the event item selection menu.
- */
-void EventItemSelectDraw();
-
-} // namespace
 
 /**
  * Checks the memory card before a save and picks the save menu's next step.
@@ -604,7 +588,8 @@ void DrawSaveBoardNumber(int number, int right_x, int draw_y, spRGBA &top, spRGB
 
 } // namespace
 
-// The autosave's board is labelled in place of a number.
+// The autosave's board is labelled in place of a number, and a save naming items no loaded pack
+// provides has a "!" after its number.
 void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int /*unused*/, int alpha) {
     if (info == nullptr) {
         return;
@@ -635,6 +620,11 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
         label.Draw(draw_x - label.Width(), draw_y - 2, start_alpha);
     } else {
         DrawSaveBoardNumber(info->file_no, draw_x, draw_y, top, bottom);
+    }
+    if (std::ranges::contains(SaveSlots.missing, info->file_no)) {
+        static GameText mark;
+        mark.Set("!");
+        mark.Draw(draw_x + 2, draw_y - 2, start_alpha);
     }
 
     draw_x = x + 0x1A;
@@ -908,51 +898,81 @@ int SaveEnableCheck() {
     return SAVE_ENABLE_OK;
 }
 
-/**
- * Screen position of the event item selection board's top left corner.
- */
-float EventBoardPos[2];
-
-/**
- * Screen y of the event item board's first row, eased toward the scroll row.
- */
-int EventItemMoveY;
-
 s32 MiniEventTextureBlock;
-
-/**
- * Nonzero once the event item selection menu's textures have loaded.
- */
-int MiniEventTexReadFlag;
-
-/**
- * Screen position of the event item cursor's highlight, eased toward the cursor.
- */
-float MiniCur[2];
 
 namespace {
 
-/**
- * Screen y of the event item board's scroll bar, eased toward its target.
- */
-float EventBarY;
+// The event item board: the items an event takes, fishing's bait or the rods, in slots five to a row
+// behind a window two rows high, with the item's description below. It is retail's board, drawn with
+// the UI framework's widgets: the same pictures in the same places, the same motion and sounds.
 
-/**
- * Board texture of the event item selection menu.
- */
-CTexture *MiniEventBoard;
+// Where the board's parts are from its top left corner.
+constexpr int kSlotsX = 0x1C;      // the slots' window
+constexpr int kSlotsY = 0x38;
+constexpr int kSlotsWidth = 0xD2;
+constexpr int kSlotsHeight = 0x50;
+constexpr int kIconX = 0x20;       // an icon in its slot
+constexpr int kIconY = 4;
+constexpr int kHandX = 6;          // the hand beside its slot
+constexpr int kHandY = 0x3C;
+constexpr int kBarY = 0x3C;        // the scroll bar's top
+constexpr int kBarTravel = 68;     // how far it goes
+constexpr int kTextX = 20;         // the description
+constexpr int kTextY = 146;
 
-/**
- * Board texture of the fish food selection menu.
- */
-CTexture *FishFoodBoard;
+// The slot's backing in the board's picture, and the scroll bar's.
+constexpr Rect kSlotPicture(0x116, 0, 0x28, 0x28);
+constexpr Rect kBarPicture(0, 0xE4, 8, 0xC);
 
-/**
- * The item pack the event item selection menu lists.
- */
-ITEM_PACK *EventItemPackPt;
+struct ItemBoard {
+    float       left = 0.0f;
+    float       top = 0.0f;
+    SlotGrid    grid;
+    MenuHand    hand;
+    float       bar_y = 0.0f;
+    ITEM_PACK  *pack = nullptr;
+    CTexture   *event_picture = nullptr; // the board for an event's items
+    CTexture   *bait_picture = nullptr;  // the board for bait
+    bool        ready = false;           // its pictures are loaded
+    MenuPointer pointer;
+    bool        active = false;          // still open after its last tick
+};
+
+ItemBoard g_board;
+
+bool Listed(int item) {
+    return EventItemListed(item, MiniMenu.fish_mode);
+}
+
+// The listed items in the pack's order, and where the n-th sits in the pack.
+int ListedSlot(int listed) {
+    for (int slot = 0, seen = 0; slot < g_board.pack->num; slot++) {
+        if (Listed(g_board.pack->item[slot]) && seen++ == listed) {
+            return slot;
+        }
+    }
+    return -1;
+}
+
+int BoardRows() {
+    return std::max(g_board.pack->num / 5, 1);
+}
 
 } // namespace
+
+bool EventItemListed(int item, int fish_mode) {
+    if (item < ITEM_DUNGEON_START) {
+        return false;
+    }
+    switch (fish_mode) {
+        case EVENT_ITEM_MODE_BAIT:
+            return fishing::BaitIndex(item) >= 0;
+        case EVENT_ITEM_MODE_ROD:
+            return fishing::IsRod(item);
+        default:
+            return true;
+    }
+}
 
 void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, int vanish, int fish_mode) {
     GamePad.SetAutoRepeat(PAD_DPAD, 0x1E, 5);
@@ -962,13 +982,13 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
     MiniEventTextureBlock = block;
     MiniMenu.lang = GetMenuLangFlag();
     s8 lang_y[7] = {0, -0x10, -0x10, -0x10, -0x10, -0x10, -0x10};
-    EventBoardPos[0] = x;
-    EventBoardPos[1] = static_cast<float>(y) + static_cast<float>(lang_y[MiniMenu.lang]) + 20.0f;
-    EventItemPackPt = pack;
+    g_board.left = x;
+    g_board.top = static_cast<float>(y) + static_cast<float>(lang_y[MiniMenu.lang]) + 20.0f;
+    g_board.pack = pack;
     MiniMenu.event_item_num = 0;
 
     for (int i = 0; i < pack->num; i++) {
-        if (pack->item[i] >= ITEM_DUNGEON_START) {
+        if (Listed(pack->item[i])) {
             MiniMenu.event_item_num++;
         }
     }
@@ -1004,23 +1024,319 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
     buffer = MenuCalcBufAlignment(buffer);
     LoadFileBGMenuData("eventmnu2.pak", buffer);
     ReadBG();
-    MiniMenu.cursor = 0;
-    MiniMenu.scroll_row = 0;
-    EventItemMoveY = 56.0f + EventBoardPos[1] - MiniMenu.scroll_row * 0x28;
-    int rows = EventItemPackPt->num / 5;
 
-    if (rows <= 0) {
-        rows = 1;
-    }
-
-    EventBarY = 60.0f + EventBoardPos[1] + static_cast<int>(68.0f * MiniMenu.scroll_row) / rows;
-    MiniCur[0] = 6.0f + EventBoardPos[0] + ((MiniMenu.cursor + 5) % 5) * 0x2A;
-    MiniCur[1] = 60.0f + EventBoardPos[1] + ((MiniMenu.cursor - MiniMenu.scroll_row * 5) / 5) * 0x28;
+    const int left = static_cast<int>(g_board.left);
+    const int top = static_cast<int>(g_board.top);
+    g_board.grid = SlotGrid(SlotGridLayout{.window = Rect(left + kSlotsX, top + kSlotsY, kSlotsWidth, kSlotsHeight)});
+    g_board.grid.Reset(pack->num);
+    g_board.bar_y = static_cast<float>(kBarY) + g_board.top;
+    const Rect at = g_board.grid.CursorRect();
+    g_board.hand.SnapTo(static_cast<float>(at.x - (kSlotsX - kHandX)), static_cast<float>(at.y + (kHandY - kSlotsY)));
     MiniMenu.state = MINI_MENU_FADE_IN;
-    MiniEventTexReadFlag = 0;
+    g_board.ready = false;
 }
 
 namespace {
+
+void LoadBoardPictures() {
+    LOADTEXTURE_INFO2 texture[4] = {
+        {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
+        {nullptr,                                    0, 0},
+        {nullptr,                                    0, 0},
+        {nullptr,                                    0, 0}
+    };
+    texture[0].block_no = MiniEventTextureBlock;
+    texture[1].block_no = MiniEventTextureBlock;
+    texture[2].block_no = MiniEventTextureBlock;
+    BG_READ_INFO *file = GetReadBGFile(0);
+    texture[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "eventmnu.img", nullptr));
+    texture[2].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "fishmnu.img", nullptr));
+    TexManager.DeleteTextureBlock(MiniEventTextureBlock);
+    TexManager.LoadTextureBlockEX(-1, texture);
+    g_board.event_picture = TexManager.GetTexture("eventmnu", -1);
+    g_board.bait_picture = TexManager.GetTexture("fishmnu", -1);
+    ItemIcon = TexManager.GetTexture("itemicon", -1);
+    InitMenuMesSet(MENU_MES_SET_EVENT_ITEM, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "eventuse.bin", nullptr)));
+    CommonMenuMes2.MakeMesWin(0);
+    CommonMenuMes2.Step();
+    g_board.ready = true;
+}
+
+// The pick: the item under the cursor, taken if the board accepts it. Fishing's boards take whatever
+// they list (every bait the fishing framework knows, more than usable holds; every rod); an event's
+// takes what it asked for, and is answered with any other.
+int Pick(int *result) {
+    const int  slot = g_board.grid.Cursor() < MiniMenu.event_item_num ? ListedSlot(g_board.grid.Cursor()) : -1;
+    ITEM_PACK *pack = g_board.pack;
+
+    if (slot < 0) {
+        ComMenuSePlay(MENU_SOUND_REFUSE);
+        return 0;
+    }
+
+    *result = pack->item[slot];
+    bool accepted = MiniMenu.fish_mode != 0 && Listed(*result);
+
+    for (int i = 0; !accepted && MiniMenu.usable[i] >= ITEM_DUNGEON_START && i < 13; i++) {
+        accepted = MiniMenu.usable[i] == *result;
+    }
+
+    if (accepted && MiniMenu.vanish != 0) {
+        pack->item[slot] = 0;
+    }
+
+    ComMenuSePlay(MENU_SOUND_CONFIRM);
+
+    if (accepted) {
+        return 1;
+    }
+
+    std::println("Miss\tselected itemNo = {}", *result);
+
+    if (MiniMenu.fish_mode != 0) {
+        MiniMenu.state = MINI_MENU_REFUSED;
+        return 0;
+    }
+
+    return 1;
+}
+
+// The mouse, ahead of the pad's read of this tick: a hover puts the cursor on the slot, the left
+// button takes it, the right backs out (or closes a refusal), the wheel moves a row.
+void BoardPointer() {
+    if (!g_board.pointer.IsOpen()) {
+        g_board.pointer.Open();
+    }
+    const MenuPointerTake take = g_board.pointer.Take(g_board.hand.X(), g_board.hand.Y());
+    MenuPointerShow(&g_board.pointer);
+    if (!g_board.ready) {
+        return;
+    }
+    if (MiniMenu.state == MINI_MENU_REFUSED) {
+        if ((take.clicked & 3) != 0) {
+            MenuPointerPress(kInputCircle);
+        }
+        return;
+    }
+    if (MiniMenu.state != MINI_MENU_CHOOSING) {
+        return;
+    }
+    if ((take.clicked & 2) != 0) {
+        MenuPointerPress(kInputCircle);
+        return;
+    }
+    const int hit = take.pointing ? g_board.grid.Hit(g_board.pointer.x, g_board.pointer.y, MiniMenu.event_item_num) : -1;
+    if (hit >= 0 && take.moved && take.wheel == 0.0f) {
+        g_board.grid.SetCursor(hit);
+        if ((take.clicked & 1) != 0) {
+            MenuPointerPress(kInputCross);
+        }
+    }
+    if (take.pointing && take.wheel != 0.0f) {
+        MenuPointerPress(take.wheel > 0.0f ? kInputUp : kInputDown);
+    }
+}
+
+int EventItemSelectKey(int *result) {
+    if (!g_board.ready) {
+        if (ReadBGSync() != 0) {
+            return 0;
+        }
+        LoadBoardPictures();
+    }
+
+    int done = 0;
+
+    switch (MiniMenu.state) {
+        case MINI_MENU_REFUSED:
+            if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
+                MiniMenu.state = MINI_MENU_CHOOSING;
+            }
+
+            break;
+        case MINI_MENU_CHOOSING: {
+            const bool moved = g_board.grid.Move((GamePad.Down(PAD_RIGHT) != 0) - (GamePad.Down(PAD_LEFT) != 0),
+                                                 (GamePad.Down(PAD_DOWN) != 0) - (GamePad.Down(PAD_UP) != 0));
+
+            if (moved) {
+                ComMenuSePlay(MENU_SOUND_CURSOR);
+            }
+
+            if (GamePad.Down(PAD_SQUARE) != 0) {
+                SeitonItemBoard(g_board.pack);
+                ComMenuSePlay(MENU_SOUND_CONFIRM);
+                break;
+            }
+
+            if (GamePad.Down(PAD_CROSS) != 0) {
+                done = Pick(result);
+            } else if (GamePad.Down(PAD_CIRCLE) != 0) {
+                ComMenuSePlay(MENU_SOUND_REFUSE);
+                *result = -1;
+                done = 1;
+            }
+
+            break;
+        }
+        default:
+            break;
+    }
+
+    const int slot = g_board.grid.Cursor() < MiniMenu.event_item_num ? ListedSlot(g_board.grid.Cursor()) : -1;
+    const int item = slot >= 0 ? g_board.pack->item[slot] : 0;
+    const int message = 0 < item ? item + 500 : 0;
+
+    if (CommonMenuMes2.mes_made != message) {
+        CommonMenuMes2.MakeMesWin(message);
+    }
+
+    return done;
+}
+
+// One of the board's columns: its top, its middle stretched by the language's extra height, and its
+// foot, from the picture's column at u.
+void DrawBoardColumn(CTexture *picture, int x, int y, int width, int extra_height, int u, int picture_width, int alpha) {
+    Picture::Draw(picture, Rect(x, y, width, 0x94), Rect(u, 0, picture_width, 0x94), alpha);
+    y += 0x94;
+    Picture::Draw(picture, Rect(x, y, width, extra_height + 0x32), Rect(u, 0x94, picture_width, 0x14), alpha);
+    y += extra_height + 0x32;
+    Picture::Draw(picture, Rect(x, y, width, 0x1E), Rect(u, 0xC6, picture_width, 0x1E), alpha);
+}
+
+// The board's frame over the slots, wider and taller in the languages with longer words, and its
+// scroll bar.
+void DrawBoardFrame(CTexture *picture, int x, int y, int alpha, int lang) {
+    s8  kakudai_tate_lang[7] = {0, 16, 16, 16, 16, 16, 16};
+    s8  kakudai_yoko_lang[7] = {0, 10, 10, 20, 10, 16, 14};
+    int extra_height = kakudai_tate_lang[lang];
+    int edge = kakudai_yoko_lang[lang] + 6;
+
+    DrawBoardColumn(picture, x + 0x1C, y, 0xD2, extra_height, 0x1C, 0xD2, alpha);
+    DrawBoardColumn(picture, x + 0x1C - edge, y, edge, extra_height, 0x14, 6, alpha);
+    DrawBoardColumn(picture, x + 8 - edge, y, 0x14, extra_height, 0, 0x14, alpha);
+    DrawBoardColumn(picture, x + 0xEE, y, edge, extra_height, 0xEC, 6, alpha);
+    DrawBoardColumn(picture, x + 0xEE + edge, y, 0x20, extra_height, 0xF4, 0x20, alpha);
+
+    const int   rows = BoardRows();
+    const float bar_height = std::min(136.0f / rows, 68.0f);
+    g_board.bar_y += (static_cast<int>((y + kBarY) + (static_cast<float>(kBarTravel) * g_board.grid.TopRow()) / rows) - g_board.bar_y) / 4.0f;
+    Picture::Draw(picture, Rect(x + 0xF6 + edge, static_cast<int>(g_board.bar_y), kBarPicture.w, static_cast<int>(bar_height)), kBarPicture, alpha);
+}
+
+// A row of slot backings, cut to the window: retail drew each row a pixel low, which the rows below
+// hid but which left the window's first line uncovered, a dark line of the town above the top row.
+void DrawSlotRow(CTexture *picture, int row, int alpha) {
+    const Rect window = g_board.grid.Layout().window;
+    const Rect first = g_board.grid.SlotRect(row * 5);
+    int        y = first.y;
+    int        v = kSlotPicture.y;
+    int        height = kSlotPicture.h;
+
+    if (y + height <= window.Top() || window.Bottom() <= y) {
+        return;
+    }
+
+    MenuTextureClip(y, v, height, window.Top(), window.Bottom());
+
+    for (int column = 0; column < 5; column++) {
+        Picture::Draw(picture, Rect(first.x + column * g_board.grid.Layout().stride_x, y, kSlotPicture.w, height),
+                      Rect(kSlotPicture.x, v, kSlotPicture.w, height), alpha);
+    }
+}
+
+void EventItemSelectDraw() {
+    if (!g_board.ready) {
+        return;
+    }
+
+    int alpha = 0x80;
+
+    switch (MiniMenu.state) {
+        case MINI_MENU_FADE_IN:
+            alpha = MiniMenu.state_time * 8;
+
+            if (alpha > 0x80) {
+                alpha = 0x80;
+                MiniMenu.state = MINI_MENU_CHOOSING;
+            }
+
+            break;
+        case MINI_MENU_FADE_OUT:
+            alpha = std::max(0x80 - MiniMenu.state_time * 8, 0);
+
+            break;
+        default:
+            break;
+    }
+
+    const int  left = static_cast<int>(g_board.left);
+    const int  top = static_cast<int>(g_board.top);
+    CTexture  *picture = (MiniMenu.fish_mode == EVENT_ITEM_MODE_BAIT) ? g_board.bait_picture : g_board.event_picture;
+    const Rect window = g_board.grid.Layout().window;
+    g_board.grid.Ease();
+
+    for (int row = 0; row < g_board.pack->num / 5; row++) {
+        DrawSlotRow(picture, row, alpha);
+    }
+
+    // Every slot of the pack's, the listed items first: an empty one draws nothing.
+    std::array<s16, 100> items{};
+    int                  item_count = 0;
+
+    for (int j = 0; j < g_board.pack->num; j++) {
+        if (Listed(g_board.pack->item[j])) {
+            items[item_count++] = g_board.pack->item[j];
+        }
+    }
+
+    // Retail stops at the first slot after one drawn below the window.
+    for (int i = 0, y = top; i < static_cast<int>(items.size()) && y <= window.Bottom(); i++) {
+        const Rect slot = g_board.grid.SlotRect(i);
+        y = slot.y + kIconY;
+        ItemIcon::DrawInSlot(items[i], slot.x + (kIconX - kSlotsX), y, window.Top(), window.Bottom(), alpha);
+    }
+
+    DrawBoardFrame(picture, left, top, alpha, MiniMenu.lang);
+    const Rect at = g_board.grid.CursorRect();
+    StayFrame::Draw(Rect(at.x - 6, at.y - 5, 0x24, 0x24), alpha);
+    g_board.hand.Ease(static_cast<float>(at.x - (kSlotsX - kHandX)), static_cast<float>(at.y + (kHandY - kSlotsY)));
+    g_board.hand.Draw(0x40);
+    CursorVibeCnt++;
+
+    if (CursorVibeCnt >= 0x405F7E00) {
+        CursorVibeCnt = 0;
+    }
+
+    CommonMenuMes2.edge_alpha = alpha;
+    s8 message_pos[7][2] = {
+        {0,  0},
+        {-4, 0},
+        {-4, 0},
+        {-9, 0},
+        {-4, 0},
+        {-7, 0},
+        {-6, 0}
+    };
+    DrawMenuClsMes(&CommonMenuMes2, kTextX + left + message_pos[MiniMenu.lang][0], kTextY + top + message_pos[MiniMenu.lang][1]);
+
+    if (MiniMenu.state == MINI_MENU_REFUSED) {
+        if (CommonMenuMes1.mes_made != 1) {
+            CommonMenuMes1.MakeMesWin(1);
+        }
+
+        AllFadeForMenu(0);
+        CommonMenuMes1.stay_frame = true;
+        DrawMenuClsMes(&CommonMenuMes1, 0xDC, 0xA0);
+    }
+
+    if (MiniMenu.state != MINI_MENU_CHOOSING) {
+        MiniMenu.state_time++;
+    } else {
+        MiniMenu.state_time = 0;
+    }
+
+    setbilinear(1);
+}
 
 /**
  * Frees the event item selection menu's textures and releases the pad.
@@ -1032,10 +1348,9 @@ void EventItemSelectExit() {
     GamePad.MenuModeOff();
 }
 
-/**
- * Runs one frame of the original item picker selection and drawing logic.
- */
-int RetailEventItemSelectLoop(int *result) {
+} // namespace
+
+int EventItemSelectLoop(int *result) {
     ReadBG();
     int alpha = 0x40;
 
@@ -1066,447 +1381,18 @@ int RetailEventItemSelectLoop(int *result) {
         EventItemSelectExit();
     }
 
-    return done;
-}
-
-} // namespace
-
-namespace {
-
-/** The pointer owned by the door/object item picker. */
-MenuPointer event_pointer;
-/** Whether the item picker remained active after its last update. */
-bool event_active = false;
-
-/**
- * Finds an occupied item cell within the animated board's visible clip.
- */
-int ItemHit(float x, float y) {
-    const float left = EventBoardPos[0] + 28.0f;
-    const float top = EventBoardPos[1] + 56.0f;
-    if (x < left || x >= left + 210.0f || y < top || y >= top + 80.0f) {
-        return -1;
-    }
-    for (int index = 0; index < MiniMenu.event_item_num; ++index) {
-        const int   column = index % 5;
-        const int   row = index / 5;
-        const float cell_left = left + column * 42.0f;
-        const auto  cell_top = static_cast<float>(EventItemMoveY + row * 40);
-        if (x >= cell_left && x < cell_left + 42.0f && y >= cell_top && y < cell_top + 40.0f) {
-            return index;
-        }
-    }
-    return -1;
-}
-
-} // namespace
-
-/**
- * Tracks the item picker's lifetime while preserving its original item handling.
- */
-int EventItemSelectLoop(int *result) {
-    const int done = RetailEventItemSelectLoop(result);
-    event_active = done == 0;
+    g_board.active = done == 0;
     return done;
 }
 
 bool EventItemPointerUpdate() {
-    const bool active = event_active;
-    event_active = false;
+    const bool active = std::exchange(g_board.active, false);
     if (!active) {
-        return !event_pointer.Close();
+        return !g_board.pointer.Close();
     }
-    if (!event_pointer.IsOpen()) {
-        event_pointer.Open();
-    }
-    const MenuPointerTake take = event_pointer.Take(MiniCur[0], MiniCur[1]);
-    MenuPointerShow(&event_pointer);
-    if (!MiniEventTexReadFlag) {
-        return true;
-    }
-    if (MiniMenu.state == MINI_MENU_REFUSED) {
-        if ((take.clicked & 3) != 0) {
-            MenuPointerPress(kInputCircle);
-        }
-        return true;
-    }
-    if (MiniMenu.state != MINI_MENU_CHOOSING) {
-        return true;
-    }
-    if ((take.clicked & 2) != 0) {
-        MenuPointerPress(kInputCircle);
-        return true;
-    }
-    const int hit = take.pointing ? ItemHit(event_pointer.x, event_pointer.y) : -1;
-    if (hit >= 0 && take.moved && take.wheel == 0.0f) {
-        MiniMenu.cursor = hit;
-        if ((take.clicked & 1) != 0) {
-            MenuPointerPress(kInputCross);
-        }
-    }
-    if (take.pointing && take.wheel != 0.0f) {
-        MenuPointerPress(take.wheel > 0.0f ? kInputUp : kInputDown);
-    }
+    BoardPointer();
     return true;
 }
-
-namespace {
-
-int EventItemSelectKey(int *result) {
-    if (MiniEventTexReadFlag == 0) {
-        if (ReadBGSync() != 0) {
-            return 0;
-        }
-
-        LOADTEXTURE_INFO2 texture[4] = {
-            {"#frame_image#640#" SCREEN_HEIGHT_STR "#4", 0, 0},
-            {nullptr,                                    0, 0},
-            {nullptr,                                    0, 0},
-            {nullptr,                                    0, 0}
-        };
-        texture[0].block_no = MiniEventTextureBlock;
-        texture[1].block_no = MiniEventTextureBlock;
-        texture[2].block_no = MiniEventTextureBlock;
-        BG_READ_INFO *file = GetReadBGFile(0);
-        texture[1].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "eventmnu.img", nullptr));
-        texture[2].name = reinterpret_cast<char *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "fishmnu.img", nullptr));
-        TexManager.DeleteTextureBlock(MiniEventTextureBlock);
-        TexManager.LoadTextureBlockEX(-1, texture);
-        MiniEventBoard = TexManager.GetTexture("eventmnu", -1);
-        FishFoodBoard = TexManager.GetTexture("fishmnu", -1);
-        ItemIcon = TexManager.GetTexture("itemicon", -1);
-        InitMenuMesSet(MENU_MES_SET_EVENT_ITEM, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(file->buffer), "eventuse.bin", nullptr)));
-        CommonMenuMes2.MakeMesWin(0);
-        CommonMenuMes2.Step();
-        MiniEventTexReadFlag = 1;
-    }
-
-    int       done = 0;
-    const int old_cursor = MiniMenu.cursor;
-    const int slot_num = EventItemPackPt->num;
-
-    switch (MiniMenu.state) {
-        case MINI_MENU_REFUSED:
-            if (GamePad.Down(PAD_CIRCLE | PAD_CROSS) != 0) {
-                MiniMenu.state = MINI_MENU_CHOOSING;
-            }
-
-            break;
-        case MINI_MENU_CHOOSING:
-            if (GamePad.Down(PAD_UP) != 0 && MiniMenu.cursor > 4) {
-                MiniMenu.cursor -= 5;
-            }
-
-            if (GamePad.Down(PAD_DOWN) != 0 && MiniMenu.cursor < slot_num - 5) {
-                MiniMenu.cursor += 5;
-            }
-
-            if (GamePad.Down(PAD_LEFT) != 0 && 0 < MiniMenu.cursor) {
-                MiniMenu.cursor--;
-            }
-
-            if (GamePad.Down(PAD_RIGHT) != 0 && MiniMenu.cursor < slot_num - 1) {
-                MiniMenu.cursor++;
-            }
-
-            if (MiniMenu.cursor < MiniMenu.scroll_row * 5) {
-                MiniMenu.scroll_row--;
-            }
-
-            if ((MiniMenu.scroll_row + 2) * 5 - 1 < MiniMenu.cursor) {
-                MiniMenu.scroll_row++;
-            }
-
-            if (old_cursor != MiniMenu.cursor) {
-                ComMenuSePlay(MENU_SOUND_CURSOR);
-            }
-
-            if (GamePad.Down(PAD_SQUARE) != 0) {
-                SeitonItemBoard(EventItemPackPt);
-                ComMenuSePlay(MENU_SOUND_CONFIRM);
-                break;
-            }
-
-            if (GamePad.Down(PAD_CROSS) != 0) {
-                int  pack_index = -1;
-                s16 *slot;
-
-                if (MiniMenu.cursor < MiniMenu.event_item_num) {
-                    int event_no = 0;
-                    slot = EventItemPackPt->item;
-
-                    for (pack_index = 0; pack_index < EventItemPackPt->num; pack_index++) {
-                        if (*slot >= ITEM_DUNGEON_START) {
-                            if (MiniMenu.cursor == event_no) {
-                                *result = *slot;
-                                break;
-                            }
-
-                            event_no++;
-                        }
-
-                        slot++;
-
-                        if (pack_index == EventItemPackPt->num - 1) {
-                            pack_index = EventItemPackPt->num;
-                        }
-                    }
-                }
-
-                int accepted = 0;
-
-                for (int i = 0; slot != nullptr && MiniMenu.usable[i] >= ITEM_DUNGEON_START && i < 13; i++) {
-                    if (MiniMenu.usable[i] == *result) {
-                        accepted = 1;
-
-                        if (MiniMenu.vanish != 0 && 0 <= pack_index && pack_index < EventItemPackPt->num) {
-                            EventItemPackPt->item[pack_index] = 0;
-                        }
-
-                        break;
-                    }
-                }
-
-                if (slot == nullptr) {
-                    ComMenuSePlay(MENU_SOUND_REFUSE);
-                } else if (accepted != 0) {
-                    done = 1;
-                    ComMenuSePlay(MENU_SOUND_CONFIRM);
-                } else {
-                    std::println("Miss\tselected itemNo = {}", *result);
-                    ComMenuSePlay(MENU_SOUND_CONFIRM);
-                    done = 1;
-
-                    if (MiniMenu.fish_mode != 0) {
-                        done = 0;
-                        MiniMenu.state = MINI_MENU_REFUSED;
-                    }
-                }
-            } else if (GamePad.Down(PAD_CIRCLE) != 0) {
-                ComMenuSePlay(MENU_SOUND_REFUSE);
-                *result = -1;
-                done = 1;
-            }
-
-            break;
-        default:
-            break;
-    }
-
-    s16 *item = nullptr;
-
-    if (MiniMenu.cursor < MiniMenu.event_item_num) {
-        int event_no = 0;
-        item = EventItemPackPt->item;
-
-        for (int j = 0; j < EventItemPackPt->num; j++) {
-            if (*item >= ITEM_DUNGEON_START) {
-                if (MiniMenu.cursor == event_no) {
-                    break;
-                }
-
-                event_no++;
-            }
-
-            item++;
-        }
-    }
-
-    const int message = (item != nullptr && 0 < *item) ? *item + 500 : 0;
-
-    if (CommonMenuMes2.mes_made != message) {
-        CommonMenuMes2.MakeMesWin(message);
-    }
-
-    return done;
-}
-
-/**
- * Draws one vertical section of the board the event and fishing menus share.
- */
-void DrawEventAndFishMenuBoard_Ver(CTexture *texture, CRect_i_ rect, int src_u, int src_width, int /*lang*/, int alpha) {
-    int y = rect.y;
-
-    DrawMenu2DSprite(texture, CRect_i_(rect.x, y, rect.width, 0x94), CRect_i_(src_u, 0, src_width, 0x94), alpha);
-    y += 0x94;
-    DrawMenu2DSprite(texture, CRect_i_(rect.x, y, rect.width, rect.height + 0x32), CRect_i_(src_u, 0x94, src_width, 0x14), alpha);
-    y += rect.height + 0x32;
-    DrawMenu2DSprite(texture, CRect_i_(rect.x, y, rect.width, 0x1E), CRect_i_(src_u, 0xC6, src_width, 0x1E), alpha);
-}
-
-/**
- * Draws the board the event and fishing menus share.
- */
-void DrawEventAndFishMenuBoard(CTexture *texture, int x, int y, int alpha, int lang) {
-    s8  kakudai_tate_lang[7] = {0, 16, 16, 16, 16, 16, 16};
-    s8  kakudai_yoko_lang[7] = {0, 10, 10, 20, 10, 16, 14};
-    int extra_height = kakudai_tate_lang[lang];
-    int extra_width = kakudai_yoko_lang[lang];
-
-    CRect_i_ center(x + 0x1C, y, 0xD2, extra_height);
-    DrawEventAndFishMenuBoard_Ver(texture, center, 0x1C, 0xD2, lang, alpha);
-    int      edge = extra_width + 6;
-    CRect_i_ left_inner(x + 0x1C - edge, y, edge, extra_height);
-    CRect_i_ left_outer(x + 8 - edge, y, 0x14, extra_height);
-    DrawEventAndFishMenuBoard_Ver(texture, left_inner, 0x14, 6, lang, alpha);
-    DrawEventAndFishMenuBoard_Ver(texture, left_outer, 0, 0x14, lang, alpha);
-    CRect_i_ right_inner(x + 0xEE, y, edge, extra_height);
-    CRect_i_ right_outer(x + 0xEE + edge, y, 0x20, extra_height);
-    DrawEventAndFishMenuBoard_Ver(texture, right_inner, 0xEC, 6, lang, alpha);
-    DrawEventAndFishMenuBoard_Ver(texture, right_outer, 0xF4, 0x20, lang, alpha);
-
-    int rows = EventItemPackPt->num / 5;
-
-    if (rows <= 0) {
-        rows = 1;
-    }
-
-    const float bar_height = std::min(136.0f / rows, 68.0f);
-
-    int bar_x = x + 0xF6 + edge;
-    EventBarY += (static_cast<int>((y + 0x3C) + (68.0f * MiniMenu.scroll_row) / rows) - EventBarY) / 4.0f;
-    int bar_y = EventBarY;
-    DrawMenu2DSprite(texture, CRect_i_(bar_x, bar_y, 8, static_cast<int>(bar_height)), CRect_i_(0, 0xE4, 8, 0xC), alpha);
-}
-
-void EventItemSelectDraw() {
-    if (MiniEventTexReadFlag == 0) {
-        return;
-    }
-
-    int alpha = 0x80;
-
-    switch (MiniMenu.state) {
-        case MINI_MENU_FADE_IN:
-            alpha = MiniMenu.state_time * 8;
-
-            if (alpha > 0x80) {
-                alpha = 0x80;
-                MiniMenu.state = MINI_MENU_CHOOSING;
-            }
-
-            break;
-        case MINI_MENU_FADE_OUT:
-            alpha = std::max(0x80 - MiniMenu.state_time * 8, 0);
-
-            break;
-        default:
-            break;
-    }
-
-    const float left = EventBoardPos[0];
-    const float top = EventBoardPos[1];
-    int         y = top;
-    CTexture   *board = (MiniMenu.fish_mode != 0) ? FishFoodBoard : MiniEventBoard;
-    const float row_top = 56.0f + top;
-    const int   clip_top = row_top;
-    const int   clip_bottom = 136.0f + top;
-    const float icon_x = 32.0f + left;
-    int         x = icon_x;
-    const int   board_x = 28.0f + left;
-    int         row_y = row_top - MiniMenu.scroll_row * 0x28;
-    EventItemMoveY += (row_y - EventItemMoveY) >> 2;
-
-    if (std::abs(EventItemMoveY - row_y) < 4) {
-        EventItemMoveY = row_y;
-    }
-
-    row_y = EventItemMoveY;
-
-    for (int row = 0; row < EventItemPackPt->num / 5; row++) {
-        DrawEventItemBoard(board_x, row_y, clip_top, clip_bottom, alpha, board);
-        row_y += 0x28;
-    }
-
-    std::array<s16, 100> items{};
-    int                  item_count = 0;
-
-    for (int j = 0; j < EventItemPackPt->num; j++) {
-        if (EventItemPackPt->item[j] >= ITEM_DUNGEON_START) {
-            items[item_count++] = EventItemPackPt->item[j];
-        }
-    }
-
-    row_y = EventItemMoveY;
-
-    for (int i = 0; i < 100; i++) {
-        if (clip_bottom < y) {
-            break;
-        }
-
-        y = row_y + 4;
-        DrawIconParts(items[i], x, y, clip_top, clip_bottom, alpha, 0);
-        x += 0x2A;
-
-        if (i % 5 == 4) {
-            x = icon_x;
-            row_y += 0x28;
-        }
-    }
-
-    DrawEventAndFishMenuBoard(board, left, top, alpha, MiniMenu.lang);
-    y = MiniMenu.cursor;
-    x = 6.0f + left + ((y + 5) % 5) * 0x2A;
-    y = 60.0f + top + ((y - MiniMenu.scroll_row * 5) / 5) * 0x28;
-    DrawMenuWaku(x + 0x10, y - 9, 0x24, 0x24, 0, StayTex, alpha);
-    MiniCur[0] += (x - MiniCur[0]) / 4.0f;
-    MiniCur[1] += (y - MiniCur[1]) / 4.0f;
-    DrawMenuObjectVibe(MiniCur[0], MiniCur[1], 1, 0x40);
-    CursorVibeCnt++;
-
-    if (CursorVibeCnt >= 0x405F7E00) {
-        CursorVibeCnt = 0;
-    }
-
-    CommonMenuMes2.edge_alpha = alpha;
-    s8 message_pos[7][2] = {
-        {0,  0},
-        {-4, 0},
-        {-4, 0},
-        {-9, 0},
-        {-4, 0},
-        {-7, 0},
-        {-6, 0}
-    };
-    DrawMenuClsMes(&CommonMenuMes2, 20.0f + left + message_pos[MiniMenu.lang][0], 146.0f + top + message_pos[MiniMenu.lang][1]);
-
-    if (MiniMenu.state == MINI_MENU_REFUSED) {
-        if (CommonMenuMes1.mes_made != 1) {
-            CommonMenuMes1.MakeMesWin(1);
-        }
-
-        AllFadeForMenu(0);
-        CommonMenuMes1.stay_frame = true;
-        DrawMenuClsMes(&CommonMenuMes1, 0xDC, 0xA0);
-    }
-
-    if (MiniMenu.state != MINI_MENU_CHOOSING) {
-        MiniMenu.state_time++;
-    } else {
-        MiniMenu.state_time = 0;
-    }
-
-    setbilinear(1);
-}
-
-void DrawEventItemBoard(int x, int y, int top, int bottom, int alpha, CTexture *texture) {
-    if ((y < top - 0x27) || (bottom <= y)) {
-        return;
-    }
-
-    int pos_x = x;
-    int clip_y = y;
-    int clip_v = 0;
-    int clip_height = 0x28;
-    MenuTextureClip(clip_y, clip_v, clip_height, top, bottom);
-
-    for (int i = 0; i < 5; i++) {
-        DrawMenu2DSprite(texture, CRect_i_(pos_x, clip_y + 1, 0x28, clip_height), CRect_i_(0x116, clip_v, 0x28, clip_height), alpha);
-        pos_x += 0x2A;
-    }
-}
-
-} // namespace
 
 int PlayerAllItemCheck(int item) {
     return QuestHostPlayerAllItemCheck(item);

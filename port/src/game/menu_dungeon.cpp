@@ -28,6 +28,7 @@
 #include "dun/gameloop.hpp"
 #include "editatra.hpp"
 #include "gamepad.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mainitemmodel.hpp"
 #include "mainselect.hpp"
@@ -2422,7 +2423,7 @@ int InitItemPolygonView(int item_no, u_long128 *buffer) {
     std::array<char, 76> texture_path{};
     int                  size = 0;
 
-    if (item_no < ITEM_ATTACH_START || item_no >= ITEM_WEAPON_START) {
+    if (const item::Kind kind = item::KindOf(item_no); kind != item::Kind::Attachment && kind != item::Kind::Item) {
         return 0;
     }
 

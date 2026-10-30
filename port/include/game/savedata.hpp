@@ -103,8 +103,6 @@ struct SV_GEORAMA_DATA {
  * Contains the data of one save slot.
  */
 class CSaveData {
-    // EdMoveChara counts the Mardan Garayan the player lands.
-    friend void EdMoveChara();
     // The fish exchange debug shortcut records a Mardan Garayan catch.
     friend int FishingExchangeKey();
 
@@ -344,6 +342,11 @@ public:
      * Returns the state of the Mardan Garayan fishing quest.
      */
     s32 GetMardanGareyanFlag() const { return mardan_garayan_caught; }
+
+    /**
+     * Counts one Mardan Garayan landed (fishing's retail outcome).
+     */
+    void CountMardanGarayan() { mardan_garayan_caught++; }
 };
 
 /**

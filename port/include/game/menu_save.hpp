@@ -275,9 +275,24 @@ int InitExistData();
 int SaveEnableCheck();
 
 /**
- * Opens the event item selection menu.
+ * What the event item menu offers, as InitEventItemSelect's fish_mode takes it.
+ */
+enum EventItemMode {
+    EVENT_ITEM_MODE_EVENT = 0, /**< The event items, on the event board. */
+    EVENT_ITEM_MODE_BAIT = 1,  /**< Fishing bait, on the bait board. */
+    EVENT_ITEM_MODE_ROD = 2,   /**< The port's: fishing rods, on the event board. */
+};
+
+/**
+ * Opens the event item selection menu; fish_mode is an EventItemMode.
  */
 void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, int vanish, int fish_mode);
+
+/**
+ * Whether the event item menu shows an item: the event items, and of them only bait or rods for
+ * fishing's menus.
+ */
+bool EventItemListed(int item, int fish_mode);
 
 /**
  * Runs one frame of the event item selection menu, and returns its result.

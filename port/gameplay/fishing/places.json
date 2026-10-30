@@ -1,0 +1,253 @@
+{
+  "kind": "fishing_places",
+  "places": [
+    {
+      "bite": {
+        "hook_ticks": [
+          30,
+          60
+        ],
+        "lose_bait_early": 0.2,
+        "lose_bait_escaped": 0.3,
+        "stage": "retail"
+      },
+      "draw_under_water": true,
+      "fight": {
+        "stage": "retail",
+        "ticks": 120
+      },
+      "fish_count": 4,
+      "id": "vanilla:norune",
+      "outcome": {
+        "stage": "retail"
+      },
+      "spawn": {
+        "fish": [
+          {
+            "fish": "vanilla:fish_1",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_2",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_6",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_7",
+            "weight": 1
+          }
+        ],
+        "stage": "retail"
+      },
+      "spot": 0
+    },
+    {
+      "bite": {
+        "hook_ticks": [
+          30,
+          60
+        ],
+        "lose_bait_early": 0.2,
+        "lose_bait_escaped": 0.3,
+        "stage": "retail"
+      },
+      "draw_under_water": true,
+      "fight": {
+        "stage": "retail",
+        "ticks": 120
+      },
+      "fish_count": 5,
+      "id": "vanilla:matataki_1",
+      "outcome": {
+        "stage": "retail"
+      },
+      "spawn": {
+        "fish": [
+          {
+            "fish": "vanilla:fish_1",
+            "weight": 35
+          },
+          {
+            "fish": "vanilla:fish_4",
+            "weight": 35
+          },
+          {
+            "fish": "vanilla:fish_9",
+            "weight": 10
+          },
+          {
+            "fish": "vanilla:fish_10",
+            "weight": 20
+          }
+        ],
+        "stage": "retail"
+      },
+      "spot": 1
+    },
+    {
+      "bite": {
+        "hook_ticks": [
+          30,
+          60
+        ],
+        "lose_bait_early": 0.2,
+        "lose_bait_escaped": 0.3,
+        "stage": "retail"
+      },
+      "draw_under_water": true,
+      "fight": {
+        "stage": "retail",
+        "ticks": 120
+      },
+      "fish_count": 5,
+      "id": "vanilla:matataki_2",
+      "outcome": {
+        "stage": "retail"
+      },
+      "spawn": {
+        "fish": [
+          {
+            "fish": "vanilla:fish_2",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_4",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_6",
+            "weight": 1
+          }
+        ],
+        "rare": {
+          "fish": [
+            {
+              "fish": "vanilla:fish_17",
+              "weight": 1
+            },
+            {
+              "fish": "vanilla:fish_5",
+              "weight": 4
+            }
+          ],
+          "interval": {
+            "day": 50,
+            "evening": 20,
+            "morning": 25,
+            "night": 35
+          }
+        },
+        "stage": "retail"
+      },
+      "spot": 2
+    },
+    {
+      "bite": {
+        "hook_ticks": [
+          30,
+          60
+        ],
+        "lose_bait_early": 0.2,
+        "lose_bait_escaped": 0.3,
+        "stage": "retail"
+      },
+      "draw_under_water": false,
+      "fight": {
+        "stage": "retail",
+        "ticks": 120
+      },
+      "fish_count": 5,
+      "id": "vanilla:queens",
+      "outcome": {
+        "stage": "retail"
+      },
+      "spawn": {
+        "fish": [
+          {
+            "fish": "vanilla:fish_0",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_3",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_11",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_12",
+            "weight": 1
+          },
+          {
+            "fish": "vanilla:fish_13",
+            "weight": 1
+          }
+        ],
+        "stage": "retail"
+      },
+      "spot": 3
+    },
+    {
+      "bite": {
+        "hook_ticks": [
+          30,
+          60
+        ],
+        "lose_bait_early": 0.2,
+        "lose_bait_escaped": 0.3,
+        "stage": "retail"
+      },
+      "draw_under_water": true,
+      "fight": {
+        "stage": "retail",
+        "ticks": 120
+      },
+      "fish_count": 4,
+      "id": "vanilla:muska_lacka",
+      "outcome": {
+        "stage": "retail"
+      },
+      "spawn": {
+        "fish": [
+          {
+            "fish": "vanilla:fish_14",
+            "weight": 40
+          },
+          {
+            "fish": "vanilla:fish_15",
+            "weight": 30
+          },
+          {
+            "fish": "vanilla:fish_16",
+            "weight": 30
+          }
+        ],
+        "rare": {
+          "fish": [
+            {
+              "fish": "vanilla:fish_17",
+              "weight": 1
+            },
+            {
+              "fish": "vanilla:fish_5",
+              "weight": 4
+            }
+          ],
+          "interval": {
+            "day": 50,
+            "evening": 20,
+            "morning": 25,
+            "night": 35
+          }
+        },
+        "stage": "retail"
+      },
+      "spot": 4
+    }
+  ],
+  "schema_version": 2
+}

@@ -140,10 +140,6 @@ modules:
       - install -Dm644 -t ${FLATPAK_DEST}/share/applications ${FLATPAK_BUILDER_BUILDDIR}/port/flatpak/${FLATPAK_ID}.desktop
       - install -Dm644 -t ${FLATPAK_DEST}/share/metainfo ${FLATPAK_BUILDER_BUILDDIR}/port/flatpak/${FLATPAK_ID}.metainfo.xml
       - install -Dm644 ${FLATPAK_BUILDER_BUILDDIR}/port/icon/chronicle-512.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png
-    cleanup:
-      # Kazarov installs its gameplay seed archive beside the programs. Chronicle has no gameplay documents, so the
-      # seed is empty, and a data.zip beside darkcloud would make the read-only /app/bin/data its data root.
-      - /bin/data.zip
     sources:
       # chronicle-source: the CI job swaps this for a git source at the commit under test.
       - type: dir

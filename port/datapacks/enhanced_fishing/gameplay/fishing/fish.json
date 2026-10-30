@@ -1,0 +1,767 @@
+{
+  "fish": [
+    {
+      "fish_kind": 0,
+      "food_affinity": [
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:evy"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        }
+      ],
+      "id": "vanilla:fish_0",
+      "mardan_garayan": false,
+      "max_fp": 50,
+      "max_size": 20.0,
+      "min_fp": 20,
+      "min_size": 10.0,
+      "model": "chara/f01a.chr",
+      "model_size": 17.0,
+      "name_msg": 40,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 1,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:petite_fish"
+        }
+      ],
+      "id": "vanilla:fish_1",
+      "mardan_garayan": false,
+      "max_fp": 30,
+      "max_size": 16.0,
+      "min_fp": 10,
+      "min_size": 8.0,
+      "model": "chara/f02a.chr",
+      "model_size": 19.5,
+      "name_msg": 41,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 2,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_2",
+      "mardan_garayan": false,
+      "max_fp": 25,
+      "max_size": 19.0,
+      "min_fp": 8,
+      "min_size": 8.0,
+      "model": "chara/f03a.chr",
+      "model_size": 25.5,
+      "name_msg": 42,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 3,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:evy"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:petite_fish"
+        }
+      ],
+      "id": "vanilla:fish_3",
+      "mardan_garayan": false,
+      "max_fp": 60,
+      "max_size": 24.0,
+      "min_fp": 30,
+      "min_size": 12.0,
+      "model": "chara/f04a.chr",
+      "model_size": 35.4,
+      "name_msg": 43,
+      "fight": {
+        "pull": 0.7
+      }
+    },
+    {
+      "fish_kind": 4,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:petite_fish"
+        }
+      ],
+      "id": "vanilla:fish_4",
+      "mardan_garayan": false,
+      "max_fp": 40,
+      "max_size": 16.0,
+      "min_fp": 10,
+      "min_size": 8.0,
+      "model": "chara/f05a.chr",
+      "model_size": 28.0,
+      "name_msg": 44,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 5,
+      "food_affinity": [
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:poisonous_apple"
+        }
+      ],
+      "id": "vanilla:fish_5",
+      "mardan_garayan": true,
+      "max_fp": 400,
+      "max_size": 16.0,
+      "min_fp": 200,
+      "min_size": 10.0,
+      "model": "chara/f06a.chr",
+      "model_size": 21.0,
+      "name_msg": 45,
+      "fight": {
+        "pull": 1.6
+      }
+    },
+    {
+      "fish_kind": 6,
+      "food_affinity": [
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_6",
+      "mardan_garayan": false,
+      "max_fp": 40,
+      "max_size": 12.0,
+      "min_fp": 15,
+      "min_size": 6.0,
+      "model": "chara/f07a.chr",
+      "model_size": 20.0,
+      "name_msg": 46,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 7,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_7",
+      "mardan_garayan": false,
+      "max_fp": 50,
+      "max_size": 10.0,
+      "min_fp": 20,
+      "min_size": 6.0,
+      "model": "chara/f08a.chr",
+      "model_size": 20.0,
+      "name_msg": 47,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 8,
+      "food_affinity": [],
+      "id": "vanilla:fish_8",
+      "mardan_garayan": false,
+      "max_fp": 2,
+      "max_size": 2.0,
+      "min_fp": 1,
+      "min_size": 1.0,
+      "model": "chara/f09a.chr",
+      "model_size": 1.0,
+      "name_msg": 48,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 9,
+      "food_affinity": [
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:carrot"
+        }
+      ],
+      "id": "vanilla:fish_9",
+      "mardan_garayan": false,
+      "max_fp": 200,
+      "max_size": 16.0,
+      "min_fp": 100,
+      "min_size": 8.0,
+      "model": "chara/f10a.chr",
+      "model_size": 21.0,
+      "name_msg": 49,
+      "fight": {
+        "pull": 1.2
+      }
+    },
+    {
+      "fish_kind": 10,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:petite_fish"
+        }
+      ],
+      "id": "vanilla:fish_10",
+      "mardan_garayan": false,
+      "max_fp": 80,
+      "max_size": 16.0,
+      "min_fp": 40,
+      "min_size": 8.0,
+      "model": "chara/f11a.chr",
+      "model_size": 20.0,
+      "name_msg": 30,
+      "fight": {
+        "pull": 0.8
+      }
+    },
+    {
+      "fish_kind": 11,
+      "food_affinity": [
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:evy"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_11",
+      "mardan_garayan": false,
+      "max_fp": 40,
+      "max_size": 12.0,
+      "min_fp": 20,
+      "min_size": 6.0,
+      "model": "chara/f12a.chr",
+      "model_size": 20.0,
+      "name_msg": 31,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 12,
+      "food_affinity": [
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:evy"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:mimi"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:prickly"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_12",
+      "mardan_garayan": false,
+      "max_fp": 30,
+      "max_size": 12.0,
+      "min_fp": 10,
+      "min_size": 6.0,
+      "model": "chara/f13a.chr",
+      "model_size": 15.0,
+      "name_msg": 32,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 13,
+      "food_affinity": [
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:petite_fish"
+        }
+      ],
+      "id": "vanilla:fish_13",
+      "mardan_garayan": false,
+      "max_fp": 70,
+      "max_size": 20.0,
+      "min_fp": 35,
+      "min_size": 10.0,
+      "model": "chara/f14a.chr",
+      "model_size": 21.0,
+      "name_msg": 33,
+      "fight": {
+        "pull": 0.7
+      }
+    },
+    {
+      "fish_kind": 14,
+      "food_affinity": [
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_14",
+      "mardan_garayan": false,
+      "max_fp": 40,
+      "max_size": 16.0,
+      "min_fp": 15,
+      "min_size": 8.0,
+      "model": "chara/f15a.chr",
+      "model_size": 21.0,
+      "name_msg": 34,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 15,
+      "food_affinity": [
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:battan"
+        }
+      ],
+      "id": "vanilla:fish_15",
+      "mardan_garayan": false,
+      "max_fp": 40,
+      "max_size": 20.0,
+      "min_fp": 20,
+      "min_size": 8.0,
+      "model": "chara/f16a.chr",
+      "model_size": 20.0,
+      "name_msg": 35,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 16,
+      "food_affinity": [
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:throbbing_cherry"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:gooey_peach"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:bomb_nuts"
+        },
+        {
+          "affinity": 0.2,
+          "bait": "vanilla:mellow_banana"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:potato_cake"
+        },
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:minon"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:battan"
+        },
+        {
+          "affinity": 1.0,
+          "bait": "vanilla:petite_fish"
+        }
+      ],
+      "id": "vanilla:fish_16",
+      "mardan_garayan": false,
+      "max_fp": 40,
+      "max_size": 14.0,
+      "min_fp": 20,
+      "min_size": 8.0,
+      "model": "chara/f17a.chr",
+      "model_size": 20.0,
+      "name_msg": 36,
+      "fight": {
+        "pull": 0.5
+      }
+    },
+    {
+      "fish_kind": 17,
+      "food_affinity": [
+        {
+          "affinity": 0.5,
+          "bait": "vanilla:potato_cake"
+        }
+      ],
+      "id": "vanilla:fish_17",
+      "mardan_garayan": true,
+      "max_fp": 1000,
+      "max_size": 30.0,
+      "min_fp": 600,
+      "min_size": 10.0,
+      "model": "chara/f18a.chr",
+      "model_size": 21.0,
+      "name_msg": 37,
+      "fight": {
+        "pull": 2.0
+      }
+    }
+  ],
+  "kind": "fish",
+  "schema_version": 2
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "kind": "item",
+  "id": "chronicle:garayan_rod",
+  "kind_flags": 24,
+  "sort_key": 6,
+  "stack_kind": 2,
+  "buy_price": 2400,
+  "sell_price": 1200,
+  "icon": 56,
+  "model": "turisao",
+  "text": {
+    "en_gb": {
+      "name": "Garayan Rod",
+      "description": "\"Garayan Rod\"\nRuty was saving it for\nsomething special."
+    },
+    "de_de": {
+      "name": "Garayan-Angel",
+      "description": "\"Garayan-Angel\"\nRuty hat sie für etwas\nBesonderes aufgehoben."
+    },
+    "es_es": {
+      "name": "Caña Garayan",
+      "description": "\"Caña Garayan\"\nRuty la guardaba para\nalgo especial."
+    },
+    "fr_fr": {
+      "name": "Canne Garayan",
+      "description": "\"Canne Garayan\"\nRuty la gardait pour\nune occasion spéciale."
+    },
+    "it_it": {
+      "name": "Canna Garayan",
+      "description": "\"Canna Garayan\"\nRuty la teneva da parte\nper qualcosa di speciale."
+    }
+  },
+  "rod": {
+    "heft": 60,
+    "control": 66,
+    "spring": 33,
+    "balance": 100,
+    "lure": 25
+  }
+}

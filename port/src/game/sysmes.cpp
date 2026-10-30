@@ -9,6 +9,7 @@
 #include "clsmes.hpp"
 #include "dataread.hpp"
 #include "gamepad.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
@@ -218,7 +219,7 @@ void ItemGetMes(int item_no, int value, int frames, int input_key) {
         message_no += 10;
     }
 
-    if (item_no >= ITEM_WEAPON_START) {
+    if (item::KindOf(item_no) == item::Kind::Weapon) {
         message_no = 10;
         const COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
 

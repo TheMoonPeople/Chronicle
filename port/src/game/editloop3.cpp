@@ -33,6 +33,7 @@
 #include "dataset.hpp"
 #include "debugfont.hpp"
 #include "dialog/npc.hpp"
+#include "dialog/script_question.hpp"
 #include "dngstatusdata.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
@@ -41,6 +42,7 @@
 #include "editpartsinfo.hpp"
 #include "effect.hpp"
 #include "fishing.hpp"
+#include "fishing/host.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamemode.hpp"
@@ -2789,6 +2791,10 @@ int menu_mode_status;
 
 } // namespace
 
+void EdEventMenu(int menu) {
+    menu_mode = menu;
+}
+
 /** Item-list string supplied to the editor's use-item menu. */
 char *p_use_item;
 
@@ -3549,7 +3555,10 @@ int _GET_PADDOWN(RS_STACKDATA *stack, int argument_count) {
         return 0;
     }
 
-    SetStack(stack, exch_ok_cancel(GamePad.GetPadDown()));
+    int pressed = exch_ok_cancel(GamePad.GetPadDown());
+    // A question the dialog framework asks answers in the player's place.
+    dialog::ScriptQuestionPad(pressed, pressed);
+    SetStack(stack, pressed);
     return 1;
 }
 
@@ -3563,12 +3572,15 @@ int _GET_PADUP(RS_STACKDATA *stack, int argument_count) {
 }
 
 int _GET_APAD(RS_STACKDATA *stack, int argument_count) {
+    // The stick is the dialog framework's while it asks a question for the script.
+    const bool held = dialog::ScriptQuestionActive();
+
     if (argument_count > 0) {
-        SetStack(stack++, GamePad.GetLXf());
+        SetStack(stack++, held ? 0.0f : GamePad.GetLXf());
     }
 
     if (argument_count > 1) {
-        SetStack(stack++, GamePad.GetLYf());
+        SetStack(stack++, held ? 0.0f : GamePad.GetLYf());
     }
 
     if (argument_count > 2) {
@@ -3771,7 +3783,12 @@ int _GOTO_CHANGE_ESA(RS_STACKDATA *stack, int argument_count) {
     }
 
     p_use_item = stack->s;
-    int items[32] = {ITEM_EVY, ITEM_MIMI, ITEM_PRICKLY, ITEM_THROBBING_CHERRY, ITEM_GOOEY_PEACH, ITEM_BOMB_NUTS, ITEM_POISONOUS_APPLE, ITEM_MELLOW_BANANA, ITEM_CARROT, ITEM_POTATO_CAKE, ITEM_MINON, ITEM_BATTAN, ITEM_PETITE_FISH, -1};
+    // Every bait the fishing framework knows, custom ones included; the picker takes any of them.
+    int        items[32];
+    const auto baits = fishing::BaitItems();
+    const auto count = std::min<std::size_t>(baits.size(), std::size(items) - 1);
+    std::ranges::copy_n(baits.begin(), static_cast<std::ptrdiff_t>(count), items);
+    items[count] = -1;
     EdUseItemInit();
     EdSetUseItem(items);
     menu_mode = ED_MENU_CHANGE_ESA;
@@ -5256,7 +5273,8 @@ ClsMes *GetMes(int index) {
 }
 
 int _MES_MAKE(RS_STACKDATA *stack, int argument_count) {
-    ClsMes *message = GetMes(GetStackInt(stack++));
+    const int window = GetStackInt(stack++);
+    ClsMes   *message = GetMes(window);
 
     if (message == nullptr) {
         return 0;
@@ -5288,6 +5306,11 @@ int _MES_MAKE(RS_STACKDATA *stack, int argument_count) {
         }
     }
 
+    // A question a provider takes, the dialog framework asks in this window.
+    if (dialog::ScriptQuestionMake(*message, window, message_no)) {
+        return 1;
+    }
+
     message->MakeMesWin(message_no);
     return 1;
 }
@@ -5302,6 +5325,7 @@ int _MES_CLOSE(RS_STACKDATA *stack, int argument_count) {
     message->text_rate = message->text_rate_set;
     message->mes_made = -1;
     message->fade_in = false;
+    dialog::ScriptQuestionClosed(message);
     return 1;
 }
 
@@ -5412,7 +5436,13 @@ int _SET_MES_CURSOR(RS_STACKDATA *stack, int argument_count) {
         return 0;
     }
 
-    message->cursor_row = GetStackInt(next);
+    const int row = GetStackInt(next);
+
+    // A question the dialog framework asks keeps its own cursor until the script hides it.
+    if (!dialog::ScriptQuestionHolds(message) || row < 0) {
+        message->cursor_row = row;
+    }
+
     return 1;
 }
 
@@ -8576,6 +8606,7 @@ int EdEventInit(int event_number, CDataAlloc2<1> *arena, char *program) {
         return 0;
     }
 
+    dialog::ScriptQuestionReset();
     run_system_event = 0;
 
     for (auto *message : EdEventInfo.messages) {
@@ -8747,6 +8778,7 @@ int EdEventAllClear() {
 }
 
 int EdEventFinish() {
+    dialog::ScriptQuestionReset();
     EdEventInfo.suppress_background = false;
     EdEventInfo.suppress_shadows = false;
     EdEventInfo.screen_filter = false;

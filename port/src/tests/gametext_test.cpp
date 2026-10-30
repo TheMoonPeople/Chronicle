@@ -94,6 +94,27 @@ TEST(GameText, FileReadsAsAMessageFile) {
     EXPECT_EQ(mes.GetTextLineDataTop(4), nullptr);
 }
 
+// A window's overlay answers its own lookups and its inserted system messages, and no other window's.
+TEST(GameText, AnOverlayAnswersAWindowsSystemMessagesToo) {
+    GameTextFile system;
+    system.Set(30, "Bass");
+    GameTextFile overlay;
+    overlay.Set(0x7F00, "Moon Trout");
+
+    ClsMes mes;
+    ClsMes other;
+    for (ClsMes *window : {&mes, &other}) {
+        window->SetBuff(system.Data());
+        window->buff_system = system.Data();
+    }
+    ClsMesSetMessageOverlay(&mes, overlay.Data());
+    EXPECT_EQ(GameTextDecode(mes.GetTextLineDataTop_system(0x7F00)), "Moon Trout");
+    EXPECT_EQ(GameTextDecode(mes.GetTextLineDataTop_system(30)), "Bass");
+    EXPECT_EQ(other.GetTextLineDataTop_system(0x7F00), nullptr);
+    ClsMesSetMessageOverlay(nullptr, nullptr);
+    EXPECT_EQ(mes.GetTextLineDataTop_system(0x7F00), nullptr);
+}
+
 TEST(GameText, WindowCapacity) {
     GameText text;
     EXPECT_EQ(text.Set(std::string(MES_WIN_LINE_MAX - 1, 'A')), 0);

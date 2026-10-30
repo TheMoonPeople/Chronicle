@@ -177,6 +177,12 @@ public:
     virtual std::string TalkLine(int message) const = 0;
 
     /**
+     * A system message (meswin/system: a town's name is 10 for Norune, 12 for Matataki), as the
+     * player's data and language have it; empty where there is none.
+     */
+    virtual std::string SystemText(int message) const = 0;
+
+    /**
      * Opens the shop once the conversation it was chosen in has ended.
      */
     virtual void OpenShop(ShopSpec shop) = 0;
@@ -453,6 +459,12 @@ void Register(Definition quest);
 void              Clear();
 const Definition *Find(std::string_view id);
 const Progress   *FindProgress(std::string_view id);
+
+/**
+ * Sets a registered quest's number to change(its value), from outside its rules and choices (what it
+ * counts as it happens: fishing's catches). False for a quest that isn't registered.
+ */
+bool ChangeVar(std::string_view quest, std::string_view name, const std::function<int(int)> &change);
 
 /**
  * The game quests act on; until it is set, rules and choices do nothing.

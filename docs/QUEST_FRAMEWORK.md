@@ -51,6 +51,9 @@ quest that ends in a shop (`FetchQuest`).
 - **Choices** (`Option`) are added to the menu of the NPCs an `NpcMatch` names (map, villager, message
   file; `quest::kAny` matches any) while their condition holds. A choice runs as a `Scene`.
 - **Numbers**: `Var` and `SetVar` keep a quest's own counters and flags, saved with its stage.
+  `quest::ChangeVar` changes one from outside the quest, for what it counts as it happens: fishing's
+  helpers count catches that way (docs/FISHING_FRAMEWORK.md, "Events and quests"). `IGame::SystemText`
+  reads a system message, such as a town's name, as the player's data and language have it.
 - **Retail takeovers** (`TakesOver(npc, quest::Retail::...)`): something retail does by itself, which
   the quest does its own way instead. While the quest is registered, the host holds retail's version
   back for the NPCs it names. `Retail::MayorSupplies` is the only one so far (section 6).

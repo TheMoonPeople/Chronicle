@@ -30,6 +30,7 @@
 #include "editloop3.hpp"
 #include "editpartsinfo.hpp"
 #include "frame.hpp"
+#include "item/host.hpp"
 #include "itembombeffect.hpp"
 #include "mainselect.hpp"
 #include "mathutil.hpp"
@@ -991,7 +992,7 @@ int _GET_ITEM_UNIT_NO(RS_STACKDATA *stack, int /*argument_count*/) {
     int item_no = GetStackInt(stack++);
     int owner = -1;
 
-    if (item_no >= ITEM_WEAPON_START) {
+    if (item::KindOf(item_no) == item::Kind::Weapon) {
         if (item_no < ITEM_WEAPON_WOODENSLINGSHOT_BROKEN) {
             owner = 0;
         }

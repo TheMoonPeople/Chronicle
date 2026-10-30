@@ -1,0 +1,2549 @@
+{
+  "kind": "item_common",
+  "records": [
+    {
+      "icon_index": 120,
+      "index": 0,
+      "item_no": 81,
+      "kind": 0,
+      "model": "atfire",
+      "msg": 81,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 121,
+      "index": 1,
+      "item_no": 82,
+      "kind": 0,
+      "model": "atice",
+      "msg": 82,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 122,
+      "index": 2,
+      "item_no": 83,
+      "kind": 0,
+      "model": "atthunde",
+      "msg": 83,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 123,
+      "index": 3,
+      "item_no": 84,
+      "kind": 0,
+      "model": "atwind",
+      "msg": 84,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 124,
+      "index": 4,
+      "item_no": 85,
+      "kind": 0,
+      "model": "atholy",
+      "msg": 85,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 125,
+      "index": 5,
+      "item_no": 86,
+      "kind": 0,
+      "model": "",
+      "msg": 86,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 126,
+      "index": 6,
+      "item_no": 87,
+      "kind": 0,
+      "model": "",
+      "msg": 87,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 127,
+      "index": 7,
+      "item_no": 88,
+      "kind": 0,
+      "model": "",
+      "msg": 88,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 128,
+      "index": 8,
+      "item_no": 89,
+      "kind": 0,
+      "model": "",
+      "msg": 89,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 129,
+      "index": 9,
+      "item_no": 90,
+      "kind": 0,
+      "model": "",
+      "msg": 90,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 130,
+      "index": 10,
+      "item_no": 91,
+      "kind": 0,
+      "model": "atpower",
+      "msg": 91,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 131,
+      "index": 11,
+      "item_no": 92,
+      "kind": 0,
+      "model": "atdamage",
+      "msg": 92,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 132,
+      "index": 12,
+      "item_no": 93,
+      "kind": 0,
+      "model": "atspeed",
+      "msg": 93,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 133,
+      "index": 13,
+      "item_no": 94,
+      "kind": 0,
+      "model": "atmagic",
+      "msg": 94,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 134,
+      "index": 14,
+      "item_no": 95,
+      "kind": 0,
+      "model": "juelgnet",
+      "msg": 95,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 135,
+      "index": 15,
+      "item_no": 96,
+      "kind": 0,
+      "model": "juelamst",
+      "msg": 96,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 136,
+      "index": 16,
+      "item_no": 97,
+      "kind": 0,
+      "model": "juelaqua",
+      "msg": 97,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 137,
+      "index": 17,
+      "item_no": 98,
+      "kind": 0,
+      "model": "jueldaia",
+      "msg": 98,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 138,
+      "index": 18,
+      "item_no": 99,
+      "kind": 0,
+      "model": "juelemrd",
+      "msg": 99,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 139,
+      "index": 19,
+      "item_no": 100,
+      "kind": 0,
+      "model": "juelparl",
+      "msg": 100,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 140,
+      "index": 20,
+      "item_no": 101,
+      "kind": 0,
+      "model": "juelruby",
+      "msg": 101,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 141,
+      "index": 21,
+      "item_no": 102,
+      "kind": 0,
+      "model": "juelprdt",
+      "msg": 102,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 142,
+      "index": 22,
+      "item_no": 103,
+      "kind": 0,
+      "model": "juelsphr",
+      "msg": 103,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 143,
+      "index": 23,
+      "item_no": 104,
+      "kind": 0,
+      "model": "juelopal",
+      "msg": 104,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 144,
+      "index": 24,
+      "item_no": 105,
+      "kind": 0,
+      "model": "jueltpaz",
+      "msg": 105,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 145,
+      "index": 25,
+      "item_no": 106,
+      "kind": 0,
+      "model": "jueltrqu",
+      "msg": 106,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 146,
+      "index": 26,
+      "item_no": 107,
+      "kind": 0,
+      "model": "taiyou",
+      "msg": 107,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 147,
+      "index": 27,
+      "item_no": 108,
+      "kind": 0,
+      "model": "",
+      "msg": 108,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 148,
+      "index": 28,
+      "item_no": 109,
+      "kind": 0,
+      "model": "",
+      "msg": 109,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 149,
+      "index": 29,
+      "item_no": 110,
+      "kind": 0,
+      "model": "",
+      "msg": 110,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 150,
+      "index": 30,
+      "item_no": 111,
+      "kind": 0,
+      "model": "zatdino",
+      "msg": 111,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 151,
+      "index": 31,
+      "item_no": 112,
+      "kind": 0,
+      "model": "zatunded",
+      "msg": 112,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 152,
+      "index": 32,
+      "item_no": 113,
+      "kind": 0,
+      "model": "zatsea",
+      "msg": 113,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 153,
+      "index": 33,
+      "item_no": 114,
+      "kind": 0,
+      "model": "zatstorn",
+      "msg": 114,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 154,
+      "index": 34,
+      "item_no": 115,
+      "kind": 0,
+      "model": "zatplant",
+      "msg": 115,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 155,
+      "index": 35,
+      "item_no": 116,
+      "kind": 0,
+      "model": "zatbeast",
+      "msg": 116,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 156,
+      "index": 36,
+      "item_no": 117,
+      "kind": 0,
+      "model": "zatsky",
+      "msg": 117,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 157,
+      "index": 37,
+      "item_no": 118,
+      "kind": 0,
+      "model": "zatmetal",
+      "msg": 118,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 158,
+      "index": 38,
+      "item_no": 119,
+      "kind": 0,
+      "model": "zatmimic",
+      "msg": 119,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 159,
+      "index": 39,
+      "item_no": 120,
+      "kind": 0,
+      "model": "zatmaji",
+      "msg": 120,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 160,
+      "index": 40,
+      "item_no": 121,
+      "kind": 0,
+      "model": "",
+      "msg": 121,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 161,
+      "index": 41,
+      "item_no": 122,
+      "kind": 0,
+      "model": "",
+      "msg": 122,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 162,
+      "index": 42,
+      "item_no": 123,
+      "kind": 0,
+      "model": "",
+      "msg": 123,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 163,
+      "index": 43,
+      "item_no": 124,
+      "kind": 0,
+      "model": "",
+      "msg": 124,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 164,
+      "index": 44,
+      "item_no": 125,
+      "kind": 0,
+      "model": "",
+      "msg": 125,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 165,
+      "index": 45,
+      "item_no": 126,
+      "kind": 0,
+      "model": "",
+      "msg": 126,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 166,
+      "index": 46,
+      "item_no": 127,
+      "kind": 0,
+      "model": "",
+      "msg": 127,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 167,
+      "index": 47,
+      "item_no": 128,
+      "kind": 0,
+      "model": "",
+      "msg": 128,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 0,
+      "index": 48,
+      "item_no": 129,
+      "kind": 0,
+      "model": "",
+      "msg": 129,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 1,
+      "index": 49,
+      "item_no": 130,
+      "kind": 0,
+      "model": "",
+      "msg": 130,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 2,
+      "index": 50,
+      "item_no": 131,
+      "kind": 0,
+      "model": "",
+      "msg": 131,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 3,
+      "index": 51,
+      "item_no": 132,
+      "kind": 1,
+      "model": "mayokest",
+      "msg": 132,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 4,
+      "index": 52,
+      "item_no": 133,
+      "kind": 1,
+      "model": "mayokenr",
+      "msg": 133,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 5,
+      "index": 53,
+      "item_no": 134,
+      "kind": 1,
+      "model": "mayokenb",
+      "msg": 134,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 6,
+      "index": 54,
+      "item_no": 135,
+      "kind": 1,
+      "model": "mayokedk",
+      "msg": 135,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 7,
+      "index": 55,
+      "item_no": 136,
+      "kind": 1,
+      "model": "dounut",
+      "msg": 136,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 8,
+      "index": 56,
+      "item_no": 137,
+      "kind": 1,
+      "model": "skanacnd",
+      "msg": 137,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 9,
+      "index": 57,
+      "item_no": 138,
+      "kind": 1,
+      "model": "kusamoti",
+      "msg": 138,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 10,
+      "index": 58,
+      "item_no": 139,
+      "kind": 1,
+      "model": "majopafe",
+      "msg": 139,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 11,
+      "index": 59,
+      "item_no": 140,
+      "kind": 1,
+      "model": "sasorijk",
+      "msg": 140,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 12,
+      "index": 60,
+      "item_no": 141,
+      "kind": 1,
+      "model": "ninjncki",
+      "msg": 141,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 13,
+      "index": 61,
+      "item_no": 142,
+      "kind": 1,
+      "model": "",
+      "msg": 142,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 14,
+      "index": 62,
+      "item_no": 143,
+      "kind": 1,
+      "model": "",
+      "msg": 143,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 15,
+      "index": 63,
+      "item_no": 144,
+      "kind": 1,
+      "model": "",
+      "msg": 144,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 16,
+      "index": 64,
+      "item_no": 145,
+      "kind": 1,
+      "model": "mizufutu",
+      "msg": 145,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 17,
+      "index": 65,
+      "item_no": 146,
+      "kind": 1,
+      "model": "mizuoisi",
+      "msg": 146,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 18,
+      "index": 66,
+      "item_no": 147,
+      "kind": 1,
+      "model": "mizugoku",
+      "msg": 147,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 19,
+      "index": 67,
+      "item_no": 148,
+      "kind": 1,
+      "model": "pan",
+      "msg": 148,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 20,
+      "index": 68,
+      "item_no": 149,
+      "kind": 1,
+      "model": "chicken",
+      "msg": 149,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 21,
+      "index": 69,
+      "item_no": 150,
+      "kind": 1,
+      "model": "bin2drnk",
+      "msg": 150,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 22,
+      "index": 70,
+      "item_no": 151,
+      "kind": 1,
+      "model": "dokukesi",
+      "msg": 151,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 23,
+      "index": 71,
+      "item_no": 152,
+      "kind": 1,
+      "model": "seisui",
+      "msg": 152,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 24,
+      "index": 72,
+      "item_no": 153,
+      "kind": 1,
+      "model": "sekken",
+      "msg": 153,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 25,
+      "index": 73,
+      "item_no": 154,
+      "kind": 1,
+      "model": "mityheal",
+      "msg": 154,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 26,
+      "index": 74,
+      "item_no": 155,
+      "kind": 1,
+      "model": "cheese",
+      "msg": 155,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 27,
+      "index": 75,
+      "item_no": 156,
+      "kind": 1,
+      "model": "",
+      "msg": 156,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 28,
+      "index": 76,
+      "item_no": 157,
+      "kind": 1,
+      "model": "",
+      "msg": 157,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 29,
+      "index": 77,
+      "item_no": 158,
+      "kind": 1,
+      "model": "",
+      "msg": 158,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 30,
+      "index": 78,
+      "item_no": 159,
+      "kind": 1,
+      "model": "bakudan",
+      "msg": 159,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 31,
+      "index": 79,
+      "item_no": 160,
+      "kind": 1,
+      "model": "ishi",
+      "msg": 160,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 32,
+      "index": 80,
+      "item_no": 161,
+      "kind": 1,
+      "model": "masekifi",
+      "msg": 161,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 33,
+      "index": 81,
+      "item_no": 162,
+      "kind": 1,
+      "model": "masekiic",
+      "msg": 162,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 34,
+      "index": 82,
+      "item_no": 163,
+      "kind": 1,
+      "model": "masekitd",
+      "msg": 163,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 35,
+      "index": 83,
+      "item_no": 164,
+      "kind": 1,
+      "model": "masekiwd",
+      "msg": 164,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 36,
+      "index": 84,
+      "item_no": 165,
+      "kind": 1,
+      "model": "masekiho",
+      "msg": 165,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 37,
+      "index": 85,
+      "item_no": 166,
+      "kind": 1,
+      "model": "isiranbo",
+      "msg": 166,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 38,
+      "index": 86,
+      "item_no": 167,
+      "kind": 1,
+      "model": "nebapeac",
+      "msg": 167,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 39,
+      "index": 87,
+      "item_no": 168,
+      "kind": 1,
+      "model": "bomnuts",
+      "msg": 168,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 40,
+      "index": 88,
+      "item_no": 169,
+      "kind": 1,
+      "model": "dokuring",
+      "msg": 169,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 41,
+      "index": 89,
+      "item_no": 170,
+      "kind": 1,
+      "model": "banana",
+      "msg": 170,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 42,
+      "index": 90,
+      "item_no": 171,
+      "kind": 1,
+      "model": "konamedu",
+      "msg": 171,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 43,
+      "index": 91,
+      "item_no": 172,
+      "kind": 1,
+      "model": "konakata",
+      "msg": 172,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 44,
+      "index": 92,
+      "item_no": 173,
+      "kind": 1,
+      "model": "konawarp",
+      "msg": 173,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 45,
+      "index": 93,
+      "item_no": 174,
+      "kind": 1,
+      "model": "konakawa",
+      "msg": 174,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 46,
+      "index": 94,
+      "item_no": 175,
+      "kind": 1,
+      "model": "konaexit",
+      "msg": 175,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 47,
+      "index": 95,
+      "item_no": 176,
+      "kind": 1,
+      "model": "konafuka",
+      "msg": 176,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 48,
+      "index": 96,
+      "item_no": 177,
+      "kind": 1,
+      "model": "konarepe",
+      "msg": 177,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 49,
+      "index": 97,
+      "item_no": 178,
+      "kind": 1,
+      "model": "konalvup",
+      "msg": 178,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 50,
+      "index": 98,
+      "item_no": 179,
+      "kind": 1,
+      "model": "pocket",
+      "msg": 179,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 51,
+      "index": 99,
+      "item_no": 180,
+      "kind": 1,
+      "model": "edenfurt",
+      "msg": 180,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 52,
+      "index": 100,
+      "item_no": 181,
+      "kind": 1,
+      "model": "takaraky",
+      "msg": 181,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 53,
+      "index": 101,
+      "item_no": 182,
+      "kind": 1,
+      "model": "hyoutan",
+      "msg": 182,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 54,
+      "index": 102,
+      "item_no": 183,
+      "kind": 1,
+      "model": "konarepe_at",
+      "msg": 183,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 55,
+      "index": 103,
+      "item_no": 184,
+      "kind": 1,
+      "model": "",
+      "msg": 184,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 56,
+      "index": 104,
+      "item_no": 185,
+      "kind": 1,
+      "model": "turisao",
+      "msg": 185,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 57,
+      "index": 105,
+      "item_no": 186,
+      "kind": 1,
+      "model": "ninzin",
+      "msg": 186,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 58,
+      "index": 106,
+      "item_no": 187,
+      "kind": 1,
+      "model": "imodango",
+      "msg": 187,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 59,
+      "index": 107,
+      "item_no": 188,
+      "kind": 1,
+      "model": "minon",
+      "msg": 188,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 60,
+      "index": 108,
+      "item_no": 189,
+      "kind": 1,
+      "model": "battan",
+      "msg": 189,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 61,
+      "index": 109,
+      "item_no": 190,
+      "kind": 1,
+      "model": "puti",
+      "msg": 190,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 62,
+      "index": 110,
+      "item_no": 191,
+      "kind": 1,
+      "model": "savesyo",
+      "msg": 191,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 63,
+      "index": 111,
+      "item_no": 192,
+      "kind": 1,
+      "model": "",
+      "msg": 192,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 64,
+      "index": 112,
+      "item_no": 193,
+      "kind": 1,
+      "model": "ebi",
+      "msg": 193,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 65,
+      "index": 113,
+      "item_no": 194,
+      "kind": 1,
+      "model": "",
+      "msg": 194,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 66,
+      "index": 114,
+      "item_no": 195,
+      "kind": 1,
+      "model": "gkeydran",
+      "msg": 195,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 67,
+      "index": 115,
+      "item_no": 196,
+      "kind": 1,
+      "model": "hikaruis",
+      "msg": 196,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 68,
+      "index": 116,
+      "item_no": 197,
+      "kind": 1,
+      "model": "gkeymimi",
+      "msg": 197,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 69,
+      "index": 117,
+      "item_no": 198,
+      "kind": 1,
+      "model": "akaikimi",
+      "msg": 198,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 70,
+      "index": 118,
+      "item_no": 199,
+      "kind": 1,
+      "model": "togecchi",
+      "msg": 199,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 71,
+      "index": 119,
+      "item_no": 200,
+      "kind": 1,
+      "model": "candy",
+      "msg": 200,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 72,
+      "index": 120,
+      "item_no": 201,
+      "kind": 1,
+      "model": "hook",
+      "msg": 201,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 73,
+      "index": 121,
+      "item_no": 202,
+      "kind": 1,
+      "model": "oukenost",
+      "msg": 202,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 74,
+      "index": 122,
+      "item_no": 203,
+      "kind": 1,
+      "model": "kayaku",
+      "msg": 203,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 75,
+      "index": 123,
+      "item_no": 204,
+      "kind": 1,
+      "model": "tokeisin",
+      "msg": 204,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 76,
+      "index": 124,
+      "item_no": 205,
+      "kind": 1,
+      "model": "tongrmrn",
+      "msg": 205,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 77,
+      "index": 125,
+      "item_no": 206,
+      "kind": 1,
+      "model": "gkey_ds",
+      "msg": 206,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 78,
+      "index": 126,
+      "item_no": 207,
+      "kind": 1,
+      "model": "keytuno",
+      "msg": 207,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 79,
+      "index": 127,
+      "item_no": 208,
+      "kind": 1,
+      "model": "mikazuki",
+      "msg": 208,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 80,
+      "index": 128,
+      "item_no": 209,
+      "kind": 1,
+      "model": "orgelnej",
+      "msg": 209,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 81,
+      "index": 129,
+      "item_no": 210,
+      "kind": 1,
+      "model": "taiysirs",
+      "msg": 210,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 82,
+      "index": 130,
+      "item_no": 211,
+      "kind": 1,
+      "model": "tukisirs",
+      "msg": 211,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 83,
+      "index": 131,
+      "item_no": 212,
+      "kind": 1,
+      "model": "ticket",
+      "msg": 212,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 84,
+      "index": 132,
+      "item_no": 213,
+      "kind": 1,
+      "model": "",
+      "msg": 213,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 85,
+      "index": 133,
+      "item_no": 214,
+      "kind": 1,
+      "model": "",
+      "msg": 214,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 86,
+      "index": 134,
+      "item_no": 215,
+      "kind": 1,
+      "model": "",
+      "msg": 215,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 87,
+      "index": 135,
+      "item_no": 216,
+      "kind": 1,
+      "model": "keyhone",
+      "msg": 216,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 88,
+      "index": 136,
+      "item_no": 217,
+      "kind": 1,
+      "model": "keyhige",
+      "msg": 217,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 89,
+      "index": 137,
+      "item_no": 218,
+      "kind": 1,
+      "model": "keysenst",
+      "msg": 218,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 90,
+      "index": 138,
+      "item_no": 219,
+      "kind": 1,
+      "model": "keyishi",
+      "msg": 219,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 91,
+      "index": 139,
+      "item_no": 220,
+      "kind": 1,
+      "model": "handol",
+      "msg": 220,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 92,
+      "index": 140,
+      "item_no": 221,
+      "kind": 1,
+      "model": "keysikok",
+      "msg": 221,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 93,
+      "index": 141,
+      "item_no": 222,
+      "kind": 1,
+      "model": "fkey_ds",
+      "msg": 222,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 94,
+      "index": 142,
+      "item_no": 223,
+      "kind": 1,
+      "model": "",
+      "msg": 223,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 95,
+      "index": 143,
+      "item_no": 224,
+      "kind": 1,
+      "model": "torokoil",
+      "msg": 224,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 96,
+      "index": 144,
+      "item_no": 225,
+      "kind": 1,
+      "model": "taiysizk",
+      "msg": 225,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 97,
+      "index": 145,
+      "item_no": 226,
+      "kind": 1,
+      "model": "pitisakn",
+      "msg": 226,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 98,
+      "index": 146,
+      "item_no": 227,
+      "kind": 1,
+      "model": "kusasakn",
+      "msg": 227,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 99,
+      "index": 147,
+      "item_no": 228,
+      "kind": 1,
+      "model": "keyhitug",
+      "msg": 228,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 100,
+      "index": 148,
+      "item_no": 229,
+      "kind": 1,
+      "model": "yuukiita",
+      "msg": 229,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 101,
+      "index": 149,
+      "item_no": 230,
+      "kind": 1,
+      "model": "patapata",
+      "msg": 230,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 102,
+      "index": 150,
+      "item_no": 231,
+      "kind": 1,
+      "model": "key_eye",
+      "msg": 231,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 103,
+      "index": 151,
+      "item_no": 232,
+      "kind": 1,
+      "model": "",
+      "msg": 232,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 104,
+      "index": 152,
+      "item_no": 233,
+      "kind": 1,
+      "model": "map",
+      "msg": 233,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 105,
+      "index": 153,
+      "item_no": 234,
+      "kind": 1,
+      "model": "masuisyo",
+      "msg": 234,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 106,
+      "index": 154,
+      "item_no": 235,
+      "kind": 1,
+      "model": "dorahane",
+      "msg": 235,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 107,
+      "index": 155,
+      "item_no": 236,
+      "kind": 1,
+      "model": "keydokut",
+      "msg": 236,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 108,
+      "index": 156,
+      "item_no": 237,
+      "kind": 1,
+      "model": "hengemiz",
+      "msg": 237,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 109,
+      "index": 157,
+      "item_no": 238,
+      "kind": 1,
+      "model": "worldmap",
+      "msg": 238,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 110,
+      "index": 158,
+      "item_no": 239,
+      "kind": 1,
+      "model": "honepend",
+      "msg": 239,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 111,
+      "index": 159,
+      "item_no": 240,
+      "kind": 1,
+      "model": "tukifue",
+      "msg": 240,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 112,
+      "index": 160,
+      "item_no": 241,
+      "kind": 1,
+      "model": "mahoranp",
+      "msg": 241,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 113,
+      "index": 161,
+      "item_no": 242,
+      "kind": 1,
+      "model": "tukinoob",
+      "msg": 242,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 114,
+      "index": 162,
+      "item_no": 243,
+      "kind": 1,
+      "model": "kairing",
+      "msg": 243,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 115,
+      "index": 163,
+      "item_no": 244,
+      "kind": 1,
+      "model": "sosareij",
+      "msg": 244,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 116,
+      "index": 164,
+      "item_no": 245,
+      "kind": 1,
+      "model": "icebig",
+      "msg": 245,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 117,
+      "index": 165,
+      "item_no": 246,
+      "kind": 1,
+      "model": "icemid",
+      "msg": 246,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 118,
+      "index": 166,
+      "item_no": 247,
+      "kind": 1,
+      "model": "icesml",
+      "msg": 247,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 119,
+      "index": 167,
+      "item_no": 248,
+      "kind": 1,
+      "model": "keyhonoo",
+      "msg": 248,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 120,
+      "index": 168,
+      "item_no": 249,
+      "kind": 1,
+      "model": "hantmimi",
+      "msg": 249,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 121,
+      "index": 169,
+      "item_no": 250,
+      "kind": 1,
+      "model": "kouyaku",
+      "msg": 250,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 122,
+      "index": 170,
+      "item_no": 251,
+      "kind": 1,
+      "model": "fundtion",
+      "msg": 251,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 123,
+      "index": 171,
+      "item_no": 252,
+      "kind": 1,
+      "model": "haniwa",
+      "msg": 252,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 124,
+      "index": 172,
+      "item_no": 253,
+      "kind": 1,
+      "model": "manual",
+      "msg": 253,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 125,
+      "index": 173,
+      "item_no": 254,
+      "kind": 1,
+      "model": "pezutama",
+      "msg": 254,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 126,
+      "index": 174,
+      "item_no": 255,
+      "kind": 1,
+      "model": "",
+      "msg": 255,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 127,
+      "index": 175,
+      "item_no": 256,
+      "kind": 1,
+      "msg": -1,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 0,
+      "index": 0,
+      "item_no": 257,
+      "kind": 2,
+      "msg": 1,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 1,
+      "index": 1,
+      "item_no": 258,
+      "kind": 2,
+      "msg": 2,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 2,
+      "index": 2,
+      "item_no": 259,
+      "kind": 2,
+      "msg": 3,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 3,
+      "index": 3,
+      "item_no": 260,
+      "kind": 2,
+      "msg": 4,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 4,
+      "index": 4,
+      "item_no": 261,
+      "kind": 2,
+      "msg": 5,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 5,
+      "index": 5,
+      "item_no": 262,
+      "kind": 2,
+      "msg": 6,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 6,
+      "index": 6,
+      "item_no": 263,
+      "kind": 2,
+      "msg": 7,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 7,
+      "index": 7,
+      "item_no": 264,
+      "kind": 2,
+      "msg": 8,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 8,
+      "index": 8,
+      "item_no": 265,
+      "kind": 2,
+      "msg": 9,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 9,
+      "index": 9,
+      "item_no": 266,
+      "kind": 2,
+      "msg": 10,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 10,
+      "index": 10,
+      "item_no": 267,
+      "kind": 2,
+      "msg": 11,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 11,
+      "index": 11,
+      "item_no": 268,
+      "kind": 2,
+      "msg": 12,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 12,
+      "index": 12,
+      "item_no": 269,
+      "kind": 2,
+      "msg": 13,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 13,
+      "index": 13,
+      "item_no": 270,
+      "kind": 2,
+      "msg": 14,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 14,
+      "index": 14,
+      "item_no": 271,
+      "kind": 2,
+      "msg": 15,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 15,
+      "index": 15,
+      "item_no": 272,
+      "kind": 2,
+      "msg": 16,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 16,
+      "index": 16,
+      "item_no": 273,
+      "kind": 2,
+      "msg": 17,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 17,
+      "index": 17,
+      "item_no": 274,
+      "kind": 2,
+      "msg": 18,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 18,
+      "index": 18,
+      "item_no": 275,
+      "kind": 2,
+      "msg": 19,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 19,
+      "index": 19,
+      "item_no": 276,
+      "kind": 2,
+      "msg": 20,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 20,
+      "index": 20,
+      "item_no": 277,
+      "kind": 2,
+      "msg": 256,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 21,
+      "index": 21,
+      "item_no": 278,
+      "kind": 2,
+      "msg": 257,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 22,
+      "index": 22,
+      "item_no": 279,
+      "kind": 2,
+      "msg": 258,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 23,
+      "index": 23,
+      "item_no": 280,
+      "kind": 2,
+      "msg": 259,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 24,
+      "index": 24,
+      "item_no": 281,
+      "kind": 2,
+      "msg": 260,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 25,
+      "index": 25,
+      "item_no": 282,
+      "kind": 2,
+      "msg": 261,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 26,
+      "index": 26,
+      "item_no": 283,
+      "kind": 2,
+      "msg": 262,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 27,
+      "index": 27,
+      "item_no": 284,
+      "kind": 2,
+      "msg": 263,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 28,
+      "index": 28,
+      "item_no": 285,
+      "kind": 2,
+      "msg": 264,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 29,
+      "index": 29,
+      "item_no": 286,
+      "kind": 2,
+      "msg": 265,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 30,
+      "index": 30,
+      "item_no": 287,
+      "kind": 2,
+      "msg": 266,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 31,
+      "index": 31,
+      "item_no": 288,
+      "kind": 2,
+      "msg": 267,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 32,
+      "index": 32,
+      "item_no": 289,
+      "kind": 2,
+      "msg": 268,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 33,
+      "index": 33,
+      "item_no": 290,
+      "kind": 2,
+      "msg": 269,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 34,
+      "index": 34,
+      "item_no": 291,
+      "kind": 2,
+      "msg": 270,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 35,
+      "index": 35,
+      "item_no": 292,
+      "kind": 2,
+      "msg": 271,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 36,
+      "index": 36,
+      "item_no": 293,
+      "kind": 2,
+      "msg": 272,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 37,
+      "index": 37,
+      "item_no": 294,
+      "kind": 2,
+      "msg": 273,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 38,
+      "index": 38,
+      "item_no": 295,
+      "kind": 2,
+      "msg": 284,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 39,
+      "index": 39,
+      "item_no": 296,
+      "kind": 2,
+      "msg": 285,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 40,
+      "index": 40,
+      "item_no": 297,
+      "kind": 2,
+      "msg": 286,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 41,
+      "index": 41,
+      "item_no": 298,
+      "kind": 2,
+      "msg": 287,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 42,
+      "index": 42,
+      "item_no": 299,
+      "kind": 2,
+      "msg": 21,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 43,
+      "index": 43,
+      "item_no": 300,
+      "kind": 2,
+      "msg": 22,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 44,
+      "index": 44,
+      "item_no": 301,
+      "kind": 2,
+      "msg": 23,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 45,
+      "index": 45,
+      "item_no": 302,
+      "kind": 2,
+      "msg": 24,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 46,
+      "index": 46,
+      "item_no": 303,
+      "kind": 2,
+      "msg": 25,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 47,
+      "index": 47,
+      "item_no": 304,
+      "kind": 2,
+      "msg": 26,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 48,
+      "index": 48,
+      "item_no": 305,
+      "kind": 2,
+      "msg": 27,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 49,
+      "index": 49,
+      "item_no": 306,
+      "kind": 2,
+      "msg": 28,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 50,
+      "index": 50,
+      "item_no": 307,
+      "kind": 2,
+      "msg": 29,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 51,
+      "index": 51,
+      "item_no": 308,
+      "kind": 2,
+      "msg": 30,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 52,
+      "index": 52,
+      "item_no": 309,
+      "kind": 2,
+      "msg": 31,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 53,
+      "index": 53,
+      "item_no": 310,
+      "kind": 2,
+      "msg": 274,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 54,
+      "index": 54,
+      "item_no": 311,
+      "kind": 2,
+      "msg": 275,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 55,
+      "index": 55,
+      "item_no": 312,
+      "kind": 2,
+      "msg": 288,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 56,
+      "index": 56,
+      "item_no": 313,
+      "kind": 2,
+      "msg": 289,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 57,
+      "index": 57,
+      "item_no": 314,
+      "kind": 2,
+      "msg": 33,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 58,
+      "index": 58,
+      "item_no": 315,
+      "kind": 2,
+      "msg": 34,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 59,
+      "index": 59,
+      "item_no": 316,
+      "kind": 2,
+      "msg": 35,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 60,
+      "index": 60,
+      "item_no": 317,
+      "kind": 2,
+      "msg": 36,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 61,
+      "index": 61,
+      "item_no": 318,
+      "kind": 2,
+      "msg": 37,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 62,
+      "index": 62,
+      "item_no": 319,
+      "kind": 2,
+      "msg": 38,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 63,
+      "index": 63,
+      "item_no": 320,
+      "kind": 2,
+      "msg": 39,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 64,
+      "index": 64,
+      "item_no": 321,
+      "kind": 2,
+      "msg": 40,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 65,
+      "index": 65,
+      "item_no": 322,
+      "kind": 2,
+      "msg": 41,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 66,
+      "index": 66,
+      "item_no": 323,
+      "kind": 2,
+      "msg": 42,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 67,
+      "index": 67,
+      "item_no": 324,
+      "kind": 2,
+      "msg": 43,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 68,
+      "index": 68,
+      "item_no": 325,
+      "kind": 2,
+      "msg": 44,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 69,
+      "index": 69,
+      "item_no": 326,
+      "kind": 2,
+      "msg": 45,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 70,
+      "index": 70,
+      "item_no": 327,
+      "kind": 2,
+      "msg": 276,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 71,
+      "index": 71,
+      "item_no": 328,
+      "kind": 2,
+      "msg": 277,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 72,
+      "index": 72,
+      "item_no": 329,
+      "kind": 2,
+      "msg": 290,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 73,
+      "index": 73,
+      "item_no": 330,
+      "kind": 2,
+      "msg": 0,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 74,
+      "index": 74,
+      "item_no": 331,
+      "kind": 2,
+      "msg": 46,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 75,
+      "index": 75,
+      "item_no": 332,
+      "kind": 2,
+      "msg": 47,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 76,
+      "index": 76,
+      "item_no": 333,
+      "kind": 2,
+      "msg": 48,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 77,
+      "index": 77,
+      "item_no": 334,
+      "kind": 2,
+      "msg": 49,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 78,
+      "index": 78,
+      "item_no": 335,
+      "kind": 2,
+      "msg": 50,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 79,
+      "index": 79,
+      "item_no": 336,
+      "kind": 2,
+      "msg": 51,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 80,
+      "index": 80,
+      "item_no": 337,
+      "kind": 2,
+      "msg": 52,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 81,
+      "index": 81,
+      "item_no": 338,
+      "kind": 2,
+      "msg": 53,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 82,
+      "index": 82,
+      "item_no": 339,
+      "kind": 2,
+      "msg": 54,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 83,
+      "index": 83,
+      "item_no": 340,
+      "kind": 2,
+      "msg": 55,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 84,
+      "index": 84,
+      "item_no": 341,
+      "kind": 2,
+      "msg": 56,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 85,
+      "index": 85,
+      "item_no": 342,
+      "kind": 2,
+      "msg": 57,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 86,
+      "index": 86,
+      "item_no": 343,
+      "kind": 2,
+      "msg": 278,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 87,
+      "index": 87,
+      "item_no": 344,
+      "kind": 2,
+      "msg": 279,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 88,
+      "index": 88,
+      "item_no": 345,
+      "kind": 2,
+      "msg": 291,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 89,
+      "index": 89,
+      "item_no": 346,
+      "kind": 2,
+      "msg": 0,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 90,
+      "index": 90,
+      "item_no": 347,
+      "kind": 2,
+      "msg": 58,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 91,
+      "index": 91,
+      "item_no": 348,
+      "kind": 2,
+      "msg": 59,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 92,
+      "index": 92,
+      "item_no": 349,
+      "kind": 2,
+      "msg": 60,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 93,
+      "index": 93,
+      "item_no": 350,
+      "kind": 2,
+      "msg": 61,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 94,
+      "index": 94,
+      "item_no": 351,
+      "kind": 2,
+      "msg": 62,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 95,
+      "index": 95,
+      "item_no": 352,
+      "kind": 2,
+      "msg": 63,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 96,
+      "index": 96,
+      "item_no": 353,
+      "kind": 2,
+      "msg": 64,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 97,
+      "index": 97,
+      "item_no": 354,
+      "kind": 2,
+      "msg": 65,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 98,
+      "index": 98,
+      "item_no": 355,
+      "kind": 2,
+      "msg": 66,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 99,
+      "index": 99,
+      "item_no": 356,
+      "kind": 2,
+      "msg": 67,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 100,
+      "index": 100,
+      "item_no": 357,
+      "kind": 2,
+      "msg": 68,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 101,
+      "index": 101,
+      "item_no": 358,
+      "kind": 2,
+      "msg": 69,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 102,
+      "index": 102,
+      "item_no": 359,
+      "kind": 2,
+      "msg": 280,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 103,
+      "index": 103,
+      "item_no": 360,
+      "kind": 2,
+      "msg": 281,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 104,
+      "index": 104,
+      "item_no": 361,
+      "kind": 2,
+      "msg": 0,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 105,
+      "index": 105,
+      "item_no": 362,
+      "kind": 2,
+      "msg": 0,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 106,
+      "index": 106,
+      "item_no": 363,
+      "kind": 2,
+      "msg": 70,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 107,
+      "index": 107,
+      "item_no": 364,
+      "kind": 2,
+      "msg": 71,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 108,
+      "index": 108,
+      "item_no": 365,
+      "kind": 2,
+      "msg": 72,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 109,
+      "index": 109,
+      "item_no": 366,
+      "kind": 2,
+      "msg": 73,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 110,
+      "index": 110,
+      "item_no": 367,
+      "kind": 2,
+      "msg": 74,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 111,
+      "index": 111,
+      "item_no": 368,
+      "kind": 2,
+      "msg": 75,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 112,
+      "index": 112,
+      "item_no": 369,
+      "kind": 2,
+      "msg": 76,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 113,
+      "index": 113,
+      "item_no": 370,
+      "kind": 2,
+      "msg": 77,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 114,
+      "index": 114,
+      "item_no": 371,
+      "kind": 2,
+      "msg": 78,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 115,
+      "index": 115,
+      "item_no": 372,
+      "kind": 2,
+      "msg": 79,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 116,
+      "index": 116,
+      "item_no": 373,
+      "kind": 2,
+      "msg": 80,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 117,
+      "index": 117,
+      "item_no": 374,
+      "kind": 2,
+      "msg": 282,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 118,
+      "index": 118,
+      "item_no": 375,
+      "kind": 2,
+      "msg": 283,
+      "unk_01": 0
+    },
+    {
+      "icon_index": 119,
+      "index": 119,
+      "item_no": 376,
+      "kind": 2,
+      "msg": 0,
+      "unk_01": 0
+    }
+  ],
+  "schema_version": 2
+}

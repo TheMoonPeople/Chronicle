@@ -64,6 +64,24 @@ protected:
     }
 };
 
+TEST_F(Datapacks, AListedPackComesFromTheGamesOwnWhenThePlayerHasNone) {
+    const fs::path shipped = directory / "shipped";
+    fs::create_directories(shipped / "fishing/gameplay");
+    std::ofstream(shipped / "fishing/gameplay/places.json", std::ios::binary) << "shipped";
+    fs::create_directories(shipped / "unlisted/gameplay");
+    std::ofstream(shipped / "unlisted/gameplay/places.json", std::ios::binary) << "unlisted";
+    fs::create_directories(directory / "datapacks");
+    std::ofstream(directory / "datapacks/datapacks.json") << R"({"schema_version":1,"load_order":["fishing"]})";
+
+    datapacks::Load(data, shipped);
+    EXPECT_EQ(Texts("gameplay/places.json"), (std::vector<std::string>{"shipped"}));
+
+    // The player's own copy wins.
+    Write("fishing", "gameplay/places.json", "player's");
+    datapacks::Load(data, shipped);
+    EXPECT_EQ(Texts("gameplay/places.json"), (std::vector<std::string>{"player's"}));
+}
+
 TEST_F(Datapacks, WithoutAConfigurationNoPackServes) {
     Write("unlisted", "Chara/Hero.dat", "unlisted");
     datapacks::Load(data);

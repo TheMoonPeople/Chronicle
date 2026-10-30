@@ -22,6 +22,7 @@
 #include "dungeonmap.hpp"
 #include "dungeonparts.hpp"
 #include "frame.hpp"
+#include "item/host.hpp"
 #include "mds.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"
@@ -1843,6 +1844,9 @@ COM_ITEM_INFO *GetCommonItemInfo(int item_no) {
     if (item_no <= 0) {
         return nullptr;
     }
+    if (item_no >= item::kCustomFirst) {
+        return item::CustomCommonInfo(item_no);
+    }
 
     // Items before slot 81 function as an alias for weapons in the info table.
     if (0 < item_no && item_no < ITEM_ATTACH_START) {
@@ -1876,6 +1880,9 @@ int GetItemTypeInfo(int item_no, s8 *kind) {
 }
 
 ITEM_DATA *GetItemData(int item_no) {
+    if (item_no >= item::kCustomFirst) {
+        return item::CustomItemData(item_no);
+    }
     COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
     if (info == nullptr || info->kind != ITEMKIND_ITEM || info->index < 0 || std::cmp_greater_equal(info->index, std::size(ITEM_LIST))) {
         return nullptr;

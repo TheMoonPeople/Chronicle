@@ -1,3 +1,7 @@
+// nlohmann/json (through the fishing framework) before the game headers, whose one-letter macros it
+// cannot stand.
+#include "fishing/framework.hpp"
+
 #include <gtest/gtest.h>
 #include <libpad.h>
 
@@ -14,16 +18,25 @@
 #include <vector>
 
 #include "app/gameloop.hpp"
+#include "dngstatusdata.hpp"
+#include "dun/gameloop.hpp"
+#include "fishing/host.hpp"
 #include "gamepad.hpp"
+#include "item/framework.hpp"
+#include "item/host.hpp"
+#include "itembombeffect.hpp"
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_save.hpp"
 #include "platform/input.hpp"
 #include "platform/paths.hpp"
 #include "platform_fixture.hpp"
+#include "save/extension.hpp"
 #include "save/save_slots.hpp"
 #include "save/save_state.hpp"
 #include "savedata.hpp"
+#include "stockitem.hpp"
+#include "text/gametext.hpp"
 
 #ifndef _WIN32
 #include <sys/stat.h>
@@ -577,6 +590,294 @@ TEST(SaveSlots, EndingSaveFailureCanBeLeft) {
     }
 
     fs::remove_all(root);
+}
+
+// Custom items without the document layer: registered by hand, so a missing definition is one
+// unregistered here. Orphans take numbers from kCustomFirst, as no custom document is loaded.
+constexpr int kRod = item::kCustomFirst + 4;
+constexpr int kBass = item::kCustomFirst + 5;
+
+void RegisterCustomItems() {
+    item::Clear();
+    item::Register(item::Def{.id = "chronicle:rod", .number = kRod});
+    item::Register(item::Def{.id = "chronicle:bass", .number = kBass, .state = {{"size", 31.5}}, .state_version = 2});
+    item::RegisterSaveChunk();
+    item::ClearCopies();
+}
+
+std::vector<char> BuildImage() {
+    g_mc.SetBuff(g_menu_buffer->bytes.data());
+    const char *image = reinterpret_cast<const char *>(g_mc.save_buffer);
+    return {image, image + kImageSize};
+}
+
+ITEM_PACK &PackOf(CSaveData &save) {
+    return save.GetDngStatus()->item_pack;
+}
+
+TEST(SaveSlots, ACustomFishsRecordGoesToChronicleDatAndOutlivesItsDefinition) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    item::Load();
+    fishing::Load();
+    fishing::RegisterSpecies(fishing::Species{.id = "chronicle:moon_trout", .kind = fishing::kCustomKindFirst});
+    const fishing::Species *trout = fishing::FindSpecies("chronicle:moon_trout");
+    const std::vector<char> retail = BuildImage();
+    fishing::RecordCatch({.species = trout, .size = 150, .bait = "vanilla:carrot"});
+    fishing::RecordCatch({.species = trout, .size = 182, .bait = "vanilla:minon"});
+    fishing::RecordCatch({.species = trout, .size = 120, .bait = "vanilla:carrot"});
+
+    ASSERT_EQ(BuildImage(), retail); // fish_data never sees a custom kind
+    ASSERT_EQ(SaveNew(0), 1);
+    ASSERT_TRUE(fs::exists(SlotOf(root, 0) / "chronicle.dat"));
+
+    // Loaded with the species' pack gone, the record waits for it and is saved again as it was.
+    save::ExtensionNewGame();
+    EXPECT_EQ(fishing::RecordOf("chronicle:moon_trout"), nullptr);
+    fishing::Load();
+    EXPECT_EQ(fishing::FindSpecies("chronicle:moon_trout"), nullptr);
+    g_mc.file_no = 0;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_SAVE), 1);
+    save::ExtensionNewGame();
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    const fishing::SpeciesRecord *record = fishing::RecordOf("chronicle:moon_trout");
+    ASSERT_NE(record, nullptr);
+    EXPECT_EQ(record->caught, 3);
+    EXPECT_EQ(record->largest, 182);
+    EXPECT_EQ(record->baits, (std::vector<std::string>{"vanilla:carrot", "vanilla:minon"}));
+    save::ExtensionNewGame();
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, TheChosenRodIsUsedWhileCarriedAndKeptWithTheSave) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    item::Load();
+    item::Register(item::Def{.id = "chronicle:sea_rod", .number = kRod}.With(item::Rod{.spring = 19.0f}));
+    fishing::Load();
+    PackOf(g_save).item[0] = ITEM_FISHING_ROD;
+    fishing::ChooseRod("chronicle:sea_rod");
+    EXPECT_EQ(fishing::RodInUse().spring, 10.0f); // not carried: the Fishing Rod
+    PackOf(g_save).item[1] = kRod;
+    EXPECT_EQ(fishing::RodsCarried(), (std::vector<int>{ITEM_FISHING_ROD, kRod}));
+    EXPECT_EQ(fishing::RodInUse().spring, 19.0f);
+
+    BuildImage();
+    ASSERT_EQ(SaveNew(0), 1);
+    save::ExtensionNewGame();
+    EXPECT_TRUE(fishing::ChosenRod().empty());
+    g_mc.file_no = 0;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    EXPECT_EQ(fishing::ChosenRod(), "chronicle:sea_rod");
+    save::ExtensionNewGame();
+    item::Load();
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, CustomItemsGoToChronicleDatAndSaveDatStaysRetails) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    RegisterCustomItems();
+    ITEM_PACK &pack = PackOf(g_save);
+    pack.item[0] = 150;
+    pack.item_vol[0] = 4;
+
+    // What retail writes for this save without the custom items.
+    alignas(64) static CSaveData vanilla;
+    vanilla = g_save;
+    SaveData = &vanilla;
+    const std::vector<char> retail = BuildImage();
+    SaveData = &g_save;
+
+    pack.item[1] = kRod;
+    pack.item_vol[1] = 3;
+    const int handle = item::NewCopy(*item::Find("chronicle:bass"));
+    item::FindCopy(handle)->state["size"] = 44.0;
+    pack.item[2] = static_cast<s16>(handle);
+    pack.quick_item_slot[0] = kRod;
+    pack.quick_item_qty[0] = 2;
+    g_save.GetDngStatus()->active_item_vol[0] = 5;
+    g_save.GetStockItem()->dungeon_items[4] = kRod;
+    g_save.GetStockItem()->dungeon_item_vols[4] = 1;
+    const std::uint64_t instance = item::FindCopy(handle)->instance;
+
+    ASSERT_EQ(BuildImage(), retail);
+    ASSERT_EQ(SaveNew(0), 1);
+    ASSERT_EQ(ReadSave(root, 0), retail);
+    ASSERT_TRUE(fs::exists(SlotOf(root, 0) / "chronicle.dat"));
+    // The live game keeps its items.
+    ASSERT_EQ(pack.item[1], kRod);
+
+    std::ranges::fill(pack.item, -1);
+    pack.quick_item_slot[0] = -1;
+    item::ClearCopies();
+    g_mc.file_no = 0;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    EXPECT_EQ(pack.item[0], 150);
+    EXPECT_EQ(pack.item[1], kRod);
+    EXPECT_EQ(pack.item_vol[1], 3);
+    EXPECT_EQ(pack.quick_item_slot[0], kRod);
+    EXPECT_EQ(pack.quick_item_qty[0], 2);
+    EXPECT_EQ(g_save.GetDngStatus()->active_item_vol[0], 5);
+    EXPECT_EQ(g_save.GetStockItem()->dungeon_items[4], kRod);
+    EXPECT_EQ(g_save.GetStockItem()->dungeon_item_vols[4], 1);
+    const item::Copy *copy = item::FindCopy(pack.item[2]);
+    ASSERT_NE(copy, nullptr);
+    EXPECT_EQ(copy->id, "chronicle:bass");
+    EXPECT_EQ(copy->instance, instance);
+    EXPECT_EQ(copy->state.at("size"), 44.0);
+    EXPECT_EQ(copy->state_version, 2);
+    EXPECT_EQ(item::Definition(pack.item[2]), kBass);
+    EXPECT_EQ(item::NextInstance(), instance + 1);
+
+    // Deleting the save takes its chronicle.dat with it.
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_DELETE), 1);
+    ASSERT_FALSE(fs::exists(SlotOf(root, 0)));
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, ASaveWithoutCustomItemsWritesNoChronicleDat) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    RegisterCustomItems();
+    PackOf(g_save).item[1] = kRod;
+    BuildImage();
+    ASSERT_EQ(SaveNew(0), 1);
+    ASSERT_TRUE(fs::exists(SlotOf(root, 0) / "chronicle.dat"));
+
+    // Saving over it once the item is gone removes the file.
+    PackOf(g_save).item[1] = -1;
+    BuildImage();
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_SAVE), 1);
+    ASSERT_FALSE(fs::exists(SlotOf(root, 0) / "chronicle.dat"));
+    ASSERT_TRUE(SaveSlotWriteAutosave());
+    ASSERT_FALSE(fs::exists(root / "saves" / "autosave" / "chronicle.dat"));
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, ChronicleDatOnlyGoesWithItsOwnSaveDat) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    RegisterCustomItems();
+    PackOf(g_save).item[1] = kRod;
+    BuildImage();
+    ASSERT_EQ(SaveNew(0), 1);
+
+    // save.dat alone, as copied out of a card or from an older backup, loads without the items...
+    WriteSave(root, 1, ReadSave(root, 0));
+    g_mc.file_no = 1;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    EXPECT_EQ(PackOf(g_save).item[1], -1);
+
+    // ...and so does one beside another save's chronicle.dat.
+    g_save.AddPlayTime(1);
+    BuildImage();
+    ASSERT_EQ(SaveNew(2), 1);
+    fs::copy_file(SlotOf(root, 0) / "chronicle.dat", SlotOf(root, 2) / "chronicle.dat", fs::copy_options::overwrite_existing);
+    g_mc.file_no = 2;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    EXPECT_EQ(PackOf(g_save).item[1], -1);
+
+    g_mc.file_no = 0;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    EXPECT_EQ(PackOf(g_save).item[1], kRod);
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, AnItemWhoseDefinitionIsGoneWaitsAsAnOrphan) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    RegisterCustomItems();
+    ITEM_PACK &pack = PackOf(g_save);
+    pack.item[1] = kRod;
+    pack.item[2] = static_cast<s16>(item::NewCopy(*item::Find("chronicle:bass")));
+    BuildImage();
+    ASSERT_EQ(SaveNew(0), 1);
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_GET_ALL_SAVE_FILE_INFO), 1);
+    EXPECT_TRUE(SaveSlots.missing.empty());
+
+    item::Unregister("chronicle:rod");
+    item::Unregister("chronicle:bass");
+    item::RebindCopies();
+
+    // The board marks the save before it loads.
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_GET_ALL_SAVE_FILE_INFO), 1);
+    EXPECT_EQ(SaveSlots.missing, std::vector<int>{1});
+    g_mc.file_no = 0;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    const int rod = pack.item[1];
+    EXPECT_TRUE(item::IsOrphan(rod));
+    EXPECT_EQ(item::KindOf(rod), item::Kind::Item);
+    EXPECT_TRUE(item::IsOrphan(pack.item[2]));
+    EXPECT_EQ(item::FindCopy(pack.item[2])->state.at("size"), 31.5);
+    EXPECT_EQ(text::GameTextDecode(item::CustomMessage(rod + 100, true)), "Unknown item");
+
+    // It does nothing from a quick slot, where a custom item would be used.
+    UserStatus = g_save.GetDngStatus();
+    pack.quick_item_slot[0] = static_cast<s16>(rod);
+    EXPECT_EQ(checkItemUsed(0), 0);
+    pack.quick_item_slot[0] = kRod;
+    EXPECT_EQ(checkItemUsed(0), 1);
+    pack.quick_item_slot[0] = -1;
+
+    // Saved again without their definitions, they keep their IDs and state...
+    BuildImage();
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_SAVE), 1);
+    // ...still marked while they are orphans...
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_GET_ALL_SAVE_FILE_INFO), 1);
+    EXPECT_EQ(SaveSlots.missing, std::vector<int>{1});
+
+    // ...and they are themselves again once the definitions return.
+    item::DropOrphans();
+    item::Register(item::Def{.id = "chronicle:rod", .number = kRod});
+    item::Register(item::Def{.id = "chronicle:bass", .number = kBass, .state = {{"size", 31.5}}, .state_version = 2});
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_GET_ALL_SAVE_FILE_INFO), 1);
+    EXPECT_TRUE(SaveSlots.missing.empty());
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    EXPECT_EQ(pack.item[1], kRod);
+    EXPECT_EQ(item::Definition(pack.item[2]), kBass);
+    EXPECT_EQ(item::FindCopy(pack.item[2])->state.at("size"), 31.5);
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, AHandleFoundTwiceInASaveBecomesTwoCopies) {
+    fs::path root = UseTempSaveRoot();
+    PrepareSave();
+    RegisterCustomItems();
+    const int handle = item::NewCopy(*item::Find("chronicle:bass"));
+    PackOf(g_save).item[0] = static_cast<s16>(handle);
+    PackOf(g_save).item[5] = static_cast<s16>(handle);
+    BuildImage();
+    ASSERT_EQ(SaveNew(0), 1);
+    g_mc.file_no = 0;
+    ASSERT_EQ(RunOperation(g_mc, MC_OPERATION_LOAD), 1);
+    const item::Copy *first = item::FindCopy(PackOf(g_save).item[0]);
+    const item::Copy *second = item::FindCopy(PackOf(g_save).item[5]);
+    ASSERT_TRUE(first != nullptr && second != nullptr && first != second);
+    EXPECT_NE(first->instance, second->instance);
+    EXPECT_EQ(first->state, second->state);
+    fs::remove_all(root);
+}
+
+TEST(SaveSlots, ADamagedChunkIsSetAsideAlone) {
+    save::ExtensionChunk items{.tag = {'I', 'T', 'E', 'M'}, .version = 1, .payload = {1, 2, 3}};
+    save::ExtensionChunk other{.tag = {'F', 'I', 'S', 'H'}, .version = 3, .payload = {4, 5}};
+    std::vector<std::uint8_t> bytes = save::ExtensionEncode({{7, {items, other}}, {9, {other}}});
+    std::optional<save::ExtensionSets> sets = save::ExtensionDecode(bytes);
+    ASSERT_TRUE(sets && sets->size() == 2 && (*sets)[0].first == 7 && (*sets)[1].second.size() == 1);
+    EXPECT_EQ((*sets)[0].second[1].payload, other.payload);
+    EXPECT_EQ((*sets)[0].second[1].version, 3U);
+
+    // The first chunk's payload starts after the header (12), the set's (12) and its own (16).
+    bytes[12 + 12 + 16] ^= 0xFF;
+    sets = save::ExtensionDecode(bytes);
+    ASSERT_TRUE(sets);
+    EXPECT_FALSE((*sets)[0].second[0].intact);
+    EXPECT_TRUE((*sets)[0].second[1].intact);
+
+    bytes.pop_back();
+    EXPECT_FALSE(save::ExtensionDecode(bytes));
 }
 
 TEST(SaveFixtureSeed, CopiesIntoNewAndEmptyRootsWithoutChangingSource) {

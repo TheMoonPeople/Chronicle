@@ -11,10 +11,15 @@
 #include <vector>
 
 #include "dialog/framework.hpp"
+#include "fishing/framework.hpp"
+#include "fishing/host.hpp"
+#include "item/framework.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "quest/framework.hpp"
 #include "quest/quests.hpp"
+#include "savedata.hpp"
 
 namespace dc::test {
 
@@ -39,6 +44,7 @@ public:
     std::map<int, int>                  game_numbers;
     std::map<std::pair<int, int>, bool> map_flags;
     std::map<int, std::string>          talk_lines;
+    std::map<int, std::string>          system_texts;
     int                                 money = 0;
     int                                 party = 1;
     int                                 pack_room = 10;
@@ -133,6 +139,11 @@ public:
     [[nodiscard]] std::string TalkLine(int message) const override {
         const auto it = talk_lines.find(message);
         return it == talk_lines.end() ? std::string() : it->second;
+    }
+
+    [[nodiscard]] std::string SystemText(int message) const override {
+        const auto it = system_texts.find(message);
+        return it == system_texts.end() ? std::string() : it->second;
     }
 
     void OpenShop(quest::ShopSpec spec) override { shop = std::move(spec); }
@@ -524,6 +535,94 @@ TEST_F(QuestFramework, CarlsSlingshotGoesBackAndForthToXiaosNewWeapon) {
     // Done: neither child brings it up again.
     EXPECT_FALSE(dialog::TryInterceptOpen(carl, {}));
     EXPECT_FALSE(dialog::TryInterceptOpen(gina, {}));
+}
+
+TEST_F(QuestFramework, RutyGivesARodForTheInlandFishTheMardanAndTheBaron) {
+    // The Enhanced fishing pack's rods, and retail's fish.
+    item::Load();
+    int number = item::kCustomFirst + 20;
+    std::map<std::string, int> rods;
+    for (const char *rod : {"chronicle:sea_rod", "chronicle:garayan_rod", "chronicle:baron_rod"}) {
+        item::Register(item::Def{.id = rod, .number = number}.With(item::Rod{}));
+        rods[rod] = number++;
+    }
+    fishing::Load();
+    ASSERT_TRUE(quest::RutysRodsAvailable());
+    quest::Register(quest::RutysRods());
+    const dialog::NpcContext ruty = Npc(2, 1);
+    game.system_texts = {{10, "Nolun Village"}, {12, "Matataki Village"}};
+    const auto catch_kinds = [](std::initializer_list<int> kinds) {
+        for (const int kind : kinds) {
+            fishing::Publish(fishing::Catch{.species = fishing::SpeciesOfKind(kind)});
+        }
+    };
+
+    // Not before her store is open and Toan has caught a fish; a catch before she asks doesn't count.
+    alignas(64) static game::CSaveData save;
+    save = {};
+    game::SaveData = &save;
+    EXPECT_FALSE(dialog::TryInterceptOpen(ruty, {}));
+    game.villagers_home[{2, 1}] = true;
+    EXPECT_FALSE(dialog::TryInterceptOpen(ruty, {}));
+    save.AddFishingPoint(9);
+    catch_kinds({1});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("I've been fishing.");
+    EXPECT_EQ(View().slice_count, 4);
+    Read();
+    EXPECT_EQ(Stage("rutys_rods"), "inland");
+    dialog::ForceCloseSession();
+
+    // Every kind of Norune's and Matataki's, the towns named as the player's data names them.
+    catch_kinds({1, 2, 4, 6, 7, 9, 9});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("1 more kinds"), std::string::npos) << View().current_slice.raw_text;
+    dialog::ForceCloseSession();
+    catch_kinds({10});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("Every kind in Nolun Village and Matataki Village?"), std::string::npos) << View().current_slice.raw_text;
+    Read();
+    EXPECT_EQ(game.ItemCount(rods["chronicle:sea_rod"]), 1);
+    EXPECT_EQ(Stage("rutys_rods"), "mardan");
+    Read();
+    EXPECT_FALSE(dialog::IsSessionActive());
+
+    // A Baron before she asks for it counts for nothing; the Mardan Garayan, then the Baron.
+    catch_kinds({17});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("Any luck with the Mardan Garayan?"), std::string::npos);
+    dialog::ForceCloseSession();
+    catch_kinds({5});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    Read();
+    Read();
+    EXPECT_EQ(game.ItemCount(rods["chronicle:garayan_rod"]), 1);
+    EXPECT_EQ(Stage("rutys_rods"), "baron");
+    dialog::ForceCloseSession();
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("Still chasing the Baron?"), std::string::npos);
+    dialog::ForceCloseSession();
+    catch_kinds({17});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    Read();
+    EXPECT_EQ(game.ItemCount(rods["chronicle:baron_rod"]), 1);
+    EXPECT_EQ(Stage("rutys_rods"), "done");
+    EXPECT_EQ(game.items_shown, (std::vector<int>{rods["chronicle:sea_rod"], rods["chronicle:garayan_rod"], rods["chronicle:baron_rod"]}));
+    dialog::ForceCloseSession();
+
+    // Afterwards she talks of her notebook.
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("My notebook's full"), std::string::npos);
+    dialog::ForceCloseSession();
+    game::SaveData = nullptr;
+    fishing::Clear();
 }
 
 TEST_F(QuestFramework, CarlSaysTheSlingshotIsReceivedWhereTheTownCannotShowIt) {

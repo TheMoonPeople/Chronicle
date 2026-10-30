@@ -53,6 +53,8 @@
 #include "effectgroup.hpp"
 #include "effectmacro.hpp"
 #include "fishing.hpp"
+#include "dialog/script_question.hpp"
+#include "fishing/host.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamemode.hpp"
@@ -1016,6 +1018,7 @@ int EditInit(void * /*param*/) {
     EdEventInfo.messages[0] = &EditMes1;
     EdEventInfo.messages[1] = &EditEventMes1;
     EdEventInfo.messages[4] = &EditSystemMes;
+    dialog::ScriptQuestionReset();
     EdInitEventParam();
     EdEventData = nullptr;
     simple_event = 0;
@@ -1968,6 +1971,27 @@ int EditLoop() {
         }
     }
 
+    // Test hooks (docs/PC.md): a town menu, set up as the script that opens it sets it up, or a town
+    // program raised as its spot's Cross raises it, once the town has settled as a player's press finds it.
+    const bool settled = GameMode == ED_MODE_WALK && key_lock == 0 && loop_counter > 30;
+    if (settled && goto_menu == 0) {
+        if (const int menu = app::GameTakeTownMenu(); menu != 0) {
+            std::vector<int> items = menu == ED_MENU_CHANGE_ROD ? fishing::RodsCarried() : fishing::BaitItems();
+            // The menus' list holds 32 with its end.
+            items.resize(std::min<std::size_t>(items.size(), 31));
+            items.push_back(-1);
+            EdUseItemInit();
+            EdSetUseItem(items.data());
+            goto_menu = menu;
+        }
+    }
+
+    if (settled && EdPadDown(0x40, 1) != 0) {
+        if (const int program = app::GameTakeTownEvent(); program != 0) {
+            RunEvent(program, &MainCamera);
+        }
+    }
+
     if (GameMode == ED_MODE_WALK && (EdPadDown(0x10, 1) != 0 || goto_menu != 0 || (SystemMesCheck() == 0 && EdCheckItemOver() != 0))) {
         int menu_no = ED_MENU_BATTLE;
 
@@ -2739,6 +2763,10 @@ void EditMainDraw() {
 
         EdSystemMesStep();
         EdSystemMesDraw();
+
+        if (GameMode == ED_MODE_FISHING) {
+            fishing::DrawFight();
+        }
 
         if (GameMode == ED_MODE_GEORAMA && (EditMenuStatus.mode == EDIT_MENU_MODE_PLACE || EditMenuStatus.mode == EDIT_MENU_MODE_REPLACE)) {
             EDITPARTS_INFO *info = EditPartsInfo.GetPartsInfo(NowSelectParts);

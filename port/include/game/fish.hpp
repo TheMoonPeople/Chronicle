@@ -90,31 +90,6 @@ public:
     CFish();
 
     /**
-     * Tests whether the fish notices the current bait.
-     */
-    int FindFood();
-
-    /**
-     * Tests whether the fish eats the bait it has reached.
-     */
-    int EatFood();
-
-    /**
-     * Tests whether the fish takes the hook it has reached.
-     */
-    int BiteHook();
-
-    /**
-     * Tests whether the fish abandons the bait.
-     */
-    int LeaveFood();
-
-    /**
-     * Tests whether the fish abandons the hook.
-     */
-    int LeaveHook();
-
-    /**
      * Sets the collision polygons that constrain the fish.
      */
     void SetCPoly(CCPoly *polys, int count);

@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "kind": "item",
+  "id": "chronicle:sea_rod",
+  "kind_flags": 24,
+  "sort_key": 6,
+  "stack_kind": 2,
+  "buy_price": 1200,
+  "sell_price": 600,
+  "icon": 56,
+  "model": "turisao",
+  "text": {
+    "en_gb": {
+      "name": "Sea Rod",
+      "description": "\"Sea Rod\"\nA sturdy rod a sailor\ngave Ruty for a favor."
+    },
+    "de_de": {
+      "name": "Meeresangel",
+      "description": "\"Meeresangel\"\nEine robuste Angel, die\nRuty von einem Seemann bekam."
+    },
+    "es_es": {
+      "name": "Caña Marina",
+      "description": "\"Caña Marina\"\nUna caña robusta que un\nmarinero le dio a Ruty."
+    },
+    "fr_fr": {
+      "name": "Canne marine",
+      "description": "\"Canne marine\"\nUne canne solide qu'un\nmarin a donnée à Ruty."
+    },
+    "it_it": {
+      "name": "Canna Marina",
+      "description": "\"Canna Marina\"\nUna canna robusta che un\nmarinaio diede a Ruty."
+    }
+  },
+  "rod": {
+    "heft": 55,
+    "control": 45,
+    "spring": 18,
+    "balance": 90,
+    "lure": 10
+  }
+}

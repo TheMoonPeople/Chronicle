@@ -21,6 +21,7 @@
 #include "dun/gameloop.hpp"
 #include "eastking.hpp"
 #include "gamepad.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
@@ -5267,7 +5268,7 @@ int ItemMenuMainKey() {
                         case ITEM_MENU_QUICK_SLOTS: {
                             int held = BtlHaveItemPt->item_no;
 
-                            if ((held >= ITEM_ATTACH_START && held < ITEM_DUNGEON_START) || held >= ITEM_WEAPON_START) {
+                            if (const item::Kind kind = item::KindOf(held); kind == item::Kind::Attachment || kind == item::Kind::Weapon) {
                                 ComMenuSePlay(MENU_SOUND_REFUSE);
                             } else if (IconAutoGet.IsMoveIcon() != 0) {
                                 ComMenuSePlay(MENU_SOUND_REFUSE);

@@ -398,6 +398,12 @@ void ExitFishingExchange();
 int FishingExchangeLoop();
 
 /**
+ * The mouse over the fish exchange or the fishing records, ahead of the game's read of the pad: true
+ * while either has it (open, or let go of it but a button still held).
+ */
+bool FishingListPointerUpdate();
+
+/**
  * Gives the name message of one kind of fish.
  */
 int GetFishMsgNo(int fish_no);

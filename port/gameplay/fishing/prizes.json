@@ -1,0 +1,146 @@
+{
+  "kind": "fish_prizes",
+  "prizes": [
+    {
+      "item": "vanilla:antidote_drink",
+      "price": 5
+    },
+    {
+      "item": "vanilla:holy_water",
+      "price": 5
+    },
+    {
+      "item": "vanilla:soap",
+      "price": 5
+    },
+    {
+      "item": "vanilla:mighty_healing",
+      "price": 15
+    },
+    {
+      "item": "vanilla:attach_dinoslayer",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_undead_buster",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_sea_killer",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_stone_breaker",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_plant_buster",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_beast_buster",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_sky_hunter",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_metalbreaker",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_mimic_breaker",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_mage_slayer",
+      "price": 50
+    },
+    {
+      "item": "vanilla:attach_garnet",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_amethyst",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_aquamarine",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_diamond",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_emerald",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_pearl",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_ruby",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_peridot",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_sapphire",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_opal",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_topaz",
+      "price": 100
+    },
+    {
+      "item": "vanilla:attach_turquoise",
+      "price": 100
+    },
+    {
+      "item": "vanilla:weapon_tsukikage",
+      "price": 1100
+    },
+    {
+      "item": "vanilla:weapon_matador",
+      "price": 1400
+    },
+    {
+      "item": "vanilla:weapon_magical_hammer",
+      "price": 1800
+    },
+    {
+      "item": "vanilla:weapon_fairy_s_ring",
+      "price": 1300
+    },
+    {
+      "item": "vanilla:weapon_scorpion",
+      "price": 1400
+    },
+    {
+      "item": "vanilla:weapon_blessing_gun",
+      "price": 1500
+    },
+    {
+      "item": "vanilla:weapon_mardan_eins",
+      "price": 2500
+    },
+    {
+      "item": "vanilla:bomb_nuts",
+      "price": 2
+    },
+    {
+      "item": "vanilla:poisonous_apple",
+      "price": 2
+    }
+  ],
+  "schema_version": 2
+}

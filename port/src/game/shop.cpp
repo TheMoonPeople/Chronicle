@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <print>
+#include <utility>
 
 #include "battlemenu.hpp"
 #include "camera.hpp"
@@ -17,6 +18,8 @@
 #include "dataread.hpp"
 #include "editloop.hpp"
 #include "gamepad.hpp"
+#include "fishing/host.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
 #include "mathutil.hpp"
@@ -35,6 +38,9 @@
 #include "snd.hpp"
 #include "stockitem.hpp"
 #include "texture.hpp"
+#include "ui/framework/widgets.hpp"
+#include "platform/input.hpp"
+#include "ui/menu_pointer.hpp"
 #include "userstatus.hpp"
 #include "weaponlevelup.hpp"
 
@@ -151,6 +157,27 @@ STATIC_ASSERT(sizeof(FishRecordMenuWork) == 0x24);
 
 /** State of the fishing record screen. */
 FishRecordMenuWork FishRecordMenu;
+
+namespace {
+
+// The fish exchange and the fishing records are retail's list boards, moved and drawn with the UI
+// framework's widgets: the same pictures in the same places, the same motion and sounds, and the mouse.
+// Their lists start at the first row's icon, a row 0x22 apart, five in view.
+constexpr int kListX = 0x9C + 0x16;
+constexpr int kListY = 0x6A + 0x14;
+constexpr int kListWidth = 0x12E;
+constexpr int kListRow = 0x22;
+// The exchange's confirmation plates.
+constexpr ui::Rect kYesPlate(0x110, 0x102, 0x60, 0x1F);
+
+ui::ListCursor g_exchange_list(ui::ListLayout{.first_row = ui::Rect(kListX - 0x1C, kListY, kListWidth, kListRow)});
+ui::ListCursor g_record_list(ui::ListLayout{.first_row = ui::Rect(kListX - 0x1C, kListY, kListWidth, kListRow)});
+ui::MenuHand   g_list_hand;
+ui::MenuPointer g_list_pointer;
+bool           g_exchange_active = false;
+bool           g_record_active = false;
+
+} // namespace
 
 int ChargeSelectKey();
 
@@ -622,11 +649,18 @@ namespace {
  * Returns an item's price, buying or selling, from the item table.
  */
 s16 GetItemMoney(int item_no, int sell) {
-    if (sell != 0) {
-        return PriceList[item_no - ITEM_ATTACH_START].sell_price;
+    const ITEM_MONEY_ENTRY *price =
+        item_no >= item::kCustomFirst ? item::CustomPrice(item_no) : &PriceList[item_no - ITEM_ATTACH_START];
+
+    if (price == nullptr) {
+        return 0;
     }
 
-    return PriceList[item_no - ITEM_ATTACH_START].buy_price;
+    if (sell != 0) {
+        return price->sell_price;
+    }
+
+    return price->buy_price;
 }
 
 } // namespace
@@ -954,7 +988,7 @@ void DrawShopIcon(int x, int y, int selected, int alpha) {
 int IsEnableCharge(int item_no) {
     int enable = false;
 
-    if (item_no >= ITEM_WEAPON_START) {
+    if (item::KindOf(item_no) == item::Kind::Weapon) {
         int          chara_no = WhoIsWeaponEquip(item_no);
         CUserStatus *status = ShopUserStatusPt;
         WEAPON_HAVE *weapons = status->chara_weapons[chara_no];
@@ -979,7 +1013,8 @@ int IsEnableCharge(int item_no) {
     } else {
         enable = true;
 
-        if (item_no == ITEM_MOON_ORB) {
+        // An orphan waits for its definition; selling it would lose it for nothing.
+        if (item_no == ITEM_MOON_ORB || item::IsOrphan(item_no)) {
             enable = false;
         }
     }
@@ -1852,7 +1887,7 @@ int ChargeShopKey() {
                             item = -1;
                         }
 
-                        if (item >= ITEM_WEAPON_START) {
+                        if (item::KindOf(item) == item::Kind::Weapon) {
                             value = ShopStockPt->weapons[cursor].level;
                         }
 
@@ -2573,7 +2608,7 @@ int SellMoneyCheck2() {
             if (item_no >= ITEM_ATTACH_START) {
                 int money = CalItemMoney(item_no, 1);
 
-                if (item_no >= ITEM_WEAPON_START) {
+                if (item::KindOf(item_no) == item::Kind::Weapon) {
                     money += WeaponCalMoney(&ShopListPt[i].data.weapon, 1);
                 }
 
@@ -4222,7 +4257,7 @@ int ItemShopKey2() {
 
                     money = CalItemMoney(item_no, 1);
 
-                    if (item_no >= ITEM_WEAPON_START) {
+                    if (item::KindOf(item_no) == item::Kind::Weapon) {
                         money += WeaponCalMoney(weapon, 1);
                         memset(weapon, 0, sizeof(WEAPON_HAVE));
                     }
@@ -4534,7 +4569,7 @@ int ItemShopKey2() {
                                 int enable = IsEnableCharge(target);
 
                                 if (enable != 0) {
-                                    if (target <= ITEM_WEAPON_START && target >= ITEM_DUNGEON_START) {
+                                    if (item::KindOf(target) == item::Kind::Item) {
                                         ITEM_DATA *data = GetItemData(target);
 
                                         if (data != nullptr && ((data->kind_flags & 0x10) || ShopHaveItemPt->item_no == ITEM_FISHING_ROD)) {
@@ -4543,7 +4578,7 @@ int ItemShopKey2() {
                                         }
                                     }
 
-                                    if (target >= ITEM_WEAPON_START) {
+                                    if (item::KindOf(target) == item::Kind::Weapon) {
                                         int chara = ShopMenu.board.cursor / 10;
 
                                         if (chara == IsDefaultWeapon(target)) {
@@ -4573,7 +4608,7 @@ int ItemShopKey2() {
                                 int wallet = ShopUserStatusPt->money;
                                 money = CalItemMoney(target, 1);
 
-                                if (target >= ITEM_WEAPON_START) {
+                                if (item::KindOf(target) == item::Kind::Weapon) {
                                     money += WeaponCalMoney(&ShopWeaponRow(ShopUserStatusPt, ShopMenu.board.cursor / 10)[ShopMenu.board.cursor % 10], 1);
                                 }
 
@@ -4790,7 +4825,7 @@ int ItemShopKey2() {
                     case SHOP_SIDE_STOCK:
                         item_no = ShopListPt[pos].item_no;
 
-                        if (item_no >= ITEM_WEAPON_START) {
+                        if (item::KindOf(item_no) == item::Kind::Weapon) {
                             value = ShopListPt[pos].data.weapon.level;
                         }
 
@@ -4997,7 +5032,7 @@ void ItemShopDraw2() {
 
                     int money = CalItemMoney(item_no, selling);
 
-                    if (item_no >= ITEM_WEAPON_START) {
+                    if (item::KindOf(item_no) == item::Kind::Weapon) {
                         money += WeaponCalMoney(&ShopListPt[cursor].data.weapon, selling);
                     }
 
@@ -5041,7 +5076,7 @@ void ItemShopDraw2() {
                     int ticket_y = static_cast<int>(6.0f + ShopMenu.board.y);
                     int money = CalItemMoney(item_no, 1);
 
-                    if (item_no >= ITEM_WEAPON_START) {
+                    if (item::KindOf(item_no) == item::Kind::Weapon) {
                         int          chara_no = ShopMenu.board.cursor / 10;
                         CUserStatus *status = ShopUserStatusPt;
                         WEAPON_HAVE *row = status->chara_weapons[chara_no];
@@ -5254,8 +5289,7 @@ void InitFishingExchange(u_long128 *buffer, int *tex_block, int mode) {
     FishMenu.buffer = MenuCalcBufAlignment(FishMenu.buffer);
     FishMenu.ready = 0;
     FishMenu.confirm = 1;
-    FishMenu.cursor = 0;
-    FishMenu.top = 0;
+    g_exchange_list.Reset(0, 0);
     FishMenu.fade_mode = FISH_EXCHANGE_FADE_IN;
     FishMenu.fade_count = 0;
     FishMenu.point = SaveData->GetFishingPoint();
@@ -5317,7 +5351,7 @@ int FishMenuTextureLoad() {
             int digits = GetNumberKeta(0);
             CommonMenuMes3.mes_made = -1;
             CommonMenuMes3.MakeMesWin(digits + 0xCD);
-            FishMenu.cursor_y = 0x7E;
+            g_exchange_list.SetHandY(0x7E);
             done = 1;
         }
     } else {
@@ -5352,11 +5386,9 @@ int FishingExchangeKey() {
     }
 
     int last_prize = party + 0x19;
-    int last_top = party + 0x16;
 
     if (mardan == 1) {
         last_prize++;
-        last_top++;
     }
 
     switch (FishMenu.fade_mode) {
@@ -5378,55 +5410,25 @@ int FishingExchangeKey() {
 
             break;
         case FISH_EXCHANGE_SELECT: {
-            int cursor = FishMenu.cursor;
-            int top = FishMenu.top;
+            ui::ListCursor &list = g_exchange_list;
+            list.SetLast(last_prize);
+            int cursor = list.Cursor();
+            int top = list.Top();
 
             if (GamePad.Down(PAD_R2 | PAD_R1 | PAD_RIGHT) != 0) {
-                FishMenu.top += 5;
-                FishMenu.cursor += 5;
+                list.PageDown();
             }
 
             if (GamePad.Down(PAD_L2 | PAD_L1 | PAD_LEFT) != 0) {
-                FishMenu.top -= 5;
-                FishMenu.cursor -= 5;
-
-                if (FishMenu.cursor < 0 || FishMenu.top < 0) {
-                    FishMenu.cursor = 0;
-                    FishMenu.top = 0;
-                }
+                list.PageUp();
             }
 
             if (GamePad.Down(PAD_UP) != 0) {
-                FishMenu.cursor--;
-
-                if (FishMenu.cursor < 0) {
-                    FishMenu.cursor = 0;
-                }
-
-                if (FishMenu.cursor < FishMenu.top) {
-                    FishMenu.top--;
-                }
-
-                if (FishMenu.top < 0) {
-                    FishMenu.top = 0;
-                    FishMenu.cursor = 0;
-                }
+                list.Up();
             }
 
             if (GamePad.Down(PAD_DOWN) != 0) {
-                FishMenu.cursor++;
-
-                if (last_prize < FishMenu.cursor) {
-                    FishMenu.cursor = last_prize;
-                }
-
-                if (FishMenu.top < FishMenu.cursor - 4) {
-                    FishMenu.top++;
-
-                    if (last_top < FishMenu.top) {
-                        FishMenu.top = last_top - 1;
-                    }
-                }
+                list.Down();
             }
 
 #ifdef PAL
@@ -5442,21 +5444,15 @@ int FishingExchangeKey() {
             }
 
 #endif
-            if (last_prize < FishMenu.cursor) {
-                FishMenu.cursor = last_prize;
-            }
+            list.Clamp();
 
-            if (last_top < FishMenu.top) {
-                FishMenu.top = last_top - 1;
-            }
-
-            if (cursor != FishMenu.cursor) {
+            if (cursor != list.Cursor()) {
                 ComMenuSePlay(MENU_SOUND_CURSOR);
             }
 
-            FISH_EXCHANGE_ITEM *prize = GetExchangeItemList(FishMenu.cursor);
+            FISH_EXCHANGE_ITEM *prize = GetExchangeItemList(list.Cursor());
 
-            if (mardan == 1 && FishMenu.cursor == last_prize) {
+            if (mardan == 1 && list.Cursor() == last_prize) {
                 prize = GetExchangeItemList(0x20);
             }
 
@@ -5543,7 +5539,7 @@ int FishingExchangeKey() {
                     ComMenuSePlay(MENU_SOUND_REFUSE);
                 } else {
                     FishMenu.confirm = 1;
-                    FishMenu.cursor_y = FishMenu.confirm * 0x24 + 0x102;
+                    list.SetHandY(FishMenu.confirm * 0x24 + 0x102);
                     FishMenu.fade_mode = FISH_EXCHANGE_CONFIRM;
                     ComMenuSePlay(MENU_SOUND_CONFIRM);
                 }
@@ -5553,11 +5549,11 @@ int FishingExchangeKey() {
                 ComMenuSePlay(MENU_SOUND_REFUSE);
             }
 
-            if (top != FishMenu.top) {
-                FISH_EXCHANGE_ITEM *entry = GetExchangeItemList(FishMenu.top);
+            if (top != list.Top()) {
+                FISH_EXCHANGE_ITEM *entry = GetExchangeItemList(list.Top());
 
                 for (int i = 0; i < 5; i++) {
-                    if (mardan == 1 && FishMenu.cursor == FishMenu.top + i && FishMenu.cursor == last_prize) {
+                    if (mardan == 1 && list.Cursor() == list.Top() + i && list.Cursor() == last_prize) {
                         entry = GetExchangeItemList(0x20);
                     }
 
@@ -5594,9 +5590,9 @@ int FishingExchangeKey() {
 
             if (GamePad.Down(PAD_CROSS) != 0) {
                 int enough = 1;
-                prize = GetExchangeItemList(FishMenu.cursor);
+                prize = GetExchangeItemList(g_exchange_list.Cursor());
 
-                if (mardan == 1 && FishMenu.cursor == last_prize) {
+                if (mardan == 1 && g_exchange_list.Cursor() == last_prize) {
                     prize = GetExchangeItemList(0x20);
                 }
 
@@ -5620,8 +5616,7 @@ int FishingExchangeKey() {
                         if (prize->item_no == ITEM_WEAPON_MARDAN_EINS) {
                             SetAlreadyGetMardanWeapon(1);
                             ClearFishMardanGarayanNum();
-                            FishMenu.top--;
-                            FishMenu.cursor--;
+                            g_exchange_list.Set(g_exchange_list.Cursor() - 1, g_exchange_list.Top() - 1);
                         }
 
                         if (FishMenu.point < 0) {
@@ -5634,16 +5629,16 @@ int FishingExchangeKey() {
                     ComMenuSePlay(MENU_SOUND_REFUSE);
                 }
 
-                FishMenu.cursor_y = (FishMenu.cursor - FishMenu.top) * 0x22 + 0x7E;
+                g_exchange_list.SetHandY((g_exchange_list.Cursor() - g_exchange_list.Top()) * 0x22 + 0x7E);
                 FishMenu.fade_mode = FISH_EXCHANGE_SELECT;
             } else if (GamePad.Down(PAD_CIRCLE) != 0) {
                 ComMenuSePlay(MENU_SOUND_REFUSE);
                 FishMenu.fade_mode = FISH_EXCHANGE_SELECT;
             }
 
-            prize = GetExchangeItemList(FishMenu.cursor);
+            prize = GetExchangeItemList(g_exchange_list.Cursor());
 
-            if (mardan == 1 && FishMenu.cursor == last_prize) {
+            if (mardan == 1 && g_exchange_list.Cursor() == last_prize) {
                 prize = GetExchangeItemList(0x20);
             }
 
@@ -5697,30 +5692,20 @@ namespace {
  * Draws one fish icon.
  */
 void FishImageIconDraw(int x, int y, int width, int alpha) {
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(x, y, width, 0x28), CRect_i_(0, 0xD0, width, 0x28), alpha);
-}
-
-/**
- * Returns @p base moved by @p offset.
- */
-float AddOffset(float base, float offset) {
-    return base + offset;
+    ui::Picture::Draw(FishMenuTex, ui::Rect(x, y, width, 0x28), ui::Rect(0, 0xD0, width, 0x28), alpha);
 }
 
 /**
  * Draws the fishing exchange's goods, their prices and its help window.
  */
 void FishExchangeItemDraw(int x, int y, int alpha) {
-    int   last_prize;
-    int   pos_y;
     float win_x;
     float win_y;
     float win_h;
     float win_w;
     int   text_x;
     int   text_y;
-    int   i;
-    int   row;
+    const ui::ListCursor &list = g_exchange_list;
 
     MenuTextureReload(FishMenu.tex_block);
     int mardan = AlreadyGetMardanWeapon();
@@ -5730,47 +5715,35 @@ void FishExchangeItemDraw(int x, int y, int alpha) {
         party = 1;
     }
 
-    last_prize = party + 0x19;
+    int last_prize = party + 0x19;
 
     if (mardan == 1) {
         last_prize++;
     }
 
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(x, y, 0x160, 0xD0), CRect_i_(0, 0, 0x160, 0xD0), alpha);
-    float rows = last_prize;
-    int   bar_x = x + 0x144;
-    float step = 126.0f / rows;
-    pos_y = static_cast<int>(AddOffset(static_cast<float>(y + 0x28), FishMenu.top * step));
-    float    length = 630.0f / rows - 8.0f;
-    CRect_i_ source(0xF0, 0xD0, 8, 4);
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, pos_y, 8, 4), source, alpha);
-    source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, pos_y + 4, 8, static_cast<int>(length)), source, alpha);
-    source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, static_cast<int>(static_cast<float>(pos_y + 4) + length), 8, 4), source, alpha);
+    ui::Picture::Draw(FishMenuTex, ui::Rect(x, y, 0x160, 0xD0), ui::Rect(0, 0, 0x160, 0xD0), alpha);
+    const float rows = last_prize;
+    ui::Picture::DrawColumn(FishMenuTex, x + 0x144, static_cast<int>(static_cast<float>(y + 0x28) + list.Top() * (126.0f / rows)),
+                            630.0f / rows - 8.0f, ui::Rect(0xF0, 0xD0, 8, 4), alpha);
     x += 0x16;
-    pos_y = y + 0x14;
+    int pos_y = y + 0x14;
 
-    for (i = 0; i < 5; i++, pos_y += 0x22) {
-        FISH_EXCHANGE_ITEM *prize = GetExchangeItemList(FishMenu.top + i);
+    for (int i = 0; i < 5; i++, pos_y += kListRow) {
+        FISH_EXCHANGE_ITEM *prize = GetExchangeItemList(list.Top() + i);
 
-        if (mardan == 1 && i == 4 && FishMenu.top + 4 == last_prize) {
+        if (mardan == 1 && i == 4 && list.Top() + 4 == last_prize) {
             prize = GetExchangeItemList(0x20);
         }
 
-        DrawIconParts(prize->item_no, x, pos_y, y, y + 0xCE, alpha, 0);
-        DrawMenu2DSprite(FishMenuTex, CRect_i_(x + 0x104, pos_y + 8, 0x20, 0x14), CRect_i_(0x1E0, 0xEC, 0x20, 0x14), alpha);
-        RECT digits = {0x140, 0xEA, 0x10, 0x16};
-        DrawMenuNumber(prize->price, x + 0x106, pos_y + 6, FishMenuTex, digits, 1, alpha);
-
-        if (i >= 0 && i < 10) {
-            AtoraNameMes.line_pos[i].x = x + 0x24;
-            AtoraNameMes.line_pos[i].y = pos_y + 4;
-        }
+        ui::ItemIcon::DrawInSlot(prize->item_no, x, pos_y, y, y + 0xCE, alpha);
+        ui::Picture::Draw(FishMenuTex, ui::Rect(x + 0x104, pos_y + 8, 0x20, 0x14), ui::Rect(0x1E0, 0xEC, 0x20, 0x14), alpha);
+        ui::PictureNumber::Draw(prize->price, x + 0x106, pos_y + 6, FishMenuTex, ui::Rect(0x140, 0xEA, 0x10, 0x16), 1, alpha);
+        AtoraNameMes.line_pos[i].x = x + 0x24;
+        AtoraNameMes.line_pos[i].y = pos_y + 4;
     }
 
-    row = FishMenu.cursor - FishMenu.top;
-    int target_y = y + 0x14 + row * 0x22;
+    // The hand beside the prize, or beside the plates while the trade is asked.
+    int target_y = y + 0x14 + (list.Cursor() - list.Top()) * kListRow;
     int cursor_x = x - 0x1C;
 
     if (FishMenu.fade_mode == FISH_EXCHANGE_CONFIRM) {
@@ -5778,13 +5751,8 @@ void FishExchangeItemDraw(int x, int y, int alpha) {
         target_y = (FishMenu.confirm << 5) + 0x102;
     }
 
-    FishMenu.cursor_y += static_cast<int>(static_cast<float>(target_y - FishMenu.cursor_y) / 4.0f);
-
-    if (abs(FishMenu.cursor_y - target_y) < 2) {
-        FishMenu.cursor_y = target_y;
-    }
-
-    int cursor_y = FishMenu.cursor_y;
+    g_exchange_list.EaseHand(target_y);
+    g_list_hand.SnapTo(static_cast<float>(cursor_x), static_cast<float>(list.HandY()));
     MenuTextureReload(CommonMenuMes2.tex_block);
     GetMainMenuRightHelpWinLangOffset(win_x, win_y, win_w, win_h);
     MenuHelpWinDraw(static_cast<int>(win_x), static_cast<int>(win_y), win_w, win_h, 0x80);
@@ -5816,18 +5784,12 @@ void FishExchangeItemDraw(int x, int y, int alpha) {
         AllFadeForMenu(0x40);
 
         if (FishMenu.fade_mode == FISH_EXCHANGE_CONFIRM) {
-            CRect_i_ dest(0x110, 0x102, 0x60, 0x1F);
-            CRect_i_ window(0x1A0, 0, 0x60, 0x20);
             MenuTextureReload(FishMenu.tex_block);
-            DrawMenu2DSprite(FishMenuTex, dest, window, 0x80);
-            dest.y += 0x20;
-            window.y = 0x20;
-            DrawMenu2DSprite(FishMenuTex, dest, window, 0x80);
-            CommonMenuMes1.auto_pos = MES_POS_CENTRE;
-        } else {
-            CommonMenuMes1.auto_pos = MES_POS_CENTRE;
+            ui::Picture::Draw(FishMenuTex, kYesPlate, ui::Rect(0x1A0, 0, 0x60, 0x20), 0x80);
+            ui::Picture::Draw(FishMenuTex, kYesPlate.Offset(0, 0x20), ui::Rect(0x1A0, 0x20, 0x60, 0x20), 0x80);
         }
 
+        CommonMenuMes1.auto_pos = MES_POS_CENTRE;
         MenuTextureReload(CommonMenuMes1.tex_block);
         CommonMenuMes1.stay_frame = true;
         CommonMenuMes1.text_x = 0xDC;
@@ -5837,7 +5799,7 @@ void FishExchangeItemDraw(int x, int y, int alpha) {
     }
 
     if (FishMenu.fade_mode != FISH_EXCHANGE_REFUSE) {
-        DrawMenuObjectVibe(cursor_x, cursor_y, 1, 0x40);
+        g_list_hand.Draw(0x40);
     }
 }
 
@@ -5901,6 +5863,7 @@ int FishingExchangeLoop() {
 
     done = FishingExchangeKey();
     FishingExchangeDraw();
+    g_exchange_active = done == 0;
 
     if (done) {
         ExitFishingExchange();
@@ -5910,14 +5873,72 @@ int FishingExchangeLoop() {
     return 0;
 }
 
-s8 FishMsg[18] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 1, 2, 3, 4, 5, 6, 7};
+bool FishingListPointerUpdate() {
+    const bool exchange = std::exchange(g_exchange_active, false);
+    const bool record = std::exchange(g_record_active, false);
+    if (!exchange && !record) {
+        return !g_list_pointer.Close();
+    }
+    if (!g_list_pointer.IsOpen()) {
+        g_list_pointer.Open();
+    }
+    const ui::MenuPointerTake take = g_list_pointer.Take(g_list_hand.X(), g_list_hand.Y());
+    ui::MenuPointerShow(&g_list_pointer);
+    const float x = g_list_pointer.x;
+    const float y = g_list_pointer.y;
 
-int GetFishMsgNo(int fish_no) {
-    if (fish_no < 0 || fish_no >= 18) {
-        return 0;
+    // A refusal goes with any click; the trade's question takes its plates, the hand's row with them.
+    if (exchange && FishMenu.fade_mode == FISH_EXCHANGE_REFUSE) {
+        if ((take.clicked & 3) != 0) {
+            ui::MenuPointerPress(kInputCircle);
+        }
+        return true;
+    }
+    if (exchange && FishMenu.fade_mode == FISH_EXCHANGE_CONFIRM) {
+        for (int plate = 0; plate < 2 && take.pointing; plate++) {
+            if (ui::Rect(0xF2, kYesPlate.y + plate * 0x20, kYesPlate.Right() - 0xF2, 0x20).Contains(x, y)) {
+                if (take.moved && FishMenu.confirm != plate) {
+                    FishMenu.confirm = static_cast<s16>(plate);
+                    ComMenuSePlay(MENU_SOUND_CURSOR);
+                }
+                if ((take.clicked & 1) != 0) {
+                    ui::MenuPointerPress(kInputCross);
+                }
+            }
+        }
+        if ((take.clicked & 2) != 0) {
+            ui::MenuPointerPress(kInputCircle);
+        }
+        return true;
+    }
+    if ((exchange && FishMenu.fade_mode != FISH_EXCHANGE_SELECT) || (record && FishRecordMenu.fade_mode != FISH_RECORD_VIEW)) {
+        return true;
+    }
+    if ((take.clicked & 2) != 0) {
+        ui::MenuPointerPress(kInputCircle);
+        return true;
     }
 
-    return FishMsg[fish_no] + 30;
+    // A hover puts the cursor on the row; the left button trades for it; the wheel moves a row.
+    ui::ListCursor &list = exchange ? g_exchange_list : g_record_list;
+    const int       hit = take.pointing ? list.Hit(x, y) : -1;
+    if (hit >= 0 && take.moved && take.wheel == 0.0f) {
+        list.Set(hit, list.Top());
+        if (exchange && (take.clicked & 1) != 0) {
+            ui::MenuPointerPress(kInputCross);
+        }
+    }
+    if (take.pointing && take.wheel != 0.0f) {
+        ui::MenuPointerPress(take.wheel > 0.0f ? kInputUp : kInputDown);
+    }
+    return true;
+}
+
+s8 FishMsg[18] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 1, 2, 3, 4, 5, 6, 7};
+
+// FishMsg is the compiled species' names (fishing/host.cpp); the species answer.
+int GetFishMsgNo(int fish_no) {
+    return fishing::NameMessage(fish_no);
 }
 
 SV_FISH_DATA *GetFishingRankData(int rank_index) {
@@ -5938,8 +5959,7 @@ void InitFishRecordView(u_long128 *buffer, int *tex_block, int mode) {
     StartReadBG();
     LoadFileBGMenuData("fishrec.pak", load_buffer);
     FishRecordMenu.ready = 0;
-    FishRecordMenu.cursor = 0;
-    FishRecordMenu.top = 0;
+    g_record_list.Reset(0x13, 0);
     FishRecordMenu.fade_count = 0;
     FishRecordMenu.fade_mode = FISH_RECORD_FADE_IN;
     StayTex = TexManager.GetTexture("stayframe", -1);
@@ -5984,7 +6004,7 @@ void FishRecordTextureEnter() {
     AtoraNameMes.mes_made = -1;
 
     for (int i = 0; i < 5; i++) {
-        SV_FISH_DATA *rank = GetFishingRankData(FishRecordMenu.top + i);
+        SV_FISH_DATA *rank = GetFishingRankData(g_record_list.Top() + i);
 
         if (rank != nullptr) {
             AtoraNameMes.mes_no[i] = GetFishMsgNo(rank->fish_id);
@@ -5994,7 +6014,7 @@ void FishRecordTextureEnter() {
     }
 
     AtoraNameMes.MakeMesWin(0xC8);
-    FishRecordMenu.cursor_y = 0x7E;
+    g_record_list.SetHandY(0x7E);
     FishRecordMenu.ready = 1;
 }
 
@@ -6029,62 +6049,23 @@ int FishRecordViewKey() {
 
             break;
         case FISH_RECORD_VIEW: {
-            int old_cursor = FishRecordMenu.cursor;
+            ui::ListCursor &list = g_record_list;
+            int             old_cursor = list.Cursor();
 
             if (GamePad.Down(PAD_R2 | PAD_R1 | PAD_RIGHT)) {
-                FishRecordMenu.top += 5;
-                FishRecordMenu.cursor += 5;
-
-                if (FishRecordMenu.top > 0x10) {
-                    FishRecordMenu.top = 0xF;
-                }
-
-                if (FishRecordMenu.cursor >= 0x13) {
-                    FishRecordMenu.cursor = 0x13;
-                }
+                list.PageDown();
             }
 
             if (GamePad.Down(PAD_L2 | PAD_L1 | PAD_LEFT)) {
-                FishRecordMenu.top -= 5;
-                FishRecordMenu.cursor -= 5;
-
-                if (FishRecordMenu.cursor < 0 || FishRecordMenu.top < 0) {
-                    FishRecordMenu.cursor = 0;
-                    FishRecordMenu.top = 0;
-                }
+                list.PageUp();
             }
 
             if (GamePad.Down(PAD_UP)) {
-                FishRecordMenu.cursor--;
-
-                if (FishRecordMenu.cursor < 0) {
-                    FishRecordMenu.cursor = 0;
-                }
-
-                if (FishRecordMenu.cursor < FishRecordMenu.top) {
-                    FishRecordMenu.top--;
-                }
-
-                if (FishRecordMenu.top < 0) {
-                    FishRecordMenu.top = 0;
-                    FishRecordMenu.cursor = 0;
-                }
+                list.Up();
             }
 
             if (GamePad.Down(PAD_DOWN)) {
-                FishRecordMenu.cursor++;
-
-                if (FishRecordMenu.cursor >= 0x13) {
-                    FishRecordMenu.cursor = 0x13;
-                }
-
-                if (FishRecordMenu.top < FishRecordMenu.cursor - 4) {
-                    FishRecordMenu.top++;
-
-                    if (FishRecordMenu.top > 0x10) {
-                        FishRecordMenu.top = 0x10;
-                    }
-                }
+                list.Down();
             }
 
             if (GamePad.Down(PAD_CIRCLE)) {
@@ -6098,11 +6079,11 @@ int FishRecordViewKey() {
                 SaveData->SetFishingRank(fish_id, rand() % 20);
             }
 
-            if (old_cursor != FishRecordMenu.cursor) {
+            if (old_cursor != list.Cursor()) {
                 ComMenuSePlay(MENU_SOUND_CURSOR);
 
                 for (int i = 0; i < 5; i++) {
-                    SV_FISH_DATA *fish = GetFishingRankData(FishRecordMenu.top + i);
+                    SV_FISH_DATA *fish = GetFishingRankData(list.Top() + i);
 
                     if (fish != nullptr) {
                         AtoraNameMes.mes_no[i] = GetFishMsgNo(fish->fish_id);
@@ -6126,103 +6107,81 @@ int FishRecordViewKey() {
  * Draws the fishing record board: each rank, its fish and its size.
  */
 void FishRecordViewBoard(int x, int y, int alpha) {
-    int pos_x;
-    int pos_y;
+    const ui::ListCursor &list = g_record_list;
 
     MenuTextureReload(FishMenu.tex_block);
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(x, y, 0x160, 0xD0), CRect_i_(0, 0, 0x160, 0xD0), alpha);
-    int head_y = y - 0xE;
-    pos_x = x + 0x10;
-    CRect_i_ head(0x160, 0x1A, 0x44, 0x1C);
+    ui::Picture::Draw(FishMenuTex, ui::Rect(x, y, 0x160, 0xD0), ui::Rect(0, 0, 0x160, 0xD0), alpha);
+
+    // The column heads: rank, fish, size.
+    int      pos_x = x + 0x10;
+    ui::Rect head(0x160, 0x1A, 0x44, 0x1C);
     int      widths[3] = {0x54, 0x5A, 0};
 
-    for (int i = 0; i <= 2; i++, head.y += head.height) {
+    for (int i = 0; i <= 2; i++, head.y += head.h) {
         if (i == 2) {
-            head.width = 0x74;
+            head.w = 0x74;
         }
 
-        DrawMenu2DSprite(FishMenuTex, CRect_i_(pos_x, head_y, head.width, head.height - 1), head, alpha);
+        ui::Picture::Draw(FishMenuTex, ui::Rect(pos_x, y - 0xE, head.w, head.h - 1), head, alpha);
         pos_x += widths[i];
     }
 
-    int      bar_x = x + 0x144;
-    float    length = 23.5f;
-    int      bar_y = static_cast<int>(static_cast<float>(y + 0x2A) + 6.3f * FishRecordMenu.top);
-    CRect_i_ source(0x110, 0xD0, 8, 4);
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, bar_y, 8, 4), source, alpha);
-    source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, bar_y + 4, 8, static_cast<int>(length)), source, alpha);
-    source.y += 4;
-    DrawMenu2DSprite(FishMenuTex, CRect_i_(bar_x, static_cast<int>(static_cast<float>(bar_y + 4) + length), 8, 4), source, alpha);
+    ui::Picture::DrawColumn(FishMenuTex, x + 0x144, static_cast<int>(static_cast<float>(y + 0x2A) + 6.3f * list.Top()), 23.5f,
+                            ui::Rect(0x110, 0xD0, 8, 4), alpha);
     pos_x = x + 0x12;
-    pos_y = y + 6;
+    int pos_y = y + 6;
 
-    for (int i = 0; i < 5; i++, pos_y += 0x22) {
-        int           rank_no = FishRecordMenu.top + i;
+    for (int i = 0; i < 5; i++, pos_y += kListRow) {
+        const int     rank_no = list.Top() + i;
         SV_FISH_DATA *record = GetFishingRankData(rank_no);
-        RECT          digits = {0x158, 0xDC, 0xE, 0x12};
+        ui::Rect      digits(0x158, 0xDC, 0xE, 0x12);
 
-        if (rank_no == FishRecordMenu.cursor) {
-            digits.y += digits.height;
+        if (rank_no == list.Cursor()) {
+            digits.y += digits.h;
         }
 
-        CRect_i_ medal(0x160, 0, 0x20, 0x1B);
+        // The first rank's medal is gold; the cursor's rank shows its own.
+        ui::Rect medal(0x160, 0, 0x20, 0x1B);
         int      medal_x = pos_x + 0x10;
 
         if (rank_no != 0) {
             medal.x += 0x20;
 
-            if (rank_no == FishRecordMenu.cursor) {
+            if (rank_no == list.Cursor()) {
                 medal.x += 0x20;
             }
         }
 
-        DrawMenu2DSprite(FishMenuTex, CRect_i_(medal_x, pos_y + 0x14, medal.width, medal.height - 1), medal, alpha);
+        ui::Picture::Draw(FishMenuTex, ui::Rect(medal_x, pos_y + 0x14, medal.w, medal.h - 1), medal, alpha);
         int number_x = medal_x + 0x14;
 
         if (GetNumberKeta(rank_no + 1) >= 2) {
-            number_x += digits.width >> 1;
+            number_x += digits.w >> 1;
         }
 
-        DrawMenuNumber(rank_no + 1, number_x, pos_y + 0x18, FishMenuTex, digits, 1, alpha);
-        int size = 0;
-
-        if (record != nullptr) {
-            size = static_cast<int>(record->rank);
-        }
+        ui::PictureNumber::Draw(rank_no + 1, number_x, pos_y + 0x18, FishMenuTex, digits, 1, alpha);
+        const int size = record != nullptr ? static_cast<int>(record->rank) : 0;
 
         if (size > 0) {
-            DrawMenuNumber(size, pos_x + 0xFE, pos_y + 0x18, FishMenuTex, digits, 1, alpha);
-            DrawMenu2DSprite(FishMenuTex, CRect_i_(pos_x + 0xFE, pos_y + 0x16, digits.width * 2, digits.height), CRect_i_(digits.x + digits.width * 10, digits.y, digits.width * 2, digits.height), alpha);
-
-            if (i >= 0 && i < 10) {
-                AtoraNameMes.line_pos[i].x = pos_x + 0x3E;
-                AtoraNameMes.line_pos[i].y = pos_y + 0x14;
-            }
+            ui::PictureNumber::Draw(size, pos_x + 0xFE, pos_y + 0x18, FishMenuTex, digits, 1, alpha);
+            ui::Picture::Draw(FishMenuTex, ui::Rect(pos_x + 0xFE, pos_y + 0x16, digits.w * 2, digits.h),
+                              ui::Rect(digits.x + digits.w * 10, digits.y, digits.w * 2, digits.h), alpha);
+            AtoraNameMes.line_pos[i].x = pos_x + 0x3E;
+            AtoraNameMes.line_pos[i].y = pos_y + 0x14;
         }
     }
 
     if (GetMardanGareyanFlag() != 0) {
-        pos_x = x + 0x134;
-        pos_y = y + 0xB6;
-        DrawMenu2DSprite(FishMenuTex, CRect_i_(pos_x, pos_y, 0x28, 0x28), CRect_i_(0x1D8, 0xB4, 0x28, 0x28), alpha);
+        ui::Picture::Draw(FishMenuTex, ui::Rect(x + 0x134, y + 0xB6, 0x28, 0x28), ui::Rect(0x1D8, 0xB4, 0x28, 0x28), alpha);
     }
 
-    int row = FishRecordMenu.cursor - FishRecordMenu.top;
-    pos_y = y + 0x14 + row * 0x22;
-    pos_x = x + 0x16 - 0x1C;
-    FishRecordMenu.cursor_y += static_cast<int>(static_cast<float>(pos_y - FishRecordMenu.cursor_y) / 4.0f);
-
-    if (abs(FishRecordMenu.cursor_y - pos_y) < 2) {
-        FishRecordMenu.cursor_y = pos_y;
-    }
-
-    pos_y = FishRecordMenu.cursor_y;
+    g_record_list.EaseHand(y + 0x14 + (list.Cursor() - list.Top()) * kListRow);
+    g_list_hand.SnapTo(static_cast<float>(x + 0x16 - 0x1C), static_cast<float>(list.HandY()));
     MenuTextureReload(CommonMenuMes2.tex_block);
     AtoraNameMes.edge_alpha = alpha;
     AtoraNameMes.Step();
     AtoraNameMes.DrawMesWin();
-    DrawMenuObjectVibe(pos_x, pos_y, 1, 0x40);
+    g_list_hand.Draw(0x40);
 }
 
 /**
@@ -6279,6 +6238,7 @@ int FishRecordViewLoop() {
 
     done = FishRecordViewKey();
     FishRecordViewDraw();
+    g_record_active = done == 0;
     return done;
 }
 
