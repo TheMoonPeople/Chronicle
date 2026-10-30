@@ -15,11 +15,14 @@
 #include <vector>
 
 #include "btitem.hpp"
+#include "data/data_read.hpp"
+#include "data_fixture.hpp"
 #include "fishing.hpp"
 #include "item/framework.hpp"
 #include "item/host.hpp"
 #include "itemdata.hpp"
 #include "platform/datapacks.hpp"
+#include "platform/paths.hpp"
 #include "shop.hpp"
 #include "tests/platform_fixture.hpp"
 
@@ -229,6 +232,46 @@ TEST_F(ItemDocuments, APacksChangesReachTheRegistryAndLeaveWithThem) {
     EXPECT_EQ(item::Find("vanilla:bread")->Get<item::Sellable>()->buy, PriceList[ITEM_BREAD - ITEM_ATTACH_START].buy_price);
     EXPECT_FALSE(item::Find("vanilla:prickly")->Has<item::QuickSlot>());
     EXPECT_EQ(Tables(), compiled);
+}
+
+TEST_F(ItemDocuments, TheTrackedDocumentsHoldTheCompiledTables) {
+    // port/gameplay/items, which the build seals into its gameplay seed and dcdata writes into the data.
+    const fs::path        tracked = fs::path(__FILE__).parent_path().parent_path().parent_path() / "gameplay/items";
+    std::set<std::string> exported;
+    for (const fs::directory_entry &entry : fs::directory_iterator(directory / "exported/gameplay/items")) {
+        exported.insert(entry.path().filename().string());
+    }
+    std::set<std::string> files;
+    for (const fs::directory_entry &entry : fs::directory_iterator(tracked)) {
+        files.insert(entry.path().filename().string());
+    }
+    EXPECT_EQ(files, exported);
+    for (const std::string &name : exported) {
+        EXPECT_EQ(nlohmann::json::parse(std::ifstream(tracked / name)), Document(name)) << name;
+    }
+}
+
+TEST_F(ItemDocuments, TheDatasOwnDocumentIsReadUnderThePacks) {
+    const datafix::Disc disc = datafix::MakeDisc({
+        {"dun/pack/maindat.pac", datafix::Pattern(64, 1)}
+    });
+    datafix::WriteBytes(data / "data.hd2", disc.hd2);
+    datafix::WriteBytes(data / "dun/pack/maindat.pac", disc.files[0].data);
+    auto prices = Document("prices.json");
+    Row(prices, "prices", ITEM_PRICKLY)["buy_price"] = 20;
+    fs::create_directories(data / "gameplay/items");
+    std::ofstream(data / "gameplay/items/prices.json") << prices.dump();
+    PathsSetDataRoot(data);
+    PathsSetSaveRoot(directory / "save");
+    data::DataReadIndex();
+    Order("");
+    EXPECT_EQ(PriceList[ITEM_PRICKLY - ITEM_ATTACH_START].buy_price, 20);
+
+    Row(prices, "prices", ITEM_PRICKLY)["buy_price"] = 30;
+    Pack("bakery", "prices.json", prices);
+    Order(R"("bakery")");
+    EXPECT_EQ(PriceList[ITEM_PRICKLY - ITEM_ATTACH_START].buy_price, 30);
+    data::DataReadReset();
 }
 
 } // namespace

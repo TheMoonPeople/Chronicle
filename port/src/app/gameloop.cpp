@@ -31,6 +31,7 @@
 #include "editloop3.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
+#include "item/host.hpp"
 #include "langset.hpp"
 #include "localize/localize.hpp"
 #include "main.hpp"
@@ -42,6 +43,7 @@
 #include "options/menu_option.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/input.hpp"
 #include "platform/paths.hpp"
 #include "quest/host.hpp"
@@ -786,6 +788,9 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     main_select_menu_no = 0;
     SetMainSelectParam("e01");
     InitCDFile();
+    // The items read their documents from the data as well as the packs, so they load once it is indexed.
+    datapacks::Load(PathsDataRoot());
+    item::Load();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
     std::vector<s32> languages = SupportedLanguages();

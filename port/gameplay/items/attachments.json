@@ -1,0 +1,1506 @@
+{
+  "attachments": [
+    {
+      "attack": 0,
+      "elem": [
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 81,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        3,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 82,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        3,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 83,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        3,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 84,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        3
+      ],
+      "endurance": 0,
+      "item_no": 85,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 86,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 87,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 88,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 89,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 90,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 91,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 92,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 93,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 94,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 5,
+      "elem": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 95,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        10,
+        0,
+        10,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 96,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        10,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 97,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        10,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 98,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        10,
+        5,
+        5
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 99,
+      "magic": 10,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        10,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      "endurance": 10,
+      "item_no": 100,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        10,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        10,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 101,
+      "magic": 0,
+      "speed": 10,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0
+      ]
+    },
+    {
+      "attack": 5,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        10
+      ],
+      "endurance": 0,
+      "item_no": 102,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        10,
+        10,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        10,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 103,
+      "magic": 10,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 10,
+      "item_no": 104,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        10
+      ]
+    },
+    {
+      "attack": 5,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 105,
+      "magic": 0,
+      "speed": 10,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        10,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        10,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 106,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        10,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0
+      ]
+    },
+    {
+      "attack": 10,
+      "elem": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "endurance": 0,
+      "item_no": 107,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 108,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 109,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 110,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 111,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 112,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 113,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 114,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 115,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 116,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 117,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 118,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 119,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 120,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 121,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 122,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 123,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 124,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 125,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 126,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 127,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 128,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 129,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "attack": 0,
+      "elem": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "endurance": 0,
+      "item_no": 130,
+      "magic": 0,
+      "speed": 0,
+      "sphere_flags": 0,
+      "sphere_level": 0,
+      "sphere_weapon_no": 0,
+      "unk_1F": 0,
+      "vs_monster": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "kind": "attachments",
+  "schema_version": 2
+}

@@ -84,7 +84,7 @@ jobs:
           [ "$status" -eq 0 ] || [ "$status" -eq 4 ]
 
       - name: Package the macOS build
-        run: tar -czf artifacts/chronicle-macos-arm64.tar.gz -C port/build/macos-arm64 darkcloud dcdata lang glyphs
+        run: tar -czf artifacts/chronicle-macos-arm64.tar.gz -C port/build/macos-arm64 darkcloud dcdata lang glyphs assets
 
       - name: Upload the macOS build
         uses: actions/upload-artifact@v7

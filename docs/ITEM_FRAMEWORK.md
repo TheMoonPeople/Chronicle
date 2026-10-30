@@ -66,6 +66,12 @@ Rows are keyed by `item_no` and hold their table's fields under retail's names. 
 hold every row of its table and every field of each row. `model` is the name of the item's model
 files (lower-case letters, digits and underscores), or `null` for none.
 
+The vanilla documents are tracked in `port/gameplay/items/`, as Dark Cloud 2's gameplay documents
+are. The build checks them and seals them into Kazarov's gameplay seed (`assets/data.zip` beside
+`dcdata`, with each document's digest), and `dcdata extract`, or `dcdata publish-gameplay <data>` on
+data extracted before, writes them into the data under `gameplay/`. They hold the tables as compiled
+(`ItemDocuments.TheTrackedDocumentsHoldTheCompiledTables`).
+
 `darkcloud --export-gameplay <directory>` writes the documents as compiled, so changing one item
 means copying its table's document into a pack and editing a line.
 
@@ -91,9 +97,11 @@ A pack holding `gameplay/items/prices.json` replaces the whole price table; two 
 different items of one table do not combine. Packs are read at start-up, so changing them takes a
 restart.
 
-A document is tried from the highest-priority pack down. The first whose `schema_version` is 2,
-whose `kind` matches and whose values fit retail's fields is used; one that fails prints
-`config: <path>: <reason>` and the next is tried, down to the compiled table. A field the port does
+A document is tried from the highest-priority pack down, then the data's own. The first whose
+`schema_version` is 2, whose `kind` matches and whose values fit retail's fields is used; one that
+fails prints `config: <path>: <reason>` and the next is tried, down to the compiled table, which
+data extracted without the documents (by the first-run window, which converts nothing, or before
+them) uses. The items load once the game has indexed its data. A field the port does
 not read is reported and ignored. A bad `datapacks.json` disables every pack; a listed pack that is
 missing, or is a ZIP, is skipped.
 

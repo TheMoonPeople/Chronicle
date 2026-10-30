@@ -1936,6 +1936,7 @@ port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
 port/build/pc/dcdata pack data
 port/build/pc/dcdata list "rom/pal/Dark Cloud (PAL).iso"
 port/build/pc/dcdata publish-sound data
+port/build/pc/dcdata publish-gameplay data
 ```
 
 `pack` takes an existing extracted directory and writes a ZIP archive beside it by default; a second output path is optional. It stores files without compression so the port can read them on Switch without a decompression cost. The runtime also reads standard deflated ZIP entries. ZIP64, encrypted and multi-disk archives are unsupported. The game gives `data.zip` priority over loose files when both exist. Do not modify an archive while the game is running.
@@ -1959,6 +1960,10 @@ retail records from them as it reads a file. `convert-models <raw> <out>`
 writes that conversion to a folder of its own, `bake-assets <raw> <data>`
 publishes it into extracted data, and `strip-models <data>` empties the
 converted originals (`docs/MODEL_FRAMEWORK.md`).
+`extract` and `publish-gameplay` write the gameplay documents tracked in
+`port/gameplay` into the data under `gameplay/`, from the seed the build
+seals beside `dcdata` (`assets/data.zip`), so a package ships that folder with
+it (`docs/ITEM_FRAMEWORK.md`).
 
 The layout of `data/` or the root of `data.zip` is the disc archive's own: `dun/pack/maindat.pac`,
 `commenu/a_eng/savetex.pak`, `sound/bgm/...` and so on. Lookups fold case,

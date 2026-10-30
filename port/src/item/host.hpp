@@ -9,8 +9,9 @@
 namespace dc::item {
 
 /**
- * Fills every table from the highest-priority usable datapack document, or as compiled where there is
- * none, then registers every vanilla item as the tables now hold it. datapacks::Load runs first.
+ * Fills every table from the highest-priority usable datapack document, then the data's own, or as
+ * compiled where there is none, then registers every vanilla item as the tables now hold it.
+ * datapacks::Load runs first.
  */
 void Load();
 

@@ -47,7 +47,6 @@
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
 #include "platform/data_archive.hpp"
-#include "platform/datapacks.hpp"
 #include "platform/discord.hpp"
 #include "platform/display.hpp"
 #include "platform/firstrun.hpp"
@@ -579,8 +578,6 @@ int Run(int argc, const char **argv) {
     RequireData();
     GameLoadTraceCheckpoint("data_ready");
     DC_ANDROID_TRACE("Run: data available");
-    datapacks::Load(PathsDataRoot());
-    item::Load();
     if (!options.headless) {
         GameSetDataIcon();
     }
