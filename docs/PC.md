@@ -188,6 +188,7 @@ key is optional; these are the defaults:
         "stick_sensitivity": 1.33,  // gamepad stick scale before the game's dead zone (PCSX2's default)
         "stick_invert_x": false,    // the gamepad's camera stick, flipped left to right
         "stick_invert_y": false,    // ...and up and down
+        "dead_zone": "radial",      // radial: measured from the centre; axial: the game zeroes each stick axis on its own
         "gyro": "held",             // when the gyroscope turns the camera: off, always, first_person (R2's view) or held (gyro_hold)
         "gyro_sensitivity": 0.5,    // camera-stick deflection per radian per second the pad turns
         "gyro_invert_x": false,
@@ -366,6 +367,11 @@ Each key-down of a toggle's key counts once, however briefly it is held.
   onto the DualShock 2's square, keeping its direction: the game's dead zone
   takes 38% of the travel and the town runs past 0.85, so an unscaled stick
   only runs at over 90% tilt, and a round one never on a diagonal.
+  `dead_zone` decides how the game's dead zone is measured: `radial` (the
+  default) measures the stick's tilt from the centre and scales it along the
+  stick's own direction, so diagonals read true; `axial` (the game's) zeroes
+  each axis on its own, which reads a push within about 23° of an axis as on
+  it.
 - **Gyro.** When `gyro` says (always, only in first-person view, or while
   `gyro_hold` is held), a gamepad's gyroscope turns the camera while the
   right stick is centred. Turning the pad left or right turns the view and tilting it looks up

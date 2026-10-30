@@ -69,6 +69,7 @@ struct Config : HostSettings {
     int               anisotropy = 0;
     bool              enhanced_cloth = false;     /**< video.cloth: false runs the PS2's cloth, true also keeps it out of the body. */
     float             mouse_camera_return = 0.2f; /**< Third-person vertical return after mouse input: 0 holds height, 1 is retail's rate. */
+    bool              radial_dead_zone = true;    /**< input.dead_zone: true (radial) measures from the centre, false (axial) zeroes each stick axis on its own. */
     ConfigGameOptions options;
     bool              discord_rich_presence = true;
     /**

@@ -332,6 +332,12 @@ int read_pad(PAD_STATUS *status, int port, int slot);
  */
 int AxisCalibration(int axis);
 
+/**
+ * Applies the dead zone and scale to a stick's axis, given the stick's other axis: per axis as AxisCalibration, or,
+ * with input.dead_zone radial, measured from the centre along the stick's direction.
+ */
+int StickCalibration(int axis, int other);
+
 // Port additions.
 
 /**

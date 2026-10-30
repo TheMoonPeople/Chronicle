@@ -338,6 +338,9 @@ bool Apply(Config &config, std::string_view name, const Json &value) {
     if (name == "input.stick_invert_y") {
         return ReadBool(value, config.stick_invert_y);
     }
+    if (name == "input.dead_zone") {
+        return ReadChoice(value, "axial", "radial", config.radial_dead_zone);
+    }
     if (name == "input.gyro_invert_x") {
         return ReadBool(value, config.gyro_invert_x);
     }
@@ -781,6 +784,7 @@ std::string ConfigSerialize(const Config &config) {
     root["input"]["stick_sensitivity"] = Shortest(config.stick_sensitivity);
     root["input"]["stick_invert_x"] = config.stick_invert_x;
     root["input"]["stick_invert_y"] = config.stick_invert_y;
+    root["input"]["dead_zone"] = config.radial_dead_zone ? "radial" : "axial";
     root["input"]["gyro"] = std::string(kGyroNames[static_cast<std::size_t>(config.gyro)]);
     root["input"]["gyro_sensitivity"] = Shortest(config.gyro_sensitivity);
     root["input"]["gyro_invert_x"] = config.gyro_invert_x;

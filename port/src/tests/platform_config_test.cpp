@@ -148,6 +148,9 @@ TEST(PlatformConfig, ParsesMouseSettingsAndBindings) {
     ASSERT_TRUE(defaults.mouse_sensitivity == 0.1f && !defaults.mouse_invert_y && defaults.mouse_capture);
     ASSERT_TRUE(defaults.stick_sensitivity == 1.33f && defaults.gyro_sensitivity == 0.5f);
     ASSERT_TRUE(defaults.gyro == ConfigGyro::Held && !defaults.gyro_invert_x && !defaults.stick_invert_y);
+    ASSERT_TRUE(defaults.radial_dead_zone);
+    ASSERT_TRUE(!ConfigParse(ConfigSerialize(ConfigParse(R"({"input": {"dead_zone": "axial"}})"))).radial_dead_zone);
+    ASSERT_TRUE(ConfigParse(R"({"input": {"dead_zone": "square"}})").radial_dead_zone);
     ASSERT_TRUE(ConfigParse(R"({"input": {"gyro": "first_person"}})").gyro == ConfigGyro::FirstPerson);
     ASSERT_TRUE(ConfigParse(R"({"input": {"gyro": true}})").gyro == ConfigGyro::Held);
     Config inverted =
