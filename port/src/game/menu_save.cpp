@@ -1229,7 +1229,7 @@ int EventItemSelectKey(int *result) {
 
             if (GamePad.Down(PAD_CROSS) != 0) {
                 int  pack_index = -1;
-                s16 *slot;
+                s16 *slot = nullptr; // no item past the last
 
                 if (MiniMenu.cursor < MiniMenu.event_item_num) {
                     int event_no = 0;

@@ -3757,13 +3757,14 @@ void LoadData() {
     wait_now_loading_vsync();
     MasekiEffect[0].Entry2(&MyEntryEffect_Maseki00, read_buffer, 6, &MasekiModelBuffer, 3);
 
-    memcpy(&MasekiEffect[1], &MasekiEffect[0], sizeof(CSHOT_EFFECT));
+    // Each effect is a copy of the first, its class's own vtable pointer included.
+    memcpy(static_cast<void *>(&MasekiEffect[1]), static_cast<const void *>(&MasekiEffect[0]), sizeof(CSHOT_EFFECT));
     MasekiEffect[1].ReEntry(&MyEntryEffect_Maseki01, &MasekiModelBuffer);
-    memcpy(&MasekiEffect[2], &MasekiEffect[0], sizeof(CSHOT_EFFECT));
+    memcpy(static_cast<void *>(&MasekiEffect[2]), static_cast<const void *>(&MasekiEffect[0]), sizeof(CSHOT_EFFECT));
     MasekiEffect[2].ReEntry(&MyEntryEffect_Maseki02, &MasekiModelBuffer);
-    memcpy(&MasekiEffect[3], &MasekiEffect[0], sizeof(CSHOT_EFFECT));
+    memcpy(static_cast<void *>(&MasekiEffect[3]), static_cast<const void *>(&MasekiEffect[0]), sizeof(CSHOT_EFFECT));
     MasekiEffect[3].ReEntry(&MyEntryEffect_Maseki03, &MasekiModelBuffer);
-    memcpy(&MasekiEffect[4], &MasekiEffect[0], sizeof(CSHOT_EFFECT));
+    memcpy(static_cast<void *>(&MasekiEffect[4]), static_cast<const void *>(&MasekiEffect[0]), sizeof(CSHOT_EFFECT));
     MasekiEffect[4].ReEntry(&MyEntryEffect_Maseki04, &MasekiModelBuffer);
 }
 

@@ -2379,8 +2379,9 @@ void CDungeonMap::buildEventData(int floor_no, int enabled, int place_atla) {
     int   special;
     int   object_count;
     int   valid;
-    int   event_x;
-    int   event_y;
+    // Retail never sets the Atla events' origin; it was zero in the port already.
+    int   event_x = 0;
+    int   event_y = 0;
     int   target_count;
 
     if (enabled != 1) {

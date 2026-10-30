@@ -3300,7 +3300,7 @@ int WeaponSelectKey() {
                             vs_value = 0;
                         }
 
-                        printf("now 0%\n");
+                        printf("now 0%%\n");
                     }
 
                     if (now == 1) {
@@ -3312,7 +3312,7 @@ int WeaponSelectKey() {
                             vs_value = 20;
                         }
 
-                        printf("now 20%\n");
+                        printf("now 20%%\n");
                     }
 
                     if (now == 2) {
@@ -3324,7 +3324,7 @@ int WeaponSelectKey() {
                             vs_value = 50;
                         }
 
-                        printf("now 50%\n");
+                        printf("now 50%%\n");
                     }
 
                     if (now == 3) {
@@ -3336,7 +3336,7 @@ int WeaponSelectKey() {
                             vs_value = 100;
                         }
 
-                        printf("now 100%\n");
+                        printf("now 100%%\n");
                     }
 
                     for (int i = 0; i < now; i++) {

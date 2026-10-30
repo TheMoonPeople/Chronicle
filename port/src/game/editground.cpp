@@ -151,7 +151,8 @@ int CEditGround::SetMapParts(int parts_no, float x, float y, float z, int rot_y)
         }
     }
 
-    memcpy(target, source, sizeof(CMapParts));
+    // A part copied over another, the class's own vtable pointer included.
+    memcpy(static_cast<void *>(target), static_cast<const void *>(source), sizeof(CMapParts));
     target->SetRotY(rot_y);
     area->GetGrid(&grid, x, y, z);
     int width = source->GetWidth();
@@ -379,7 +380,7 @@ int CEditGround::DeleteMapParts(int *out_parts_no, int *out_rot_y, float x, floa
         target->GetPosition(position);
         int plot = target->parts_no;
         *out_parts_no = plot;
-        memcpy(target, &river_parts[1], sizeof(CMapParts));
+        memcpy(static_cast<void *>(target), static_cast<const void *>(&river_parts[1]), sizeof(CMapParts));
         target->SetPosition(position);
         target->SetRotY(rot_y);
         area->SetMapParts(parts_id, parts, x, y, z, rot_y);

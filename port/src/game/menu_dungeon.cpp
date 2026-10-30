@@ -2569,10 +2569,8 @@ ITEM_AUTO_GET ItemAutoGet;
 int ConvDebugSelectToExcelListNo(int selection) {
     int item_no = selection + 0x81;
 
-    if ((item_no > ITEM_WEAPON_SCORPION) && (item_no < ITEM_WEAPON_SUPER_STEVE)) {
-        return -1;
-    }
-
+    // Retail ruled out the numbers above the Scorpion (352) and below Super Steve (312), a range with
+    // none in it, so every selection passes, as here.
     if ((selection >= 0xF8) && (selection < 0x120)) {
         item_no = selection - 0xA7;
     }
