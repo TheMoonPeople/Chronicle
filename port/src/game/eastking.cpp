@@ -164,7 +164,7 @@ void EastKingMsgDraw() {
     if (EastKing.resources_ready != 0) {
         int half_width = EastKingMsgCls.char_width >> 1;
         GetMenuCommonPutXY(&EastKingMsgCls, 0x14C - half_width);
-        EastKingMsgCls.text_y = 0x156;
+        EastKingMsgCls.text_y = 0x132;
         EastKingMsgCls.edge_alpha = EastKingMsg.alpha;
         EastKingMsgCls.Step();
         EastKingMsgCls.DrawMesWin();
