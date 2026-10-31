@@ -55,8 +55,6 @@ int MenuWeaponModelInfo[10][2];
 
 namespace {
 
-// Defined straight after MenuWeaponModelInfo: InitMenuWeaponModelReference clears twelve entries
-// of that ten-entry table, and the two extra land here.
 float MenuCharaOldAmbient[4];
 
 constexpr std::array<int, 6> defWeapon = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN, ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN, ITEM_WEAPON_FIGHTING_STICK_BROKEN, ITEM_WEAPON_MACHINE_GUN_BROKEN};
@@ -646,8 +644,11 @@ std::pair<std::string, std::string> WeaponNames(int chara, int weapon_index) {
 } // namespace
 
 void InitMenuWeaponModelReference() {
-    for (int i = 0; i < 12; i++) {
-        int *entry = GetMenuWeaponModelInfo(i);
+    // Retail clears twelve entries of this ten-entry table. On the PS2 the two extra land on
+    // MenuCharaOldAmbient, which the item menu saves again before it restores it; here the globals'
+    // order isn't kept, and they landed on WepEffectMenuReadBuf, so the weapon menu reloaded the
+    // character's effect from nowhere and the effect's next shot crashed.
+    for (int (&entry)[2] : MenuWeaponModelInfo) {
         entry[0] = -1;
         entry[1] = -1;
     }
