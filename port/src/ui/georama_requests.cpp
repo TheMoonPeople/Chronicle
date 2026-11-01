@@ -3,16 +3,22 @@
 #include <array>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "clsmes.hpp"
+#include "dialog/npc.hpp"
 #include "edit.hpp"
 #include "editground.hpp"
 #include "editloop.hpp"
 #include "editpartsinfo.hpp"
+#include "gameutil.hpp"
+#include "journal/heard.hpp"
 #include "localize/localize.hpp"
 #include "main.hpp"
 #include "memcard.hpp"
+#include "savedata.hpp"
 #include "text/gametext.hpp"
 #include "ui/framework.hpp"
 
@@ -34,6 +40,8 @@ constexpr std::array kYellowDropsParts = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 
 // A villager is Atla element 80 + its number in the town's villager list, which names it.
 constexpr int kVillagerElement = 80;
 constexpr int kVillagers = 16;
+
+constexpr const char *kControls = "{up} / {down} Select   {left} / {right} Page   {circle} Back";
 
 enum class State {
     Unknown,
@@ -112,24 +120,83 @@ ui::CatalogueEntry Entry(int index) {
     return {};
 }
 
-// The villagers living in part who are back in the town: their house holds their element.
-std::vector<std::string> Residents(int part) {
-    std::vector<std::string> names;
-    CEditPartsInfo          *parts = CommonMenuAtoraInfo;
-    EDITPARTS_INFO          *info = parts != nullptr ? parts->GetPartsInfo(part) : nullptr;
+// A party member's name as the message window fills it in for {nameN}: the player may rename them.
+std::string CharaName(int chara) {
+    std::vector<s16> codes;
+    const s16       *name = SaveData != nullptr ? SaveData->GetCharaName(chara) : nullptr;
+    for (int i = 0; name != nullptr && i < 11 && name[i] != 0; i++) {
+        codes.push_back(static_cast<s16>(NameRegistCodeJtoE(static_cast<u16>(name[i]) - 1)));
+    }
+    codes.push_back(MES_CODE_END);
+    return text::GameTextDecode(codes.data());
+}
+
+// A villager's line as the journal shows it, a page for each of the message window's: names filled in,
+// the window's own line breaks and codes (colours, waits) left to the panel's wrapping.
+std::vector<std::string> LinePages(std::string_view line) {
+    std::vector<std::string> pages(1);
+    for (std::size_t at = 0; at < line.size(); at++) {
+        if (line[at] == '\n') {
+            pages.back() += ' ';
+        } else if (line[at] == '{') {
+            const std::size_t close = line.find('}', at);
+            if (close == std::string_view::npos) {
+                break;
+            }
+            const std::string_view token = line.substr(at + 1, close - at - 1);
+            if (token == "page") {
+                pages.emplace_back();
+            } else if (token.size() == 5 && token.starts_with("name") && token[4] >= '1' && token[4] <= '6') {
+                pages.back() += CharaName(token[4] - '1');
+            }
+            at = close;
+        } else {
+            pages.back() += line[at];
+        }
+    }
+    for (std::string &page : pages) {
+        std::string tidy;
+        for (char ch : page) {
+            if (ch != ' ' || (!tidy.empty() && tidy.back() != ' ')) {
+                tidy += ch;
+            }
+        }
+        while (!tidy.empty() && tidy.back() == ' ') {
+            tidy.pop_back();
+        }
+        page = std::move(tidy);
+    }
+    std::erase_if(pages, [](const std::string &page) { return page.empty(); });
+    return pages;
+}
+
+// The pages of a building's residents: each villager whose home it is and who is back in it (the house
+// holds their element), with their request once they have said it.
+std::vector<ui::CataloguePage> ResidentPages(int part) {
+    std::vector<ui::CataloguePage> pages;
+    CEditPartsInfo                *parts = CommonMenuAtoraInfo;
+    EDITPARTS_INFO                *info = parts != nullptr ? parts->GetPartsInfo(part) : nullptr;
     if (info == nullptr || EdEventInfo.villagers == nullptr) {
-        return names;
+        return pages;
     }
     for (int villager = 0; villager < kVillagers; villager++) {
         const VILLAGER_INFO &record = EdEventInfo.villagers[villager];
-        if (record.character_no != part || record.model_no < 0 || std::cmp_greater_equal(record.model_no, std::size(info->elements))) {
+        if (record.character_no != part || record.model_no < 0 || std::cmp_greater_equal(record.model_no, std::size(info->elements)) ||
+            info->elements[record.model_no].enabled == 0) {
             continue;
         }
-        if (info->elements[record.model_no].enabled != 0) {
-            names.push_back(SystemText(GetAtraMsgNo(s_town, kVillagerElement + villager)));
+        const std::string name = SystemText(GetAtraMsgNo(s_town, kVillagerElement + villager));
+        if (!journal::RequestHeard(s_town, villager)) {
+            pages.push_back({.title = name,
+                             .text = LocalizeText("requests.not_heard", "Talk to them to hear their request."),
+                             .color = ColorGrey});
+            continue;
+        }
+        for (std::string &page : LinePages(dialog::DialogNpcTalkLine(journal::RequestMessage(villager)))) {
+            pages.push_back({.title = name, .text = std::move(page)});
         }
     }
-    return names;
+    return pages;
 }
 
 ui::CatalogueDetail Detail(int index) {
@@ -156,8 +223,11 @@ ui::CatalogueDetail Detail(int index) {
             detail.status_color = ColorGreen;
             break;
     }
-    detail.body_heading = LocalizeText("requests.residents", "Residents");
-    detail.body = Residents(part);
+    // Its residents only once it stands in the town whole, so a building still to come names no one.
+    EDITPARTS_INFO *info = CommonMenuAtoraInfo->GetPartsInfo(part);
+    if (state != State::Unfinished && info != nullptr && info->placed > 0) {
+        detail.pages = ResidentPages(part);
+    }
     return detail;
 }
 
@@ -180,8 +250,7 @@ void Open(int texture_block) {
     s_catalogue.Open({.title = LocalizeText("requests.title", "GEORAMA: REQUESTS"),
                       .list_heading = LocalizeText("requests.list", "BUILDINGS"),
                       .summary_label = LocalizeText("requests.summary", "Requests Met"),
-                      .progress = LocalizeText("requests.progress", "Progress: %1%"),
-                      .controls = LocalizeText("requests.controls", "{up} / {down} Select   {circle} Back"),
+                      .controls = LocalizeText("requests.controls", kControls),
                       .count = [] { return static_cast<int>(RequestParts(s_town).size()); },
                       .entry = Entry,
                       .detail = Detail,
@@ -200,20 +269,26 @@ void Draw() {
     s_catalogue.Draw();
 }
 
+int PageArrowAt(float x, float y) {
+    if (s_catalogue.PageArrowRect(-1).Contains(x, y)) {
+        return -1;
+    }
+    return s_catalogue.PageArrowRect(1).Contains(x, y) ? 1 : 0;
+}
+
 void AppendStrings(std::vector<std::pair<std::string, std::string>> &out) {
     const std::pair<std::string, std::string> strings[] = {
         {"requests.title",      "GEORAMA: REQUESTS"                                  },
         {"requests.list",       "BUILDINGS"                                          },
         {"requests.summary",    "Requests Met"                                       },
-        {"requests.progress",   "Progress: %1%"                                      },
-        {"requests.controls",   "{up} / {down} Select   {circle} Back"               },
-        {"requests.analysis",   "{square} Requests   {circle} Back"                   },
+        {"requests.controls",   kControls                                            },
+        {"requests.analysis",   "{square} Requests   {circle} Back"                  },
         {"requests.unknown",    "???"                                                },
         {"requests.not_found",  "Not found yet."                                     },
         {"requests.unfinished", "Unfinished. Its request counts once it is complete."},
         {"requests.unmet",      "Request not met."                                   },
         {"requests.met",        "Request met."                                       },
-        {"requests.residents",  "Residents"                                          },
+        {"requests.not_heard",  "Talk to them to hear their request."                },
     };
     for (const auto &entry : strings) {
         out.push_back(entry);

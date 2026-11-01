@@ -24,6 +24,11 @@ bool HandleKey();
 void Draw();
 
 /**
+ * The page arrow under (x, y), in logical coordinates: -1 back, 1 on, 0 for neither.
+ */
+int PageArrowAt(float x, float y);
+
+/**
  * Appends the request list's localization keys and their default English strings to out.
  */
 void AppendStrings(std::vector<std::pair<std::string, std::string>> &out);

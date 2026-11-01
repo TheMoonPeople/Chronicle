@@ -34,6 +34,7 @@
 #include "gamepad.hpp"
 #include "item/framework.hpp"
 #include "item/host.hpp"
+#include "journal/heard.hpp"
 #include "langset.hpp"
 #include "localize/localize.hpp"
 #include "main.hpp"
@@ -816,6 +817,7 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     // The items read their documents from the data as well as the packs, so they load once it is indexed.
     datapacks::Load(PathsDataRoot());
     item::Load();
+    journal::RegisterSaveChunk();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
     std::vector<s32> languages = SupportedLanguages();

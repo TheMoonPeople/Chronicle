@@ -325,12 +325,13 @@ Most of them are one of three shapes, so the framework gains them as composites 
 widgets, each with retail's look:
 
 - **Catalogue** (built: `ui::Catalogue`, `port/src/ui/framework/catalogue.hpp`): a list of entries on
-  the left (a `ListView`, which scrolls and follows the mouse's hover) and the selected one's detail on
-  the right, on the tracker's paper under its banner. The detail is a heading, a status line in its own
-  colour, and a body under its own heading; an optional tally and progress bar sit under it. A label
-  is coloured by its entry's state (green done, white not, grey not there yet) and squeezed, as the
-  battle menu's captions are, when it is too long. Up and Down choose, Circle backs out; `EntryAt`
-  says where the mouse hits. The Georama menu's request list is the first. Still to come: a picture
+  the left (a `ListView`, which scrolls and follows the mouse's hover) with an optional tally under it,
+  and the selected one's detail on the right, on the tracker's paper under its banner. The detail is a
+  heading, a status line in its own colour, and pages, each a title over wrapped text, with a "< 1/3 >"
+  indicator when there is more than one. A label is coloured by its entry's state (green done, white
+  not, grey not there yet) and squeezed, as the battle menu's captions are, when it is too long. Up and
+  Down choose, Left and Right turn the pages, Circle backs out; `EntryAt` and `PageArrowRect` say where
+  the mouse hits. The Georama menu's request list is the first. Still to come: a picture
   or model of the entry, and locked entries drawn as retail draws unknown things (the request list
   writes "???"). Bestiary, fish tracker, item catalogue.
 - **Tracker** (built: `ui::Tracker`, `port/src/ui/framework/tracker.hpp`): groups of goals with
@@ -375,9 +376,11 @@ with `dialog::`, so the UI framework never knows what a fish or an enemy is.
   title menu, Exit and Quit").
 - **Georama requests:** Square on the Analysis page opens the list; Cross and Circle leave the page as
   in retail. It holds the parts `CEditGround::RequestCheck` tests in the town, each with its state as
-  retail keeps it (`request[part]`, cleared while the part is incomplete), and the villagers living
-  there who are back in town, by the villager table's home part and the part's element for them; their
-  names and the parts' are the game's own messages.
+  retail keeps it (`request[part]`, cleared while the part is incomplete). Once a building stands in
+  the town whole, its pages are the villagers living there who are back in town (by the villager
+  table's home part and the part's element for them), each with their request once they have said it
+  (`port/src/journal/heard.cpp`): retail's line from the town's talk messages, a page for each of the
+  message window's, the hero's name filled in. Names are the game's own messages.
 - **Georama menu:** the main menu and the Analysis page keep retail's pictures (the icons, the
   selection frame, the hand, the bars and headings), which the pictures-first rule (section 2) asks; the
   icon's help is the town ring's `HelpBox`, filled from retail's own help message (`allmenu.mes`, the

@@ -1,6 +1,7 @@
 #include "ui/framework/catalogue.hpp"
 
 #include <algorithm>
+#include <format>
 #include <string>
 #include <utility>
 
@@ -23,17 +24,21 @@ namespace {
 // The tracker's paper, banner and panes, so the two read as one family.
 constexpr float kHeaderScale = 0.92f;
 constexpr float kBodyScale = 0.84f;
+constexpr float kPageScale = 0.78f;
 constexpr int   kLeftPaneX = 92;
 constexpr int   kDividerX = 258;
 constexpr int   kRightPaneX = 274;
-constexpr int   kRightPaneWidth = 268;
-constexpr int   kCountX = 460;
+constexpr int   kRightPaneRight = 542;
+constexpr int   kRightPaneWidth = kRightPaneRight - kRightPaneX;
 constexpr int   kListY = 156;
 constexpr int   kListWidth = 136;
 constexpr int   kRowSpacing = 25;
-constexpr int   kVisibleRows = 7;
+constexpr int   kVisibleRows = 5;
 constexpr int   kLineSpacing = 20;
-constexpr int   kDetailBottom = 280;
+constexpr int   kPageLineSpacing = 18;
+constexpr int   kDetailBottom = 338;
+// Each end of the page indicator, "< 1/3 >", right-aligned on the page title's line.
+constexpr int kArrowWidth = 14;
 // As the battle menu's captions do, a long label is squeezed rather than cut, but no further than this.
 constexpr float kLeastSqueeze = 0.62f;
 
@@ -52,14 +57,38 @@ Catalogue::Catalogue() {
 void Catalogue::Open(CatalogueSource source) {
     m_source = std::move(source);
     m_list.Reset(0);
+    m_page = 0;
+    m_page_entry = 0;
 }
 
 int Catalogue::Count() const {
     return m_source.count ? m_source.count() : 0;
 }
 
+int Catalogue::Pages() const {
+    return Count() > 0 ? static_cast<int>(m_source.detail(m_list.SelectedIndex()).pages.size()) : 0;
+}
+
 int Catalogue::EntryAt(float x, float y) const {
     return m_list.HitTest(x, y, Count());
+}
+
+Rect Catalogue::PageArrowRect(int direction) const {
+    if (m_indicator.Empty()) {
+        return {};
+    }
+    // The arrows are the indicator's ends, with a little room around them for the hand.
+    return direction < 0 ? Rect(m_indicator.x - 6, m_indicator.y - 4, kArrowWidth + 6, m_indicator.h + 8)
+                         : Rect(m_indicator.Right() - kArrowWidth, m_indicator.y - 4, kArrowWidth + 6, m_indicator.h + 8);
+}
+
+void Catalogue::TurnPage(int direction) {
+    const int pages = Pages();
+    if (pages < 2) {
+        return;
+    }
+    m_page = (m_page + direction + pages) % pages;
+    ComMenuSePlay(MENU_SOUND_CURSOR);
 }
 
 bool Catalogue::HandleKey() {
@@ -68,6 +97,15 @@ bool Catalogue::HandleKey() {
         return true;
     }
     m_list.HandleInput(Count());
+    if (m_list.SelectedIndex() != m_page_entry) {
+        m_page_entry = m_list.SelectedIndex();
+        m_page = 0;
+    }
+    if (GamePad.Down(PAD_LEFT)) {
+        TurnPage(-1);
+    } else if (GamePad.Down(PAD_RIGHT)) {
+        TurnPage(1);
+    }
     return false;
 }
 
@@ -93,45 +131,46 @@ void Catalogue::Draw() {
         label.Draw(row.x, row.y, alpha);
     });
 
+    if (m_source.summary && !m_source.summary_label.empty()) {
+        const TrackerTally tally = m_source.summary();
+        Divider::DrawHorizontal(84, kDividerX - 10, 285, 0x80);
+        MenuTextureReload(0x1A);
+        Label(m_source.summary_label, ColorGold, Alignment::Left, true, kHeaderScale).Draw(kLeftPaneX, 287, 0x80);
+        DrawCounter(kLeftPaneX, 316, tally.done, tally.total, kBodyScale);
+    }
+
     if (count > 0) {
         const CatalogueDetail detail = m_source.detail(m_list.SelectedIndex());
         MenuTextureReload(0x1A);
         Label(detail.heading, ColorYellow, Alignment::Left, true, kHeaderScale).Draw(kRightPaneX, 132, 0x80);
 
-        int        y = 158;
-        const auto draw_lines = [&y](const std::string &text, u32 color) {
-            for (const std::string &line : WrapText(text, kRightPaneWidth, kBodyScale)) {
-                if (y > kDetailBottom - kLineSpacing) {
-                    return;
-                }
-                Label(line, color, Alignment::Left, true, kBodyScale).Draw(kRightPaneX, y, 0x80);
-                y += kLineSpacing;
-            }
-        };
-        draw_lines(detail.status, detail.status_color);
-        if (!detail.body_heading.empty() && !detail.body.empty()) {
+        int y = 158;
+        for (const std::string &line : WrapText(detail.status, kRightPaneWidth, kBodyScale)) {
+            Label(line, detail.status_color, Alignment::Left, true, kBodyScale).Draw(kRightPaneX, y, 0x80);
+            y += kLineSpacing;
+        }
+
+        const int pages = static_cast<int>(detail.pages.size());
+        m_indicator = {};
+        if (pages > 0) {
+            const CataloguePage &page = detail.pages[std::clamp(m_page, 0, pages - 1)];
             y += kLineSpacing / 2;
-            draw_lines(detail.body_heading, ColorGold);
+            Label(page.title, ColorGold, Alignment::Left, true, kBodyScale).Draw(kRightPaneX, y, 0x80);
+            if (pages > 1) {
+                Label     indicator(std::format("< {}/{} >", std::clamp(m_page, 0, pages - 1) + 1, pages), ColorYellow, Alignment::Right, true, kBodyScale);
+                const int width = indicator.GetWidth();
+                indicator.Draw(kRightPaneRight, y, 0x80);
+                m_indicator = Rect(kRightPaneRight - width, y, width, 20);
+            }
+            y += kLineSpacing + 2;
+            for (const std::string &line : WrapText(page.text, kRightPaneWidth, kPageScale)) {
+                if (y > kDetailBottom - kPageLineSpacing) {
+                    break;
+                }
+                Label(line, page.color, Alignment::Left, true, kPageScale).Draw(kRightPaneX, y, 0x80);
+                y += kPageLineSpacing;
+            }
         }
-        for (const std::string &paragraph : detail.body) {
-            draw_lines(paragraph, ColorWhite);
-        }
-    }
-
-    if (m_source.summary && !m_source.summary_label.empty()) {
-        const TrackerTally tally = m_source.summary();
-        Divider::DrawHorizontal(kRightPaneX, 542, 285, 0x80);
-        MenuTextureReload(0x1A);
-        Label(m_source.summary_label, ColorYellow, Alignment::Left, true, kHeaderScale).Draw(kRightPaneX, 287, 0x80);
-        DrawCounter(kCountX, 287, tally.done, tally.total, kBodyScale);
-
-        const float progress = tally.total > 0 ? static_cast<float>(tally.done) / static_cast<float>(tally.total) : 0.0f;
-        const int   percent = tally.total > 0 ? (tally.done * 100) / tally.total : 0;
-
-        ProgressBarStyle bar_style{};
-        bar_style.text_scale = 0.76f;
-        ProgressBar::Draw(Rect(kRightPaneX, 314, kRightPaneWidth, 22), progress,
-                          LocalizeFormat(m_source.progress, {std::to_string(percent)}), bar_style, 0x80);
     }
 
     MenuTextureReload(0x1A);

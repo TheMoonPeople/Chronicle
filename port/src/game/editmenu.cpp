@@ -1616,11 +1616,16 @@ void EditMenuMouseUpdate() {
 
             break;
         case EditMenuState::Requests:
-            // The list follows the hand itself (ListView); the wheel moves through it.
+            // The list follows the hand itself (ListView); the wheel moves through it, and the page
+            // arrows turn the pages.
             if (take.wheel > 0.0f) {
                 pressed = kInputUp;
             } else if (take.wheel < 0.0f) {
                 pressed = kInputDown;
+            } else if ((take.clicked & 1) != 0) {
+                const int arrow = ui::georama_requests::PageArrowAt(x, y);
+                pressed = arrow < 0 ? kInputLeft : arrow > 0 ? kInputRight
+                                                             : 0;
             }
 
             break;

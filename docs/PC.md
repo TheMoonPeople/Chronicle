@@ -1216,8 +1216,8 @@ turns it off; headless and `--jump` runs never write it.
 retail's image cannot: custom items and copies with state of their own
 (docs/ITEM_FRAMEWORK.md). Before the image's checksums are made, each
 framework takes its part out of the image (`ExtensionPrepare`), leaving what
-retail would hold there, so `save.dat` stays retail's and a save without
-custom items writes no `chronicle.dat` at all. The file is a set of chunks,
+retail would hold there, so `save.dat` stays retail's and a save with nothing
+beyond retail's writes no `chronicle.dat` at all. The file is a set of chunks,
 one per framework, each with a tag, version, length and CRC, kept under a
 hash of the exact `save.dat` bytes they belong to: a `save.dat` copied,
 restored from a backup or taken from a card export without its own
@@ -1232,7 +1232,9 @@ written back unchanged. Deleting the save deletes both. The items' chunk
 slots and storage by ID, with what is left of it and, for a copy, its
 instance and state. One whose definition is missing loads as an orphan: an
 "Unknown item" that keeps its ID and state, cannot be used or sold, and is
-itself again once its definition returns. `port/src/save/extension.cpp`
+itself again once its definition returns. The journal's chunk
+(`port/src/journal/heard.cpp`) keeps which villagers' Georama requests the
+player has heard, a bit for each villager of each town. `port/src/save/extension.cpp`
 reads and writes the file.
 
 `port/src/game/memorycardaccess.cpp` replaces the operations of
@@ -1587,7 +1589,7 @@ themselves.
 |---|---|---|
 | Main menu | an icon's row moves the selection; click opens the page | |
 | Analysis | the Request heading opens the request list (Square) | |
-| Request list | a building's row selects it | steps the list |
+| Request list | a building's row selects it; the page arrows turn its pages | steps the list |
 
 ## Arenas
 
