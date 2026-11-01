@@ -104,6 +104,17 @@ bool GameSetTownEvent(const char *number);
 int GameTakeTownEvent();
 
 /**
+ * Test hook: a dungeon (0-6) to enter once a town is walking, as the town's own gate enters its
+ * dungeon, so a loaded save reaches that dungeon's floor select. False for anything else.
+ */
+bool GameSetTownDungeon(const char *number);
+
+/**
+ * The dungeon GameSetTownDungeon asked for, once; -1 for none.
+ */
+int GameTakeTownDungeon();
+
+/**
  * Test hook: cuts the loading screen's holds and fades to a few ticks.
  */
 void GameSetFastLoad(bool fast);

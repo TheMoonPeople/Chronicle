@@ -607,6 +607,9 @@ For tests and debugging only; nothing the game does depends on them.
   the town, as stepping onto its spot and pressing Cross does: `133` asks fishing's "Continue
   fishing / Quit fishing", and `11` is Norune's fishing sign. With `--jump autosave` and a script
   pressing Cross, these reach the fishing screens without walking to the water.
+- `--town-dungeon N` (or `DC_TOWN_DUNGEON`) enters dungeon `N` (0-6) once the town walks, as the
+  town's gate enters its own dungeon, so `--jump load:<slot>` reaches that dungeon's floor select
+  with the save's floors, Atla and limits. Anything else exits with status 2.
 
 `darkcloud --headless --jump dungeon:0 --fast-load --frames 60` shows the first
 dungeon's floor select after about five seconds on lavapipe.

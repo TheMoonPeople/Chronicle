@@ -1971,9 +1971,17 @@ int EditLoop() {
         }
     }
 
-    // Test hooks (docs/PC.md): a town menu, set up as the script that opens it sets it up, or a town
-    // program raised as its spot's Cross raises it, once the town has settled as a player's press finds it.
+    // Test hooks (docs/PC.md): a town menu, set up as the script that opens it sets it up, a town
+    // program raised as its spot's Cross raises it, or a dungeon entered as the town's gate enters
+    // its own, once the town has settled as a player's press finds it.
     const bool settled = GameMode == ED_MODE_WALK && key_lock == 0 && loop_counter > 30;
+    static int hook_dungeon = -1;
+    if (settled && goto_dungeon == 0) {
+        if (const int dungeon = app::GameTakeTownDungeon(); dungeon >= 0) {
+            hook_dungeon = dungeon;
+            goto_dungeon = 1;
+        }
+    }
     if (settled && goto_menu == 0) {
         if (const int menu = app::GameTakeTownMenu(); menu != 0) {
             std::vector<int> items = menu == ED_MENU_CHANGE_ROD ? fishing::RodsCarried() : fishing::BaitItems();
@@ -2202,8 +2210,9 @@ int EditLoop() {
     static int end_code = 0;
 
     if (goto_dungeon != 0 && end_counter == 0) {
-        main_select_menu_no = NowEditMap;
-        MapJump(NowEditMap + 0xC8, -1);
+        const int dungeon = hook_dungeon >= 0 ? std::exchange(hook_dungeon, -1) : NowEditMap;
+        main_select_menu_no = dungeon;
+        MapJump(dungeon + 0xC8, -1);
         end_counter = 1;
         end_code = 1;
     }

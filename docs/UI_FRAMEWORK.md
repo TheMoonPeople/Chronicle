@@ -68,6 +68,7 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
 | Event item board: an event's items, fishing's bait, the rods | `port/src/game/menu_save.cpp` | `SlotGrid`, `MenuHand`, `StayFrame`, `Picture`, `ItemIcon::DrawInSlot` |
 | Fish exchange and fishing records | `port/src/game/shop.cpp` | `ListCursor`, `MenuHand`, `Picture`, `PictureNumber`, `ItemIcon::DrawInSlot` |
+| Dungeon floor select | `port/src/game/menu_dungeon.cpp` | `Picture` (`DrawClipped`, `DrawColumn`, `DrawScreen`), `PictureNumber`, `StayFrame`, `MenuHand`, `ScreenFill`, `Label` |
 
 The event item board, the fish exchange and the fishing records moved for the fishing framework, and
 draw as retail's did pixel for pixel, every state of them compared on one renderer (section 4): the
@@ -75,8 +76,13 @@ fishing UI is the framework's whether Enhanced fishing is installed or not. Fish
 sign's and Circle's, are the town scripts' own, asked by the dialog framework in their windows
 (docs/DIALOG_FRAMEWORK.md, "A town script's question").
 
+The floor select moved to warn of the floors that limit the party (docs/DUNGEON.md, "Floor select"),
+compared the same way from a save (`--town-dungeon`, docs/PC.md "Test hooks"): fading in and out,
+moving, paging and scrolling with rows clipped at the board's edges, every dungeon. It draws as
+retail's did except for the warnings and the mouse.
+
 Still retail's: the save and load boards (`DrawMenuSave`, port-drawn but copied from retail), the
-item menu, shops, storage, the Georama menus, the floor select and the dungeon HUD.
+item menu, shops, storage, the Georama menus and the dungeon HUD.
 
 ### What the code holds
 
@@ -87,8 +93,8 @@ port/src/ui/framework/
     text.hpp       TextStyle, Label, WrapText, DrawTextBox, DrawCounter, DrawStatus*
     surfaces.hpp   WindowPreset, TrackerWindow, PaperWindow, HelpBox, Window, TabPlate, Divider, SubWindow
     buttons.hpp    ButtonPreset, ButtonStyle (Thick, Thin), BevelButton, DrawPaintedPlate, TextureButton
-    widgets.hpp    ItemIcon, Picture, PictureNumber, Cursor, MenuHand, StayFrame, ListCursor, SlotGrid,
-                   Brackets, ScrollBar, ProgressBar, MenuHeader
+    widgets.hpp    ItemIcon, Picture, ScreenFill, ClippedRows, PictureNumber, Cursor, MenuHand, StayFrame,
+                   ListCursor, SlotGrid, Brackets, ScrollBar, ProgressBar, MenuHeader
     dialogs.hpp    DialogBox, ConfirmModal, ListView
     *.cpp          their implementations, and internal.hpp (ui::detail)
 ```
@@ -378,6 +384,11 @@ with `dialog::`, so the UI framework never knows what a fish or an enemy is.
   reloads the saved area as a load from the title would.
 - **Quit** asks, then goes back to the title through `TakeBattleMenuTitleRequest` (docs/PC.md, "The
   title menu, Exit and Quit").
+- **Floor select:** its rows slide under the board's edges, so its pictures draw through
+  `Picture::DrawClipped`, which clips as retail's `MenuTextureClip` did, quirks included (a floor's
+  number is measured by its name's clipped height). Its corners and hand are its own picture's
+  (`StayFrame::Draw` and `MenuHand::Draw` with a texture). Text cannot be clipped, so a floor's `!`
+  shows only while its row is wholly on the board.
 
 ---
 

@@ -200,6 +200,8 @@ struct Jump {
 Jump g_jump;
 int  g_town_menu;
 int  g_town_event;
+// The dungeon --town-dungeon asked for, plus one; 0 for none.
+int  g_town_dungeon;
 bool g_fast_load;
 bool g_autosave;
 int  g_developer_return_mode = GAME_MODE_TITLE;
@@ -687,6 +689,21 @@ bool GameSetTownEvent(const char *number) {
 
 int GameTakeTownEvent() {
     return std::exchange(g_town_event, 0);
+}
+
+bool GameSetTownDungeon(const char *number) {
+    const std::string_view digits = number;
+    int                    dungeon = -1;
+    auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), dungeon);
+    if (error != std::errc{} || end != digits.data() + digits.size() || dungeon < 0 || dungeon > 6) {
+        return false;
+    }
+    g_town_dungeon = dungeon + 1;
+    return true;
+}
+
+int GameTakeTownDungeon() {
+    return std::exchange(g_town_dungeon, 0) - 1;
 }
 
 bool GameSetJump(const char *spec) {

@@ -1,6 +1,7 @@
 # Dungeons
 
-What a dungeon's floors give, as documents a datapack can change, and changes to how its events play.
+What a dungeon's floors give, as documents a datapack can change, what its floor select tells the
+player, and changes to how its events play.
 
 ## Loot
 
@@ -25,6 +26,35 @@ Where items may lie on each map part, and how many floors a dungeon has, stay co
 
 The draws are retail's, random number for random number (`DungeonLoot.WithoutPacksBoxesAndTheClownDrawAsRetailDid`),
 except that a clown list a pack makes all but impossible stops after as many tries as a box gets.
+
+## Floor select
+
+The floor select is drawn on the UI framework (docs/UI_FRAMEWORK.md) as retail drew it, and takes the
+mouse: a hover puts the cursor on a floor, a click goes down to it, the wheel moves a floor. In English its
+floor words (B, Territory, Layer...), the floors' numbers and the bosses' names are drawn in the captions' font,
+each fitted to the box its painted letters fill (`DrawFloorLabels`, `port/src/game/menu_draw.cpp`); other
+languages keep the painted pictures.
+
+The dungeon's name plate is a blank plate with the name written on it, in every language: the plate
+(`lang/textures/plates/dungeon_name.png`, CC0, the disc's size) is laid over the names painted in the select's
+sheet as it loads, and the select writes the dungeon's name from the game's own system messages (the world
+map's), in capitals, in the painted names' colours and height (`port/src/ui/dungeon_plates.cpp`). Without the
+plate the painted names stay.
+
+It also warns of the floors that limit the party, always, since the warning changes nothing in play.
+A limited floor's row has a `!` after its kill count, and with the cursor on it the window below says
+what the limit is in the words the dungeon says it with on arrival (`dunmsd00`, messages 11, 13 and
+14), so every language has them. The limits (`port/src/dungeon/limits.cpp`) are of two kinds:
+
+- **Fixed:** floors whose script always limits them, read out of retail's floor scripts
+  (`dun/script/dNN/event.stb`, program 100): Divine Beast Cave B7 (weapons can't be changed) and B11
+  (only Xiao), Wise Owl Forest 4 (only Xiao) and 12 (only Goro), Sun and Moon Temple 5 (only Goro)
+  and 13 (only Ungaga).
+- **Rolled:** three or four floors of each dungeon after the first, rolled when the game begins
+  (weapons can't be changed, or the party gets thirsty five times as fast) and kept in the save. A
+  roll that lands on a floor the script builds from a fixed map, or on the boss's floor, never
+  applies there, and is not warned of. A fixed limit wins over a rolled one, as the script sets it
+  last.
 
 ## Events
 

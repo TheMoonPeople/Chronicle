@@ -574,9 +574,49 @@ const FloorLabel kFloorLabels[] = {
     {0x00, 0xA0, "Years ago", 50.0f, 4.75f, 110.4f, 24.2f, {{1, 0.0f, -1.1f}, {3, 0.0f, 0.25f}, {4, 0.0f, -0.5f, 0.25f}, {5, 0.0f, 0.5f}, {6, 0.0f, 0.0f, -1.1f}}}, // its g's top level with the a's
 };
 
+// The floor numbers' digits, 0x10 by 0x1C each along the row of "kaisou" at 0xC0, the list drawing a number a
+// digit at a time: each digit's painted fill's box in its cell, as the words' boxes are.
+struct FloorDigit {
+    float left, top, right, bottom;
+};
+
+constexpr FloorDigit kFloorDigits[10] = {
+    {2.0f, 6.0f, 14.0f, 23.0f},
+    {5.0f, 6.0f, 11.0f, 23.0f},
+    {2.0f, 6.0f, 14.0f, 23.0f},
+    {2.0f, 6.0f, 14.0f, 23.0f},
+    {3.0f, 6.0f, 15.0f, 23.0f},
+    {2.0f, 6.0f, 14.0f, 23.0f},
+    {2.0f, 6.0f, 14.0f, 23.0f},
+    {2.0f, 6.0f, 15.0f, 23.0f},
+    {3.0f, 6.0f, 15.0f, 23.0f},
+    {2.0f, 6.0f, 14.0f, 23.0f},
+};
+
+// A floor number's digit, in the words' look with them (English; painted with the painted words).
+bool DrawFloorDigit(const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
+    constexpr int kRow = 0xC0;
+    if (texel.width != 0x10 || texel.x % 0x10 != 0 || texel.x >= 0xA0 || texel.y < kRow || texel.y + texel.height > kRow + 0x1C) {
+        return false;
+    }
+    const FloorDigit &box = kFloorDigits[texel.x / 0x10];
+    const auto        left = static_cast<float>(screen.x);
+    // The list clips a digit at its edges by starting the cell lower or ending it sooner.
+    const auto row_top = static_cast<float>(screen.y - (texel.y - kRow));
+    const char digit[] = {static_cast<char>('0' + texel.x / 0x10), '\0'};
+    return caption::DrawFloorLabel(digit, left + box.left, row_top + box.top, left + box.right, row_top + box.bottom,
+                                   static_cast<float>(screen.y), static_cast<float>(screen.y + screen.height), alpha, {}, false, 0.0f);
+}
+
 bool DrawFloorLabels(CTexture *texture, const CRect_i_ &screen, const CRect_i_ &texel, int alpha) {
-    if (texture == nullptr || std::string_view(texture->name) != "kaisou" || texel.width != 0x70 || texel.height <= 0 ||
-        texel.height > 0x1C || texel.y >= 0xC0 || !caption::Ready() || !LocalizeLanguageFile().starts_with("en_")) {
+    if (texture == nullptr || std::string_view(texture->name) != "kaisou" || texel.height <= 0 || !caption::Ready() ||
+        !LocalizeLanguageFile().starts_with("en_")) {
+        return false;
+    }
+    if (texel.width == 0x10) {
+        return DrawFloorDigit(screen, texel, alpha);
+    }
+    if (texel.width != 0x70 || texel.height > 0x1C || texel.y >= 0xC0) {
         return false;
     }
     // The row the strip is cut from; the list clips a row at its edges by starting the strip lower or ending it sooner.

@@ -89,6 +89,7 @@ struct Options {
     const char  *jump = nullptr;
     const char  *give = nullptr;
     const char  *town_menu = nullptr;
+    const char  *town_dungeon = nullptr;
     const char  *town_event = nullptr;
     bool         fast_load = false;
     bool         show_fps = false;
@@ -157,7 +158,8 @@ float g_switch_render_scale = 0.0f;
                  "                     town or dungeon starts, unless it holds them (DC_GIVE); see docs/PC.md\n"
                  "  --town-menu N      open town menu N once a town walks: 8 fish exchange, 9 bait board,\n"
                  "                     10 fishing records, 11 rods board (DC_TOWN_MENU)\n"
-                 "  --town-event N     raise town program N the first time Cross goes down in a town (DC_TOWN_EVENT)\n",
+                 "  --town-event N     raise town program N the first time Cross goes down in a town (DC_TOWN_EVENT)\n"
+                 "  --town-dungeon N   enter dungeon N (0-6) once a town walks, at its floor select (DC_TOWN_DUNGEON)\n",
                  program);
 #ifdef __SWITCH__
     std::fprintf(stderr, "  --switch-core-affinity separate|auto  pin game and render to separate cores "
@@ -211,6 +213,8 @@ Options ParseOptions(int argc, const char **argv) {
             options.town_menu = value();
         } else if (arg == "--town-event") {
             options.town_event = value();
+        } else if (arg == "--town-dungeon") {
+            options.town_dungeon = value();
         } else if (arg == "--fast-load") {
             options.fast_load = true;
         } else if (arg == "--export-text") {
@@ -594,6 +598,13 @@ int Run(int argc, const char **argv) {
     }
     if (options.town_event != nullptr && *options.town_event != '\0' && !GameSetTownEvent(options.town_event)) {
         std::fprintf(stderr, "bad --town-event: %s\n", options.town_event);
+        std::exit(kExitUsage);
+    }
+    if (options.town_dungeon == nullptr) {
+        options.town_dungeon = std::getenv("DC_TOWN_DUNGEON");
+    }
+    if (options.town_dungeon != nullptr && *options.town_dungeon != '\0' && !GameSetTownDungeon(options.town_dungeon)) {
+        std::fprintf(stderr, "bad --town-dungeon: %s\n", options.town_dungeon);
         std::exit(kExitUsage);
     }
     if (options.jump != nullptr && *options.jump != '\0' && !GameSetJump(options.jump)) {

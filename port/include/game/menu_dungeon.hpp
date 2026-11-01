@@ -45,6 +45,12 @@ int InitDunEnterMenu(int texture_block, int dungeon, int requested_floor);
 int DunEnterMenuLoop();
 
 /**
+ * The mouse over the dungeon's floor select, ahead of the game's read of the pad: true while the floor
+ * select has it (open, or let go of it but a button still held).
+ */
+bool FloorSelectPointerUpdate();
+
+/**
  * Opens the character change menu.
  */
 void StartQuickChange(u_long128 *buffer, int texture_block, int *positions, int mode);

@@ -46,6 +46,47 @@ public:
      * stretched, and the foot (the rows below those) after it.
      */
     static void DrawColumn(game::CTexture *texture, int x, int y, float length, const Rect &cap_source, int alpha = 0x80);
+
+    /**
+     * Draws the source region over the destination with the rows above top and below bottom cut
+     * away, as retail's scrolling boards clip a row sliding past their edges; nothing when what is
+     * left starts at bottom or below. A destination taller or shorter than its source keeps that
+     * difference.
+     */
+    static void DrawClipped(game::CTexture *texture, const Rect &destination, const Rect &source, int top, int bottom, int alpha = 0x80);
+
+    /**
+     * Draws texture over the whole screen, as retail puts a menu over a picture of the scene it
+     * opened from.
+     */
+    static void DrawScreen(game::CTexture *texture, int alpha = 0x80);
+};
+
+/**
+ * One colour over the whole screen, as retail's menus darken the scene behind them and fade.
+ */
+class ScreenFill {
+public:
+    /**
+     * Fills the screen with (r, g, b) at alpha (0x80 opaque).
+     */
+    static void Draw(int r, int g, int b, int alpha);
+};
+
+/**
+ * Where a source row band lands once clipped to top and bottom, as retail's MenuTextureClip
+ * works it out: the band's place on screen, the row of the picture it starts at and its height.
+ */
+struct ClippedRows {
+    int y = 0;      /**< Where the band starts on screen. */
+    int source = 0; /**< The picture row it starts at. */
+    int height = 0; /**< How many rows it keeps. */
+
+    /**
+     * Clips a band height rows tall at y, from picture row source, to top and bottom. A band wholly
+     * above top or below bottom comes back unchanged, as retail's does.
+     */
+    static ClippedRows Clip(int y, int source, int height, int top, int bottom);
 };
 
 /**
@@ -58,6 +99,13 @@ public:
      * Draws value ending at right_x.
      */
     static void Draw(int value, int right_x, int y, game::CTexture *texture, const Rect &digits, int overlap, int alpha = 0x80);
+
+    /**
+     * Draws value ending at right_x, its digits clipped to top and bottom as Picture::DrawClipped
+     * clips.
+     */
+    static void DrawClipped(int value, int right_x, int y, game::CTexture *texture, const Rect &digits, int overlap, int top, int bottom,
+                            int alpha = 0x80);
 };
 
 /**
@@ -89,6 +137,13 @@ public:
      */
     void Draw(int icon_u = 0x40) const;
 
+    /**
+     * Draws the hand a screen keeps in its own picture (source), swinging as the stay-frame's does:
+     * its shadow (shadow_dx, shadow_dy) below it in black, then the hand, both at alpha. At the
+     * mouse while the screen's pointer is shown.
+     */
+    void Draw(game::CTexture *texture, const Rect &source, int shadow_dx, int shadow_dy, int alpha) const;
+
 private:
     float m_x{0.0f}; /**< Where the hand is. */
     float m_y{0.0f}; /**< Where the hand is. */
@@ -103,6 +158,13 @@ public:
      * Draws the corners around box.
      */
     static void Draw(const Rect &box, int alpha = 0x80);
+
+    /**
+     * Draws the corners a screen keeps in its own picture: corner is the top-left one, the other
+     * three to its right and below it, each as big. They go with their top-left points at left or
+     * right and top or bottom.
+     */
+    static void Draw(game::CTexture *texture, const Rect &corner, int left, int top, int right, int bottom, int alpha = 0x80);
 };
 
 /**

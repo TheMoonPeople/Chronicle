@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "itemdata.hpp"
+#include "menu_inventory.hpp"
 #include "ui/framework/internal.hpp"
 #include "ui/menu_pointer.hpp"
 
@@ -95,9 +96,45 @@ void Picture::DrawColumn(CTexture *texture, int x, int y, float length, const Re
     Draw(texture, Rect(x, static_cast<int>(static_cast<float>(y + source.h) + length), source.w, source.h), source, alpha);
 }
 
+ClippedRows ClippedRows::Clip(int y, int source, int height, int top, int bottom) {
+    ClippedRows rows{y, source, height};
+    if (rows.y < top && rows.y + rows.height > top) {
+        rows.height = rows.y + rows.height - top;
+        rows.source += top - rows.y;
+        rows.y = top;
+    }
+    if (rows.y < bottom && rows.y + rows.height > bottom) {
+        rows.height = bottom - rows.y;
+    }
+    return rows;
+}
+
+void Picture::DrawClipped(CTexture *texture, const Rect &destination, const Rect &source, int top, int bottom, int alpha) {
+    const ClippedRows rows = ClippedRows::Clip(destination.y, source.y, source.h, top, bottom);
+    if (rows.y >= bottom) {
+        return;
+    }
+    Draw(texture, Rect(destination.x, rows.y, destination.w, rows.height + destination.h - source.h), Rect(source.x, rows.source, source.w, rows.height),
+         alpha);
+}
+
+void Picture::DrawScreen(CTexture *texture, int alpha) {
+    DrawFullSizePicture(texture, 0, 0, alpha);
+}
+
+void ScreenFill::Draw(int r, int g, int b, int alpha) {
+    MGFillBox(CRect_i_(0, 0, metrics::kScreenWidth << 4, metrics::kScreenHeight << 4), static_cast<u8>(r), static_cast<u8>(g), static_cast<u8>(b),
+              static_cast<u8>(alpha));
+}
+
 void PictureNumber::Draw(int value, int right_x, int y, CTexture *texture, const Rect &digits, int overlap, int alpha) {
     const RECT rect = {digits.x, digits.y, digits.w, digits.h};
     DrawMenuNumber(value, right_x, y, texture, rect, overlap, alpha);
+}
+
+void PictureNumber::DrawClipped(int value, int right_x, int y, CTexture *texture, const Rect &digits, int overlap, int top, int bottom, int alpha) {
+    const RECT rect = {digits.x, digits.y, digits.w, digits.h};
+    DrawMenuNumber(value, right_x, y, rect, texture, overlap, top, bottom, alpha);
 }
 
 void ListCursor::Reset(int last, int hand_y) {
@@ -187,9 +224,35 @@ void MenuHand::Draw(int icon_u) const {
     DrawMenuObjectVibe(static_cast<int>(m_x), static_cast<int>(m_y), 1, icon_u);
 }
 
+void MenuHand::Draw(CTexture *texture, const Rect &source, int shadow_dx, int shadow_dy, int alpha) const {
+    const CRect_i_ src(source.x, source.y, source.w, source.h);
+    float          pointer_x = 0.0f;
+    float          pointer_y = 0.0f;
+    if (MenuPointerHand(pointer_x, pointer_y)) {
+        const int x = static_cast<int>(pointer_x);
+        const int y = static_cast<int>(pointer_y);
+        DrawMenu2DSprite(texture, CRect_i_(x + shadow_dx, y + shadow_dy, source.w, source.h), src, 0, 0, 0, alpha);
+        DrawMenu2DSprite(texture, CRect_i_(x, y, source.w, source.h), src, 0x80, 0x80, 0x80, alpha);
+        return;
+    }
+    const int x = static_cast<int>(m_x);
+    const int y = static_cast<int>(m_y);
+    DrawObjectVibe(x + shadow_dx, y + shadow_dy, texture, src, 0, alpha);
+    DrawObjectVibe(x, y, texture, src, 0x80, alpha);
+}
+
 void StayFrame::Draw(const Rect &box, int alpha) {
     DrawMenuWaku(static_cast<float>(box.x), static_cast<float>(box.y), box.w, box.h, 0,
                  TexManager.GetTexture(AtoraVibeTextureName, -1), alpha);
+}
+
+void StayFrame::Draw(CTexture *texture, const Rect &corner, int left, int top, int right, int bottom, int alpha) {
+    const int w = corner.w;
+    const int h = corner.h;
+    Picture::Draw(texture, Rect(left, top, w, h), corner, alpha);
+    Picture::Draw(texture, Rect(right, top, w, h), corner.Offset(w, 0), alpha);
+    Picture::Draw(texture, Rect(left, bottom, w, h), corner.Offset(0, h), alpha);
+    Picture::Draw(texture, Rect(right, bottom, w, h), corner.Offset(w, h), alpha);
 }
 
 int SlotGrid::Rows() const {

@@ -31,6 +31,7 @@
 #include "text/caption_text.hpp"
 #include "texture.hpp"
 #include "tim2.hpp"
+#include "ui/dungeon_plates.hpp"
 
 namespace dc::game {
 
@@ -593,6 +594,7 @@ void Enter(CTextureManager &manager, EnterMode mode, int block, char *name, u_ch
             }
         }
         LocalizeTexture(name, decoded);
+        ui::dungeon_plates::Prepare(name, decoded);
         caption::PreparePainted(name, decoded);
         MakeGroundPeriodic(name, decoded);
         DumpTexture(name, decoded);
