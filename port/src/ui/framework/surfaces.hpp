@@ -87,6 +87,18 @@ public:
     static void DrawIndentation(const Rect &box, bool dark_variant = true, int alpha = 0x80);
 
     /**
+     * Loads the stone banner's picture (wepstatus, from the battle menu's pack) into block, for a screen
+     * drawn outside the battle menu, the only place the game loads it. The block is the screen's: it
+     * holds nothing else of the screen's meanwhile. Returns false when the data lacks the picture.
+     */
+    static bool LoadStoneBanner(int block);
+
+    /**
+     * Stops drawing from the picture LoadStoneBanner loaded, before its screen reuses the block.
+     */
+    static void ReleaseStoneBanner();
+
+    /**
      * Draws a 3-piece stone title banner with an optional centered title label.
      */
     static void DrawStoneBanner(const Rect &box, int alpha = 0x80, int brightness = 0x80,

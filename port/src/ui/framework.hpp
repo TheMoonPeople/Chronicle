@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/framework/buttons.hpp"
+#include "ui/framework/catalogue.hpp"
 #include "ui/framework/dialogs.hpp"
 #include "ui/framework/surfaces.hpp"
 #include "ui/framework/text.hpp"

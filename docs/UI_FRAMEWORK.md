@@ -63,6 +63,7 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Weapon menu, its buttons and help | `port/src/battlemenu/weapon_menu.cpp` | `BevelButton`, `TrackerWindow`, `HelpBox`, `Label`, `WrapText` |
 | World map and leave-dungeon prompt | `port/src/battlemenu/move_menu.cpp` | `ConfirmModal`, `Cursor` |
 | Journal: manuals and chest tracker | `port/src/game/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `Tracker` (section 11) |
+| Georama request list, over the Analysis page | `port/src/game/editmenu.cpp`, `port/src/ui/georama_requests.cpp` | `Catalogue` (section 11) |
 | Options | `port/src/options/` | `TabPlate`, `TextureButton`, `ScrollBar`, `Cursor`, `Label` |
 | Villager conversation hub | `port/src/dialog/framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
@@ -83,10 +84,11 @@ port/src/ui/framework/
     widgets.hpp    ItemIcon, Cursor, Brackets, ScrollBar, ProgressBar, MenuHeader
     dialogs.hpp    DialogBox, ConfirmModal, ListView
     tracker.hpp    Tracker, TrackerSource, TrackerRow, TrackerTally (section 11)
+    catalogue.hpp  Catalogue, CatalogueSource, CatalogueEntry, CatalogueDetail (section 11)
     *.cpp          their implementations, and internal.hpp (ui::detail)
 ```
 
-About a third of the public API has no caller: `DialogBox`, `ListView`, `LayerQueue` and `ZLayer`,
+About a third of the public API has no caller: `DialogBox`, `LayerQueue` and `ZLayer`,
 `SubWindow`, `MenuHeader`, `PaperWindow` and `Window`, `DrawTextBox`, the `DrawStatus*` family, five
 of `Label`'s draw variants, and the `NATIVE_COLOR_*` and `*_MENU` aliases. Section 14 says what
 happens to each.
@@ -321,9 +323,15 @@ already lean on it.
 Most of them are one of three shapes, so the framework gains them as composites built from its
 widgets, each with retail's look:
 
-- **Catalogue:** a list of entries (`ListView`), a detail panel for the selected one, and a picture or
-  model of it; locked entries shown as retail shows unknown things. Bestiary, fish tracker, item
-  catalogue.
+- **Catalogue** (built: `ui::Catalogue`, `port/src/ui/framework/catalogue.hpp`): a list of entries on
+  the left (a `ListView`, which scrolls and follows the mouse's hover) and the selected one's detail on
+  the right, on the tracker's paper under its banner. The detail is a heading, a status line in its own
+  colour, and a body under its own heading; an optional tally and progress bar sit under it. A label
+  is coloured by its entry's state (green done, white not, grey not there yet) and squeezed, as the
+  battle menu's captions are, when it is too long. Up and Down choose, Circle backs out; `EntryAt`
+  says where the mouse hits. The Georama menu's request list is the first. Still to come: a picture
+  or model of the entry, and locked entries drawn as retail draws unknown things (the request list
+  writes "???"). Bestiary, fish tracker, item catalogue.
 - **Tracker** (built: `ui::Tracker`, `port/src/ui/framework/tracker.hpp`): groups of goals with
   progress, on paper under a stone banner. The groups are listed on the left with every group's tally
   beneath; the selected group's rows (an item icon, a label, a tally), its tally and a progress bar are
@@ -362,6 +370,15 @@ with `dialog::`, so the UI framework never knows what a fish or an enemy is.
   reloads the saved area as a load from the title would.
 - **Quit** asks, then goes back to the title through `TakeBattleMenuTitleRequest` (docs/PC.md, "The
   title menu, Exit and Quit").
+- **Georama requests:** Square on the Analysis page opens the list; Cross and Circle leave the page as
+  in retail. It holds the parts `CEditGround::RequestCheck` tests in the town, each with its state as
+  retail keeps it (`request[part]`, cleared while the part is incomplete), and the villagers living
+  there who are back in town, by the villager table's home part and the part's element for them; their
+  names and the parts' are the game's own messages.
+- **The stone banner outside the battle menu:** its picture (`wepstatus`) is in the battle menu's pack,
+  and only the battle menu loads it. A screen drawn elsewhere loads it into a block of its own with
+  `TrackerWindow::LoadStoneBanner` and lets it go with `ReleaseStoneBanner`; the request list uses the
+  Georama menu's page block, free while the Analysis page is up.
 
 ---
 
@@ -372,7 +389,7 @@ finished; what nothing needs goes.
 
 | Item | Decision | Why |
 |---|---|---|
-| `ListView` | keep, finish with its first user | every list retail has (items, shops, storage, save boards) is one; untested so far |
+| `ListView` | keep, finish with its users | every list retail has (items, shops, storage, save boards) is one; its first user is the catalogue, whose list sits clear of the scroll bar and whose bar draws a plain thumb where the options menu's pictures are not loaded |
 | `DialogBox` | keep, finish; `ConfirmModal` becomes a two-option `DialogBox` | one dialog implementation, not two |
 | `MenuHeader` | keep until the pages it heads move | a page header with the ring's icons; checked against retail when first used |
 | `DrawStatus*` | remove | #210 went back to retail's sprites for the status numbers, which is the rule (section 2) |
@@ -418,5 +435,5 @@ checked by the captures of section 4, which can't be committed.
 
 ## 17. Open questions
 
-- Which retail screens are first for the Catalogue and Pages composites of section 11 to be proven
-  on? (The Tracker's was the journal's chest tracker.)
+- Which retail screen is first for the Pages composite of section 11 to be proven on? (The Tracker's
+  was the journal's chest tracker, the Catalogue's the Georama request list.)

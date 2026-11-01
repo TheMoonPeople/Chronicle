@@ -463,7 +463,8 @@ void ListView::Draw(int total_items, const RowDrawFn &draw_row, int alpha) {
     }
 
     if (m_cfg.draw_scrollbar && total_items > m_cfg.visible_rows) {
-        m_scrollbar.Draw(m_cfg.bounds.Right() + 6, m_cfg.bounds.Top(),
+        // Clear of the selection brackets, which stand bracket_pad_x outside the rows.
+        m_scrollbar.Draw(m_cfg.bounds.Right() + m_cfg.bracket_pad_x + 6, m_cfg.bounds.Top(),
                          m_cfg.bounds.h, total_items, m_cfg.visible_rows, m_first_row, alpha);
     }
 

@@ -16,6 +16,7 @@
 #include "editpartsinfo.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
+#include "localize/localize.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
@@ -26,6 +27,8 @@
 #include "savedata.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "ui/framework.hpp"
+#include "ui/georama_requests.hpp"
 
 namespace dc::game {
 
@@ -56,6 +59,7 @@ enum class EditMenuState : int {
     OptionOut = 20,   /**< Leaving the option page; never set. */
     ManualOut = 21,   /**< Leaving the manual page; never set. */
     OutEnd = 22,      /**< End of the leaving states. */
+    Requests = 100,   /**< Port: the request list, over the analysis page. */
 };
 
 /**
@@ -442,6 +446,11 @@ int EditMenuLoop() {
         case EditMenuState::Analyze:
             result = AnalyzeEdit();
             break;
+        case EditMenuState::Requests:
+            if (ui::georama_requests::HandleKey()) {
+                EditSwitch = EditMenuState::Analyze;
+            }
+            break;
         case EditMenuState::Atora:
         case EditMenuState::AtoraIn:
         case EditMenuState::AtoraOut:
@@ -499,6 +508,13 @@ void EditMenuDraw() {
             break;
         case EditMenuState::Analyze:
             AnalyzeEditDraw();
+            MenuTextureReload(0x1A);
+            ui::Label(localize::LocalizeText("requests.analysis", "{square} Requests   {circle} Back"), ui::ColorWhite, ui::Alignment::Center)
+                .Draw(320, 418, 0x80);
+            break;
+        case EditMenuState::Requests:
+            AnalyzeEditDraw();
+            ui::georama_requests::Draw();
             break;
         case EditMenuState::AnalyzeOut:
             FromAnalyzeEditDraw();
@@ -1239,10 +1255,14 @@ void AnalyzeEditDraw() {
 }
 
 /**
- * Leaves the analysis page when circle or cross is pressed.
+ * Leaves the analysis page when circle or cross is pressed. Square opens the port's request list.
  */
 int AnalyzeEdit() {
-    if (GamePad.Down(PAD_CIRCLE | PAD_CROSS)) {
+    if (GamePad.Down(PAD_SQUARE)) {
+        ComMenuSePlay(MENU_SOUND_CONFIRM);
+        ui::georama_requests::Open(EdMenuExTextureBlock);
+        EditSwitch = EditMenuState::Requests;
+    } else if (GamePad.Down(PAD_CIRCLE | PAD_CROSS)) {
         ComMenuSePlay(MENU_SOUND_REFUSE);
         EditSwitch = EditMenuState::AnalyzeOut;
         AnalyzeSelect = 2;
