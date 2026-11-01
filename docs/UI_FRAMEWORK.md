@@ -62,7 +62,7 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Battle menu ring, captions, Save/Load and Quit modals | `port/src/battlemenu/main_ring.cpp` | `Label`, `HelpBox`, `ConfirmModal`, `Cursor` |
 | Weapon menu, its buttons and help | `port/src/battlemenu/weapon_menu.cpp` | `BevelButton`, `TrackerWindow`, `HelpBox`, `Label`, `WrapText` |
 | World map and leave-dungeon prompt | `port/src/battlemenu/move_menu.cpp` | `ConfirmModal`, `Cursor` |
-| Journal: manuals and chest tracker | `port/src/game/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `TrackerWindow`, `ProgressBar`, `ItemIcon`, `DrawCounter`, `Brackets` |
+| Journal: manuals and chest tracker | `port/src/game/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `Tracker` (section 11) |
 | Options | `port/src/options/` | `TabPlate`, `TextureButton`, `ScrollBar`, `Cursor`, `Label` |
 | Villager conversation hub | `port/src/dialog/framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
@@ -82,6 +82,7 @@ port/src/ui/framework/
     buttons.hpp    ButtonPreset, ButtonStyle (Thick, Thin), BevelButton, DrawPaintedPlate, TextureButton
     widgets.hpp    ItemIcon, Cursor, Brackets, ScrollBar, ProgressBar, MenuHeader
     dialogs.hpp    DialogBox, ConfirmModal, ListView
+    tracker.hpp    Tracker, TrackerSource, TrackerRow, TrackerTally (section 11)
     *.cpp          their implementations, and internal.hpp (ui::detail)
 ```
 
@@ -323,8 +324,14 @@ widgets, each with retail's look:
 - **Catalogue:** a list of entries (`ListView`), a detail panel for the selected one, and a picture or
   model of it; locked entries shown as retail shows unknown things. Bestiary, fish tracker, item
   catalogue.
-- **Tracker:** groups of goals with progress (`ProgressBar`, `DrawCounter`), as the journal's chest
-  tracker already is. Achievements, collections.
+- **Tracker** (built: `ui::Tracker`, `port/src/ui/framework/tracker.hpp`): groups of goals with
+  progress, on paper under a stone banner. The groups are listed on the left with every group's tally
+  beneath; the selected group's rows (an item icon, a label, a tally), its tally and a progress bar are
+  on the right, with an optional filter line above. Up and Down choose a group, Cross or Square turns
+  the filter, Circle backs out; `GroupRect` and `FilterRect` say where the mouse hits. A screen hands it
+  a `TrackerSource`: its strings and callbacks for the groups, their rows and tallies. The journal's
+  chest tracker is the first, moved onto it unchanged (identical captures, state by state). Achievements,
+  collections, the Georama reward checklist.
 - **Pages:** paged text and pictures turned as the manuals are. Tutorials, journal entries.
 
 The data comes from the framework that owns it (the bestiary's from an enemy framework, the fish
@@ -411,5 +418,5 @@ checked by the captures of section 4, which can't be committed.
 
 ## 17. Open questions
 
-- Which retail screens are first for the composites of section 11 to be proven on (the journal's
-  chest tracker is already a tracker)?
+- Which retail screens are first for the Catalogue and Pages composites of section 11 to be proven
+  on? (The Tracker's was the journal's chest tracker.)
