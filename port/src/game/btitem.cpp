@@ -30,6 +30,7 @@
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "gamepad.hpp"
+#include "item/host.hpp"
 #include "mainitemmodel.hpp"
 #include "mathutil.hpp"
 #include "mds.hpp"
@@ -177,7 +178,7 @@ void CommitCashBlock(int size) {
 std::pair<std::string, std::string> ItemPaths(int item_no) {
     item_no = TransWepNo(item_no);
     std::string model_path;
-    if (item_no >= ITEM_WEAPON_START) {
+    if (item_no >= ITEM_WEAPON_START && item_no < item::kCustomFirst) {
         constexpr const char *prefixes[] = {"c01w", "c04w", "c06w", "c05w", "c10w", "c18w"};
         constexpr int         first_weapons[] = {ITEM_WEAPON_DAGGER_BROKEN, ITEM_WEAPON_WOODENSLINGSHOT_BROKEN,
                                                  ITEM_WEAPON_MALLET_BROKEN, ITEM_WEAPON_GOLD_RING_BROKEN,
@@ -194,11 +195,12 @@ std::pair<std::string, std::string> ItemPaths(int item_no) {
         }
         model_path += std::to_string(offset);
     } else {
-        if (ITEM_NAME_TBL_NEW[item_no - ITEM_ATTACH_START] == nullptr) {
-            item_no = ITEM_REGULAR_WATER;
+        const char *name = item::ModelName(item_no);
+        if (name == nullptr) {
+            name = item::ModelName(ITEM_REGULAR_WATER);
         }
         model_path = "dun/item/main_data/";
-        model_path += ITEM_NAME_TBL_NEW[item_no - ITEM_ATTACH_START];
+        model_path += name;
     }
     const std::string base = model_path;
     model_path += ".mds";
@@ -490,7 +492,7 @@ void BtGetTreasureboxSmall_Init(int dungeon) {
 
     NowDngMap->events[iventActive].kind = DNG_EVENT_NONE;
 
-    if (ITEM_NAME_TBL_NEW[item_no - ITEM_ATTACH_START] == nullptr) {
+    if (item::ModelName(item_no) == nullptr) {
         item_no = ITEM_ATTACH_PERIDOT;
     }
 

@@ -46,6 +46,7 @@
 #include "gamemode.hpp"
 #include "gamepad.hpp"
 #include "gameutil.hpp"
+#include "journal/heard.hpp"
 #include "main.hpp"
 #include "mainselect.hpp"
 #include "mapparts.hpp"
@@ -9754,6 +9755,8 @@ int EdTalkMode(CCharacter *player, CCameraFollow *camera, int mode, int *selecti
             break;
         case TalkModeState::Message:
             if (TalkMesMake != 0) {
+                // The journal lists a villager's request once they have said it.
+                journal::NoteTalkLine(MapNo, EdNowTalkCharaInfoID(), TalkMesNo);
                 TalkMesMake = EditMes1.MakeMesWin(TalkMesNo);
             }
 

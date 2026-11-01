@@ -13,6 +13,7 @@
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "item/host.hpp"
 #include "localize/localize.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
@@ -29,6 +30,7 @@
 #include "title/title_menu.hpp"
 #include "ui/area_card.hpp"
 #include "ui/framework.hpp"
+#include "ui/georama_requests.hpp"
 
 namespace dc::options {
 
@@ -716,6 +718,7 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
     for (auto &entry : JournalStrings()) {
         out.push_back(std::move(entry));
     }
+    ui::georama_requests::AppendStrings(out);
     for (auto &entry : title::menu::Strings()) {
         out.push_back(std::move(entry));
     }
@@ -723,6 +726,9 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
         out.push_back(std::move(entry));
     }
     for (auto &entry : QuestStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : item::Strings()) {
         out.push_back(std::move(entry));
     }
     return out;

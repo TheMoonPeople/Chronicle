@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <print>
 #include <ranges>
@@ -95,6 +96,22 @@ std::vector<vfs::Ref> Find(std::string_view relative) {
         }
     }
     return found;
+}
+
+std::vector<std::string> Members(std::string_view directory) {
+    std::map<std::string, std::string> names;
+    if (!vfs::SafeRelative(directory)) {
+        return {};
+    }
+    for (const auto &pack : packs) {
+        for (const vfs::Member &member : pack->List(directory)) {
+            if (!member.directory) {
+                names.try_emplace(vfs::FoldKey(member.name), member.name);
+            }
+        }
+    }
+    auto values = std::views::values(names);
+    return {values.begin(), values.end()};
 }
 
 } // namespace dc::platform::datapacks

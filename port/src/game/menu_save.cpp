@@ -604,7 +604,8 @@ void DrawSaveBoardNumber(int number, int right_x, int draw_y, spRGBA &top, spRGB
 
 } // namespace
 
-// The autosave's board is labelled in place of a number.
+// The autosave's board is labelled in place of a number, and a save naming items no loaded pack
+// provides has a "!" after its number.
 void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, int /*unused*/, int alpha) {
     if (info == nullptr) {
         return;
@@ -635,6 +636,11 @@ void DrawSaveBoard(SAVEDATA_INFO *info, CTexture **name_texture, int x, int y, i
         label.Draw(draw_x - label.Width(), draw_y - 2, start_alpha);
     } else {
         DrawSaveBoardNumber(info->file_no, draw_x, draw_y, top, bottom);
+    }
+    if (std::ranges::contains(SaveSlots.missing, info->file_no)) {
+        static GameText mark;
+        mark.Set("!");
+        mark.Draw(draw_x + 2, draw_y - 2, start_alpha);
     }
 
     draw_x = x + 0x1A;

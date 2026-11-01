@@ -25,6 +25,7 @@
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "localize/localize.hpp"
 #include "mainitemmodel.hpp"
@@ -2177,9 +2178,10 @@ void CommonTrushDraw(int x, int y, int alpha) {
 }
 
 int IsEnableTrushThrow(int item_no) {
-    bool enable = false;
+    bool             enable = false;
+    const item::Kind kind = item::KindOf(item_no);
 
-    if (item_no >= ITEM_WEAPON_START) {
+    if (kind == item::Kind::Weapon) {
         const int          owner = WhoIsWeaponEquip(item_no);
         const WEAPON_HAVE *weapons = PerBoardStatusPt->chara_weapons[owner];
         const int          default_no = GetDefaultWeaponNo(owner);
@@ -2206,7 +2208,7 @@ int IsEnableTrushThrow(int item_no) {
         }
     }
 
-    if (item_no >= ITEM_ATTACH_START && item_no < ITEM_WEAPON_START) {
+    if (kind == item::Kind::Attachment || kind == item::Kind::Item) {
         const COM_ITEM_INFO *info = GetCommonItemInfo(item_no);
 
         if (info != nullptr) {
@@ -2761,7 +2763,7 @@ void AttachDataListToHaveCopy(int attachment_no, ATTACH_LIST *attachment) {
 }
 
 int ItemDataToHaveCopy(int item_no) {
-    if (item_no < ITEM_DUNGEON_START || item_no > ITEM_WEAPON_START - 1) {
+    if (item::KindOf(item_no) != item::Kind::Item) {
         return 0;
     }
 

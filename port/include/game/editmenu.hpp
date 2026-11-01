@@ -67,4 +67,23 @@ int EditMenuLoop();
  */
 void EditMenuDraw();
 
+/**
+ * Whether the edit menu's main menu, Analysis page or request list takes the mouse, for
+ * MenuMouseUpdate (menu_mouse.cpp) ahead of the game's read of the pad. True once a tick that drew
+ * one of them; the other pages are retail's, which the mouse does not drive.
+ */
+bool EditMenuMouseOpen();
+
+/**
+ * Hovering an icon selects it, and a click presses the pad button the page reads: on the main menu
+ * the left button takes the icon (Cross), on the Analysis page the Request heading opens the request
+ * list (Square), and the right button backs out (Circle). The wheel moves through the request list.
+ */
+void EditMenuMouseUpdate();
+
+/**
+ * None of those pages is up: the mouse goes back to the pad's buttons once none of it is held.
+ */
+void EditMenuMouseRelease();
+
 } // namespace dc::game

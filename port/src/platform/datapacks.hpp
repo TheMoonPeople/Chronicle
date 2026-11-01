@@ -30,4 +30,10 @@ void Clear();
  */
 std::vector<vfs::Ref> Find(std::string_view relative);
 
+/**
+ * The names of the files directly in a relative directory across every pack, ignoring ASCII case, in
+ * name order; empty when no pack has the directory or it is not a safe relative path.
+ */
+std::vector<std::string> Members(std::string_view directory);
+
 } // namespace dc::platform::datapacks

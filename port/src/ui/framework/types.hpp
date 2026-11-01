@@ -29,6 +29,16 @@ constexpr u32 ColorYellow = game::FONT_COLOR_YELLOW;
  */
 constexpr u32 ColorBlue = 3;
 
+/**
+ * Standard green font palette index: something done.
+ */
+constexpr u32 ColorGreen = game::FONT_COLOR_GREEN;
+
+/**
+ * Standard grey font palette index: something not there yet.
+ */
+constexpr u32 ColorGrey = game::FONT_COLOR_GREY;
+
 namespace metrics {
 
 /**

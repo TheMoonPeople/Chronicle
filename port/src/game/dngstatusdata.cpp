@@ -1,10 +1,12 @@
+#include "dngstatusdata.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 
-#include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "menu_dungeon.hpp"
 #include "menu_inventory.hpp"
@@ -31,12 +33,12 @@ constexpr s32 ATRA_SLOT_EMPTY = -1;
 constexpr s32 ATRA_SLOT_ANY = -2;
 constexpr s32 ATRA_SLOT_COLLECTED = -3;
 
-constexpr bool IsDungeonItem(int item_id) {
-    return item_id >= ITEM_DUNGEON_START && item_id < ITEM_WEAPON_START;
+bool IsDungeonItem(int item_id) {
+    return item::KindOf(item_id) == item::Kind::Item;
 }
 
-constexpr bool IsConsumable(int item_id) {
-    return item_id >= ITEM_ATTACH_START && item_id < ITEM_DUNGEON_START;
+bool IsConsumable(int item_id) {
+    return item::KindOf(item_id) == item::Kind::Attachment;
 }
 
 } // namespace
@@ -75,7 +77,7 @@ int CDngStatusData::SearchItemIndexNo(int item_id) {
         }
     }
 
-    if (item_id >= ITEM_WEAPON_START) {
+    if (item::KindOf(item_id) == item::Kind::Weapon) {
         for (int chara_no = 0; chara_no < this->party_size; chara_no++) {
             for (int slot = 0; slot < WEAPON_CAPACITY; slot++) {
                 if (this->chara_weapons[chara_no][slot].item_no == item_id) {
@@ -148,7 +150,7 @@ int CDngStatusData::CheckItemGet(int item_id) {
         return 0;
     }
 
-    if (item_id >= GetDungeonItemStart() && item_id < GetDungeonItemEnd()) {
+    if (IsDungeonItem(item_id)) {
         int held_count = 0;
 
         for (int slot = 0; slot < MAX_DUNGEON_ITEMS; slot++) {
@@ -307,7 +309,7 @@ int CDngStatusData::GetItem(int item_id, int qty) {
         }
     }
 
-    if (item_id >= ITEM_WEAPON_START) {
+    if (item::KindOf(item_id) == item::Kind::Weapon) {
         printf("get weapon!! %d\n", item_id);
         const int chara_no = static_cast<s8>(WeaponList[item_id - ITEM_WEAPON_START].owner);
 

@@ -222,6 +222,9 @@ void ScrollBar::Draw(int x, int top_y, int height, int total_rows, int visible_r
         DrawMenu2DSprite(m_thumb_tex, CRect_i_(x, thumb_y, 8, thumb_height), CRect_i_(140, 280, 24, 32), cur_alpha);
         DrawMenu2DSprite(m_thumb_tex, CRect_i_(x - 4, top_y - 4, 16, 16), CRect_i_(452, 136, 24, 24), cur_alpha);
         DrawMenu2DSprite(m_thumb_tex, CRect_i_(x - 4, track_top + track_height + 2, 16, 16), CRect_i_(452, 164, 24, 24), cur_alpha);
+    } else if (CTexture *gaiji_tex = detail::GetWhitePixelTex()) {
+        // Screens without the options menu's pictures loaded (the Georama menu) still show where the list is.
+        DrawMenu2DSprite(gaiji_tex, CRect_i_(x + 1, thumb_y, 6, thumb_height), CRect_i_(0x6A, 0x6E, 1, 1), 96, 88, 72, cur_alpha);
     }
 }
 

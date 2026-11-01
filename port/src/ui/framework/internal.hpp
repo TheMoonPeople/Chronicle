@@ -93,7 +93,12 @@ inline game::CTexture *GetPerBoardTex() {
 /**
  * Returns the weapon status texture and ensures its block is resident.
  */
+game::CTexture *LoadedStoneBannerTex();
+
 inline game::CTexture *GetWepStatusTex() {
+    if (game::CTexture *loaded = LoadedStoneBannerTex()) {
+        return FindMenuTexture("wepstatus", loaded);
+    }
     return FindMenuTexture("wepstatus", game::WepStatus);
 }
 
@@ -138,6 +143,17 @@ inline void ColorToRgb(u32 color, unsigned char (&out)[3]) {
             out[0] = 110;
             out[1] = 175;
             out[2] = 255;
+            break;
+        // The game's green and grey, brought up as its yellow and white are.
+        case ColorGreen:
+            out[0] = 120;
+            out[1] = 232;
+            out[2] = 120;
+            break;
+        case ColorGrey:
+            out[0] = 180;
+            out[1] = 178;
+            out[2] = 174;
             break;
         case ColorWhite:
         default:

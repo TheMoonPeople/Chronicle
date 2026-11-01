@@ -5,11 +5,14 @@
 #include <filesystem>
 #include <map>
 #include <numbers>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "data/data_read.hpp"
+#include "dataread.hpp"
 #include "gfx/gfx.hpp"
 #include "localize/localize.hpp"
 #include "platform/png_image.hpp"
@@ -552,6 +555,53 @@ void TrackerWindow::DrawIndentation(const Rect &box, bool dark_variant, int alph
     if (box.w > 6 && box.h > 6) {
         detail::DrawRoundedRect(tex, box.x + 2, box.y + 2, box.w - 3, box.h - 3, 0, 0, 0, floor_a, false);
     }
+}
+
+namespace {
+
+// The battle menu's pack the stone banner is loaded from, kept until the next load: a block's textures
+// are drawn from the bytes they were loaded from.
+std::vector<u_long128> g_banner_pack;
+CTexture              *g_banner_tex = nullptr;
+
+} // namespace
+
+CTexture *detail::LoadedStoneBannerTex() {
+    return g_banner_tex;
+}
+
+bool TrackerWindow::LoadStoneBanner(int block) {
+    ReleaseStoneBanner();
+    char                 pack_name[] = "dungeon/dunmenu5.pak";
+    const std::string    path = std::string(GetMenuTextureDir()) + GetNowSelectLanguage(GetMenuLangFlag()) + pack_name;
+    const std::uintmax_t size = data::DataFileSize(path);
+    if (size == 0) {
+        return false;
+    }
+    // Reading may rewrite a message file in the pack into the whole sectors after it.
+    g_banner_pack.assign((static_cast<std::size_t>(size) + 0x1000) / sizeof(u_long128) + 1, u_long128{});
+    LoadFileMenuData(pack_name, reinterpret_cast<unsigned int *>(g_banner_pack.data()));
+    char  image_name[] = "btlmenu2.img";
+    auto *image = GetPackFile(reinterpret_cast<u_int *>(g_banner_pack.data()), image_name, nullptr);
+    if (image == nullptr) {
+        return false;
+    }
+
+    std::array<LOADTEXTURE_INFO2, 2> textures = {
+        LOADTEXTURE_INFO2{.name = reinterpret_cast<char *>(image), .block_no = block, .mipmap = 0},
+        LOADTEXTURE_INFO2{.name = nullptr,                         .block_no = 0,     .mipmap = 0},
+    };
+    std::array<int, 2> blocks = {block, -1};
+    MenuTextureDelete(blocks.data());
+    TexManager.CleanUpTextureList();
+    TexManager.LoadTextureBlockEX(-1, textures.data());
+    char texture_name[] = "wepstatus";
+    g_banner_tex = TexManager.GetTexture(texture_name, block);
+    return g_banner_tex != nullptr;
+}
+
+void TrackerWindow::ReleaseStoneBanner() {
+    g_banner_tex = nullptr;
 }
 
 void TrackerWindow::DrawStoneBanner(const Rect &box, int alpha, int brightness,

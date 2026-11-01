@@ -355,6 +355,18 @@
     "tracker.town.2": "Queens",
     "tracker.town.3": "Muska Lacka",
     "tracker.town.4": "Gotas Amarillas",
+    "tracker.town.unknown": "???",
+    "requests.title": "GEORAMA: PETICIONES",
+    "requests.list": "EDIFICIOS",
+    "requests.summary": "Peticiones cumplidas",
+    "requests.controls": "{up} / {down} Elegir   {left} / {right} Página   {circle} Volver",
+    "requests.analysis": "{square} Peticiones   {circle} Volver",
+    "requests.unknown": "???",
+    "requests.not_found": "Aún no encontrado.",
+    "requests.unfinished": "Sin terminar. Su petición cuenta cuando esté completo.",
+    "requests.unmet": "Petición no cumplida.",
+    "requests.met": "Petición cumplida.",
+    "requests.not_heard": "Habla con ellos para oír su petición.",
     "dialog.common.talk": "Hablar",
     "dialog.common.leave": "Nada",
     "dialog.common.back": "Volver",
@@ -383,5 +395,7 @@
     "quest.carls_slingshot.gina.excuse": "¿La honda de Carlos?{page}Esto... ¡un, un pájaro enorme se la llevó! ¡Era *ASÍ* de grande!{page}¡Hizo fiuuu y se fue volando con ella!",
     "quest.carls_slingshot.gina.bird": "¡Se la llevó el pájaro! ¡De verdad!",
     "quest.carls_slingshot.gina.confess": "...¿Carlos no se cree lo del pájaro?{page}...Vale. Estaba disparando a botellas, y hizo CRAC.{page}¡No fue a propósito! ¡Así que le hice una nueva!{page}¿Se la puedes dar? Me da miedo que se enfade..",
-    "quest.carls_slingshot.gina.waiting": "¿Le diste la honda nueva a Carlos? ¿Está enfadado?"
+    "quest.carls_slingshot.gina.waiting": "¿Le diste la honda nueva a Carlos? ¿Está enfadado?",
+    "item.orphan.name": "Objeto desconocido",
+    "item.orphan.description": "De un mod que no está cargado."
 }
