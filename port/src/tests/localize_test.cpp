@@ -20,6 +20,7 @@
 #include "mainselect.hpp"
 #include "options/menu_option.hpp"
 #include "platform/config.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/paths.hpp"
 #include "text/gametext.hpp"
 
@@ -158,6 +159,30 @@ TEST(Localize, TextComesFromTheLanguageJsonOrTheEnglishGiven) {
     EXPECT_EQ(LocalizeText("options.game.map.choice.2", "3"), "3") << "a key the file lacks gives the English";
     LanguageCode = 4;
     EXPECT_EQ(LocalizeText("options.game.map.label", "Dungeon Map"), "Dungeon Map") << "no file for German";
+}
+
+TEST(Localize, APacksStringsWinOverTheGamesAndThePlayersOverBoth) {
+    LangDir        lang;
+    const fs::path root = datafix::TempDir("localize_packs");
+    const fs::path players = root / "save/lang";
+    PathsSetSaveRoot(root / "save");
+    LocalizeSetDirectories({lang.dir, players});
+    Write(lang.dir / "fr_fr.json", R"({"options.game.map.label": "Carte", "options.game.map.choice.3": "Non"})");
+    Write(root / "datapacks/pack/lang/fr_fr.json", R"({"options.game.map.label": "Carte du pack", "quest.lures.ask": "Un leurre ?"})");
+    Write(root / "datapacks/datapacks.json", R"({"schema_version": 1, "load_order": ["pack"]})");
+    fs::create_directories(root / "data");
+    datapacks::Load(root / "data", {});
+    LocalizeReloadLanguage();
+    EXPECT_EQ(LocalizeText("options.game.map.label", "Dungeon Map"), "Carte du pack");
+    EXPECT_EQ(LocalizeText("quest.lures.ask", "A lure?"), "Un leurre ?");
+    EXPECT_EQ(LocalizeText("options.game.map.choice.3", "Off"), "Non") << "the game's strings the pack leaves alone";
+
+    Write(players / "fr_fr.json", R"({"options.game.map.label": "Ma carte"})");
+    LocalizeReloadLanguage();
+    EXPECT_EQ(LocalizeText("options.game.map.label", "Dungeon Map"), "Ma carte");
+
+    datapacks::Clear();
+    PathsReset();
 }
 
 TEST(Localize, FormatFillsThePlaceholders) {

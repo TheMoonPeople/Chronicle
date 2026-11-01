@@ -177,4 +177,10 @@ void LocalizeSetDirectories(std::vector<std::filesystem::path> directories);
  */
 void LocalizeReset();
 
+/**
+ * Reads the current language's strings again when next asked for, as after the datapacks load: each
+ * active pack's lang/<language>.json wins over the game's own strings, and the save folder's over both.
+ */
+void LocalizeReloadLanguage();
+
 } // namespace dc::localize

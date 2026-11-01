@@ -859,6 +859,8 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     InitCDFile();
     // The items read their documents from the data as well as the packs, so they load once it is indexed.
     datapacks::Load(PathsDataRoot());
+    // The packs' strings join the game's own.
+    LocalizeReloadLanguage();
     item::Load();
     fishing::Load();
     dungeon::LoadRules();
