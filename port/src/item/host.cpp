@@ -376,7 +376,8 @@ struct Parsed {
     std::set<std::string>                   unknown;
 };
 
-Parsed Parse(const Table &table, const Json &document) {
+// A document's rows by item, each one this table holds and listed once.
+std::map<int, const Json *> RowsByItem(const Table &table, const Json &document) {
     std::map<int, const Json *> by_item;
     for (const Json &row : native_config::Array(document, table.rows)) {
         const int item = native_config::Int(row, "item_no");
@@ -387,7 +388,57 @@ Parsed Parse(const Table &table, const Json &document) {
             throw std::runtime_error(std::format("item {} is listed twice", item));
         }
     }
-    Parsed parsed;
+    return by_item;
+}
+
+// Writes a document row's fields into bytes: every field, or for a patch those the row names. Notes
+// the names the table has no field for.
+void PutFields(const Table &table, const Row &item, const Json &row, unsigned char *bytes, bool every,
+               std::set<std::string> &unknown) {
+    const unsigned char *original = table.CompiledRow(item);
+    for (const Field &field : table.fields) {
+        if (!every && !row.contains(field.name)) {
+            continue;
+        }
+        const Json       &value = native_config::At(row, field.name);
+        const std::string where = std::format("item {} {}", item.item, field.name);
+        if (field.count == 1) {
+            Put(bytes + field.offset, field, value, where);
+        } else {
+            if (!value.is_array() || value.size() != field.count) {
+                throw std::runtime_error(std::format("{} needs {} values", where, field.count));
+            }
+            for (std::size_t i = 0; i < field.count; i++) {
+                Put(bytes + field.offset + i * field.size, field, value[i], where);
+            }
+        }
+        if (field.fixed && std::memcmp(bytes + field.offset, original + field.offset, field.size * field.count) != 0) {
+            throw std::runtime_error(std::format("{} is fixed by the save's shape and cannot change", where));
+        }
+    }
+    for (const auto &[key, value] : row.items()) {
+        const bool known = key == "item_no" || (table.models && key == "model") ||
+                           std::ranges::any_of(table.fields, [&key](const Field &field) { return key == field.name; });
+        if (!known) {
+            unknown.insert(key);
+        }
+    }
+}
+
+// A row's model name: none for null.
+std::optional<std::string> ModelName(const Row &item, const Json &model) {
+    if (model.is_null()) {
+        return std::nullopt;
+    }
+    if (!model.is_string() || !ValidModel(model.get_ref<const std::string &>())) {
+        throw std::runtime_error(std::format("item {} model must be lower-case letters, digits and underscores", item.item));
+    }
+    return model.get<std::string>();
+}
+
+Parsed Parse(const Table &table, const Json &document) {
+    const std::map<int, const Json *> by_item = RowsByItem(table, document);
+    Parsed                            parsed;
     for (const Row &item : table.items) {
         const auto found = by_item.find(item.item);
         if (found == by_item.end()) {
@@ -396,57 +447,31 @@ Parsed Parse(const Table &table, const Json &document) {
         const Json                &row = *found->second;
         const unsigned char       *original = table.CompiledRow(item);
         std::vector<unsigned char> bytes(original, original + table.row_size);
-        for (const Field &field : table.fields) {
-            const Json       &value = native_config::At(row, field.name);
-            const std::string where = std::format("item {} {}", item.item, field.name);
-            if (field.count == 1) {
-                Put(bytes.data() + field.offset, field, value, where);
-            } else {
-                if (!value.is_array() || value.size() != field.count) {
-                    throw std::runtime_error(std::format("{} needs {} values", where, field.count));
-                }
-                for (std::size_t i = 0; i < field.count; i++) {
-                    Put(bytes.data() + field.offset + i * field.size, field, value[i], where);
-                }
-            }
-            if (field.fixed && std::memcmp(bytes.data() + field.offset, original + field.offset, field.size * field.count) != 0) {
-                throw std::runtime_error(std::format("{} is fixed by the save's shape and cannot change", where));
-            }
-        }
-        for (const auto &[key, value] : row.items()) {
-            const bool known = key == "item_no" || (table.models && key == "model") ||
-                               std::ranges::any_of(table.fields, [&key](const Field &field) { return key == field.name; });
-            if (!known) {
-                parsed.unknown.insert(key);
-            }
-        }
+        PutFields(table, item, row, bytes.data(), true, parsed.unknown);
         if (table.models && HasModel(item)) {
-            const Json &model = native_config::At(row, "model");
-            if (model.is_null()) {
-                parsed.models.emplace_back();
-            } else if (!model.is_string() || !ValidModel(model.get_ref<const std::string &>())) {
-                throw std::runtime_error(std::format("item {} model must be lower-case letters, digits and underscores", item.item));
-            } else {
-                parsed.models.emplace_back(model.get<std::string>());
-            }
+            parsed.models.push_back(ModelName(item, native_config::At(row, "model")));
         }
         parsed.rows.push_back(std::move(bytes));
     }
     return parsed;
 }
 
-// Points the model table at a document's names: retail's own string where the name is unchanged.
-void LoadModels(const std::vector<std::optional<std::string>> &models) {
+// Points one entry of the model table at a name: retail's own string where the name is unchanged.
+void SetModel(std::size_t index, const std::optional<std::string> &model) {
     static std::deque<std::string> names; // the strings a changed name points at, kept for the run
+    const char                    *original = Original().models[index];
+    if (!model) {
+        ITEM_NAME_TBL_NEW[index] = nullptr;
+    } else if (original != nullptr && *model == original) {
+        ITEM_NAME_TBL_NEW[index] = original;
+    } else {
+        ITEM_NAME_TBL_NEW[index] = names.emplace_back(*model).c_str();
+    }
+}
+
+void LoadModels(const std::vector<std::optional<std::string>> &models) {
     for (std::size_t i = 0; i < models.size(); i++) {
-        const char *original = Original().models[i];
-        if (!models[i]) {
-            ITEM_NAME_TBL_NEW[i] = nullptr;
-        } else if (original != nullptr && *models[i] == original) {
-            ITEM_NAME_TBL_NEW[i] = original;
-        } else {
-            ITEM_NAME_TBL_NEW[i] = names.emplace_back(*models[i]).c_str();
-        }
+        SetModel(i, models[i]);
     }
 }
 
@@ -463,6 +488,57 @@ void Fill(const Table &table, const Parsed *parsed) {
     } else {
         std::ranges::copy(Original().models, ITEM_NAME_TBL_NEW);
     }
+}
+
+/**
+ * A patch's rows, checked whole before any is applied: each item's row as the table holds it with the
+ * patch's fields written over it.
+ */
+struct Patch {
+    std::vector<std::pair<Row, std::vector<unsigned char>>>         rows;
+    std::vector<std::pair<std::size_t, std::optional<std::string>>> models;
+    std::set<std::string>                                           unknown;
+};
+
+Patch ParsePatch(const Table &table, const Json &document) {
+    Patch patch;
+    for (const auto &[number, row] : RowsByItem(table, document)) {
+        const Row                 &item = *std::ranges::find_if(table.items, [number](const Row &known) { return known.item == number; });
+        const unsigned char       *live = table.LiveRow(item);
+        std::vector<unsigned char> bytes(live, live + table.row_size);
+        PutFields(table, item, *row, bytes.data(), false, patch.unknown);
+        if (table.models && row->contains("model")) {
+            if (!HasModel(item)) {
+                throw std::runtime_error(std::format("item {} has no model to name", item.item));
+            }
+            patch.models.emplace_back(item.index, ModelName(item, (*row)["model"]));
+        }
+        patch.rows.emplace_back(item, std::move(bytes));
+    }
+    return patch;
+}
+
+// Applies every patch to a table (items.json's is items.patch.json, kind items_patch), the lowest
+// priority pack's first so a higher one's field wins; patches of different items combine.
+void ApplyPatches(const Table &table) {
+    std::string path(table.path);
+    path.replace(path.size() - std::string_view(".json").size(), std::string_view::npos, ".patch.json");
+    native_config::ReadEach(path, std::format("{}_patch", table.kind), [&](const Json &document) {
+        const Patch patch = ParsePatch(table, document);
+        for (const auto &[item, bytes] : patch.rows) {
+            std::memcpy(table.LiveRow(item), bytes.data(), table.row_size);
+        }
+        for (const auto &[index, model] : patch.models) {
+            SetModel(index, model);
+        }
+        if (!patch.unknown.empty()) {
+            std::string names;
+            for (const std::string &name : patch.unknown) {
+                names += names.empty() ? name : ", " + name;
+            }
+            native_config::Report(std::format("gameplay/{}", path), "fields this version does not read: " + names);
+        }
+    });
 }
 
 // The vanilla items' IDs by number; a number the decomp has not named is vanilla:item_<number>.
@@ -697,7 +773,12 @@ Custom ParseCustom(std::string_view file, const Json &document) {
         }
         Rod stats;
         for (const auto &[key, field] : std::initializer_list<std::pair<const char *, float Rod::*>>{
-                 {"heft", &Rod::heft}, {"control", &Rod::control}, {"spring", &Rod::spring}, {"balance", &Rod::balance}, {"lure", &Rod::lure}}) {
+                 {"heft",    &Rod::heft   },
+                 {"control", &Rod::control},
+                 {"spring",  &Rod::spring },
+                 {"balance", &Rod::balance},
+                 {"lure",    &Rod::lure   }
+        }) {
             if (rod->contains(key)) {
                 stats.*field = native_config::Float((*rod)[key]);
                 if (stats.*field < 0.0f || stats.*field > 100.0f) {
@@ -790,6 +871,7 @@ void Load() {
             }
             native_config::Report(std::format("gameplay/{}", table.path), "fields this version does not read: " + names);
         }
+        ApplyPatches(table);
     }
     LoadCustom();
     messages.clear();

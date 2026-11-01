@@ -27,6 +27,13 @@ inline constexpr int kSchemaVersion = 2;
 bool Read(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse);
 
 /**
+ * Passes every document at a path under gameplay/ to parse, the data's own and then each pack's from the
+ * lowest priority up, so a later one can build on an earlier: a patch. One without this schema version
+ * and kind, or that parse throws for, is reported and skipped. Returns how many were used.
+ */
+int ReadEach(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse);
+
+/**
  * Prints one diagnostic about a gameplay document.
  */
 void Report(std::string_view path, std::string_view message);

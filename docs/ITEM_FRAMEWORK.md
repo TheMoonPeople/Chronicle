@@ -97,9 +97,24 @@ pack the player's `datapacks/` lacks is taken from there, and a player's copy wi
 { "schema_version": 1, "load_order": ["lures", "bakery"] }
 ```
 
-A pack holding `gameplay/items/prices.json` replaces the whole price table; two packs changing
-different items of one table do not combine. Packs are read at start-up, so changing them takes a
-restart.
+A pack holding `gameplay/items/prices.json` replaces the whole price table. A pack that changes a
+few items instead holds a patch beside it, `prices.patch.json` (kind `prices_patch`): the rows it
+changes, each with its `item_no` and only the fields it changes.
+
+```json
+{
+  "schema_version": 2,
+  "kind": "items_patch",
+  "items": [ { "item_no": 177, "stack_kind": 0 } ]
+}
+```
+
+Every table takes one (`item_common`, `items`, `attachments`, `weapons`, `bait`, `prices`; an
+`item_common` row may name a `model`). Each pack's patch is applied, the lowest priority's first, over
+the table as the full documents left it, so patches of different items combine and a later pack's
+field wins. A patch is checked whole as a full document is: a field retail cannot hold, a fixed field,
+an item the table does not hold or one listed twice refuses that pack's patch, reported, and the
+others still apply. Packs are read at start-up, so changing them takes a restart.
 
 A document is tried from the highest-priority pack down, then the data's own. The first whose
 `schema_version` is 2, whose `kind` matches and whose values fit retail's fields is used; one that

@@ -184,6 +184,83 @@ TEST_F(ItemDocuments, AnUnknownFieldIsReportedButNotRefused) {
     EXPECT_EQ(GetItemData(ITEM_PRICKLY)->vol, 7);
 }
 
+TEST_F(ItemDocuments, PatchesFromSeveralPacksCombineAndTheLaterPackWins) {
+    // Each pack changes only the fields it names; both change the Repair Powder's volume.
+    Pack("quick", "items.patch.json", {
+                                          {"schema_version", 2                                                                 },
+                                          {"kind",           "items_patch"                                                     },
+                                          {"items",          {{{"item_no", ITEM_REPAIR_POWDER}, {"stack_kind", 0}, {"vol", 3}}}}
+    });
+    Pack("bigger", "items.patch.json", {
+                                           {"schema_version", 2                                                                                       },
+                                           {"kind",           "items_patch"                                                                           },
+                                           {"items",          {{{"item_no", ITEM_REPAIR_POWDER}, {"vol", 5}}, {{"item_no", ITEM_PRICKLY}, {"vol", 9}}}}
+    });
+    Pack("bigger", "prices.patch.json", {
+                                            {"schema_version", 2                                               },
+                                            {"kind",           "prices_patch"                                  },
+                                            {"prices",         {{{"item_no", ITEM_PRICKLY}, {"buy_price", 77}}}}
+    });
+    Pack("bigger", "item_common.patch.json", {
+                                                 {"schema_version", 2                                                 },
+                                                 {"kind",           "item_common_patch"                               },
+                                                 {"records",        {{{"item_no", ITEM_PRICKLY}, {"model", "atfire"}}}}
+    });
+    const ITEM_DATA before = *GetItemData(ITEM_REPAIR_POWDER);
+    Order(R"("quick","bigger")");
+    EXPECT_EQ(GetItemData(ITEM_REPAIR_POWDER)->stack_kind, 0);
+    EXPECT_EQ(GetItemData(ITEM_REPAIR_POWDER)->vol, 5);
+    EXPECT_EQ(GetItemData(ITEM_REPAIR_POWDER)->use_flags, before.use_flags);
+    EXPECT_EQ(GetItemData(ITEM_PRICKLY)->vol, 9);
+    EXPECT_EQ(PriceList[ITEM_PRICKLY - ITEM_ATTACH_START].buy_price, 77);
+    EXPECT_STREQ(ITEM_NAME_TBL_NEW[ITEM_PRICKLY - ITEM_ATTACH_START], "atfire");
+
+    Order(R"("bigger","quick")");
+    EXPECT_EQ(GetItemData(ITEM_REPAIR_POWDER)->vol, 3);
+
+    Order("");
+    EXPECT_EQ(Tables(), compiled);
+}
+
+TEST_F(ItemDocuments, APatchGoesOverAReplacedTable) {
+    auto items = Document("items.json");
+    Row(items, "items", ITEM_REPAIR_POWDER)["vol"] = 8;
+    Pack("table", "items.json", items);
+    Pack("patch", "items.patch.json", {
+                                          {"schema_version", 2                                                     },
+                                          {"kind",           "items_patch"                                         },
+                                          {"items",          {{{"item_no", ITEM_REPAIR_POWDER}, {"stack_kind", 1}}}}
+    });
+    Order(R"("table","patch")");
+    EXPECT_EQ(GetItemData(ITEM_REPAIR_POWDER)->vol, 8);
+    EXPECT_EQ(GetItemData(ITEM_REPAIR_POWDER)->stack_kind, 1);
+}
+
+TEST_F(ItemDocuments, APatchRetailCannotReadIsRefusedWhole) {
+    Pack("fixed", "item_common.patch.json", {
+                                                {"schema_version", 2                                                                                                 },
+                                                {"kind",           "item_common_patch"                                                                               },
+                                                {"records",        {{{"item_no", ITEM_PRICKLY}, {"icon_index", 3}}, {{"item_no", ITEM_REPAIR_POWDER}, {"index", 52}}}}
+    });
+    Pack("range", "prices.patch.json", {
+                                           {"schema_version", 2                                                                                                        },
+                                           {"kind",           "prices_patch"                                                                                           },
+                                           {"prices",         {{{"item_no", ITEM_PRICKLY}, {"sell_price", 1}}, {{"item_no", ITEM_REPAIR_POWDER}, {"buy_price", 40000}}}}
+    });
+    Pack("twice", "items.patch.json", {
+                                          {"schema_version", 2                                                                                 },
+                                          {"kind",           "items_patch"                                                                     },
+                                          {"items",          {{{"item_no", ITEM_PRICKLY}, {"vol", 2}}, {{"item_no", ITEM_PRICKLY}, {"vol", 3}}}}
+    });
+    Pack("stranger", "attachments.patch.json", {
+                                                   {"schema_version", 2                                                },
+                                                   {"kind",           "attachments_patch"                              },
+                                                   {"attachments",    {{{"item_no", ITEM_WEAPON_START}, {"attack", 1}}}}
+    });
+    Order(R"("fixed","range","twice","stranger")");
+    EXPECT_EQ(Tables(), compiled);
+}
+
 TEST_F(ItemDocuments, EveryVanillaItemIsRegisteredWithTheTraitsItsRowsGive) {
     Order("");
     const auto all = item::All();
@@ -448,7 +525,10 @@ TEST_F(ItemDocuments, ACopyWithStateTravelsUnderAHandleThatAnswersAsItsItem) {
 
 TEST_F(ItemDocuments, ACopyKeptInASaveComesBackUnderAFreeHandle) {
     item::ClearCopies(7);
-    const int handle = item::RestoreCopy("chronicle:bass", 3, {{"size", 12.0}}, 1);
+    const int handle = item::RestoreCopy("chronicle:bass", 3, {
+                                                                  {"size", 12.0}
+    },
+                                         1);
     EXPECT_EQ(handle, item::kHandleFirst);
     EXPECT_EQ(item::FindCopy(handle)->instance, 3U);
     EXPECT_EQ(item::FindCopy(handle)->number, -1);
