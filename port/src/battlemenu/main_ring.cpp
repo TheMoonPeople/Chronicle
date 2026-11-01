@@ -396,8 +396,13 @@ void PortDrawBattleMenuMain() {
         }
         if (limit >= 0) {
             MenuTextureReload(CommonMenuMes1.tex_block);
-            CommonMenuMes1.text_x = 0x50;
-            CommonMenuMes1.text_y = 0x14A;
+            // Retail's place, low on the left, is under the rows the port adds to the ring (Options, Quit): the
+            // window goes to the screen's top right instead, as far in as the help box. Its frame starts 0x10 left
+            // of its text and is 0x20 wider (ClsMes::DrawMesWin).
+            constexpr int kLimitMargin = 20;
+            const int     frame_width = CommonMenuMes1.char_width * CommonMenuMes1.text_columns + 0x20;
+            CommonMenuMes1.text_x = 640 - kLimitMargin - frame_width + 0x10;
+            CommonMenuMes1.text_y = kLimitMargin + 0xE;
             CommonMenuMes1.stay_frame = true;
             CommonMenuMes1.Step();
             CommonMenuMes1.DrawMesWin();
