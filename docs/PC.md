@@ -1578,6 +1578,17 @@ the pointer.
 The hit areas are the places the pages draw their brackets at (`ItemMenuModeDraw`, `WeaponMenuDraw`,
 `DrawCharaSelect`, `DrawAtoraSelect`, `DrawMenuMove`), so they follow the interface size and aspect.
 
+The Georama menu (Triangle in Georama mode) takes the mouse the same way on the pages the port draws
+on the UI framework (`editmenu.cpp`, `EditMenuMouseUpdate`). Config/Assembly and Move/Remove leave it
+to the pad's buttons; Save and Option open the shared save board and Options screen, which take it
+themselves.
+
+| Page | Hover and click | Wheel |
+|---|---|---|
+| Main menu | an icon's row moves the selection; click opens the page | |
+| Analysis | the Request heading opens the request list (Square) | |
+| Request list | a building's row selects it | steps the list |
+
 ## Arenas
 
 `CDataAlloc2<1>::Alloc/Alloc64/Align64` and the carving in

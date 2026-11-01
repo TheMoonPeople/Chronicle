@@ -24,11 +24,14 @@
 #include "menu_misc.hpp"
 #include "menu_save.hpp"
 #include "menuitemstep.hpp"
+#include "platform/input.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
+#include "text/gametext.hpp"
 #include "texture.hpp"
 #include "ui/framework.hpp"
 #include "ui/georama_requests.hpp"
+#include "ui/menu_pointer.hpp"
 
 namespace dc::game {
 
@@ -111,6 +114,14 @@ float          WindowPos[2];
 float          EditMenuWinW;
 float          EditMenuWinH;
 s16            MakeWin2Flag;
+
+// The main menu's help box, the town ring's (battlemenu/main_ring.cpp).
+constexpr int kHelpBoxWidth = 276;
+constexpr int kHelpBoxBottom = 452;
+
+// The pages the port draws on the UI framework, which take the mouse.
+ui::MenuPointer g_pointer;
+bool            g_mouse_page_drawn = false;
 
 int  EditMenuStart();
 void EditMenuSelectDraw();
@@ -367,6 +378,40 @@ bool GetDrawHelpWindow(int draw) {
     return draw != 0;
 }
 
+/**
+ * Whether the menu shows its icon list: opening, choosing a page, or closing.
+ */
+bool OnMainMenu() {
+    return EditSwitch == EditMenuState::Start || EditSwitch == EditMenuState::Select || EditSwitch == EditMenuState::Exit;
+}
+
+/**
+ * Draws the selected icon's help on the framework's help box, as the town ring draws its own: retail's
+ * help message, its first line the title.
+ */
+void DrawMainMenuHelp(int alpha) {
+    MENU_ICON_INFO *info = GetMenuIconInfo(EditMenuIconID[EdCur.selection]);
+    const s16      *codes = info != nullptr ? CommonMenuMes2.GetTextLineDataTop(info->help_mes_no) : nullptr;
+
+    if (codes == nullptr) {
+        return;
+    }
+
+    std::string       text = text::GameTextDecode(codes);
+    const std::size_t line_end = text.find('\n');
+    std::string       title = text.substr(0, line_end);
+    std::string       desc = line_end != std::string::npos ? text.substr(line_end + 1) : std::string();
+
+    while (!desc.empty() && (desc.back() == '\n' || desc.back() == ' ')) {
+        desc.pop_back();
+    }
+
+    int text_x = 0;
+    int text_y = 0;
+    GetMainMenuRightHelpMsgLangOffset(text_x, text_y);
+    ui::HelpBox::DrawTitled(static_cast<int>(WindowPos[0]), kHelpBoxBottom, kHelpBoxWidth, text_x, title, desc, alpha);
+}
+
 } // namespace
 
 void EditMenuInit(int *texture_blocks, int start_at_atora) {
@@ -511,6 +556,12 @@ void EditMenuDraw() {
             MenuTextureReload(0x1A);
             ui::Label(localize::LocalizeText("requests.analysis", "{square} Requests   {circle} Back"), ui::ColorWhite, ui::Alignment::Center)
                 .Draw(320, 418, 0x80);
+
+            // The page has no hand of its own; the mouse's follows the pointer.
+            if (g_pointer.IsOpen() && g_pointer.pointing) {
+                DrawMenuObjectVibe(0, 0, 1, 0x40);
+            }
+
             break;
         case EditMenuState::Requests:
             AnalyzeEditDraw();
@@ -544,6 +595,10 @@ void EditMenuDraw() {
             break;
         default:
             break;
+    }
+
+    if (EditSwitch == EditMenuState::Select || EditSwitch == EditMenuState::Analyze || EditSwitch == EditMenuState::Requests) {
+        g_mouse_page_drawn = true;
     }
 
     CursorVibeCnt++;
@@ -582,14 +637,17 @@ void EditMenuDraw() {
         }
 
         if (GetDrawHelpWindow(MakeWin2Flag)) {
-            MenuHelpWinDraw(static_cast<int>(WindowPos[0]), static_cast<int>(WindowPos[1]), EditMenuWinW, EditMenuWinH, EdMenuHelpWinAlpha);
-
             if (EdMenuMesMake2 != 0) {
                 EdMenuMesMake2 = CommonMenuMes2.MakeMesWin(EdMenuMesNo2);
             }
 
-            CommonMenuMes2.Step();
-            CommonMenuMes2.DrawMesWin();
+            if (OnMainMenu()) {
+                DrawMainMenuHelp(EdMenuHelpWinAlpha);
+            } else {
+                MenuHelpWinDraw(static_cast<int>(WindowPos[0]), static_cast<int>(WindowPos[1]), EditMenuWinW, EditMenuWinH, EdMenuHelpWinAlpha);
+                CommonMenuMes2.Step();
+                CommonMenuMes2.DrawMesWin();
+            }
         }
     }
 
@@ -666,15 +724,11 @@ int EditMenuStart() {
 }
 
 /**
- * Draws the edit menu page and its selected icon.
+ * Gives where the hand rests beside an icon of the edit menu page.
  */
-void EditMenuSelectDraw() {
-    DrawMoveMenuIcon();
-
-    int   icon_max = GetEditMenuMax();
-    s8    selection = EdCur.selection;
-    float slot = selection;
-    float x = 48.0f + 16.0f * slot;
+void IconCursorTarget(int selection, float &x, float &y) {
+    int icon_max = GetEditMenuMax();
+    x = 48.0f + 16.0f * static_cast<float>(selection);
 
     if (icon_max == 6) {
         if (selection == icon_max - 2) {
@@ -690,14 +744,45 @@ void EditMenuSelectDraw() {
         x -= 32.0f;
     }
 
-    float y = 76.0f + 40.0f * selection;
+    y = 76.0f + 40.0f * static_cast<float>(selection);
+}
+
+/**
+ * Gives the selection frame of an icon of the edit menu page: the icon and its caption.
+ */
+ui::Rect IconRect(int slot) {
+    float x = 0.0f;
+    float y = 0.0f;
+    IconCursorTarget(slot, x, y);
+    MENU_ICON_INFO *info = GetMenuIconInfo(EditMenuIconID[slot]);
+    return ui::Rect(static_cast<int>(x + 18.0f), static_cast<int>(y - 15.0f), info->label_width + 0x4A, 0x28);
+}
+
+/**
+ * Gives an icon's row for the mouse: from the hand's column to the end of its caption, the rows
+ * staggering right as the frames do.
+ */
+ui::Rect IconRow(int slot) {
+    const ui::Rect frame = IconRect(slot);
+    return ui::Rect(32, frame.y, frame.Right() - 32, frame.h);
+}
+
+/**
+ * Draws the edit menu page and its selected icon.
+ */
+void EditMenuSelectDraw() {
+    DrawMoveMenuIcon();
+
+    float x = 0.0f;
+    float y = 0.0f;
+    IconCursorTarget(EdCur.selection, x, y);
 
     EdCur.x += (x - EdCur.x) / 4.0f;
     EdCur.y += (y - EdCur.y) / 3.0f;
 
     MENU_ICON_INFO *info = GetMenuIconInfo(EditMenuIconID[EdCur.selection]);
-    int             width = info->label_width + 0x4A;
-    DrawMenuWaku(x + 18.0f, y - 15.0f, width, 0x28, 0, StayTex, 0x80);
+    const ui::Rect  frame = IconRect(EdCur.selection);
+    DrawMenuWaku(static_cast<float>(frame.x), static_cast<float>(frame.y), frame.w, frame.h, 0, StayTex, 0x80);
     DrawMenuObjectVibe(static_cast<int>(EdCur.x), static_cast<int>(EdCur.y), 1, 0x40);
 
     CommonMenuMes2.stay_frame = false;
@@ -1145,11 +1230,19 @@ int AnalyzeBarDraw() {
 }
 
 /**
+ * Gives where the analysis page draws a bar's heading: Collection, Complete, Request.
+ */
+ui::Rect AnalyzeHeadingRect(int bar) {
+    return ui::Rect((bar * 0xB5) + 0x56, 0x14a, 0x7E, 0x50);
+}
+
+/**
  * Draws the analysis page's three bar headings.
  */
 void DrawAnalyzeHeadings() {
     for (int bar = 0; bar < 3; bar++) {
-        DrawMenu2DSprite(Analyze, CRect_i_((bar * 0xB5) + 0x56, 0x14a, 0x7E, 0x50), CRect_i_(0x80, bar * 0x50, 0x7E, 0x50), 0x80);
+        const ui::Rect heading = AnalyzeHeadingRect(bar);
+        DrawMenu2DSprite(Analyze, CRect_i_(heading.x, heading.y, heading.w, heading.h), CRect_i_(0x80, bar * 0x50, 0x7E, 0x50), 0x80);
     }
 }
 
@@ -1472,5 +1565,78 @@ void EdMenuManualDraw() {
 }
 
 } // namespace
+
+bool EditMenuMouseOpen() {
+    const bool drawn = g_mouse_page_drawn;
+    g_mouse_page_drawn = false;
+    return drawn;
+}
+
+void EditMenuMouseUpdate() {
+    if (!g_pointer.IsOpen()) {
+        // What is held as the menu opens (the press that opened it) acts only once let go.
+        g_pointer.Open();
+    }
+    ui::MenuPointerShow(&g_pointer);
+
+    const ui::MenuPointerTake take = g_pointer.Take(EdCur.x, EdCur.y);
+    if (!take.pointing) {
+        return;
+    }
+
+    const float x = g_pointer.x;
+    const float y = g_pointer.y;
+    int         pressed = 0;
+
+    switch (EditSwitch) {
+        case EditMenuState::Select: {
+            int hit = -1;
+
+            for (int slot = 0; slot < GetEditMenuMax(); slot++) {
+                if (IconRow(slot).Contains(x, y)) {
+                    hit = slot;
+                }
+            }
+
+            if (hit >= 0 && hit != EdCur.selection && (take.moved || (take.clicked & 1) != 0)) {
+                EdCur.selection = static_cast<s8>(hit);
+                ComMenuSePlay(MENU_SOUND_CURSOR);
+            }
+
+            if ((take.clicked & 1) != 0 && hit >= 0) {
+                pressed = kInputCross;
+            }
+
+            break;
+        }
+        case EditMenuState::Analyze:
+            if ((take.clicked & 1) != 0 && AnalyzeHeadingRect(2).Contains(x, y)) {
+                pressed = kInputSquare;
+            }
+
+            break;
+        case EditMenuState::Requests:
+            // The list follows the hand itself (ListView); the wheel moves through it.
+            if (take.wheel > 0.0f) {
+                pressed = kInputUp;
+            } else if (take.wheel < 0.0f) {
+                pressed = kInputDown;
+            }
+
+            break;
+        default:
+            break;
+    }
+
+    if (pressed == 0 && (take.clicked & 2) != 0) {
+        pressed = kInputCircle;
+    }
+
+    ui::MenuPointerPress(pressed);
+}
+
+void EditMenuMouseRelease() {
+    g_pointer.Close();
+}
 
 } // namespace dc::game

@@ -63,14 +63,15 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Weapon menu, its buttons and help | `port/src/battlemenu/weapon_menu.cpp` | `BevelButton`, `TrackerWindow`, `HelpBox`, `Label`, `WrapText` |
 | World map and leave-dungeon prompt | `port/src/battlemenu/move_menu.cpp` | `ConfirmModal`, `Cursor` |
 | Journal: manuals and chest tracker | `port/src/game/menu_manual.cpp`, `port/src/ui/journal_chest.cpp` | `Tracker` (section 11) |
-| Georama request list, over the Analysis page | `port/src/game/editmenu.cpp`, `port/src/ui/georama_requests.cpp` | `Catalogue` (section 11) |
+| Georama menu: main menu, Analysis page and request list | `port/src/game/editmenu.cpp`, `port/src/ui/georama_requests.cpp` | `HelpBox`, `Label`, `Catalogue` (section 11) |
 | Options | `port/src/options/` | `TabPlate`, `TextureButton`, `ScrollBar`, `Cursor`, `Label` |
 | Villager conversation hub | `port/src/dialog/framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
 
 Still retail's: the save and load boards (`DrawMenuSave`, port-drawn but copied from retail), the
-item menu, shops, storage, the item picker, the Georama menus, the fishing exchange, the floor
-select and the dungeon HUD.
+item menu, shops, storage, the item picker, the Georama menu's Config/Assembly and
+Move/Remove pages, the fishing exchange, the floor select and the
+dungeon HUD.
 
 ### What the code holds
 
@@ -377,6 +378,12 @@ with `dialog::`, so the UI framework never knows what a fish or an enemy is.
   retail keeps it (`request[part]`, cleared while the part is incomplete), and the villagers living
   there who are back in town, by the villager table's home part and the part's element for them; their
   names and the parts' are the game's own messages.
+- **Georama menu:** the main menu and the Analysis page keep retail's pictures (the icons, the
+  selection frame, the hand, the bars and headings), which the pictures-first rule (section 2) asks; the
+  icon's help is the town ring's `HelpBox`, filled from retail's own help message (`allmenu.mes`, the
+  first line the title), so every language has retail's wording. Captures match retail's state by state
+  except that box. The icon rows and the Analysis headings say where they are (`IconRow`,
+  `AnalyzeHeadingRect`), which the menu's mouse reads (docs/PC.md, "The mouse in the pause menu").
 - **The stone banner outside the battle menu:** its picture (`wepstatus`) is in the battle menu's pack,
   and only the battle menu loads it. A screen drawn elsewhere loads it into a block of its own with
   `TrackerWindow::LoadStoneBanner` and lets it go with `ReleaseStoneBanner`; the request list uses the

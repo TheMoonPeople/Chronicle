@@ -7,11 +7,12 @@
 #include <span>
 
 #include "battlemenu.hpp"
-#include "battlemenu/main_ring.hpp"
 #include "battlemenu/internal.hpp"
+#include "battlemenu/main_ring.hpp"
 #include "clsmes.hpp"
 #include "dialog/npc.hpp"
 #include "dngstatusdata.hpp"
+#include "editmenu.hpp"
 #include "editpartsinfo.hpp"
 #include "gamepad.hpp"
 #include "itemdata.hpp"
@@ -1172,6 +1173,14 @@ void MenuMouseUpdate() {
         return;
     }
     DialogNpcMouseRelease();
+
+    if (EditMenuMouseOpen()) {
+        // The Georama menu's pages on the UI framework (editmenu.cpp).
+        g_battle.Close();
+        EditMenuMouseUpdate();
+        return;
+    }
+    EditMenuMouseRelease();
 
     if (battle && BattleMenuFlag != BTLMENU_STATE_EXIT && BattleMenuFlag != BTLMENU_STATE_APPEAR) {
         BattleMouse();
