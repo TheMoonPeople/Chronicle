@@ -42,8 +42,9 @@ struct TrackerSource {
     std::string                                           filter_off;     /**< The filter line while not. */
     std::function<int()>                                  group_count;
     std::function<std::string(int group)>                 group_name;
-    std::function<std::vector<TrackerRow>(int, bool)>     rows;  /**< A group's rows, filtered or not. */
-    std::function<TrackerTally(int group, bool filtered)> tally; /**< A group's tally, filtered or not. */
+    std::function<std::vector<TrackerRow>(int, bool)>     rows;         /**< A group's rows, filtered or not. */
+    std::function<TrackerTally(int group, bool filtered)> tally;        /**< A group's tally, filtered or not. */
+    std::function<bool(int group)>                        group_locked; /**< Drawn grey, not yet reached; empty for none. */
 };
 
 /**

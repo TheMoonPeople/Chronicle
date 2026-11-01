@@ -112,8 +112,17 @@ TownStats GetTownStats(int town_index) {
     return stats;
 }
 
+// A town is listed once reached, as the Atla menu lists its parts: visited, or its dungeon entered.
+bool TownLocked(int town) {
+    const int id = TRACKER_TOWNS[town].town_id;
+    return SaveData == nullptr || (SaveData->VisitMap(id, 0) == 0 && SaveData->QuestDungeon(id, 0) == 0);
+}
+
 // The rows of a town's breakdown: each stat boost, and the standard items when not filtered.
 std::vector<ui::TrackerRow> TownRows(int town, bool filtered) {
+    if (TownLocked(town)) {
+        return {};
+    }
     const TownStats stats = GetTownStats(town);
 
     const int defense_item = kDefenseTreatItems[(s_item_anim_tick / 60) % kDefenseTreatItems.size()];
@@ -146,12 +155,18 @@ std::vector<ui::TrackerRow> TownRows(int town, bool filtered) {
 }
 
 ui::TrackerTally TownTally(int town, bool filtered) {
+    if (TownLocked(town)) {
+        return {};
+    }
     const TownStats stats = GetTownStats(town);
     return filtered ? ui::TrackerTally{.done = stats.collected_miracle, .total = stats.max_miracle}
                     : ui::TrackerTally{.done = stats.collected_total, .total = stats.max_total};
 }
 
 std::string TownName(int town) {
+    if (TownLocked(town)) {
+        return LocalizeText("tracker.town.unknown", "???");
+    }
     return LocalizeText("tracker.town." + std::to_string(town), TRACKER_TOWNS[town].name);
 }
 
@@ -170,7 +185,8 @@ void Open() {
                     .group_count = [] { return TRACKER_TOWN_COUNT; },
                     .group_name = TownName,
                     .rows = TownRows,
-                    .tally = TownTally});
+                    .tally = TownTally,
+                    .group_locked = TownLocked});
 }
 
 void HandlePointer(float x, float y) {
@@ -210,6 +226,7 @@ void AppendStrings(std::vector<std::pair<std::string, std::string>> &out) {
     for (size_t i = 0; i < std::size(TRACKER_TOWNS); ++i) {
         out.emplace_back("tracker.town." + std::to_string(i), TRACKER_TOWNS[i].name);
     }
+    out.emplace_back("tracker.town.unknown", "???");
 }
 
 } // namespace dc::ui::journal_chest

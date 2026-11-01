@@ -355,6 +355,7 @@
     "tracker.town.2": "Queens",
     "tracker.town.3": "Muska Lacka",
     "tracker.town.4": "Gocce Gialle",
+    "tracker.town.unknown": "???",
     "requests.title": "GEORAMA: RICHIESTE",
     "requests.list": "EDIFICI",
     "requests.summary": "Richieste soddisfatte",

@@ -337,7 +337,9 @@ widgets, each with retail's look:
   beneath; the selected group's rows (an item icon, a label, a tally), its tally and a progress bar are
   on the right, with an optional filter line above. Up and Down choose a group, Cross or Square turns
   the filter, Circle backs out; `GroupRect` and `FilterRect` say where the mouse hits. A screen hands it
-  a `TrackerSource`: its strings and callbacks for the groups, their rows and tallies. The journal's
+  a `TrackerSource`: its strings and callbacks for the groups, their rows and tallies, and which groups
+  are not reached yet (drawn grey; the chest tracker names them "???", with no rows and no tally, so its
+  world total counts the towns reached). The journal's
   chest tracker is the first, moved onto it unchanged (identical captures, state by state). Achievements,
   collections, the Georama reward checklist.
 - **Pages:** paged text and pictures turned as the manuals are. Tutorials, journal entries.

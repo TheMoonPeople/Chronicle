@@ -355,6 +355,7 @@
     "tracker.town.2": "Queens",
     "tracker.town.3": "Muska Lacka",
     "tracker.town.4": "Gouttes Jaunes",
+    "tracker.town.unknown": "???",
     "requests.title": "GÉORAMA : DEMANDES",
     "requests.list": "BÂTIMENTS",
     "requests.summary": "Demandes satisfaites",

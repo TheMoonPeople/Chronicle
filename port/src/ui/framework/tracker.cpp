@@ -113,7 +113,9 @@ void Tracker::Draw() {
 
     for (int group = 0; group < groups; group++) {
         const bool selected = group == m_selected;
-        Label(m_source.group_name(group), selected ? ColorYellow : ColorWhite, Alignment::Left, true, kBodyScale)
+        const bool locked = m_source.group_locked && m_source.group_locked(group);
+        const u32  color = locked ? ColorGrey : (selected ? ColorYellow : ColorWhite);
+        Label(m_source.group_name(group), color, Alignment::Left, true, kBodyScale)
             .Draw(kLeftPaneX, kListY + (group * kRowSpacing), selected ? 0x80 : 0x58);
     }
 
