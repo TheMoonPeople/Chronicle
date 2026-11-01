@@ -20,6 +20,7 @@
 #include "item/framework.hpp"
 #include "item/host.hpp"
 #include "platform/datapacks.hpp"
+#include "quest/documents.hpp"
 #include "shop.hpp"
 #include "tests/platform_fixture.hpp"
 
@@ -294,8 +295,15 @@ TEST_F(FishingDocuments, TheIncludedEnhancedFishingPackLoadsWhole) {
     fs::copy(pack, directory / "datapacks/enhanced_fishing", fs::copy_options::recursive);
     testing::internal::CaptureStderr();
     Order(R"("enhanced_fishing")");
+    quest::LoadDocuments();
     const std::string told = testing::internal::GetCapturedStderr();
     EXPECT_EQ(told.find("config:"), std::string::npos) << told;
+    // Ruty's rods, its quest, with its text.
+    bool ruty = false;
+    for (const auto &[key, text] : quest::DocumentStrings()) {
+        ruty |= key == "quest.rutys_rods.ruty.ask";
+    }
+    EXPECT_TRUE(ruty);
 
     for (int spot = 0; spot < 5; spot++) {
         EXPECT_TRUE(fishing::PlaceAtSpot(spot)->bite->ChoosesForTheCast()) << spot; // brisk

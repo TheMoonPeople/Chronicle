@@ -1,0 +1,135 @@
+{
+  "schema_version": 2,
+  "kind": "quest",
+  "id": "rutys_rods",
+  "stages": ["hidden", "offered", "inland", "mardan", "baron", "done"],
+  "rules": [
+    {
+      "from": "hidden",
+      "when": { "all": [{ "villager_home": { "town": "queens", "villager": 1 } }, { "caught_a_fish": true }] },
+      "to": "offered"
+    }
+  ],
+  "counters": [
+    {
+      "count": "fish_species",
+      "var": "inland",
+      "species": ["vanilla:fish_1", "vanilla:fish_2", "vanilla:fish_4", "vanilla:fish_6", "vanilla:fish_7", "vanilla:fish_9", "vanilla:fish_10"],
+      "while_at": ["inland"]
+    },
+    { "count": "fish_caught", "var": "mardan", "species": "vanilla:fish_5", "while_at": ["mardan"] },
+    { "count": "fish_caught", "var": "baron", "species": "vanilla:fish_17", "while_at": ["baron"] }
+  ],
+  "options": [
+    {
+      "npc": { "town": "queens", "villager": 1 },
+      "when": { "at_stage": "offered" },
+      "label": "ruty.ask",
+      "steps": [
+        { "say": "ruty.offer", "args": [{ "system_text": 10, "or": "Norune Village" }, { "system_text": 12, "or": "Matataki Village" }] },
+        { "stage": "inland" }
+      ]
+    },
+    {
+      "npc": { "town": "queens", "villager": 1 },
+      "when": { "at_stages": ["inland", "mardan", "baron", "done"] },
+      "label": "ruty.about",
+      "steps": [
+        {
+          "if": { "at_stage": "inland" },
+          "then": [
+            {
+              "if": { "var_at_least": { "var": "inland", "value": 7 } },
+              "then": [
+                {
+                  "give_item": "chronicle:sea_rod",
+                  "then": [
+                    { "stage": "mardan" },
+                    { "say": "ruty.sea_rod", "args": [{ "system_text": 10, "or": "Norune Village" }, { "system_text": 12, "or": "Matataki Village" }] },
+                    {
+                      "show_item_received": "chronicle:sea_rod",
+                      "then": [{ "say_then_close": "ruty.mardan_ask" }],
+                      "else": [{ "say": "received", "args": [{ "item_name": "chronicle:sea_rod" }] }, { "say": "ruty.mardan_ask" }]
+                    }
+                  ],
+                  "else": [{ "say": "ruty.no_room" }]
+                }
+              ],
+              "else": [{ "say": "ruty.inland_waiting", "args": [{ "var_left": "inland", "of": 7 }] }]
+            }
+          ],
+          "else": [
+            {
+              "if": { "at_stage": "mardan" },
+              "then": [
+                {
+                  "if": { "var_at_least": { "var": "mardan", "value": 1 } },
+                  "then": [
+                    {
+                      "give_item": "chronicle:garayan_rod",
+                      "then": [
+                        { "stage": "baron" },
+                        { "say": "ruty.garayan_rod" },
+                        {
+                          "show_item_received": "chronicle:garayan_rod",
+                          "then": [{ "say_then_close": "ruty.baron_tale" }],
+                          "else": [{ "say": "received", "args": [{ "item_name": "chronicle:garayan_rod" }] }, { "say": "ruty.baron_tale" }]
+                        }
+                      ],
+                      "else": [{ "say": "ruty.no_room" }]
+                    }
+                  ],
+                  "else": [{ "say": "ruty.mardan_waiting" }]
+                }
+              ],
+              "else": [
+                {
+                  "if": { "at_stage": "baron" },
+                  "then": [
+                    {
+                      "if": { "var_at_least": { "var": "baron", "value": 1 } },
+                      "then": [
+                        {
+                          "give_item": "chronicle:baron_rod",
+                          "then": [
+                            { "stage": "done" },
+                            { "say": "ruty.baron_rod" },
+                            {
+                              "show_item_received": "chronicle:baron_rod",
+                              "then": [{ "say_then_close": "ruty.suzy" }],
+                              "else": [{ "say": "received", "args": [{ "item_name": "chronicle:baron_rod" }] }, { "say": "ruty.suzy" }]
+                            }
+                          ],
+                          "else": [{ "say": "ruty.no_room" }]
+                        }
+                      ],
+                      "else": [{ "say": "ruty.baron_waiting" }]
+                    }
+                  ],
+                  "else": [{ "say": "ruty.afterwards" }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "text": {
+    "ruty.ask": "I've been fishing.",
+    "ruty.about": "About the fish",
+    "ruty.offer": "Hey, brother! I hear you've been fishing. Mind if I ask you something?{page}I study fish, see. I've seen every sea fish that comes through this port... but never one from inland.{page}River fish, pond fish... I've only ever read about 'em. You'd tell me what you catch, wouldn't ya?{page}Catch every kind in %1 and %2, and I'll get you a real rod off the next boat in. Deal?",
+    "ruty.inland_waiting": "%1 more kinds to go, brother?{page}I've got a page in my notebook for each one. Don't leave me hanging!{page}If one won't bite, try another bait. Fish are picky. Like my customers.",
+    "ruty.sea_rod": "Every kind in %1 and %2? You're amazing, brother! My notebook's never been so full.{page}Here. A sailor owed me a favor, and this is how he paid me back. It's yours now.",
+    "ruty.mardan_ask": "There's one page I still can't fill. The Mardan Garayan.{page}Folks say seeing one brings you happiness. I've wanted to see one since I was a little girl.{page}If you ever catch one, tell me first, okay? Not Suzy. Me.",
+    "ruty.mardan_waiting": "Any luck with the Mardan Garayan?{page}I hear it won't touch worms. Only fruit. Strange tastes for a fish.{page}Then again, Mr. King won't eat fish at all. Who am I to judge?",
+    "ruty.garayan_rod": "You... you really caught one!? Tell me everything! What color was it? How big was it?{page}...I feel happy just hearing about it. Guess the stories were true.{page}You've earned better than that rod. I was saving this one for something special. This is it.",
+    "ruty.baron_tale": "Hey, between you and me...{page}There's a drawing in my oldest fish book. A Garayan bigger than any net. The book calls it the Baron.{page}Nobody's seen one in a hundred years. Most folks say it never existed.{page}But a week ago, I'd have said the same about the Mardan Garayan.",
+    "ruty.baron_waiting": "Still chasing the Baron?{page}If it's half as big as that drawing, hold on tight. I don't wanna be the one fishing YOU out of the water.",
+    "ruty.baron_rod": "No way... The Baron Garayan!?{page}A hundred years, and you're the one who found it! My old book was right!{page}Here, brother. It's the best rod I've got. I was gonna sell it, but... nobody deserves it more than you.",
+    "ruty.suzy": "Just don't tell Suzy I gave it away for free. She'd never let me hear the end of it.",
+    "ruty.afterwards": "My notebook's full, thanks to you.{page}Come buy some fish sometime, brother. I'll give ya the friend's price.",
+    "ruty.no_room": "Your bag's full, brother. Make some room, and I'll give you what I owe ya.",
+    "received": "Received the %1."
+  }
+}

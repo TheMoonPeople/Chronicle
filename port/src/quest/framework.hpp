@@ -425,6 +425,7 @@ public:
      * The quest's stages; it starts at the first.
      */
     Builder &Stages(std::initializer_list<std::string_view> stages);
+    Builder &Stages(std::vector<std::string> stages);
     /**
      * A rule: at stage from, once when holds, the quest moves to stage to.
      */

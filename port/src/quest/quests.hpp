@@ -7,9 +7,9 @@
 
 #include "quest/framework.hpp"
 
-// The port's quests (docs/QUEST_FRAMEWORK.md), one file each in this folder. A new quest is a
-// function here and a line in RegisterAllQuests: the list is spelled out rather than filled in by
-// globals, which a linker is free to leave out of a static library.
+// The port's quests in code (docs/QUEST_FRAMEWORK.md): only those that take over something retail does
+// itself; every other quest is a document (quest/documents.hpp). The list is spelled out rather than
+// filled in by globals, which a linker is free to leave out of a static library.
 
 namespace dc::quest {
 
@@ -39,30 +39,13 @@ Definition MayorSupplies();
 std::span<const Text> MayorSuppliesTexts();
 
 /**
- * Builds Carl's Slingshot, the example quest of docs/QUEST_FRAMEWORK.md.
+ * Registers every quest: the Mayor's, then the quest documents (quest/documents.hpp) in ID order, the
+ * order their choices appear in an NPC's menu.
  */
-Definition CarlsSlingshot();
-
-/**
- * Lists the slingshot quest localization text.
- */
-std::span<const Text> CarlsSlingshotTexts();
-
-/**
- * Registers every quest above, in the order their choices appear in an NPC's menu.
- */
-/**
- * Ruty's rods, Enhanced fishing's quest (rutys_rods.cpp): registered only where the Enhanced fishing
- * pack's rods are.
- */
-Definition            RutysRods();
-std::span<const Text> RutysRodsTexts();
-bool                  RutysRodsAvailable();
-
 void RegisterAllQuests();
 
 /**
- * Lists all quest localization keys and their English text.
+ * Lists the quests' localization keys and their English: the Mayor's, and the documents' read.
  */
 std::vector<std::pair<std::string, std::string>> QuestStrings();
 

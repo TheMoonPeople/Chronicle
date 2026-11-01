@@ -287,6 +287,11 @@ Builder &Builder::Stages(std::initializer_list<std::string_view> stages) {
     return *this;
 }
 
+Builder &Builder::Stages(std::vector<std::string> stages) {
+    quest.stages = std::move(stages);
+    return *this;
+}
+
 Builder &Builder::Advance(std::string_view from, Condition when, std::string_view to) {
     quest.rules.push_back({.from = std::string(from), .when = std::move(when), .to = std::string(to)});
     return *this;

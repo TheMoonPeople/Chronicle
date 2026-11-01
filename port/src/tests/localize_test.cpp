@@ -22,6 +22,7 @@
 #include "platform/config.hpp"
 #include "platform/datapacks.hpp"
 #include "platform/paths.hpp"
+#include "quest/documents.hpp"
 #include "text/gametext.hpp"
 
 namespace dc::test {
@@ -688,10 +689,70 @@ TEST(LocalizeLanguages, ChangingTheLanguageSettingWaitsForTheGameToSwitch) {
 
 // ---- the Options screen's own text ----
 
-// port/lang/ ships the port's registered strings in each language: the same keys as the code has, nothing
-// else, and the same placeholders and pad glyph codes as the English.
+namespace {
+
+// What a translation must keep as the English has it: every {code} and every %N.
+std::string Tokens(const std::string &text) {
+    std::string out;
+    for (size_t at = 0; at < text.size(); at++) {
+        if (text[at] == '%' && at + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[at + 1]))) {
+            out += text.substr(at, 2);
+        } else if (text[at] == '{' && text.find('}', at) != std::string::npos) {
+            out += text.substr(at, text.find('}', at) - at + 1);
+        }
+    }
+    return out;
+}
+
+// The text of the quest documents in a gameplay/quests folder.
+void AddQuestStrings(const fs::path &folder, std::map<std::string, std::string> &english) {
+    if (!fs::is_directory(folder)) {
+        return;
+    }
+    for (const fs::directory_entry &entry : fs::directory_iterator(folder)) {
+        std::ifstream stream(entry.path());
+        for (const auto &[key, text] : quest::DocumentStrings(nlohmann::json::parse(stream))) {
+            EXPECT_TRUE(english.emplace(key, text).second) << "two strings called " << key;
+        }
+    }
+}
+
+// A lang folder holds every one of english's keys in each language, nothing else, each translation with the
+// English's placeholders and pad glyph codes.
+void ExpectTranslations(const fs::path &lang, const std::map<std::string, std::string> &english) {
+    int files = 0;
+    for (const char *name : {"fr_fr", "de_de", "it_it", "es_es"}) {
+        std::ifstream stream(lang / (std::string(name) + ".json"));
+        ASSERT_TRUE(stream) << lang << " " << name;
+        const auto shipped = nlohmann::ordered_json::parse(stream);
+        files++;
+        for (const auto &[key, text] : english) {
+            if (!shipped.contains(key)) {
+                ADD_FAILURE() << lang << " " << name << " lacks " << key;
+                continue;
+            }
+            const std::string translated = shipped[key];
+            EXPECT_FALSE(translated.empty()) << name << " " << key;
+            EXPECT_EQ(Tokens(translated), Tokens(text)) << name << " " << key << ": placeholders and pad glyphs differ";
+        }
+        for (const auto &item : shipped.items()) {
+            EXPECT_TRUE(english.contains(item.key())) << lang << " " << name << " has " << item.key() << " that nothing shows";
+        }
+    }
+    EXPECT_EQ(files, 4);
+}
+
+const fs::path &PortDir() {
+    static const fs::path port = fs::path(__FILE__).parent_path().parent_path().parent_path();
+    return port;
+}
+
+} // namespace
+
+// port/lang/ ships the port's registered strings in each language and its own quest documents': the same
+// keys as the code and the documents have, nothing else.
 TEST(LocalizeOptions, ShippedTranslationsHaveExactlyTheCodesKeys) {
-    const fs::path lang = fs::path(__FILE__).parent_path().parent_path().parent_path() / "lang";
+    const fs::path lang = PortDir() / "lang";
     ASSERT_TRUE(fs::is_directory(lang)) << lang;
 
     std::map<std::string, std::string> english;
@@ -699,43 +760,27 @@ TEST(LocalizeOptions, ShippedTranslationsHaveExactlyTheCodesKeys) {
         EXPECT_TRUE(english.emplace(key, text).second) << "two strings called " << key;
     }
     EXPECT_GT(english.size(), 100U);
+    AddQuestStrings(PortDir() / "gameplay/quests", english);
+    EXPECT_TRUE(english.contains("quest.carls_slingshot.carl.ask"));
+    ExpectTranslations(lang, english);
+}
 
-    // What a translation must keep as the English has it: every {code} and every %N.
-    auto tokens = [](const std::string &text) {
-        std::string out;
-        for (size_t at = 0; at < text.size(); at++) {
-            if (text[at] == '%' && at + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[at + 1]))) {
-                out += text.substr(at, 2);
-            } else if (text[at] == '{' && text.find('}', at) != std::string::npos) {
-                out += text.substr(at, text.find('}', at) - at + 1);
-            }
+// A pack the port ships translates its own quests in its lang/, every language.
+TEST(LocalizeOptions, ShippedPacksTranslateTheirQuests) {
+    int packs = 0;
+    for (const fs::directory_entry &pack : fs::directory_iterator(PortDir() / "datapacks")) {
+        if (!pack.is_directory()) {
+            continue;
         }
-        return out;
-    };
-
-    int files = 0;
-    for (const char *name : {"fr_fr", "de_de", "it_it", "es_es"}) {
-        std::ifstream stream(lang / (std::string(name) + ".json"));
-        ASSERT_TRUE(stream) << name;
-        const auto shipped = nlohmann::ordered_json::parse(stream);
-        files++;
-        for (const auto &[key, text] : english) {
-            if (!shipped.contains(key)) {
-                ADD_FAILURE() << name << " lacks " << key;
-                continue;
-            }
-            const std::string translated = shipped[key];
-            EXPECT_FALSE(translated.empty()) << name << " " << key;
-            const std::string expected_tokens = tokens(text);
-            EXPECT_EQ(tokens(translated), expected_tokens)
-                << name << " " << key << ": placeholders and pad glyphs differ";
+        std::map<std::string, std::string> english;
+        AddQuestStrings(pack.path() / "gameplay/quests", english);
+        if (english.empty() && !fs::exists(pack.path() / "lang")) {
+            continue;
         }
-        for (const auto &item : shipped.items()) {
-            EXPECT_TRUE(english.contains(item.key()))
-                << name << " has " << item.key() << " that the code does not";
-        }
+        packs++;
+        ExpectTranslations(pack.path() / "lang", english);
     }
-    EXPECT_EQ(files, 4);
+    EXPECT_GE(packs, 1);
 }
 
 TEST(LocalizeOptions, TheExportListsTheOptionStringsWithTheShippedText) {

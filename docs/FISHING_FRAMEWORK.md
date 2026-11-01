@@ -240,18 +240,20 @@ has the steps). Without it fishing is the port's base. It holds:
 - Ruty's three rods, custom items with the `Rod` trait (retail's model and icon): the Sea Rod (Spring
   18, the Baron at 1.7: barely catchable), the Garayan Rod (33, at 1.3: catchable) and the Baron Rod
   (80, at 0.8, with Control 100 to tire it).
+- `quests/rutys_rods.json`: Ruty's rods, below, and `lang/`: its translations.
 - `modpack.json`: its name, description and version.
 
 `FishingDocuments.TheIncludedEnhancedFishingPackLoadsWhole` loads it whole.
 
-**Ruty's rods** (`port/src/quest/rutys_rods.cpp`) is the pack's quest, registered only where its rods
-are. Ruty keeps Queens' fish store and studies fish: she has seen the sea fish that come through the
+**Ruty's rods** is the pack's quest, a quest document (docs/QUEST_FRAMEWORK.md, "Quest documents"),
+so it is there only with the pack. Ruty keeps Queens' fish store and studies fish: she has seen the sea fish that come through the
 port but none from inland. Once her store is open and Toan has caught a fish, she asks him to catch
 every kind in Norune and Matataki (the Sea Rod), then a Mardan Garayan (the Garayan Rod), then the
 Baron Garayan from her oldest fish book (the Baron Rod). The catches count only while she waits for
-them (`fishing::CountSpecies`, `CountCatches` with the stages). She names the two towns from the
+them (counters `fish_species` and `fish_caught`, with `while_at`). She names the two towns from the
 system messages (10 and 12), so each region and language has its own names (Nolun on PAL, Norune on
-NTSC). Her lines are `quest.rutys_rods.*`, in the four languages as first drafts.
+NTSC). Her lines are `quest.rutys_rods.*`: English in the document, the other four languages, first
+drafts, in the pack's `lang/`.
 
 ## Kept fish
 
@@ -283,7 +285,7 @@ stage's.
 
 Quests count catches in their own numbers, which `quest::VarAtLeast` reads and the save keeps with
 their progress (`port/src/fishing/quests.hpp`, through `quest::ChangeVar`), from when the helper is
-called, usually as the quest is registered:
+called, usually as the quest is registered; a quest document names them as `counters`:
 
 | Helper | Keeps in the quest's var |
 |---|---|
