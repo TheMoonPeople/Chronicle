@@ -27,14 +27,15 @@ constexpr std::array<int, 6> kDefenseTreatItems = {ITEM_FLUFFY_DOUGHNUT, ITEM_FI
 ui::Tracker s_tracker;
 int         s_item_anim_tick = 0;
 
-constexpr bool IsItemEden(uint16_t id) { return id == 180; }
+constexpr bool IsItemEden(uint16_t id) { return id == ITEM_FRUIT_OF_EDEN; }
 
-constexpr bool IsItemGourd(uint16_t id) { return id == 182; }
+constexpr bool IsItemGourd(uint16_t id) { return id == ITEM_GOURD; }
 
-constexpr bool IsItemPocket(uint16_t id) { return id == 199; }
+constexpr bool IsItemPocket(uint16_t id) { return id == ITEM_POCKET; }
 
+// The allies' defense treats, from the Fluffy Doughnut to the Carrot Cookie.
 constexpr bool IsItemDefense(uint16_t id) {
-    return (id >= 177 && id <= 179) || (id >= 181 && id <= 184);
+    return id >= ITEM_FLUFFY_DOUGHNUT && id <= ITEM_CARROT_COOKIE;
 }
 
 constexpr bool IsItemMiracle(uint16_t id) {
