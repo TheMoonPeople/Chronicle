@@ -16,11 +16,13 @@
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
 #include "dun/gameloop.hpp"
+#include "dungeon/loot.hpp"
 #include "dungeonmap.hpp"
 #include "editloop.hpp"
 #include "editmenu.hpp"
 #include "editpartsdata.hpp"
 #include "frame.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mglib.hpp"
 #include "userstatus.hpp"
@@ -1564,14 +1566,15 @@ CDngStatusData *DungeonStatus() {
 }
 
 /**
- * Draws one item from one of the clown's two lists, turning items down at the
- * dungeon's rates until one is kept.
+ * Draws one item from one of the clown's lists, turning items down at the dungeon's rates until one is
+ * kept. Retail tries for ever; a list a pack makes all but impossible ends after as many tries as a
+ * treasure box gets, on the last item drawn.
  */
-int PickPieroItem(const PIERO_ITEM_SET &set, int list_no, const s16 *rate) {
-    const int count = set.count[list_no];
+int PickPieroItem(const std::vector<int> &list, int dungeon) {
+    const int count = static_cast<int>(list.size());
     int       pick = -1;
 
-    while (pick == -1) {
+    for (int tries = 0; pick == -1; tries++) {
         pick = RandBelow(static_cast<float>(count));
 
         if (pick >= count) {
@@ -1580,12 +1583,12 @@ int PickPieroItem(const PIERO_ITEM_SET &set, int list_no, const s16 *rate) {
 
         const int chance = RandBelow(100.0f);
 
-        if (rate[set.item[list_no][pick] - 1] >= chance) {
+        if (dungeon::TurnedDown(dungeon, list[pick]) >= chance && tries < 0xFFFF) {
             pick = -1;
         }
     }
 
-    return set.item[list_no][pick];
+    return list[pick];
 }
 
 /**
@@ -1658,27 +1661,53 @@ float QuarterTurnAngle(float turn) {
 } // namespace
 
 void GetPieroItem(int map_no, int ura_dungeon, int *item0, int *item1) {
-    const PIERO_ITEM_SET *list = PieroItemListPtr[map_no + ura_dungeon * 7];
-    const s16            *rate = ItemSetRateTbl[map_no];
-    const PIERO_ITEM_SET &set = UserStatus->cur_floor < floorNum[map_no] ? list[0] : list[1];
+    const dungeon::ClownLists &clown = dungeon::Loot(map_no).clown[ura_dungeon != 0 ? 1 : 0];
+    const auto                &lists = UserStatus->cur_floor < floorNum[map_no] ? clown.lower : clown.upper;
 
-    const int first = PickPieroItem(set, 0, rate);
-    const int second = PickPieroItem(set, 1, rate);
+    const int first = PickPieroItem(lists[0], map_no);
+    const int second = PickPieroItem(lists[1], map_no);
     *item0 = first;
     *item1 = second;
 }
 
 namespace {
 
-constexpr int kRateCount = 385;
-constexpr int kMaxListItems = 128;
 constexpr int kMaxDrawTries = 0xFFFF;
+// Retail's weapons a held copy makes rarer: the 123 from ITEM_WEAPON_START.
+constexpr int kRarerWeapons = 0x7B;
 
-// Only the first normal list has four rows.
-constexpr int kItemPutListCounts[14] = {4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+// A box's chance of turning an item down: the dungeon's, less for a weapon the party already holds.
+int TurnDownChance(int dungeon, int item_no) {
+    int rate = dungeon::TurnedDown(dungeon, item_no);
+
+    if (item_no >= ITEM_WEAPON_START && item_no < ITEM_WEAPON_START + kRarerWeapons) {
+        const int held = GetNumHowManyItemsHave(item_no);
+
+        if (held == 1) {
+            rate -= 10;
+        }
+
+        if (held >= 2) {
+            rate -= 20;
+        }
+
+        rate = std::max(rate, 0);
+    }
+
+    return rate;
+}
+
+// Whether a box of the size draws the item: a large box weapons, a small box the rest. Retail tells
+// them by number; a custom item by its kind.
+bool BoxDraws(int item_no, bool small) {
+    if (item_no >= item::kCustomFirst) {
+        return (item::KindOf(item_no) == item::Kind::Weapon) != small;
+    }
+    return small ? item_no >= ITEM_ATTACH_START && item_no < ITEM_WEAPON_START : item_no >= ITEM_WEAPON_START;
+}
 
 /* Draws candidates until one passes its turn-down chance, or returns -1 once the tries run out. */
-int DrawCandidate(const std::vector<int> &candidates, std::span<const s16> rates) {
+int DrawCandidate(const std::vector<int> &candidates, int dungeon) {
     const int count = static_cast<int>(candidates.size());
 
     for (int tries = 0;;) {
@@ -1696,10 +1725,10 @@ int DrawCandidate(const std::vector<int> &candidates, std::span<const s16> rates
         const int chance = static_cast<int>((100.0f * static_cast<float>(rand())) / 2.1474836e9f);
         const int item_no = candidates[pick];
 
-        if (item_no <= 0 || item_no > kRateCount) {
+        if (item_no <= 0) {
             return -1;
         }
-        if (rates[item_no - 1] < chance) {
+        if (TurnDownChance(dungeon, item_no) < chance) {
             return item_no;
         }
 
@@ -1713,91 +1742,35 @@ int DrawCandidate(const std::vector<int> &candidates, std::span<const s16> rates
 
 } // namespace
 
-/* The chance out of a hundred that each item is turned down when a treasure box draws it comes
-   from the dungeon's rate list, the list GetPieroItem also reads for the clown's boxes. */
+/* The chance out of a hundred that each item is turned down when a treasure box draws it comes from
+   the dungeon's loot, which GetPieroItem also reads for the clown's offers. */
 int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
     if (map_no < 0 || map_no >= 7 || special < 0 || special > 1) {
         return -1;
     }
 
-    const ITEM_PUT_SET *list = ItemPutListPtr[map_no + special * 7];
-    const int           list_count = kItemPutListCounts[map_no + special * 7];
+    const std::vector<dungeon::ChestList> &lists = dungeon::Loot(map_no).chests[special];
+    const auto                             list_for = [&lists](int floor) -> const dungeon::ChestList                             *{
+        const auto found = std::ranges::find(lists, floor, &dungeon::ChestList::floor);
+        return found != lists.end() ? &*found : nullptr;
+    };
 
-    if (list == nullptr || ItemSetRateTbl[map_no] == nullptr) {
-        return -1;
+    // The floor's own list, else the one for its half of the dungeon.
+    const dungeon::ChestList *set = list_for(floor_no + 1);
+
+    if (set == nullptr) {
+        set = list_for(floor_no < floorNum[map_no] ? dungeon::kLowerFloors : dungeon::kUpperFloors);
     }
 
-    auto rates = std::make_unique<s16[]>(kRateCount);
-    std::copy_n(ItemSetRateTbl[map_no], kRateCount, rates.get());
-
-    static_assert(ITEM_WEAPON_START + 0x7B <= kRateCount + 1);
-
-    // Weapons the player already holds come up less often.
-    for (int item_no = ITEM_WEAPON_START; item_no < ITEM_WEAPON_START + 0x7B; item_no++) {
-        const int held = GetNumHowManyItemsHave(item_no);
-        s16      &rate = rates[item_no - 1];
-
-        if (held > 0) {
-            if (held == 1) {
-                rate -= 10;
-            }
-
-            if (held >= 2) {
-                rate -= 20;
-            }
-
-            rate = std::max<s16>(rate, 0);
-        }
-    }
-
-    int wanted = -1;
-    int scan = 0;
-
-    for (; scan < list_count; scan++) {
-        const int floor = list[scan].floor;
-
-        if (floor == -1) {
-            break;
-        }
-
-        if (floor_no + 1 == floor) {
-            wanted = floor_no + 1;
-        }
-    }
-
-    if (scan == list_count) {
-        return -1;
-    }
-
-    if (wanted == -1) {
-        wanted = floor_no < floorNum[map_no] ? 0x100 : 0xFF;
-    }
-
-    int list_no = 0;
-
-    while (wanted != list[list_no].floor) {
-        list_no++;
-
-        if (list_no >= list_count) {
-            std::println("err itembox list ");
-            return -1;
-        }
-    }
-
-    const ITEM_PUT_SET &set = list[list_no];
-
-    if (set.item_count < 0 || set.item_count > kMaxListItems) {
+    if (set == nullptr) {
+        std::println("err itembox list ");
         return -1;
     }
 
     std::vector<int> candidates;
-    candidates.reserve(kMaxListItems);
 
-    for (const int item_no : std::span(set.item, set.item_count)) {
-        const bool is_attachment = item_no >= ITEM_ATTACH_START && item_no < ITEM_WEAPON_START;
-        const bool is_weapon = item_no >= ITEM_WEAPON_START;
-
-        if (small != 0 ? is_attachment : is_weapon) {
+    for (const int item_no : set->items) {
+        if (BoxDraws(item_no, small != 0)) {
             candidates.push_back(item_no);
         }
     }
@@ -1806,7 +1779,7 @@ int PresetSmallItemNo_Get(int map_no, int floor_no, int special, int small) {
         return -1;
     }
 
-    return DrawCandidate(candidates, std::span<const s16>(rates.get(), kRateCount));
+    return DrawCandidate(candidates, map_no);
 }
 
 int SearchiDoPutArea(MAPPARTS *cells, int x, int y, int width, int height, float *pos) {

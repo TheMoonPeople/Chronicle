@@ -26,6 +26,7 @@
 #include "dataset.hpp"
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
+#include "dungeon/loot.hpp"
 #include "dungeon/rules.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
@@ -861,6 +862,7 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     item::Load();
     fishing::Load();
     dungeon::LoadRules();
+    dungeon::LoadLoot();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
     std::vector<s32> languages = SupportedLanguages();

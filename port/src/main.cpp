@@ -35,6 +35,7 @@
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
 #include "dun/gameloop.hpp"
+#include "dungeon/loot.hpp"
 #include "dungeon/rules.hpp"
 #include "fishing/host.hpp"
 #include "gamemode.hpp"
@@ -567,7 +568,7 @@ int Run(int argc, const char **argv) {
     if (options.export_gameplay != nullptr) {
         // The tables are compiled in, so this needs no disc data, no window and no game.
         const std::filesystem::path directory = PathsFromUtf8(options.export_gameplay);
-        return item::Export(directory) && fishing::Export(directory) && dungeon::ExportRules(directory) ? kExitOk : kExitFailure;
+        return item::Export(directory) && fishing::Export(directory) && dungeon::ExportRules(directory) && dungeon::ExportLoot(directory) ? kExitOk : kExitFailure;
     }
     FirstRunIfNoData(options.headless);
     DC_ANDROID_TRACE("Run: first-run check passed");
