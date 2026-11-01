@@ -278,9 +278,10 @@ int SaveEnableCheck();
  * What the event item menu offers, as InitEventItemSelect's fish_mode takes it.
  */
 enum EventItemMode {
-    EVENT_ITEM_MODE_EVENT = 0, /**< The event items, on the event board. */
-    EVENT_ITEM_MODE_BAIT = 1,  /**< Fishing bait, on the bait board. */
-    EVENT_ITEM_MODE_ROD = 2,   /**< The port's: fishing rods, on the event board. */
+    EVENT_ITEM_MODE_EVENT = 0,  /**< The event items, on the event board. */
+    EVENT_ITEM_MODE_BAIT = 1,   /**< Fishing bait, on the bait board. */
+    EVENT_ITEM_MODE_ROD = 2,    /**< The port's: fishing rods, on the event board. */
+    EVENT_ITEM_MODE_USABLE = 3, /**< The port's: only the items the event takes, on the event board (docs/DUNGEON.md). */
 };
 
 /**

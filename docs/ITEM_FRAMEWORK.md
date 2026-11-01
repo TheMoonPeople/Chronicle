@@ -35,6 +35,7 @@ item has the trait it cares about (`def->Has<item::Bait>()`, `def->Get<item::Sel
 | `Fish` | a fish kept as an item | `ITEM_SORT_FISH` |
 | `Sellable` | buy and sell price | `PriceList` |
 | `KeyItem`, `QuestItem` | a story item, a dungeon's quest item | `ITEM_SORT_KEY_ITEM`, `ITEM_SORT_QUEST` |
+| `DungeonKey` | what it opens in which dungeon: a floor's locked room doors, a floor's exit or a back floor's entrance (docs/DUNGEON.md) | `dungeon_keys.json`, below; retail's dungeon scripts as compiled |
 
 The registry refuses an invalid ID, an ID or number registered twice, and a `Weapon` that is also
 `Consumable` or an `Attachment`.
@@ -51,6 +52,7 @@ Each table is one document under `gameplay/items/`:
 | `weapons.json` | `weapons` | `weapons` | `WeaponList` |
 | `bait.json` | `bait` | `bait` | `esa_info` |
 | `prices.json` | `prices` | `prices` | `PriceList` |
+| `dungeon_keys.json` | `dungeon_keys` | `dungeons` (`dungeon`) | the items each dungeon's scripts take, as `DungeonKey` traits |
 
 ```json
 {
@@ -62,6 +64,12 @@ Each table is one document under `gameplay/items/`:
   ]
 }
 ```
+
+`dungeon_keys.json` is not one of retail's tables: each row is a dungeon (0 to 6, as `selectMapNo`
+numbers them) with the item IDs that open its floors' locked doors (`locked_door`), its floors' exits
+(`floor_exit`) and its back floor's entrance (`back_floor`); an item is listed once in the whole
+document, and an ID no loaded item has is reported and left out. The rest of this section is about the
+retail tables.
 
 Rows are keyed by `item_no` and hold their table's fields under retail's names. A document must
 hold every row of its table and every field of each row. `model` is the name of the item's model

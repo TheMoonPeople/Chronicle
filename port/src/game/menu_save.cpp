@@ -1,3 +1,5 @@
+#include "menu_save.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -21,7 +23,6 @@
 #include "memorycardaccess.hpp"
 #include "menu_draw.hpp"
 #include "menu_inventory.hpp"
-#include "menu_save.hpp"
 #include "menuetc.hpp"
 #include "menuitemstep.hpp"
 #include "mglib.hpp"
@@ -50,7 +51,6 @@ CTexture       *SaveMenuMojiTextbl[4];
 
 /** State of the event item selection menu. */
 MINI_MENU_INFO MiniMenu;
-
 
 /**
  * Checks the memory card before a save and picks the save menu's next step.
@@ -907,17 +907,17 @@ namespace {
 // the UI framework's widgets: the same pictures in the same places, the same motion and sounds.
 
 // Where the board's parts are from its top left corner.
-constexpr int kSlotsX = 0x1C;      // the slots' window
+constexpr int kSlotsX = 0x1C; // the slots' window
 constexpr int kSlotsY = 0x38;
 constexpr int kSlotsWidth = 0xD2;
 constexpr int kSlotsHeight = 0x50;
-constexpr int kIconX = 0x20;       // an icon in its slot
+constexpr int kIconX = 0x20; // an icon in its slot
 constexpr int kIconY = 4;
-constexpr int kHandX = 6;          // the hand beside its slot
+constexpr int kHandX = 6; // the hand beside its slot
 constexpr int kHandY = 0x3C;
-constexpr int kBarY = 0x3C;        // the scroll bar's top
-constexpr int kBarTravel = 68;     // how far it goes
-constexpr int kTextX = 20;         // the description
+constexpr int kBarY = 0x3C;    // the scroll bar's top
+constexpr int kBarTravel = 68; // how far it goes
+constexpr int kTextX = 20;     // the description
 constexpr int kTextY = 146;
 
 // The slot's backing in the board's picture, and the scroll bar's.
@@ -935,7 +935,7 @@ struct ItemBoard {
     CTexture   *bait_picture = nullptr;  // the board for bait
     bool        ready = false;           // its pictures are loaded
     MenuPointer pointer;
-    bool        active = false;          // still open after its last tick
+    bool        active = false; // still open after its last tick
 };
 
 ItemBoard g_board;
@@ -969,6 +969,8 @@ bool EventItemListed(int item, int fish_mode) {
             return fishing::BaitIndex(item) >= 0;
         case EVENT_ITEM_MODE_ROD:
             return fishing::IsRod(item);
+        case EVENT_ITEM_MODE_USABLE:
+            return std::find(MiniMenu.usable, MiniMenu.usable + MiniMenu.usable_num, item) != MiniMenu.usable + MiniMenu.usable_num;
         default:
             return true;
     }
@@ -985,20 +987,22 @@ void InitEventItemSelect(int block, int *usable, ITEM_PACK *pack, int x, int y, 
     g_board.left = x;
     g_board.top = static_cast<float>(y) + static_cast<float>(lang_y[MiniMenu.lang]) + 20.0f;
     g_board.pack = pack;
-    MiniMenu.event_item_num = 0;
 
-    for (int i = 0; i < pack->num; i++) {
-        if (Listed(pack->item[i])) {
-            MiniMenu.event_item_num++;
-        }
-    }
-
+    // The usable items before the count: the usable mode lists only them.
     for (MiniMenu.usable_num = 0; MiniMenu.usable_num < 13; MiniMenu.usable_num++) {
         MiniMenu.usable[MiniMenu.usable_num] = usable[MiniMenu.usable_num];
         std::println("itemno = {}", usable[MiniMenu.usable_num]);
 
         if (usable[MiniMenu.usable_num] < 0) {
             break;
+        }
+    }
+
+    MiniMenu.event_item_num = 0;
+
+    for (int i = 0; i < pack->num; i++) {
+        if (Listed(pack->item[i])) {
+            MiniMenu.event_item_num++;
         }
     }
 

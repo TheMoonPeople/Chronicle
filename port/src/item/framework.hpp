@@ -122,6 +122,19 @@ struct KeyItem {};
 struct QuestItem {};
 
 /**
+ * What the item opens in a dungeon (gameplay/items/dungeon_keys.json).
+ */
+struct DungeonKey {
+    enum class Opens : uint8_t {
+        LockedDoor, /**< A floor's locked room door; its key lies in a small chest on the floor. */
+        FloorExit,  /**< A floor's exit; a monster carries the item. */
+        BackFloor,  /**< A back floor's entrance. */
+    };
+    Opens opens = Opens::LockedDoor;
+    int   dungeon = 0; /**< The dungeon, numbered as selectMapNo numbers them (dungeon.h). */
+};
+
+/**
  * What one copy of an item carries that retail has no field for, by name.
  */
 using State = std::map<std::string, double, std::less<>>;
@@ -137,7 +150,7 @@ struct Def {
 
     std::tuple<std::optional<Consumable>, std::optional<Throwable>, std::optional<QuickSlot>,
                std::optional<Attachment>, std::optional<Weapon>, std::optional<Bait>, std::optional<Rod>, std::optional<Fish>,
-               std::optional<Sellable>, std::optional<KeyItem>, std::optional<QuestItem>>
+               std::optional<Sellable>, std::optional<KeyItem>, std::optional<QuestItem>, std::optional<DungeonKey>>
         traits; /**< Every trait the item has. */
 
     /**
@@ -227,8 +240,8 @@ inline constexpr int kHandleEnd = 0x7E00;   /**< One past the last. */
  * One copy of an item with state of its own.
  */
 struct Copy {
-    std::string   id;           /**< Its item's ID. */
-    int           number = -1;  /**< Its item's number, or -1 while no item has the ID. */
+    std::string   id;                /**< Its item's ID. */
+    int           number = -1;       /**< Its item's number, or -1 while no item has the ID. */
     std::uint64_t instance = 0;      /**< Its identity for good, kept in the save; never 0. */
     State         state;             /**< Its state. */
     int           state_version = 0; /**< The state_version of the definition that wrote its state. */

@@ -30,6 +30,7 @@
 #include "data/data_read.hpp"
 #include "dngstatusdata.hpp"
 #include "fishing.hpp"
+#include "item/dungeon_keys.hpp"
 #include "item/framework.hpp"
 #include "itemdata.hpp"
 #include "localize/localize.hpp"
@@ -876,11 +877,22 @@ void Load() {
     LoadCustom();
     messages.clear();
     Clear();
+    auto       keys = LoadDungeonKeys();
+    const auto with_key = [&keys](Def def) {
+        if (const auto found = keys.find(def.id); found != keys.end()) {
+            def.With(found->second);
+            keys.erase(found);
+        }
+        return def;
+    };
     for (const Row &row : EveryItem()) {
-        Register(VanillaDef(row.item));
+        Register(with_key(VanillaDef(row.item)));
     }
     for (std::size_t index = 0; index < customs.size(); index++) {
-        Register(CustomDef(kCustomFirst + static_cast<int>(index), customs[index]));
+        Register(with_key(CustomDef(kCustomFirst + static_cast<int>(index), customs[index])));
+    }
+    for (const auto &[id, key] : keys) {
+        native_config::Report("gameplay/items/dungeon_keys.json", std::format("no loaded item is {}; left out", id));
     }
     RebindCopies();
     RegisterSaveChunk();
@@ -1029,6 +1041,9 @@ std::vector<std::pair<std::string, std::string>> Strings() {
 }
 
 bool Export(const std::filesystem::path &directory) {
+    if (!ExportDungeonKeys(directory)) {
+        return false;
+    }
     for (const Table &table : Tables()) {
         const std::filesystem::path file = directory / "gameplay" / table.path;
         std::error_code             error;

@@ -23,6 +23,8 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
+#include "dungeon/doors.hpp"
+#include "dungeon/rules.hpp"
 #include "dungeonmap.hpp"
 #include "dungeonparts.hpp"
 #include "edit.hpp"
@@ -927,7 +929,16 @@ int BtMiniItemSelect_Loop() {
 
             ITEM_PACK *pack = &UserStatus->item_pack;
 
-            InitEventItemSelect(0x18, BtEventInfo.item_select_list, pack, 0xB4, 0xD2, BtEventInfo.item_select_filtered, 0);
+            // docs/DUNGEON.md: a locked door Cross opened with its key in the bag takes it without the
+            // window; and the window lists only what the event takes.
+            if (int key = -1; dungeon::TakeAutoKey(BtEventInfo.item_select_list, BtEventInfo.item_select_filtered, key)) {
+                miniItemSelNo = key;
+                BtMiniItemSelect_Sled++;
+                break;
+            }
+
+            const int mode = dungeon::GetRules().key_item_filter && BtEventInfo.item_select_filtered ? EVENT_ITEM_MODE_USABLE : EVENT_ITEM_MODE_EVENT;
+            InitEventItemSelect(0x18, BtEventInfo.item_select_list, pack, 0xB4, 0xD2, BtEventInfo.item_select_filtered, mode);
             BtGameModeFlag = BT_GAME_MODE_ITEM_SELECT;
             BtMiniItemSelect_Sled++;
             break;
