@@ -18,8 +18,10 @@ TEST(FishHook, AFishHoldsTheHookHalfASecondToASecond) {
     fishing::SpawnAt(1, ED_TIME_DAY); // Matataki, whose bite holds the hook 30 to 60 ticks
     int shortest = 1000;
     int longest = 0;
-    for (unsigned int seed = 1; seed <= 400; seed++) {
-        std::srand(seed);
+    // One seed, the numbers running on from fish to fish as the game's do: Windows' rand() gives nearly the
+    // same first numbers for neighbouring seeds, so a seed for each fish would draw near enough the same fish.
+    std::srand(1);
+    for (int fish_no = 0; fish_no < 1000; fish_no++) {
         CFish fish;
         fish.fish_kind = 9;
         fish.info = *fishing::Info(9);
