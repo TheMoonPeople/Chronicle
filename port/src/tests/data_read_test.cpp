@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -17,6 +18,7 @@
 #include "app/exitcodes.hpp"
 #include "audio/hdbank.hpp"
 #include "audio/sq.hpp"
+#include "data/data_mount.hpp"
 #include "data/data_read.hpp"
 #include "data_fixture.hpp"
 #include "dataalloc.hpp"
@@ -939,6 +941,126 @@ TEST(DataRead, SoundLoadsPackMembersAboveFourGiBWithoutPointerNarrowing) {
 
     ASSERT_EQ(CSnd.LoadSoundFileFromPack(Mutable("sound.txt"), reinterpret_cast<u_int *>(buffer.data())), 0);
     ASSERT_NE(CSnd.GetMidiState()->port[0].sequence_address[0], nullptr);
+    fs::remove_all(dir);
+}
+
+namespace {
+
+// A pack with one sequence of one note, as the disc has its packs, and a song of notes as a published
+// sequence document has it.
+Bytes OneNoteSequence() {
+    Bytes      sequence(0x1a);
+    const auto put = [&](std::size_t at, std::uint32_t value, std::size_t bytes) {
+        for (std::size_t i = 0; i < bytes; ++i) {
+            sequence[at + i] = static_cast<unsigned char>(value >> (8 * i));
+        }
+    };
+    put(0, audio::kChunkCreator, 4);
+    put(4, audio::kChunkMidi, 4);
+    put(8, 0x24, 4);
+    put(0x10, 0x14, 4);
+    put(0x14, 6, 4);
+    put(0x18, 480, 2);
+    sequence.insert(sequence.end(), {0, 0x90, 60, 0x64, 0x80, 60, 0, 0xFF, 0x2F, 0});
+    return sequence;
+}
+
+std::string PublishedSong(int notes) {
+    std::string events;
+    for (int note = 0; note < notes; note++) {
+        events += std::format(R"({{"delta":0,"kind":"channel","status":144,"data":[{},100]}},{{"delta":480,"kind":"channel","status":128,"data":[{},0]}},)",
+                              60 + note, 60 + note);
+    }
+    return std::format(R"({{"schema_version":1,"kind":"sequence","songs":[{{"division":480,"events":[{}{{"delta":0,"kind":"end","meta":47}}]}}]}})", events);
+}
+
+void WriteText(const fs::path &path, std::string_view text) {
+    WriteBytes(path, Bytes(text.begin(), text.end()));
+}
+
+// Loads sound/test.snd's list sound.txt as the game does, returning the slot's first sequence.
+const audio::SqFile *LoadTestPack(const Bytes &pack, std::vector<u_long128> &buffer) {
+    InitCDFile();
+    buffer.assign((dcdata::SectorsFor(pack.size()) * dcdata::kSector) / sizeof(u_long128), {});
+    int size = 0;
+    if (LoadFile2(Mutable("sound/test.snd"), buffer.data(), &size, 0) != 1) {
+        return nullptr;
+    }
+    CSnd.Init(0, 0, 0, 0);
+    if (CSnd.LoadSoundFileFromPack(Mutable("sound.txt"), reinterpret_cast<u_int *>(buffer.data())) != 0) {
+        return nullptr;
+    }
+    return static_cast<const audio::SqFile *>(CSnd.GetMidiState()->port[0].sequence_address[0]);
+}
+
+} // namespace
+
+// Kazarov's loaders find the game's data through vfs, after the datapacks.
+TEST(DataRead, TheDataMountFindsAndReadsTheGamesFiles) {
+    fs::path dir = InstallStandardData("data_mount");
+    WriteText(dir / "data/sound/a.txt", "hello");
+    InitCDFile();
+    const auto     mount = data::DataMount();
+    const vfs::Ref file = vfs::Find(mount, "SOUND/A.TXT");
+    ASSERT_TRUE(file);
+    std::vector<std::uint8_t> bytes;
+    ASSERT_TRUE(vfs::Read(file, bytes));
+    EXPECT_EQ(std::string(bytes.begin(), bytes.end()), "hello");
+    EXPECT_EQ(vfs::Size(file), 5U);
+    EXPECT_EQ(vfs::Find(mount, "sound/a.txt"), file) << "one entry for a name, whatever its case";
+    EXPECT_FALSE(vfs::Find(mount, "sound/missing.txt"));
+    EXPECT_FALSE(vfs::Find(mount, "../escape.txt"));
+    fs::remove_all(dir);
+}
+
+// The sound dcdata publishes plays in place of the pack's own (docs/AUDIO_FRAMEWORK.md).
+TEST(DataRead, APacksPublishedSoundPlaysInPlaceOfItsOwn) {
+    fs::path   dir = InstallStandardData("sound_published");
+    const auto pack = MakePack({
+        {"sound.txt", {'s', 'e', 'q', '0', '0', 'a', '.', 's', 'q', '\n'}},
+        {"seq00a.sq", OneNoteSequence()                                  }
+    });
+    WriteBytes(dir / "data/sound/test.snd", pack);
+    WriteText(dir / "data/sound/test.sound.json", R"({"schema_version":1,"kind":"sound_pack","lists":[{"name":"sound.txt","config":{},
+        "load":[{"member":"seq00a.sq","slot":"a","sequence":"sound/test.sound/sequences/seq00a.json"}]}]})");
+    WriteText(dir / "data/sound/test.sound/sequences/seq00a.json", PublishedSong(2));
+    WriteText(dir / "data/sound/tbl/sqtbl.txt", "name volume\nseq00a.sq 64\n");
+    WriteText(dir / "data/sound/tbl/sqtbl.json", R"({"schema_version":1,"kind":"sequence_volumes","rows":[{"name":"seq00a.sq","volume":100}]})");
+
+    struct StopAudio {
+        ~StopAudio() { AudioOutputStop(); }
+    } stop_audio;
+
+    InitCDFile();
+    std::vector<u_long128> table(4096);
+    CSnd.LoadSqInf(Mutable("sound/tbl/sqtbl.txt"), reinterpret_cast<unsigned int *>(table.data()));
+    std::vector<u_long128> buffer;
+    const audio::SqFile   *sequence = LoadTestPack(pack, buffer);
+    ASSERT_NE(sequence, nullptr);
+    ASSERT_EQ(sequence->Songs().size(), 1U);
+    EXPECT_EQ(sequence->Events(sequence->Songs()[0]).size(), 5U) << "the published song's two notes and end, not the pack's one note";
+    ASSERT_NE(CSnd.GetMidiState()->port[0].sequence[0], nullptr);
+    EXPECT_EQ(CSnd.GetMidiState()->port[0].sequence[0]->volume, 100) << "the published volume table";
+    fs::remove_all(dir);
+}
+
+TEST(DataRead, APackWithoutPublishedSoundPlaysItsOwn) {
+    fs::path   dir = InstallStandardData("sound_unpublished");
+    const auto pack = MakePack({
+        {"sound.txt", {'s', 'e', 'q', '0', '0', 'a', '.', 's', 'q', '\n'}},
+        {"seq00a.sq", OneNoteSequence()                                  }
+    });
+    WriteBytes(dir / "data/sound/test.snd", pack);
+
+    struct StopAudio {
+        ~StopAudio() { AudioOutputStop(); }
+    } stop_audio;
+
+    std::vector<u_long128> buffer;
+    const audio::SqFile   *sequence = LoadTestPack(pack, buffer);
+    ASSERT_NE(sequence, nullptr);
+    ASSERT_EQ(sequence->Songs().size(), 1U);
+    EXPECT_EQ(sequence->Events(sequence->Songs()[0]).size(), 4U) << "its note on and off, end of track and end";
     fs::remove_all(dir);
 }
 

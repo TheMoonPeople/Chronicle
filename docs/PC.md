@@ -1949,10 +1949,10 @@ lowercased with `/` separators and no leading separator, at its exact size,
 and copies the index itself to `<data>/data.hd2`. A file already present at
 its size is kept, so a rerun only repairs what is missing. When a path is
 listed twice, only the first is written, as the game only ever finds the
-first. `list` prints each file's sector, size and path. `publish-sound`
-converts an extracted folder's sound packs into ChronicleTwo's bank, sample
-and sequence formats beside the originals, which the game still plays
-(`docs/AUDIO_FRAMEWORK.md`).
+first. `list` prints each file's sector, size and path. `extract` also
+publishes the sound packs in ChronicleTwo's bank, sample and sequence formats
+beside the originals, which the game plays in their place, and
+`publish-sound <data>` does that alone (`docs/AUDIO_FRAMEWORK.md`).
 `extract` also converts the models, motions, skin weights and bind poses to
 glTF beside the originals, indexed by `models.json`; the game rebuilds the
 retail records from them as it reads a file. `convert-models <raw> <out>`
