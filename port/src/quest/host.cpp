@@ -22,6 +22,7 @@
 #include "editloop3.hpp"
 #include "editmenu.hpp"
 #include "editpartsinfo.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "localize/localize.hpp"
 #include "main.hpp"
@@ -52,7 +53,7 @@ CDngStatusData *Status() {
 }
 
 bool InPack(int item) {
-    return item >= ITEM_DUNGEON_START && item < ITEM_WEAPON_START;
+    return item::KindOf(item) == item::Kind::Item;
 }
 
 bool IsWeapon(int item) {

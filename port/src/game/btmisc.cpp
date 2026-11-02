@@ -21,6 +21,7 @@
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "hitvalue.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mds.hpp"
 #include "menu_save.hpp"
@@ -138,14 +139,16 @@ void BtGetItemNamePath(char *model_path, char *texture_path, int item_no) {
 
     std::string model;
 
-    if (item_no >= ITEM_WEAPON_START) {
+    if (item_no >= ITEM_WEAPON_START && item_no < item::kCustomFirst) {
         model = makeWeaponName(item_no);
     } else {
-        if (ITEM_NAME_TBL_NEW[item_no - ITEM_ATTACH_START] == nullptr) {
-            item_no = ITEM_REGULAR_WATER;
+        const char *name = item::ModelName(item_no);
+
+        if (name == nullptr) {
+            name = item::ModelName(ITEM_REGULAR_WATER);
         }
 
-        model = std::format("dun/item/main_data/{}", ITEM_NAME_TBL_NEW[item_no - ITEM_ATTACH_START]);
+        model = std::format("dun/item/main_data/{}", name);
     }
 
     const std::string texture = model + ".img";

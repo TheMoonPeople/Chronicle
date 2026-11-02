@@ -2,6 +2,8 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -105,11 +107,18 @@ struct KeyItem {};
 struct QuestItem {};
 
 /**
+ * What one copy of an item carries that retail has no field for, by name.
+ */
+using State = std::map<std::string, double, std::less<>>;
+
+/**
  * An item: an ID in data, a number at run time, and its traits.
  */
 struct Def {
-    std::string id;          /**< namespace:name, such as vanilla:bread. */
-    int         number = -1; /**< The number retail's code and saves know the item by. */
+    std::string id;                /**< namespace:name, such as vanilla:bread. */
+    int         number = -1;       /**< The number retail's code and saves know the item by. */
+    State       state;             /**< What a new copy starts with; empty where every copy is alike. */
+    int         state_version = 0; /**< The version of state's keys, for migrating saved copies. */
 
     std::tuple<std::optional<Consumable>, std::optional<Throwable>, std::optional<QuickSlot>,
                std::optional<Attachment>, std::optional<Weapon>, std::optional<Bait>, std::optional<Fish>,
@@ -155,6 +164,11 @@ bool ValidId(std::string_view id);
 void Register(Def item);
 
 /**
+ * Forgets one item; nothing for an ID not registered.
+ */
+void Unregister(std::string_view id);
+
+/**
  * Forgets every item.
  */
 void Clear();
@@ -187,5 +201,75 @@ std::vector<const Def *> With() {
     }
     return items;
 }
+
+// A copy with state of its own travels through retail's code under a handle, a number of its own
+// where retail keeps item numbers (docs/ITEM_FRAMEWORK.md, "Numbers and copies"). Handles stop short
+// of 0x8000 because the game looks a description up at the number + 500, an s16.
+inline constexpr int kHandleFirst = 0x1000; /**< The first handle. */
+inline constexpr int kHandleEnd = 0x7E00;   /**< One past the last. */
+
+/**
+ * One copy of an item with state of its own.
+ */
+struct Copy {
+    std::string   id;           /**< Its item's ID. */
+    int           number = -1;  /**< Its item's number, or -1 while no item has the ID. */
+    std::uint64_t instance = 0;      /**< Its identity for good, kept in the save; never 0. */
+    State         state;             /**< Its state. */
+    int           state_version = 0; /**< The state_version of the definition that wrote its state. */
+};
+
+/**
+ * Makes a copy of an item that has state, with a new instance and the item's starting state. Returns
+ * its handle, or -1 for an item without state or with every handle taken.
+ */
+int NewCopy(const Def &item);
+
+/**
+ * Puts back a copy kept in a save under a free handle. The item need not be registered. Returns the
+ * handle, or -1 with every handle taken.
+ */
+int RestoreCopy(std::string_view id, std::uint64_t instance, State state, int state_version);
+
+/**
+ * The copy under a handle, or null.
+ */
+Copy *FindCopy(int handle);
+
+/**
+ * The number of the item behind a number: a handle's item's, else the number itself; -1 for a handle
+ * nothing holds or whose item is not registered.
+ */
+int Definition(int number);
+
+/**
+ * Frees every handle for which held is false.
+ */
+void ReclaimCopies(const std::function<bool(int handle)> &held);
+
+/**
+ * How many handles are taken.
+ */
+int CopyCount();
+
+/**
+ * Gives each copy its item's number again, after the items registered anew.
+ */
+void RebindCopies();
+
+/**
+ * Forgets every copy, and restarts instances at next.
+ */
+void ClearCopies(std::uint64_t next = 1);
+
+/**
+ * The instance the next new copy gets, for the save to keep.
+ */
+std::uint64_t NextInstance();
+
+/**
+ * Takes an instance no copy has, for a copy found twice in the save.
+ */
+std::uint64_t TakeInstance();
 
 } // namespace dc::item

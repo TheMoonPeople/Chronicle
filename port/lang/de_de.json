@@ -383,5 +383,7 @@
     "quest.carls_slingshot.gina.excuse": "Carls Schleuder?{page}Ähm... ein, ein großer Vogel hat sie geklaut! Er war *SO* groß!{page}Er hat wusch gemacht und ist damit weggeflogen!",
     "quest.carls_slingshot.gina.bird": "Der Vogel hat sie geklaut! Ehrlich!",
     "quest.carls_slingshot.gina.confess": "...Carl glaubt das mit dem Vogel nicht?{page}...Na gut. Ich hab auf Flaschen geschossen, und dann hat es KNACKS gemacht.{page}Das wollte ich nicht! Darum hab ich ihm eine neue gebastelt!{page}Kannst du sie ihm geben? Ich hab Angst, dass er sauer ist..",
-    "quest.carls_slingshot.gina.waiting": "Hast du Carl die neue Schleuder gegeben? Ist er sauer?"
+    "quest.carls_slingshot.gina.waiting": "Hast du Carl die neue Schleuder gegeben? Ist er sauer?",
+    "item.orphan.name": "Unbekannter Gegenstand",
+    "item.orphan.description": "Aus einem nicht geladenen Mod."
 }

@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "data/data_read.hpp"
 #include "platform/datapacks.hpp"
 
 namespace dc::platform::native_config {
@@ -37,9 +38,9 @@ void CheckKind(const Json &document, std::string_view kind) {
 } // namespace
 
 bool Read(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse) {
-    for (const vfs::Ref &file : datapacks::Find(std::format("gameplay/{}", relative))) {
-        std::vector<std::uint8_t> bytes;
-        const Json                document = vfs::Read(file, bytes) ? Json::parse(bytes, nullptr, false) : Json(Json::value_t::discarded);
+    const std::string path = std::format("gameplay/{}", relative);
+    auto              use = [&](std::string_view display, bool read, const std::vector<std::uint8_t> &bytes) {
+        const Json document = read ? Json::parse(bytes, nullptr, false) : Json(Json::value_t::discarded);
         try {
             if (document.is_discarded()) {
                 throw std::runtime_error("document is not JSON");
@@ -48,10 +49,21 @@ bool Read(std::string_view relative, std::string_view kind, const std::function<
             parse(document);
             return true;
         } catch (const std::exception &exception) {
-            Report(file.Display(), exception.what());
+            Report(display, exception.what());
+            return false;
+        }
+    };
+    for (const vfs::Ref &file : datapacks::Find(path)) {
+        std::vector<std::uint8_t> bytes;
+        const bool                read = vfs::Read(file, bytes);
+        if (use(file.Display(), read, bytes)) {
+            return true;
         }
     }
-    return false;
+    // The data's own, which dcdata writes from the documents tracked in port/gameplay. Only read once the
+    // data is indexed, since indexing stops the program when there is no data.
+    std::vector<std::uint8_t> bytes;
+    return data::DataReadIndexed() && data::DataReadReadFile(path, bytes) && use(path, true, bytes);
 }
 
 void Report(std::string_view path, std::string_view message) {

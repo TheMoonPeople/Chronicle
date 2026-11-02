@@ -383,5 +383,7 @@
     "quest.carls_slingshot.gina.excuse": "La fionda di Carl?{page}Ehm... un, un grosso uccello l'ha presa! Era grande *COSÌ*!{page}Ha fatto fiuuu, ed è volato via con lei!",
     "quest.carls_slingshot.gina.bird": "L'ha presa l'uccello! Davvero!",
     "quest.carls_slingshot.gina.confess": "...Carl non crede all'uccello?{page}...Va bene. Tiravo alle bottiglie, e ha fatto CRAC.{page}Non l'ho fatto apposta! Così gliene ho fatta una nuova!{page}Puoi dargliela tu? Ho paura che si arrabbi..",
-    "quest.carls_slingshot.gina.waiting": "Hai dato a Carl la fionda nuova? È arrabbiato?"
+    "quest.carls_slingshot.gina.waiting": "Hai dato a Carl la fionda nuova? È arrabbiato?",
+    "item.orphan.name": "Oggetto sconosciuto",
+    "item.orphan.description": "Da una mod non caricata."
 }

@@ -13,6 +13,7 @@
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "item/host.hpp"
 #include "localize/localize.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
@@ -723,6 +724,9 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
         out.push_back(std::move(entry));
     }
     for (auto &entry : QuestStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : item::Strings()) {
         out.push_back(std::move(entry));
     }
     return out;

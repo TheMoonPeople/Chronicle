@@ -588,7 +588,8 @@ For tests and debugging only; nothing the game does depends on them.
   one tick, its fades to two or four ticks and its holds (PAL 120, 183 and 83
   ticks) to two. The modes' own fades are untouched.
 - `--give ITEM,...` (or `DC_GIVE`) gives the party the items and weapons it
-  lacks, by their numbers in `ps2/include/itemdata.hpp` (`ITEM_*`), each time a
+  lacks, by their numbers in `ps2/include/itemdata.hpp` (`ITEM_*`) or a custom
+  item's ID (`chronicle:rod_2`; one no pack defines is told and skipped), each time a
   town or dungeon starts, through `CDngStatusData::GetItem` as an event's gift
   would: an item into the dungeon inventory, a weapon to the character it
   belongs to. One already held is skipped. `--give 210,211` gives the Sun and
@@ -1210,6 +1211,29 @@ otherwise unused direct mode. Its board names the dungeon's town. The load
 screen lists it first, its board reading "Auto"; loading it leaves
 `last_save` on the last numbered save. `game.autosave` (Options, Game page)
 turns it off; headless and `--jump` runs never write it.
+
+`chronicle.dat`, beside a save's `save.dat`, holds what the save has that
+retail's image cannot: custom items and copies with state of their own
+(docs/ITEM_FRAMEWORK.md). Before the image's checksums are made, each
+framework takes its part out of the image (`ExtensionPrepare`), leaving what
+retail would hold there, so `save.dat` stays retail's and a save without
+custom items writes no `chronicle.dat` at all. The file is a set of chunks,
+one per framework, each with a tag, version, length and CRC, kept under a
+hash of the exact `save.dat` bytes they belong to: a `save.dat` copied,
+restored from a backup or taken from a card export without its own
+`chronicle.dat` loads without those items, never with another save's.
+Saving writes `chronicle.dat` with the chunks of both the `save.dat` on disk
+and the new one, then `save.dat`, then `chronicle.dat` with the new one's
+alone, so an interruption anywhere leaves the chunks of whichever `save.dat`
+is there. A chunk whose CRC fails is left out alone, and the file is copied
+to `chronicle.dat.damaged`; a chunk no framework of this port reads is
+written back unchanged. Deleting the save deletes both. The items' chunk
+(`port/src/item/save.cpp`) keeps each custom item in the bag, its quick
+slots and storage by ID, with what is left of it and, for a copy, its
+instance and state. One whose definition is missing loads as an orphan: an
+"Unknown item" that keeps its ID and state, cannot be used or sold, and is
+itself again once its definition returns. `port/src/save/extension.cpp`
+reads and writes the file.
 
 `port/src/game/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
@@ -1936,6 +1960,7 @@ port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
 port/build/pc/dcdata pack data
 port/build/pc/dcdata list "rom/pal/Dark Cloud (PAL).iso"
 port/build/pc/dcdata publish-sound data
+port/build/pc/dcdata publish-gameplay data
 ```
 
 `pack` takes an existing extracted directory and writes a ZIP archive beside it by default; a second output path is optional. It stores files without compression so the port can read them on Switch without a decompression cost. The runtime also reads standard deflated ZIP entries. ZIP64, encrypted and multi-disk archives are unsupported. The game gives `data.zip` priority over loose files when both exist. Do not modify an archive while the game is running.
@@ -1959,6 +1984,10 @@ retail records from them as it reads a file. `convert-models <raw> <out>`
 writes that conversion to a folder of its own, `bake-assets <raw> <data>`
 publishes it into extracted data, and `strip-models <data>` empties the
 converted originals (`docs/MODEL_FRAMEWORK.md`).
+`extract` and `publish-gameplay` write the gameplay documents tracked in
+`port/gameplay` into the data under `gameplay/`, from the seed the build
+seals beside `dcdata` (`assets/data.zip`), so a package ships that folder with
+it (`docs/ITEM_FRAMEWORK.md`).
 
 The layout of `data/` or the root of `data.zip` is the disc archive's own: `dun/pack/maindat.pac`,
 `commenu/a_eng/savetex.pak`, `sound/bgm/...` and so on. Lookups fold case,

@@ -24,7 +24,9 @@
 #include "editpartsdata.hpp"
 #include "editpartsinfo.hpp"
 #include "gameutil.hpp"
+#include "item/host.hpp"
 #include "localize/localize.hpp"
+#include "main.hpp"
 #include "mglib.hpp"
 #include "platform/config.hpp"
 #include "platform/glyphs.hpp"
@@ -1066,7 +1068,11 @@ short *ClsMes::GetTextLineDataTop(int line) {
         }
     }
 
-    return FindMessage(this->buff, line);
+    if (short *text = FindMessage(this->buff, line)) {
+        return text;
+    }
+
+    return item::CustomMessage(line, this->buff == SystemMes);
 }
 
 short *ClsMes::GetTextLineDataTop_system(int line) {
@@ -1079,7 +1085,7 @@ short *ClsMes::GetTextLineDataTop_system(int line) {
         }
     }
 
-    return nullptr;
+    return item::CustomMessage(line, true);
 }
 
 void ClsMes::InitMesWinTbl() {

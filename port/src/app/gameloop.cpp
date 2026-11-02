@@ -10,6 +10,7 @@
 #include <format>
 #include <memory>
 #include <print>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -31,6 +32,8 @@
 #include "editloop3.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
+#include "item/framework.hpp"
+#include "item/host.hpp"
 #include "langset.hpp"
 #include "localize/localize.hpp"
 #include "main.hpp"
@@ -42,11 +45,13 @@
 #include "options/menu_option.hpp"
 #include "platform/clock.hpp"
 #include "platform/config.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/input.hpp"
 #include "platform/paths.hpp"
 #include "quest/host.hpp"
 #include "render/draw2d.hpp"
 #include "render/gs_state.hpp"
+#include "save/extension.hpp"
 #include "save/save_slots.hpp"
 #include "savedata.hpp"
 #include "snd.hpp"
@@ -126,10 +131,11 @@ void SetMainSelectParam(std::string_view text) {
 bool g_menu_chord_held = false;
 bool g_debug_r3_held = false;
 
-std::vector<int> g_give;
+// Retail's numbers, or custom items' IDs, which have numbers only once the items load.
+std::vector<std::string> g_give;
 
 bool Holds(CDngStatusData &status, int item) {
-    if (item >= ITEM_WEAPON_START) {
+    if (item::KindOf(item) == item::Kind::Weapon) {
         for (const auto &weapons : status.chara_weapons) {
             for (const WEAPON_HAVE &weapon : weapons) {
                 if (weapon.item_no == item) {
@@ -139,7 +145,9 @@ bool Holds(CDngStatusData &status, int item) {
         }
         return false;
     }
-    return status.SearchItemIndexNo(item) >= 0;
+    // A copy with state of its own is in the bag under a handle, not its item's number.
+    return status.SearchItemIndexNo(item) >= 0 ||
+           std::ranges::any_of(status.item_pack.item, [&](s16 held) { return item::Definition(held) == item; });
 }
 
 void GiveOnArrival() {
@@ -150,8 +158,25 @@ void GiveOnArrival() {
         return;
     }
     CDngStatusData &status = *SaveData->GetDngStatus();
-    for (int item : g_give) {
-        if (!Holds(status, item)) {
+    for (const std::string &given : g_give) {
+        int item = 0;
+        if (given.find(':') == std::string::npos) {
+            std::from_chars(given.data(), given.data() + given.size(), item);
+        } else {
+            const item::Def *def = item::Find(given);
+            if (def == nullptr) {
+                std::println(stderr, "--give: no item {}", given);
+                continue;
+            }
+            item = def->number;
+        }
+        if (Holds(status, item)) {
+            continue;
+        }
+        if (const item::Def *def = item::Find(item); def != nullptr && !def->state.empty()) {
+            item = item::NewCopy(*def);
+        }
+        if (item >= 0) {
             status.GetItem(item, 0);
         }
     }
@@ -265,6 +290,7 @@ void StartNewGame() {
         std::memcpy(g_save_data.GetCharaName(i), names[i].data(), names[i].size());
     }
     QuestHostNewGame();
+    ExtensionNewGame();
     TrialStart();
 }
 
@@ -604,18 +630,19 @@ void GameApplyLoopResult(int loop_mode, int result) {
 }
 
 bool GameSetGive(const char *list) {
-    std::vector<int> items;
-    std::string_view rest = list;
+    std::vector<std::string> items;
+    std::string_view         rest = list;
     for (bool more = true; more;) {
         std::string_view token = rest.substr(0, rest.find(','));
         more = token.size() < rest.size();
         rest.remove_prefix(std::min(rest.size(), token.size() + 1));
         int item = 0;
         auto [end, error] = std::from_chars(token.data(), token.data() + token.size(), item);
-        if (error != std::errc{} || end != token.data() + token.size() || item < 1 || item >= ITEM_WEAPON_END) {
+        const bool number = error == std::errc{} && end == token.data() + token.size() && item >= 1 && item < ITEM_WEAPON_END;
+        if (!number && token.find(':') == std::string_view::npos) {
             return false;
         }
-        items.push_back(item);
+        items.emplace_back(token);
     }
     g_give = std::move(items);
     return !g_give.empty();
@@ -786,6 +813,9 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     main_select_menu_no = 0;
     SetMainSelectParam("e01");
     InitCDFile();
+    // The items read their documents from the data as well as the packs, so they load once it is indexed.
+    datapacks::Load(PathsDataRoot());
+    item::Load();
     // With one language there is nothing to choose: the game starts in it, past the language
     // select, as retail NTSC does. With several the select offers retail's five.
     std::vector<s32> languages = SupportedLanguages();
@@ -855,6 +885,8 @@ int RunGame([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
         GameLoadTraceCheckpoint("mode_begin");
         // A language chosen on the Options screen takes hold here, where the next area is about to load.
         LocalizeApplyPendingLanguage();
+        // No menu holds an item between areas, so a copy in none of the save's slots is gone.
+        item::ReclaimHeldCopies();
         if (mode != GAME_MODE_UNUSED_12 && !data_loaded) {
             initialize_data();
             data_loaded = true;
