@@ -389,5 +389,6 @@
     "fishing.fight.tension": "Tension",
     "fishing.fight.line": "Ligne",
     "fishing.fight.hit": "Ça mord !",
-    "fishing.menu.rod": "Changer de canne"
+    "fishing.menu.rod": "Changer de canne",
+    "dungeon.floor_select.leave": "Quitter les lieux ?"
 }

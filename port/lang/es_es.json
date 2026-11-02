@@ -389,5 +389,6 @@
     "fishing.fight.tension": "Tensión",
     "fishing.fight.line": "Sedal",
     "fishing.fight.hit": "¡Pica!",
-    "fishing.menu.rod": "Cambiar caña"
+    "fishing.menu.rod": "Cambiar caña",
+    "dungeon.floor_select.leave": "¿Abandonar mazmorra?"
 }

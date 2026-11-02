@@ -352,6 +352,11 @@ void DunMainDraw();
 void DunMoveChara();
 
 /**
+ * The map a dungeon (selectMapNo's number) leaves the party on in its town, as leaving the dungeon does.
+ */
+int DungeonTownMap(int dungeon);
+
+/**
  * Steps the dungeon's models, effects and gauges once the player's input has been handled.
  */
 void motionDrive();

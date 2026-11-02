@@ -112,6 +112,27 @@ void DeleteItemModel(int slot) {
 
 } // namespace
 
+int DungeonTownMap(int dungeon) {
+    switch (dungeon) {
+        case DUNGEON_DIVINE_BEAST_CAVE:
+            return 0;
+        case DUNGEON_WISE_OWL_FOREST:
+            return 1;
+        case DUNGEON_SHIPWRECK:
+            return 0x13;
+        case DUNGEON_SUN_MOON_TEMPLE:
+            return 0x2A;
+        case DUNGEON_MOON_SEA:
+            return 0x17;
+        case DUNGEON_GALLERY_OF_TIME:
+            return 0x26;
+        case DUNGEON_DEMON_SHAFT:
+            return 0x3C;
+        default:
+            return 0;
+    }
+}
+
 void DunMoveChara() {
     // Where the camera looks relative to what it follows, before the floor's own offset is added.
     static sceVu0FVECTOR reference = {0.0f, 7.5f, 0.0f, 0.0f};
@@ -2007,35 +2028,7 @@ void DunMoveChara() {
             autoCamTrial();
 
             if (DispFade__3.GetRate() >= 128.0f) {
-                int map_no = 0;
-
-                switch (selectMapNo) {
-                    case DUNGEON_DIVINE_BEAST_CAVE:
-                        map_no = 0;
-                        break;
-                    case DUNGEON_WISE_OWL_FOREST:
-                        map_no = 1;
-                        break;
-                    case DUNGEON_SHIPWRECK:
-                        map_no = 0x13;
-                        break;
-                    case DUNGEON_SUN_MOON_TEMPLE:
-                        map_no = 0x2A;
-                        break;
-                    case DUNGEON_MOON_SEA:
-                        map_no = 0x17;
-                        break;
-                    case DUNGEON_GALLERY_OF_TIME:
-                        map_no = 0x26;
-                        break;
-                    case DUNGEON_DEMON_SHAFT:
-                        map_no = 0x3C;
-                        break;
-                    default:
-                        break;
-                }
-
-                MapJump(map_no, -1);
+                MapJump(DungeonTownMap(selectMapNo), -1);
                 existFlag = 2;
             }
 

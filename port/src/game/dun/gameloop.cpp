@@ -1864,7 +1864,14 @@ int GameLoop() {
         case BT_GAME_MODE_ENTRANCE_MENU: {
             int floor = DunEnterMenuLoop();
 
-            if (floor != -1) {
+            if (floor == kDunEnterLeave) {
+                // Left from the floor select (the port's): the party goes back to the town as leaving the
+                // dungeon takes it, the floor's script left waiting as the dungeon ends.
+                BtEventInfo.entrance_result = nullptr;
+                MapJump(DungeonTownMap(selectMapNo), -1);
+                existFlag = 2;
+                BtGameModeFlag = BT_GAME_MODE_PLAY;
+            } else if (floor != -1) {
                 if (BtEventInfo.entrance_result != nullptr) {
                     BtEventInfo.entrance_result->i = floor;
                 }

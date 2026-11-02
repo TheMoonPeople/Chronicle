@@ -389,5 +389,6 @@
     "fishing.fight.tension": "Tensione",
     "fishing.fight.line": "Lenza",
     "fishing.fight.hit": "Abbocca!",
-    "fishing.menu.rod": "Cambia canna"
+    "fishing.menu.rod": "Cambia canna",
+    "dungeon.floor_select.leave": "Tornare in città?"
 }

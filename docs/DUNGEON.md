@@ -30,7 +30,10 @@ except that a clown list a pack makes all but impossible stops after as many tri
 ## Floor select
 
 The floor select is drawn on the UI framework (docs/UI_FRAMEWORK.md) as retail drew it, and takes the
-mouse: a hover puts the cursor on a floor, a click goes down to it, the wheel moves a floor. In English its
+mouse: a hover puts the cursor on a floor, a click goes down to it, the wheel moves a floor. Circle,
+which retail only refuses, asks "Leave dungeon?" (retail's own question, in every language), and Yes
+takes the party back to the dungeon's town as leaving the dungeon does, to the same place and with the
+party recovered. Nothing is paid: no floor has been entered. In English its
 floor words (B, Territory, Layer...), the floors' numbers and the bosses' names are drawn in the captions' font,
 each fitted to the box its painted letters fill (`DrawFloorLabels`, `port/src/game/menu_draw.cpp`); other
 languages keep the painted pictures.

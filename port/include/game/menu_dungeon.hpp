@@ -2,6 +2,10 @@
 
 #include "common.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "menu_draw.hpp"
 
 namespace dc::game {
@@ -43,6 +47,17 @@ int InitDunEnterMenu(int texture_block, int dungeon, int requested_floor);
  * Runs one frame of the dungeon entrance menu, and returns its result once it closes.
  */
 int DunEnterMenuLoop();
+
+/**
+ * What DunEnterMenuLoop gives when the player leaves the dungeon from its floor select instead of choosing
+ * a floor.
+ */
+inline constexpr int kDunEnterLeave = -2;
+
+/**
+ * The floor select's own text, with its English.
+ */
+std::vector<std::pair<std::string, std::string>> FloorSelectStrings();
 
 /**
  * The mouse over the dungeon's floor select, ahead of the game's read of the pad: true while the floor

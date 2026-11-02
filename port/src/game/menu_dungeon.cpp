@@ -15,6 +15,8 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "app/gameloop.hpp"
 #include "battlemenu.hpp"
@@ -31,6 +33,7 @@
 #include "gamepad.hpp"
 #include "item/host.hpp"
 #include "itemdata.hpp"
+#include "localize/localize.hpp"
 #include "mainitemmodel.hpp"
 #include "mainselect.hpp"
 #include "mds.hpp"
@@ -56,6 +59,8 @@
 #include "weaponelement.hpp"
 
 namespace dc::game {
+
+using namespace dc::localize;
 
 namespace {
 
@@ -490,6 +495,54 @@ int DunEnterMenuLoop() {
 
 namespace {
 
+/**
+ * Leaving the dungeon from its floor select, which retail has no way to do: Circle asks, and Yes fades
+ * out and leaves for the dungeon's town as leaving the dungeon does (dun/gameloop.cpp).
+ */
+struct LeaveQuestion {
+    bool open = false;
+    int  choice = 1;     /**< 0 Yes, 1 No. */
+    bool chosen = false; /**< Yes was chosen: it stays lit while the select fades out. */
+    int  chosen_frames = 0;
+} g_leave;
+
+ui::Cursor g_leave_cursor;
+
+// The question's Yes stays lit as long as the battle menu's answers do (move_menu.cpp).
+constexpr int kLeaveLitFrames = 9;
+
+std::string LeaveTitle() {
+    return LocalizeText("dungeon.floor_select.leave", "Leave dungeon?");
+}
+
+void OpenLeaveQuestion() {
+    g_leave = {.open = true, .choice = 1};
+    const ui::Rect no = ui::ConfirmModal::ButtonRect(LeaveTitle(), "", 1);
+    g_leave_cursor.SnapTo(static_cast<float>(no.x - 34), static_cast<float>(no.y + 3));
+    ComMenuSePlay(MENU_SOUND_CONFIRM);
+}
+
+void LeaveQuestionKey() {
+    if (GamePad.Down(PAD_UP | PAD_DOWN)) {
+        g_leave.choice ^= 1;
+        ComMenuSePlay(MENU_SOUND_CURSOR);
+    }
+    if (GamePad.Down(PAD_CROSS)) {
+        g_leave.open = false;
+        if (g_leave.choice == 0) {
+            g_leave.chosen = true;
+            DEnterMenu.result = kDunEnterLeave;
+            DEnterMenu.state = DUN_ENTER_FADE_OUT;
+            ComMenuSePlay(MENU_SOUND_CONFIRM);
+        } else {
+            ComMenuSePlay(MENU_SOUND_REFUSE);
+        }
+    } else if (GamePad.Down(PAD_CIRCLE)) {
+        g_leave.open = false;
+        ComMenuSePlay(MENU_SOUND_REFUSE);
+    }
+}
+
 int DunEnterMenuKey() {
     int result = -1;
 
@@ -515,6 +568,7 @@ int DunEnterMenuKey() {
                 g_floor_messages = CommonMenuMes2.buff;
                 g_window_message = 10;
                 g_window_insert = -1;
+                g_leave = {};
                 DEnterMenu.textures_ready = 1;
                 DEnterMenu.loading = false;
                 std::println("tex enter end ");
@@ -547,6 +601,11 @@ int DunEnterMenuKey() {
 
             break;
         case DUN_ENTER_SELECT: {
+            if (g_leave.open) {
+                LeaveQuestionKey();
+                break;
+            }
+
             const int selected = DEnterMenu.selected_floor;
             const int scroll_top = DEnterMenu.scroll_top;
 
@@ -644,10 +703,9 @@ int DunEnterMenuKey() {
                 DEnterMenu.result = DEnterMenu.selected_floor;
                 DEnterMenu.state = DUN_ENTER_FADE_OUT;
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
-            }
-
-            if (GamePad.Down(PAD_CIRCLE)) {
-                ComMenuSePlay(MENU_SOUND_REFUSE);
+            } else if (GamePad.Down(PAD_CIRCLE)) {
+                // Retail only refuses here.
+                OpenLeaveQuestion();
             }
 
             break;
@@ -781,7 +839,9 @@ void DunEnterDraw() {
             }
 
             g_floor_hand.SnapTo(static_cast<float>(kBoardX), static_cast<float>(cursor_y));
-            g_floor_hand.Draw(DunLogBoard, ui::Rect(0x20, 0x60, 0x20, 0x20), 3, 2, alpha);
+            if (!g_leave.open) {
+                g_floor_hand.Draw(DunLogBoard, ui::Rect(0x20, 0x60, 0x20, 0x20), 3, 2, alpha);
+            }
         }
 
         MenuTextureReload(CommonMenuMes2.tex_block);
@@ -794,6 +854,13 @@ void DunEnterDraw() {
         GetMenuCommonPutXY(&CommonMenuMes2, 0x148 - half_width);
         CommonMenuMes2.Step();
         CommonMenuMes2.DrawMesWin();
+
+        if (g_leave.open || g_leave.chosen) {
+            g_leave.chosen_frames = g_leave.chosen ? g_leave.chosen_frames + 1 : 0;
+            ui::ConfirmModal::Draw(LeaveTitle(), "", LocalizeText("battlemenu.quit.yes", "YES"), LocalizeText("battlemenu.quit.no", "NO"),
+                                   g_leave.choice, g_leave_cursor, alpha, ui::WindowPreset::DarkTranslucent, g_leave.chosen ? 0 : -1,
+                                   g_leave.chosen_frames <= kLeaveLitFrames);
+        }
     } else {
         ui::ScreenFill::Draw(0, 0, 0, 0x80);
     }
@@ -1045,6 +1112,12 @@ int FloorUnder(float x, float y) {
 
 } // namespace
 
+std::vector<std::pair<std::string, std::string>> FloorSelectStrings() {
+    return {
+        {"dungeon.floor_select.leave", "Leave dungeon?"},
+    };
+}
+
 bool FloorSelectPointerUpdate() {
     if (!std::exchange(g_floor_select_active, false)) {
         return !g_floor_pointer.Close();
@@ -1055,6 +1128,20 @@ bool FloorSelectPointerUpdate() {
     const ui::MenuPointerTake take = g_floor_pointer.Take(g_floor_hand.X(), g_floor_hand.Y());
     ui::MenuPointerShow(&g_floor_pointer);
     if (DEnterMenu.state != DUN_ENTER_SELECT || !take.pointing) {
+        return true;
+    }
+    if (g_leave.open) {
+        const int answer = ui::ConfirmModal::Hit(LeaveTitle(), "", g_floor_pointer.x, g_floor_pointer.y);
+        if (answer >= 0 && take.moved && answer != g_leave.choice) {
+            g_leave.choice = answer;
+            ComMenuSePlay(MENU_SOUND_CURSOR);
+        }
+        if ((take.clicked & 1) != 0 && answer >= 0) {
+            ui::MenuPointerPress(kInputCross);
+        }
+        if ((take.clicked & 2) != 0) {
+            ui::MenuPointerPress(kInputCircle);
+        }
         return true;
     }
 

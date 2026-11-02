@@ -389,5 +389,6 @@
     "fishing.fight.tension": "Spannung",
     "fishing.fight.line": "Schnur",
     "fishing.fight.hit": "Biss!",
-    "fishing.menu.rod": "Angel wechseln"
+    "fishing.menu.rod": "Angel wechseln",
+    "dungeon.floor_select.leave": "Verlies verlassen?"
 }

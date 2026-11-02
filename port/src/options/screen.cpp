@@ -19,6 +19,7 @@
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
+#include "menu_dungeon.hpp"
 #include "menu_manual.hpp"
 #include "menuetc.hpp"
 #include "platform/display.hpp"
@@ -713,6 +714,9 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
         out.push_back(std::move(entry));
     }
     for (auto &entry : BattleMenuStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : game::FloorSelectStrings()) {
         out.push_back(std::move(entry));
     }
     for (auto &entry : JournalStrings()) {
