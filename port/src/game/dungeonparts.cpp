@@ -1657,6 +1657,18 @@ float QuarterTurnAngle(float turn) {
 
 } // namespace
 
+int AtraCenterFloor(int dungeon) {
+    return dungeon >= 0 && dungeon < static_cast<int>(CenterFloorTbl.size()) ? CenterFloorTbl[dungeon] : 0;
+}
+
+int AtraFloorCount(int dungeon) {
+    return dungeon >= 0 && dungeon < static_cast<int>(MaxFloorTbl.size()) ? MaxFloorTbl[dungeon] : 0;
+}
+
+bool AtraFloorOpen(int dungeon, int floor) {
+    return dungeon >= 0 && dungeon < static_cast<int>(MaxFloorTbl.size()) && chkAtraFloor(dungeon, floor) != 0;
+}
+
 void GetPieroItem(int map_no, int ura_dungeon, int *item0, int *item1) {
     const PIERO_ITEM_SET *list = PieroItemListPtr[map_no + ura_dungeon * 7];
     const s16            *rate = ItemSetRateTbl[map_no];

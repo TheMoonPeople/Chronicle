@@ -290,6 +290,22 @@ int BtAtraFloorCyoice(int map_no, int floor_no, int *atra_no);
 void BtAtraListMake(int dungeon);
 
 /**
+ * The floor (counted from 0) that divides a dungeon's Atla between its first and second half, as
+ * BtAtraListMake places them.
+ */
+int AtraCenterFloor(int dungeon);
+
+/**
+ * How many floors a dungeon's Atla are placed on.
+ */
+int AtraFloorCount(int dungeon);
+
+/**
+ * Whether BtAtraListMake may place a random Atla on a dungeon's floor, counted from one.
+ */
+bool AtraFloorOpen(int dungeon, int floor);
+
+/**
  * Gathers the floor's polygons within reach of a position, and returns how many.
  */
 int setCollisionData(CDungeonMap *map, CCPoly *poly, float *position, float radius, float height);

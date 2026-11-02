@@ -66,8 +66,9 @@ Rows are keyed by `item_no` and hold their table's fields under retail's names. 
 hold every row of its table and every field of each row. `model` is the name of the item's model
 files (lower-case letters, digits and underscores), or `null` for none.
 
-`darkcloud --export-gameplay <directory>` writes the documents as compiled, so changing one item
-means copying its table's document into a pack and editing a line.
+`darkcloud --export-gameplay <directory>` writes the documents as compiled, the Georama's with them
+(docs/GEORAMA.md), so changing one item means copying its table's document into a pack and editing a
+line.
 
 What a change reaches:
 
