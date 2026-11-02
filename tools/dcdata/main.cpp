@@ -264,8 +264,10 @@ void WriteJson(const fs::path &path, const nlohmann::ordered_json &document) {
 }
 
 // The load lists of one pack, each member they load naming the bank or sequence it was published as.
+// A pack that is not a .snd holds other text too, so of its lists only those that load something are
+// kept; a .snd keeps every list, each one carrying its .cfg settings.
 nlohmann::ordered_json PublishPackLists(const std::vector<dcdata::PackMember> &members, const std::string &pack,
-                                        const std::string &out, std::map<std::string, std::string> &banks) {
+                                        const std::string &out, std::map<std::string, std::string> &banks, bool every_list) {
     namespace sound = dcdata::sound;
     std::map<std::string, std::string> sequences;
     nlohmann::ordered_json             lists = nlohmann::ordered_json::array();
@@ -316,6 +318,9 @@ nlohmann::ordered_json PublishPackLists(const std::vector<dcdata::PackMember> &m
                 {"se_table_type", commands.se_table_type}
             };
         }
+        if (!every_list && loads.empty()) {
+            continue;
+        }
         lists.push_back({
             {"name",   list.name},
             {"config", config   },
@@ -325,27 +330,61 @@ nlohmann::ordered_json PublishPackLists(const std::vector<dcdata::PackMember> &m
     return lists;
 }
 
+// Whether a pack's members include a bank or a sequence, as the title's and the opening's packs hold
+// their sound beside their pictures and models.
+bool HoldsSound(const std::vector<dcdata::PackMember> &members) {
+    return std::ranges::any_of(members, [](const dcdata::PackMember &member) {
+        const std::string name = Lower(member.name);
+        return name.ends_with(".hd") || name.ends_with(".sq");
+    });
+}
+
 // Publishes the sound packs beside the originals in ChronicleTwo's formats (docs/AUDIO_FRAMEWORK.md):
 // each distinct bank once, each pack's sequences, a document per pack of its load lists, and the
-// global volume tables.
+// global volume tables. The .snd packs are the sound's own; a .pak is published when it holds sound
+// too, as the title's and the opening's do.
 void PublishSound(const fs::path &data) {
     namespace sound = dcdata::sound;
     std::vector<fs::path> packs;
     for (const auto &entry : fs::recursive_directory_iterator(data)) {
-        const fs::path relative = entry.path().lexically_relative(data);
+        const fs::path    relative = entry.path().lexically_relative(data);
+        const std::string extension = relative.extension().string();
         if (entry.is_regular_file() && *relative.begin() != "normalized" &&
-            dcdata::EqualsFolded(relative.extension().string(), ".snd")) {
+            (dcdata::EqualsFolded(extension, ".snd") || dcdata::EqualsFolded(extension, ".pak"))) {
             packs.push_back(relative);
         }
     }
     std::ranges::sort(packs);
     const std::string                  out = Utf8Path(data);
     std::map<std::string, std::string> banks;
+    std::size_t                        published_packs = 0;
     for (const fs::path &relative : packs) {
+        const bool                      snd = dcdata::EqualsFolded(relative.extension().string(), ".snd");
+        std::vector<dcdata::PackMember> members;
+        try {
+            members = dcdata::ReadPack(dcdata::ReadFile(data / relative));
+        } catch (const std::exception &) {
+            // A .pak that is not a pack has no sound to publish.
+            if (snd) {
+                throw;
+            }
+            continue;
+        }
+        if (!snd && !HoldsSound(members)) {
+            continue;
+        }
+        // Kazarov names a pack's published sequences after its path as a .snd's: title.pak's go where a
+        // title.snd's would, beside the document.
+        fs::path key = relative;
+        key.replace_extension(".snd");
         nlohmann::ordered_json document = SoundDocument("sound_pack");
-        document["lists"] = PublishPackLists(dcdata::ReadPack(dcdata::ReadFile(data / relative)), relative.generic_string(), out, banks);
+        document["lists"] = PublishPackLists(members, key.generic_string(), out, banks, snd);
+        if (!snd && document["lists"].empty()) {
+            continue;
+        }
         fs::path published = relative;
         WriteJson(data / published.replace_extension(".sound.json"), document);
+        published_packs++;
     }
 
     const fs::path tables = data / "sound" / "tbl";
@@ -372,7 +411,7 @@ void PublishSound(const fs::path &data) {
         }
         WriteJson(tables / "setbl.json", document);
     }
-    dcdata::Log(stdout, "published {} sound packs sharing {} banks\n", packs.size(), banks.size());
+    dcdata::Log(stdout, "published {} sound packs sharing {} banks\n", published_packs, banks.size());
 }
 
 int Usage() {
@@ -467,6 +506,8 @@ int Extract(const std::filesystem::path &source, const std::filesystem::path &ou
         return result;
     }
     BakeAssets(out, out);
+    // The game plays the published sound; the packs stay beside it until the game stops reading them.
+    PublishSound(out);
     return 0;
 }
 

@@ -196,8 +196,17 @@ TEST(SoundPublishRealData, EveryPublishedPackPlaysWhatTheOriginalsDo) {
     int        sequences = 0;
     int        configs = 0;
     for (const fs::path &document : documents) {
-        fs::path pack_path = document;
-        pack_path.replace_extension().replace_extension(".snd");
+        // A document sits beside its pack: a .snd, or a .pak that holds sound among other things.
+        fs::path stem = document;
+        stem.replace_extension().replace_extension();
+        fs::path pack_path;
+        for (const char *extension : {".snd", ".pak"}) {
+            if (fs::exists(fs::path(stem).replace_extension(extension))) {
+                pack_path = fs::path(stem).replace_extension(extension);
+                break;
+            }
+        }
+        ASSERT_FALSE(pack_path.empty()) << document << " has no pack beside it";
         const auto members = dcdata::ReadPack(dcdata::ReadFile(pack_path));
         const auto json = nlohmann::json::parse(ReadText(document));
         ASSERT_EQ(json["kind"], "sound_pack") << document;

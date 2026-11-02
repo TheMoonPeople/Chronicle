@@ -29,6 +29,7 @@
 #include "scriptinterpreter.hpp"
 #include "snd.hpp"
 #include "sound.hpp"
+#include "sound/published.hpp"
 #include "text/credits_text.hpp"
 #include "text/glyph_draw.hpp"
 #include "texture.hpp"
@@ -1796,6 +1797,32 @@ std::string GetConfigScriptName(std::string_view config_name) {
 }
 
 /**
+ * A set's driver settings: the published ones where its pack has them
+ * (docs/AUDIO_FRAMEWORK.md), else its .cfg script's. False when it has neither.
+ */
+bool ReadSoundInfo(unsigned int *buffer, const std::string &config_name, SND_INFO &info) {
+    info = {};
+    int         list_size = 0;
+    const void *list = GetPackFile(buffer, const_cast<char *>(config_name.c_str()), &list_size);
+    const auto  published = sound::FindList(list, static_cast<std::size_t>(std::max(list_size, 0)), config_name);
+    if (published && published->config) {
+        info.reverb_mode = published->config->reverb_mode;
+        info.reverb_depth = published->config->reverb_depth;
+        info.se_table = published->config->se_table;
+        info.se_table_type = published->config->se_table_type;
+        return true;
+    }
+    std::string script_name = GetConfigScriptName(config_name);
+    int         size = 0;
+    u_int      *cfg_script = GetPackFile(buffer, script_name.data(), &size);
+    if (cfg_script == nullptr) {
+        return false;
+    }
+    LoadSoundInfo(&info, reinterpret_cast<char *>(cfg_script), size);
+    return true;
+}
+
+/**
  * Hands every row of one sound-effect table to the driver to resolve its sound
  * number, stopping at the table's end row or after a number of rows.
  */
@@ -2013,13 +2040,7 @@ void SetBGMFile(int set_no, unsigned int *buffer, std::string config_name) {
     now_bgm_no = set_no;
     now_bgm_play = BgmPlayState::Stopped;
 
-    std::string script_name = GetConfigScriptName(config_name);
-    int         size = 0;
-    u_int      *cfg_script = GetPackFile(buffer, script_name.data(), &size);
-
-    if (cfg_script != nullptr) {
-        SND_INFO info{};
-        LoadSoundInfo(&info, reinterpret_cast<char *>(cfg_script), size);
+    if (SND_INFO info{}; ReadSoundInfo(buffer, config_name, info)) {
         CSnd.SetReverb(0, info.reverb_mode, info.reverb_depth);
         std::println("core 0 rev = {} {}", info.reverb_mode, info.reverb_depth);
     }
@@ -2308,13 +2329,7 @@ void SetSoundFile(int set_no, unsigned int *buffer, std::string config_name) {
     now_amb_no = -1;
     SndStopAllSe();
 
-    std::string script_name = GetConfigScriptName(config_name);
-    int         size = 0;
-    u_int      *cfg_script = GetPackFile(buffer, script_name.data(), &size);
-
-    if (cfg_script != nullptr) {
-        SND_INFO info{};
-        LoadSoundInfo(&info, reinterpret_cast<char *>(cfg_script), size);
+    if (SND_INFO info{}; ReadSoundInfo(buffer, config_name, info)) {
         CSnd.SetReverb(1, info.reverb_mode, info.reverb_depth);
         basic_se_table_no = info.se_table;
         se_table_no = info.se_table_type;

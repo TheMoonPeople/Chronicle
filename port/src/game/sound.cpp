@@ -2,13 +2,17 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "audio/mixer.hpp"
@@ -17,6 +21,7 @@
 #include "dataread.hpp"
 #include "platform/audio.hpp"
 #include "platform/config.hpp"
+#include "sound/published.hpp"
 
 namespace dc::game {
 
@@ -42,6 +47,10 @@ struct PendingBank {
     int                          bd_size = 0;
     int                          spu_address = 0;
 } g_bank;
+
+// The published bank LoadSoundFileFromPack found for the member it is loading, which TransHdBdData
+// takes in place of the member's HD and BD (docs/AUDIO_FRAMEWORK.md).
+std::shared_ptr<audio::Bank> g_published_bank;
 
 std::array<std::shared_ptr<audio::Bank>, kSlots>                                  g_slot_banks;
 std::array<std::array<std::shared_ptr<audio::SqFile>, kSequencesPerSlot>, kSlots> g_slot_sequences;
@@ -143,7 +152,9 @@ int TransHdBdData(const std::uint8_t *hd, int hd_size, const std::uint8_t *bd, i
         g_bank.bank.reset();
         return -1;
     }
-    g_bank.bank = audio::Bank::Create({hd, static_cast<std::size_t>(hd_size)}, {bd, static_cast<std::size_t>(bd_size)});
+    // The BD's size still keeps the SPU address bookkeeping as retail's, the pack being loaded as it was.
+    g_bank.bank = g_published_bank != nullptr ? std::exchange(g_published_bank, nullptr)
+                                              : audio::Bank::Create({hd, static_cast<std::size_t>(hd_size)}, {bd, static_cast<std::size_t>(bd_size)});
     g_bank.bd_size = bd_size;
     if (g_bank.bank == nullptr) {
         std::printf("sound: unreadable HD bank (%d bytes)\n", hd_size);
@@ -263,13 +274,15 @@ int LoadSlotSimple(int slot, int port, int attribute, const std::uint8_t *hd, in
     return 0;
 }
 
-int LoadSequence(int slot, const std::uint8_t *data, int size) {
+int LoadSequence(int slot, const std::uint8_t *data, int size, std::shared_ptr<audio::SqFile> published = nullptr) {
     MIDI_PORT &state = midi_state.port[slot];
     if (state.sequence_count >= kSequencesPerSlot) {
         std::printf("sound: more than %d sequences on slot %d\n", kSequencesPerSlot, slot);
         return -1;
     }
-    auto sequence = data != nullptr && size > 0 ? audio::SqFile::Create({data, static_cast<std::size_t>(size)}) : nullptr;
+    auto sequence = published != nullptr          ? std::move(published)
+                    : data != nullptr && size > 0 ? audio::SqFile::Create({data, static_cast<std::size_t>(size)})
+                                                  : nullptr;
     if (sequence == nullptr) {
         std::printf("sound: unreadable SQ sequence (%d bytes)\n", size);
     } else {
@@ -370,6 +383,14 @@ int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
         return 0;
     }
 
+    // The pack's published banks and sequences play in place of its own members where it has them.
+    const std::optional<sound::PublishedList> published = sound::FindList(list, static_cast<std::size_t>(size), name);
+    const auto                                published_of = [&](const std::map<std::string, std::string> &documents, std::string member) {
+        std::ranges::transform(member, member.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        const auto found = documents.find(member);
+        return found != documents.end() ? found->second : std::string();
+    };
+
     // Each line names one member; its first nine characters are a six-character stem whose last
     // letter picks the slot, and the extension.
     const std::string text(list, strnlen(list, size));
@@ -396,7 +417,16 @@ int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
                     continue;
                 }
                 audio::Trace("load %s (slot letter %c)", name_hd.c_str(), kind);
-                LoadSequence(slot, sq, sq_size);
+                std::shared_ptr<audio::SqFile> sequence;
+                if (published) {
+                    if (const std::string document = published_of(published->sequences, name_hd); !document.empty()) {
+                        sequence = sound::LoadSequence(document);
+                        if (sequence == nullptr) {
+                            std::printf("sound: %s unreadable, playing the pack's %s\n", document.c_str(), name_hd.c_str());
+                        }
+                    }
+                }
+                LoadSequence(slot, sq, sq_size, std::move(sequence));
                 RegisterSequence(slot, name_hd.c_str());
             }
             continue;
@@ -412,6 +442,15 @@ int CSound::LoadSoundFileFromPack(char *name, unsigned int *pack) {
         const auto *bd = reinterpret_cast<const std::uint8_t *>(GetPackFile(pack, name_bd.data(), &bd_size));
         if (hd == nullptr || bd == nullptr || hd_size <= 0 || bd_size <= 0) {
             continue;
+        }
+        g_published_bank = nullptr;
+        if (published) {
+            if (const std::string document = published_of(published->banks, name_hd); !document.empty()) {
+                g_published_bank = sound::LoadBank(document);
+                if (g_published_bank == nullptr) {
+                    std::printf("sound: %s unreadable, playing the pack's %s\n", document.c_str(), name_hd.c_str());
+                }
+            }
         }
         switch (kind) {
             case 'a':
@@ -483,6 +522,19 @@ int Number(const std::string &token) {
 int CSound::LoadSqInf(char *name, unsigned int *buffer) {
     int        size = 0;
     const auto tokens = ReadTable(name, buffer, size);
+    if (const auto published = sound::SequenceVolumes(name)) {
+        for (const sound::SequenceVolume &row : *published) {
+            if (sq_inf_tbl.count >= 400) {
+                break;
+            }
+            MIDI_SEQUENCE &sequence = sq_inf_tbl.sequence[sq_inf_tbl.count];
+            std::ranges::fill(sequence.name, '\0');
+            row.name.copy(sequence.name, 9);
+            sequence.volume = row.volume;
+            sq_inf_tbl.count++;
+        }
+        return size;
+    }
     for (std::size_t i = 0; i + 1 < tokens.size() && sq_inf_tbl.count < 400; i += 2) {
         MIDI_SEQUENCE &sequence = sq_inf_tbl.sequence[sq_inf_tbl.count];
         std::ranges::fill(sequence.name, '\0');
@@ -497,6 +549,19 @@ int CSound::LoadSeInf(char *name, unsigned int *buffer) {
     int        size = 0;
     const auto tokens = ReadTable(name, buffer, size);
     se_inf_tbl.count = 0;
+    if (const auto published = sound::EffectVolumes(name)) {
+        for (const sound::EffectVolume &row : *published) {
+            if (se_inf_tbl.count >= 3000) {
+                break;
+            }
+            SE_INF &entry = se_inf_tbl.entry[se_inf_tbl.count];
+            entry.bank = row.bank;
+            entry.program = row.program;
+            entry.volume = row.volume;
+            se_inf_tbl.count++;
+        }
+        return size;
+    }
     for (std::size_t i = 0; i + 2 < tokens.size() && se_inf_tbl.count < 3000; i += 3) {
         SE_INF &entry = se_inf_tbl.entry[se_inf_tbl.count];
         entry.bank = Number(tokens[i]);
