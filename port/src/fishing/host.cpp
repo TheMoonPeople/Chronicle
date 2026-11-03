@@ -703,7 +703,7 @@ Spawning SpawnAt(int spot, int time_of_day) {
         return {.kinds = std::vector<int>(5, -1)};
     }
     const SpawnContext context{.time = TimeFrom(time_of_day), .random = [] {
-                                   return static_cast<double>(std::rand()) / (static_cast<double>(RAND_MAX) + 1.0);
+                                   return static_cast<double>(std::rand()) / 2147483648.0; // the PS2's range, as angler.cpp's Uniform
                                }};
     Spawning spawning{.draw_under_water = place->draw_under_water};
     for (const Species *species : place->spawn->Spawn(*place, context)) {

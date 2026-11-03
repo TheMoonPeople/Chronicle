@@ -142,8 +142,10 @@ bool AskFishingQuestion(const dialog::QuestionContext &question, std::vector<dia
 // roll of nothing, which the trace says.
 constexpr int BriskLookAgain = 30;
 
+// The port's rand() is the PS2's, 31 bits on every platform, so the divisor is the PS2's range and
+// not the host's RAND_MAX (32767 on Windows).
 double Uniform() {
-    return static_cast<double>(std::rand()) / (static_cast<double>(RAND_MAX) + 1.0);
+    return static_cast<double>(std::rand()) / 2147483648.0;
 }
 
 // The bait on the hook, as FishingStepFish gives it to the fish.
