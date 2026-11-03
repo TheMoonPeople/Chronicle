@@ -1,7 +1,5 @@
 // DunMoveChara, split from dun/gameloop.cpp for size.
 
-#include "dun/gameloop.hpp"
-
 #include <libvu0.h>
 
 #include <cmath>
@@ -18,8 +16,8 @@
 #include "btsysscript.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
-#include "charakey.hpp"
 #include "character.hpp"
+#include "charakey.hpp"
 #include "clothread.hpp"
 #include "clsmes.hpp"
 #include "collision.hpp"
@@ -31,6 +29,8 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dun/gameloop.hpp"
+#include "dungeon/doors.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -111,6 +111,27 @@ void DeleteItemModel(int slot) {
 }
 
 } // namespace
+
+int DungeonTownMap(int dungeon) {
+    switch (dungeon) {
+        case DUNGEON_DIVINE_BEAST_CAVE:
+            return 0;
+        case DUNGEON_WISE_OWL_FOREST:
+            return 1;
+        case DUNGEON_SHIPWRECK:
+            return 0x13;
+        case DUNGEON_SUN_MOON_TEMPLE:
+            return 0x2A;
+        case DUNGEON_MOON_SEA:
+            return 0x17;
+        case DUNGEON_GALLERY_OF_TIME:
+            return 0x26;
+        case DUNGEON_DEMON_SHAFT:
+            return 0x3C;
+        default:
+            return 0;
+    }
+}
 
 void DunMoveChara() {
     // Where the camera looks relative to what it follows, before the floor's own offset is added.
@@ -669,7 +690,8 @@ void DunMoveChara() {
                                                 run_action = false;
                                             } else if (GamePad.Down(PadInput_OK) != 0) {
                                                 gameTask = GAME_TASK_SCRIPT_START;
-                                                BtEventInfo.action_mode = 1;
+                                                // docs/DUNGEON.md: at a locked door with its key, as Square starts it.
+                                                BtEventInfo.action_mode = dungeon::AutoOpenLockedDoor(*state) ? 2 : 1;
                                                 run_action = false;
                                             }
                                         }
@@ -2006,35 +2028,7 @@ void DunMoveChara() {
             autoCamTrial();
 
             if (DispFade__3.GetRate() >= 128.0f) {
-                int map_no = 0;
-
-                switch (selectMapNo) {
-                    case DUNGEON_DIVINE_BEAST_CAVE:
-                        map_no = 0;
-                        break;
-                    case DUNGEON_WISE_OWL_FOREST:
-                        map_no = 1;
-                        break;
-                    case DUNGEON_SHIPWRECK:
-                        map_no = 0x13;
-                        break;
-                    case DUNGEON_SUN_MOON_TEMPLE:
-                        map_no = 0x2A;
-                        break;
-                    case DUNGEON_MOON_SEA:
-                        map_no = 0x17;
-                        break;
-                    case DUNGEON_GALLERY_OF_TIME:
-                        map_no = 0x26;
-                        break;
-                    case DUNGEON_DEMON_SHAFT:
-                        map_no = 0x3C;
-                        break;
-                    default:
-                        break;
-                }
-
-                MapJump(map_no, -1);
+                MapJump(DungeonTownMap(selectMapNo), -1);
                 existFlag = 2;
             }
 

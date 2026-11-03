@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "itemdata.hpp"
+#include "menu_inventory.hpp"
 #include "ui/framework/internal.hpp"
 #include "ui/menu_pointer.hpp"
 
@@ -75,6 +76,260 @@ bool ItemIcon::Draw(int item_no, int x, int y, int size, int alpha, bool drop_sh
     DrawMenu2DSprite(texture, CRect_i_(x, y, size, size), source, alpha);
 
     return true;
+}
+
+void ItemIcon::DrawInSlot(int item_no, int x, int y, int top, int bottom, int alpha) {
+    DrawIconParts(item_no, x, y, top, bottom, alpha, 0);
+}
+
+void Picture::Draw(CTexture *texture, const Rect &destination, const Rect &source, int alpha) {
+    DrawMenu2DSprite(texture, CRect_i_(destination.x, destination.y, destination.w, destination.h),
+                     CRect_i_(source.x, source.y, source.w, source.h), alpha);
+}
+
+void Picture::DrawColumn(CTexture *texture, int x, int y, float length, const Rect &cap_source, int alpha) {
+    Rect source = cap_source;
+    Draw(texture, Rect(x, y, source.w, source.h), source, alpha);
+    source.y += source.h;
+    Draw(texture, Rect(x, y + source.h, source.w, static_cast<int>(length)), source, alpha);
+    source.y += source.h;
+    Draw(texture, Rect(x, static_cast<int>(static_cast<float>(y + source.h) + length), source.w, source.h), source, alpha);
+}
+
+ClippedRows ClippedRows::Clip(int y, int source, int height, int top, int bottom) {
+    ClippedRows rows{y, source, height};
+    if (rows.y < top && rows.y + rows.height > top) {
+        rows.height = rows.y + rows.height - top;
+        rows.source += top - rows.y;
+        rows.y = top;
+    }
+    if (rows.y < bottom && rows.y + rows.height > bottom) {
+        rows.height = bottom - rows.y;
+    }
+    return rows;
+}
+
+void Picture::DrawClipped(CTexture *texture, const Rect &destination, const Rect &source, int top, int bottom, int alpha) {
+    const ClippedRows rows = ClippedRows::Clip(destination.y, source.y, source.h, top, bottom);
+    if (rows.y >= bottom) {
+        return;
+    }
+    Draw(texture, Rect(destination.x, rows.y, destination.w, rows.height + destination.h - source.h), Rect(source.x, rows.source, source.w, rows.height),
+         alpha);
+}
+
+void Picture::DrawScreen(CTexture *texture, int alpha) {
+    DrawFullSizePicture(texture, 0, 0, alpha);
+}
+
+void ScreenFill::Draw(int r, int g, int b, int alpha) {
+    MGFillBox(CRect_i_(0, 0, metrics::kScreenWidth << 4, metrics::kScreenHeight << 4), static_cast<u8>(r), static_cast<u8>(g), static_cast<u8>(b),
+              static_cast<u8>(alpha));
+}
+
+void PictureNumber::Draw(int value, int right_x, int y, CTexture *texture, const Rect &digits, int overlap, int alpha) {
+    const RECT rect = {digits.x, digits.y, digits.w, digits.h};
+    DrawMenuNumber(value, right_x, y, texture, rect, overlap, alpha);
+}
+
+void PictureNumber::DrawClipped(int value, int right_x, int y, CTexture *texture, const Rect &digits, int overlap, int top, int bottom, int alpha) {
+    const RECT rect = {digits.x, digits.y, digits.w, digits.h};
+    DrawMenuNumber(value, right_x, y, rect, texture, overlap, top, bottom, alpha);
+}
+
+void ListCursor::Reset(int last, int hand_y) {
+    m_cursor = 0;
+    m_top = 0;
+    m_last = last;
+    m_hand_y = hand_y;
+}
+
+void ListCursor::Up() {
+    m_cursor = std::max(m_cursor - 1, 0);
+    if (m_cursor < m_top) {
+        m_top--;
+    }
+    if (m_top < 0) {
+        m_top = 0;
+        m_cursor = 0;
+    }
+}
+
+void ListCursor::Down() {
+    m_cursor = std::min(m_cursor + 1, m_last);
+    if (m_top < m_cursor - (m_layout.rows_shown - 1)) {
+        m_top++;
+    }
+}
+
+void ListCursor::PageUp() {
+    m_top -= m_layout.rows_shown;
+    m_cursor -= m_layout.rows_shown;
+    if (m_cursor < 0 || m_top < 0) {
+        m_cursor = 0;
+        m_top = 0;
+    }
+}
+
+void ListCursor::PageDown() {
+    m_top += m_layout.rows_shown;
+    m_cursor += m_layout.rows_shown;
+    Clamp();
+}
+
+void ListCursor::Clamp() {
+    const int last_top = m_last - (m_layout.rows_shown - 1);
+    m_cursor = std::min(m_cursor, m_last);
+    if (m_top > last_top + 1) {
+        m_top = last_top;
+    }
+}
+
+void ListCursor::Set(int cursor, int top) {
+    m_cursor = cursor;
+    m_top = top;
+}
+
+void ListCursor::EaseHand(int target_y) {
+    m_hand_y += static_cast<int>(static_cast<float>(target_y - m_hand_y) / 4.0f);
+    if (std::abs(m_hand_y - target_y) < 2) {
+        m_hand_y = target_y;
+    }
+}
+
+Rect ListCursor::RowRect(int row) const {
+    return m_layout.first_row.Offset(0, row * m_layout.stride);
+}
+
+int ListCursor::Hit(float x, float y) const {
+    for (int row = 0; row < m_layout.rows_shown && m_top + row <= m_last; row++) {
+        if (RowRect(row).Contains(x, y)) {
+            return m_top + row;
+        }
+    }
+    return -1;
+}
+
+void MenuHand::SnapTo(float x, float y) {
+    m_x = x;
+    m_y = y;
+}
+
+void MenuHand::Ease(float x, float y) {
+    m_x += (x - m_x) / 4.0f;
+    m_y += (y - m_y) / 4.0f;
+}
+
+void MenuHand::Draw(int icon_u) const {
+    DrawMenuObjectVibe(static_cast<int>(m_x), static_cast<int>(m_y), 1, icon_u);
+}
+
+void MenuHand::Draw(CTexture *texture, const Rect &source, int shadow_dx, int shadow_dy, int alpha) const {
+    const CRect_i_ src(source.x, source.y, source.w, source.h);
+    float          pointer_x = 0.0f;
+    float          pointer_y = 0.0f;
+    if (MenuPointerHand(pointer_x, pointer_y)) {
+        const int x = static_cast<int>(pointer_x);
+        const int y = static_cast<int>(pointer_y);
+        DrawMenu2DSprite(texture, CRect_i_(x + shadow_dx, y + shadow_dy, source.w, source.h), src, 0, 0, 0, alpha);
+        DrawMenu2DSprite(texture, CRect_i_(x, y, source.w, source.h), src, 0x80, 0x80, 0x80, alpha);
+        return;
+    }
+    const int x = static_cast<int>(m_x);
+    const int y = static_cast<int>(m_y);
+    DrawObjectVibe(x + shadow_dx, y + shadow_dy, texture, src, 0, alpha);
+    DrawObjectVibe(x, y, texture, src, 0x80, alpha);
+}
+
+void StayFrame::Draw(const Rect &box, int alpha) {
+    DrawMenuWaku(static_cast<float>(box.x), static_cast<float>(box.y), box.w, box.h, 0,
+                 TexManager.GetTexture(AtoraVibeTextureName, -1), alpha);
+}
+
+void StayFrame::Draw(CTexture *texture, const Rect &corner, int left, int top, int right, int bottom, int alpha) {
+    const int w = corner.w;
+    const int h = corner.h;
+    Picture::Draw(texture, Rect(left, top, w, h), corner, alpha);
+    Picture::Draw(texture, Rect(right, top, w, h), corner.Offset(w, 0), alpha);
+    Picture::Draw(texture, Rect(left, bottom, w, h), corner.Offset(0, h), alpha);
+    Picture::Draw(texture, Rect(right, bottom, w, h), corner.Offset(w, h), alpha);
+}
+
+int SlotGrid::Rows() const {
+    return std::max(m_slots / m_layout.columns, 1);
+}
+
+void SlotGrid::Reset(int slots) {
+    m_slots = slots;
+    m_cursor = 0;
+    m_top_row = 0;
+    m_rows_y = m_layout.window.y;
+}
+
+bool SlotGrid::Move(int dx, int dy) {
+    const int before = m_cursor;
+    const int columns = m_layout.columns;
+    if (dy < 0 && m_cursor >= columns) {
+        m_cursor -= columns;
+    }
+    if (dy > 0 && m_cursor < m_slots - columns) {
+        m_cursor += columns;
+    }
+    if (dx < 0 && m_cursor > 0) {
+        m_cursor--;
+    }
+    if (dx > 0 && m_cursor < m_slots - 1) {
+        m_cursor++;
+    }
+    Follow();
+    return m_cursor != before;
+}
+
+void SlotGrid::SetCursor(int slot) {
+    m_cursor = slot;
+    Follow();
+}
+
+void SlotGrid::Follow() {
+    const int columns = m_layout.columns;
+    if (m_cursor < m_top_row * columns) {
+        m_top_row--;
+    }
+    if ((m_top_row + m_layout.rows_shown) * columns - 1 < m_cursor) {
+        m_top_row++;
+    }
+}
+
+void SlotGrid::Ease() {
+    const int target = m_layout.window.y - m_top_row * m_layout.stride_y;
+    m_rows_y += (target - m_rows_y) >> 2;
+    if (std::abs(m_rows_y - target) < 4) {
+        m_rows_y = target;
+    }
+}
+
+Rect SlotGrid::SlotRect(int slot) const {
+    const int columns = m_layout.columns;
+    return Rect(m_layout.window.x + (slot % columns) * m_layout.stride_x, m_rows_y + (slot / columns) * m_layout.stride_y,
+                m_layout.stride_x, m_layout.stride_y);
+}
+
+Rect SlotGrid::CursorRect() const {
+    const int columns = m_layout.columns;
+    return Rect(m_layout.window.x + (m_cursor % columns) * m_layout.stride_x,
+                m_layout.window.y + (m_cursor / columns - m_top_row) * m_layout.stride_y, m_layout.stride_x, m_layout.stride_y);
+}
+
+int SlotGrid::Hit(float x, float y, int filled) const {
+    if (!m_layout.window.Contains(x, y)) {
+        return -1;
+    }
+    for (int slot = 0; slot < filled; ++slot) {
+        if (SlotRect(slot).Contains(x, y)) {
+            return slot;
+        }
+    }
+    return -1;
 }
 
 Cursor::Cursor() : m_texture(detail::GetWhitePixelTex()) {}

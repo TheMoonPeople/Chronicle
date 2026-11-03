@@ -10,26 +10,37 @@
 #include <deque>
 #include <format>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <optional>
 #include <print>
+#include <ranges>
 #include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "btitem.hpp"
+#include "data/data_read.hpp"
+#include "dngstatusdata.hpp"
 #include "fishing.hpp"
+#include "item/dungeon_keys.hpp"
 #include "item/framework.hpp"
 #include "itemdata.hpp"
+#include "localize/localize.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/native_config.hpp"
 #include "platform/paths.hpp"
+#include "savedata.hpp"
 #include "shop.hpp"
+#include "stockitem.hpp"
+#include "text/gametext.hpp"
 
 namespace dc::item {
 
@@ -366,7 +377,8 @@ struct Parsed {
     std::set<std::string>                   unknown;
 };
 
-Parsed Parse(const Table &table, const Json &document) {
+// A document's rows by item, each one this table holds and listed once.
+std::map<int, const Json *> RowsByItem(const Table &table, const Json &document) {
     std::map<int, const Json *> by_item;
     for (const Json &row : native_config::Array(document, table.rows)) {
         const int item = native_config::Int(row, "item_no");
@@ -377,7 +389,57 @@ Parsed Parse(const Table &table, const Json &document) {
             throw std::runtime_error(std::format("item {} is listed twice", item));
         }
     }
-    Parsed parsed;
+    return by_item;
+}
+
+// Writes a document row's fields into bytes: every field, or for a patch those the row names. Notes
+// the names the table has no field for.
+void PutFields(const Table &table, const Row &item, const Json &row, unsigned char *bytes, bool every,
+               std::set<std::string> &unknown) {
+    const unsigned char *original = table.CompiledRow(item);
+    for (const Field &field : table.fields) {
+        if (!every && !row.contains(field.name)) {
+            continue;
+        }
+        const Json       &value = native_config::At(row, field.name);
+        const std::string where = std::format("item {} {}", item.item, field.name);
+        if (field.count == 1) {
+            Put(bytes + field.offset, field, value, where);
+        } else {
+            if (!value.is_array() || value.size() != field.count) {
+                throw std::runtime_error(std::format("{} needs {} values", where, field.count));
+            }
+            for (std::size_t i = 0; i < field.count; i++) {
+                Put(bytes + field.offset + i * field.size, field, value[i], where);
+            }
+        }
+        if (field.fixed && std::memcmp(bytes + field.offset, original + field.offset, field.size * field.count) != 0) {
+            throw std::runtime_error(std::format("{} is fixed by the save's shape and cannot change", where));
+        }
+    }
+    for (const auto &[key, value] : row.items()) {
+        const bool known = key == "item_no" || (table.models && key == "model") ||
+                           std::ranges::any_of(table.fields, [&key](const Field &field) { return key == field.name; });
+        if (!known) {
+            unknown.insert(key);
+        }
+    }
+}
+
+// A row's model name: none for null.
+std::optional<std::string> ModelName(const Row &item, const Json &model) {
+    if (model.is_null()) {
+        return std::nullopt;
+    }
+    if (!model.is_string() || !ValidModel(model.get_ref<const std::string &>())) {
+        throw std::runtime_error(std::format("item {} model must be lower-case letters, digits and underscores", item.item));
+    }
+    return model.get<std::string>();
+}
+
+Parsed Parse(const Table &table, const Json &document) {
+    const std::map<int, const Json *> by_item = RowsByItem(table, document);
+    Parsed                            parsed;
     for (const Row &item : table.items) {
         const auto found = by_item.find(item.item);
         if (found == by_item.end()) {
@@ -386,57 +448,31 @@ Parsed Parse(const Table &table, const Json &document) {
         const Json                &row = *found->second;
         const unsigned char       *original = table.CompiledRow(item);
         std::vector<unsigned char> bytes(original, original + table.row_size);
-        for (const Field &field : table.fields) {
-            const Json       &value = native_config::At(row, field.name);
-            const std::string where = std::format("item {} {}", item.item, field.name);
-            if (field.count == 1) {
-                Put(bytes.data() + field.offset, field, value, where);
-            } else {
-                if (!value.is_array() || value.size() != field.count) {
-                    throw std::runtime_error(std::format("{} needs {} values", where, field.count));
-                }
-                for (std::size_t i = 0; i < field.count; i++) {
-                    Put(bytes.data() + field.offset + i * field.size, field, value[i], where);
-                }
-            }
-            if (field.fixed && std::memcmp(bytes.data() + field.offset, original + field.offset, field.size * field.count) != 0) {
-                throw std::runtime_error(std::format("{} is fixed by the save's shape and cannot change", where));
-            }
-        }
-        for (const auto &[key, value] : row.items()) {
-            const bool known = key == "item_no" || (table.models && key == "model") ||
-                               std::ranges::any_of(table.fields, [&key](const Field &field) { return key == field.name; });
-            if (!known) {
-                parsed.unknown.insert(key);
-            }
-        }
+        PutFields(table, item, row, bytes.data(), true, parsed.unknown);
         if (table.models && HasModel(item)) {
-            const Json &model = native_config::At(row, "model");
-            if (model.is_null()) {
-                parsed.models.emplace_back();
-            } else if (!model.is_string() || !ValidModel(model.get_ref<const std::string &>())) {
-                throw std::runtime_error(std::format("item {} model must be lower-case letters, digits and underscores", item.item));
-            } else {
-                parsed.models.emplace_back(model.get<std::string>());
-            }
+            parsed.models.push_back(ModelName(item, native_config::At(row, "model")));
         }
         parsed.rows.push_back(std::move(bytes));
     }
     return parsed;
 }
 
-// Points the model table at a document's names: retail's own string where the name is unchanged.
-void LoadModels(const std::vector<std::optional<std::string>> &models) {
+// Points one entry of the model table at a name: retail's own string where the name is unchanged.
+void SetModel(std::size_t index, const std::optional<std::string> &model) {
     static std::deque<std::string> names; // the strings a changed name points at, kept for the run
+    const char                    *original = Original().models[index];
+    if (!model) {
+        ITEM_NAME_TBL_NEW[index] = nullptr;
+    } else if (original != nullptr && *model == original) {
+        ITEM_NAME_TBL_NEW[index] = original;
+    } else {
+        ITEM_NAME_TBL_NEW[index] = names.emplace_back(*model).c_str();
+    }
+}
+
+void LoadModels(const std::vector<std::optional<std::string>> &models) {
     for (std::size_t i = 0; i < models.size(); i++) {
-        const char *original = Original().models[i];
-        if (!models[i]) {
-            ITEM_NAME_TBL_NEW[i] = nullptr;
-        } else if (original != nullptr && *models[i] == original) {
-            ITEM_NAME_TBL_NEW[i] = original;
-        } else {
-            ITEM_NAME_TBL_NEW[i] = names.emplace_back(*models[i]).c_str();
-        }
+        SetModel(i, models[i]);
     }
 }
 
@@ -455,6 +491,57 @@ void Fill(const Table &table, const Parsed *parsed) {
     }
 }
 
+/**
+ * A patch's rows, checked whole before any is applied: each item's row as the table holds it with the
+ * patch's fields written over it.
+ */
+struct Patch {
+    std::vector<std::pair<Row, std::vector<unsigned char>>>         rows;
+    std::vector<std::pair<std::size_t, std::optional<std::string>>> models;
+    std::set<std::string>                                           unknown;
+};
+
+Patch ParsePatch(const Table &table, const Json &document) {
+    Patch patch;
+    for (const auto &[number, row] : RowsByItem(table, document)) {
+        const Row                 &item = *std::ranges::find_if(table.items, [number](const Row &known) { return known.item == number; });
+        const unsigned char       *live = table.LiveRow(item);
+        std::vector<unsigned char> bytes(live, live + table.row_size);
+        PutFields(table, item, *row, bytes.data(), false, patch.unknown);
+        if (table.models && row->contains("model")) {
+            if (!HasModel(item)) {
+                throw std::runtime_error(std::format("item {} has no model to name", item.item));
+            }
+            patch.models.emplace_back(item.index, ModelName(item, (*row)["model"]));
+        }
+        patch.rows.emplace_back(item, std::move(bytes));
+    }
+    return patch;
+}
+
+// Applies every patch to a table (items.json's is items.patch.json, kind items_patch), the lowest
+// priority pack's first so a higher one's field wins; patches of different items combine.
+void ApplyPatches(const Table &table) {
+    std::string path(table.path);
+    path.replace(path.size() - std::string_view(".json").size(), std::string_view::npos, ".patch.json");
+    native_config::ReadEach(path, std::format("{}_patch", table.kind), [&](const Json &document) {
+        const Patch patch = ParsePatch(table, document);
+        for (const auto &[item, bytes] : patch.rows) {
+            std::memcpy(table.LiveRow(item), bytes.data(), table.row_size);
+        }
+        for (const auto &[index, model] : patch.models) {
+            SetModel(index, model);
+        }
+        if (!patch.unknown.empty()) {
+            std::string names;
+            for (const std::string &name : patch.unknown) {
+                names += names.empty() ? name : ", " + name;
+            }
+            native_config::Report(std::format("gameplay/{}", path), "fields this version does not read: " + names);
+        }
+    });
+}
+
 // The vanilla items' IDs by number; a number the decomp has not named is vanilla:item_<number>.
 std::string VanillaId(int item) {
     struct Entry {
@@ -469,6 +556,30 @@ std::string VanillaId(int item) {
     return found != kIds.end() ? std::format("vanilla:{}", found->name) : std::format("vanilla:item_{}", item);
 }
 
+// The traits a bag item's row gives it.
+void ItemTraits(Def &def, const ITEM_DATA &data) {
+    if ((data.kind_flags & ITEMKINDF_CONSUMABLE) != 0) {
+        def.With(Consumable{.heals_hp = (data.use_flags & ITEMUSE_HEAL_HP) != 0,
+                            .restores_water = (data.use_flags & ITEMUSE_DRINK) != 0,
+                            .grants_status = (data.use_flags & ITEMUSE_STATUS) != 0,
+                            .volume = data.vol,
+                            .volume_range = data.vol_range});
+    }
+    if ((data.kind_flags & ITEMKINDF_THROWABLE) != 0) {
+        def.With(Throwable{});
+    }
+    if (data.stack_kind == ITEM_STACK_MULTI || data.stack_kind == ITEM_STACK_SINGLE) {
+        def.With(QuickSlot{.stack = data.stack_kind == ITEM_STACK_MULTI ? Stack::Multi : Stack::Single});
+    }
+    if (data.sort_key == ITEM_SORT_FISH) {
+        def.With(Fish{});
+    } else if (data.sort_key == ITEM_SORT_KEY_ITEM) {
+        def.With(KeyItem{});
+    } else if (data.sort_key == ITEM_SORT_QUEST) {
+        def.With(QuestItem{});
+    }
+}
+
 // A vanilla item as the tables hold it now.
 Def VanillaDef(int item) {
     const COM_ITEM_INFO    &info = ComItemInfo[CommonIndex(item)];
@@ -476,27 +587,7 @@ Def VanillaDef(int item) {
     Def                     def{.id = VanillaId(item), .number = item};
     def.With(Sellable{.buy = price.buy_price, .sell = price.sell_price});
     if (info.kind == ITEMKIND_ITEM && info.index >= 0 && std::cmp_less(info.index, std::size(ITEM_LIST))) {
-        const ITEM_DATA &data = ITEM_LIST[info.index];
-        if ((data.kind_flags & ITEMKINDF_CONSUMABLE) != 0) {
-            def.With(Consumable{.heals_hp = (data.use_flags & ITEMUSE_HEAL_HP) != 0,
-                                .restores_water = (data.use_flags & ITEMUSE_DRINK) != 0,
-                                .grants_status = (data.use_flags & ITEMUSE_STATUS) != 0,
-                                .volume = data.vol,
-                                .volume_range = data.vol_range});
-        }
-        if ((data.kind_flags & ITEMKINDF_THROWABLE) != 0) {
-            def.With(Throwable{});
-        }
-        if (data.stack_kind == ITEM_STACK_MULTI || data.stack_kind == ITEM_STACK_SINGLE) {
-            def.With(QuickSlot{.stack = data.stack_kind == ITEM_STACK_MULTI ? Stack::Multi : Stack::Single});
-        }
-        if (data.sort_key == ITEM_SORT_FISH) {
-            def.With(Fish{});
-        } else if (data.sort_key == ITEM_SORT_KEY_ITEM) {
-            def.With(KeyItem{});
-        } else if (data.sort_key == ITEM_SORT_QUEST) {
-            def.With(QuestItem{});
-        }
+        ItemTraits(def, ITEM_LIST[info.index]);
     } else if (info.kind == ITEMKIND_ATTACH && info.index >= 0 && std::cmp_less(info.index, std::size(AttachList))) {
         const ATTACH_DATA &data = AttachList[info.index];
         Attachment         attachment{.attack = data.attack, .endurance = data.endurance, .speed = data.speed, .magic = data.magic};
@@ -518,6 +609,252 @@ Def VanillaDef(int item) {
     if (const auto bait = std::ranges::find(esa_info, item, &EsaInfo::item_no); bait != esa_info.end()) {
         def.With(Bait{.radius = bait->radius});
     }
+    // Retail's rod is a rod with the stats that change nothing.
+    if (item == ITEM_FISHING_ROD) {
+        def.With(Rod{});
+    }
+    return def;
+}
+
+/**
+ * A custom bag item, from its own document, gameplay/items/custom/<namespace>.<name>.json.
+ */
+struct Custom {
+    std::string                     id;
+    COM_ITEM_INFO                   common{};
+    ITEM_DATA                       data{};
+    ITEM_MONEY_ENTRY                price{};
+    std::string                     model; /**< Empty for none. */
+    std::map<std::string, ItemText> text;  /**< By language file, en_gb and so on. */
+    std::optional<Bait>             bait;
+    std::optional<Rod>              rod;
+    State                           state; /**< A new copy's state; empty for none. */
+    int                             state_version = 0;
+    bool                            orphan = false; /**< Stands for a loaded save's item with no definition. */
+};
+
+/**
+ * The custom items, in number order from kCustomFirst, then the orphans.
+ */
+std::vector<Custom> customs;
+
+const Custom *CustomAt(int number) {
+    number = Definition(number);
+    if (number < kCustomFirst || number - kCustomFirst >= static_cast<int>(customs.size())) {
+        return nullptr;
+    }
+    return &customs[static_cast<std::size_t>(number - kCustomFirst)];
+}
+
+constexpr const char *kOrphanName = "item.orphan.name";
+constexpr const char *kOrphanNameText = "Unknown item";
+constexpr const char *kOrphanDescription = "item.orphan.description";
+constexpr const char *kOrphanDescriptionText = "From a mod that isn't loaded.";
+
+/**
+ * CustomMessage's codes by language file, item number and whether it is a name.
+ */
+std::map<std::tuple<std::string, int, bool>, std::vector<s16>> messages;
+
+// A field of a custom item's row, 0 when the document leaves it out.
+void PutOptional(unsigned char *row, const Field &field, const Json &document, std::string_view where) {
+    const auto found = document.find(field.name);
+    if (found != document.end()) {
+        Put(row + field.offset, field, *found, std::format("{} {}", where, field.name));
+    }
+}
+
+// Names a custom item document's fields this version does not read, which would otherwise be
+// ignored without a word (a field renamed since the document was written).
+void ReportUnknown(std::string_view file, const Json &document) {
+    std::set<std::string> unknown;
+    for (const auto &[key, value] : document.items()) {
+        const bool known = key == "schema_version" || key == "kind" || key == "id" || key == "icon" || key == "model" ||
+                           key == "text" || key == "bait" || key == "rod" || key == "state" || key == "state_version" ||
+                           std::ranges::any_of(kItemFields, [&key](const Field &field) { return key == field.name; }) ||
+                           std::ranges::any_of(kPriceFields, [&key](const Field &field) { return key == field.name; });
+        if (!known) {
+            unknown.insert(key);
+        }
+    }
+    if (const auto bait = document.find("bait"); bait != document.end() && bait->is_object()) {
+        for (const auto &[key, value] : bait->items()) {
+            if (key != "radius" && key != "lure" && key != "default_affinity") {
+                unknown.insert("bait." + key);
+            }
+        }
+    }
+    if (const auto rod = document.find("rod"); rod != document.end() && rod->is_object()) {
+        for (const auto &[key, value] : rod->items()) {
+            if (key != "heft" && key != "control" && key != "spring" && key != "balance" && key != "lure") {
+                unknown.insert("rod." + key);
+            }
+        }
+    }
+    if (!unknown.empty()) {
+        std::string names;
+        for (const std::string &name : unknown) {
+            names += names.empty() ? name : ", " + name;
+        }
+        native_config::Report(std::format("gameplay/items/custom/{}", file), "fields this version does not read: " + names);
+    }
+}
+
+Custom ParseCustom(std::string_view file, const Json &document) {
+    Custom      custom;
+    const Json &id = native_config::At(document, "id");
+    if (!id.is_string() || !ValidId(id.get_ref<const std::string &>())) {
+        throw std::runtime_error("id must be namespace:name in lower-case letters, digits and underscores");
+    }
+    custom.id = id.get<std::string>();
+    if (custom.id.starts_with("vanilla:")) {
+        throw std::runtime_error("the vanilla namespace is retail's items");
+    }
+    std::string expected = custom.id;
+    std::ranges::replace(expected, ':', '.');
+    if (vfs::FoldKey(file) != vfs::FoldKey(expected + ".json")) {
+        throw std::runtime_error(std::format("an item with id {} belongs in {}.json", custom.id, expected));
+    }
+    for (const Field &field : kItemFields) {
+        PutOptional(reinterpret_cast<unsigned char *>(&custom.data), field, document, custom.id);
+    }
+    for (const Field &field : kPriceFields) {
+        PutOptional(reinterpret_cast<unsigned char *>(&custom.price), field, document, custom.id);
+    }
+    custom.common.kind = ITEMKIND_ITEM;
+    custom.common.index = -1;
+    custom.common.icon_index = -1;
+    if (const auto icon = document.find("icon"); icon != document.end()) {
+        const int value = native_config::Int(document, "icon");
+        if (value < -1 || value > std::numeric_limits<s16>::max()) {
+            throw std::runtime_error("icon must be a retail icon number, or -1 for none");
+        }
+        custom.common.icon_index = static_cast<s16>(value);
+    }
+    if (const auto model = document.find("model"); model != document.end() && !model->is_null()) {
+        if (!model->is_string() || model->get_ref<const std::string &>().empty() || !ValidModel(model->get_ref<const std::string &>())) {
+            throw std::runtime_error("model must be lower-case letters, digits and underscores");
+        }
+        custom.model = model->get<std::string>();
+    }
+    const Json &text = native_config::At(document, "text");
+    if (!text.is_object() || text.empty()) {
+        throw std::runtime_error("text must give the item's name and description in at least one language");
+    }
+    for (const auto &[language, entry] : text.items()) {
+        const Json &name = native_config::At(entry, "name");
+        const Json &description = native_config::At(entry, "description");
+        if (!name.is_string() || !description.is_string()) {
+            throw std::runtime_error(std::format("text {}: name and description must be strings", language));
+        }
+        custom.text[language] = {.name = name.get<std::string>(), .description = description.get<std::string>()};
+    }
+    if (const auto bait = document.find("bait"); bait != document.end()) {
+        custom.bait = Bait{.radius = native_config::Float(native_config::At(*bait, "radius"))};
+        if (!(custom.bait->radius > 0.0f)) {
+            throw std::runtime_error("bait radius must be above 0");
+        }
+        if (bait->contains("lure")) {
+            if (!(*bait)["lure"].is_boolean()) {
+                throw std::runtime_error("bait lure must be true or false");
+            }
+            custom.bait->lure = (*bait)["lure"].get<bool>();
+        }
+        if (bait->contains("default_affinity")) {
+            // A fish takes the bait at half its liking a check, so 2 is the most that means anything.
+            custom.bait->default_affinity = native_config::Float(native_config::At(*bait, "default_affinity"));
+            if (custom.bait->default_affinity < 0.0f || custom.bait->default_affinity > 2.0f) {
+                throw std::runtime_error("bait default_affinity must be from 0 to 2");
+            }
+        }
+    }
+    if (const auto rod = document.find("rod"); rod != document.end()) {
+        if (!rod->is_object()) {
+            throw std::runtime_error("rod must hold its stats: heft, control, spring, balance, lure");
+        }
+        Rod stats;
+        for (const auto &[key, field] : std::initializer_list<std::pair<const char *, float Rod::*>>{
+                 {"heft",    &Rod::heft   },
+                 {"control", &Rod::control},
+                 {"spring",  &Rod::spring },
+                 {"balance", &Rod::balance},
+                 {"lure",    &Rod::lure   }
+        }) {
+            if (rod->contains(key)) {
+                stats.*field = native_config::Float((*rod)[key]);
+                if (stats.*field < 0.0f || stats.*field > 100.0f) {
+                    throw std::runtime_error(std::format("rod {} must be from 0 to 100", key));
+                }
+            }
+        }
+        custom.rod = stats;
+    }
+    if (const auto state = document.find("state"); state != document.end()) {
+        if (!state->is_object()) {
+            throw std::runtime_error("state must map each name a copy keeps to the number it starts with");
+        }
+        for (const auto &[name, value] : state->items()) {
+            if (!value.is_number()) {
+                throw std::runtime_error(std::format("state {} must be a number", name));
+            }
+            custom.state[name] = value.get<double>();
+        }
+        custom.state_version = native_config::Int(document, "state_version");
+        if (custom.state_version < 0) {
+            throw std::runtime_error("state_version must be 0 or more");
+        }
+    }
+    ReportUnknown(file, document);
+    return custom;
+}
+
+// Reads the custom items from the packs and the data, each named file once, giving them numbers in ID order.
+void LoadCustom() {
+    customs.clear();
+    std::map<std::string, std::string> files;
+    for (const std::string &name : datapacks::Members("gameplay/items/custom")) {
+        files.try_emplace(vfs::FoldKey(name), name);
+    }
+    if (data::DataReadIndexed()) {
+        constexpr std::string_view kFolder = "gameplay/items/custom/";
+        for (const std::string &path : data::DataReadListFiles()) {
+            if (path.size() <= kFolder.size() || vfs::FoldKey(path.substr(0, kFolder.size())) != vfs::FoldKey(kFolder)) {
+                continue;
+            }
+            const std::string name = path.substr(kFolder.size());
+            if (name.find('/') == std::string::npos) {
+                files.try_emplace(vfs::FoldKey(name), name);
+            }
+        }
+    }
+    std::map<std::string, Custom> by_id;
+    for (const std::string &name : std::views::values(files)) {
+        native_config::Read(std::format("items/custom/{}", name), "item", [&](const Json &document) {
+            Custom            custom = ParseCustom(name, document);
+            const std::string custom_id = custom.id;
+            by_id.insert_or_assign(custom_id, std::move(custom));
+        });
+    }
+    for (auto &[id, custom] : by_id) {
+        if (kCustomFirst + static_cast<int>(customs.size()) >= kCustomEnd) {
+            native_config::Report("gameplay/items/custom", std::format("more custom items than there are numbers; {} and after left out", id));
+            break;
+        }
+        custom.common.msg = static_cast<s16>(kCustomFirst + static_cast<int>(customs.size()));
+        customs.push_back(std::move(custom));
+    }
+}
+
+Def CustomDef(int number, const Custom &custom) {
+    Def def{.id = custom.id, .number = number, .state = custom.state, .state_version = custom.state_version};
+    def.With(Sellable{.buy = custom.price.buy_price, .sell = custom.price.sell_price});
+    ItemTraits(def, custom.data);
+    if (custom.bait) {
+        def.With(*custom.bait);
+    }
+    if (custom.rod) {
+        def.With(*custom.rod);
+    }
     return def;
 }
 
@@ -535,14 +872,178 @@ void Load() {
             }
             native_config::Report(std::format("gameplay/{}", table.path), "fields this version does not read: " + names);
         }
+        ApplyPatches(table);
     }
+    LoadCustom();
+    messages.clear();
     Clear();
+    auto       keys = LoadDungeonKeys();
+    const auto with_key = [&keys](Def def) {
+        if (const auto found = keys.find(def.id); found != keys.end()) {
+            def.With(found->second);
+            keys.erase(found);
+        }
+        return def;
+    };
     for (const Row &row : EveryItem()) {
-        Register(VanillaDef(row.item));
+        Register(with_key(VanillaDef(row.item)));
     }
+    for (std::size_t index = 0; index < customs.size(); index++) {
+        Register(with_key(CustomDef(kCustomFirst + static_cast<int>(index), customs[index])));
+    }
+    for (const auto &[id, key] : keys) {
+        native_config::Report("gameplay/items/dungeon_keys.json", std::format("no loaded item is {}; left out", id));
+    }
+    RebindCopies();
+    RegisterSaveChunk();
+}
+
+int OrphanNumber(std::string_view id) {
+    for (const Custom &custom : customs) {
+        if (custom.orphan && custom.id == id) {
+            return custom.common.msg;
+        }
+    }
+    const int number = kCustomFirst + static_cast<int>(customs.size());
+    if (number >= kCustomEnd || !ValidId(id) || Find(id) != nullptr) {
+        return -1;
+    }
+    Custom orphan{.id = std::string(id), .orphan = true};
+    orphan.common.kind = ITEMKIND_ITEM;
+    orphan.common.index = -1;
+    orphan.common.icon_index = -1;
+    orphan.common.msg = static_cast<s16>(number);
+    customs.push_back(std::move(orphan));
+    // Registered without traits: nothing reads it as bait, sellable or anything else.
+    Register(Def{.id = std::string(id), .number = number});
+    return number;
+}
+
+std::string VanillaItemId(int number) {
+    return VanillaId(number);
+}
+
+bool IsOrphan(int number) {
+    const Custom *custom = CustomAt(number);
+    return custom != nullptr && custom->orphan;
+}
+
+void DropOrphans() {
+    while (!customs.empty() && customs.back().orphan) {
+        Unregister(customs.back().id);
+        customs.pop_back();
+    }
+    RebindCopies();
+}
+
+COM_ITEM_INFO *CustomCommonInfo(int number) {
+    const Custom *custom = CustomAt(number);
+    return custom != nullptr ? const_cast<COM_ITEM_INFO *>(&custom->common) : nullptr;
+}
+
+ITEM_DATA *CustomItemData(int number) {
+    const Custom *custom = CustomAt(number);
+    return custom != nullptr ? const_cast<ITEM_DATA *>(&custom->data) : nullptr;
+}
+
+const ITEM_MONEY_ENTRY *CustomPrice(int number) {
+    const Custom *custom = CustomAt(number);
+    return custom != nullptr ? &custom->price : nullptr;
+}
+
+const char *CustomModel(int number) {
+    const Custom *custom = CustomAt(number);
+    return custom != nullptr && !custom->model.empty() ? custom->model.c_str() : nullptr;
+}
+
+Kind KindOf(int number) {
+    number = Definition(number);
+    if (number >= kCustomFirst) {
+        return CustomAt(number) != nullptr ? Kind::Item : Kind::None;
+    }
+    if (number >= ITEM_WEAPON_START) {
+        return Kind::Weapon;
+    }
+    if (number >= ITEM_DUNGEON_START) {
+        return Kind::Item;
+    }
+    return number >= ITEM_ATTACH_START ? Kind::Attachment : Kind::None;
+}
+
+void ReclaimHeldCopies() {
+    if (SaveData == nullptr) {
+        return;
+    }
+    std::set<int>    held;
+    const ITEM_PACK &pack = SaveData->GetDngStatus()->item_pack;
+    held.insert(std::begin(pack.item), std::end(pack.item));
+    held.insert(std::begin(pack.quick_item_slot), std::end(pack.quick_item_slot));
+    const CStockItem &stock = *SaveData->GetStockItem();
+    held.insert(std::begin(stock.dungeon_items), std::end(stock.dungeon_items));
+    ReclaimCopies([&](int handle) { return held.contains(handle); });
+}
+
+const char *ModelName(int number) {
+    if (number >= kCustomFirst) {
+        return CustomModel(number);
+    }
+    if (number < ITEM_ATTACH_START || number - ITEM_ATTACH_START >= static_cast<int>(std::size(ITEM_NAME_TBL_NEW))) {
+        return nullptr;
+    }
+    return ITEM_NAME_TBL_NEW[number - ITEM_ATTACH_START];
+}
+
+const ItemText *CustomText(int number, std::string_view language) {
+    const Custom *custom = CustomAt(number);
+    if (custom == nullptr) {
+        return nullptr;
+    }
+    if (custom->orphan) {
+        // By language, as CustomMessage caches what this returns.
+        static std::map<std::string, ItemText, std::less<>> orphan;
+        auto [text, made] = orphan.try_emplace(std::string(language));
+        if (made) {
+            text->second = {.name = localize::LocalizeText(kOrphanName, kOrphanNameText),
+                            .description = localize::LocalizeText(kOrphanDescription, kOrphanDescriptionText)};
+        }
+        return &text->second;
+    }
+    for (const std::string_view wanted : {language, std::string_view("en_gb"), std::string_view("en_us")}) {
+        if (const auto found = custom->text.find(std::string(wanted)); found != custom->text.end()) {
+            return &found->second;
+        }
+    }
+    return &custom->text.begin()->second;
+}
+
+short *CustomMessage(int id, bool system) {
+    const std::string language = localize::LocalizeLanguageFile();
+    const int         number = Definition(id - (system ? 100 : 500));
+    const ItemText   *text = CustomText(number, language);
+    if (text == nullptr) {
+        return nullptr;
+    }
+    // By the item, not the id: a handle's id names another item once the handle is reused.
+    auto [codes, made] = messages.try_emplace(std::tuple(language, number, system));
+    if (made) {
+        text::GameTextEncode(system ? text->name : text->description, codes->second);
+        // The game reads whole quadwords off a message's end, as it does off a file's.
+        codes->second.resize((codes->second.size() + 7) & ~std::size_t{7}, game::MES_CODE_END);
+    }
+    return codes->second.data();
+}
+
+std::vector<std::pair<std::string, std::string>> Strings() {
+    return {
+        {kOrphanName,        kOrphanNameText       },
+        {kOrphanDescription, kOrphanDescriptionText},
+    };
 }
 
 bool Export(const std::filesystem::path &directory) {
+    if (!ExportDungeonKeys(directory)) {
+        return false;
+    }
     for (const Table &table : Tables()) {
         const std::filesystem::path file = directory / "gameplay" / table.path;
         std::error_code             error;

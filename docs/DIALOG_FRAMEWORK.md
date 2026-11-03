@@ -106,6 +106,33 @@ confirmed.
 
 Quests (`docs/QUEST_FRAMEWORK.md`) are a provider: their choices come through `quest::CollectOptions`.
 
+### A town script's question
+
+Some of the towns' questions are not a villager's: a script makes a message of rows in one of its
+windows (`_MES_MAKE`) and reads the pad itself to move a cursor (`_SET_MES_CURSOR`) until the confirm
+button, then goes on by the row (fishing's sign and Circle are two). A `QuestionProvider`
+(`dialog/script_question.hpp`, `RegisterQuestionProvider`) is offered each such message with the
+town's folder (`e01`), whether it is asked inside a house (whose scripts and messages are the
+house's own), the window and the message number, and takes it by returning true, adding
+`QuestionRow`s if it likes. A message with no rows the framework can read is left to the script, and
+a question is forgotten when its window closes, an event begins or ends, or a town starts. The
+framework then asks the question in the script's own window:
+
+- Retail's rows are the window's own message, made as the script would have made it; rows a
+  provider adds go among them, laid over the window's messages (`ClsMesSetMessageOverlay`).
+- The cursor is the framework's (`ClsMesSetChoiceRows` marks the window, which changes nothing for
+  its white rows): the pad and the stick move it as the script's helper would, silently as it does,
+  and the mouse works it as it works a conversation (`ScriptQuestionPointerUpdate`).
+- The script's helper still reads the pad, and reads what the framework gives it: an Up or Down on
+  the same tick the player's cursor changes which of the script's rows it answers with, and the
+  confirm button on the tick the player presses it, the row held while the script catches up. A question without added rows is so the same
+  as retail's, tick for tick and pixel for pixel. The script's `_SET_MES_CURSOR` is left alone but
+  for hiding the cursor; the stick it reads (`_GET_APAD`) is centred.
+- A row a provider adds answers with one of the script's rows. Its `then` runs as it is chosen,
+  the window closing as `_MES_CLOSE` closes it, while the script still waits; a menu `then` opens
+  (`EdEventMenu`, as the scripts' menu commands open theirs) is up before the script goes on, and
+  the script hears the answer once it closes.
+
 ---
 
 ## 4. Text

@@ -80,6 +80,41 @@ void ResetSaveKeepingConfig(game::CSaveData &save);
 bool GameSetJump(const char *spec);
 
 /**
+ * Test hook: a town menu (the game's ED_MENU_* number) to open once a town is walking, as the
+ * town's own scripts open them: 8 the fish exchange, 9 the bait board, 10 the fishing records, 11
+ * the rods board. False for anything else.
+ */
+bool GameSetTownMenu(const char *number);
+
+/**
+ * The town menu GameSetTownMenu asked for, once; 0 for none.
+ */
+int GameTakeTownMenu();
+
+/**
+ * Test hook: a town script program to raise the first time Cross goes down in a town, as stepping
+ * onto its spot and pressing Cross does (133 asks fishing's "Continue fishing / Quit fishing", 11 is
+ * Norune's fishing sign). False for anything but a number above 0.
+ */
+bool GameSetTownEvent(const char *number);
+
+/**
+ * The town program GameSetTownEvent asked for, once; 0 for none.
+ */
+int GameTakeTownEvent();
+
+/**
+ * Test hook: a dungeon (0-6) to enter once a town is walking, as the town's own gate enters its
+ * dungeon, so a loaded save reaches that dungeon's floor select. False for anything else.
+ */
+bool GameSetTownDungeon(const char *number);
+
+/**
+ * The dungeon GameSetTownDungeon asked for, once; -1 for none.
+ */
+int GameTakeTownDungeon();
+
+/**
  * Test hook: cuts the loading screen's holds and fades to a few ticks.
  */
 void GameSetFastLoad(bool fast);

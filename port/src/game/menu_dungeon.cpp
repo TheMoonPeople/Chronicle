@@ -15,6 +15,8 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "app/gameloop.hpp"
 #include "battlemenu.hpp"
@@ -26,9 +28,12 @@
 #include "dataread.hpp"
 #include "debugfont.hpp"
 #include "dun/gameloop.hpp"
+#include "dungeon/limits.hpp"
 #include "editatra.hpp"
 #include "gamepad.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
+#include "localize/localize.hpp"
 #include "mainitemmodel.hpp"
 #include "mainselect.hpp"
 #include "mds.hpp"
@@ -47,10 +52,15 @@
 #include "shot_freefuncs.hpp"
 #include "snd.hpp"
 #include "texture.hpp"
+#include "ui/dungeon_plates.hpp"
+#include "ui/framework.hpp"
+#include "ui/menu_pointer.hpp"
 #include "userstatus.hpp"
 #include "weaponelement.hpp"
 
 namespace dc::game {
+
+using namespace dc::localize;
 
 namespace {
 
@@ -112,6 +122,13 @@ CHARA_CHANGE_MENU ChangeMenu;
 
 /** Texture of the floor list on the dungeon entrance board. */
 CTexture *DunLogBoard2;
+
+/**
+ * The select's own messages (dunlog.bin), and the message its window shows and that message's insert.
+ */
+short *g_floor_messages = nullptr;
+int    g_window_message = 10;
+int    g_window_insert = -1;
 
 /** Number of floors available in each dungeon. */
 constexpr std::array<int, 7> maxFloorTbl__4 = {15, 17, 18, 18, 15, 25, 100};
@@ -478,6 +495,54 @@ int DunEnterMenuLoop() {
 
 namespace {
 
+/**
+ * Leaving the dungeon from its floor select, which retail has no way to do: Circle asks, and Yes fades
+ * out and leaves for the dungeon's town as leaving the dungeon does (dun/gameloop.cpp).
+ */
+struct LeaveQuestion {
+    bool open = false;
+    int  choice = 1;     /**< 0 Yes, 1 No. */
+    bool chosen = false; /**< Yes was chosen: it stays lit while the select fades out. */
+    int  chosen_frames = 0;
+} g_leave;
+
+ui::Cursor g_leave_cursor;
+
+// The question's Yes stays lit as long as the battle menu's answers do (move_menu.cpp).
+constexpr int kLeaveLitFrames = 9;
+
+std::string LeaveTitle() {
+    return LocalizeText("dungeon.floor_select.leave", "Leave dungeon?");
+}
+
+void OpenLeaveQuestion() {
+    g_leave = {.open = true, .choice = 1};
+    const ui::Rect no = ui::ConfirmModal::ButtonRect(LeaveTitle(), "", 1);
+    g_leave_cursor.SnapTo(static_cast<float>(no.x - 34), static_cast<float>(no.y + 3));
+    ComMenuSePlay(MENU_SOUND_CONFIRM);
+}
+
+void LeaveQuestionKey() {
+    if (GamePad.Down(PAD_UP | PAD_DOWN)) {
+        g_leave.choice ^= 1;
+        ComMenuSePlay(MENU_SOUND_CURSOR);
+    }
+    if (GamePad.Down(PAD_CROSS)) {
+        g_leave.open = false;
+        if (g_leave.choice == 0) {
+            g_leave.chosen = true;
+            DEnterMenu.result = kDunEnterLeave;
+            DEnterMenu.state = DUN_ENTER_FADE_OUT;
+            ComMenuSePlay(MENU_SOUND_CONFIRM);
+        } else {
+            ComMenuSePlay(MENU_SOUND_REFUSE);
+        }
+    } else if (GamePad.Down(PAD_CIRCLE)) {
+        g_leave.open = false;
+        ComMenuSePlay(MENU_SOUND_REFUSE);
+    }
+}
+
 int DunEnterMenuKey() {
     int result = -1;
 
@@ -500,6 +565,10 @@ int DunEnterMenuKey() {
                 InitMenuMesSet(MENU_MES_SET_DUNGEON_ENTER, reinterpret_cast<short *>(GetPackFile(reinterpret_cast<u_int *>(archive->buffer), const_cast<char *>("dunlog.bin"), nullptr)));
                 CommonMenuMes2.mes_made = -1;
                 CommonMenuMes2.MakeMesWin(10);
+                g_floor_messages = CommonMenuMes2.buff;
+                g_window_message = 10;
+                g_window_insert = -1;
+                g_leave = {};
                 DEnterMenu.textures_ready = 1;
                 DEnterMenu.loading = false;
                 std::println("tex enter end ");
@@ -532,6 +601,11 @@ int DunEnterMenuKey() {
 
             break;
         case DUN_ENTER_SELECT: {
+            if (g_leave.open) {
+                LeaveQuestionKey();
+                break;
+            }
+
             const int selected = DEnterMenu.selected_floor;
             const int scroll_top = DEnterMenu.scroll_top;
 
@@ -629,10 +703,9 @@ int DunEnterMenuKey() {
                 DEnterMenu.result = DEnterMenu.selected_floor;
                 DEnterMenu.state = DUN_ENTER_FADE_OUT;
                 ComMenuSePlay(MENU_SOUND_CONFIRM);
-            }
-
-            if (GamePad.Down(PAD_CIRCLE)) {
-                ComMenuSePlay(MENU_SOUND_REFUSE);
+            } else if (GamePad.Down(PAD_CIRCLE)) {
+                // Retail only refuses here.
+                OpenLeaveQuestion();
             }
 
             break;
@@ -644,10 +717,94 @@ int DunEnterMenuKey() {
     return result;
 }
 
+/**
+ * The floor select's hand, and its mouse (FloorSelectPointerUpdate).
+ */
+ui::MenuHand    g_floor_hand;
+ui::MenuPointer g_floor_pointer;
+bool            g_floor_select_active = false;
+
+// Where the floor list's rows are: each 40 high, the first in view at the list's eased height,
+// between the board's top and bottom (DunEnterBoard).
+constexpr int kBoardX = 0x46;
+constexpr int kBoardY = 0x5A;
+constexpr int kListTop = kBoardY + 0x19;
+constexpr int kListBottom = kBoardY + 0xEF;
+constexpr int kRowStride = 0x28;
+
+// A limited floor's mark, in Chronicle Sharp: between the row's kill count and the scroll bar, in the selection
+// corners' red with the floor digits' outline.
+constexpr int kLimitMarkX = 0x234;
+constexpr int kLimitMarkY = 2;
+
+/**
+ * The limit the open dungeon's floor puts on the party (dungeon/limits.hpp).
+ */
+int FloorLimitAt(int floor) {
+    if (DEnterMenu.dungeon >= 6 || floor < 0 || floor >= DEnterMenu.floor_count) {
+        return RES_LIMIT_ZONE_NONE;
+    }
+    return dungeon::FloorLimit(*DEnterStatusPt, DEnterMenu.dungeon, floor);
+}
+
+/**
+ * Marks each floor with a limit, while its row is wholly on the board: text cannot be clipped as the
+ * rows' pictures are.
+ */
+void DrawLimitMarks(int alpha) {
+    ui::TextStyle style;
+    style.weight = ui::FontWeight::Normal;
+    style.align = ui::Alignment::Center;
+    style.scale = 1.2f;
+    style.drop_shadow = false;
+    style.use_custom_rgb = true;
+    style.fill_r = 253;
+    style.fill_g = 0;
+    style.fill_b = 0;
+    style.outline_width = 2.0f;
+    style.outline_r = 44;
+    style.outline_g = 44;
+    style.outline_b = 106;
+    ui::Label mark("!", style);
+
+    for (int floor = 0; floor < DEnterMenu.floor_count; floor++) {
+        const int row_y = static_cast<int>(DEnterMenu.list_y) + floor * kRowStride;
+        if (row_y < kListTop || row_y + kRowStride > kListBottom || FloorLimitAt(floor) == RES_LIMIT_ZONE_NONE) {
+            continue;
+        }
+        mark.Draw(kLimitMarkX, row_y + kLimitMarkY, alpha);
+    }
+}
+
+/**
+ * Has the window tell the chosen floor's limit in the words the dungeon tells it with on arrival, or
+ * ask for a floor as retail's does.
+ */
+void ShowFloorMessage() {
+    int       insert = -1;
+    const int limit_message = dungeon::FloorLimitMessage(FloorLimitAt(DEnterMenu.selected_floor), insert);
+    const int message = limit_message >= 0 ? limit_message : 10;
+    if (message == g_window_message && insert == g_window_insert) {
+        return;
+    }
+    g_window_message = message;
+    g_window_insert = insert;
+    // Both files number their messages from 0, so the window's laid-out one is forgotten.
+    CommonMenuMes2.mes_made = -1;
+    if (limit_message >= 0) {
+        CommonMenuMes2.buff = DngMes1.buff;
+        CommonMenuMes2.rows = 4;
+        CommonMenuMes2.mes_no[0] = insert;
+    } else {
+        CommonMenuMes2.buff = g_floor_messages;
+        CommonMenuMes2.rows = 2;
+    }
+    CommonMenuMes2.MakeMesWin(message);
+}
+
 void DunEnterDraw() {
     setbilinear(0);
-    CRect_i_ screen(0, 0, 0x2800, (SCREEN_HEIGHT << 4));
-    int      alpha = 0x80;
+    int alpha = 0x80;
 
     if (DEnterMenu.state == DUN_ENTER_FADE_IN && DEnterMenu.textures_ready != 0) {
         alpha = DEnterMenu.counter * 6;
@@ -656,9 +813,10 @@ void DunEnterDraw() {
     alpha = std::clamp(alpha, 0, 0x80);
 
     if (DEnterMenu.textures_ready != 0 && DEnterMenu.state != DUN_ENTER_DIRECT) {
+        g_floor_select_active = true;
         MenuTextureReload(DEnterMenu.texture_block);
         DrawDunEnterBack(alpha);
-        DunEnterBoard(0x46, 0x5A, alpha);
+        DunEnterBoard(kBoardX, kBoardY, alpha);
         CursorVibeCnt++;
 
         if (CursorVibeCnt > 0x107AC0) {
@@ -673,23 +831,22 @@ void DunEnterDraw() {
             const int   top = cursor_y + wave;
             const int   right = 204.0f - wave;
             const int   bottom = (cursor_y + 0x18) - wave;
-            RECT        corner = {0x40, 0x60, 0x10, 0x10};
-            DrawMenu2DSprite(DunLogBoard, CRect_i_(left, top, corner.width, corner.height), CRect_i_(corner.x, corner.y, corner.width, corner.height), alpha);
-            DrawMenu2DSprite(DunLogBoard, CRect_i_(right, top, corner.width, corner.height), CRect_i_(corner.x + corner.width, corner.y, corner.width, corner.height), alpha);
-            DrawMenu2DSprite(DunLogBoard, CRect_i_(left, bottom, corner.width, corner.height), CRect_i_(corner.x, corner.y + corner.height, corner.width, corner.height), alpha);
-            DrawMenu2DSprite(DunLogBoard, CRect_i_(right, bottom, corner.width, corner.height), CRect_i_(corner.x + corner.width, corner.y + corner.height, corner.width, corner.height), alpha);
+            ui::StayFrame::Draw(DunLogBoard, ui::Rect(0x40, 0x60, 0x10, 0x10), left, top, right, bottom, alpha);
             DunWakuCnt++;
 
             if (DunWakuCnt < 0 || DunWakuCnt >= 30) {
                 DunWakuCnt = 0;
             }
 
-            CRect_i_ cursor(0x20, 0x60, 0x20, 0x20);
-            DrawObjectVibe(0x49, cursor_y + 2, DunLogBoard, cursor, 0, alpha);
-            DrawObjectVibe(0x46, cursor_y, DunLogBoard, cursor, 0x80, alpha);
+            g_floor_hand.SnapTo(static_cast<float>(kBoardX), static_cast<float>(cursor_y));
+            if (!g_leave.open) {
+                g_floor_hand.Draw(DunLogBoard, ui::Rect(0x20, 0x60, 0x20, 0x20), 3, 2, alpha);
+            }
         }
 
         MenuTextureReload(CommonMenuMes2.tex_block);
+        DrawLimitMarks(alpha);
+        ShowFloorMessage();
         CommonMenuMes2.stay_frame = true;
         CommonMenuMes2.edge_alpha = alpha;
         CommonMenuMes2.text_y = 0x16c;
@@ -697,8 +854,15 @@ void DunEnterDraw() {
         GetMenuCommonPutXY(&CommonMenuMes2, 0x148 - half_width);
         CommonMenuMes2.Step();
         CommonMenuMes2.DrawMesWin();
+
+        if (g_leave.open || g_leave.chosen) {
+            g_leave.chosen_frames = g_leave.chosen ? g_leave.chosen_frames + 1 : 0;
+            ui::ConfirmModal::Draw(LeaveTitle(), "", LocalizeText("battlemenu.quit.yes", "YES"), LocalizeText("battlemenu.quit.no", "NO"),
+                                   g_leave.choice, g_leave_cursor, alpha, ui::WindowPreset::DarkTranslucent, g_leave.chosen ? 0 : -1,
+                                   g_leave.chosen_frames <= kLeaveLitFrames);
+        }
     } else {
-        MGFillBox(screen, 0, 0, 0, 0x80);
+        ui::ScreenFill::Draw(0, 0, 0, 0x80);
     }
 
     int cover = 0x80;
@@ -719,7 +883,7 @@ void DunEnterDraw() {
     switch (DEnterMenu.state) {
         case DUN_ENTER_FADE_IN:
         case DUN_ENTER_FADE_OUT:
-            MGFillBox(screen, 0, 0, 0, cover);
+            ui::ScreenFill::Draw(0, 0, 0, cover);
             break;
         default:
             break;
@@ -732,10 +896,10 @@ void DunEnterDraw() {
  * Draws the frame of the dungeon entrance board.
  */
 void DunEnterBoardWaku(int x, int y, int alpha) {
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(x, y - 1, 0x20, 0xFA), CRect_i_(0, 0, 0x20, 0xF8), alpha);
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(x + 0x20, y, 0x1CC, 0x20), CRect_i_(0x20, 0, 0x1B8, 0x20), alpha);
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(x + 0x1EC, y - 1, 0x28, 0xFA), CRect_i_(0x1D8, 0, 0x28, 0xF8), alpha);
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(x + 0x20, y + 0xD9, 0x1CC, 0x20), CRect_i_(0x20, 0xD8, 0x1B8, 0x20), alpha);
+    ui::Picture::Draw(DunLogBoard, ui::Rect(x, y - 1, 0x20, 0xFA), ui::Rect(0, 0, 0x20, 0xF8), alpha);
+    ui::Picture::Draw(DunLogBoard, ui::Rect(x + 0x20, y, 0x1CC, 0x20), ui::Rect(0x20, 0, 0x1B8, 0x20), alpha);
+    ui::Picture::Draw(DunLogBoard, ui::Rect(x + 0x1EC, y - 1, 0x28, 0xFA), ui::Rect(0x1D8, 0, 0x28, 0xF8), alpha);
+    ui::Picture::Draw(DunLogBoard, ui::Rect(x + 0x20, y + 0xD9, 0x1CC, 0x20), ui::Rect(0x20, 0xD8, 0x1B8, 0x20), alpha);
 
     // The scroll bar eases toward the list's scroll position and shrinks with a longer list.
     const int count = std::max<int>(DEnterMenu.floor_count, 5);
@@ -748,9 +912,7 @@ void DunEnterBoardWaku(int x, int y, int alpha) {
         height--;
     }
 
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, draw_y, 8, 4), CRect_i_(0x60, 0x60, 8, 4), alpha);
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, draw_y + 4, 8, height), CRect_i_(0x60, 0x64, 8, 4), alpha);
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, draw_y + height + 4, 8, 4), CRect_i_(0x60, 0x68, 8, 4), alpha);
+    ui::Picture::DrawColumn(DunLogBoard, draw_x, draw_y, static_cast<float>(height), ui::Rect(0x60, 0x60, 8, 4), alpha);
 
     draw_x = x + 0x28;
     draw_y = y - 0x14;
@@ -761,10 +923,16 @@ void DunEnterBoardWaku(int x, int y, int alpha) {
     const int v = (icon % 3) * 40 + 0x100;
 
     if (dungeon == 6) {
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, draw_y, 0x80, 0x23), CRect_i_(0x20, 0x80, 0x80, 0x24), alpha);
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x + 0x80, draw_y, 0x80, 0x23), CRect_i_(0x20, 0xA4, 0x80, 0x24), alpha);
+        ui::Picture::Draw(DunLogBoard, ui::Rect(draw_x, draw_y, 0x80, 0x23), ui::Rect(0x20, 0x80, 0x80, 0x24), alpha);
+        ui::Picture::Draw(DunLogBoard, ui::Rect(draw_x + 0x80, draw_y, 0x80, 0x23), ui::Rect(0x20, 0xA4, 0x80, 0x24), alpha);
     } else {
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, draw_y, 0x100, 0x28), CRect_i_(u, v, 0x100, 0x28), alpha);
+        ui::Picture::Draw(DunLogBoard, ui::Rect(draw_x, draw_y, 0x100, 0x28), ui::Rect(u, v, 0x100, 0x28), alpha);
+    }
+
+    if (ui::dungeon_plates::Blank()) {
+        MenuTextureReload(0x1A);
+        ui::dungeon_plates::DrawName(dungeon, draw_x, draw_y, alpha);
+        MenuTextureReload(DEnterMenu.texture_block);
     }
 }
 
@@ -775,7 +943,7 @@ void DunEnterBoard(int x, int y, int alpha) {
     float     lane = x;
     const int top = y + 0x19;
     const int bottom = y + 0xEF;
-    const int target = y + 0x1C - DEnterMenu.scroll_top * 40;
+    const int target = y + 0x1C - DEnterMenu.scroll_top * kRowStride;
     const int step = static_cast<int>(static_cast<float>(target) - DEnterMenu.list_y);
     DEnterMenu.list_y += step >> 2;
 
@@ -783,96 +951,78 @@ void DunEnterBoard(int x, int y, int alpha) {
         DEnterMenu.list_y = target;
     }
 
-    int row_y = static_cast<int>(DEnterMenu.list_y);
-
-    CRect_i_  rule_source(0x20, 0x20, 0x28, 7);
-    const int dim = (alpha * 80) >> 7;
-    int       rule_x = static_cast<int>(32.0f + lane);
+    int            row_y = static_cast<int>(DEnterMenu.list_y);
+    const int      dim = (alpha * 80) >> 7;
+    int            rule_x = static_cast<int>(32.0f + lane);
+    const ui::Rect rule_source(0x20, 0x20, 0x28, 7);
 
     if (DEnterMenu.scroll_top == 0) {
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(rule_x - 10, 0x73, 10, 3), rule_source, dim);
+        ui::Picture::Draw(DunLogBoard, ui::Rect(rule_x - 10, 0x73, 10, 3), rule_source, dim);
 
         for (int segment = 0; segment < 11; segment++) {
-            DrawMenu2DSprite(DunLogBoard, CRect_i_(rule_x, 0x73, 0x28, 3), rule_source, dim);
+            ui::Picture::Draw(DunLogBoard, ui::Rect(rule_x, 0x73, 0x28, 3), rule_source, dim);
             rule_x += 0x28;
         }
 
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(rule_x, 0x73, 10, 3), rule_source, dim);
+        ui::Picture::Draw(DunLogBoard, ui::Rect(rule_x, 0x73, 10, 3), rule_source, dim);
     }
 
     const int column_x = x + 0x20;
 
     for (int i = 0; i < 100; i++) {
-        int source = 0x20;
-        int length = 0x28;
-        int position = row_y;
         lane = column_x;
 
         if (!(row_y < bottom)) {
             break;
         }
 
-        if (row_y + 0x28 <= top) {
-            row_y += 0x28;
+        if (row_y + kRowStride <= top) {
+            row_y += kRowStride;
             continue;
         }
 
-        MenuTextureClip(position, source, length, top, bottom);
-        CRect_i_ edge_source(0x20, source, 10, length);
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(static_cast<int>(lane - 10.0f), position, 10, length), edge_source, dim);
+        ui::Picture::DrawClipped(DunLogBoard, ui::Rect(static_cast<int>(lane - 10.0f), row_y, 10, kRowStride), ui::Rect(0x20, 0x20, 10, kRowStride), top,
+                                 bottom, dim);
 
         for (int segment = 0; segment < 12; segment++) {
-            DrawMenu2DSprite(DunLogBoard, CRect_i_(static_cast<int>(lane), position, 0x28, length), CRect_i_(0x20, source, 0x28, length), dim);
+            ui::Picture::DrawClipped(DunLogBoard, ui::Rect(static_cast<int>(lane), row_y, 0x28, kRowStride), ui::Rect(0x20, 0x20, 0x28, kRowStride), top,
+                                     bottom, dim);
             lane += 40.0f;
         }
 
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(static_cast<int>(lane), position, 10, length), edge_source, dim);
+        ui::Picture::DrawClipped(DunLogBoard, ui::Rect(static_cast<int>(lane), row_y, 10, kRowStride), ui::Rect(0x20, 0x20, 10, kRowStride), top, bottom,
+                                 dim);
 
         if (DEnterMenu.floor_count - 1 < i) {
-            row_y += 0x28;
+            row_y += kRowStride;
             continue;
         }
 
-        position = row_y + 4;
-        DrawDunEnterFloorName(column_x, position, i + 1, top, bottom, alpha);
+        DrawDunEnterFloorName(column_x, row_y + 4, i + 1, top, bottom, alpha);
         const int dungeon = DEnterMenu.dungeon;
         const int max_floor = maxFloorTbl__4[dungeon];
 
         if (i == max_floor - 1) {
-            const int draw_x = column_x + 0x82;
-            position = row_y + 6;
-            length = 0x18;
-            source = dungeon * 24 + 0x20;
-            MenuTextureClip(position, source, length, top, bottom);
-
-            if (position < bottom) {
-                DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, position, 0xDC, length), CRect_i_(0xFC, source, 0xDC, length), alpha);
-            }
+            ui::Picture::DrawClipped(DunLogBoard, ui::Rect(column_x + 0x82, row_y + 6, 0xDC, 0x18), ui::Rect(0xFC, dungeon * 24 + 0x20, 0xDC, 0x18), top,
+                                     bottom, alpha);
         } else if (dungeon < 6) {
-            int draw_x = column_x + 0x72;
-            position = row_y;
-            length = 0x20;
-            source = 0x20;
-            MenuTextureClip(position, source, length, top - 10, bottom);
+            int       draw_x = column_x + 0x72;
+            const int remaining = static_cast<u8>(DEnterMenu.max_atra[i]) - static_cast<u8>(DEnterMenu.collected_atra[i]);
 
-            if (position < bottom) {
-                int remaining = static_cast<u8>(DEnterMenu.max_atra[i]) - static_cast<u8>(DEnterMenu.collected_atra[i]);
+            for (int mark = 0; mark < remaining; mark++) {
+                ui::Picture::DrawClipped(DunLogBoard, ui::Rect(draw_x, row_y, 0x20, 0x20), ui::Rect(0x48, 0x20, 0x20, 0x20), top - 10, bottom, alpha);
+                draw_x += 0x1A;
+            }
 
-                for (int mark = 0; mark < remaining; mark++) {
-                    DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, position, 0x20, length), CRect_i_(0x48, source, 0x20, length), alpha);
-                    draw_x += 0x1A;
-                }
+            const int collected = static_cast<u8>(DEnterMenu.collected_atra[i]);
 
-                const int collected = static_cast<u8>(DEnterMenu.collected_atra[i]);
-
-                for (int mark = 0; mark < collected; mark++) {
-                    DrawMenu2DSprite(DunLogBoard, CRect_i_(draw_x, position, 0x20, length), CRect_i_(0x68, source, 0x20, length), alpha);
-                    draw_x += 0x1A;
-                }
+            for (int mark = 0; mark < collected; mark++) {
+                ui::Picture::DrawClipped(DunLogBoard, ui::Rect(draw_x, row_y, 0x20, 0x20), ui::Rect(0x68, 0x20, 0x20, 0x20), top - 10, bottom, alpha);
+                draw_x += 0x1A;
             }
         }
 
-        row_y += 0x28;
+        row_y += kRowStride;
     }
 
     MenuTextureReload(DunLogBoard->block);
@@ -888,13 +1038,11 @@ void DunEnterBoard(int x, int y, int alpha) {
             continue;
         }
 
-        int board_x = x + 0x16E;
-
         if (row_y < bottom) {
-            DrawGetAtoraNumBoard(floor, board_x, row_y, top, bottom, alpha);
+            DrawGetAtoraNumBoard(floor, x + 0x16E, row_y, top, bottom, alpha);
         }
 
-        row_y += 0x28;
+        row_y += kRowStride;
     }
 
     DunEnterBoardWaku(x, y, alpha);
@@ -905,14 +1053,9 @@ void DunEnterBoard(int x, int y, int alpha) {
  */
 void DrawEnemyNum(int x, int y, int top, int bottom, int number, int alpha) {
     for (int digits = GetNumberKeta(number); 0 < digits; digits--) {
-        int       position = y;
-        const int digit = number % 10;
         x -= 11;
-        const int u = digit * 12 + 0x20;
-        int       source = 0x48;
-        int       length = 12;
-        MenuTextureClip(position, source, length, top, bottom);
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(x, position, 12, length - 1), CRect_i_(u, source, 12, length), alpha);
+        // Retail draws each digit a row shorter than its picture.
+        ui::Picture::DrawClipped(DunLogBoard, ui::Rect(x, y, 12, 11), ui::Rect((number % 10) * 12 + 0x20, 0x48, 12, 12), top, bottom, alpha);
         number /= 10;
     }
 }
@@ -925,64 +1068,104 @@ int KillCountX(int x) {
 }
 
 void DrawGetAtoraNumBoard(int floor, int x, int y, int top, int bottom, int alpha) {
-    int position = y;
-    int source = 0x20;
-    int length = 0x24;
-
     if (!(top < y + 0x24) || bottom <= y) {
         return;
     }
 
-    MenuTextureClip(position, source, length, top, bottom);
-    DrawMenu2DSprite(DunLogBoard, CRect_i_(x, position, 0x2B, length), CRect_i_(0x88, source, 0x2B, length), alpha);
+    ui::Picture::DrawClipped(DunLogBoard, ui::Rect(x, y, 0x2B, 0x24), ui::Rect(0x88, 0x20, 0x2B, 0x24), top, bottom, alpha);
 
-    position = y + 8;
-    const int collected = static_cast<u8>(DEnterMenu.collected_atra[floor]);
-
-    if (top < position) {
-        DrawDunNumberClip(x + 5, position, top, bottom, collected, alpha);
+    if (top < y + 8) {
+        DrawDunNumberClip(x + 5, y + 8, top, bottom, static_cast<u8>(DEnterMenu.collected_atra[floor]), alpha);
     }
 
-    position = y + 0x10;
-    const int maximum = static_cast<u8>(DEnterMenu.max_atra[floor]);
-    DrawDunNumberClip(x + 0x1B, position, top, bottom, maximum, alpha);
-
+    DrawDunNumberClip(x + 0x1B, y + 0x10, top, bottom, static_cast<u8>(DEnterMenu.max_atra[floor]), alpha);
     const int kills = DEnterMenu.kills[floor];
     x = KillCountX(x);
-    position = y + 1;
-    source = 0x20;
-    length = 0x23;
-    MenuTextureClip(position, source, length, top, bottom);
+    ui::Picture::DrawClipped(DunLogBoard, ui::Rect(x, y + 1, 0x1E, 0x23), ui::Rect(0xB3, 0x20, 0x1E, 0x23), top, bottom, alpha);
 
-    if (position < bottom) {
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(x, position, 0x1E, length), CRect_i_(0xB3, source, 0x1E, length), alpha);
-    }
-
-    position = y + 0x10;
-
-    if (position < bottom - 4) {
-        DrawEnemyNum(x + 0x44, position, top, bottom - 6, kills, alpha);
+    if (y + 0x10 < bottom - 4) {
+        DrawEnemyNum(x + 0x44, y + 0x10, top, bottom - 6, kills, alpha);
     }
 }
 
 void DrawDunNumberClip(int x, int y, int top, int bottom, int digit, int alpha) {
-    int       position = y;
-    const int u = digit * 12 + 0x20;
-    int       source = 0x48;
-    int       length = 12;
-    MenuTextureClip(position, source, length, top, bottom);
-
-    if (position < bottom) {
-        DrawMenu2DSprite(DunLogBoard, CRect_i_(x, position, 12, length), CRect_i_(u, source, 12, length), alpha);
-    }
+    ui::Picture::DrawClipped(DunLogBoard, ui::Rect(x, y, 12, 12), ui::Rect(digit * 12 + 0x20, 0x48, 12, 12), top, bottom, alpha);
 }
 
 void DrawDunEnterBack(int alpha) {
-    DrawFullSizePicture(TexManager.GetTexture("frame", -1), 0, 0, 0x80);
-    MGFillBox(CRect_i_(0, 0, 0x2800, SCREEN_HEIGHT * 0x10), 10, 10, 10, (alpha * 4) >> 7);
+    ui::Picture::DrawScreen(TexManager.GetTexture("frame", -1), 0x80);
+    ui::ScreenFill::Draw(10, 10, 10, (alpha * 4) >> 7);
+}
+
+/**
+ * The floor whose row is under (x, y), as the board draws the rows now; -1 for none.
+ */
+int FloorUnder(float x, float y) {
+    const float left = static_cast<float>(kBoardX + 0x20 - 10);
+    const float right = static_cast<float>(kBoardX + 0x20 + 12 * 0x28 + 10);
+    if (x < left || x >= right || y < static_cast<float>(kListTop) || y >= static_cast<float>(kListBottom)) {
+        return -1;
+    }
+    const int floor = static_cast<int>(std::floor((y - static_cast<float>(static_cast<int>(DEnterMenu.list_y))) / kRowStride));
+    return floor >= 0 && floor < DEnterMenu.floor_count ? floor : -1;
 }
 
 } // namespace
+
+std::vector<std::pair<std::string, std::string>> FloorSelectStrings() {
+    return {
+        {"dungeon.floor_select.leave", "Leave dungeon?"},
+    };
+}
+
+bool FloorSelectPointerUpdate() {
+    if (!std::exchange(g_floor_select_active, false)) {
+        return !g_floor_pointer.Close();
+    }
+    if (!g_floor_pointer.IsOpen()) {
+        g_floor_pointer.Open();
+    }
+    const ui::MenuPointerTake take = g_floor_pointer.Take(g_floor_hand.X(), g_floor_hand.Y());
+    ui::MenuPointerShow(&g_floor_pointer);
+    if (DEnterMenu.state != DUN_ENTER_SELECT || !take.pointing) {
+        return true;
+    }
+    if (g_leave.open) {
+        const int answer = ui::ConfirmModal::Hit(LeaveTitle(), "", g_floor_pointer.x, g_floor_pointer.y);
+        if (answer >= 0 && take.moved && answer != g_leave.choice) {
+            g_leave.choice = answer;
+            ComMenuSePlay(MENU_SOUND_CURSOR);
+        }
+        if ((take.clicked & 1) != 0 && answer >= 0) {
+            ui::MenuPointerPress(kInputCross);
+        }
+        if ((take.clicked & 2) != 0) {
+            ui::MenuPointerPress(kInputCircle);
+        }
+        return true;
+    }
+
+    // A hover puts the cursor on the floor under it, the rows in view following; the left button goes
+    // down to it; the wheel moves a floor, as Up and Down do.
+    const int hit = FloorUnder(g_floor_pointer.x, g_floor_pointer.y);
+    if (hit >= 0 && take.moved && take.wheel == 0.0f) {
+        if (hit != DEnterMenu.selected_floor) {
+            DEnterMenu.selected_floor = static_cast<s8>(hit);
+            DEnterMenu.scroll_top = static_cast<s8>(std::clamp<int>(DEnterMenu.scroll_top, hit - 4, hit));
+            ComMenuSePlay(MENU_SOUND_CURSOR);
+        }
+        if ((take.clicked & 1) != 0) {
+            ui::MenuPointerPress(kInputCross);
+        }
+    }
+    if ((take.clicked & 2) != 0) {
+        ui::MenuPointerPress(kInputCircle);
+    }
+    if (take.wheel != 0.0f) {
+        ui::MenuPointerPress(take.wheel > 0.0f ? kInputUp : kInputDown);
+    }
+    return true;
+}
 
 /**
  * Screen position of the character change ring's centre.
@@ -1028,10 +1211,7 @@ int MDebugItemPolyViewFlag;
 int polyreadflag;
 
 void DrawDunEnterFloorName(int x, int y, int floor, int top, int bottom, int alpha) {
-    int position = y;
-
     if (y < bottom) {
-        int height = 0x1C;
         int u = 0;
         int source = DEnterMenu.dungeon * 32;
 
@@ -1040,10 +1220,12 @@ void DrawDunEnterFloorName(int x, int y, int floor, int top, int bottom, int alp
             source = (DEnterMenu.dungeon - 6) * 32;
         }
 
-        MenuTextureClip(position, source, height, top, bottom);
+        // Retail draws the name when what is left of it reaches top, and the floor's number by the
+        // name's clipped height measured from the unclipped y.
+        const int height = ui::ClippedRows::Clip(y, source, 0x1C, top, bottom).height;
 
-        if (position + height >= top) {
-            DrawMenu2DSprite(DunLogBoard2, CRect_i_(x, position, 0x70, height), CRect_i_(u, source, 0x70, height), alpha);
+        if (y + 0x1C >= top) {
+            ui::Picture::DrawClipped(DunLogBoard2, ui::Rect(x, y, 0x70, 0x1C), ui::Rect(u, source, 0x70, 0x1C), top, bottom, alpha);
         }
 
         if (DEnterMenu.dungeon == 5) {
@@ -1084,10 +1266,9 @@ void DrawDunEnterFloorName(int x, int y, int floor, int top, int bottom, int alp
             {0x52, 0x68, 0x60, 0x60, 0x38, 0x50, 0x64},
         };
         x = offset + (x + name_width[GetMenuLangFlag()][DEnterMenu.dungeon]);
-        RECT digits = {0, 0xC0, 0x10, 0x1C};
 
         if (y + height >= top) {
-            DrawMenuNumber(floor, x, y, digits, DunLogBoard2, 0, top, bottom, alpha);
+            ui::PictureNumber::DrawClipped(floor, x, y, DunLogBoard2, ui::Rect(0, 0xC0, 0x10, 0x1C), 0, top, bottom, alpha);
         }
     }
 }
@@ -2422,7 +2603,7 @@ int InitItemPolygonView(int item_no, u_long128 *buffer) {
     std::array<char, 76> texture_path{};
     int                  size = 0;
 
-    if (item_no < ITEM_ATTACH_START || item_no >= ITEM_WEAPON_START) {
+    if (const item::Kind kind = item::KindOf(item_no); kind != item::Kind::Attachment && kind != item::Kind::Item) {
         return 0;
     }
 

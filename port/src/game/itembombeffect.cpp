@@ -7,6 +7,7 @@
 #include "camera.hpp"
 #include "collisiondata.hpp"
 #include "dun/gameloop.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
@@ -40,7 +41,8 @@ int checkItemUsed(int slot) {
     const int   condition = UserStatus->ailments[character];
     const s16   item = UserStatus->item_pack.quick_item_slot[slot];
 
-    if (item == -1) {
+    // An orphan waits for its definition; using it would only use it up.
+    if (item == -1 || item::IsOrphan(item)) {
         return 0;
     }
 
@@ -74,7 +76,13 @@ void usedActiveItem(CUserStatus *status, int item) {
         return;
     }
 
-    const ITEM_DATA &data = ITEM_LIST[item - ITEM_ATTACH_START];
+    const ITEM_DATA *row = item >= item::kCustomFirst ? item::CustomItemData(item) : &ITEM_LIST[item - ITEM_ATTACH_START];
+
+    if (row == nullptr) {
+        return;
+    }
+
+    const ITEM_DATA &data = *row;
 
     if ((data.kind_flags & ITEMKINDF_CONSUMABLE) != 0) {
         const bool heals = (data.use_flags & ITEMUSE_HEAL_HP) != 0;

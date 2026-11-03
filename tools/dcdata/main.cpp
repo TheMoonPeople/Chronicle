@@ -375,11 +375,19 @@ void PublishSound(const fs::path &data) {
     dcdata::Log(stdout, "published {} sound packs sharing {} banks\n", packs.size(), banks.size());
 }
 
+// Writes the gameplay documents tracked in port/gameplay, sealed into the build's seed, into the
+// data, where the game reads them under any datapacks.
+void PublishGameplay(const fs::path &data) {
+    const std::size_t documents = kazarov::gameplay_publish(Utf8Path(data));
+    dcdata::Log(stdout, "published {} gameplay documents\n", documents);
+}
+
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
                "       dcdata extract-raw <iso-or-directory> <data-directory>\n"
                "       dcdata bake-textures <raw-directory> <data-directory>\n"
                "       dcdata publish-sound <data-directory>\n"
+               "       dcdata publish-gameplay <data-directory>\n"
                "       dcdata texture-map <raw-directory> <mapping.json>\n"
                "       dcdata convert-models <raw-directory> <output-directory>\n"
                "       dcdata bake-assets <raw-directory> <data-directory>\n"
@@ -467,6 +475,7 @@ int Extract(const std::filesystem::path &source, const std::filesystem::path &ou
         return result;
     }
     BakeAssets(out, out);
+    PublishGameplay(out);
     return 0;
 }
 
@@ -482,6 +491,10 @@ int main(int argc, char **argv) {
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
+        }
+        if (argc == 3 && std::strcmp(argv[1], "publish-gameplay") == 0) {
+            PublishGameplay(argv[2]);
+            return 0;
         }
         if (argc == 3 && std::strcmp(argv[1], "publish-sound") == 0) {
             PublishSound(argv[2]);

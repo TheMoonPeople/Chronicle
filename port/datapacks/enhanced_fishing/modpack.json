@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "kind": "datapack",
+  "name": "Enhanced Fishing",
+  "description": "Dark Cloud 2's bite and fight at every fishing spot, and Ruty's rods.",
+  "version": "0.1.0"
+}

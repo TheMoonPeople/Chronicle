@@ -17,10 +17,13 @@
 #include "itemdata.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
+#include "menu_dungeon.hpp"
 #include "menu_inventory.hpp"
 #include "menu_manual.hpp"
 #include "menu_misc.hpp"
+#include "dialog/script_question.hpp"
 #include "menu_save.hpp"
+#include "shop.hpp"
 #include "options/menu_option.hpp"
 #include "platform/input.hpp"
 #include "save/save_slots.hpp"
@@ -1131,7 +1134,7 @@ void MenuMouseUpdate() {
     bool battle = g_battle_drawn;
     g_battle_drawn = false;
 
-    if (EventItemPointerUpdate()) {
+    if (EventItemPointerUpdate() || FishingListPointerUpdate() || FloorSelectPointerUpdate() || dialog::ScriptQuestionPointerUpdate()) {
         g_battle.Abandon();
         g_save.Abandon();
         g_save_open = false;

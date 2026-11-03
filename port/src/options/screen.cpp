@@ -13,10 +13,13 @@
 #include "gamepad.hpp"
 #include "gameutil.hpp"
 #include "gfx/gfx.hpp"
+#include "fishing/host.hpp"
+#include "item/host.hpp"
 #include "localize/localize.hpp"
 #include "mainselect.hpp"
 #include "memcard.hpp"
 #include "menu_draw.hpp"
+#include "menu_dungeon.hpp"
 #include "menu_manual.hpp"
 #include "menuetc.hpp"
 #include "platform/display.hpp"
@@ -713,6 +716,9 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
     for (auto &entry : BattleMenuStrings()) {
         out.push_back(std::move(entry));
     }
+    for (auto &entry : game::FloorSelectStrings()) {
+        out.push_back(std::move(entry));
+    }
     for (auto &entry : JournalStrings()) {
         out.push_back(std::move(entry));
     }
@@ -723,6 +729,12 @@ std::vector<std::pair<std::string, std::string>> OptionStrings() {
         out.push_back(std::move(entry));
     }
     for (auto &entry : QuestStrings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : fishing::Strings()) {
+        out.push_back(std::move(entry));
+    }
+    for (auto &entry : item::Strings()) {
         out.push_back(std::move(entry));
     }
     return out;

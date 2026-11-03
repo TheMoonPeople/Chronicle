@@ -228,6 +228,12 @@ struct ED_SPRITE {
 STATIC_ASSERT(sizeof(ED_SPRITE) == 0x88);
 
 /**
+ * Opens a menu (an EdMenuKind) from the running event, as the town scripts' menu commands do: the
+ * script waits until it closes.
+ */
+void EdEventMenu(int menu);
+
+/**
  * Toggles whether advancement of the current editor event is paused.
  */
 void EdEventPause();

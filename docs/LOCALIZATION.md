@@ -36,10 +36,13 @@ One file per language, named by the language the game is set to:
 | Italiano | 5 | `it_it.json` |
 | Espanol | 6 | `es_es.json` |
 
-The port looks in two folders, in this order, and a later file's messages replace an earlier one's:
+The port looks in these places, in this order, and a later file's messages replace an earlier one's:
 
 1. `lang/` beside the executable,
-2. `lang/` in the save folder (`--save`, or `DC_SAVE`).
+2. `lang/` in each active datapack (docs/ITEM_FRAMEWORK.md, "Datapacks"), the lowest priority's first, so
+   a pack brings its own strings (its quests', its settings') in every language, and can retranslate the
+   game's,
+3. `lang/` in the save folder (`--save`, or `DC_SAVE`), the player's own, over everything.
 
 The language is looked up whenever the game asks for a file, so a change of language takes effect on the
 next file the game loads; the JSON itself is read once per language, so restart the game after editing a
