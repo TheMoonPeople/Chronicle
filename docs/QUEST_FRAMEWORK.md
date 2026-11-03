@@ -15,27 +15,27 @@ Dependencies flow downward only.
    reaches the game only through `quest::IGame`.
 2. **Host** (`port/src/quest/host.cpp`). `IGame` over the save data, the dialog option provider, the
    save files, and the shop screen.
-3. **Quests** (`port/src/quest/`). One file each, listed in `RegisterAllQuests` (`quests.cpp`).
+3. **Quests.** Documents (`gameplay/quests/`, section 3), read from the data and every active datapack,
+   so a pack adds a quest without the game being rebuilt; and in code (`port/src/quest/`, listed in
+   `RegisterAllQuests`, `quests.cpp`) only a quest that takes over something retail does itself, which a
+   document cannot (the Mayor's supplies, section 7).
 
 ---
 
 ## 2. A quest
 
 ```cpp
-quest::Definition CarlsSlingshot() {
-    return quest::Builder("carls_slingshot")
-        .Stages({"hidden", "offered", "asked", "excuse", "doubted", "confessed", "done"})   // starts at the first
-        .Advance("hidden", quest::PartyMember(kXiao), "offered")
-        .Option(kCarl, quest::AtStage("offered"), kCarlAsk, CarlAsksForHelp)
-        .Option(kCarl, quest::AtStages({"asked", "excuse", "doubted", "confessed"}), kCarlAbout, CarlOnTheSlingshot)
-        .Option(kGina, quest::AtStages({"asked", "excuse", "doubted", "confessed"}), kGinaAbout, GinaOnTheSlingshot)
+quest::Definition Errand() {
+    return quest::Builder("errand")
+        .Stages({"start", "middle", "end"})   // starts at the first
+        .Advance("start", quest::HasItem("vanilla:bread"), "middle")
+        .Option({.map_no = 0, .npc_id = 7}, quest::AtStage("middle"), {"quest.errand.ask", "The errand"}, Errand)
         .Build();
 }
 ```
 
-That is the whole of the port's example quest (section 7, `port/src/quest/carls_slingshot.cpp`): two
-NPCs, and a stage for each step between them. `port/src/tests/quest_framework_test.cpp` also has a
-quest that ends in a shop (`FetchQuest`).
+Every quest, in code or a document, comes down to this. `port/src/tests/quest_framework_test.cpp` has
+more, among them a quest that ends in a shop (`FetchQuest`).
 
 - **Stages** are names; a quest is at exactly one. `Build` rejects a quest without stages, a stage
   named twice, a rule between names that are not stages, and a choice that does nothing.
@@ -51,9 +51,12 @@ quest that ends in a shop (`FetchQuest`).
 - **Choices** (`Option`) are added to the menu of the NPCs an `NpcMatch` names (map, villager, message
   file; `quest::kAny` matches any) while their condition holds. A choice runs as a `Scene`.
 - **Numbers**: `Var` and `SetVar` keep a quest's own counters and flags, saved with its stage.
+  `quest::ChangeVar` changes one from outside the quest, for what it counts as it happens: fishing's
+  helpers count catches that way (docs/FISHING_FRAMEWORK.md, "Events and quests"). `IGame::SystemText`
+  reads a system message, such as a town's name, as the player's data and language have it.
 - **Retail takeovers** (`TakesOver(npc, quest::Retail::...)`): something retail does by itself, which
   the quest does its own way instead. While the quest is registered, the host holds retail's version
-  back for the NPCs it names. `Retail::MayorSupplies` is the only one so far (section 6).
+  back for the NPCs it names. `Retail::MayorSupplies` is the only one so far (section 7).
 
 ### Scenes
 
@@ -65,7 +68,7 @@ What a choice does, in the conversation it was picked in:
 | `Ask(prompt, choices)` | A question; `Choice(label, fn)` makes its choices, each running as a `Scene` of the quest. |
 | `Back()` | Back a page, or out of the conversation from the NPC's menu. |
 | `Close()` | Ends the conversation. |
-| `OpenShop(spec)` | Ends the conversation and opens a shop screen (section 4). |
+| `OpenShop(spec)` | Ends the conversation and opens a shop screen (section 5). |
 | `SayThenClose(text)` | A page of text that ends the conversation once read: for what plays after it, such as an item received. |
 | `SetStage`, `SetVar`, `Game()` | The quest's progress and the game, as in a rule. |
 
@@ -74,21 +77,124 @@ the next one's choices straight away.
 
 ### Text
 
-Every string is a `quest::Text`: a key and the English. The key looks the text up in
-`port/lang/<language>.json` (LocalizeText), so a quest is translated as the port's other text is,
-under `quest.<quest id>.`. `Text` holds views, so it is made of string literals.
+Every string is a `quest::Text`: a key and the English. The key looks the text up in the language
+files (LocalizeText, docs/LOCALIZATION.md), so a quest is translated as the port's other text is,
+under `quest.<quest id>.`. `Text` holds views: in code it is made of string literals, and a document's
+quest keeps the document's text for as long as it lives.
 
-Each quest file lists every `Text` it uses in its `...Texts()` (`MayorSuppliesTexts`,
-`CarlsSlingshotTexts`), and `QuestStrings()` (`quest/quests.cpp`) gathers them for
-`OptionStrings()`: the text export lists them for translators, and the test
+`QuestStrings()` (`quest/quests.cpp`) gathers the quests' text for `OptionStrings()`: the Mayor's
+(`MayorSuppliesTexts`) and every document's. The text export lists them for translators. The test
 `LocalizeOptions.ShippedTranslationsHaveExactlyTheCodesKeys` checks that every language file in
-`port/lang/` has exactly those keys, with the same `{codes}` and `%1`... as the English. A new
-quest adds its list there and its keys to the four language files. Xiao and the other party
-members are `{name2}`...`{name6}` in the text rather than their names, as retail's text has them.
+`port/lang/` has exactly the code's keys and those of the game's own quest documents
+(`port/gameplay/quests/`), with the same `{codes}` and `%1`... as the English, and
+`LocalizeOptions.ShippedPacksTranslateTheirQuests` checks each shipped pack's `lang/` against its own
+quests the same way. Xiao and the other party members are `{name2}`...`{name6}` in the text rather than
+their names, as retail's text has them.
 
 ---
 
-## 3. The game
+## 3. Quest documents
+
+`gameplay/quests/<id>.json` (`port/src/quest/documents.cpp`), kind `quest`, one quest a file, its name
+the quest's ID with `:` as `.` (`lures:lost_ring` is `lures.lost_ring.json`). They are read at start-up,
+after the items and fishing, from every active datapack and the data, each file name once, the
+highest-priority pack's first (as custom items are, docs/ITEM_FRAMEWORK.md), and registered after the
+quests in code, in ID order: the order their choices appear in an NPC's menu. The game's own are tracked
+in `port/gameplay/quests/` and sealed into its data. A document that cannot be used is reported
+(`config: <path>: <where>: <why>`) and left out, as is one naming an item no item document has; a save
+keeps such a quest's progress (section 6). A pack's quest uses an ID of its own namespace; the game's
+own keep the bare IDs their saves already have.
+
+```json
+{
+  "schema_version": 2, "kind": "quest", "id": "lures:lost_ring",
+  "stages": ["hidden", "offered", "asked", "done"],
+  "rules": [{ "from": "hidden", "when": { "floor_reached": { "dungeon": 0, "floor": 3 } }, "to": "offered" }],
+  "options": [{
+    "npc": { "town": "norune", "villager": 8 }, "when": { "at_stage": "offered" }, "label": "ask",
+    "steps": [{ "say": "offer" }, { "stage": "asked" }]
+  }],
+  "text": { "ask": "Lost ring", "offer": "I lost my ring in the cave...{page}Will you find it?" }
+}
+```
+
+| Field | Holds |
+|---|---|
+| `stages` | The stages, the first the quest starts at. |
+| `rules` | `from`, `when` (a condition) and `to`, as `Advance`. |
+| `options` | Choices: `npc` (`town`, a name or 0 to 4, and `villager`, as the dialog framework numbers them; `message_file`; each left out matches any), `when` (left out: always), `label` (a text), `color` (`white`, `yellow`, `cyan`, `green`, `gold`, `grey`, `highlight`) and `steps`. |
+| `counters` | What the quest counts as it happens (below). |
+| `text` | Each text's name and its English; its key is `quest.<id>.<name>`. |
+
+Towns are named `norune`, `matataki`, `queens`, `muska_lacka`, `yellow_drops`, and party members
+`toan`, `xiao`, `goro`, `ruby`, `ungaga`, `osmond`; a number works for either. Items are IDs.
+
+**Conditions** are objects with one member, the library's under their own names:
+
+| Condition | Holds when |
+|---|---|
+| `{"at_stage": "asked"}`, `{"at_stages": ["asked", "excuse"]}` | The quest is at the stage, or one of them. |
+| `{"has_item": "vanilla:bread"}`, `{"has_item": {"item": "vanilla:bread", "count": 2}}` | The player carries it. |
+| `{"has_item_with": "fish"}`, `{"has_item_with": {"trait": "fish", "count": 3}}` | Items with a trait between them: `fish`, `bait`, `rod`, `key_item`, `quest_item`, `dungeon_key`. |
+| `{"has_money": 100}` | |
+| `{"floor_reached": {"dungeon": 0, "floor": 3}}`, `{"dungeon_started": 0}` | |
+| `{"game_flag": 200}`, `{"game_number_at_least": {"slot": 3, "value": 100}}`, `{"map_flag": {"map": 0, "flag": 12}}` | |
+| `{"part_placed": {"town": "norune", "part": 7}}`, `part_complete`, `event_done` | |
+| `{"request_met": {"town": "matataki", "request": 2}}`, `{"villager_home": {"town": "queens", "villager": 1}}` | |
+| `{"party_member": "xiao"}` | |
+| `{"var_at_least": {"var": "paid", "value": 1}}` | |
+| `{"caught_a_fish": true}` | The player has caught a fish in this save (fishing's `HasCaughtAFish`). |
+| `{"all": [...]}`, `{"any": [...]}`, `{"not": {...}}` | |
+
+**Steps** run in order when the choice is picked. Pages are listed as they are read: the scene's pages
+are a stack, the last pushed read first, so a choice's pages wait until its steps have run and are then
+pushed last first. A step that can fail runs its `then` steps when it does what it says, its `else`
+steps when not, and the steps after it either way.
+
+| Step | Does |
+|---|---|
+| `{"say": "name", "args": [...]}` | A page of text. |
+| `{"say_then_close": "name", "args": [...]}` | A page that ends the conversation once read. |
+| `{"ask": "name", "args": [...], "choices": [{"label": "name", "color": "grey", "steps": [...]}]}` | A question; each choice runs its steps as a choice of the quest. |
+| `"back"`, `"close"` | Back a page, or end the conversation; the pages said before it are pushed first, and the steps after it are not run. `say_then_close` ends after a page. |
+| `{"stage": "asked"}` | Moves the quest on. |
+| `{"set_var": "paid", "value": 1}`, `{"add_var": "times", "value": 1}` | |
+| `{"give_item": "id", "then": [...], "else": [...]}` | `else` where there is no room. |
+| `{"take_item": "id", "then": [...], "else": [...]}`, `{"take_money": 100, ...}` | `else` where the player has none, or too little. |
+| `{"give_money": 100}` | |
+| `{"show_item_received": "id", "then": [...], "else": [...]}` | Section 9; `else` where the town cannot show it, and says so in a page. |
+| `{"if": {condition}, "then": [...], "else": [...]}` | |
+| `{"open_shop": {"look_of_shop": 0, "keeper": "speaker", "goods": [{"item": "id", "price": 30}], "lines": {"greeting": "name"}}}` | Section 5: ends the conversation and opens the shop. `keeper` is `speaker` (the default) or `retail`; `lines` are `greeting`, `browsing`, `selling`, `not_enough_money`, `no_room`, `confirm`, `thanks`, `goodbye`. |
+
+A text's `%1`, `%2`... are its `args`, each filled in as its step is reached: `{"var": "times"}`;
+`{"var_left": "inland", "of": 7}` (7 less the number); `{"system_text": 10, "or": "Norune Village"}`
+(a system message, such as a town's name, as the player's data and language have it); `{"item_name":
+"id"}`; `{"item_count": "id"}`.
+
+**Counters** follow fishing's catches into the quest's numbers (docs/FISHING_FRAMEWORK.md, "Events and
+quests"), from when the quest is registered. `while_at` (stages) limits one to those stages.
+
+| Counter | Counts |
+|---|---|
+| `{"count": "fish_caught", "var": "mardan", "species": "vanilla:fish_5", "place": ..., "bait": ..., "min_size": ..., "while_at": [...]}` | 1 for each catch the filter (each field left out matches any) matches. |
+| `{"count": "fish_species", "var": "inland", "species": [...], "while_at": [...]}` | Each species once. |
+| `{"count": "largest_fish", "var": "record", ...filter}` | Keeps the largest catch's size. |
+| `{"count": "fish_points", "var": "points"}` | Each catch's points. |
+
+Anything a document cannot say (a retail takeover, a step the table lacks) is a quest in code, or a
+new step here. A document's own top-level fields this version does not read are reported and left
+alone; within rules, choices and steps, an unknown name refuses the document, so a typo is told
+rather than skipped.
+
+### Translating a pack's quest
+
+The document holds the English. A pack's `lang/<language>.json` (`fr_fr`, `de_de`, `it_it`, `es_es`)
+holds its translations under the same keys, `quest.<id>.<name>`, and wins over the game's own files
+(docs/LOCALIZATION.md); the Enhanced fishing pack's `lang/` translates Ruty's rods.
+
+---
+
+## 4. The game
 
 `IGame` is all a quest sees of the game; `quest/host.cpp` implements it over `SaveData`:
 
@@ -116,7 +222,7 @@ A test runs quests against a fake `IGame` (`port/src/tests/quest_framework_test.
 
 ---
 
-## 4. Shops
+## 5. Shops
 
 A quest's shop is a **custom shop** (`port/src/quest/custom_shop.cpp`): retail's item shop screen with goods,
 prices, a shopkeeper and lines of its own. Retail's shops keep theirs:
@@ -145,7 +251,7 @@ shorter than that shopkeeper may need a `look_of_shop` whose shopkeeper is more 
 
 ---
 
-## 5. Saving
+## 6. Saving
 
 Each save's folder gets a `quests.json` beside it, written with the save (and the autosave) and read
 when the save is loaded:
@@ -162,7 +268,7 @@ when the save is loaded:
 
 ---
 
-## 6. The Mayor's supplies
+## 7. The Mayor's supplies
 
 `port/src/quest/mayor_supplies.cpp`. Retail's talk script (`gedit/e01/event.stb`, event 0x100) hands
 the player one each of Tasty Water, Bread, Repair Powder, Escape Powder and Antidote Drink they have
@@ -184,9 +290,9 @@ tick in `EdTalkMode` (`QuestHostTalkOpened`).
 
 ---
 
-## 7. Carl's Slingshot
+## 8. Carl's Slingshot
 
-`port/src/quest/carls_slingshot.cpp`, the example quest. Carl (villager 7 of Norune) and Gina
+`port/gameplay/quests/carls_slingshot.json`, the example quest document. Carl (villager 7 of Norune) and Gina
 (villager 9) are two of the village's children, and come back with two different georama pieces.
 
 | Stage | Carl | Gina |
@@ -202,12 +308,12 @@ tick in `EdTalkMode` (`QuestHostTalkOpened`).
 The Bone Slingshot is Xiao's weapon, so the quest opens once she has joined; if she has no room for
 another weapon, Carl says so and the quest waits. Carl's last words end the conversation
 (`SayThenClose`), and Toan holds the slingshot up as the town's own events show an item received
-(`ShowItemReceived`). Each child's choice is one `Option` whose scene looks
-at the stage, so a stage that is not theirs to move on gives a reminder instead.
+(`show_item_received`; where the town cannot, he says so in a page). Each child's choice is one option
+whose steps look at the stage (`if`), so a stage that is not theirs to move on gives a reminder instead.
 
 ---
 
-## 8. An item received
+## 9. An item received
 
 `ShowItemReceived` runs the town script's own item-get routine, the one its events call for every
 gift (the Manual, the World Map): `ItemGet(5, item, fade, camera)` loads the glow (`/chara/iget.chr`)
@@ -223,7 +329,7 @@ Muska Lacka and Yellow Drops do not, and there `ShowItemReceived` is false.
 
 ---
 
-## 9. Georama, live and saved
+## 10. Georama, live and saved
 
 The town the player is in keeps its georama in `EditPartsInfo`, written back to the save when they
 leave it (`EditSave`); every other town's is in the save (`SV_GEORAMA_DATA`: each part's state and each

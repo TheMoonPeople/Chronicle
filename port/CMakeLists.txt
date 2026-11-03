@@ -277,6 +277,17 @@ else()
     install(DIRECTORY glyphs/ DESTINATION ${CMAKE_INSTALL_BINDIR}/glyphs)
 endif()
 
+# The packs the game ships (port/datapacks/README.md): assets/datapacks beside the executable, each off
+# until a player names it in datapacks/datapacks.json. The packages carry assets/ already.
+if(NOT ANDROID)
+    add_custom_target(dc_datapacks
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/datapacks/enhanced_fishing
+                $<TARGET_FILE_DIR:darkcloud>/assets/datapacks/enhanced_fishing
+        COMMENT "Copying the packs the game ships")
+    add_dependencies(${darkcloud_target} dc_datapacks)
+    install(DIRECTORY datapacks/enhanced_fishing DESTINATION ${CMAKE_INSTALL_BINDIR}/assets/datapacks)
+endif()
+
 # The tests use an installed GoogleTest, or fetch one at configure time; a build with neither turns them off.
 option(DC_BUILD_TESTS "Build darkcloud_tests" ON)
 if(DC_BUILD_TESTS AND NOT ANDROID AND NOT NINTENDO_SWITCH)

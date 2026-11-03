@@ -287,6 +287,11 @@ Builder &Builder::Stages(std::initializer_list<std::string_view> stages) {
     return *this;
 }
 
+Builder &Builder::Stages(std::vector<std::string> stages) {
+    quest.stages = std::move(stages);
+    return *this;
+}
+
 Builder &Builder::Advance(std::string_view from, Condition when, std::string_view to) {
     quest.rules.push_back({.from = std::string(from), .when = std::move(when), .to = std::string(to)});
     return *this;
@@ -360,6 +365,16 @@ const Definition *Find(std::string_view id) {
 const Progress *FindProgress(std::string_view id) {
     const Entry *entry = FindEntry(id);
     return entry != nullptr ? &entry->progress : nullptr;
+}
+
+bool ChangeVar(std::string_view quest, std::string_view name, const std::function<int(int)> &change) {
+    Entry *entry = FindEntry(quest);
+    if (entry == nullptr) {
+        return false;
+    }
+    int &value = entry->progress.vars[std::string(name)];
+    value = change(value);
+    return true;
 }
 
 void SetGame(IGame *game) { Get().game = game; }

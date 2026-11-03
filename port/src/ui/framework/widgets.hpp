@@ -22,6 +22,242 @@ public:
      */
     static bool Draw(int item_no, int x, int y, int size = metrics::kIconSizeStandard, int alpha = 0x80,
                      bool drop_shadow = true, bool with_socket = false);
+
+    /**
+     * Draws item_no's icon in an item board's slot at (x, y), as retail's boards draw it: the whole
+     * 32-pixel cell with its shadow, cut to the rows from top to bottom (the board's window).
+     */
+    static void DrawInSlot(int item_no, int x, int y, int top, int bottom, int alpha = 0x80);
+};
+
+/**
+ * A region of one of the game's pictures, stretched over a rectangle.
+ */
+class Picture {
+public:
+    /**
+     * Draws the source region of texture over the destination.
+     */
+    static void Draw(game::CTexture *texture, const Rect &destination, const Rect &source, int alpha = 0x80);
+
+    /**
+     * Draws a column of three pieces from texture, as retail's list boards draw their scroll
+     * indicator: the cap (cap_source), length pixels of the body (the cap_source.h rows below it)
+     * stretched, and the foot (the rows below those) after it.
+     */
+    static void DrawColumn(game::CTexture *texture, int x, int y, float length, const Rect &cap_source, int alpha = 0x80);
+};
+
+/**
+ * A number in a picture's digits, as retail's menus draw prices and ranks: digit 0 at digits, the
+ * others to its right, each digits.w wide, drawn leftward from right_x and overlapping by overlap.
+ */
+class PictureNumber {
+public:
+    /**
+     * Draws value ending at right_x.
+     */
+    static void Draw(int value, int right_x, int y, game::CTexture *texture, const Rect &digits, int overlap, int alpha = 0x80);
+};
+
+/**
+ * Retail's menu hand: its sprite in the stay-frame picture, easing a quarter of the way to where it
+ * points each frame and swinging with the count every menu shares. It goes to the mouse while a
+ * screen's pointer is shown (MenuPointerShow). Cursor is the framework's own hand; this one is
+ * retail's, for screens that look as retail's do.
+ */
+class MenuHand {
+public:
+    /**
+     * Puts the hand at (x, y) at once.
+     */
+    void SnapTo(float x, float y);
+
+    /**
+     * Moves the hand a quarter of the way to (x, y).
+     */
+    void Ease(float x, float y);
+
+    /**
+     * Where the hand is.
+     */
+    float X() const { return m_x; }
+    float Y() const { return m_y; }
+
+    /**
+     * Draws the hand with its shadow; icon_u picks the hand in the picture's row of them.
+     */
+    void Draw(int icon_u = 0x40) const;
+
+private:
+    float m_x{0.0f}; /**< Where the hand is. */
+    float m_y{0.0f}; /**< Where the hand is. */
+};
+
+/**
+ * Retail's stay frame: the four pulsing corners a menu puts around what its hand is on.
+ */
+class StayFrame {
+public:
+    /**
+     * Draws the corners around box.
+     */
+    static void Draw(const Rect &box, int alpha = 0x80);
+};
+
+/**
+ * Where a list board's rows are: rows_shown of them, the first at first_row, each stride below the
+ * last.
+ */
+struct ListLayout {
+    Rect first_row{};     /**< The first row in view: what a pointer finds it by. */
+    int  stride = 0x22;   /**< From one row to the next. */
+    int  rows_shown = 5;  /**< Rows in view. */
+};
+
+/**
+ * A list board's cursor, as retail's lists move it (the fish exchange, the fishing records): Up and
+ * Down a row, the rows in view following; a page of rows_shown at a time with L and R. Retail lets a
+ * page down leave the view one row past the end, and so does this. It eases the hand's height a
+ * quarter of the way (whole pixels, at once within two) and says which row is where.
+ */
+class ListCursor {
+public:
+    ListCursor() = default;
+    explicit ListCursor(const ListLayout &layout) : m_layout(layout) {}
+
+    /**
+     * The cursor on the first of last + 1 entries, the first rows in view, the hand at hand_y.
+     */
+    void Reset(int last, int hand_y);
+
+    /**
+     * Changes the last entry, as a list that grows or shrinks does.
+     */
+    void SetLast(int last) { m_last = last; }
+
+    void Up();       /**< A row up. */
+    void Down();     /**< A row down. */
+    void PageUp();   /**< A page up. */
+    void PageDown(); /**< A page down. */
+
+    /**
+     * Keeps the cursor on an entry and the rows in view inside the list, as retail does after every
+     * move.
+     */
+    void Clamp();
+
+    /**
+     * Puts the cursor and the first row in view where a screen's own rule puts them.
+     */
+    void Set(int cursor, int top);
+
+    /**
+     * Eases the hand's height toward target_y.
+     */
+    void EaseHand(int target_y);
+
+    /**
+     * Puts the hand at height y at once.
+     */
+    void SetHandY(int y) { m_hand_y = y; }
+
+    int Cursor() const { return m_cursor; } /**< The entry the cursor is on. */
+    int Top() const { return m_top; }       /**< The first entry in view. */
+    int Last() const { return m_last; }     /**< The last entry. */
+    int HandY() const { return m_hand_y; }  /**< Where the hand is. */
+    const ListLayout &Layout() const { return m_layout; }
+
+    /**
+     * Where row (0 for the first in view) is.
+     */
+    Rect RowRect(int row) const;
+
+    /**
+     * The entry under (x, y), -1 for none.
+     */
+    int Hit(float x, float y) const;
+
+private:
+    ListLayout m_layout{};
+    int        m_cursor{0};
+    int        m_top{0};
+    int        m_last{0};
+    int        m_hand_y{0};
+};
+
+/**
+ * Where an item board's slots are: columns of slots stride_x apart and rows stride_y apart, seen
+ * through a window rows_shown rows high.
+ */
+struct SlotGridLayout {
+    Rect window{};       /**< The slots' window: the first row's place, and what is cut away outside it. */
+    int  columns = 5;    /**< Slots in a row. */
+    int  stride_x = 42;  /**< From one slot to the next. */
+    int  stride_y = 40;  /**< From one row to the next. */
+    int  rows_shown = 2; /**< Rows the window shows. */
+};
+
+/**
+ * An item board's slots, as retail's boards move through them: the cursor goes a slot left or right
+ * or a row up or down, never past the ends, empty slots included; the rows in view follow it, and the
+ * rows ease a quarter of the way (whole pixels, at once within four) to where they belong each frame.
+ * It says where each slot is drawn now, so the mouse finds what the eye sees.
+ */
+class SlotGrid {
+public:
+    SlotGrid() = default;
+    explicit SlotGrid(const SlotGridLayout &layout) : m_layout(layout) {}
+
+    /**
+     * Puts the cursor on slot 0 of slots, the first rows in view, the rows where they belong.
+     */
+    void Reset(int slots);
+
+    /**
+     * Moves the cursor dx slots and dy rows, as far as the board lets it: true when it moved.
+     */
+    bool Move(int dx, int dy);
+
+    /**
+     * Puts the cursor on a slot, keeping its row in view.
+     */
+    void SetCursor(int slot);
+
+    /**
+     * Eases the rows toward where they belong; once a frame.
+     */
+    void Ease();
+
+    int Cursor() const { return m_cursor; }   /**< The slot the cursor is on. */
+    int TopRow() const { return m_top_row; }  /**< The first row in view. */
+    int Rows() const;                         /**< Rows of slots, one at least. */
+    int RowsY() const { return m_rows_y; }    /**< Where the first row is drawn now. */
+    const SlotGridLayout &Layout() const { return m_layout; }
+
+    /**
+     * Where slot is drawn now, the rows' easing included.
+     */
+    Rect SlotRect(int slot) const;
+
+    /**
+     * Where the cursor's slot will rest, its row in view: where the hand and frame go.
+     */
+    Rect CursorRect() const;
+
+    /**
+     * The slot under (x, y) among the first filled, inside the window; -1 for none.
+     */
+    int Hit(float x, float y, int filled) const;
+
+private:
+    void Follow();
+
+    SlotGridLayout m_layout{};
+    int            m_slots{0};
+    int            m_cursor{0};
+    int            m_top_row{0};
+    int            m_rows_y{0};
 };
 
 /**

@@ -1,0 +1,121 @@
+{
+  "schema_version": 2,
+  "kind": "quest",
+  "id": "carls_slingshot",
+  "stages": ["hidden", "offered", "asked", "excuse", "doubted", "confessed", "done"],
+  "rules": [
+    { "from": "hidden", "when": { "party_member": "xiao" }, "to": "offered" }
+  ],
+  "options": [
+    {
+      "npc": { "town": "norune", "villager": 7 },
+      "when": { "at_stage": "offered" },
+      "label": "carl.ask",
+      "steps": [
+        { "say": "carl.story" },
+        { "stage": "asked" }
+      ]
+    },
+    {
+      "npc": { "town": "norune", "villager": 7 },
+      "when": { "at_stages": ["asked", "excuse", "doubted", "confessed"] },
+      "label": "carl.about",
+      "steps": [
+        {
+          "if": { "at_stage": "excuse" },
+          "then": [
+            { "say": "carl.bird" },
+            { "stage": "doubted" }
+          ],
+          "else": [
+            {
+              "if": { "at_stage": "confessed" },
+              "then": [
+                {
+                  "give_item": "vanilla:weapon_bone_slingshot",
+                  "then": [
+                    { "stage": "done" },
+                    {
+                      "show_item_received": "vanilla:weapon_bone_slingshot",
+                      "then": [
+                        { "say_then_close": "carl.junk" }
+                      ],
+                      "else": [
+                        { "say": "carl.junk" },
+                        { "say": "received" }
+                      ]
+                    }
+                  ],
+                  "else": [
+                    { "say": "carl.no_room" }
+                  ]
+                }
+              ],
+              "else": [
+                {
+                  "if": { "at_stage": "doubted" },
+                  "then": [
+                    { "say": "carl.again" }
+                  ],
+                  "else": [
+                    { "say": "carl.waiting" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "npc": { "town": "norune", "villager": 9 },
+      "when": { "at_stages": ["asked", "excuse", "doubted", "confessed"] },
+      "label": "gina.about",
+      "steps": [
+        {
+          "if": { "at_stage": "asked" },
+          "then": [
+            { "say": "gina.excuse" },
+            { "stage": "excuse" }
+          ],
+          "else": [
+            {
+              "if": { "at_stage": "doubted" },
+              "then": [
+                { "say": "gina.confess" },
+                { "stage": "confessed" }
+              ],
+              "else": [
+                {
+                  "if": { "at_stage": "confessed" },
+                  "then": [
+                    { "say": "gina.waiting" }
+                  ],
+                  "else": [
+                    { "say": "gina.bird" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "text": {
+    "carl.ask": "You look upset.",
+    "carl.about": "Your slingshot",
+    "carl.story": "{name1}, bro... Gina borrowed my slingshot.{page}She said she'd give it back the next day. That was ages ago!{page}Every time I ask her, she runs off. It's not fair.{page}Can you get it back for me bro? Please?",
+    "carl.waiting": "Did Gina give it back yet? Go ask her!",
+    "carl.bird": "A bird?! Birds don't take slingshots!{page}She's fibbing. She always makes stuff up.{page}Go talk to her again. I know she's lying!",
+    "carl.again": "Go ask Gina again. And no birds this time!",
+    "carl.junk": "She broke it?{page}And she made this...? It's all crooked. It's junk.{page}...You keep it. I don't want it.{page}Give it to {name2}..",
+    "carl.no_room": "{name2}'s got too many weapons to carry it. Make some room first.",
+    "received": "Received the Bone Slingshot for {name2}.",
+    "gina.about": "Carl's slingshot",
+    "gina.excuse": "Carl's slingshot?{page}Umm... a, a big bird took it! It was *THIS* big!{page}It went whoosh, and flew away with it!",
+    "gina.bird": "The bird took it! Honest!",
+    "gina.confess": "...Carl doesn't believe the bird?{page}...Okay. I was shooting at bottles, and it went SNAP.{page}I didn't mean to! So I made him a new one!.{page}Can you give it to him? I'm scared he'll be mad..",
+    "gina.waiting": "Did you give Carl the new slingshot? Is he mad?"
+  }
+}

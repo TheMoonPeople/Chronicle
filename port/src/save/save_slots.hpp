@@ -59,6 +59,7 @@ int SaveSlotFirstFree(const std::vector<int> &files);
 struct SaveSlotList {
     std::vector<int>                 files; /**< Every save file, readable or not. */
     std::vector<game::SAVEDATA_INFO> saves; /**< The readable ones, ascending by file. */
+    std::vector<int>                 missing; /**< The file_no of each save naming items no loaded pack provides. */
 };
 
 extern SaveSlotList SaveSlots;

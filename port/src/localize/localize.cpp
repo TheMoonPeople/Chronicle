@@ -28,7 +28,9 @@
 #include "mainselect.hpp"
 #include "options/menu_option.hpp"
 #include "platform/config.hpp"
+#include "platform/datapacks.hpp"
 #include "platform/paths.hpp"
+#include "platform/vfs.hpp"
 
 namespace fs = std::filesystem;
 
@@ -106,14 +108,39 @@ bool ReadText(const fs::path &file, std::string &text) {
     return true;
 }
 
-// One language's files (<language>.json, the save folder's over the executable's), without patches.
+// Each active pack's lang/<language>.json over table, the lowest priority's first.
+void MergePacks(LocalizeTable &table, std::string_view name) {
+    const auto files = datapacks::Find(std::format("lang/{}.json", name));
+    for (auto file = files.rbegin(); file != files.rend(); ++file) {
+        std::vector<std::uint8_t> bytes;
+        if (!vfs::Read(*file, bytes)) {
+            continue;
+        }
+        LocalizeTable read;
+        std::string   why;
+        if (LocalizeParse(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), read, why)) {
+            LocalizeMerge(table, read);
+        } else {
+            Report(file->Display() + ": " + why + "; left out");
+        }
+    }
+}
+
+// One language's files without patches: the executable's, then the active packs', which win over the
+// game's own strings, then the save folder's, the player's own, over everything.
 LocalizeTable LoadLanguage(int code) {
     LocalizeTable          table;
     const std::string_view name = LanguageFile(code);
     if (name.empty()) {
         return table;
     }
+    const fs::path players = PathsSaveRoot() / "lang";
+    bool           packs_merged = false;
     for (const fs::path &directory : Directories()) {
+        if (!packs_merged && directory == players) {
+            MergePacks(table, name);
+            packs_merged = true;
+        }
         fs::path        file = directory / (std::string(name) + ".json");
         std::string     text;
         std::error_code error;
@@ -127,6 +154,9 @@ LocalizeTable LoadLanguage(int code) {
         } else {
             Report(PathsDisplay(file) + ": " + why + "; using retail text");
         }
+    }
+    if (!packs_merged) {
+        MergePacks(table, name);
     }
     return table;
 }
@@ -746,6 +776,10 @@ void LocalizeSetDirectories(std::vector<fs::path> directories) {
     state.directories = std::move(directories);
     state.directories_set = true;
     state.language = -1;
+}
+
+void LocalizeReloadLanguage() {
+    Get().language = -1;
 }
 
 void LocalizeReset() {

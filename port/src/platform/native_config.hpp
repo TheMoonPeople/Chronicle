@@ -6,9 +6,9 @@
 #include <string_view>
 
 /**
- * Gameplay documents (docs/ITEM_FRAMEWORK.md): JSON files under gameplay/ in a datapack, each an
- * object with the schema_version and kind ChronicleTwo's native documents use. A document that cannot
- * be used prints "config: <path>: <reason>" and the next pack's is tried.
+ * Gameplay documents (docs/ITEM_FRAMEWORK.md): JSON files under gameplay/ in a datapack or the data,
+ * each an object with the schema_version and kind ChronicleTwo's native documents use. A document that
+ * cannot be used prints "config: <path>: <reason>" and the next one is tried.
  */
 namespace dc::platform::native_config {
 
@@ -20,10 +20,18 @@ using Json = nlohmann::json;
 inline constexpr int kSchemaVersion = 2;
 
 /**
- * Passes the documents at a path under gameplay/ to parse, highest-priority pack first, until one has
- * this schema version and kind and parse returns without throwing. Returns whether one did.
+ * Passes the documents at a path under gameplay/ to parse, highest-priority pack first and then the
+ * data's own, until one has this schema version and kind and parse returns without throwing. Returns
+ * whether one did.
  */
 bool Read(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse);
+
+/**
+ * Passes every document at a path under gameplay/ to parse, the data's own and then each pack's from the
+ * lowest priority up, so a later one can build on an earlier: a patch. One without this schema version
+ * and kind, or that parse throws for, is reported and skipped. Returns how many were used.
+ */
+int ReadEach(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse);
 
 /**
  * Prints one diagnostic about a gameplay document.

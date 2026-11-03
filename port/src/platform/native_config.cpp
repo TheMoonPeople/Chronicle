@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "data/data_read.hpp"
 #include "platform/datapacks.hpp"
 
 namespace dc::platform::native_config {
@@ -34,24 +35,56 @@ void CheckKind(const Json &document, std::string_view kind) {
     }
 }
 
+// Hands one document to parse, reporting why when it cannot be used.
+bool Use(std::string_view display, bool read, const std::vector<std::uint8_t> &bytes, std::string_view kind,
+         const std::function<void(const Json &)> &parse) {
+    const Json document = read ? Json::parse(bytes, nullptr, false) : Json(Json::value_t::discarded);
+    try {
+        if (document.is_discarded()) {
+            throw std::runtime_error("document is not JSON");
+        }
+        CheckKind(document, kind);
+        parse(document);
+        return true;
+    } catch (const std::exception &exception) {
+        Report(display, exception.what());
+        return false;
+    }
+}
+
+// The data's own document, which dcdata writes from the documents tracked in port/gameplay. Only read
+// once the data is indexed, since indexing stops the program when there is no data.
+bool UseData(const std::string &path, std::string_view kind, const std::function<void(const Json &)> &parse) {
+    std::vector<std::uint8_t> bytes;
+    return data::DataReadIndexed() && data::DataReadReadFile(path, bytes) && Use(path, true, bytes, kind, parse);
+}
+
 } // namespace
 
 bool Read(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse) {
-    for (const vfs::Ref &file : datapacks::Find(std::format("gameplay/{}", relative))) {
+    const std::string path = std::format("gameplay/{}", relative);
+    for (const vfs::Ref &file : datapacks::Find(path)) {
         std::vector<std::uint8_t> bytes;
-        const Json                document = vfs::Read(file, bytes) ? Json::parse(bytes, nullptr, false) : Json(Json::value_t::discarded);
-        try {
-            if (document.is_discarded()) {
-                throw std::runtime_error("document is not JSON");
-            }
-            CheckKind(document, kind);
-            parse(document);
+        const bool                read = vfs::Read(file, bytes);
+        if (Use(file.Display(), read, bytes, kind, parse)) {
             return true;
-        } catch (const std::exception &exception) {
-            Report(file.Display(), exception.what());
         }
     }
-    return false;
+    return UseData(path, kind, parse);
+}
+
+int ReadEach(std::string_view relative, std::string_view kind, const std::function<void(const Json &)> &parse) {
+    const std::string path = std::format("gameplay/{}", relative);
+    int               used = UseData(path, kind, parse) ? 1 : 0;
+    const auto        files = datapacks::Find(path);
+    for (auto file = files.rbegin(); file != files.rend(); ++file) {
+        std::vector<std::uint8_t> bytes;
+        const bool                read = vfs::Read(*file, bytes);
+        if (Use(file->Display(), read, bytes, kind, parse)) {
+            used++;
+        }
+    }
+    return used;
 }
 
 void Report(std::string_view path, std::string_view message) {

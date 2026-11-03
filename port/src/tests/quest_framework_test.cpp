@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -10,11 +12,20 @@
 #include <utility>
 #include <vector>
 
+#include "data_fixture.hpp"
 #include "dialog/framework.hpp"
+#include "fishing/framework.hpp"
+#include "fishing/host.hpp"
+#include "item/framework.hpp"
+#include "item/host.hpp"
 #include "itemdata.hpp"
 #include "mainselect.hpp"
+#include "platform/datapacks.hpp"
+#include "platform/paths.hpp"
+#include "quest/documents.hpp"
 #include "quest/framework.hpp"
 #include "quest/quests.hpp"
+#include "savedata.hpp"
 
 namespace dc::test {
 
@@ -39,6 +50,7 @@ public:
     std::map<int, int>                  game_numbers;
     std::map<std::pair<int, int>, bool> map_flags;
     std::map<int, std::string>          talk_lines;
+    std::map<int, std::string>          system_texts;
     int                                 money = 0;
     int                                 party = 1;
     int                                 pack_room = 10;
@@ -135,6 +147,11 @@ public:
         return it == talk_lines.end() ? std::string() : it->second;
     }
 
+    [[nodiscard]] std::string SystemText(int message) const override {
+        const auto it = system_texts.find(message);
+        return it == system_texts.end() ? std::string() : it->second;
+    }
+
     void OpenShop(quest::ShopSpec spec) override { shop = std::move(spec); }
 
     bool ShowItemReceived(int item) override {
@@ -145,6 +162,19 @@ public:
         return true;
     }
 };
+
+// A quest document the port ships, from the source tree: port/<path>.
+nlohmann::json ShippedDocument(const std::filesystem::path &path) {
+    std::ifstream stream(std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() / path);
+    EXPECT_TRUE(stream) << path;
+    return nlohmann::json::parse(stream);
+}
+
+// Carl's Slingshot, the game's own quest document; its slingshot is a vanilla item, so the items load.
+void RegisterCarlsSlingshot() {
+    item::Load();
+    quest::RegisterDocument(ShippedDocument("gameplay/quests/carls_slingshot.json"));
+}
 
 float TenPerByte(std::string_view text) {
     return 10.0f * static_cast<float>(text.size());
@@ -461,7 +491,7 @@ TEST_F(QuestFramework, MayorSaysSoWhenThePackIsFull) {
 }
 
 TEST_F(QuestFramework, CarlsSlingshotGoesBackAndForthToXiaosNewWeapon) {
-    quest::Register(CarlsSlingshot());
+    RegisterCarlsSlingshot();
     const dialog::NpcContext carl = Npc(0, 7);
     const dialog::NpcContext gina = Npc(0, 9);
 
@@ -526,8 +556,95 @@ TEST_F(QuestFramework, CarlsSlingshotGoesBackAndForthToXiaosNewWeapon) {
     EXPECT_FALSE(dialog::TryInterceptOpen(gina, {}));
 }
 
+TEST_F(QuestFramework, RutyGivesARodForTheInlandFishTheMardanAndTheBaron) {
+    // The Enhanced fishing pack's rods, and retail's fish.
+    item::Load();
+    int number = item::kCustomFirst + 20;
+    std::map<std::string, int> rods;
+    for (const char *rod : {"chronicle:sea_rod", "chronicle:garayan_rod", "chronicle:baron_rod"}) {
+        item::Register(item::Def{.id = rod, .number = number}.With(item::Rod{}));
+        rods[rod] = number++;
+    }
+    fishing::Load();
+    quest::RegisterDocument(ShippedDocument("datapacks/enhanced_fishing/gameplay/quests/rutys_rods.json"));
+    const dialog::NpcContext ruty = Npc(2, 1);
+    game.system_texts = {{10, "Nolun Village"}, {12, "Matataki Village"}};
+    const auto catch_kinds = [](std::initializer_list<int> kinds) {
+        for (const int kind : kinds) {
+            fishing::Publish(fishing::Catch{.species = fishing::SpeciesOfKind(kind)});
+        }
+    };
+
+    // Not before her store is open and Toan has caught a fish; a catch before she asks doesn't count.
+    alignas(64) static game::CSaveData save;
+    save = {};
+    game::SaveData = &save;
+    EXPECT_FALSE(dialog::TryInterceptOpen(ruty, {}));
+    game.villagers_home[{2, 1}] = true;
+    EXPECT_FALSE(dialog::TryInterceptOpen(ruty, {}));
+    save.AddFishingPoint(9);
+    catch_kinds({1});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("I've been fishing.");
+    EXPECT_EQ(View().slice_count, 4);
+    Read();
+    EXPECT_EQ(Stage("rutys_rods"), "inland");
+    dialog::ForceCloseSession();
+
+    // Every kind of Norune's and Matataki's, the towns named as the player's data names them.
+    catch_kinds({1, 2, 4, 6, 7, 9, 9});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("1 more kinds"), std::string::npos) << View().current_slice.raw_text;
+    dialog::ForceCloseSession();
+    catch_kinds({10});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("Every kind in Nolun Village and Matataki Village?"), std::string::npos) << View().current_slice.raw_text;
+    Read();
+    EXPECT_EQ(game.ItemCount(rods["chronicle:sea_rod"]), 1);
+    EXPECT_EQ(Stage("rutys_rods"), "mardan");
+    Read();
+    EXPECT_FALSE(dialog::IsSessionActive());
+
+    // A Baron before she asks for it counts for nothing; the Mardan Garayan, then the Baron.
+    catch_kinds({17});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("Any luck with the Mardan Garayan?"), std::string::npos);
+    dialog::ForceCloseSession();
+    catch_kinds({5});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    Read();
+    Read();
+    EXPECT_EQ(game.ItemCount(rods["chronicle:garayan_rod"]), 1);
+    EXPECT_EQ(Stage("rutys_rods"), "baron");
+    dialog::ForceCloseSession();
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("Still chasing the Baron?"), std::string::npos);
+    dialog::ForceCloseSession();
+    catch_kinds({17});
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    Read();
+    EXPECT_EQ(game.ItemCount(rods["chronicle:baron_rod"]), 1);
+    EXPECT_EQ(Stage("rutys_rods"), "done");
+    EXPECT_EQ(game.items_shown, (std::vector<int>{rods["chronicle:sea_rod"], rods["chronicle:garayan_rod"], rods["chronicle:baron_rod"]}));
+    dialog::ForceCloseSession();
+
+    // Afterwards she talks of her notebook.
+    ASSERT_TRUE(dialog::TryInterceptOpen(ruty, {}));
+    Pick("About the fish");
+    EXPECT_NE(View().current_slice.raw_text.find("My notebook's full"), std::string::npos);
+    dialog::ForceCloseSession();
+    game::SaveData = nullptr;
+    fishing::Clear();
+}
+
 TEST_F(QuestFramework, CarlSaysTheSlingshotIsReceivedWhereTheTownCannotShowIt) {
-    quest::Register(CarlsSlingshot());
+    RegisterCarlsSlingshot();
     game.party = 2;
     game.can_show_items = false;
     const dialog::NpcContext carl = Npc(0, 7);
@@ -644,6 +761,123 @@ TEST_F(QuestFramework, ItemsCanBeCountedByTrait) {
     game.items[ITEM_ROTTEN_FISH] = 1;
     quest::Evaluate();
     EXPECT_EQ(Stage("fishmonger"), "end");
+}
+
+// ---- quest documents ----
+
+// An errand in a document: pages, a question, money, numbers and a rule.
+nlohmann::json ErrandDocument() {
+    return nlohmann::json::parse(R"({
+        "schema_version": 2, "kind": "quest", "id": "test:errand",
+        "stages": ["start", "asked", "done"],
+        "rules": [{ "from": "asked", "when": { "var_at_least": { "var": "paid", "value": 1 } }, "to": "done" }],
+        "options": [{
+            "npc": { "town": "matataki", "villager": 3 }, "when": { "at_stage": "start" }, "label": "ask",
+            "steps": [
+                { "say": "first" },
+                { "say": "second", "args": [{ "var": "times" }] },
+                { "add_var": "times", "value": 1 },
+                { "ask": "offer", "choices": [
+                    { "label": "yes", "steps": [{ "take_money": 100,
+                        "then": [{ "set_var": "paid", "value": 1 }, { "stage": "asked" }, { "say_then_close": "thanks" }],
+                        "else": [{ "say": "poor" }] }] },
+                    { "label": "no", "color": "grey", "steps": ["back"] }
+                ] }
+            ]
+        }],
+        "text": { "ask": "An errand", "first": "First page", "second": "Second page %1", "offer": "Pay 100?",
+                  "yes": "Yes", "no": "No", "thanks": "Thanks", "poor": "Too poor" }
+    })");
+}
+
+TEST_F(QuestFramework, ADocumentsPagesAreReadInTheOrderItListsThem) {
+    quest::RegisterDocument(ErrandDocument());
+    ASSERT_TRUE(dialog::TryInterceptOpen(Npc(1, 3), {}));
+    Pick("An errand");
+    EXPECT_EQ(View().current_slice.raw_text, "First page");
+    Read();
+    // Its number filled in as the step was reached, before the step after it added one.
+    EXPECT_EQ(View().current_slice.raw_text, "Second page 0");
+    EXPECT_EQ(quest::FindProgress("test:errand")->vars.at("times"), 1);
+    Read();
+    EXPECT_EQ(View().current_slice.raw_text, "Pay 100?");
+
+    // Too poor, and back to the question; then paid, and the rule moves the quest on.
+    Pick("Yes");
+    EXPECT_EQ(View().current_slice.raw_text, "Too poor");
+    EXPECT_EQ(Stage("test:errand"), "start");
+    Read();
+    game.money = 150;
+    Pick("Yes");
+    EXPECT_EQ(game.money, 50);
+    // Asked, and at once done: the rules run again once a choice has.
+    EXPECT_EQ(Stage("test:errand"), "done");
+    EXPECT_EQ(View().current_slice.raw_text, "Thanks");
+    Read();
+    EXPECT_FALSE(dialog::IsSessionActive());
+}
+
+TEST_F(QuestFramework, ADocumentThatCannotWorkIsRefused) {
+    quest::RegisterDocument(ErrandDocument());
+    quest::Clear();
+    const auto refused = [](const char *pointer, nlohmann::json value) {
+        nlohmann::json document = ErrandDocument();
+        document[nlohmann::json::json_pointer(pointer)] = std::move(value);
+        EXPECT_THROW(quest::RegisterDocument(document), std::runtime_error) << pointer << " = " << value.dump();
+        EXPECT_EQ(quest::Find("test:errand"), nullptr);
+    };
+    refused("/options/0/steps/0", {
+                                      {"sya", "first"}
+    });
+    refused("/options/0/steps/0", {
+                                      {"say",  "first"},
+                                      {"loud", true   }
+    });
+    refused("/options/0/steps/0", {
+                                      {"say", "missing"}
+    });
+    refused("/options/0/steps/0", {
+                                      {"stage", "nowhere"}
+    });
+    refused("/options/0/steps/0", {
+                                      {"give_item", "test:nothing"}
+    });
+    refused("/options/0/when", {
+                                   {"at_floor", 3}
+    });
+    refused("/options/0/npc/town", "atlantis");
+    refused("/rules/0/to", "nowhere");
+    refused("/id", "Test:Errand");
+}
+
+TEST_F(QuestFramework, QuestDocumentsComeFromThePacks) {
+    const std::filesystem::path root = datafix::TempDir("quest_documents");
+    const auto                  write = [&](const char *path, const std::string &text) {
+        std::filesystem::create_directories((root / path).parent_path());
+        std::ofstream(root / path) << text;
+    };
+    write("datapacks/pack/gameplay/quests/test.errand.json", ErrandDocument().dump());
+    nlohmann::json misnamed = ErrandDocument();
+    misnamed["id"] = "test:chore";
+    write("datapacks/pack/gameplay/quests/test.errand_two.json", misnamed.dump());
+    write("datapacks/datapacks.json", R"({"schema_version": 1, "load_order": ["pack"]})");
+    std::filesystem::create_directories(root / "data");
+    PathsSetSaveRoot(root / "save");
+    platform::datapacks::Load(root / "data", {});
+
+    quest::LoadDocuments();
+    quest::RegisterDocuments();
+    EXPECT_NE(quest::Find("test:errand"), nullptr);
+    EXPECT_EQ(quest::Find("test:chore"), nullptr) << "a document whose file is named for another quest";
+    bool listed = false;
+    for (const auto &[key, text] : quest::QuestStrings()) {
+        listed |= key == "quest.test:errand.ask" && text == "An errand";
+    }
+    EXPECT_TRUE(listed);
+
+    platform::datapacks::Clear();
+    quest::LoadDocuments();
+    PathsReset();
 }
 
 } // namespace

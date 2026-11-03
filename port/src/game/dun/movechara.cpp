@@ -1,7 +1,5 @@
 // DunMoveChara, split from dun/gameloop.cpp for size.
 
-#include "dun/gameloop.hpp"
-
 #include <libvu0.h>
 
 #include <cmath>
@@ -18,8 +16,8 @@
 #include "btsysscript.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
-#include "charakey.hpp"
 #include "character.hpp"
+#include "charakey.hpp"
 #include "clothread.hpp"
 #include "clsmes.hpp"
 #include "collision.hpp"
@@ -31,6 +29,8 @@
 #include "dngmessageman.hpp"
 #include "dngstatusdata.hpp"
 #include "dranmapfield.hpp"
+#include "dun/gameloop.hpp"
+#include "dungeon/doors.hpp"
 #include "dungeoneventman.hpp"
 #include "dungeonmap.hpp"
 #include "edit.hpp"
@@ -669,7 +669,8 @@ void DunMoveChara() {
                                                 run_action = false;
                                             } else if (GamePad.Down(PadInput_OK) != 0) {
                                                 gameTask = GAME_TASK_SCRIPT_START;
-                                                BtEventInfo.action_mode = 1;
+                                                // docs/DUNGEON.md: at a locked door with its key, as Square starts it.
+                                                BtEventInfo.action_mode = dungeon::AutoOpenLockedDoor(*state) ? 2 : 1;
                                                 run_action = false;
                                             }
                                         }

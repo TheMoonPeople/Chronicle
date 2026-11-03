@@ -38,7 +38,7 @@ work (`battlemenu.cpp`, which holds the item menu, has 61 item-range comparisons
 one costs a lot and risks small losses of parity, so a screen moves when something needs it: mouse
 support, a layout that breaks at some aspect, text retail painted, or content retail can't show
 (the item framework's custom items are the largest, its section 11). A screen nothing needs keeps
-retail's code, which is byte-matched and correct by construction.
+retail's code, the port's fork of it (`port/src/game`), which draws as retail did.
 
 **The framework owns behaviour; retail's art stays where it exists.** The port has already learned
 this once: #210 retired the port's redrawn weapon status numbers and powder panel and went back to
@@ -66,10 +66,17 @@ drawn in the 3D world stay with the game. The framework is for menus, boards and
 | Options | `port/src/options/` | `TabPlate`, `TextureButton`, `ScrollBar`, `Cursor`, `Label` |
 | Villager conversation hub | `port/src/dialog/framework.cpp` | `TrackerWindow`, `Divider`, `ScrollBar`, `Brackets`, `Cursor` |
 | Title menu and its Exit confirmation | `port/src/title/title_menu.cpp` | `Label` (`FontWeight::Title`), `ConfirmModal` |
+| Event item board: an event's items, fishing's bait, the rods | `port/src/game/menu_save.cpp` | `SlotGrid`, `MenuHand`, `StayFrame`, `Picture`, `ItemIcon::DrawInSlot` |
+| Fish exchange and fishing records | `port/src/game/shop.cpp` | `ListCursor`, `MenuHand`, `Picture`, `PictureNumber`, `ItemIcon::DrawInSlot` |
+
+The event item board, the fish exchange and the fishing records moved for the fishing framework, and
+draw as retail's did pixel for pixel, every state of them compared on one renderer (section 4): the
+fishing UI is the framework's whether Enhanced fishing is installed or not. Fishing's questions, the
+sign's and Circle's, are the town scripts' own, asked by the dialog framework in their windows
+(docs/DIALOG_FRAMEWORK.md, "A town script's question").
 
 Still retail's: the save and load boards (`DrawMenuSave`, port-drawn but copied from retail), the
-item menu, shops, storage, the item picker, the Georama menus, the fishing exchange, the floor
-select and the dungeon HUD.
+item menu, shops, storage, the Georama menus, the floor select and the dungeon HUD.
 
 ### What the code holds
 
@@ -80,7 +87,8 @@ port/src/ui/framework/
     text.hpp       TextStyle, Label, WrapText, DrawTextBox, DrawCounter, DrawStatus*
     surfaces.hpp   WindowPreset, TrackerWindow, PaperWindow, HelpBox, Window, TabPlate, Divider, SubWindow
     buttons.hpp    ButtonPreset, ButtonStyle (Thick, Thin), BevelButton, DrawPaintedPlate, TextureButton
-    widgets.hpp    ItemIcon, Cursor, Brackets, ScrollBar, ProgressBar, MenuHeader
+    widgets.hpp    ItemIcon, Picture, PictureNumber, Cursor, MenuHand, StayFrame, ListCursor, SlotGrid,
+                   Brackets, ScrollBar, ProgressBar, MenuHeader
     dialogs.hpp    DialogBox, ConfirmModal, ListView
     *.cpp          their implementations, and internal.hpp (ui::detail)
 ```
@@ -103,7 +111,11 @@ Each move is its own pull request and follows the same steps.
    what each action changes, what the mouse should do. This list is the parity check.
 3. **Build it on the framework,** drawing retail's pictures where they exist (section 2).
 4. **Compare.** Side by side with the captures, state by state and language by language, and every
-   item of the list from step 2.
+   item of the list from step 2. Where the move keeps retail's pictures, the strictest comparison is
+   two builds on one renderer: the test hooks reach a screen from a save (`--jump load:<slot>` or
+   `autosave`, `--town-menu`, `--town-event`, and scripted input; docs/PC.md, "Test hooks"), the
+   build before the move and the build after capture every state, and the images match pixel for
+   pixel. The fishing screens moved that way.
 5. **Switch and retire.** The retail function is replaced in its game unit (`port/src/game`), or its
    callers are for a `static` one, only once the comparison holds.
 
@@ -285,8 +297,17 @@ theme from a newer version of the port still loads.
   `SlateBlue`), `ButtonStyle::Thick` (recessed lettering) and `Thin` (painted lettering, section 6),
   pressed or not; `TextureButton` for a button that is a retail picture. The plates' size: 96 by 24
   logical pixels visible (96 by 32 with the shadow margin), 26 between rows.
-- **Widgets:** `Cursor` (retail's hand, with its swing), `Brackets` (the pulsing selection
+- **Widgets:** `Cursor` (the framework's hand, with its swing), `Brackets` (the pulsing selection
   brackets), `ScrollBar`, `ProgressBar`, `ItemIcon`, `DrawCounter`.
+- **Retail's own:** for a screen that looks as retail's does, widgets that draw with the game's own
+  pictures and services: `Picture` (a region of a game picture; `DrawColumn` for a list board's
+  three-piece scroll indicator), `PictureNumber` (digits from a picture, `DrawMenuNumber`),
+  `MenuHand` (the menus' hand, `DrawMenuObjectVibe`, easing a quarter of the way a frame),
+  `StayFrame` (the pulsing corners, `DrawMenuWaku`), `ItemIcon::DrawInSlot` (an item board's icon,
+  `DrawIconParts`). `ListCursor` moves through a list board as retail's lists do (a row, a page of
+  five, the view a row past the end after a page down, the hand easing in whole pixels and resting
+  three short), and `SlotGrid` through an item board's slots (no wrap, empty slots included, the
+  rows easing a quarter of the way). Both keep retail's quirks, because a player sees them.
 - **Dialogs:** `ConfirmModal` (a box and the game's yes/no plates).
 
 ### Hit-testing
@@ -294,7 +315,9 @@ theme from a newer version of the port still loads.
 **Every widget that draws something clickable says where it is, from the layout it draws with.**
 `ConfirmModal::Hit` and `ConfirmModal::ButtonRect` are the first: the box grows with its text, so its
 buttons move, and the mouse and the hand's first position read them rather than copies of the
-coordinates. **Proposal:** the rest follow as their screens move (`ListView::HitTest` exists), and
+coordinates. `SlotGrid::Hit` and `ListCursor::Hit` answer from where the slots and rows are drawn
+that frame, the easing included, so the item board, the fish exchange and the fishing records find
+what the eye sees. **Proposal:** the rest follow as their screens move (`ListView::HitTest` exists), and
 `port/src/ui/menu_mouse.cpp` (1,200 lines, most of them screens' coordinates kept a second time) shrinks
 as each screen's widgets answer for themselves.
 

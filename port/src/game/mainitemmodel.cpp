@@ -13,6 +13,7 @@
 #include "dataalloc.hpp"
 #include "dun/gameloop.hpp"
 #include "frame.hpp"
+#include "item/host.hpp"
 #include "itembombeffect.hpp"
 #include "itemdata.hpp"
 #include "mds.hpp"
@@ -320,7 +321,10 @@ int CActiveItemPack::CheckStatusType() {
             break;
     }
 
-    if ((ITEM_LIST[item_no - ITEM_ATTACH_START].kind_flags & 2) != 0) {
+    const ITEM_DATA *data =
+        item_no >= item::kCustomFirst ? item::CustomItemData(item_no) : &ITEM_LIST[item_no - ITEM_ATTACH_START];
+
+    if (data != nullptr && (data->kind_flags & 2) != 0) {
         return ACTIVE_ITEM_ACTION;
     }
 

@@ -232,6 +232,12 @@ STATIC_ASSERT(sizeof(ITEM_PUT_SET) == 0x208);
 extern ITEM_PUT_SET *ItemPutListPtr[14];
 
 /**
+ * Chance out of a hundred that each item is turned down when drawn, one table of 385 per dungeon. The
+ * compiled loot; the game draws from the loot documents (dungeon/loot.hpp).
+ */
+extern s16 *ItemSetRateTbl[7];
+
+/**
  * Gives the two items the clown offers on one floor.
  */
 void GetPieroItem(int map_no, int ura_dungeon, int *item0, int *item1);

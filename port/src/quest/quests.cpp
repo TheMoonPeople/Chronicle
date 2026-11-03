@@ -1,5 +1,7 @@
 #include "quest/quests.hpp"
 
+#include "quest/documents.hpp"
+
 namespace dc::quest {
 
 const NpcMatch &NoruneMayor() {
@@ -9,15 +11,16 @@ const NpcMatch &NoruneMayor() {
 
 void RegisterAllQuests() {
     Register(MayorSupplies());
-    Register(CarlsSlingshot());
+    RegisterDocuments();
 }
 
 std::vector<std::pair<std::string, std::string>> QuestStrings() {
     std::vector<std::pair<std::string, std::string>> out;
-    for (std::span<const Text> texts : {MayorSuppliesTexts(), CarlsSlingshotTexts()}) {
-        for (const Text &text : texts) {
-            out.emplace_back(text.key, text.english);
-        }
+    for (const Text &text : MayorSuppliesTexts()) {
+        out.emplace_back(text.key, text.english);
+    }
+    for (auto &entry : DocumentStrings()) {
+        out.push_back(std::move(entry));
     }
     return out;
 }

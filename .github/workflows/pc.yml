@@ -110,7 +110,7 @@ jobs:
 
       - name: Package the Windows build
         run: |
-          $files = @('darkcloud.exe', 'dcdata.exe', 'libc++.dll', 'libunwind.dll', 'libwinpthread-1.dll', 'SDL3.dll', 'vulkan-1.dll', 'lang', 'glyphs')
+          $files = @('darkcloud.exe', 'dcdata.exe', 'libc++.dll', 'libunwind.dll', 'libwinpthread-1.dll', 'SDL3.dll', 'vulkan-1.dll', 'lang', 'glyphs', 'assets')
           $files += Get-ChildItem 'port/build/windows' -Filter '*.dll' | Where-Object Name -Match '^(avcodec|avformat|avutil|swresample|swscale)-' | ForEach-Object Name
           $paths = $files | ForEach-Object { Join-Path 'port/build/windows' $_ }
           Compress-Archive -LiteralPath $paths -DestinationPath chronicle-windows-x64.zip

@@ -1,0 +1,41 @@
+{
+  "schema_version": 2,
+  "kind": "item",
+  "id": "chronicle:baron_rod",
+  "kind_flags": 24,
+  "sort_key": 6,
+  "stack_kind": 2,
+  "buy_price": 4000,
+  "sell_price": 2000,
+  "icon": 56,
+  "model": "turisao",
+  "text": {
+    "en_gb": {
+      "name": "Baron Rod",
+      "description": "\"Baron Rod\"\nRuty's best, for the\none who found the Baron."
+    },
+    "de_de": {
+      "name": "Baron-Angel",
+      "description": "\"Baron-Angel\"\nRutys beste. Für den, der\nden Baron gefunden hat."
+    },
+    "es_es": {
+      "name": "Caña Barón",
+      "description": "\"Caña Barón\"\nLa mejor de Ruty, para\nquien encontró al Barón."
+    },
+    "fr_fr": {
+      "name": "Canne Baron",
+      "description": "\"Canne Baron\"\nLa meilleure de Ruty, pour\ncelui qui a trouvé le Baron."
+    },
+    "it_it": {
+      "name": "Canna Barone",
+      "description": "\"Canna Barone\"\nLa migliore di Ruty, per chi\nha trovato il Barone."
+    }
+  },
+  "rod": {
+    "heft": 70,
+    "control": 100,
+    "spring": 80,
+    "balance": 100,
+    "lure": 50
+  }
+}

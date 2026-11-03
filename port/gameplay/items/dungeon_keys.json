@@ -1,0 +1,93 @@
+{
+  "dungeons": [
+    {
+      "back_floor": [
+        "vanilla:tram_oil"
+      ],
+      "dungeon": 0,
+      "floor_exit": [
+        "vanilla:dran_s_crest"
+      ],
+      "locked_door": [
+        "vanilla:bone_key"
+      ]
+    },
+    {
+      "back_floor": [
+        "vanilla:sun_dew"
+      ],
+      "dungeon": 1,
+      "floor_exit": [
+        "vanilla:shiny_stone",
+        "vanilla:red_berry",
+        "vanilla:pointy_chestnut"
+      ],
+      "locked_door": [
+        "vanilla:moustache_key"
+      ]
+    },
+    {
+      "back_floor": [
+        "vanilla:flapping_fish",
+        "vanilla:rotten_fish"
+      ],
+      "dungeon": 2,
+      "floor_exit": [
+        "vanilla:hook"
+      ],
+      "locked_door": [
+        "vanilla:shipcabin_key"
+      ]
+    },
+    {
+      "back_floor": [
+        "vanilla:secret_path_key"
+      ],
+      "dungeon": 3,
+      "floor_exit": [
+        "vanilla:king_s_slate"
+      ],
+      "locked_door": [
+        "vanilla:stone_key"
+      ]
+    },
+    {
+      "back_floor": [
+        "vanilla:bravery_launch"
+      ],
+      "dungeon": 4,
+      "floor_exit": [
+        "vanilla:gun_powder"
+      ],
+      "locked_door": [
+        "vanilla:handle"
+      ]
+    },
+    {
+      "back_floor": [
+        "vanilla:flapping_duster"
+      ],
+      "dungeon": 5,
+      "floor_exit": [
+        "vanilla:clock_hands"
+      ],
+      "locked_door": [
+        "vanilla:pitchdark_key"
+      ]
+    },
+    {
+      "back_floor": [
+        "vanilla:crystal_eyeball"
+      ],
+      "dungeon": 6,
+      "floor_exit": [
+        "vanilla:black_knight_crest"
+      ],
+      "locked_door": [
+        "vanilla:silver_key"
+      ]
+    }
+  ],
+  "kind": "dungeon_keys",
+  "schema_version": 2
+}
